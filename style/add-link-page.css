@@ -1,0 +1,99 @@
+
+.add-link-page {
+    visibility: hidden;
+    opacity: 0;
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100%;
+    width: 100%;
+    padding: 1rem;
+    backdrop-filter: blur(0px);
+    transition: backdrop-filter 0.5s ease-in-out;
+}
+
+
+.add-link-page.active {
+    visibility: visible;
+    opacity: 1;
+    backdrop-filter: blur(16px) brightness(0.75);
+}
+
+.add-link-page .url-bar {
+    padding: 5px;
+    border-radius: 5px;
+    background-color: var(--surface-color);
+}
+
+.add-link-page .url-bar:has(input:focus-visible) {
+    outline: 1.5px solid var(--text-color);
+}
+
+.add-link-page .url-bar:has(input:focus-visible) i {
+    color: var(--accent-color);
+}
+
+.add-link-page .url-bar input {
+    background: none;
+    border: none;
+    color: var(--text-color);
+}
+
+.add-link-page .url-bar input:focus-visible {
+    outline: none;
+}
+
+.add-link-page section:not(#popular-links, .add-link-controls){
+    display: none;
+}
+
+.add-link-page #popular-links .item {
+    flex-direction: column-reverse;
+    gap: 5px;
+}
+
+.add-link-page #popular-links .item .icon {
+    height: 2.25rem;
+    aspect-ratio: 1;
+    padding: 5px;
+    border-radius: 5px;
+    background-color: var(--surface-color);
+}
+
+.add-link-page #popular-links .item .icon img {
+    height: 1.75rem;
+}
+
+.add-link-page .loader {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    display: block;
+    margin: 15px auto;
+    position: relative;
+    color: #FFF;
+    box-sizing: border-box;
+    animation: animloader 2s linear infinite;
+}
+
+@keyframes animloader {
+    0% {
+        box-shadow: 14px 0 0 -2px, 38px 0 0 -2px, -14px 0 0 -2px, -38px 0 0 -2px;
+    }
+
+    25% {
+        box-shadow: 14px 0 0 -2px, 38px 0 0 -2px, -14px 0 0 -2px, -38px 0 0 2px;
+    }
+
+    50% {
+        box-shadow: 14px 0 0 -2px, 38px 0 0 -2px, -14px 0 0 2px, -38px 0 0 -2px;
+    }
+
+    75% {
+        box-shadow: 14px 0 0 2px, 38px 0 0 -2px, -14px 0 0 -2px, -38px 0 0 -2px;
+    }
+
+    100% {
+        box-shadow: 14px 0 0 -2px, 38px 0 0 2px, -14px 0 0 -2px, -38px 0 0 -2px;
+    }
+}

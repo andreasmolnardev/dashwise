@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>dashwise</title>
+    <link rel="stylesheet" href="./style.css">
+    <link rel="stylesheet" href="./style/settings.css">
+    <link rel="stylesheet" href="./style/add-link-page.css">
+    <link rel="stylesheet" href="./style/widgets/widgets.css">
+    <link rel="stylesheet" href="https://cdn.fluenticon.com/icon.min.css" />
+</head>
+
+<body class="">
+    <div class="dashboard">
+        <header class="includes-gap center">
+            <img src="./assets/dashwise-icon.png" alt="" class="logo">
+            <h1>dashwise</h1>
+        </header>
+        <div class="sidebar-right sidebar item">
+            <div class="placeholder-widget widget item"></div>
+            <div class="add-widget edit-page widget item glass hidden">
+                <i class="vf-ic_fluent_add_circle_24_filled"></i>
+                <p>Add Widget</p>
+            </div>
+
+        </div>
+        <main class="container item includes-gap vertical">
+            <div class="info-bar">
+                <div class="chip"></div>
+                <div class="clock" id="time-now"> 12:38 </div>
+                <div class="chip"></div>
+            </div>
+            <label class="search-bar glass center surface">
+                <span><i class="vf-ic_fluent_search_24_filled"></i></span>
+                <input type="text" placeholder="Search">
+            </label>
+
+            <div class="links center vertical">
+                <div class="link-groups">
+                    <div class="link-group item glass">Apps</div>
+                </div>
+                <div class="grid" id="link-grid">
+                    <div class="link item surface glass edit-page hidden" id="add-link">
+                        <p class="link-title">Add a link</p>
+                        <span class="link-icon">
+                            <i class="vf-ic_fluent_globe_add_24_filled"></i>
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="spacer hungred"></div>
+        </main>
+        <div class="sidebar-left sidebar item">
+            <div class="placeholder-widget widget item"></div>
+            <div class="add-widget edit-page widget item glass hidden">
+                <i class="vf-ic_fluent_add_circle_24_filled"></i>
+                <p>Add Widget</p>
+            </div>
+        </div>
+        <div class="tools includes-gap">
+            <label class="item glass" title="Edit" for="edit-dashboard-checkbox"><input type="checkbox"
+                    name="edit-dashboard-checkbox" id="edit-dashboard-checkbox"><i
+                    class="vf-ic_fluent_pen_24_filled"></i></label>
+            <label class="item glass" title="Settings" for="toggle-settings"><input type="checkbox"
+                    name="toggle-settings" id="toggle-settings"><i class="vf-ic_fluent_settings_24_filled"></i></label>
+        </div>
+        <footer>by andreasmolnardev</footer>
+    </div>
+    <div class="settings glass">
+        <h1>Settings</h1>
+        <span>Hit Escape on your keyboard to exit Settings</span>
+        <div class="settings-tabs">
+            <label class="tab item" for="tab-appearance">
+                <input type="radio" name="settings-tabs" id="tab-appearance">
+                <i class="vf-ic_fluent_paint_bucket_24_filled"></i>
+                <span class="title">Appearance</span>
+            </label>
+            <label class="tab item" for="tab-account">
+                <input type="radio" name="settings-tabs" id="tab-account">
+                <i class="vf-ic_fluent_person_24_filled"></i>
+                <span class="title">Account</span>
+            </label>
+            <label class="tab item" for="tab-search">
+                <input type="radio" name="settings-tabs" id="tab-search">
+                <i class="vf-ic_fluent_search_24_filled"></i>
+                <span class="title">Search</span>
+            </label>
+            <label class="tab item" for="tab-widgets">
+                <input type="radio" name="settings-tabs" id="tab-widgets">
+                <i class="vf-ic_fluent_grid_24_filled"></i>
+                <span class="title">Widgets</span>
+            </label>
+            <label class="tab item" for="tab-region">
+                <input type="radio" name="settings-tabs" id="tab-region">
+                <i class="vf-ic_fluent_flag_24_filled"></i>
+                <span class="title">Region and Language</span>
+            </label>
+            <label class="tab item" for="tab-advanced">
+                <input type="radio" name="settings-tabs" id="tab-advanced">
+                <i class="vf-ic_fluent_more_horizontal_24_filled"></i>
+                <span class="title">Advanced</span>
+            </label>
+        </div>
+        <div class="settings-content">
+            <div class="item appearance" id="appearance">
+                <section class="includes-gap vertical">
+                    <h3>Wallpaper</h3>
+                    <div class="gallery center includes-gap">
+                        <div class="picture-frame current item glass center">
+                            <img src="" alt="" id="current-wallpaper-settings">
+                        </div>
+                        <div class="picture-frame link item glass center">
+                            <i class="vf-ic_fluent_link_24_filled"></i>
+                            <p>Add image URL</p>
+                        </div>
+                        <div class="picture-frame upload item glass center">
+                            <i class="vf-ic_fluent_arrow_upload_24_filled"></i>
+                            <p>Upload image</p>
+                        </div>
+                    </div>
+                </section>
+                <section>
+                    <h3>Accent Color</h3>
+                </section>
+            </div>
+            <div class="item account" id="account"></div>
+            <div class="item search" id="search"></div>
+            <div class="item widgets" id="widgets"></div>
+            <div class="item region" id="region"></div>
+            <div class="item advanced" id="advanced"></div>
+        </div>
+    </div>
+    <div class="add-link-page glass center">
+        <div class="content includes-gap vertical">
+            <h2>Add a link</h2>
+            <div class="url-bar includes-gap glass">
+                <i class="vf-ic_fluent_link_24_filled"></i>
+                <input type="text" id="new-link-url" placeholder="Enter or paste your link here">
+            </div>
+            <section id="popular-links" class="includes-gap vertical">
+                <p>Popular webpages</p>
+                <div class="popular-webpages-grid includes-gap">
+                    <div class="item center" data-target="https://youtube.com">
+                        <p class="title">YouTube</p>
+                        <span class="icon glass center"><img
+                                src="https://kd18ubpw0r.ufs.sh/f/r61QPPjtKN5e0n7e9gpDArE3R0HpswS5KZyP4LixoF6WBnqg"
+                                alt="">
+                        </span>
+                    </div>
+                    <div class="item center" data-target="https://chatgpt.com">
+                        <p class="title">ChatGPT</p>
+                        <span class="icon glass center"><img
+                                src="https://i.pinimg.com/originals/ea/61/e9/ea61e9426c94cb4debc07e29a11fa615.png"
+                                alt="">
+                        </span>
+                    </div>
+                    <div class="item center" data-target="https://wikipedia.com">
+                        <p class="title">Wikipedia</p>
+                        <span class="icon glass center"><img
+                                src="https://static-00.iconduck.com/assets.00/wikipedia-icon-2048x2048-v2mq8jg6.png"
+                                alt="">
+                        </span>
+                    </div>
+                    <div class="item center" data-target="https://reddit.com">
+                        <p class="title">Reddit</p>
+                        <span class="icon glass center"><img
+                                src="https://uxwing.com/wp-content/themes/uxwing/download/brands-and-social-media/reddit-square-color-icon.svg"
+                                alt="">
+                        </span>
+                    </div>
+                </div>
+            </section>
+            <section class="loader"></section>
+            <section class="add-link-controls flex-end" style="gap: 5px;">
+                <button class="close">Cancel</button>
+                <button disabled="disabled">Add</button>
+            </section>
+        </div>
+    </div>
+    <script src="./script.js" type="module"></script>
+</body>
+
+</html>

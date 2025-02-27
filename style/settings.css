@@ -1,0 +1,92 @@
+.settings {
+    visibility: hidden;
+    opacity: 0;
+    display: grid;
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100%;
+    width: 100%;
+    grid-template-columns: auto 1fr;
+    gap: 15px;
+    grid-template-rows: min-content min-content 1fr;
+    padding: 1rem;
+    backdrop-filter: blur(0px);
+    transition: backdrop-filter 0.5s ease-in-out;
+}
+
+.settings > :is(h1, div){
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s ease-in-out, visibility 0s linear 1s;
+}
+
+.settings.active {
+    visibility: visible;
+    opacity: 1;
+    backdrop-filter: blur(16px) brightness(0.75);
+}
+
+
+.settings.active > :is(h1, div, span, label){
+    opacity: 1;
+    visibility: visible;
+    transition-delay: 0.4s; 
+}
+
+.settings > :is(h1, span) {
+    grid-column: span 2;
+}
+
+.settings-tabs {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.settings-tabs .item {
+    min-width: 300px;
+    width: fit-content;
+    min-height: 3.25rem;
+    border-radius: 10px;
+    display: grid;
+    align-items: center;
+    grid-template-columns: 5rem 1fr;
+    background-color: var(--surface-color);
+}
+
+.settings-tabs .item:has(input:checked) i {
+    color: var(--accent-color);
+}
+
+.settings-tabs .item i {
+    justify-self: center;
+    font-size: 1.5rem;
+}
+
+.settings-tabs .item input[type="radio"] {
+    display: none;
+}
+
+.settings-tabs .item:hover i {
+    color: var(--accent-color);
+}
+
+.settings-content > .item:not(.active){
+    display: none;
+}
+
+#appearance .gallery .item{
+    height: 7.5rem;
+    min-width: 12rem;
+    flex-direction: column;
+    border-radius: 12px;
+}
+
+#appearance .picture-frame i{
+    font-size: 1.75rem;
+}
+
+#appearance .picture-frame:hover i{
+    color: var(--accent-color);
+}
