@@ -49,6 +49,9 @@
 
 .add-link-page section:not(.add-link-controls).active{
     display: flex;
+}
+
+.add-link-page section#popular-links{
     flex-direction: column;
 }
 
@@ -101,4 +104,13 @@
     100% {
         box-shadow: 14px 0 0 -2px, 38px 0 0 2px, -14px 0 0 -2px, -38px 0 0 -2px;
     }
+}
+
+.add-link-page section.link-options.active{
+    display: grid;
+    grid-template-columns: 1fr 8rem;
+}
+
+.add-link-page section.link-options .details .input-wrapper{
+    min-width: 235px;
 }

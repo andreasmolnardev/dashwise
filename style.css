@@ -239,14 +239,16 @@ p {
     align-items: center;
 }
 
-.dashboard .links .grid>.item {
+:is(.dashboard .links .grid>.item, .add-link-page .preview .item) {
     min-height: 5rem;
+    min-width: 7rem;
 }
 
 :is(.dashboard .link, .add-link-page .preview .item) {
     display: grid;
     grid-template-rows: 1fr auto;
     align-items: center;
+    
 }
 
 :is(.dashboard .link, .add-link-page .preview .item):hover span.link-icon {
@@ -259,6 +261,7 @@ p {
 }
 
 :is(.dashboard .link, .add-link-page .preview .item) img {
+    max-width: 3rem;
     margin-inline: auto;
     max-height: 2.6rem;
 }

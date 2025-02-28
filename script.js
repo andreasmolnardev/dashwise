@@ -84,24 +84,71 @@ function init(config) {
     const commonregex = /^(?:(?:https?):\/\/)?(?:[a-zA-Z0-9-]+\.)+(?:(?:com)|(?:ai)|(?:de)|(?:org)|(?:net)|(?:st)|(?:ca)|(?:uk)|(?:fr)|(?:br)|(?:io)|(?:horse)|(?:dev))(?::\d{1,5})?(?:\/\S*)?$/;
 
     const popularLinksSection = document.getElementById("popular-links")
+
+    Array.from(popularLinksSection.querySelectorAll(".popular-webpages-grid .item")).forEach(item => {
+        item.addEventListener('click', () => {
+
+            newLinkUrl.dispatchEvent(new CustomEvent("keyup", {
+                detail: {
+                    trigger: "popular-link",
+                    title: item.querySelector("p.title").textContent,
+                    linkUrl: item.dataset.target,
+                    imgUrl: item.querySelector("img").src
+                }
+            }))
+
+        })
+    })
+
+    //event for all "popular links" to enter details when clicked on
+
     const linkDetailLoader = document.querySelector(".add-link-page section.loader");
-    const linkDetailSection = document.querySelector("link-options")
+    const linkDetailSection = document.querySelector(".link-options")
 
-    newLinkUrl.addEventListener('keyup', () => {
+    const linkDetailTitle = linkDetailSection.querySelector(".details #new-link-title")
+    const linkIconUrl = linkDetailSection.querySelector(".details #new-link-icon-url")
+
+    //event gets triggered when manual inputs are taken for the new link's URL bar
+    newLinkUrl.addEventListener('keyup', (event) => {
         //add code here
-        popularLinksSection.classList.remove("active")
 
-        if (commonregex.test(newLinkUrl.value)) {
-            linkDetailLoader.classList.remove("active")
-            linkDetailSection.classList.add("active")
+        popularLinksSection.classList.remove("active");
+        console.log(event)
+
+        if (event.detail && event.detail.trigger == "popular-link") {
+
+            linkDetailLoader.classList.remove("active");
+            linkDetailSection.classList.add("active");
+
+            newLinkUrl.value = event.detail.linkUrl;
+            linkDetailTitle.value = event.detail.title;
+            linkIconUrl.value = event.detail.imgUrl;
+
+            linkDetailSection.querySelector(".preview .link-title").textContent = event.detail.title
+            linkDetailSection.querySelector(".preview .link-icon img").src = event.detail.imgUrl
+
+        } else if (commonregex.test(newLinkUrl.value)) {
+
+            linkDetailLoader.classList.remove("active");
+            linkDetailSection.classList.add("active");
 
             getPageInfo(newLinkUrl.value).then(data => {
                 console.log(data)
+
+                //fill out data
+                linkDetailTitle.value = data.title;
+                linkIconUrl.value = data.image;
+
+                linkDetailSection.querySelector(".preview .link-title").textContent = data.title
+                linkDetailSection.querySelector(".preview .link-icon img").src = data.image
+    
             })
 
         } else {
-            linkDetailLoader.classList.remove("active")
+            linkDetailLoader.classList.add("active")
         }
+
+        
     })
 
 }

@@ -1,4 +1,4 @@
-import { DEFAULT_CONFIG } from "./default"
+import { DEFAULT_CONFIG } from "./default.js"
 
 export function getConfig(){
     if (localStorage.getItem("config")) {
