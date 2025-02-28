@@ -104,13 +104,11 @@ export function init(config) {
 
     //event gets triggered when manual inputs are taken for the new link's URL bar
     newLinkUrl.addEventListener('keyup', (event) => {
-        
+        //add code here
+
         popularLinksSection.classList.remove("active");
 
-        if (!newLinkUrl.value) {
-            popularLinksSection.classList.add("active");
-            linkDetailLoader.classList.remove("active");
-        } else if (event.detail && event.detail.trigger == "popular-link") {
+        if (event.detail && event.detail.trigger == "popular-link") {
 
             linkDetailLoader.classList.remove("active");
             linkDetailSection.classList.add("active");
@@ -128,6 +126,7 @@ export function init(config) {
             linkDetailSection.classList.add("active");
 
             getPageInfo(newLinkUrl.value).then(data => {
+                console.log(data)
 
                 //fill out data
                 linkDetailTitle.value = data.title;
@@ -137,6 +136,11 @@ export function init(config) {
                 linkDetailSection.querySelector(".preview .link-icon img").src = data.image
 
             })
+
+        } else if (newLinkUrl.value == "") {
+            popularLinksSection.classList.add("active");
+            linkDetailLoader.classList.remove("active");
+            linkDetailSection.classList.remove("active");
 
         } else {
             linkDetailLoader.classList.add("active")
