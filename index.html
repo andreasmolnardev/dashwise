@@ -136,11 +136,11 @@
     <div class="add-link-page glass center">
         <div class="content includes-gap vertical">
             <h2>Add a link</h2>
-            <div class="url-bar includes-gap glass">
+            <div class="url-bar input-wrapper includes-gap glass">
                 <i class="vf-ic_fluent_link_24_filled"></i>
                 <input type="text" id="new-link-url" placeholder="Enter or paste your link here">
             </div>
-            <section id="popular-links" class="includes-gap vertical">
+            <section id="popular-links" class="active includes-gap vertical">
                 <p>Popular webpages</p>
                 <div class="popular-webpages-grid includes-gap">
                     <div class="item center" data-target="https://youtube.com">
@@ -174,6 +174,26 @@
                 </div>
             </section>
             <section class="loader"></section>
+            <section class="link-options">
+                <div class="details">
+                    <div class="input-wrapper hidden">
+                        <input type="text" id="target-link"></input>
+                    </div>
+                    <div class="input-wrapper glass includes-gap">
+                        <i class="vf-ic_fluent_text_t_24_filled"></i>
+                        <input type="text" id="new-link-title">
+                    </div>
+                    <div class="input-wrapper glass includes-gap">
+                        <input type="text" id="new-link-icon-url">
+                    </div>
+                </div>
+                <div class="preview">
+                    <a class="link item surface glass" href="${link.url}">
+                        <p class="link-title">${link.title}</p>
+                        <span class="link-icon center"><img src="${link.iconUrl}" alt=""></span>
+                    </a>
+                </div>
+            </section>
             <section class="add-link-controls flex-end" style="gap: 5px;">
                 <button class="close">Cancel</button>
                 <button disabled="disabled">Add</button>

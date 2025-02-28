@@ -243,27 +243,27 @@ p {
     min-height: 5rem;
 }
 
-.dashboard .link {
+:is(.dashboard .link, .add-link-page .preview .item) {
     display: grid;
     grid-template-rows: 1fr auto;
     align-items: center;
 }
 
-.dashboard .link:hover span.link-icon {
+:is(.dashboard .link, .add-link-page .preview .item):hover span.link-icon {
     color: var(--highlight-color);
 }
 
-.dashboard .link span {
+:is(.dashboard .link, .add-link-page .preview .item) span {
     grid-row: 1;
     font-size: 2.5rem;
 }
 
-.dashboard .link img {
+:is(.dashboard .link, .add-link-page .preview .item) img {
     margin-inline: auto;
     max-height: 2.6rem;
 }
 
-.dashboard .link p {
+:is(.dashboard .link, .add-link-page .preview .item) p {
     grid-row: 2;
 }
 

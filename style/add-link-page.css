@@ -19,7 +19,7 @@
     backdrop-filter: blur(16px) brightness(0.75);
 }
 
-.add-link-page .url-bar {
+.add-link-page .input-wrapper {
     padding: 5px;
     border-radius: 5px;
     background-color: var(--surface-color);
@@ -33,18 +33,23 @@
     color: var(--accent-color);
 }
 
-.add-link-page .url-bar input {
+.add-link-page .input-wrapper input {
     background: none;
     border: none;
     color: var(--text-color);
 }
 
-.add-link-page .url-bar input:focus-visible {
+.add-link-page .input-wrapper input:focus-visible {
     outline: none;
 }
 
-.add-link-page section:not(#popular-links, .add-link-controls){
+.add-link-page section:not(.add-link-controls){
     display: none;
+}
+
+.add-link-page section:not(.add-link-controls).active{
+    display: flex;
+    flex-direction: column;
 }
 
 .add-link-page #popular-links .item {

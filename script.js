@@ -1,33 +1,10 @@
 
 //get config from file
 
+import { getConfig } from "./config/get.js";
+import { getPageInfo } from "./move-to-backend/link-preview.js";
 import { showActiveTab } from "./settings/tab-controls.js";
 import { displayTime } from "./widgets/clock.js";
-
-let _config = {
-    links: [
-        {
-            title: "Google",
-            url: "https://google.com",
-            iconUrl: "https://i.pinimg.com/originals/c8/b8/12/c8b8129127bada9fa699aeba388b3b2b.png",
-            linkGroup: 0
-        }
-    ],
-
-    linkGroups: [
-        {
-            id: 0,
-            name: "Apps"
-        }
-    ],
-
-    localSettings: {
-        tz: "auto",
-        timeFormat: "HH:MM",
-        dateFormat: ["TT", "MM", "JJ"]
-    }
-
-}
 
 
 
@@ -82,7 +59,7 @@ function init(config) {
                     settings.style.opacity = "";
                 }, 800);
 
-            } else if (addLinkPage.classList.contains("active")){
+            } else if (addLinkPage.classList.contains("active")) {
                 setTimeout(() => {
                     addLinkPage.classList.remove("active");
 
@@ -104,14 +81,32 @@ function init(config) {
     })
 
     const newLinkUrl = addLinkPage.querySelector("#new-link-url")
+    const commonregex = /^(?:(?:https?):\/\/)?(?:[a-zA-Z0-9-]+\.)+(?:(?:com)|(?:ai)|(?:de)|(?:org)|(?:net)|(?:st)|(?:ca)|(?:uk)|(?:fr)|(?:br)|(?:io)|(?:horse)|(?:dev))(?::\d{1,5})?(?:\/\S*)?$/;
 
-    newLinkUrl.addEventListener('keydown', () => {
+    const popularLinksSection = document.getElementById("popular-links")
+    const linkDetailLoader = document.querySelector(".add-link-page section.loader");
+    const linkDetailSection = document.querySelector("link-options")
+
+    newLinkUrl.addEventListener('keyup', () => {
         //add code here
+        popularLinksSection.classList.remove("active")
+
+        if (commonregex.test(newLinkUrl.value)) {
+            linkDetailLoader.classList.remove("active")
+            linkDetailSection.classList.add("active")
+
+            getPageInfo(newLinkUrl.value).then(data => {
+                console.log(data)
+            })
+
+        } else {
+            linkDetailLoader.classList.remove("active")
+        }
     })
 
 }
 
-init(_config);
+init(getConfig());
 
 //toggle page edit mode
 
