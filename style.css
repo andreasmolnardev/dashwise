@@ -180,6 +180,9 @@ p {
     width: 0px;
     overflow: hidden;
     opacity: 0;
+    top: 0px;
+    left: 0px;
+    pointer-events: none;
 }
 
 .dashboard .logo {

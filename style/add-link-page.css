@@ -109,6 +109,7 @@
 .add-link-page section.link-options.active{
     display: grid;
     grid-template-columns: 1fr 8rem;
+    gap: 10px;
 }
 
 .add-link-page section.link-options .details .input-wrapper{
