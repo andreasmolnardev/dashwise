@@ -3,7 +3,9 @@
 
 import { getConfig } from "./config/get.js";
 import { init } from "./init/init.js";
+import { getPageInfo } from "./move-to-backend/link-preview.js";
 
+console.log(getConfig())
 init(getConfig());
 
 //toggle page edit mode
@@ -28,5 +30,7 @@ toggleSettingsCheckbox.addEventListener("change", () => {
 //add new link
 
 const addLinkBtn = document.getElementById("add-link")
+
+
 
 addLinkBtn.addEventListener('click', () => { document.querySelector(".add-link-page").classList.toggle("active") })

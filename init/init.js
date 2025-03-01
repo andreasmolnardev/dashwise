@@ -1,3 +1,4 @@
+import { changeConfig } from "../config/change-config.js";
 import { getPageInfo } from "../move-to-backend/link-preview.js";
 import { showActiveTab } from "../settings/tab-controls.js";
 import { displayTime } from "../widgets/clock.js";
@@ -7,6 +8,7 @@ export function init(config) {
     const linkGroupContainer = document.getElementById('link-group-container');
     const addLinkGroupSelect = document.getElementById('linkgroup-select')
 
+    //add link groups
     config.linkGroups.forEach(linkGroup => {
         linkGroupContainer.insertAdjacentHTML('beforeend', /*html*/`
             <div class="link-group item glass" data-id="">${linkGroup.name}</div>
@@ -19,7 +21,7 @@ export function init(config) {
         }
 
         addLinkGroupSelect.insertAdjacentHTML('beforeend', /*html*/`
-            <option value="${linkGroup.id}">${optionTitle}</option>
+            <option value="group-${linkGroup.id}">${optionTitle}</option>
             
             ` )
     })
@@ -124,6 +126,8 @@ export function init(config) {
     const linkDetailTitle = linkDetailSection.querySelector(".details #new-link-title")
     const linkIconUrl = linkDetailSection.querySelector(".details #new-link-icon-url")
 
+    const linkAddBtn = document.getElementById("link-add-btn")
+
     //event gets triggered when manual inputs are taken for the new link's URL bar
     newLinkUrl.addEventListener('keyup', (event) => {
         //add code here
@@ -142,22 +146,26 @@ export function init(config) {
             linkDetailSection.querySelector(".preview .link-title").textContent = event.detail.title
             linkDetailSection.querySelector(".preview .link-icon img").src = event.detail.imgUrl
 
+            linkDetailSection.dispatchEvent(new Event("input"))
+
         } else if (commonregex.test(newLinkUrl.value)) {
 
             linkDetailLoader.classList.remove("active");
             linkDetailSection.classList.add("active");
 
-            getPageInfo(newLinkUrl.value).then(data => {
+            getPageInfo("https://" + newLinkUrl.value.replace("https://", "")).then(data => {
                 console.log(data)
 
                 //fill out data
                 linkDetailTitle.value = data.title;
-                linkIconUrl.value = data.image;
+                linkIconUrl.value = data.icon;
 
                 linkDetailSection.querySelector(".preview .link-title").textContent = data.title
-                linkDetailSection.querySelector(".preview .link-icon img").src = data.image
+                linkDetailSection.querySelector(".preview .link-icon img").src = data.icon
 
             })
+
+            linkDetailSection.dispatchEvent(new Event("input"))
 
         } else if (newLinkUrl.value == "") {
             popularLinksSection.classList.add("active");
@@ -177,10 +185,29 @@ export function init(config) {
 
         linkIconUrl.addEventListener('change', () => {
             linkDetailSection.querySelector(".preview .link-icon img").src = linkIconUrl.value
-        })
-
-        //check whether the form
-
+        })        
     })
+
+    linkDetailSection.addEventListener('input', () => {
+        if (linkIconUrl.value && linkDetailTitle.value && addLinkGroupSelect.value) {
+            linkAddBtn.disabled = false;
+        }
+    }) 
+
+    linkAddBtn.addEventListener('click', () => {
+        if (newLinkUrl.value && linkIconUrl.value && linkDetailTitle.value && addLinkGroupSelect.value) {
+            changeConfig("links", "add", {
+                title:  linkDetailTitle.value ,
+                url: newLinkUrl.value,
+                iconUrl: linkIconUrl.value,
+                linkGroup: addLinkGroupSelect.value.replace("group-", "")
+            })
+
+            location.reload();
+        } else {
+            alert("Could not add the link. Fill out every required field.")
+        }
+    })
+
 
 }
