@@ -3,8 +3,29 @@ import { showActiveTab } from "../settings/tab-controls.js";
 import { displayTime } from "../widgets/clock.js";
 
 export function init(config) {
-    const linkGridContainer = document.getElementById("link-grid");
 
+    const linkGroupContainer = document.getElementById('link-group-container');
+    const addLinkGroupSelect = document.getElementById('linkgroup-select')
+
+    config.linkGroups.forEach(linkGroup => {
+        linkGroupContainer.insertAdjacentHTML('beforeend', /*html*/`
+            <div class="link-group item glass" data-id="">${linkGroup.name}</div>
+            ` )
+
+        let optionTitle = linkGroup.name
+
+        if (linkGroup.isDefault) {
+            optionTitle + " (default)"
+        }
+
+        addLinkGroupSelect.insertAdjacentHTML('beforeend', /*html*/`
+            <option value="${linkGroup.id}">${optionTitle}</option>
+            
+            ` )
+    })
+
+
+    const linkGridContainer = document.getElementById("link-grid");
     config.links.forEach(link => {
         linkGridContainer.insertAdjacentHTML("afterbegin", /*html*/`
             <a class="link item surface glass" href="${link.url}">
@@ -14,6 +35,7 @@ export function init(config) {
             `)
     })
 
+    //display time
     setInterval(() => { displayTime(config.localSettings.timeFormat) }, 250);
 
     const settingsTabsRadio = document.querySelectorAll('.settings-tabs .item input[type="radio"]')
@@ -147,6 +169,15 @@ export function init(config) {
         }
 
         //Add event listeners for when the detail values change so that the preview changes as well
+
+        linkDetailTitle.addEventListener('change', () => {
+            console.log("title change")
+            linkDetailSection.querySelector(".preview .link-title").textContent = linkDetailTitle.value
+        })
+
+        linkIconUrl.addEventListener('change', () => {
+            linkDetailSection.querySelector(".preview .link-icon img").src = linkIconUrl.value
+        })
 
         //check whether the form
 

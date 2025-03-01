@@ -25,11 +25,11 @@
     background-color: var(--surface-color);
 }
 
-.add-link-page .url-bar:has(input:focus-visible) {
+.add-link-page .input-wrapper:has(input:focus-visible) {
     outline: 1.5px solid var(--text-color);
 }
 
-.add-link-page .url-bar:has(input:focus-visible) i {
+.add-link-page .input-wrapper:is(:has(input:focus-visible), :hover) i {
     color: var(--accent-color);
 }
 

@@ -11,7 +11,8 @@ export const DEFAULT_CONFIG = {
     linkGroups: [
         {
             id: 0,
-            name: "Apps"
+            name: "Apps",
+            isDefault: true
         }
     ],
 
