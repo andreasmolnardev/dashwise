@@ -83,7 +83,7 @@ export default async function runBackgroundJobs() {
                 if (!token || !serverUrl) return;
 
                 const bookmarks = await KarakeepSearchItems({serverUrl, token, allowInsecureCerts:  config.allowInsecureCertsForIntegrationUrls});
-
+                searchItems.push(...bookmarks);
             }
 
             const desiredJson = mapSearchItemsToJSON(searchItems);
