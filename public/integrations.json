@@ -1,0 +1,22 @@
+{
+    "dashwise": [
+        {
+            "name": "News",
+            "description": "Subscribe to RSS feeds, filtered by topics"
+        },
+        {
+            "name": "Notifications",
+            "description": "Receive alerts via topic-based PUSH requests"
+        }
+    ],
+    "bookmarks": [
+        {
+            "name": "Karakeep",
+            "description": "Integration for Karakeep",
+            "properties": {
+                "server_location": "as:string",
+                "api_token": "as:string"
+            }
+        }
+    ]
+}

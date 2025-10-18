@@ -1,0 +1,87 @@
+"use client";
+
+import React, { useState } from "react";
+import { useConfig } from "@/context/ConfigContext";
+import { Button } from "@/components/ui/button";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { DialogClose } from "@/components/ui/dialog";
+
+type Props = {
+  onDeleted?: () => void | Promise<void>;
+};
+
+export default function DeleteUnusedLinkGroupsFormComponent({ onDeleted }: Props) {
+  const { refreshConfig } = useConfig();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setSuccess(null);
+    setLoading(true);
+
+    try {
+      const token = localStorage.getItem("pb_token");
+      if (!token) throw new Error("Not authenticated");
+
+      const res = await fetch("/api/v1/config/delete-unused-linkgroups", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      // attempt to parse json if present
+      let json: any = {};
+      try {
+        json = await res.json();
+      } catch {}
+
+      if (!res.ok) {
+        throw new Error(json?.error || `Request failed with status ${res.status}`);
+      }
+
+      setSuccess("Unused link groups deleted.");
+      await refreshConfig();
+
+      if (onDeleted) await onDeleted();
+    } catch (err: any) {
+      setError(err?.message || "Failed to delete unused link groups");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="grid gap-4">
+      {error && (
+        <Alert className="mb-2" variant="destructive">
+          <AlertTitle>Error</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
+      {success && (
+        <Alert className="mb-2">
+          <AlertTitle>Success</AlertTitle>
+          <AlertDescription>{success}</AlertDescription>
+        </Alert>
+      )}
+
+      <div className="flex gap-2 justify-end">
+        <DialogClose asChild>
+          <Button variant="outline" type="button" disabled={loading}>
+            Cancel
+          </Button>
+        </DialogClose>
+
+        <Button type="submit" disabled={loading}>
+          {loading ? "Deleting..." : "Delete unused"}
+        </Button>
+      </div>
+    </form>
+  );
+}

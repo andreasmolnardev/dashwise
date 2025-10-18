@@ -1,0 +1,156 @@
+import { getServerPB } from '@/lib/pb';
+import { NextResponse } from 'next/server';
+import { AuthModel, ClientResponseError } from 'pocketbase';
+
+export async function GET(request: Request) {
+  try {
+    const authHeader = request.headers.get('authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const token = authHeader.split(' ')[1];
+    const pb = getServerPB();
+    pb.authStore.save(token, null);
+
+    let authModel;
+
+    try {
+      authModel = await pb.collection('users').authRefresh();
+    } catch (error) {
+      if (error instanceof ClientResponseError && error.status === 401) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      }
+      
+      throw error;
+    }
+
+    const configRecord = await pb.collection('userConfig').getFirstListItem(
+      `associatedUserId="${authModel.record.id}"`
+    );
+
+    return NextResponse.json(configRecord.config);
+  } catch (error) {
+    console.error('Error fetching config:', error);
+    return NextResponse.json({ error: 'Failed to fetch config' }, { status: 500 });
+  }
+}
+
+export async function POST(request: Request) {
+
+  try {
+    // 1. authenticate
+    const authHeader = request.headers.get('authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const token = authHeader.split(' ')[1];
+    const pb = getServerPB();
+    pb.authStore.save(token, null);
+    const authModel = await pb.collection('users').authRefresh();
+    if (!authModel) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // 2. parse query + body
+    const url = new URL(request.url);
+    const path = url.searchParams.get('path');
+    if (!path) {
+      return NextResponse.json(
+        { error: 'Missing query parameter: path' },
+        { status: 400 }
+      );
+    }
+    const req = await request.json();
+    const newItem = req.newItem;
+
+    // 3. fetch & mutate existing config
+    const record = await pb
+      .collection('userConfig')
+      .getFirstListItem(`associatedUserId="${authModel.record.id}"`);
+
+    const config = record.config as Record<string, any>;
+    if (!Array.isArray(config[path])) {
+      return NextResponse.json(
+        { error: `Config key "${path}" is not an array` },
+        { status: 400 }
+      );
+    }
+    config[path].push(newItem);
+
+    // 4. persist back to PocketBase
+    await pb
+      .collection('userConfig')
+      .update(record.id, { config });
+
+    return NextResponse.json({
+      success: true,
+      updatedPath: path,
+      newItem,
+    });
+  } catch (err) {
+    console.error('Error updating config:', err);
+    return NextResponse.json(
+      { error: 'Failed to update config' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PATCH(request: Request) {
+
+  try {
+    // 1. authenticate
+    const authHeader = request.headers.get('authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const token = authHeader.split(' ')[1];
+    const pb = getServerPB();
+    pb.authStore.save(token, null);
+    const authModel = await pb.collection('users').authRefresh();
+    if (!authModel) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // 2. parse query + body
+    const url = new URL(request.url);
+    const path = url.searchParams.get('path');
+    if (!path) {
+      return NextResponse.json(
+        { error: 'Missing query parameter: path' },
+        { status: 400 }
+      );
+    }
+    const res = await request.json();
+    const newItem = res.updatedItem
+
+    // 3. fetch & mutate existing config
+    const record = await pb
+      .collection('userConfig')
+      .getFirstListItem(`associatedUserId="${authModel.record.id}"`);
+
+    const config = record.config as Record<string, any>;
+
+    config[path] = newItem;
+
+    console.log(JSON.stringify(config))
+
+    // 4. persist back to PocketBase
+    await pb
+      .collection('userConfig')
+      .update(record.id, { config });
+
+    return NextResponse.json({
+      success: true,
+      updatedPath: path,
+      newItem,
+    });
+  } catch (err) {
+    console.error('Error updating config:', err);
+    return NextResponse.json(
+      { error: 'Failed to update config' },
+      { status: 500 }
+    );
+  }
+}

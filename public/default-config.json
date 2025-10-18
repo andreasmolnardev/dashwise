@@ -1,0 +1,68 @@
+{
+    "global": {
+        "language": "en",
+        "locale": "de-DE",
+        "timeFormat": "24-hour",
+        "dateFormat": "DD-MM-YYYY",
+        "weatherUnit": "c",
+        "weatherLocation": "{'lat':'48.133716690534804','lon':'11.584396056686236','name':'Munich'}"
+    },
+    "appearance": {
+        "backgroundImageUrl": "/dashboard-wallpaper.png"
+    },
+    "pages": [
+        "home"
+    ],
+    "glanceables": [
+        {
+           "type": "weather",
+           "displayLocation": "true"
+        },
+        {
+            "type": "date",
+            "format": "ddd DD-MM-YYYY"
+        }
+    ],
+    "links": [
+        {
+            "name": "Google",
+            "url": "https://google.com",
+            "icon": "/icons/svg/google.svg",
+            "linkGroup": "internet"
+        },
+        {
+            "name": "GitHub",
+            "url": "https://github.com",
+            "icon": "/icons/svg/github.svg",
+            "linkGroup": "internet"
+        },
+        {
+            "name": "Twitter",
+            "url": "https://twitter.com",
+            "icon": "/icons/svg/twitter.svg",
+            "linkGroup": "internet"
+        },
+        {
+            "name": "Reddit",
+            "url": "https://reddit.com",
+            "icon": "/icons/svg/reddit.svg",
+            "linkGroup": "internet"
+        },
+        {
+            "name": "Dashwise",
+            "url": "https://dashwise.com",
+            "icon": "/icons/svg/",
+            "linkGroup": "dashwise"
+        },
+        {
+            "name": "Documentation",
+            "url": "https://docs.dashwise.com",
+            "icon": "/icons/svg/",
+            "linkGroup": "dashwise"
+        }
+    ],
+    "linkGroups": [
+        "internet",
+        "dashwise"
+    ]
+}

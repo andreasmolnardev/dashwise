@@ -1,0 +1,105 @@
+"use client";
+import Link from "next/link";
+import { useConfig } from "@/context/ConfigContext";
+import { faHome, faInbox, faKey, faShareNodes } from "@fortawesome/free-solid-svg-icons";
+import { usePathname } from "next/navigation";
+import { Label } from "@/components/ui/label";
+import { useEffect, useRef, useState } from "react";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+
+
+const navItems = [
+    { href: "/notifications/inbox", label: "Inbox", icon: faInbox },
+    { href: "/notifications/forwarders", label: "Forwarders", icon: faShareNodes },
+    { href: "/notifications/tokens", label: "Tokens", icon: faKey },
+];
+
+export default function NotificationsLayoutComponent({ children }: { children: React.ReactNode }) {
+    const { config, refreshConfig } = useConfig();
+    const pathname = usePathname();
+    const activeBgRef = useRef<HTMLDivElement | null>(null);
+    const [unreadCount, setUnreadCount] = useState<number>(0);
+
+    useEffect(() => {
+        const fetchNotifications = async () => {
+            const token = localStorage.getItem("pb_token");
+            if (!token) return;
+
+            try {
+                const res = await fetch(`/api/v1/notifications?count=true`, {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                    },
+                });
+                if (!res.ok) throw new Error("Failed to fetch notifications");
+                const data = await res.json();
+                setUnreadCount(data.unread || 0);
+            } catch (err) {
+                console.error(err);
+            }
+        };
+
+        fetchNotifications();
+    }, [config.baseUrl]);
+
+    useEffect(() => {
+        const activeEl = document.querySelector<HTMLElement>(`.settings-label-div[data-href="${pathname}"]`);
+        if (activeEl && activeBgRef.current) {
+            const { offsetTop, offsetHeight } = activeEl;
+            activeBgRef.current.style.top = offsetTop + "px";
+            activeBgRef.current.style.height = offsetHeight + "px";
+        }
+    }, [pathname]);
+
+    return (
+        <div className="flex h-dvh bg-(--surface) backdrop-blur-[5px] backdrop-brightness-85 text-white p-8">
+            <div className="w-[30%]">
+                <h1 className="scroll-m-20 text-4xl font-bold tracking-tight text-balance">Notifications</h1>
+
+                <div className="relative flex flex-col h-[calc(100%-35px)] justify-between py-4">
+                    <div className="space-y-1">
+                        <div
+                            ref={activeBgRef}
+                            className="absolute left-0 w-[90%] rounded-md bg-white/20 transition-all duration-300"
+                            style={{ zIndex: 0 }}
+                        />
+
+                        {navItems.map((item) => (
+                            <Link key={item.href} href={item.href} className="block group">
+                                <div
+                                    className={`flex items-center justify-between p-2 settings-label-div round-md relative ${pathname === item.href ? "font-bold" : ""}`}
+                                    data-href={item.href}
+                                >
+                                    <div className="flex items-center space-x-2">
+                                        <FontAwesomeIcon icon={item.icon} className="text-lg group-hover:text-(--primary)" />
+                                        <Label>{item.label}</Label>
+                                    </div>
+
+                                    {/* Show unread badge only for Inbox */}
+                                    {item.href === "/notifications/inbox" && unreadCount > 0 && (
+                                        <span className="ml-2 px-2 py-0.5 mr-10 bg-(--primary) rounded-full text-xs font-bold">
+                                            {unreadCount}
+                                        </span>
+                                    )}
+                                </div>
+                            </Link>
+                        ))}
+                    </div>
+
+                    <Link key="/home" href="/home" className="block group">
+                        <div
+                            className={`flex items-center space-x-2 p-2 settings-label-div round-md relative`}
+                            data-href="/home"
+                        >
+                            <FontAwesomeIcon icon={faHome} className=" group-hover:text-(--primary)" />
+                            <Label>Back Home</Label>
+                        </div>
+                    </Link>
+                </div>
+
+            </div>
+
+            <div className="flex-1 overflow-y-auto">{children}</div>
+        </div>
+    );
+}

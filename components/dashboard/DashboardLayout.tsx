@@ -1,0 +1,96 @@
+"use client";
+
+import { useConfig } from "@/context/ConfigContext";
+import ClockWidget from "../widgets/ClockWidget";
+import SearchBar from "../widgets/SearchBar";
+import LinkView from "../widgets/LinkView";
+import GlanceableComponent from "../glanceables/Glanceable";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faBell, faGear } from "@fortawesome/free-solid-svg-icons";
+import PagesTabs from "../PagesTabs";
+
+export default function DashboardLayoutComponent(
+  children: React.PropsWithChildren<{}> = {}
+) {
+  const { config, refreshConfig } = useConfig();
+  const router = useRouter();
+
+  useEffect(() => {
+    const token = localStorage.getItem("pb_token");
+    if (!token) {
+      router.push("/auth/login");
+    }
+  }, [router]);
+
+  const token = typeof window !== "undefined" ? localStorage.getItem("pb_token") : null;
+  if (!token) return null;
+
+  useEffect(() => {
+    router.prefetch("/settings/appearance");
+  }, [router]);
+
+  return (
+    <div className="grid grid-rows-[1fr_36px] h-screen pt-5 p-3.5 text-(--surface-foreground) bg-(--surface) backdrop-blur-[3px] backdrop-brightness-85">
+      <main
+        className="overflow-hidden grid grid-cols-[25%_1fr_25%]"
+        id="page-content-container"
+      >
+        <div id="right-widget-panel" className="text-(--surface-foreground)"></div>
+        <div className="space-y-3.5">
+          <section className="grid grid-cols-[1fr_auto_1fr] items-center justify-items-center">
+            <GlanceableComponent
+              type={config?.glanceables?.[0]?.type}
+              params={config?.glanceables?.[0]?.properties}
+              className="font-medium"
+            />
+            <ClockWidget
+              format={config?.global?.["time-format"] || "24h"}
+            />
+            <GlanceableComponent
+              type={config?.glanceables?.[1]?.type}
+              params={config?.glanceables?.[1]?.properties}
+              className="font-medium"
+            />
+          </section>
+          <SearchBar useRedirect={true} />
+          <LinkView />
+        </div>
+        <div id="left-widget-panel"></div>
+      </main>
+
+      <div className="grid grid-cols-[1fr_80%_1fr] items-center" id="page-footer">
+        <div id="branding" className="flex items-center gap-2">
+          <img src="/dashwise-icon.png" alt="" className="h-[36px]" />
+          <span className="font-semibold">dashwise</span>
+        </div>
+
+        <PagesTabs />
+
+        <ul className="flex items-center gap-4 justify-end">
+          {(typeof config?.integrations === 'object' && !Array.isArray(config?.integrations) && config?.integrations !== null) && (Object.keys(config?.integrations).map((i: string) => i.toLowerCase()).includes("notifications")) && (
+            <li>
+              <Link
+                href="/notifications"
+                className="frosted p-2 rounded-full hover:bg-amber-500"
+              >
+                <FontAwesomeIcon icon={faBell} />
+              </Link>
+            </li>
+          )}
+          <li>
+            <Link
+              href="/settings/appearance"
+              prefetch={false}
+              className="frosted p-2 rounded-full hover:bg-amber-500"
+            >
+              <FontAwesomeIcon icon={faGear} />
+            </Link>
+          </li>
+        </ul>
+      </div>
+    </div>
+  );
+}
