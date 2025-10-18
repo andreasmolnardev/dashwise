@@ -64,5 +64,7 @@
     "linkGroups": [
         "internet",
         "dashwise"
-    ]
+    ],
+    "searchEngines": [],
+    "integrations": {}
 }

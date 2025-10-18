@@ -9,6 +9,7 @@ services:
     environment:
       PB_ADMIN_EMAIL: default@dashwise.local
       PB_ADMIN_PASSWORD: DashwiseIsAwesome
+      NEXT_PUBLIC_PB_URL: http://pocketbase-dashwise:8090
   pocketbase:
     container_name: pocketbase-dashwise
     image: andreasmolnardev/dashwise-pb:latest
