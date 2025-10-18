@@ -11,8 +11,8 @@ services:
     container_name: pocketbase-dashwise
     image: andreasmolnardev/dashwise-pb:latest
     volumes:
-      - ./pocketbase/3:/app/pb_data
-      - ../dashwise-pocketbase/pb_migrations:/pb_migrations
+      - ./pocketbase/:/app/pb_data
+      - ./migrations:/pb_migrations
     ports:
       - "8092:8090"
     restart: unless-stopped
