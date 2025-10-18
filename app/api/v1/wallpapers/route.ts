@@ -74,11 +74,8 @@ export async function POST(request: Request) {
         // 6) create record in PB
         const record = await pb.collection('wallpaperStore').create(uploadForm);
 
-        // 7) build and return the public path/url for the stored file
         // 7) build the URL for your own GET endpoint
-        const apiUrl = new URL(request.url);
-        const baseUrl = `${apiUrl.protocol}//${apiUrl.host}`;
-        const getUrl = `${baseUrl}/api/v1/wallpapers?fileName=${encodeURIComponent(fileNameField)}`;
+        const getUrl = `/api/v1/wallpapers?fileName=${encodeURIComponent(fileNameField)}`;
 
         return NextResponse.json({
             success: true,
