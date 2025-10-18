@@ -1,6 +1,6 @@
 import { KarakeepSearchItems } from "./clients/karakeep/client.ts";
 import config from "./config.ts";
-import pb from "./pb.ts";
+import pb, { getSuperuserPB } from "./pb.ts";
 
 type UserConfig = {
     id: string;
@@ -54,7 +54,8 @@ function mapSearchItemsToJSON(items: SearchItem[]) {
 
 export default async function runBackgroundJobs() {
     try {
-        const configs = await pb.collection("userConfig").getFullList<UserConfig>();
+        const pb = await getSuperuserPB();
+        const configs = await pb.collection("userConfig").getFullList<UserConfig>()
 
         for (const userConfig of configs) {
             const associatedUserId = userConfig.associatedUserId;

@@ -1,4 +1,5 @@
 import PocketBase from 'pocketbase';
+import config from './config';
 
 const pb = new PocketBase(process.env.NEXT_PUBLIC_PB_URL || 'http://127.0.0.1:8090');
 
@@ -10,5 +11,15 @@ export function getServerPB(cookieHeader?: string) {
   }
   return serverPB;
 }
+
+
+export async function getSuperuserPB() {
+    const pb = new PocketBase(config.pb_url);
+    console.log("test")
+    console.log("Auth", config.pbAdminEmail, config.pbAdminPassword)
+    await pb.collection('_superusers').authWithPassword(config.pbAdminEmail, config.pbAdminPassword);
+    return pb;
+}
+
 
 export default pb;
