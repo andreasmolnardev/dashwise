@@ -29,77 +29,105 @@ export async function getBookmarks({
   token?: string | null;
   allowInsecureCerts?: boolean;
 }): Promise<KarakeepBookmark[]> {
-  const apiBase = serverUrl.replace(/\/+$/, "") + "/api/v1";
-  const url = `${apiBase}/bookmarks`;
+  try {
+    const apiBase = serverUrl.replace(/\/+$/, "") + "/api/v1";
 
-  const headers: Record<string, string> = {
-    Accept: "application/json",
-    "Content-Type": "application/json",
-  };
-  if (token) headers["Authorization"] = `Bearer ${token}`;
+    //test karakeep connectivity
+    try {
+      await axios.get(serverUrl, {
+        timeout: 3000,
+        httpsAgent: allowInsecureCerts ? new https.Agent({ rejectUnauthorized: false }) : undefined,
+      });
+      console.log("Karakeep is reachable")
+    } catch {
+      console.error(`[Karakeep] ${serverUrl} not reachable.`);
+      return [];
+    }
 
-  const res = await axios.get(url, {
-    headers,
-    httpsAgent: allowInsecureCerts ? new https.Agent({ rejectUnauthorized: false }) : undefined,
-  });
+    const url = `${apiBase}/bookmarks`;
 
-  const body = res.data;
-  if (!body) return [];
+    const headers: Record<string, string> = {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    };
+    if (token) headers["Authorization"] = `Bearer ${token}`;
 
-  // normalize to an array of raw bookmark objects
-  let rawArray: any[] = [];
-  if (Array.isArray(body)) rawArray = body;
-  else if (Array.isArray(body.items)) rawArray = body.items;
-  else if (Array.isArray(body.bookmarks)) rawArray = body.bookmarks;
-  else if (Array.isArray(body.data)) rawArray = body.data;
-  else if (typeof body === "object" && body !== null && 'id' in body) rawArray = [body];
-  else rawArray = [];
+    const res = await axios.get(url, {
+      headers,
+      httpsAgent: allowInsecureCerts ? new https.Agent({ rejectUnauthorized: false }) : undefined,
+    });
 
-  // keep only link-type content and map to base bookmark objects
-  const baseBookmarks: KarakeepBookmark[] = rawArray
-    .filter(raw => raw && raw.content && raw.content.type === "link")
-    .map(raw => {
-      const title = raw.content?.title ?? raw.title ?? "Untitled";
-      const urlStr = raw.content?.url ?? raw.url;
-      return {
-        id: raw.id,
-        title,
-        icon: raw.content?.favicon ?? raw.icon,
-        collection: raw.collection ?? raw.collectionName,
-        url: urlStr,
-        content: raw.content,
-        // lists will be filled below
-      } as KarakeepBookmark;
-    })
-    .filter(b => !!b.url); // drop entries without a usable url
+    const body = res.data;
+    if (!body) return [];
 
-  if (baseBookmarks.length === 0) return [];
+    // normalize to an array of raw bookmark objects
+    let rawArray: any[] = [];
+    if (Array.isArray(body)) rawArray = body;
+    else if (Array.isArray(body.items)) rawArray = body.items;
+    else if (Array.isArray(body.bookmarks)) rawArray = body.bookmarks;
+    else if (Array.isArray(body.data)) rawArray = body.data;
+    else if (typeof body === "object" && body !== null && 'id' in body) rawArray = [body];
+    else rawArray = [];
 
-  // fetch lists for each bookmark in parallel and attach them
-  await Promise.all(
-    baseBookmarks.map(async (b) => {
-      try {
-        const listsRes = await axios.get(`${apiBase}/bookmarks/${b.id}/lists`, {
-          headers,
-          httpsAgent: allowInsecureCerts ? new https.Agent({ rejectUnauthorized: false }) : undefined,
-        });
+    // keep only link-type content and map to base bookmark objects
+    const baseBookmarks: KarakeepBookmark[] = rawArray
+      .filter(raw => raw && raw.content && raw.content.type === "link")
+      .map(raw => {
+        const title = raw.content?.title ?? raw.title ?? "Untitled";
+        const urlStr = raw.content?.url ?? raw.url;
+        return {
+          id: raw.id,
+          title,
+          icon: raw.content?.favicon ?? raw.icon,
+          collection: raw.collection ?? raw.collectionName,
+          url: urlStr,
+          content: raw.content,
+          // lists will be filled below
+        } as KarakeepBookmark;
+      })
+      .filter(b => !!b.url); // drop entries without a usable url
 
-        const data = listsRes.data;
-        const lists = Array.isArray(data?.lists) ? data.lists : [];
+    if (baseBookmarks.length === 0) return [];
 
-        // use only the first list name if present
-        if (lists.length > 0) {
-          const first = lists[0];
-          b.collection = first.name ?? first.id;
+    // fetch lists for each bookmark in parallel and attach them
+    await Promise.all(
+      baseBookmarks.map(async (b) => {
+        try {
+          const listsRes = await axios.get(`${apiBase}/bookmarks/${b.id}/lists`, {
+            headers,
+            httpsAgent: allowInsecureCerts ? new https.Agent({ rejectUnauthorized: false }) : undefined,
+          });
+
+          const data = listsRes.data;
+          const lists = Array.isArray(data?.lists) ? data.lists : [];
+
+          // use only the first list name if present
+          if (lists.length > 0) {
+            const first = lists[0];
+            b.collection = first.name ?? first.id;
+          }
+        } catch {
+          // ignore network or 404 errors silently
         }
-      } catch {
-        // ignore network or 404 errors silently
-      }
-    })
-  );
+      })
+    );
 
 
-  return baseBookmarks;
+    return baseBookmarks;
+  } catch (err) {
+    if (axios.isAxiosError(err)) {
+      console.error(`[Karakeep] Failed to fetch bookmarks from ${serverUrl}`, {
+        status: err.response?.status,
+        statusText: err.response?.statusText,
+        data: err.response?.data,
+        message: err.message,
+      });
+    } else {
+      console.error(`[Karakeep] Unexpected error fetching bookmarks:`, err);
+    }
+    return [];
+  }
+
 }
 
 
