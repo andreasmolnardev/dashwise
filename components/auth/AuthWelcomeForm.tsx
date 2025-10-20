@@ -6,8 +6,7 @@ import config from "@/lib/config"
 import { useEffect } from "react"
 
 export default function AuthWelcomeFormComponent() {
-    const router = useRouter()
-    console.log(config.enableSSO)
+    const router = useRouter();
     //on load: check for existing auth, validate using /api/v1/auth/validate-auth endpoint if returned success to /home
     useEffect(() => {
         const validateAuth = async () => {

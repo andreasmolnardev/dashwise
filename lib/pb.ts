@@ -15,8 +15,6 @@ export function getServerPB(cookieHeader?: string) {
 
 export async function getSuperuserPB() {
     const pb = new PocketBase(config.pb_url);
-    console.log("test")
-    console.log("Auth", config.pbAdminEmail, config.pbAdminPassword)
     await pb.collection('_superusers').authWithPassword(config.pbAdminEmail, config.pbAdminPassword);
     return pb;
 }
