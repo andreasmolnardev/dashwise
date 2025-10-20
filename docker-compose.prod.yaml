@@ -9,9 +9,8 @@ services:
     environment:
       PB_ADMIN_EMAIL: default@dashwise.local
       PB_ADMIN_PASSWORD: DashwiseIsAwesome
-      NEXT_PUBLIC_PB_URL: http://pocketbase-dashwise:8090
+      NEXT_PUBLIC_PB_URL: http://pocketbase:8090
   pocketbase:
-    container_name: pocketbase-dashwise
     image: andreasmolnardev/dashwise-pb:latest
     volumes:
       - ./pocketbase:/app/pb_data
@@ -26,6 +25,6 @@ services:
     restart: unless-stopped
     entrypoint: >
       sh -c "while true; do
-               curl -s http://nextjs:3000/api/v1/jobs;
+               curl -s http://dashwise:3000/api/v1/jobs;
                sleep 3600;
              done"

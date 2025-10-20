@@ -322,8 +322,6 @@ export default function LinksSettingsPage() {
     setDropIndex(null);
   };
 
-  console.log(linkGroups)
-
   return (
     <>
       <h1 className="text-2xl font-semibold mb-4">Links</h1>

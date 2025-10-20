@@ -134,8 +134,6 @@ export async function PATCH(request: Request) {
 
     config[path] = newItem;
 
-    console.log(JSON.stringify(config))
-
     // 4. persist back to PocketBase
     await pb
       .collection('userConfig')

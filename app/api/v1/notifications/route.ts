@@ -26,7 +26,6 @@ export async function GET(req: NextRequest) {
         const topics = await pb.collection("notificationTopics").getFullList({
             filter: `userId="${userId}"`,
         });
-        console.log(topics)
         const topicIds = topics.map(t => t.id);
 
         if (topicIds.length === 0) {
@@ -50,12 +49,6 @@ export async function GET(req: NextRequest) {
             expand: "topicId",
             sort: "-created",
         });
-
-        // Debug: inspect expand structure for the first item
-        if (items.length > 0) {
-            console.log("expand shape (first item):", JSON.stringify(items[0].expand, null, 2));
-            console.log("raw topicId (first item):", items[0].topicId);
-        }
 
         if (count) {
             return NextResponse.json({
@@ -99,8 +92,6 @@ export async function GET(req: NextRequest) {
                 topicName: topicMap[topicId] ?? null,
             };
         });
-
-        console.log("result", result)
 
         return NextResponse.json({ items: result });
     } catch (err: any) {

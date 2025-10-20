@@ -30,7 +30,6 @@ export async function POST(request: Request) {
         if ((auth as any).error) return (auth as any).error;
         const { pb, authModel } = auth as { pb: any; token: string; authModel: any };
         const userId = authModel.record.id;
-        console.log("user", userId)
         // 2) parse form-data
         const formData = await request.formData();
         const incomingFile = formData.get('image') as File | null;
