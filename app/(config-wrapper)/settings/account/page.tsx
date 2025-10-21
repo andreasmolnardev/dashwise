@@ -29,6 +29,7 @@ import { useRouter } from "next/navigation"
 import { DialogDescription } from "@radix-ui/react-dialog"
 import ExportConfigDialog from "@/components/settings/ExportConfigDialog"
 import { useConfig } from "@/context/ConfigContext"
+import ImportConfigDialog from "@/components/settings/ImportConfigDialog.tsx"
 
 export default function AccountSettingsPage() {
  const { config } = useConfig();
@@ -255,14 +256,10 @@ export default function AccountSettingsPage() {
         </Dialog>
 
         <h2 className="text-xl col-span-full">Config</h2>
-        <div className="grid grid-cols-subgrid border border-transparent hover-frosted items-center col-span-full p-1.5 rounded-md">
-          <FontAwesomeIcon icon={faUpload} />
-          <p>Import Another Config</p>
-          <FontAwesomeIcon icon={faCaretRight} />
-        </div>
+        <ImportConfigDialog />
         <ExportConfigDialog jsonString={JSON.stringify(config)}/>
-        <h2 className="text-xl col-span-full">Other</h2>
 
+        <h2 className="text-xl col-span-full">Other</h2>
         <div className="grid grid-cols-subgrid border border-transparent hover-frosted items-center col-span-full p-1.5 rounded-md">
           <FontAwesomeIcon icon={faTrash} />
           <p>Delete account</p>
