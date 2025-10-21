@@ -14,7 +14,7 @@
 /coverage
 
 #pocketbase data
-/pocketbase
+/pocketbase/pb_data
 
 # next.js
 /.next/

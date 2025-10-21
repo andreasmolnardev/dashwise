@@ -27,36 +27,30 @@
         {
             "name": "Google",
             "url": "https://google.com",
-            "icon": "/icons/svg/google.svg",
+            "icon": "/icons/svg/google-light.svg",
             "linkGroup": "internet"
         },
         {
             "name": "GitHub",
             "url": "https://github.com",
-            "icon": "/icons/svg/github.svg",
+            "icon": "/icons/svg/github-light.svg",
             "linkGroup": "internet"
         },
         {
             "name": "Twitter",
             "url": "https://twitter.com",
-            "icon": "/icons/svg/twitter.svg",
+            "icon": "/icons/svg/twitter-light.svg",
             "linkGroup": "internet"
         },
         {
             "name": "Reddit",
             "url": "https://reddit.com",
-            "icon": "/icons/svg/reddit.svg",
+            "icon": "/icons/svg/reddit-light.svg",
             "linkGroup": "internet"
         },
         {
             "name": "Dashwise",
-            "url": "https://dashwise.com",
-            "icon": "/icons/svg/",
-            "linkGroup": "dashwise"
-        },
-        {
-            "name": "Documentation",
-            "url": "https://docs.dashwise.com",
+            "url": "https://github.com/andreasmolnardev/dashwise-next",
             "icon": "/icons/svg/",
             "linkGroup": "dashwise"
         }
