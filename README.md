@@ -34,8 +34,8 @@ It's available to the frontend via a GET request to /api/v1/config.
 Accessing it is handled by the ConfigContext.
 
 ## Open Source Projects that make dashwise possible
-[Selfh.st icons](https://github.com/selfhst/icons)
-Font Awesome
+[Selfh.st icons](https://github.com/selfhst/icons),
+Font Awesome,
 Nextjs, Shadcn
 
 ## Contributions
