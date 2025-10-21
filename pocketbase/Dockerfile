@@ -20,7 +20,7 @@ WORKDIR /app
 
 COPY ./pb_migrations /app/pb_migrations
 
-COPY init_pb.sh /init_pb.sh
+COPY ./init_pb.sh /init_pb.sh
 RUN chmod +x /init_pb.sh
 
 ENTRYPOINT ["/init_pb.sh"]
