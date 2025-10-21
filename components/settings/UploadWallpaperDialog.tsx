@@ -126,7 +126,7 @@ export default function UploadWallpaperDialog({
         </DialogHeader>
 
         <div className="space-y-4">
-          <div>
+          <div className="space-y-4">
             <Label htmlFor="wallpaper-file">Image file</Label>
             <Input
               id="wallpaper-file"
