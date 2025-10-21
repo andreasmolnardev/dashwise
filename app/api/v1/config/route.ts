@@ -154,3 +154,55 @@ export async function PATCH(request: Request) {
     );
   }
 }
+
+export async function PUT(request: Request) {
+  try {
+    // 1) auth
+    const authHeader = request.headers.get('authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const token = authHeader.split(' ')[1];
+    const pb = getServerPB();
+    pb.authStore.save(token, null);
+
+    let authModel;
+    try {
+      authModel = await pb.collection('users').authRefresh();
+    } catch (error) {
+      if (error instanceof ClientResponseError && error.status === 401) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      }
+      throw error;
+    }
+
+    // 2) body
+    const body = await request.json().catch(() => null) as { config?: unknown } | null;
+    if (!body || body.config === undefined || body.config === null || typeof body.config !== 'object') {
+      return NextResponse.json({ error: 'Body must be { "config": { ... } }' }, { status: 400 });
+    }
+
+    // 3) load existing record or create
+    let record: any | null = null;
+    try {
+      record = await pb.collection('userConfig')
+        .getFirstListItem(`associatedUserId="${authModel.record.id}"`);
+    } catch (e) {
+      record = null;
+    }
+
+    if (record) {
+      await pb.collection('userConfig').update(record.id, { config: body.config });
+    } else {
+      await pb.collection('userConfig').create({
+        associatedUserId: authModel.record.id,
+        config: body.config,
+      });
+    }
+
+    return NextResponse.json({ succes: true });
+  } catch (error) {
+    console.error("Error replacing config:", error);
+    return NextResponse.json({ error: 'Failed to replace config' }, { status: 500 });
+  }
+}
