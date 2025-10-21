@@ -12,25 +12,30 @@ import { Button } from "@/components/ui/button"
 import { faCaretRight, faUpload } from "@fortawesome/free-solid-svg-icons"
 import { Label } from "../ui/label.tsx"
 import { Input } from "../ui/input.tsx"
-import { useState } from "react"
+import { useEffect, useState } from "react"
+import { useConfig } from "@/context/ConfigContext.tsx"
 
 export default function ImportConfigDialog() {
+    const { config, refreshConfig } = useConfig();
+    const [raw, setRaw] = useState<string>("");
     const [parsed, setParsed] = useState<{} | null>(null);
     const [isUploading, setIsUploading] = useState<boolean>(false);
     const [message, setMessage] = useState<string | null>(null);
 
     const parseText = (text: string) => {
         setMessage(null);
-        setParsed(null);
+        setRaw(text);
         try {
             const obj = JSON.parse(text)
             // TODO: validate config using zod or whatever...
             if (obj === null || typeof obj !== "object") {
+                setParsed(null);
                 setMessage("Must be a valid JSON file.");
                 return;
             }
             setParsed(obj);
         } catch (e) {
+            setParsed(null);
             setMessage("Invalid JSON");
         }
     };
@@ -44,7 +49,7 @@ export default function ImportConfigDialog() {
         setMessage(null);
 
         const token = localStorage.getItem('pb_token') || "";
-        
+
         try {
             const res = await fetch("/api/v1/config", {
                 method: "PUT",
@@ -58,12 +63,24 @@ export default function ImportConfigDialog() {
                 const j = await res.json().catch(() => ({}));
                 setMessage(j.error || `HTTP ${res.status}`);
             }
+            setMessage("Upload successful");
+            setParsed(null);
+            setRaw("");
+            await refreshConfig();
         } catch (err: any) {
             setMessage(err?.message || "Upload failed due to an internal server error");
         } finally {
             setIsUploading(false);
         }
     }
+
+    useEffect(() => {
+        if (parsed === null) {
+            const j = config ?? {};
+            setRaw(JSON.stringify(j, null, 2));
+            setParsed(j);
+        }
+    }, [config]);
 
     return (
         <Dialog>
@@ -90,6 +107,14 @@ export default function ImportConfigDialog() {
                         }}
                     />
                 </div>
+
+                <textarea
+                    rows={40}
+                    className="bg-gray-900 p-4 rounded text-sm overflow-auto max-h-96 font-mono"
+                    value={raw}
+                    onChange={(e) => parseText(e.target.value)}
+                    disabled={isUploading}
+                />
 
                 {message && (
                     <div className="text-sm text-muted-foreground">{message}</div>
