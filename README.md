@@ -9,7 +9,7 @@ This is my attempt to solving that.
 - Integrations:
 
 ## Installation
-Grab the docker compose file, edit env vars, pull, deploy. That's it.
+Grab the docker compose file (docker-compose.prod.yaml), edit env vars, pull, deploy. That's it.
 
 ## Configuration
 You can use the following environment variables:
