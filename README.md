@@ -4,9 +4,9 @@ This is my attempt to solving that.
 
 ## Features
 - Links: store your most important links for quick access
-- Glanceables:
-- Spotlight-like Search: 
-- Integrations:
+- Glanceables: Bits of one-line information next to the clock
+- Spotlight-like Search: Hit Ctrl+K from your dashboard, and you'll be able to search your links and integrations or use bangs for search engines specified in settings.
+- Integrations: directly integrates with your favourite self hosted apps. For now only Karakeep is supported but more integrations are planned.
 
 ## Installation
 Grab the docker compose file (docker-compose.prod.yaml), edit env vars, pull, deploy. That's it.
@@ -24,8 +24,6 @@ You can use the following environment variables:
 | NEXT_PUBLIC_ENABLE_SSO | No | `false` | Enable Single Sign-On (SSO) |
 | NEXT_PUBLIC_DEFAULT_BG_URL | No | `/dashboard-wallpaper.png` | Default background URL |
 
-
-
 ## Tech Stack
 Frontend, API Layer: Next.js
 Backend: Pocketbase
@@ -36,9 +34,9 @@ It's available to the frontend via a GET request to /api/v1/config.
 Accessing it is handled by the ConfigContext.
 
 ## Open Source Projects that make dashwise possible
-Selfh.st icons
+[Selfh.st icons](https://github.com/selfhst/icons)
 Font Awesome
 Nextjs, Shadcn
 
 ## Contributions
-Feel free to contribute! I'll probably create a roadmap soon.
+Feel free to contribute! I'll probably create a more detailed roadmap soon.
