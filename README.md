@@ -2,6 +2,9 @@
 I've been self hosting for a while but did not find a dashboard that suits my needs and that I like the look of.
 This is my attempt to solving that.
 
+## Screenshot
+<img width="1445" height="827" alt="Screenshot 2025-10-21 at 20 58 11" src="https://github.com/user-attachments/assets/f84b6f5a-75bf-4ebd-be17-b7a197ee7d45" />
+
 ## Features
 - Links: store your most important links for quick access
 - Glanceables: Bits of one-line information next to the clock
