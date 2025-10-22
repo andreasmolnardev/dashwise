@@ -2,7 +2,7 @@ version: "3.8"
 
 services:
   dashwise:
-    image: andreasmolnardev/dashwise:latest
+    image: andreasmolnardev/dashwise:stable
     ports:
       - "3016:3000"
     restart: unless-stopped
@@ -11,7 +11,7 @@ services:
       PB_ADMIN_PASSWORD: DashwiseIsAwesome
       NEXT_PUBLIC_PB_URL: http://pocketbase:8090
   pocketbase:
-    image: andreasmolnardev/dashwise-pb:latest
+    image: andreasmolnardev/dashwise-pb:stable
     volumes:
       - ./pocketbase:/app/pb_data
     ports:
