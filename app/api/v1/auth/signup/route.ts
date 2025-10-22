@@ -5,7 +5,7 @@ import { promises as fs } from 'fs';
 
 export async function POST(request: Request) {
     try {
-        const { email, password, passwordConfirm } = await request.json();
+        const { name, email, password, passwordConfirm } = await request.json();
 
         if (!email || !password || !passwordConfirm) {
             return new NextResponse(JSON.stringify({ error: 'All fields are required' }), {
@@ -25,6 +25,7 @@ export async function POST(request: Request) {
 
         // 1. Create the user
         const user = await pb.collection('users').create({
+            name,
             email,
             password,
             passwordConfirm,
