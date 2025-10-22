@@ -42,8 +42,13 @@ export default function GlanceableComponent({ type, params, className }: Glancea
   }
 }
 
-
-function GlanceableDate({ params, className }: { params?: Record<string, any>, className?: string }) {
+function GlanceableDate({
+  params,
+  className,
+}: {
+  params?: Record<string, any>;
+  className?: string;
+}) {
   const { config } = useConfig();
   const date = new Date();
 
@@ -52,21 +57,33 @@ function GlanceableDate({ params, className }: { params?: Record<string, any>, c
     config?.global?.dateFormat ||
     "DD-MM-YYYY";
 
-  const options: Intl.DateTimeFormatOptions = {
-    weekday: dateFormat.includes("ddd") ? "short" : dateFormat.includes("dddd") ? "long" : undefined,
-    year: dateFormat.includes("YYYY") ? "numeric" : undefined,
-    month: dateFormat.includes("MM") ? "2-digit" : undefined,
-    day: dateFormat.includes("DD") ? "2-digit" : undefined,
-  };
+  const locale = config?.global?.locale || "en-US";
 
-  const formattedDate = date.toLocaleDateString(config?.global?.locale || "en-US", options);
+  // Extract parts
+  const day = date.getDate().toString().padStart(2, "0");
+  const month = (date.getMonth() + 1).toString().padStart(2, "0");
+  const year = date.getFullYear().toString();
 
-  const finalDate =
-    config?.global?.locale === "de-DE" && dateFormat.includes("ddd")
-      ? formattedDate.replace(".,", ",")
-      : formattedDate;
+  // Optional weekday support
+  const weekday =
+    dateFormat.includes("ddd") || dateFormat.includes("dddd")
+      ? new Intl.DateTimeFormat(locale, {
+          weekday: dateFormat.includes("ddd") ? "short" : "long",
+        }).format(date)
+      : "";
 
-  return <div className={`glanceable-date ${className || ""}`}>{finalDate}</div>;
+  // Replace tokens in the format
+  let formattedDate = dateFormat
+    .replace("DD", day)
+    .replace("MM", month)
+    .replace("YYYY", year)
+    .replace("ddd", weekday)
+    .replace("dddd", weekday);
+
+  // Clean spacing or punctuation
+  formattedDate = formattedDate.trim();
+
+  return <div className={`glanceable-date ${className || ""}`}>{formattedDate}</div>;
 }
 
 function GlanceableGreeting({className}: {className?: string}){
@@ -123,7 +140,6 @@ function GlanceableWeather({ params, className }: { params?: Record<string, any>
     </div>
   );
 }
-
 
 function GlanceableWorldClock({ params, className }: { params?: Record<string, any>, className?: string }) {
   const [time, setTime] = useState("");
