@@ -8,8 +8,12 @@ This is my attempt to solving that.
 <img width="1445" height="827" alt="Screenshot 2025-10-22 at 08 03 40" src="https://github.com/user-attachments/assets/69061ca0-cba1-4c23-b7bd-59ca691507e0" />
 
 ## Features
-- Links: store your most important links for quick access
-- Glanceables: Bits of one-line information next to the clock
+- GUI Editing: Edit and manage links, search engines, your wallpapers in settings via the GUI instead of relying purely on a config.
+- Built-in Authentication: dashwise has Auth built right into it - and even features
+- SSO via OIDC: While tested with PocketId, it should work via OIDC - which can be configured in Pocketbase directly.
+- Links: store your most important links for quick access and group them into Link Groups. Folders coming soon.
+- Glanceables: Customizable bits of one-line information next to the clock.
+- Wallpapers: Upload them to dashwise directly, or even change the default one for new users by mounting one into the container
 - Spotlight-like Search: Hit Ctrl+K from your dashboard, and you'll be able to search your links and integrations or use bangs for search engines specified in settings.
 - Integrations: directly integrates with your favourite self hosted apps. For now only Karakeep is supported but more integrations are planned.
 
