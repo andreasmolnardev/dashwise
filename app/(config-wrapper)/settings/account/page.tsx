@@ -116,7 +116,7 @@ export default function AccountSettingsPage() {
       <div className="content grid grid-cols-[auto_1fr_auto] font-medium gap-2 items-center">
         <section className="frosted flex rounded-lg justify-center col-span-full p-2 items-center gap-6">
           <FontAwesomeIcon icon={faCircleUser} className="text-4xl" />
-          <span>Lorem, ipsum.</span>
+          <span>{JSON.parse(localStorage.getItem('pb_user') ?? "").name ?? 'Lorem ipsum'}</span>
         </section>
 
         <h2 className="text-xl col-span-full">Authentication</h2>
