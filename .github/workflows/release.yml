@@ -24,7 +24,7 @@ jobs:
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_TOKEN }}
-
+     
       - name: Build and Push Multi-Arch Docker image
         uses: docker/build-push-action@v5
         with:
@@ -35,6 +35,7 @@ jobs:
           tags: |
             ${{ secrets.DOCKER_USERNAME }}/dashwise:${{ secrets.VERSION }}
             ${{ secrets.DOCKER_USERNAME }}/dashwise:latest
+            ${{ secrets.DOCKER_USERNAME }}/dashwise:stable
       
       - name: Build and Push Multi-Arch Pocketbase Docker image
         uses: docker/build-push-action@v5
@@ -46,3 +47,4 @@ jobs:
           tags: |
             ${{ secrets.DOCKER_USERNAME }}/dashwise-pb:${{ secrets.VERSION }}
             ${{ secrets.DOCKER_USERNAME }}/dashwise-pb:latest
+            ${{ secrets.DOCKER_USERNAME }}/dashwise-pb:stable
