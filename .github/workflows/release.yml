@@ -1,9 +1,9 @@
-name: Build Docker Images
+name: Build Docker Images (Release)
 
 on:
   push:
     branches:
-      - dev
+      - release
 
 jobs:
   build-and-deploy:
@@ -32,7 +32,9 @@ jobs:
           file: ./Dockerfile
           push: true
           platforms: linux/amd64,linux/arm64
-          tags: ${{ secrets.DOCKER_USERNAME }}/dashwise:dev
+          tags: |
+            ${{ secrets.DOCKER_USERNAME }}/dashwise:${{ secrets.VERSION }}
+            ${{ secrets.DOCKER_USERNAME }}/dashwise:latest
       
       - name: Build and Push Multi-Arch Pocketbase Docker image
         uses: docker/build-push-action@v5
@@ -41,4 +43,6 @@ jobs:
           file: ./pocketbase/Dockerfile
           push: true
           platforms: linux/amd64,linux/arm64
-          tags: ${{ secrets.DOCKER_USERNAME }}/dashwise-pb:dev
+          tags: |
+            ${{ secrets.DOCKER_USERNAME }}/dashwise-pb:${{ secrets.VERSION }}
+            ${{ secrets.DOCKER_USERNAME }}/dashwise-pb:latest
