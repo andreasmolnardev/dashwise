@@ -63,6 +63,7 @@ export default function SignupCard() {
 
         setTimeout(() => {
           // Clear the form fields
+          setName("")
           setEmail("")
           setPassword("")
           setConfirmPassword("")
@@ -114,7 +115,7 @@ export default function SignupCard() {
               id="name"
               type="text"
               placeholder="John Doe"
-              value={email}
+              value={name}
               onChange={(e) => setName(e.target.value)} 
             />
           </div>
