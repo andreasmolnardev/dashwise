@@ -22,8 +22,6 @@ export async function GET(request: Request) {
          `associatedUserId="${authModel.record.id}"`
       );
 
-      console.log(JSON.stringify(searchItemRecord))
-
       return NextResponse.json(searchItemRecord.searchItems);
    } catch (error) {
       console.error('Error fetching config:', error);

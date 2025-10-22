@@ -30,7 +30,6 @@ export async function POST(request: Request) {
         if ((auth as any).error) return (auth as any).error;
         const { pb, authModel } = auth as { pb: any; token: string; authModel: any };
         const userId = authModel.record.id;
-        console.log("user", userId)
         // 2) parse form-data
         const formData = await request.formData();
         const incomingFile = formData.get('image') as File | null;
@@ -71,10 +70,19 @@ export async function POST(request: Request) {
         //include userId
         uploadForm.append('userId', userId);
 
-        // 6) create record in PB
+        // 6) get old wallpaper
+        let old_wallpaper = await pb.collection('wallpaperStore').getFirstListItem(`userId="${userId}"`);
+
+        // 7) create record in PB
         const record = await pb.collection('wallpaperStore').create(uploadForm);
 
-        // 7) build the URL for your own GET endpoint
+        // 8) delete old wallpaper
+        if (old_wallpaper) {
+            const res = await pb.collection('wallpaperStore').delete(old_wallpaper.id);
+            console.log(`Delete result: ${res}`);
+        }
+
+        // 9) build the URL for your own GET endpoint
         const getUrl = `/api/v1/wallpapers?fileName=${encodeURIComponent(fileNameField)}`;
 
         return NextResponse.json({

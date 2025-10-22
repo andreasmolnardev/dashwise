@@ -8,14 +8,13 @@ services:
     working_dir: /app
     command: sh -c "npm install && npm run dev"
   pocketbase:
-    container_name: pocketbase-dashwise
-    image: andreasmolnardev/dashwise-pb:latest
-    volumes:
-      - ./pocketbase/3:/app/pb_data
-      - ../dashwise-pocketbase/pb_migrations:/pb_migrations
-    ports:
-      - "8092:8090"
-    restart: unless-stopped
+    build: ./pocketbase
     environment:
       PB_ADMIN_EMAIL: default@dashwise.local
-      PB_ADMIN_PASSWORD: DashwiseIsAwesome
+      PB_ADMIN_PASSWORD: dashwiseIsAwesome
+    ports:
+      - "8090:8090"
+    volumes:
+      - ./pocketbase/pb_data:/app/pb_data
+      - ./pocketbase/pb_migrations:/app/pb_migrations
+    restart: unless-stopped

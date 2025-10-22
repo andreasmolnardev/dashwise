@@ -1,5 +1,4 @@
-"use client"
-
+"use client";
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -7,8 +6,7 @@ import config from "@/lib/config"
 import { useEffect } from "react"
 
 export default function AuthWelcomeFormComponent() {
-    const router = useRouter()
-
+    const router = useRouter();
     //on load: check for existing auth, validate using /api/v1/auth/validate-auth endpoint if returned success to /home
     useEffect(() => {
         const validateAuth = async () => {
@@ -45,11 +43,16 @@ export default function AuthWelcomeFormComponent() {
 
             <CardContent className="flex flex-col gap-3">
                 {config.enableSSO && (
-                    <Button variant="outline" className="w-full" onClick={() => router.push("/auth/sso")}>
+                    <Button className="w-full" onClick={() => router.push("/api/v1/auth/sso")}>
                         Continue with SSO
                     </Button>
                 )}
-                <Button className="w-full" onClick={() => router.push("/auth/login")}>
+
+                <Button
+                    className="w-full"
+                    variant={config.enableSSO ? "outline" : "default"}
+                    onClick={() => router.push("/auth/login")}
+                >
                     Login
                 </Button>
                 <Button variant="outline" className="w-full" onClick={() => router.push("/auth/signup")}>

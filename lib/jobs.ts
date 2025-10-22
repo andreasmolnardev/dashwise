@@ -80,10 +80,11 @@ export default async function runBackgroundJobs() {
                 const token = Buffer.from(karakeepConfig.api_token, "base64").toString("utf-8");
                 const serverUrl = Buffer.from(karakeepConfig.server_location, "base64").toString("utf-8");
 
+                console.log("karakeep", token, serverUrl)
                 if (!token || !serverUrl) return;
 
                 const bookmarks = await KarakeepSearchItems({serverUrl, token, allowInsecureCerts:  config.allowInsecureCertsForIntegrationUrls});
-
+                searchItems.push(...bookmarks);
             }
 
             const desiredJson = mapSearchItemsToJSON(searchItems);

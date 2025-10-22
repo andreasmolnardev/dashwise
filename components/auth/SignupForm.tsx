@@ -35,6 +35,11 @@ export default function SignupCard() {
       return
     }
 
+    if (password.length < 8) {
+      setError("Password must be at least 8 characters")
+      return
+    }
+
     setLoading(true)
     try {
       const res = await fetch("/api/v1/auth/signup", {
