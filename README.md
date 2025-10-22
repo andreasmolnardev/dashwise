@@ -2,6 +2,8 @@
 I've been self hosting for a while but did not find a dashboard that suits my needs and that I like the look of.
 This is my attempt to solving that.
 
+> **Disclaimer:** This project is still under development. Therefore, only the working features of the app are listed in the features section. Integration with additional services is planned, but will not be available until widget implementation is complete.
+
 ## Screenshot
 <img width="1445" height="827" alt="Screenshot 2025-10-22 at 08 03 40" src="https://github.com/user-attachments/assets/69061ca0-cba1-4c23-b7bd-59ca691507e0" />
 
@@ -38,8 +40,8 @@ Accessing it is handled by the ConfigContext.
 
 ## Open Source Projects that make dashwise possible
 [Selfh.st icons](https://github.com/selfhst/icons),
-Font Awesome,
-Nextjs, Shadcn
+[Font Awesome](https://fontawesome.com),
+[Nextjs](https://github.com/vercel/next.js), [Shadcn](https://github.com/shadcn-ui/ui)
 
 ## Contributions
 Feel free to contribute! I'll probably create a more detailed roadmap soon.
