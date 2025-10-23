@@ -7,6 +7,7 @@ import { useConfig } from "@/context/ConfigContext";
 import { Input } from "../ui/input";
 import { Button } from "../ui/button";
 import { Checkbox } from "../ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select.tsx";
 
 type Glanceable = {
     type: string;
@@ -213,18 +214,18 @@ function PropertyInput({
                 ? (Intl as any).supportedValuesOf("timeZone")
                 : [];
         return (
-            <select
-                value={(value as string) || ""}
-                onChange={(e) => onChange(e.target.value)}
-                className="border rounded p-1 w-full"
-            >
-                <option value="">Select timezone</option>
-                {tzs.map((tz) => (
-                    <option key={tz} value={tz}>
-                        {tz}
-                    </option>
-                ))}
-            </select>
+            <Select value={(value as string) || ""} onValueChange={onChange}>
+                <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select timezone" />
+                </SelectTrigger>
+                <SelectContent>
+                    {tzs.map((tz) => (
+                        <SelectItem key={tz} value={tz}>
+                            {tz}
+                        </SelectItem>
+                    ))}
+                </SelectContent>
+            </Select>
         );
     }
 
