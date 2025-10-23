@@ -42,19 +42,29 @@ export default function LinkView() {
             rel="noopener noreferrer"
             className="group flex flex-col items-center justify-between space-y-2 frosted rounded-2xl p-2 hover:text-(primary) transition-colors min-h-18"
           >
-            <div
-              className="h-[35px] w-[35px] bg-white group-hover:bg-(--primary) transition"
-              style={{
-                maskImage: `url(${link.icon})`,
-                WebkitMaskImage: `url(${link.icon})`,
-                maskRepeat: "no-repeat",
-                WebkitMaskRepeat: "no-repeat",
-                maskPosition: "center",
-                WebkitMaskPosition: "center",
-                maskSize: "contain",
-                WebkitMaskSize: "contain",
-              }}
-            />
+            {link.icon && link.icon.includes("-light") ? (
+              <div
+                className="h-[35px] w-[35px] bg-white group-hover:bg-(--primary) transition"
+                style={{
+                  maskImage: `url(${link.icon})`,
+                  WebkitMaskImage: `url(${link.icon})`,
+                  maskRepeat: "no-repeat",
+                  WebkitMaskRepeat: "no-repeat",
+                  maskPosition: "center",
+                  WebkitMaskPosition: "center",
+                  maskSize: "contain",
+                  WebkitMaskSize: "contain",
+                }}
+              />
+            ) : (
+              link.icon && (
+                <img
+                  src={link.icon}
+                  alt={link.name}
+                  className="h-[35px] w-[35px] object-contain transition group-hover:brightness-125"
+                />
+              )
+            )}
             <span className="text-sm text-white">{link.name}</span>
           </a>
         ))}
