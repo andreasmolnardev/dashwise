@@ -7,6 +7,7 @@ import { useConfig } from "@/context/ConfigContext";
 import { Input } from "../ui/input";
 import { Button } from "../ui/button";
 import { Checkbox } from "../ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select.tsx";
 
 type Glanceable = {
     type: string;
@@ -213,18 +214,18 @@ function PropertyInput({
                 ? (Intl as any).supportedValuesOf("timeZone")
                 : [];
         return (
-            <select
-                value={(value as string) || ""}
-                onChange={(e) => onChange(e.target.value)}
-                className="border rounded p-1 w-full"
-            >
-                <option value="">Select timezone</option>
-                {tzs.map((tz) => (
-                    <option key={tz} value={tz}>
-                        {tz}
-                    </option>
-                ))}
-            </select>
+            <Select value={(value as string) || ""} onValueChange={onChange}>
+                <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select timezone" />
+                </SelectTrigger>
+                <SelectContent>
+                    {tzs.map((tz) => (
+                        <SelectItem key={tz} value={tz}>
+                            {tz}
+                        </SelectItem>
+                    ))}
+                </SelectContent>
+            </Select>
         );
     }
 
@@ -251,18 +252,19 @@ function PropertyInput({
         const options = schema.split("|");
         const selectedValue = (value as string) ?? options[0];
         return (
-            <select
-                value={selectedValue}
-                onChange={(e) => onChange(e.target.value)}
-                className="border rounded p-1 w-full frosted"
-            >
-                {options.map((opt) => (
-                    <option key={opt} value={opt}>
-                        {opt.toUpperCase()}
-                    </option>
-                ))}
-            </select>
-        );
+            <Select value={selectedValue} onValueChange={onChange}>
+                <SelectTrigger className="w-full">
+                    <SelectValue placeholder={options[0].toUpperCase()} />
+                </SelectTrigger>
+                <SelectContent>
+                    {options.map((opt) => (
+                        <SelectItem key={opt} value={opt}>
+                            {opt.toUpperCase()}
+                        </SelectItem>
+                    ))}
+                </SelectContent>
+            </Select>
+        )
     }
 
     if (isBool) {
