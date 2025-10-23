@@ -252,18 +252,19 @@ function PropertyInput({
         const options = schema.split("|");
         const selectedValue = (value as string) ?? options[0];
         return (
-            <select
-                value={selectedValue}
-                onChange={(e) => onChange(e.target.value)}
-                className="border rounded p-1 w-full frosted"
-            >
-                {options.map((opt) => (
-                    <option key={opt} value={opt}>
-                        {opt.toUpperCase()}
-                    </option>
-                ))}
-            </select>
-        );
+            <Select value={selectedValue} onValueChange={onChange}>
+                <SelectTrigger className="w-full">
+                    <SelectValue placeholder={options[0].toUpperCase()} />
+                </SelectTrigger>
+                <SelectContent>
+                    {options.map((opt) => (
+                        <SelectItem key={opt} value={opt}>
+                            {opt.toUpperCase()}
+                        </SelectItem>
+                    ))}
+                </SelectContent>
+            </Select>
+        )
     }
 
     if (isBool) {
