@@ -32,7 +32,13 @@ export async function GET(request: Request) {
     // convert credentials to a boolean list
     // integrations: { karakeep: {...} } -> integrations: { karakeep: true/false }
     const strippedIntegrations = Object.fromEntries(
-      Object.entries(configRecord.config.integrations).map(([k, v]) => [k, Object.keys(v).length > 0])
+      Object.entries(configRecord.config.integrations).map(([k, v]) => [
+        k,
+        // v needs special type checking
+        !!v && !Array.isArray(v) &&
+        typeof v === "object" &&
+        Object.keys(v).length > 0
+      ])
     )
 
     // replace original integrations
