@@ -15,8 +15,8 @@
     ],
     "glanceables": [
         {
-           "type": "weather",
-           "displayLocation": "true"
+            "type": "weather",
+            "displayLocation": "true"
         },
         {
             "type": "date",
@@ -59,6 +59,55 @@
         "internet",
         "dashwise"
     ],
-    "searchEngines": [],
+    "searchEngines": [
+        {
+            "icon": "/icons/svg/google.svg",
+            "name": "Google",
+            "slug": "g",
+            "status": "default",
+            "url_home": "https://www.google.com",
+            "url_params": "https://www.google.com/search?q=%s"
+        },
+        {
+            "icon": "/icons/svg/google-images.svg",
+            "name": "Google Images",
+            "slug": "gi",
+            "status": "enabled",
+            "url_home": "https://images.google.com",
+            "url_params": "https://images.google.com/search?q=%s&tbm=isch"
+        },
+        {
+            "icon": "/icons/svg/youtube.svg",
+            "name": "YouTube",
+            "slug": "yt",
+            "status": "enabled",
+            "url_home": "https://www.youtube.com",
+            "url_params": "https://www.youtube.com/results?search_query=%s"
+        },
+        {
+            "icon": "/icons/svg/bing.svg",
+            "name": "Bing",
+            "slug": "b",
+            "status": "enabled",
+            "url_home": "https://www.bing.com",
+            "url_params": "https://www.bing.com/search?q=%s"
+        },
+        {
+            "icon": "/icons/svg/duckduckgo.svg",
+            "name": "DuckDuckGo",
+            "slug": "ddg",
+            "status": "enabled",
+            "url_home": "https://duckduckgo.com",
+            "url_params": "https://duckduckgo.com/?q=%s"
+        },
+        {
+            "icon": "/icons/svg/startpage.svg",
+            "name": "Startpage",
+            "slug": "sp",
+            "status": "enabled",
+            "url_home": "https://www.startpage.com",
+            "url_params": "https://www.startpage.com/sp/search?query=%s"
+        }
+    ],
     "integrations": {}
 }
