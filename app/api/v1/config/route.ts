@@ -21,13 +21,22 @@ export async function GET(request: Request) {
       if (error instanceof ClientResponseError && error.status === 401) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
       }
-      
+
       throw error;
     }
 
     const configRecord = await pb.collection('userConfig').getFirstListItem(
       `associatedUserId="${authModel.record.id}"`
     );
+
+    // convert credentials to a boolean list
+    // integrations: { karakeep: {...} } -> integrations: { karakeep: true/false }
+    const strippedIntegrations = Object.fromEntries(
+      Object.entries(configRecord.config.integrations).map(([k, v]) => [k, Object.keys(v).length > 0])
+    )
+
+    // replace original integrations
+    configRecord.config.integrations = strippedIntegrations;
 
     return NextResponse.json(configRecord.config);
   } catch (error) {
