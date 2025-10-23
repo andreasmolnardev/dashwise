@@ -21,11 +21,26 @@ export async function POST(request: Request) {
             });
         }
 
+        // using localpart of email as fallback
+        let newName;
+        if (name === "" || !name && typeof email === "string") {
+            const localPart = email.split("@")[0];
+            // a little transformation can't be missing
+            newName = localPart
+                .replace(/[._-]+/g, ' ')
+                .trim()
+                .split(' ')
+                .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()) // capitalize
+                .join(' ');
+        } else {
+            newName = name;
+        }
+
         const pb = getServerPB();
 
         // 1. Create the user
         const user = await pb.collection('users').create({
-            name,
+            newName,
             email,
             password,
             passwordConfirm,
