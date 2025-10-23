@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faPaintBrush } from "@fortawesome/free-solid-svg-icons";
+import { faEyeDropper, faPaintBrush } from "@fortawesome/free-solid-svg-icons";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -108,17 +108,16 @@ export default function AccentColorSelectComponent({ className }: { className?: 
             title={c}
             aria-label={`Choose ${c}`}
             onClick={() => updateAccentColor(c)}
-            className={`w-7 h-7 rounded-full border-2 transform transition-transform duration-150 active:scale-90 ${
-              accent?.toLowerCase() === c.toLowerCase() ? "ring-1 ring-offset-1" : ""
-            }`}
+            className={`w-7 h-7 rounded-full border-2 transform transition-transform duration-150 active:scale-90 ${accent?.toLowerCase() === c.toLowerCase() ? "ring-1 ring-offset-1" : ""
+              }`}
             style={{ background: c, borderColor: "rgba(255,255,255,0.08)" }}
           />
         ))}
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="h-7 ml-2 px-2 frosted rounded-full">
-              Customize
+            <Button variant="ghost" className="ml-2 p-2 frosted rounded-full" style={{ background: accent }}>
+              <FontAwesomeIcon icon={faEyeDropper} fontSize={10} />
             </Button>
           </DropdownMenuTrigger>
 
