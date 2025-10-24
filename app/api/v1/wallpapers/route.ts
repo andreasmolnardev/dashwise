@@ -71,8 +71,12 @@ export async function POST(request: Request) {
         uploadForm.append('userId', userId);
 
         // 6) get old wallpaper
-        let old_wallpaper = await pb.collection('wallpaperStore').getFirstListItem(`userId="${userId}"`);
+        // 6) get old wallpaper
+        const userWallpapers = await pb.collection('wallpaperStore').getList(1, 1, {
+            filter: `userId="${userId}"`,
+        });
 
+        const old_wallpaper = userWallpapers.items?.[0] ?? null;
         // 7) create record in PB
         const record = await pb.collection('wallpaperStore').create(uploadForm);
 
