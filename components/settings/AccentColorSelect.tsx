@@ -37,6 +37,10 @@ export default function AccentColorSelectComponent({ className }: { className?: 
     "#06B6D4",
   ];
 
+  const isCustomAccent = !PRESET_COLORS.some(
+    (c) => c.toLowerCase() === (accent ?? "").toLowerCase()
+  );
+
   async function updateAccentColor(newColor: string) {
     const color_hex = newColor.startsWith("#") ? newColor : `#${newColor}`;
 
@@ -114,9 +118,16 @@ export default function AccentColorSelectComponent({ className }: { className?: 
           />
         ))}
 
+        <span className="w-2 h-2 mx-2 rounded-full frosted"></span>
+
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="ml-2 p-2 frosted rounded-full" style={{ background: accent }}>
+            <Button
+              variant="ghost"
+              className={`frosted rounded-full w-8 h-8 outline-none shadow-none hover:ring-2 hover:ring-gray-300 hover:text-gray-300
+      transition-all duration-150 ${isCustomAccent ? "ring-2" : ""}`}
+              style={{ background: accent}}
+            >
               <FontAwesomeIcon icon={faEyeDropper} fontSize={10} />
             </Button>
           </DropdownMenuTrigger>
