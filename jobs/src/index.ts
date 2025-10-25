@@ -1,9 +1,12 @@
 import Fastify from "fastify";
 import axios from "axios";
 import cron from "node-cron";
+
 import { config } from "./config/env";
 import { getSuperuserPB } from "./lib/pb";
+
 import indexStatusMonitoringJobs from "./monitoring/indexer";
+import { runStatusMonitoringJobs } from "./monitoring/runner";
 
 const fastify = Fastify({ logger: true });
 
@@ -23,7 +26,7 @@ async function triggerSearchItemIndexing() {
     const response = await axios.get(`${config.DASHWISE_URL}/api/v1/jobs/searchItems`);
     console.log("Search items job triggered successfully:", response.status);
   } catch (error) {
-    console.error("Error triggering search items job:", error);
+    console.error("Error triggering search items indexing:", error);
   }
 }
 
@@ -35,11 +38,12 @@ fastify.get("/webhook/searchItemIndexer", async (request, reply) => {
   reply.send({ message: "Search item indexing triggered" });
 });
 
-//link update monitoring: indexer
-indexStatusMonitoringJobs();
-//cron.schedule(config.MONITORING_INDEXER_SCHEDULE, () => indexStatusMonitoringJobs());
+//link monitoring: indexer
+cron.schedule(config.MONITORING_INDEXER_SCHEDULE, () => indexStatusMonitoringJobs());
 
-//link update monitoring: runner
+//link monitoring: runner
+cron.schedule(config.MONITORING_RUNNER_SCHEDULE, () => runStatusMonitoringJobs());
 
-// Start server
+
+// Start http server
 fastify.listen({ port: 3001, host: "0.0.0.0" });
