@@ -35,6 +35,7 @@ interface Icon {
 }
 
 export interface LinkObject {
+  id?: string;
   icon?: string;
   linkGroup?: string;
   name?: string;
@@ -54,6 +55,7 @@ export default function LinkDetailsForm({ link, onClose }: LinkDetailsFormProps)
   const links = config?.links || [];
 
   const [name, setName] = useState("");
+  const [linkId, setLinkId] = useState(() => link?.id || generateRandomId());
   const [url, setUrl] = useState("");
   const [icon, setIcon] = useState("");
   const [linkGroup, setLinkGroup] = useState("");
@@ -113,11 +115,8 @@ export default function LinkDetailsForm({ link, onClose }: LinkDetailsFormProps)
       const token = localStorage.getItem("pb_token");
       if (!token) throw new Error("Not authenticated");
 
-      const payload = { name, url, icon, linkGroup };
-
-      // include statusCheck only if true to keep it optional
+      const payload = { id: linkId, name, url, icon, linkGroup };
       if (statusCheck) {
-        // @ts-ignore allow adding optional prop
         (payload as any).statusCheck = true;
       }
 
@@ -156,6 +155,7 @@ export default function LinkDetailsForm({ link, onClose }: LinkDetailsFormProps)
         setIcon("");
         setLinkGroup("");
         setIconEdited(false);
+        setLinkId(generateRandomId());
       }
 
       // Call onClose after successful save
@@ -358,4 +358,8 @@ export function LinkIcon({
       )}
     </Label>
   );
+}
+
+function generateRandomId(length = 8) {
+  return Math.random().toString(36).substr(2, length);
 }
