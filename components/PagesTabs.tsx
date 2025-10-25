@@ -9,7 +9,7 @@ export default function PagesTabs() {
   const router = useRouter();
   const [selectedPage, setSelectedPage] = useState(config?.pages?.[0] || "");
 
-  if (!config?.pages) return null;
+  if (!config?.pages || config?.pages.length < 2) return <div></div>;
 
   return (
     <nav className="flex gap-2 items-center justify-center">

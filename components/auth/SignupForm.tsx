@@ -13,6 +13,7 @@ import { faCircleCheck, faExclamationTriangle } from "@fortawesome/free-solid-sv
 import { setTimeout } from "timers"
 
 export default function SignupCard() {
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
@@ -46,6 +47,7 @@ export default function SignupCard() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          name,
           email,
           password,
           passwordConfirm: confirmPassword,
@@ -61,6 +63,7 @@ export default function SignupCard() {
 
         setTimeout(() => {
           // Clear the form fields
+          setName("")
           setEmail("")
           setPassword("")
           setConfirmPassword("")
@@ -106,6 +109,16 @@ export default function SignupCard() {
             </Alert>
           )}
 
+          <div className="grid gap-2">
+            <Label htmlFor="name">Name</Label>
+            <Input
+              id="name"
+              type="text"
+              placeholder="John Doe"
+              value={name}
+              onChange={(e) => setName(e.target.value)} 
+            />
+          </div>
           <div className="grid gap-2">
             <Label htmlFor="email">Email</Label>
             <Input

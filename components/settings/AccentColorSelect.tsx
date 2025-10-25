@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faPaintBrush } from "@fortawesome/free-solid-svg-icons";
+import { faEyeDropper, faPaintBrush } from "@fortawesome/free-solid-svg-icons";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -36,6 +36,10 @@ export default function AccentColorSelectComponent({ className }: { className?: 
     "#8B5CF6",
     "#06B6D4",
   ];
+
+  const isCustomAccent = !PRESET_COLORS.some(
+    (c) => c.toLowerCase() === (accent ?? "").toLowerCase()
+  );
 
   async function updateAccentColor(newColor: string) {
     const color_hex = newColor.startsWith("#") ? newColor : `#${newColor}`;
@@ -108,17 +112,23 @@ export default function AccentColorSelectComponent({ className }: { className?: 
             title={c}
             aria-label={`Choose ${c}`}
             onClick={() => updateAccentColor(c)}
-            className={`w-7 h-7 rounded-full border-2 transform transition-transform duration-150 active:scale-90 ${
-              accent?.toLowerCase() === c.toLowerCase() ? "ring-1 ring-offset-1" : ""
-            }`}
+            className={`w-7 h-7 rounded-full border-2 transform transition-transform duration-150 active:scale-90 ${accent?.toLowerCase() === c.toLowerCase() ? "ring-1 ring-offset-1" : ""
+              }`}
             style={{ background: c, borderColor: "rgba(255,255,255,0.08)" }}
           />
         ))}
 
+        <span className="w-2 h-2 mx-2 rounded-full frosted"></span>
+
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="h-7 ml-2 px-2 frosted rounded-full">
-              Customize
+            <Button
+              variant="ghost"
+              className={`frosted rounded-full w-8 h-8 outline-none shadow-none hover:ring-2 hover:ring-gray-300 hover:text-gray-300
+      transition-all duration-150 ${isCustomAccent ? "ring-2" : ""}`}
+              style={{ background: accent}}
+            >
+              <FontAwesomeIcon icon={faEyeDropper} fontSize={10} />
             </Button>
           </DropdownMenuTrigger>
 
