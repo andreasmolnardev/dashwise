@@ -39,7 +39,7 @@ export async function runStatusMonitoringJobs(): Promise<{
             const code = await monitorHelper(endpoint, config.ALLOW_SSL === 'true');
             const newStatus = (code >= 200 && code < 400) ? 'healthy' : 'unhealthy';
 
-            if (newStatus !== job.status) {
+            if (newStatus !== job.status[0]) {
                 // update job
                 await adminPb.collection('monitoringJobs').update(job.id, { status: newStatus });
 
@@ -61,7 +61,7 @@ export async function runStatusMonitoringJobs(): Promise<{
             result.details.push({ jobId: job.id, action: 'fetch_error', error: err?.message || String(err) });
 
             try {
-                if (job.status !== 'unhealthy') {
+                if (job.status[0] !== 'unhealthy') {
                     await adminPb.collection('monitoringJobs').update(job.id, { status: 'unhealthy' });
                     await adminPb.collection('monitoringJobStatusLogs').create({
                         job: [job.id],
@@ -77,7 +77,5 @@ export async function runStatusMonitoringJobs(): Promise<{
             }
         }
     }
-
-    console.log("runStatusMonitoringJobs result:", result);
     return result;
 }
