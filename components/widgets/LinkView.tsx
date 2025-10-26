@@ -168,7 +168,7 @@ export default function LinkView() {
               />
 
               {/* Name on left, dot on right — dot opens dialog when clicked */}
-              <div className="flex items-center justify-between w-full justify-center">
+              <div className="flex items-center w-full justify-center">
                 <span className="text-sm text-white">{link.name}</span>
 
                 {showDot ? (
@@ -176,7 +176,6 @@ export default function LinkView() {
                     aria-label={`Show monitoring details for ${link.name}`}
                     title={`Show monitoring details for ${link.name}`}
                     onClick={(e) => {
-                      // prevent anchor navigation when clicking the dot
                       e.preventDefault();
                       e.stopPropagation();
                       if (link.id && monitoringDetails && monitoringDetails[link.id]) {
@@ -186,13 +185,13 @@ export default function LinkView() {
                     className="ml-2 flex items-center justify-center"
                   >
                     <span
-                      className="h-2 w-2 rounded-full inline-block"
+                      className="h-2 w-2 rounded-full inline-block hover:cursor-pointer hover:ring-2"
                       style={{
                         backgroundColor: isHealthy
                           ? "var(--primary)"
                           : isDisabled
-                          ? "#9CA3AF"
-                          : "#6B7280",
+                            ? "#9CA3AF"
+                            : "#6B7280",
                       }}
                       aria-hidden
                     />
