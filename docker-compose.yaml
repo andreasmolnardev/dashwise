@@ -18,3 +18,13 @@ services:
       - ./pocketbase/pb_data:/app/pb_data
       - ./pocketbase/pb_migrations:/app/pb_migrations
     restart: unless-stopped
+  jobs:
+    build:
+      context: ./jobs
+    ports:
+      - "3001:3001"
+    environment:
+      NODE_ENV: development 
+    volumes:
+      - ./jobs/:/usr/src/app
+    command: npm run dev
