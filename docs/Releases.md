@@ -4,3 +4,4 @@ Features added since v0.1.3
 - Hide home button (Issue #44)
 - Add search engines to default config (no ticket)
 - Fix #37: Icons displayed as white shadows
+- Fix wallpaper failing to upload (no ticket)
