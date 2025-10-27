@@ -3,12 +3,19 @@ import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import config from "@/lib/config"
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 
 export default function AuthWelcomeFormComponent() {
     const router = useRouter();
-    //on load: check for existing auth, validate using /api/v1/auth/validate-auth endpoint if returned success to /home
+     const [enableSSO, setEnableSSO] = useState<boolean | null>(null);
+
     useEffect(() => {
+       // Load runtime config
+       fetch("/api/v1/appConfig")
+         .then(res => res.json())
+         .then(data => setEnableSSO(data.enableSSO ?? false))
+         .catch(() => setEnableSSO(false));
+
         const validateAuth = async () => {
             const token = localStorage.getItem('pb_token');
             if (!token) return;
@@ -42,7 +49,7 @@ export default function AuthWelcomeFormComponent() {
             </CardHeader>
 
             <CardContent className="flex flex-col gap-3">
-                {config.enableSSO && (
+                {(enableSSO === true) && (
                     <Button className="w-full" onClick={() => router.push("/api/v1/auth/sso")}>
                         Continue with SSO
                     </Button>
@@ -50,7 +57,7 @@ export default function AuthWelcomeFormComponent() {
 
                 <Button
                     className="w-full"
-                    variant={config.enableSSO ? "outline" : "default"}
+                    variant={enableSSO === true ? "outline" : "default"}
                     onClick={() => router.push("/auth/login")}
                 >
                     Login

@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -21,6 +21,38 @@ export default function SignupCard() {
   const [success, setSuccess] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const router = useRouter()
+  const [enableSSO, setEnableSSO] = useState<boolean | null>(null);
+
+  //on load: check for existing auth, validate using /api/v1/auth/validate-auth endpoint if returned success to /home
+  useEffect(() => {
+    // Fetch runtime config (e.g. enableSSO)
+    fetch("/api/v1/appConfig")
+      .then(res => res.json())
+      .then(data => setEnableSSO(data.enableSSO ?? false))
+      .catch(() => setEnableSSO(false));
+
+    const validateAuth = async () => {
+      const token = localStorage.getItem('pb_token');
+      if (!token) return;
+
+      try {
+        const res = await fetch("/api/v1/auth/validate-auth", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (res.ok) {
+          router.push("/home");
+        } else {
+          return;
+        }
+      } catch (err) {
+        console.error("Auth validation failed:", err);
+      }
+    };
+
+    validateAuth();
+  }, [router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -116,7 +148,7 @@ export default function SignupCard() {
               type="text"
               placeholder="John Doe"
               value={name}
-              onChange={(e) => setName(e.target.value)} 
+              onChange={(e) => setName(e.target.value)}
             />
           </div>
           <div className="grid gap-2">

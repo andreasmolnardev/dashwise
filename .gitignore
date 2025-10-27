@@ -13,8 +13,13 @@
 # testing
 /coverage
 
-#pocketbase data
-/pocketbase/pb_data
+# Ignore everything under /pocketbase
+/pocketbase/*
+
+# But keep these:
+!/pocketbase/init-pb.sh
+!/pocketbase/Dockerfile
+!/pocketbase/pb_migrations/
 
 #jobs runner's node modules
 /jobs/node_modules
