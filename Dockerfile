@@ -2,9 +2,6 @@
 FROM node:18-alpine AS builder
 WORKDIR /app
 
-# Install build tools for native modules
-RUN apk add --no-cache python3 make g++ bash
-
 # Copy package.json and package-lock.json
 COPY package*.json ./
 
