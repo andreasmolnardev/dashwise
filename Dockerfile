@@ -2,31 +2,24 @@
 FROM node:18-alpine AS builder
 WORKDIR /app
 
-# Copy package.json and package-lock.json
 COPY package*.json ./
-
-# Install all dependencies (including dev)
 RUN npm ci
 
-# Copy source code
+# Build app
 COPY . .
-
-# Build Next.js app
 RUN npm run build
 
-# Final stage
+# Production image
 FROM node:18-alpine
 WORKDIR /app
 
-# Copy built app and only production dependencies
+# Copy only what we need
 COPY package*.json ./
 RUN npm ci --omit=dev
 
 COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/public ./public
 
-# Expose port
 EXPOSE 3000
 
-# Start production server
 CMD ["npm", "start"]

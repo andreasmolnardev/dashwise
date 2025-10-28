@@ -3,7 +3,6 @@
 import Link from "next/link"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import pb from "@/lib/pb"
 
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -12,7 +11,6 @@ import { Input } from "@/components/ui/input"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome"
 import { faCircleCheck, faExclamationTriangle } from "@fortawesome/free-solid-svg-icons"
-import config from "@/lib/config"
 
 export default function LoginCard() {
   const router = useRouter()
@@ -21,9 +19,17 @@ export default function LoginCard() {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [enableSSO, setEnableSSO] = useState<boolean | null>(null);
+
 
   //on load: check for existing auth, validate using /api/v1/auth/validate-auth endpoint if returned success to /home
-  useEffect(() => {
+   useEffect(() => {
+    // Fetch runtime config (e.g. enableSSO)
+    fetch("/api/v1/appConfig")
+      .then(res => res.json())
+      .then(data => setEnableSSO(data.enableSSO ?? false))
+      .catch(() => setEnableSSO(false));
+
     const validateAuth = async () => {
       const token = localStorage.getItem('pb_token');
       if (!token) return;
@@ -152,7 +158,7 @@ export default function LoginCard() {
           <Link href="/auth/signup">Sign up instead</Link>
         </Button>
 
-        {config.enableSSO && (
+        {(enableSSO === true)  && (
           <Button variant="outline" className="w-full frosted">
             <Link href="/auth/signup">Use SSO</Link>
           </Button>

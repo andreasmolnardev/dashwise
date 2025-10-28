@@ -1,0 +1,19 @@
+services: 
+  dashwise:
+    build:
+      context: .
+    ports:
+      - "3016:3000"
+    restart: unless-stopped
+
+  pocketbase:
+    build: ./pocketbase
+    environment:
+      PB_ADMIN_EMAIL: default@dashwise.local
+      PB_ADMIN_PASSWORD: dashwiseIsAwesome
+    ports:
+      - "8090:8090"
+    volumes:
+      - ./pocketbase/test/pb_data:/app/pb_data
+      - ./pocketbase/pb_migrations:/app/pb_migrations
+    restart: unless-stopped
