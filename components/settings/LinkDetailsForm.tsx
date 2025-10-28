@@ -20,6 +20,7 @@ import {
 import { useConfig } from "@/context/ConfigContext";
 import IconPickerComponent from "@/components/settings/IconPicker";
 import { RadioGroup, RadioGroupItem } from "../ui/radio-group";
+import { Switch } from "@/components/ui/switch";
 import { faEllipsisV, faPaperclip } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 
@@ -34,10 +35,12 @@ interface Icon {
 }
 
 export interface LinkObject {
+  id?: string;
   icon?: string;
   linkGroup?: string;
   name?: string;
   url?: string;
+  statusCheck?: boolean;
 }
 
 interface LinkDetailsFormProps {
@@ -52,9 +55,11 @@ export default function LinkDetailsForm({ link, onClose }: LinkDetailsFormProps)
   const links = config?.links || [];
 
   const [name, setName] = useState("");
+  const [linkId, setLinkId] = useState(() => link?.id || generateRandomId());
   const [url, setUrl] = useState("");
   const [icon, setIcon] = useState("");
   const [linkGroup, setLinkGroup] = useState("");
+  const [statusCheck, setStatusCheck] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -64,6 +69,7 @@ export default function LinkDetailsForm({ link, onClose }: LinkDetailsFormProps)
 
   const isEditing = Boolean(link?.url && link?.name && link?.icon);
 
+  // Load icons
   useEffect(() => {
     fetch("/icons/index.json")
       .then((res) => res.json())
@@ -71,12 +77,17 @@ export default function LinkDetailsForm({ link, onClose }: LinkDetailsFormProps)
       .catch(console.error);
   }, []);
 
+  // Prefill group
   useEffect(() => {
     if (link?.linkGroup) {
       setLinkGroup(link.linkGroup);
     }
+    if ((link as any)?.statusCheck) {
+      setStatusCheck(Boolean((link as any).statusCheck));
+    }
   }, [link?.linkGroup]);
 
+  // Prefill fields
   useEffect(() => {
     if (linkGroups.length === 0) return;
     if (link?.name && link?.url && link?.icon) {
@@ -87,6 +98,7 @@ export default function LinkDetailsForm({ link, onClose }: LinkDetailsFormProps)
     }
   }, [link, linkGroups]);
 
+  // Auto-generate icon until manually edited
   useEffect(() => {
     if (!iconEdited && name.trim()) {
       const safeName = name.trim().replace(/\s+/g, "-").toLowerCase();
@@ -103,13 +115,15 @@ export default function LinkDetailsForm({ link, onClose }: LinkDetailsFormProps)
       const token = localStorage.getItem("pb_token");
       if (!token) throw new Error("Not authenticated");
 
-      const payload = { name, url, icon, linkGroup };
+      const payload = { id: linkId, name, url, icon, linkGroup };
+      if (statusCheck) {
+        (payload as any).statusCheck = true;
+      }
+
       let res: Response;
 
       if (isEditing) {
-        const updatedLinks = links.map((l: LinkObject) =>
-          l.url === link?.url ? payload : l
-        );
+        const updatedLinks = links.map((l: LinkObject) => l.url === link?.url ? payload : l);
 
         res = await fetch("/api/v1/config?path=links", {
           method: "PATCH",
@@ -141,12 +155,19 @@ export default function LinkDetailsForm({ link, onClose }: LinkDetailsFormProps)
         setIcon("");
         setLinkGroup("");
         setIconEdited(false);
+        setLinkId(generateRandomId());
       }
 
+      // Call onClose after successful save
       if (onClose) await onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError(String(err));
+      }
+    }
+    finally {
       setLoading(false);
     }
   };
@@ -178,11 +199,10 @@ export default function LinkDetailsForm({ link, onClose }: LinkDetailsFormProps)
         <Label htmlFor="link-image">Icon</Label>
         <RadioGroup className="flex items-center gap-2" defaultValue="current">
           <LinkIcon name="current" iconUrl={icon} />
-
           <Popover modal={true}>
             <PopoverTrigger>
               <Label
-                className="h-[35px] w-[35px] frosted rounded-md flex items-center justify-center cursor-pointer"
+                className="h-[35px] w-[35px] frosted rounded-md flex items-center justify-center outline-2 outline-transparent cursor-pointer"
                 title="Set icon by link"
               >
                 <FontAwesomeIcon icon={faPaperclip} />
@@ -202,6 +222,8 @@ export default function LinkDetailsForm({ link, onClose }: LinkDetailsFormProps)
                     const value = e.target.value;
                     setIcon(value);
                     setIconEdited(true);
+
+                    // update hidden input directly
                     const hidden = document.querySelector<HTMLInputElement>('input[name="icon"]');
                     if (hidden) hidden.value = value;
                   }}
@@ -214,7 +236,7 @@ export default function LinkDetailsForm({ link, onClose }: LinkDetailsFormProps)
             <PopoverTrigger>
               <Label
                 key={name}
-                className="h-[35px] w-[35px] frosted rounded-md flex items-center justify-center"
+                className="h-[35px] w-[35px] frosted rounded-md flex items-center justify-center outline-2 outline-transparent has-checked:outline-(--primary)"
               >
                 <FontAwesomeIcon icon={faEllipsisV} />
               </Label>
@@ -235,9 +257,18 @@ export default function LinkDetailsForm({ link, onClose }: LinkDetailsFormProps)
               />
             </PopoverContent>
           </Popover>
-
           <input type="hidden" name="icon" value={icon ?? ""} />
         </RadioGroup>
+        <div className="mt-3 flex items-center gap-2">
+          <Switch
+            id="status-checks"
+            checked={statusCheck}
+            onCheckedChange={(v) => setStatusCheck(Boolean(v))}
+          />
+          <Label htmlFor="status-checks" className="text-sm">
+            Status checks
+          </Label>
+        </div>
       </section>
 
       <Separator orientation="vertical" />
@@ -258,40 +289,25 @@ export default function LinkDetailsForm({ link, onClose }: LinkDetailsFormProps)
             ))}
           </SelectContent>
         </Select>
-
         <div className="mt-4">
           <p className="text-xs text-gray-400 mb-1">
             Preview {isEditing && "(Editing)"}
           </p>
-
           <div className="group flex flex-col items-center justify-between space-y-2 frosted rounded-2xl p-2 min-h-18 w-[120px]">
-            {icon && icon.includes("-light") ? (
-              <div
-                className="h-[35px] w-[35px] bg-white group-hover:bg-(--primary) transition"
-                style={{
-                  maskImage: `url(${icon})`,
-                  WebkitMaskImage: `url(${icon})`,
-                  maskRepeat: "no-repeat",
-                  WebkitMaskRepeat: "no-repeat",
-                  maskPosition: "center",
-                  WebkitMaskPosition: "center",
-                  maskSize: "contain",
-                  WebkitMaskSize: "contain",
-                }}
-              />
-            ) : (
-              icon && (
-                <img
-                  src={icon}
-                  alt="preview"
-                  className="h-[35px] w-[35px] object-contain transition"
-                />
-              )
-            )}
-
-            <span className="text-sm text-white">
-              {name || "Link name"}
-            </span>
+            <div
+              className="h-[35px] w-[35px] bg-white group-hover:bg-(--primary) transition"
+              style={{
+                maskImage: icon ? `url(${icon})` : "none",
+                WebkitMaskImage: icon ? `url(${icon})` : "none",
+                maskRepeat: "no-repeat",
+                WebkitMaskRepeat: "no-repeat",
+                maskPosition: "center",
+                WebkitMaskPosition: "center",
+                maskSize: "contain",
+                WebkitMaskSize: "contain",
+              }}
+            />
+            <span className="text-sm text-white">{name || "Link name"}</span>
           </div>
         </div>
       </section>
@@ -319,37 +335,31 @@ export function LinkIcon({
   name: string;
   iconUrl: string | null;
 }) {
-  const isLightVariant = iconUrl?.includes("-light");
-
   return (
     <Label
       key={name}
-      className="h-[35px] w-[35px] frosted rounded-md flex items-center justify-center"
+      className="h-[35px] w-[35px] frosted rounded-md flex items-center justify-center outline-2 outline-transparent has-checked:outline-(--primary)"
     >
       <RadioGroupItem value={name} className="hidden" />
-
-      {iconUrl &&
-        (isLightVariant ? (
-          <div
-            className="bg-white h-[22px] w-[22px]"
-            style={{
-              maskImage: `url(${iconUrl})`,
-              WebkitMaskImage: `url(${iconUrl})`,
-              maskRepeat: "no-repeat",
-              WebkitMaskRepeat: "no-repeat",
-              maskPosition: "center",
-              WebkitMaskPosition: "center",
-              maskSize: "contain",
-              WebkitMaskSize: "contain",
-            }}
-          />
-        ) : (
-          <img
-            src={iconUrl}
-            alt="icon"
-            className="h-[22px] w-[22px] object-contain"
-          />
-        ))}
+      {iconUrl && (
+        <div
+          className="bg-white h-[22px] w-[22px]"
+          style={{
+            maskImage: `url(${iconUrl})`,
+            WebkitMaskImage: `url(${iconUrl})`,
+            maskRepeat: "no-repeat",
+            WebkitMaskRepeat: "no-repeat",
+            maskPosition: "center",
+            WebkitMaskPosition: "center",
+            maskSize: "contain",
+            WebkitMaskSize: "contain",
+          }}
+        />
+      )}
     </Label>
   );
+}
+
+function generateRandomId(length = 8) {
+  return Math.random().toString(36).substr(2, length);
 }

@@ -43,9 +43,21 @@ It's available to the frontend via a GET request to /api/v1/config.
 Accessing it is handled by the ConfigContext.
 
 ## Open Source Projects that make dashwise possible
+
 [Selfh.st icons](https://github.com/selfhst/icons),
 [Font Awesome](https://fontawesome.com),
 [Nextjs](https://github.com/vercel/next.js), [Shadcn](https://github.com/shadcn-ui/ui)
 
 ## Contributions
+
 Feel free to contribute! I'll probably create a more detailed roadmap soon.
+
+## Star History
+
+<a href="https://www.star-history.com/#andreasmolnardev/dashwise-next&type=date&legend=top-left">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=andreasmolnardev/dashwise-next&type=date&theme=dark&legend=top-left" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=andreasmolnardev/dashwise-next&type=date&legend=top-left" />
+   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=andreasmolnardev/dashwise-next&type=date&legend=top-left" />
+ </picture>
+</a>
