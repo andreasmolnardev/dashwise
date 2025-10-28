@@ -11,6 +11,8 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import UploadWallpaperDialogComponent from "@/components/settings/UploadWallpaperDialog";
 import UrlWallpaperDialogComponent from "@/components/settings/UrlWallpaperDialog";
 import AccentColorSelectComponent from "@/components/settings/AccentColorSelect";
+import WallpaperBlurSliderComponent from "@/components/settings/WallpaperBlurSlider";
+import WallpaperBrightnessSliderComponent from "@/components/settings/WallpaperBrightnessSlider";
 
 export default function AppearanceSettingsPage() {
   const [value, setValue] = useState("current");
@@ -22,7 +24,7 @@ export default function AppearanceSettingsPage() {
       <h1 className="text-3xl font-semibold mb-4">Appearance</h1>
 
       <div className="content space-y-2">
-        <h2 className="text-xl">Wallpaper</h2>
+        <h2 className="text-xl font-semibold">Wallpaper</h2>
         <RadioGroup
           value={value}
           onValueChange={(v) => {
@@ -91,7 +93,12 @@ export default function AppearanceSettingsPage() {
           configKey="settings/appearance"
         />
 
-        <h2 className="text-xl">Theme</h2>
+        <h2 className="text-lg font-medium">Filters</h2>
+
+        <WallpaperBlurSliderComponent />
+        <WallpaperBrightnessSliderComponent />
+
+        <h2 className="text-xl font-semibold">Theme</h2>
 
         {/* Accent color moved to its own component */}
         <AccentColorSelectComponent/>

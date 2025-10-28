@@ -5,24 +5,24 @@ import { usePathname, useRouter } from "next/navigation";
 import { ConfigProvider } from "@/context/ConfigContext";
 import { cn } from "@/lib/utils";
 
-export default function ConfigWrapper({ children, blurIntensityClass }: { children: ReactNode, blurIntensityClass?: string }) {
+export default function ConfigWrapper({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const [config, setConfig] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
-  // Register service worker
+  // --- Service worker registration ---
   useEffect(() => {
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker
         .register("/sw.js")
         .then(() => console.log("Service Worker registered"))
-        .catch(err => console.error("Service Worker registration failed:", err));
+        .catch((err) => console.error("Service Worker registration failed:", err));
     }
   }, []);
 
-  // Fetch config function — move it outside the effect so it can be reused
+  // --- Fetch config ---
   const fetchConfig = async () => {
     try {
       setLoading(true);
@@ -37,7 +37,10 @@ export default function ConfigWrapper({ children, blurIntensityClass }: { childr
         headers: { Authorization: `Bearer ${token}` },
       });
 
-      if (res.status == 401) {router.push("/auth/login"); throw new Error(`Failed to fetch config - Unauthorized. Redirecting to login.`)}
+      if (res.status === 401) {
+        router.push("/auth/login");
+        throw new Error(`Unauthorized`);
+      }
 
       if (!res.ok) throw new Error(`Failed to fetch config: ${res.status}`);
       const data = await res.json();
@@ -49,7 +52,7 @@ export default function ConfigWrapper({ children, blurIntensityClass }: { childr
     }
   };
 
-  // Initial fetch on mount or when pathname changes
+  // --- Fetch config on mount or when path changes ---
   useEffect(() => {
     if (!config && pathname && !pathname.includes("auth")) {
       fetchConfig();
@@ -59,14 +62,13 @@ export default function ConfigWrapper({ children, blurIntensityClass }: { childr
     }
   }, [pathname]);
 
-  // set accent color
+  // --- Accent color ---
   useEffect(() => {
-  const accentColor = config?.appearance?.accentColor || "#4f46e5";
-  document.documentElement.style.setProperty("--primary", accentColor);
-}, [config]);
+    const accentColor = config?.appearance?.accentColor || "#4f46e5";
+    document.documentElement.style.setProperty("--primary", accentColor);
+  }, [config]);
 
-
-  // Handle background image
+  // --- Wallpaper loading ---
   useEffect(() => {
     if (!config) return;
 
@@ -109,18 +111,26 @@ export default function ConfigWrapper({ children, blurIntensityClass }: { childr
       document.body.style.backgroundRepeat = "";
       document.body.style.backgroundPosition = "";
 
-      if (revokeUrl) {
-        URL.revokeObjectURL(revokeUrl);
-      }
+      if (revokeUrl) URL.revokeObjectURL(revokeUrl);
     };
   }, [config]);
 
   if (loading) return <div></div>;
   if (error) return <div>Error loading config: {error}</div>;
 
+  // Wallpaper blur + brightness from config
+  const blur = config?.appearance?.wallpaperFilters?.blur ?? 3; // px
+  const brightness = config?.appearance?.wallpaperFilters?.brightness ?? 85; // percent
+
   return (
     <ConfigProvider value={{ config, refreshConfig: fetchConfig }}>
-      <div className={cn("min-h-screen backdrop-brightness-85", blurIntensityClass ?? "backdrop-blur-[3px]")}>
+      <div
+        className={cn("min-h-screen")}
+        style={{
+          backdropFilter: `blur(${blur}px) brightness(${brightness}%)`,
+          WebkitBackdropFilter: `blur(${blur}px) brightness(${brightness}%)`,
+        }}
+      >
         {children}
       </div>
     </ConfigProvider>
