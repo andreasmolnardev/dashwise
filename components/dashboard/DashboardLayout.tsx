@@ -33,7 +33,7 @@ export default function DashboardLayoutComponent(
   }, [router]);
 
   return (
-    <div className="grid grid-rows-[1fr_36px] h-screen pt-5 p-3.5 text-(--surface-foreground) bg-(--surface) backdrop-blur-[3px] backdrop-brightness-85">
+    <div className="grid grid-rows-[1fr_36px] h-screen pt-5 p-3.5 text-(--surface-foreground) bg-(--surface)">
       <main
         className="overflow-hidden grid grid-cols-[25%_1fr_25%]"
         id="page-content-container"
@@ -70,23 +70,35 @@ export default function DashboardLayoutComponent(
         <PagesTabs />
 
         <ul className="flex items-center gap-4 justify-end">
-          {(typeof config?.integrations === 'object' && !Array.isArray(config?.integrations) && config?.integrations !== null) && (Object.keys(config?.integrations).map((i: string) => i.toLowerCase()).includes("notifications")) && (
-            <li>
-              <Link
-                href="/notifications"
-                className="frosted p-2 rounded-full hover:bg-amber-500"
-              >
-                <FontAwesomeIcon icon={faBell} />
-              </Link>
-            </li>
-          )}
+          {(typeof config?.integrations === "object" &&
+            !Array.isArray(config?.integrations) &&
+            config?.integrations !== null &&
+            Object.keys(config?.integrations)
+              .map((i: string) => i.toLowerCase())
+              .includes("notifications")) && (
+              <li>
+                <Link
+                  href="/notifications"
+                  className="frosted p-2 rounded-full group transition-colors duration-200"
+                >
+                  <FontAwesomeIcon
+                    icon={faBell}
+                    className="text-(--text-primary) group-hover:text-(--primary) transition-colors duration-200"
+                  />
+                </Link>
+              </li>
+            )}
+
           <li>
             <Link
               href="/settings/appearance"
               prefetch={false}
-              className="frosted p-2 rounded-full hover:bg-amber-500"
+              className="frosted p-2 rounded-full group transition-colors duration-200"
             >
-              <FontAwesomeIcon icon={faGear} />
+              <FontAwesomeIcon
+                icon={faGear}
+                className="text-(--text-primary) group-hover:text-(--primary) transition-colors duration-200"
+              />
             </Link>
           </li>
         </ul>
