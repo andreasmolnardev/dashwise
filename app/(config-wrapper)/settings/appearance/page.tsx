@@ -95,8 +95,8 @@ export default function AppearanceSettingsPage() {
 
         <h2 className="text-lg font-medium">Filters</h2>
 
-        <WallpaperBlurSliderComponent />
         <WallpaperBrightnessSliderComponent />
+        <WallpaperBlurSliderComponent />
 
         <h2 className="text-xl font-semibold">Theme</h2>
 
