@@ -36,7 +36,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: ./pocketbase/
-          file: ./pocketbase/Dockerfile
+          file: ./pocketbase/Dockerfile 
           push: true
           platforms: linux/amd64,linux/arm64
           builder: ${{ secrets.DOCKER_BUILDER }}
