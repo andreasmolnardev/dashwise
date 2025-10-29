@@ -13,6 +13,7 @@ import UrlWallpaperDialogComponent from "@/components/settings/UrlWallpaperDialo
 import AccentColorSelectComponent from "@/components/settings/AccentColorSelect";
 import WallpaperBlurSliderComponent from "@/components/settings/WallpaperBlurSlider";
 import WallpaperBrightnessSliderComponent from "@/components/settings/WallpaperBrightnessSlider";
+import ClockFontSelectionCarousel from "@/components/settings/ClockFontSelectionCarousel";
 
 export default function AppearanceSettingsPage() {
   const [value, setValue] = useState("current");
@@ -93,7 +94,7 @@ export default function AppearanceSettingsPage() {
           configKey="settings/appearance"
         />
 
-        <h2 className="text-lg font-medium">Filters</h2>
+        <h3 className="text-lg font-medium">Filters</h3>
 
         <WallpaperBrightnessSliderComponent />
         <WallpaperBlurSliderComponent />
@@ -102,6 +103,9 @@ export default function AppearanceSettingsPage() {
 
         {/* Accent color moved to its own component */}
         <AccentColorSelectComponent/>
+
+        <h3 className="text-lg font-medium">Clock</h3>
+        <ClockFontSelectionCarousel />
       </div>
     </>
   );
