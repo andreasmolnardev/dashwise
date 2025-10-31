@@ -36,7 +36,7 @@ export async function runStatusMonitoringJobs(): Promise<{
         result.processed++;
 
         try {
-            const code = await monitorHelper(endpoint, config.ALLOW_SSL === 'true');
+            const code = await monitorHelper(endpoint, config.ALLOW_SSL === true);
             const newStatus = (code >= 200 && code < 400) ? 'healthy' : 'unhealthy';
 
             if (newStatus !== job.status[0]) {
