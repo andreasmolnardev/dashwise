@@ -4,6 +4,8 @@ This is my attempt to solving that.
 
 > **Disclaimer:** This project is still under development. Therefore, only the working features of the app are listed in the features section. Integration with additional services is planned, but will not be available until widget implementation is complete.
 
+> **Breaking Changes for v0.2:** ARM images now have a seperate tag of stable-arm. Also, a jobs container has been added to docker compose
+
 ## Screenshot
 <img width="1445" height="827" alt="Screenshot 2025-10-22 at 08 03 40" src="https://github.com/user-attachments/assets/69061ca0-cba1-4c23-b7bd-59ca691507e0" />
 
@@ -21,7 +23,7 @@ This is my attempt to solving that.
 Grab the docker compose file (docker-compose.prod.yaml), edit env vars, pull, deploy. That's it.
 
 ## Configuration
-You can use the following environment variables:
+You can use the following environment variables for the main container:
 
 | Name | Required | Default Value | Description |
 | --- | --- | --- | --- |
@@ -32,6 +34,19 @@ You can use the following environment variables:
 | NEXT_PUBLIC_APP_URL | Yes | `http://localhost:3000` | URL of the application |
 | NEXT_PUBLIC_ENABLE_SSO | No | `false` | Enable Single Sign-On (SSO) |
 | NEXT_PUBLIC_DEFAULT_BG_URL | No | `/dashboard-wallpaper.png` | Default background URL |
+
+The jobs container can be configured with the following environment variables:
+
+| Name | Required | Default Value | Description |
+| --- | --- | --- | --- |
+| PB_URL | Yes | `http://pocketbase:8090` | Internal URL of the PocketBase instance used for API access |
+| DASHWISE_URL | Yes | `http://dashwise:3000` | Internal URL of the Dashwise web application |
+| PB_ADMIN_EMAIL | Yes | `default@dashwise.local` | Email of the PocketBase admin user for authentication |
+| PB_ADMIN_PASSWORD | Yes | `DashwiseIsAwesome` | Password of the PocketBase admin user for authentication |
+| SEARCHITEMS_SCHEDULE | No | `*/10 * * * *` | Cron expression defining the interval for the search item indexing job |
+| MONITORING_INDEXER_SCHEDULE | No | `*/10 * * * *` | Cron expression defining how often the monitoring indexer runs |
+| MONITORING_RUNNER_SCHEDULE | No | `*/1 * * * *` | Cron expression defining how often the monitoring runner executes |
+| ALLOW_SSL | No | `false` | Enables SSL support for internal service communication |
 
 ## Tech Stack
 Frontend, API Layer: Next.js
