@@ -17,14 +17,13 @@ export default function WallpaperBlurSliderComponent({ className }: { className?
       const newPercent = ((current - 1) / (25 - 1)) * 100;
       setPercent(Math.round(newPercent));
       setPreviewBlur(current);
-      document.body.style.backdropFilter = `blur(${current}px)`; // initial preview
     }
   }, [config]);
 
   // Preview on drag
   function handlePreview(pxValue: number) {
     setPreviewBlur(pxValue);
-    document.body.style.backdropFilter = `blur(${pxValue}px) brightness(${config?.appearance?.wallpaperFilters?.brightness ? 0.01 * config?.appearance?.wallpaperFilters?.brightness : 85 })`;
+    document.body.style.backdropFilter = `blur(${pxValue}px) brightness(${config?.appearance?.wallpaperFilters?.brightness ? 0.01 * config?.appearance?.wallpaperFilters?.brightness : 85})`;
   }
 
   // Save on release
@@ -84,14 +83,19 @@ export default function WallpaperBlurSliderComponent({ className }: { className?
           disabled={saving}
           onValueChange={([v]) => {
             setPercent(v);
-            handlePreview((v / 100) * (25 - 1) + 1);
+            const newValue = Math.round((v / 100) * (25 - 1) + 1);
+            handlePreview(newValue);
           }}
-          onValueCommit={([v]) => handleSave((v / 100) * (25 - 1) + 1)}
+
+          onValueCommit={([v]) => {
+            const newValue = Math.round((v / 100) * (25 - 1) + 1);
+            handleSave(newValue);
+          }}
           className="flex-1"
         />
         {/* Percentage + px */}
         <span className="min-w-[50px] text-right text-medium">
-         {blurPx}px
+          {blurPx}px
         </span>
       </div>
     </div>

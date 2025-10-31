@@ -27,9 +27,9 @@ services:
     environment:
       PB_URL: http://pocketbase:8090
       DASHWISE_URL: http://dashwise:3000
-      SEARCHITEMS_SCHEDULE: */10 * * * *
-      MONITORING_INDEXER_SCHEDULE: */10 * * * *
-      MONITORING_RUNNER_SCHEDULE: */1 * * * *
+      SEARCHITEMS_SCHEDULE: "*/10 * * * *"
+      MONITORING_INDEXER_SCHEDULE: "*/10 * * * *"
+      MONITORING_RUNNER_SCHEDULE: "*/1 * * * *"
       ALLOW_SSL: false
       PB_ADMIN_EMAIL: default@dashwise.local
       PB_ADMIN_PASSWORD: dashwiseIsAwesome  

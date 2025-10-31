@@ -15,17 +15,18 @@ export default function WallpaperBrightnessSliderComponent({ className }: { clas
   useEffect(() => {
     const current = config?.appearance?.wallpaperFilters?.brightness;
     if (typeof current === "number") {
-      const mapped = ((current - 50) / (150 - 50)) * 100; // map 50–150 → 0–100 slider
+      const mapped = ((current - 50) / (150 - 50)) * 100;
       setPercent(Math.round(mapped));
       setPreviewBrightness(current);
-      document.body.style.backdropFilter = `brightness(${current}%)`;
     }
   }, [config]);
 
   // Live preview while dragging
   function handlePreview(value: number) {
     setPreviewBrightness(value);
-    document.body.style.backdropFilter = `brightness(${value}%)`;
+    // Only apply brightness + blur preview without touching config on mount
+    const blur = config?.appearance?.wallpaperFilters?.blur ?? 3; // fallback blur
+    document.body.style.backdropFilter = `brightness(${value}%) blur(${blur}px)`;
   }
 
   // Save when released
@@ -85,9 +86,15 @@ export default function WallpaperBrightnessSliderComponent({ className }: { clas
           disabled={saving}
           onValueChange={([v]) => {
             setPercent(v);
-            handlePreview((v / 100) * (150 - 50) + 50);
+            const newValue = Math.round((v / 100) * (150 - 50) + 50);
+            handlePreview(newValue);
           }}
-          onValueCommit={([v]) => handleSave((v / 100) * (150 - 50) + 50)}
+
+          onValueCommit={([v]) => {
+            const newValue = Math.round((v / 100) * (150 - 50) + 50);
+            handleSave(newValue);
+          }}
+
           className="flex-1"
         />
         {/* Percentage */}
