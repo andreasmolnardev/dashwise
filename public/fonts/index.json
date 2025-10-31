@@ -3,6 +3,10 @@
         "name": "Bitcount Grid Single",
         "path": "/fonts/BitcountGridSingle.ttf"
     },
+    {   
+        "name": "MomoTrustDisplay",
+        "path": "/fonts/MomoTrustDisplay.ttf"
+    },
     {
         "name": "WDXLLubrifont",
         "path": "/fonts/WDXLLubrifontSC-Regular.ttf"
