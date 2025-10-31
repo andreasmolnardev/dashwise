@@ -14,6 +14,7 @@ This is my attempt to solving that.
 - Built-in Authentication: dashwise has Auth built right into it - and even features
 - SSO via OIDC: While tested with PocketId, it should work via OIDC - which can be configured in Pocketbase directly.
 - Links: store your most important links for quick access and group them into Link Groups. Folders coming soon.
+- Monitor your links: Can be enabled via link details settings. Performs a GET request to that endpoint. Logs downtime.
 - Glanceables: Customizable bits of one-line information next to the clock.
 - Wallpapers: Upload them to dashwise directly, or even change the default one for new users by mounting one into the container
 - Spotlight-like Search: Hit Ctrl+K from your dashboard, and you'll be able to search your links and integrations or use bangs for search engines specified in settings.
