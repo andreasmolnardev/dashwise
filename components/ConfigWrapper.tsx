@@ -122,6 +122,7 @@ export default function ConfigWrapper({ children }: { children: ReactNode }) {
   const blur = config?.appearance?.wallpaperFilters?.blur ?? 3; // px
   const brightness = config?.appearance?.wallpaperFilters?.brightness ?? 85; // percent
 
+
   return (
     <ConfigProvider value={{ config, refreshConfig: fetchConfig }}>
       <div

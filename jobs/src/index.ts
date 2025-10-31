@@ -41,9 +41,20 @@ fastify.get("/webhook/searchItemIndexer", async (request, reply) => {
 //link monitoring: indexer
 cron.schedule(config.MONITORING_INDEXER_SCHEDULE, () => indexStatusMonitoringJobs());
 
+fastify.get("/webhook/statusMonitoringIndexer", async (request, reply) => {
+  console.log("Webhook received");
+  await indexStatusMonitoringJobs();
+  reply.send({ message: "status monitoring indexer triggered" });
+});
+
 //link monitoring: runner
 cron.schedule(config.MONITORING_RUNNER_SCHEDULE, () => runStatusMonitoringJobs());
 
+fastify.get("/webhook/statusMonitoringRunner", async (request, reply) => {
+  console.log("Webhook received");
+  await runStatusMonitoringJobs();
+  reply.send({ message: "status monitoring indexer triggered" });
+});
 
 // Start http server
 fastify.listen({ port: 3001, host: "0.0.0.0" });

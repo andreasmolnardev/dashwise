@@ -7,6 +7,8 @@ interface PaginatedCarouselViewProps {
   rowHeight?: number;
   minColWidth?: number;
   maxCols?: number;
+  maxRows?: number;
+  className?: string
 }
 
 
@@ -15,6 +17,8 @@ export function PaginatedCarouselViewComponent({
   rowHeight = 90,
   minColWidth = 150,
   maxCols = 4,
+  maxRows = 3,
+  className,
 }: PaginatedCarouselViewProps) {
   const [rows, setRows] = useState(3);
   const [cols, setCols] = useState(3);
@@ -41,7 +45,7 @@ export function PaginatedCarouselViewComponent({
     const calc = () => {
       const availH = window.innerHeight * 0.6;
       const computedRows = Math.max(1, Math.floor(availH / rowHeight));
-      setRows(Math.min(3, computedRows));
+      setRows(Math.min(maxRows, computedRows));
 
       const effectiveWidth = containerWidth || window.innerWidth;
       let computedCols = Math.max(1, Math.floor(effectiveWidth / minColWidth));
@@ -80,7 +84,7 @@ export function PaginatedCarouselViewComponent({
   };
 
   return (
-    <div className="space-y-2">
+    <div className={cn("space-y-2", className)}>
       {/* carousel */}
       <div
         ref={containerRef}

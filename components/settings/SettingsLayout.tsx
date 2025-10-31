@@ -33,7 +33,7 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
   }, [pathname]);
 
   return (
-    <div className="flex h-dvh bg-(--surface) backdrop-blur-[5px] backdrop-brightness-85 text-white p-4">
+    <div className="flex h-dvh bg-(--surface) text-white p-4">
       <div className="w-[30%]">
         <h1 className="scroll-m-20 text-4xl font-bold tracking-tight text-balance">Settings</h1>
 
