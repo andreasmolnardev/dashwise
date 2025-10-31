@@ -77,7 +77,7 @@ export default function LinkView() {
         }
       }
 
-      setMonitoringDetails(normalized);
+      setMonitoring(normalized);
 
       // map to simple boolean status map keyed by linkId
       const next: Record<string, boolean> = {};
@@ -211,7 +211,11 @@ export default function LinkView() {
             if (!val) setOpenDialogFor(null);
           }}
           link={selectedLink}
-          details={selectedLink.id && monitoringDetails ? monitoringDetails[selectedLink.id] : undefined}
+          details={
+            selectedLink.id && monitoringDetails
+              ? (monitoringDetails[selectedLink.id] as JobEntry)
+              : undefined
+          }
         />
       )}
     </div>
