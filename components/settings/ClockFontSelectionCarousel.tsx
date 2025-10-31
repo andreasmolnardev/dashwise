@@ -119,7 +119,7 @@ export default function ClockFontSelectionCarousel() {
 
   return (
     <div className="space-y-3 flex items-center justify-center">
-      <PaginatedCarouselViewComponent minColWidth={180} rowHeight={120} maxCols={4}>
+      <PaginatedCarouselViewComponent minColWidth={180} rowHeight={120} maxRows={1} className="w-full">
         {fonts.map((font) => (
           <button
             key={font.name}

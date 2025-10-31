@@ -105,7 +105,7 @@ export default function AppearanceSettingsPage() {
         <AccentColorSelectComponent/>
 
         <h3 className="text-lg font-medium">Clock</h3>
-        <ClockFontSelectionCarousel />
+        <ClockFontSelectionCarousel/>
       </div>
     </>
   );
