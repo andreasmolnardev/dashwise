@@ -10,7 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { LinkType } from "./LinkView";
 
-type JobEntry = {
+export type JobEntry = {
     status: "healthy" | "disabled" | "unhealthy";
     dateChanged: string | null;
     durationChanged: number | null; // seconds

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useConfig } from "@/context/ConfigContext";
 import { cn } from "@/lib/utils";
 import { PaginatedCarouselViewComponent } from "./PaginatedCarouselView";
-import MonitoringDialog from "./MonitoringDialog";
+import MonitoringDialog, { JobEntry } from "./MonitoringDialog";
 
 export interface LinkType {
   id?: string;
@@ -77,7 +77,7 @@ export default function LinkView() {
         }
       }
 
-      setMonitoring(normalized);
+      setMonitoringDetails(normalized);
 
       // map to simple boolean status map keyed by linkId
       const next: Record<string, boolean> = {};
