@@ -12,6 +12,7 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faBell, faGear } from "@fortawesome/free-solid-svg-icons";
 import PagesTabs from "../PagesTabs";
 import UpdateDetailsDialogComponent from "./UpdateDetailsDialog";
+import WidgetComponent from "../widgets/Widget";
 
 export default function DashboardLayoutComponent(
   children: React.PropsWithChildren<{}> = {}
@@ -33,13 +34,28 @@ export default function DashboardLayoutComponent(
     router.prefetch("/settings/appearance");
   }, [router]);
 
+  const renderWidgetColumn = (column?: typeof config.widgets[0]) => {
+    if (!column) return null;
+    return column.map((widget, index) => (
+      <WidgetComponent
+        key={widget.id || `${widget.type}-${index}`}
+        type={widget.type}
+        params={widget.properties}
+        className="mb-3.5 h-[120px]" 
+      />
+    ));
+  };
+
   return (
     <div className="grid grid-rows-[1fr_36px] h-screen pt-5 p-3.5 text-(--surface-foreground) bg-(--surface)">
       <main
         className="overflow-hidden grid grid-cols-[25%_1fr_25%]"
         id="page-content-container"
       >
-        <div id="right-widget-panel" className="text-(--surface-foreground)"></div>
+        <div id="left-widget-panel" className="space-y-3.5">
+          {renderWidgetColumn(config?.widgets?.[0])}
+        </div>
+
         <div className="space-y-3.5">
           <section className="grid grid-cols-[1fr_auto_1fr] items-center justify-items-center">
             <GlanceableComponent
@@ -58,8 +74,12 @@ export default function DashboardLayoutComponent(
           </section>
           <SearchBar useRedirect={true} />
           <LinkView />
+          {/* Render middle column widgets */}
+          {renderWidgetColumn(config?.widgets?.[1])}
         </div>
-        <div id="left-widget-panel"></div>
+        <div id="right-widget-panel" className="space-y-3.5">
+          {renderWidgetColumn(config?.widgets?.[2])}
+        </div>
       </main>
 
       <div className="grid grid-cols-[1fr_80%_1fr] items-center" id="page-footer">
@@ -69,7 +89,7 @@ export default function DashboardLayoutComponent(
 
           <div className="aspect-square rounded-full frosted w-2 h-2"></div>
 
-         <UpdateDetailsDialogComponent />
+          <UpdateDetailsDialogComponent />
         </div>
 
         <PagesTabs />
