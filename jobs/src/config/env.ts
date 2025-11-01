@@ -13,7 +13,7 @@ export const config = {
   PB_ADMIN_EMAIL: process.env.PB_ADMIN_EMAIL!,
   PB_ADMIN_PASSWORD: process.env.PB_ADMIN_PASSWORD!,
   DASHWISE_URL: process.env.DASHWISE_URL || undefined,
-  DASHWISE_VERSION: '0.2',
+  DASHWISE_VERSION: '0.2.0',
   GITHUB_REPO: 'andreasmolnardev/dashwise-next'
 } as const;
 

@@ -44,10 +44,11 @@ export async function runComparisonRunner() {
       (r) => r.instanceName?.toLowerCase() === instanceName.toLowerCase()
     );
 
+    // updateAvailable is set to latestTag string if newUpdate is true, otherwise 0
     const payload = {
       instanceName,
       version: localVersion,
-      updateAvailable: newUpdate ? 1 : 0,
+      updateAvailable: newUpdate ? latestTag : 0,
     };
 
     if (record) {
