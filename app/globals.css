@@ -52,6 +52,7 @@
   --primary: oklch(79.258% 0.14708 222.532);
   --primary-foreground: oklch(0.985 0 0);
   --text-primary: oklch(100% 0.00011 271.152);
+  --text-on-frosted: oklch(100% 0.00011 271.152 / 0.803);
   --text-secondary: oklch(80% 0.00011 271.152);
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
@@ -118,6 +119,10 @@
 
 .frosted.dark {
   @apply bg-white/5 backdrop-blur-md border border-white/10 shadow-sm;
+}
+
+.frosted.light {
+  @apply bg-white/5 dark:bg-white/5 backdrop-blur-md border border-white/10 dark:border-white/10 shadow-sm;
 }
 
 .hover-frosted:hover {
