@@ -9,11 +9,8 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faArrowRotateRight, faBell, faGear } from "@fortawesome/free-solid-svg-icons";
+import { faBell, faGear } from "@fortawesome/free-solid-svg-icons";
 import PagesTabs from "../PagesTabs";
-import { Dialog, DialogContent, DialogTitle } from "../ui/dialog";
-import { DialogTrigger } from "@radix-ui/react-dialog";
-import { Button } from "../ui/button";
 import UpdateDetailsDialogComponent from "./UpdateDetailsDialog";
 
 export default function DashboardLayoutComponent(
