@@ -18,7 +18,7 @@ interface Widget {
 }
 
 interface WidgetInfo {
-  id?: string; // Optional for new widgets, present when editing
+  id?: string;
   slug: string;
   name: string;
   properties?: Record<string, any>;
@@ -54,7 +54,7 @@ export default function WidgetsSettingsPage() {
   const [selectedWidget, setSelectedWidget] = useState<WidgetInfo | null>(null);
   const [dropZoneTarget, setDropZoneTarget] = useState<'left' | 'middle' | 'right' | null>(null);
   const [widgetProperties, setWidgetProperties] = useState<Record<string, string>>({});
-  
+
   // Get available categories based on integrations
   const availableCategories = Object.keys(widgetsData).filter(category => {
     // If category is a built-in one (calendar, placeholders, weather), always show it
@@ -129,19 +129,19 @@ export default function WidgetsSettingsPage() {
           e.preventDefault();
           e.currentTarget.classList.remove('bg-blue-500/10');
           const moveData = e.dataTransfer.getData('moveWidget');
-          
+
           if (moveData) {
             // Handle widget movement between zones
             const { widget, index, fromZone } = JSON.parse(moveData);
             const newDropZones = { ...dropZones };
-            
+
             // Remove from original zone
             if (fromZone && fromZone !== 'left') {
               newDropZones[fromZone] = newDropZones[fromZone].filter((_, i) => i !== index);
-              
+
               // Add to new zone
               newDropZones.left = [...newDropZones.left, widget];
-              
+
               setDropZones(newDropZones);
               updateWidgetsConfig([newDropZones.left, newDropZones.middle, newDropZones.right]);
             }
@@ -164,19 +164,19 @@ export default function WidgetsSettingsPage() {
           e.preventDefault();
           e.currentTarget.classList.remove('bg-blue-500/10');
           const moveData = e.dataTransfer.getData('moveWidget');
-          
+
           if (moveData) {
             // Handle widget movement between zones
             const { widget, index, fromZone } = JSON.parse(moveData);
             const newDropZones = { ...dropZones };
-            
+
             // Remove from original zone
             if (fromZone && fromZone !== 'middle') {
               newDropZones[fromZone] = newDropZones[fromZone].filter((_, i) => i !== index);
-              
+
               // Add to new zone
               newDropZones.middle = [...newDropZones.middle, widget];
-              
+
               setDropZones(newDropZones);
               updateWidgetsConfig([newDropZones.left, newDropZones.middle, newDropZones.right]);
             }
@@ -199,19 +199,19 @@ export default function WidgetsSettingsPage() {
           e.preventDefault();
           e.currentTarget.classList.remove('bg-blue-500/10');
           const moveData = e.dataTransfer.getData('moveWidget');
-          
+
           if (moveData) {
             // Handle widget movement between zones
             const { widget, index, fromZone } = JSON.parse(moveData);
             const newDropZones = { ...dropZones };
-            
+
             // Remove from original zone
             if (fromZone && fromZone !== 'right') {
               newDropZones[fromZone] = newDropZones[fromZone].filter((_, i) => i !== index);
-              
+
               // Add to new zone
               newDropZones.right = [...newDropZones.right, widget];
-              
+
               setDropZones(newDropZones);
               updateWidgetsConfig([newDropZones.left, newDropZones.middle, newDropZones.right]);
             }
@@ -271,7 +271,11 @@ export default function WidgetsSettingsPage() {
             }}
           >
             <div className="flex flex-col items-center gap-2">
-              <WidgetComponent type={widget.slug} className="h-[90px] w-full" />
+              <WidgetComponent
+                type={widget.slug}
+                className="h-[90px] w-full"
+                params={widget.exampleProps || {}}
+              />
               <span className="text-sm">{widget.name}</span>
             </div>
           </div>
@@ -283,7 +287,7 @@ export default function WidgetsSettingsPage() {
           <DialogHeader>
             <DialogTitle>Configure Widget</DialogTitle>
           </DialogHeader>
-          
+
           <div className="space-y-4 py-4">
             {selectedWidget && selectedWidget.properties && (
               Object.entries(selectedWidget.properties).map(([key, type]) => (
@@ -309,27 +313,27 @@ export default function WidgetsSettingsPage() {
                 const newDropZones = { ...dropZones };
                 // If editing an existing widget, update it
                 if (selectedWidget.id) {
-                  newDropZones[dropZoneTarget] = newDropZones[dropZoneTarget].map(w => 
-                    w.id === selectedWidget.id 
+                  newDropZones[dropZoneTarget] = newDropZones[dropZoneTarget].map(w =>
+                    w.id === selectedWidget.id
                       ? { ...w, properties: widgetProperties }
                       : w
                   );
                 } else {
                   // Adding a new widget
-                  const widget = { 
+                  const widget = {
                     id: generateWidgetId(),
-                    type: selectedWidget.slug, 
-                    properties: selectedWidget.properties ? widgetProperties : {} 
+                    type: selectedWidget.slug,
+                    properties: selectedWidget.properties ? widgetProperties : {}
                   };
                   newDropZones[dropZoneTarget] = [
                     ...newDropZones[dropZoneTarget],
                     widget
                   ];
                 }
-                
+
                 setDropZones(newDropZones);
                 updateWidgetsConfig([newDropZones.left, newDropZones.middle, newDropZones.right]);
-                
+
                 setDialogOpen(false);
                 setWidgetProperties({});
                 setSelectedWidget(null);
