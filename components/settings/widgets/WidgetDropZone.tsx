@@ -1,5 +1,17 @@
 "use client";
 
+import rawWidgetsData from "@/public/widgets.json";
+
+interface WidgetData {
+  [category: string]: Array<{
+    slug: string;
+    name: string;
+    properties?: Record<string, any>;
+  }>;
+}
+
+const widgetsData = rawWidgetsData as WidgetData;
+
 interface WidgetDropZoneProps {
   widgets: any[];
   zone: 'left' | 'middle' | 'right';
@@ -16,6 +28,17 @@ interface WidgetDropZoneProps {
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faPencil, faXmark } from "@fortawesome/free-solid-svg-icons";
 import { cn } from "@/lib/utils";
+
+function hasEditableProperties(widgetType: string): boolean {
+  // Search through all categories to find the widget definition
+  for (const category of Object.values(widgetsData)) {
+    const widgetDef = category.find(w => w.slug === widgetType);
+    if (widgetDef) {
+      return !!widgetDef.properties && Object.keys(widgetDef.properties).length > 0;
+    }
+  }
+  return false;
+}
 
 export default function WidgetDropZone({
   widgets,
@@ -59,12 +82,14 @@ export default function WidgetDropZone({
             <div className="frosted rounded-lg h-[90px] relative group flex items-center justify-center">
               <span>{widget.name || widget.type}</span>
               <div className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
-                <button
-                  onClick={() => onWidgetEdit(widget, i)}
-                  className="p-1 rounded hover:bg-white/10"
-                >
-                  <FontAwesomeIcon icon={faPencil} className="size-4" />
-                </button>
+                {hasEditableProperties(widget.type) && (
+                  <button
+                    onClick={() => onWidgetEdit(widget, i)}
+                    className="p-1 rounded hover:bg-white/10"
+                  >
+                    <FontAwesomeIcon icon={faPencil} className="size-4" />
+                  </button>
+                )}
                 <button
                   onClick={() => onWidgetRemove(i)}
                   className="p-1 rounded hover:bg-white/10"
