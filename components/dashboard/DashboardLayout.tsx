@@ -49,7 +49,7 @@ export default function DashboardLayoutComponent(
   return (
     <div className="grid grid-rows-[1fr_36px] h-screen pt-5 p-3.5 text-(--surface-foreground) bg-(--surface)">
       <main
-        className="overflow-hidden grid grid-cols-[25%_1fr_25%]"
+        className="overflow-hidden grid grid-cols-[25%_1fr_25%] gap-2"
         id="page-content-container"
       >
         <div id="left-widget-panel" className="space-y-3.5">
