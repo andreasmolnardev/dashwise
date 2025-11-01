@@ -1,4 +1,3 @@
-// app/api/weather/route.ts
 import { NextResponse } from "next/server";
 
 type WeatherCache = {
@@ -23,7 +22,6 @@ export async function GET(req: Request) {
   const cacheKey = `${lat},${lon},${unit}`;
   const now = Date.now();
 
-  // Serve cached data if still valid (ignore cached 429)
   if (CACHE[cacheKey]) {
     const cached = CACHE[cacheKey].data;
     const ttl = cached.error && cached.status !== 429 ? ERROR_TTL : SUCCESS_TTL;
@@ -52,12 +50,38 @@ export async function GET(req: Request) {
     const description = current?.weatherDesc?.[0]?.value ?? '';
     const iconUrl = current?.weatherIconUrl?.[0]?.value ?? '';
 
+    const temperature = wttrUnit === 'F' ? current?.temp_F : current?.temp_C;
+
+    // Tonight's forecast: pick the last hourly entry of today
+    const today = data.weather?.[0];
+    const tonight = today?.hourly?.[7]; // 21:00 (index 7)
+
+    const tonightForecast = tonight && {
+      time: "Tonight",
+      temperature: wttrUnit === 'F' ? tonight.tempF : tonight.tempC,
+      description: tonight.weatherDesc?.[0]?.value ?? '',
+      iconUrl: tonight.weatherIconUrl?.[0]?.value ?? '',
+    };
+
+    // Tomorrow's forecast: pick midday (e.g., 12:00, index 4)
+    const tomorrow = data.weather?.[1];
+    const midday = tomorrow?.hourly?.[4];
+
+    const tomorrowForecast = midday && {
+      time: "Tomorrow",
+      temperature: wttrUnit === 'F' ? midday.tempF : midday.tempC,
+      description: midday.weatherDesc?.[0]?.value ?? '',
+      iconUrl: midday.weatherIconUrl?.[0]?.value ?? '',
+    };
+
     const result = {
-      temperature: wttrUnit === 'F' ? current?.temp_F : current?.temp_C,
+      temperature,
       weatherCode: current?.weatherCode ?? null,
       description,
       iconUrl,
       unit: wttrUnit === 'F' ? '°F' : '°C',
+      tonight: tonightForecast,
+      tomorrow: tomorrowForecast,
     };
 
     CACHE[cacheKey] = { timestamp: now, data: result };
