@@ -56,7 +56,7 @@ export async function runStatusMonitoringJobs(): Promise<{
                 result.details.push({ jobId: job.id, action: 'no_change', status: job.status, httpStatus: code });
             }
         } catch (err: any) {
-            // network/fetch error -> mark unhealthy and log if it represents a state change
+            // network/fetch error: mark unhealthy and log if it represents a state change
             result.errors++;
             result.details.push({ jobId: job.id, action: 'fetch_error', error: err?.message || String(err) });
 
