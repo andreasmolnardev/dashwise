@@ -62,7 +62,7 @@ export default function WeatherWidget({ className, params }: WeatherWidgetProps)
   ];
 
   return (
-    <div className={`${className} flex flex-col gap-2`}>
+    <div className={`${className} gap-2 flex-col justify-center`}>
       {params.showLocation && <h3 className="w-full text-center text-sm">{params.locationDisplayname}</h3>}
 
       <div className="grid grid-cols-3 gap-2 w-full">
