@@ -9,8 +9,12 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faBell, faGear } from "@fortawesome/free-solid-svg-icons";
+import { faArrowRotateRight, faBell, faGear } from "@fortawesome/free-solid-svg-icons";
 import PagesTabs from "../PagesTabs";
+import { Dialog, DialogContent, DialogTitle } from "../ui/dialog";
+import { DialogTrigger } from "@radix-ui/react-dialog";
+import { Button } from "../ui/button";
+import UpdateDetailsDialogComponent from "./UpdateDetailsDialog";
 
 export default function DashboardLayoutComponent(
   children: React.PropsWithChildren<{}> = {}
@@ -62,9 +66,13 @@ export default function DashboardLayoutComponent(
       </main>
 
       <div className="grid grid-cols-[1fr_80%_1fr] items-center" id="page-footer">
-        <div id="branding" className="flex items-center gap-2">
+        <div id="app-details" className="flex items-center gap-2">
           <img src="/dashwise-icon.png" alt="" className="h-[36px]" />
           <span className="font-semibold">dashwise</span>
+
+          <div className="aspect-square rounded-full frosted w-2 h-2"></div>
+
+         <UpdateDetailsDialogComponent />
         </div>
 
         <PagesTabs />
