@@ -1,11 +1,5 @@
 import { useEffect, useState } from "react";
 
-/**
- * Base props every widget must accept.
- * - `className`: for external Tailwind/CSS styling
- * - `params`: optional dynamic config object
- * - `type`: required to identify widget kind
- */
 export type WidgetProps = {
     type: string;
     params?: Record<string, any>;
@@ -18,14 +12,11 @@ export type WidgetProps = {
  */
 export type WidgetItemProps = {
     className?: string;
+    params?: Record<string, any>;
 };
 
-/**
- * Dynamically loads the appropriate widget component by `type`.
- * Strictly typed so all imported widgets must conform to WidgetItemProps.
- */
-export default function WidgetComponent({ type, className }: WidgetProps) {
-    // Ensure the component we load matches our WidgetItemProps signature
+
+export default function WidgetComponent({ type, className, params }: WidgetProps) {
     const [Component, setComponent] = useState<React.FC<WidgetItemProps> | null>(null);
 
     useEffect(() => {
@@ -48,15 +39,13 @@ export default function WidgetComponent({ type, className }: WidgetProps) {
                         imported = await import("./dashboard/Weather");
                         break;
                     case "placeholder":
-                        imported = await import("./dashboard/Placeholder");
+                        imported = { default: () => <div/> };
                         break;
                     default:
                         imported = null;
                 }
 
-
                 if (!cancelled && imported?.default) {
-                    // Set the imported widget as the active component
                     setComponent(() => imported!.default);
                 }
             } catch (err) {
@@ -72,12 +61,8 @@ export default function WidgetComponent({ type, className }: WidgetProps) {
     }, [type]);
 
     if (!Component) {
-        return (
-            <div className={`widget-default frosted ${className || ""}`}>
-                Go to settings to configure
-            </div>
-        );
+        return <div className={`widget-default frosted ${className || ""}`}>Go to settings to configure</div>;
     }
 
-    return <Component className={`frosted rounded-lg ${className || ""}`} />;
+    return <Component className={`frosted rounded-lg flex items-center ${className || ""}`} params={params} />;
 }

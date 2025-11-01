@@ -168,7 +168,7 @@ function GlanceableWorldClock({ params, className }: { params?: Record<string, a
   );
 }
 
-function getWeatherIcon(description: string, iconCode?: string) {
+export function getWeatherIcon(description: string, iconCode?: string) {
   if (!description) return null;
   const desc = description.toLowerCase();
 
