@@ -39,7 +39,7 @@ export default function WidgetComponent({ type, className, params }: WidgetProps
                         imported = await import("./dashboard/Weather");
                         break;
                     case "placeholder":
-                        imported = { default: () => <div/> };
+                        imported = { default: () => <div className={`${className || ""}`}/> };
                         break;
                     default:
                         imported = null;
