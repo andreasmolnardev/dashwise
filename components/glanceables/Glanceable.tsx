@@ -1,15 +1,17 @@
 import { useConfig } from "@/context/ConfigContext";
 import { useEffect, useMemo, useState } from "react";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
-  WiDaySunny,
-  WiNightClear,
-  WiCloud,
-  WiRain,
-  WiShowers,
-  WiThunderstorm,
-  WiSnow,
-  WiFog,
-} from 'react-icons/wi';
+  faSun,
+  faMoon,
+  faCloud,
+  faCloudSun,
+  faCloudMoon,
+  faCloudRain,
+  faBolt,
+  faSnowflake,
+  faSmog,
+} from "@fortawesome/free-solid-svg-icons";
 
 export type GlanceableProps = {
   type: string;
@@ -130,7 +132,7 @@ function GlanceableWeather({ params, className }: { params?: Record<string, any>
 
   return (
     <div className={`glanceable-weather flex items-center ${className || ""}`}>
-      <span className="text-4xl text-yellow-400 mr-2">
+      <span className=" text-(--text-on-frosted) mr-2 drop-shadow-md">
         {getWeatherIcon(weather.description, weather.iconCode)}
       </span>
       <div>
@@ -168,29 +170,46 @@ function GlanceableWorldClock({ params, className }: { params?: Record<string, a
   );
 }
 
-export function getWeatherIcon(description: string, iconCode?: string) {
+
+export function getWeatherIcon(description: string, iconCode?: string, className?: string) {
   if (!description) return null;
+
   const desc = description.toLowerCase();
+  const isNight = iconCode?.endsWith("n");
+
+  // shared icon style (white, semi-transparent)
+  const baseClass = className;
 
   if (iconCode) {
-    if (iconCode === '01d') return <WiDaySunny />;
-    if (iconCode === '01n') return <WiNightClear />;
-    if (iconCode.startsWith('02')) return <WiCloud />;
-    if (iconCode.startsWith('03') || iconCode.startsWith('04')) return <WiCloud />;
-    if (iconCode.startsWith('09')) return <WiShowers />;
-    if (iconCode.startsWith('10')) return <WiRain />;
-    if (iconCode.startsWith('11')) return <WiThunderstorm />;
-    if (iconCode.startsWith('13')) return <WiSnow />;
-    if (iconCode.startsWith('50')) return <WiFog />;
+    if (iconCode.startsWith("01"))
+      return <FontAwesomeIcon icon={isNight ? faMoon : faSun} className={baseClass} />;
+    if (iconCode.startsWith("02"))
+      return <FontAwesomeIcon icon={isNight ? faCloudMoon : faCloudSun} className={baseClass} />;
+    if (iconCode.startsWith("03") || iconCode.startsWith("04"))
+      return <FontAwesomeIcon icon={faCloud} className={baseClass} />;
+    if (iconCode.startsWith("09") || iconCode.startsWith("10"))
+      return <FontAwesomeIcon icon={faCloudRain} className={baseClass} />;
+    if (iconCode.startsWith("11"))
+      return <FontAwesomeIcon icon={faBolt} className={baseClass} />;
+    if (iconCode.startsWith("13"))
+      return <FontAwesomeIcon icon={faSnowflake} className={baseClass} />;
+    if (iconCode.startsWith("50"))
+      return <FontAwesomeIcon icon={faSmog} className={baseClass} />;
   }
 
-  if (desc.includes('clear')) return <WiDaySunny />;
-  if (desc.includes('cloud')) return <WiCloud />;
-  if (desc.includes('rain')) return <WiRain />;
-  if (desc.includes('drizzle')) return <WiShowers />;
-  if (desc.includes('thunder')) return <WiThunderstorm />;
-  if (desc.includes('snow')) return <WiSnow />;
-  if (desc.includes('mist') || desc.includes('fog') || desc.includes('haze')) return <WiFog />;
+  // fallback using description
+  if (desc.includes("clear"))
+    return <FontAwesomeIcon icon={desc.includes("night") ? faMoon : faSun} className={baseClass} />;
+  if (desc.includes("cloud"))
+    return <FontAwesomeIcon icon={faCloud} className={baseClass} />;
+  if (desc.includes("rain") || desc.includes("drizzle"))
+    return <FontAwesomeIcon icon={faCloudRain} className={baseClass} />;
+  if (desc.includes("thunder"))
+    return <FontAwesomeIcon icon={faBolt} className={baseClass} />;
+  if (desc.includes("snow"))
+    return <FontAwesomeIcon icon={faSnowflake} className={baseClass} />;
+  if (desc.includes("fog") || desc.includes("mist") || desc.includes("haze"))
+    return <FontAwesomeIcon icon={faSmog} className={baseClass} />;
 
-  return <WiCloud />;
+  return <FontAwesomeIcon icon={faCloud} className={baseClass} />;
 }
