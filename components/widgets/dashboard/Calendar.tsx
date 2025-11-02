@@ -26,7 +26,7 @@ export default function CalendarWeekWidget({ startMonday = true, className = "" 
   });
 
   return (
-    <div className={`rounded-lg p-4 container-[type:inline-size] ${className}`}>
+    <div className={`rounded-lg p-4 container-[type:inline-size] justify-center ${className}`}>
       <div className="grid grid-cols-7 text-center gap-2">
         {week.map((day) => {
           const isToday =
