@@ -2,16 +2,6 @@
 
 import { useMemo, useState, useEffect, useCallback } from "react";
 import WidgetComponent from "@/components/widgets/Widget";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 import { useConfig } from "@/context/ConfigContext";
 import WidgetCategoryFilters from "@/components/settings/widgets/WidgetCategoryFilters";
 import rawWidgetsData from "@/public/widgets.json";
@@ -35,15 +25,18 @@ import {
   verticalListSortingStrategy,
   useSortable,
 } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
+import { SortableWidget } from "@/components/settings/widgets/SortableWidget";
+import { LibraryDraggable } from "@/components/settings/widgets/LibraryDraggable";
+import { DroppableColumn } from "@/components/settings/widgets/DroppableColumn";
+import WidgetEditDialog from "@/components/settings/widgets/WidgetEditDialog";
 
-interface Widget {
+export interface Widget {
   id: string;
   type: string;
   properties: Record<string, any>;
 }
 
-interface WidgetInfo {
+export interface WidgetInfo {
   id?: string;
   slug: string;
   name: string;
@@ -63,84 +56,6 @@ interface WidgetsData {
 
 function generateWidgetId(): string {
   return Math.random().toString(36).substring(2, 15);
-}
-
-/* ---------- Sortable preview item ---------- */
-function SortableWidget({
-  widget,
-  activeId,
-  onEdit,
-  onRemove,
-}: {
-  widget: Widget;
-  activeId?: string | null;
-  onEdit?: () => void;
-  onRemove?: () => void;
-}) {
-  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({
-    id: widget.id,
-  });
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: activeId === widget.id ? 0 : 1,
-    pointerEvents: activeId === widget.id ? "none" : undefined,
-  } as any;
-
-  return (
-    <div ref={setNodeRef} style={style} {...attributes} {...listeners} className="relative">
-      <WidgetComponent type={widget.type} params={widget.properties || {}} className="h-[90px] w-full" />
-      {onEdit && (
-        <button className="absolute top-2 right-2 p-1 rounded hover:bg-white/10" onClick={onEdit} type="button">
-          Edit
-        </button>
-      )}
-      {onRemove && (
-        <button className="absolute top-2 right-10 p-1 rounded hover:bg-white/10" onClick={onRemove} type="button">
-          Remove
-        </button>
-      )}
-    </div>
-  );
-}
-
-/* ---------- Library draggable ---------- */
-function LibraryDraggable({ info, index }: { info: WidgetInfo; index: number }) {
-  const id = useMemo(() => `new-${info.slug}-${index}`, [info.slug, index]);
-  const { attributes, listeners, setNodeRef } = useDraggable({ id, data: { slug: info.slug } });
-
-  return (
-    <li
-      ref={setNodeRef}
-      {...listeners}
-      {...attributes}
-      data-new-slug={info.slug}
-      className="flex flex-col items-center gap-2"
-      style={{ listStyle: "none", touchAction: "none", cursor: "grab" }}
-    >
-      <WidgetComponent type={info.slug} className="h-[90px] w-full" params={info.exampleProps || {}} />
-      <span className="text-sm font-medium">{info.name}</span>
-    </li>
-  );
-}
-
-/* ---------- Droppable wrapper ---------- */
-function DroppableColumn({
-  id,
-  children,
-  className,
-}: {
-  id: string;
-  children: React.ReactNode;
-  className?: string;
-}) {
-  const { isOver, setNodeRef } = useDroppable({ id });
-  return (
-    <div ref={setNodeRef} className={`${className ?? ""} ${isOver ? "outline outline-2 outline-blue-400/40" : ""}`}>
-      {children}
-    </div>
-  );
 }
 
 /* ---------- MAIN COMPONENT ---------- */
@@ -188,7 +103,6 @@ export default function WidgetsSettingsPage() {
 
   const widgetsData = rawWidgetsData as unknown as WidgetsData;
 
-  // ✅ Filter integration widgets based on config
   const filteredWidgetsData = useMemo(() => {
     if (!config?.integrations) return widgetsData;
     const filtered: WidgetsData = {};
@@ -420,51 +334,25 @@ export default function WidgetsSettingsPage() {
           ))}
         </ul>
       </DndContext>
-        {/* Edit Dialog */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="frosted text-(--text-primary)">
-          <DialogHeader>
-            <DialogTitle>Edit Widget</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            {selectedWidget?.properties &&
-              Object.entries(selectedWidget.properties).map(([key]) => (
-                <div key={key} className="space-y-2">
-                  <Label htmlFor={key}>{key}</Label>
-                  <Input
-                    id={key}
-                    value={selectedWidget.properties?.[key] ?? ""}
-                    onChange={(e) =>
-                      setSelectedWidget((prev) =>
-                        prev ? { ...prev, properties: { ...(prev.properties || {}), [key]: e.target.value } } : prev
-                      )
-                    }
-                  />
-                </div>
-              ))}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              onClick={() => {
-                if (!dropZoneTarget || !selectedWidget) return;
-                const newZones = { ...dropZones };
-                newZones[dropZoneTarget] = newZones[dropZoneTarget].map((w) =>
-                  w.id === selectedWidget.id ? { ...w, properties: selectedWidget.properties || {} } : w
-                );
-                setDropZones(newZones);
-                updateWidgetsConfig([newZones.left, newZones.middle, newZones.right]);
-                setDialogOpen(false);
-                setSelectedWidget(null);
-              }}
-            >
-              Save
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <WidgetEditDialog
+        open={dialogOpen}
+        widget={selectedWidget}
+        onClose={() => setDialogOpen(false)}
+        onSave={(updated) => {
+          if (!dropZoneTarget || !updated) return;
+
+          const newZones = { ...dropZones };
+          newZones[dropZoneTarget] = newZones[dropZoneTarget].map((w) =>
+            w.id === updated.id ? { ...w, properties: updated.properties || {} } : w
+          );
+
+          setDropZones(newZones);
+          updateWidgetsConfig([newZones.left, newZones.middle, newZones.right]);
+
+          setDialogOpen(false);
+          setSelectedWidget(null);
+        }}
+      />
     </section>
   );
 }
