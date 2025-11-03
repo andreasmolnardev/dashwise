@@ -4,10 +4,10 @@ import { WidgetItemProps } from "../Widget";
 interface PlaceholderWidgetProps extends WidgetItemProps{
 }
 
-export default function PlaceholderWidget({ className = "" }: PlaceholderWidgetProps) {
+export default function PlaceholderWidget({ className = "flex items-center justify-center" }: PlaceholderWidgetProps) {
   return (
     <div className={className}>
-      Lorem, ipsum!
+      This is a placeholder
     </div>
   );
 }

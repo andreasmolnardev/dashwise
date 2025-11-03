@@ -76,7 +76,7 @@ export default function WeatherWidget({ className, params }: WeatherWidgetProps)
                 </div>
                 <div>
                   {col.data.temperature}
-                  {weather.unit} - {col.data.description}
+                  {weather.unit}
                 </div>
               </div>
             )

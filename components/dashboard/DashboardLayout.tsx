@@ -34,17 +34,18 @@ export default function DashboardLayoutComponent(
     router.prefetch("/settings/appearance");
   }, [router]);
 
-  const renderWidgetColumn = (column?: typeof config.widgets[0]) => {
-    if (!column) return null;
-    return column.map((widget, index) => (
-      <WidgetComponent
-        key={widget.id || `${widget.type}-${index}`}
-        type={widget.type}
-        params={widget.properties}
-        className="mb-3.5 h-[120px]" 
-      />
-    ));
-  };
+const renderWidgetColumn = (column?: typeof config.widgets[0]) => {
+  if (!column) return null;
+  return column.map((widget, index) => (
+    <WidgetComponent
+      key={widget.id || `${widget.type}-${index}`}
+      type={widget.type}
+      params={widget.properties}
+      className={`mb-3.5 h-[120px] ${widget.type === "placeholder" ? "invisible" : ""}`}
+    />
+  ));
+};
+
 
   return (
     <div className="grid grid-rows-[1fr_36px] h-screen pt-5 p-3.5 text-(--surface-foreground) bg-(--surface)">
