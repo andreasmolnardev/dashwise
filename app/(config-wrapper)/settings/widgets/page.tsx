@@ -13,7 +13,6 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useConfig } from "@/context/ConfigContext";
-
 import WidgetCategoryFilters from "@/components/settings/widgets/WidgetCategoryFilters";
 import rawWidgetsData from "@/public/widgets.json";
 
@@ -62,13 +61,11 @@ interface WidgetsData {
   [category: string]: WidgetInfo[];
 }
 
-const widgetsData = rawWidgetsData as unknown as WidgetsData;
-
 function generateWidgetId(): string {
   return Math.random().toString(36).substring(2, 15);
 }
 
-/* ---------- Sortable preview item (renders real WidgetComponent) ---------- */
+/* ---------- Sortable preview item ---------- */
 function SortableWidget({
   widget,
   activeId,
@@ -100,11 +97,7 @@ function SortableWidget({
         </button>
       )}
       {onRemove && (
-        <button
-          className="absolute top-2 right-10 p-1 rounded hover:bg-white/10"
-          onClick={onRemove}
-          type="button"
-        >
+        <button className="absolute top-2 right-10 p-1 rounded hover:bg-white/10" onClick={onRemove} type="button">
           Remove
         </button>
       )}
@@ -112,11 +105,9 @@ function SortableWidget({
   );
 }
 
-/* ---------- Library draggable using dnd-kit (stable id per library item) ---------- */
+/* ---------- Library draggable ---------- */
 function LibraryDraggable({ info, index }: { info: WidgetInfo; index: number }) {
-  // stable id per library item (slug + index)
   const id = useMemo(() => `new-${info.slug}-${index}`, [info.slug, index]);
-  // pass data so event.active.data.current is available reliably
   const { attributes, listeners, setNodeRef } = useDraggable({ id, data: { slug: info.slug } });
 
   return (
@@ -134,7 +125,7 @@ function LibraryDraggable({ info, index }: { info: WidgetInfo; index: number }) 
   );
 }
 
-/* ---------- Droppable wrapper for empty column drops ---------- */
+/* ---------- Droppable wrapper ---------- */
 function DroppableColumn({
   id,
   children,
@@ -146,16 +137,13 @@ function DroppableColumn({
 }) {
   const { isOver, setNodeRef } = useDroppable({ id });
   return (
-    <div
-      ref={setNodeRef}
-      className={`${className ?? ""} ${isOver ? "outline outline-2 outline-blue-400/40" : ""}`}
-    >
+    <div ref={setNodeRef} className={`${className ?? ""} ${isOver ? "outline outline-2 outline-blue-400/40" : ""}`}>
       {children}
     </div>
   );
 }
 
-/* -------------------- Page Component -------------------- */
+/* ---------- MAIN COMPONENT ---------- */
 export default function WidgetsSettingsPage() {
   const { config, refreshConfig } = useConfig();
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -163,11 +151,8 @@ export default function WidgetsSettingsPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedWidget, setSelectedWidget] = useState<WidgetInfo | null>(null);
   const [dropZoneTarget, setDropZoneTarget] = useState<"left" | "middle" | "right" | null>(null);
-
   const [activeWidgetInfo, setActiveWidgetInfo] = useState<Widget | WidgetInfo | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
-
-  // insertion position while dragging
   const [dragOver, setDragOver] = useState<{ zone: "left" | "middle" | "right"; index: number } | null>(null);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
@@ -201,8 +186,27 @@ export default function WidgetsSettingsPage() {
     [refreshConfig]
   );
 
+  const widgetsData = rawWidgetsData as unknown as WidgetsData;
+
+  // ✅ Filter integration widgets based on config
+  const filteredWidgetsData = useMemo(() => {
+    if (!config?.integrations) return widgetsData;
+    const filtered: WidgetsData = {};
+    for (const [category, widgets] of Object.entries(widgetsData)) {
+      if (!category.startsWith("int:")) {
+        filtered[category] = widgets;
+        continue;
+      }
+      const integrationName = category.split(":")[1];
+      if (config.integrations[integrationName]) {
+        filtered[category] = widgets;
+      }
+    }
+    return filtered;
+  }, [config?.integrations, widgetsData]);
+
   const isEditable = (type: string) =>
-    Object.values(widgetsData)
+    Object.values(filteredWidgetsData)
       .flat()
       .some((w) => w.slug === type && w.properties && Object.keys(w.properties).length > 0);
 
@@ -214,16 +218,18 @@ export default function WidgetsSettingsPage() {
   };
 
   const editWidget = (widget: Widget, zone: "left" | "middle" | "right") => {
-    const info = Object.values(widgetsData).flat().find((w) => w.slug === widget.type);
+    const info = Object.values(filteredWidgetsData).flat().find((w) => w.slug === widget.type);
     if (!info) return;
     setSelectedWidget({ ...info, id: widget.id, properties: widget.properties });
     setDropZoneTarget(zone);
     setDialogOpen(true);
   };
 
-  const displayedWidgets = selectedCategory ? widgetsData[selectedCategory] : Object.values(widgetsData).flat();
+  const displayedWidgets = selectedCategory
+    ? filteredWidgetsData[selectedCategory]
+    : Object.values(filteredWidgetsData).flat();
 
-  /* helper: find which zone contains an item id */
+  /* ---------- DnD helpers ---------- */
   const findZoneForId = (id: string | number | null): "left" | "middle" | "right" | null => {
     if (id == null) return null;
     const s = String(id);
@@ -238,7 +244,6 @@ export default function WidgetsSettingsPage() {
     const id = String(event.active.id);
     setActiveId(id);
 
-    // If this id matches an existing widget in a drop zone, use that widget
     const srcZone = findZoneForId(id);
     if (srcZone) {
       const w = dropZones[srcZone].find((x) => x.id === id)!;
@@ -246,49 +251,32 @@ export default function WidgetsSettingsPage() {
       return;
     }
 
-    // If draggable provided data (LibraryDraggable does), use it
-    // event.active.data.current may contain { slug }
-    const activeData: any = (event.active as any).data;
-    const slugFromData = activeData?.current?.slug;
+    const slugFromData = (event.active as any).data?.current?.slug;
     if (slugFromData) {
       const info = displayedWidgets.find((d) => d.slug === slugFromData);
-      if (info) {
-        setActiveWidgetInfo(info);
-        return;
-      }
-    }
-
-    // Fallback: parse id if it follows new-<slug>-<index>
-    if (id.startsWith("new-")) {
-      const parts = id.split("-");
-      const slug = parts[1];
-      const info = displayedWidgets.find((d) => d.slug === slug);
       if (info) setActiveWidgetInfo(info);
       return;
     }
 
-    setActiveWidgetInfo(null);
+    if (id.startsWith("new-")) {
+      const slug = id.split("-")[1];
+      const info = displayedWidgets.find((d) => d.slug === slug);
+      if (info) setActiveWidgetInfo(info);
+    }
   };
 
   const handleDragOver = (event: DragOverEvent) => {
     const over = event.over;
-    if (!over) {
-      setDragOver(null);
-      return;
-    }
+    if (!over) return setDragOver(null);
 
     const overIdStr = String(over.id);
-
-    // If over is a widget item
     const overZone = findZoneForId(overIdStr);
     if (overZone) {
       const index = dropZones[overZone].findIndex((w) => w.id === overIdStr);
-      // show placeholder before this item
       setDragOver({ zone: overZone, index: index >= 0 ? index : dropZones[overZone].length });
       return;
     }
 
-    // If over is a container id like "left-container"
     for (const z of ["left", "middle", "right"] as const) {
       if (overIdStr === `${z}-container`) {
         setDragOver({ zone: z, index: dropZones[z].length });
@@ -302,7 +290,6 @@ export default function WidgetsSettingsPage() {
   const handleDragEnd = (event: DragEndEvent) => {
     const active = event.active;
     const over = event.over;
-
     setActiveId(null);
 
     const target =
@@ -329,62 +316,28 @@ export default function WidgetsSettingsPage() {
 
     const activeIdStr = String(active.id);
     const activeZone = findZoneForId(activeIdStr);
-
     const newZones = { ...dropZones };
 
-    // moving existing widget
     if (activeZone) {
       const fromIndex = newZones[activeZone].findIndex((w) => w.id === activeIdStr);
-      if (fromIndex === -1) {
-        setActiveWidgetInfo(null);
-        setDragOver(null);
-        return;
-      }
-
       const [moved] = newZones[activeZone].splice(fromIndex, 1);
-
-      const insertIndex = (() => {
-        if (activeZone === target.zone && fromIndex < target.index) return Math.max(0, target.index - 1);
-        return target.index;
-      })();
-
+      const insertIndex = activeZone === target.zone && fromIndex < target.index ? target.index - 1 : target.index;
       newZones[target.zone].splice(insertIndex, 0, moved);
-      setDropZones(newZones);
-      updateWidgetsConfig([newZones.left, newZones.middle, newZones.right]);
-      setActiveWidgetInfo(null);
-      setDragOver(null);
-      return;
+    } else {
+      const slug = (active as any).data?.current?.slug ?? activeIdStr.split("-")[1];
+      if (slug) {
+        const newWidget: Widget = { id: generateWidgetId(), type: slug, properties: {} };
+        newZones[target.zone].splice(target.index, 0, newWidget);
+      }
     }
 
-    // adding a NEW widget from library
-    // use event.active.data.current?.slug preferentially
-    const activeData: any = (active as any).data;
-    const slugFromData = activeData?.current?.slug;
-    if (slugFromData) {
-      const slug = slugFromData;
-      const newWidget: Widget = { id: generateWidgetId(), type: slug, properties: {} };
-      newZones[target.zone].splice(target.index, 0, newWidget);
-      setDropZones(newZones);
-      updateWidgetsConfig([newZones.left, newZones.middle, newZones.right]);
-      setActiveWidgetInfo(null);
-      setDragOver(null);
-      return;
-    }
-
-    // fallback to parse id like new-<slug>-<index>
-    if (activeId && activeId.startsWith("new-")) {
-      const slug = activeId.split("-")[1];
-      const newWidget: Widget = { id: generateWidgetId(), type: slug, properties: {} };
-      newZones[target.zone].splice(target.index, 0, newWidget);
-      setDropZones(newZones);
-      updateWidgetsConfig([newZones.left, newZones.middle, newZones.right]);
-    }
-
+    setDropZones(newZones);
+    updateWidgetsConfig([newZones.left, newZones.middle, newZones.right]);
     setActiveWidgetInfo(null);
     setDragOver(null);
   };
 
-  /* ---------- placeholders (middle top area) ---------- */
+  /* ---------- UI ---------- */
   const topPlaceholders = ["Clock", "Search", "Links"];
 
   return (
@@ -398,22 +351,19 @@ export default function WidgetsSettingsPage() {
         onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
       >
+        {/* main layout */}
         <div className="grid grid-cols-[25%_1fr_25%] gap-2 p-2 h-[500px] bg-(--surface) rounded-lg frosted">
           {(["left", "middle", "right"] as const).map((zoneKey) => (
             <SortableContext key={zoneKey} items={dropZones[zoneKey].map((w) => w.id)} strategy={verticalListSortingStrategy}>
               <DroppableColumn id={`${zoneKey}-container`} className="flex flex-col gap-2">
-                {/* top placeholders in middle column stay static */}
                 {zoneKey === "middle" &&
                   topPlaceholders.map((p) => (
                     <div key={p} className="frosted rounded-md p-2 flex items-center justify-center">
                       <span className="text-sm">{p}</span>
                     </div>
                   ))}
-
-                {/* render items and inject temporary semi-placeholder */}
                 {dropZones[zoneKey].map((w, i) => (
                   <div key={w.id}>
-                    {/* insertion placeholder before index i */}
                     {dragOver && dragOver.zone === zoneKey && dragOver.index === i && activeWidgetInfo && (
                       <div className="relative">
                         <div className="opacity-80 border-2 border-dashed border-blue-300 rounded-lg overflow-hidden">
@@ -429,7 +379,6 @@ export default function WidgetsSettingsPage() {
                         </div>
                       </div>
                     )}
-
                     <SortableWidget
                       widget={w}
                       activeId={activeId}
@@ -438,23 +387,6 @@ export default function WidgetsSettingsPage() {
                     />
                   </div>
                 ))}
-
-                {/* insertion placeholder at end */}
-                {dragOver && dragOver.zone === zoneKey && dragOver.index === dropZones[zoneKey].length && activeWidgetInfo && (
-                  <div className="relative">
-                    <div className="opacity-80 border-2 border-dashed border-blue-300 rounded-lg overflow-hidden">
-                      <WidgetComponent
-                        type={"slug" in activeWidgetInfo ? activeWidgetInfo.slug : (activeWidgetInfo as Widget).type}
-                        params={
-                          "slug" in activeWidgetInfo
-                            ? (activeWidgetInfo as WidgetInfo).exampleProps || {}
-                            : (activeWidgetInfo as Widget).properties || {}
-                        }
-                        className="h-[90px] w-full"
-                      />
-                    </div>
-                  </div>
-                )}
               </DroppableColumn>
             </SortableContext>
           ))}
@@ -476,24 +408,19 @@ export default function WidgetsSettingsPage() {
           )}
         </DragOverlay>
 
-        {/* library and category filters must be inside DndContext so useDraggable works */}
         <WidgetCategoryFilters
-          categories={Object.keys(widgetsData)}
+          categories={Object.keys(filteredWidgetsData)}
           selectedCategory={selectedCategory}
           onCategorySelect={setSelectedCategory}
         />
 
-        <ul
-          className="grid gap-4 overflow-x-scroll"
-          style={{ gridTemplateColumns: `repeat(${displayedWidgets.length}, 220px)` }}
-        >
+        <ul className="grid gap-4 overflow-x-scroll" style={{ gridTemplateColumns: `repeat(${displayedWidgets.length}, 220px)` }}>
           {displayedWidgets.map((w, i) => (
             <LibraryDraggable key={`${w.slug}-${i}`} info={w} index={i} />
           ))}
         </ul>
       </DndContext>
-
-      {/* Edit Dialog */}
+        {/* Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="frosted text-(--text-primary)">
           <DialogHeader>

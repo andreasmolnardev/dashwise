@@ -7,7 +7,23 @@ type WeatherCache = {
 
 const CACHE: Record<string, WeatherCache> = {};
 const SUCCESS_TTL = 30 * 60 * 1000; // 30 min
-const ERROR_TTL = 1 * 60 * 1000;    // 1 min for other errors (not 429)
+const ERROR_TTL = 1 * 60 * 1000;    // 1 min
+
+// Simple mapping of Open-Meteo weather codes to descriptions & icons
+const WEATHER_MAP: Record<number, { desc: string;}> = {
+  0: { desc: "Clear sky" },
+  1: { desc: "Mainly clear"},
+  2: { desc: "Partly cloudy"},
+  3: { desc: "Overcast" },
+  61: { desc: "Rain"},
+  63: { desc: "Heavy rain"},
+  80: { desc: "Showers" },
+  // add more as needed
+};
+
+function getWeatherDescription(code: number) {
+  return WEATHER_MAP[code]?.desc ?? `Weather code: ${code}`;
+}
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
@@ -15,9 +31,7 @@ export async function GET(req: Request) {
   const lon = searchParams.get("lon");
   const unit = searchParams.get("unit") || "c";
 
-  if (!lat || !lon) {
-    return NextResponse.json({ error: "Missing lat/lon" }, { status: 400 });
-  }
+  if (!lat || !lon) return NextResponse.json({ error: "Missing lat/lon" }, { status: 400 });
 
   const cacheKey = `${lat},${lon},${unit}`;
   const now = Date.now();
@@ -25,64 +39,85 @@ export async function GET(req: Request) {
   if (CACHE[cacheKey]) {
     const cached = CACHE[cacheKey].data;
     const ttl = cached.error && cached.status !== 429 ? ERROR_TTL : SUCCESS_TTL;
-    if (now - CACHE[cacheKey].timestamp < ttl) {
-      return NextResponse.json(cached);
-    }
+    if (now - CACHE[cacheKey].timestamp < ttl) return NextResponse.json(cached);
   }
 
-  const wttrUnit = unit.toLowerCase() === "f" ? "F" : "C";
-  const url = `https://wttr.in/${lat},${lon}?format=j1`;
+  const temperatureUnit = unit.toLowerCase() === "f" ? "fahrenheit" : "celsius";
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true&hourly=temperature_2m,weathercode,precipitation,precipitation_probability,windspeed_10m,winddirection_10m&temperature_unit=${temperatureUnit}`;
 
   try {
     const response = await fetch(url);
-
     if (!response.ok) {
       const errorData = { error: `Upstream error ${response.status}`, status: response.status };
-      if (response.status !== 429) {
-        CACHE[cacheKey] = { timestamp: now, data: errorData };
-      }
+      if (response.status !== 429) CACHE[cacheKey] = { timestamp: now, data: errorData };
       return NextResponse.json(errorData, { status: response.status });
     }
 
     const data = await response.json();
-    const current = data.current_condition?.[0];
+    const current = data.current_weather;
 
-    const description = current?.weatherDesc?.[0]?.value ?? '';
-    const iconUrl = current?.weatherIconUrl?.[0]?.value ?? '';
+    const temperature = current?.temperature;
+    const weatherCode = current?.weathercode;
+    const description = getWeatherDescription(weatherCode);
 
-    const temperature = wttrUnit === 'F' ? current?.temp_F : current?.temp_C;
+    // forecast calculation
+    const hourlyTimes: string[] = data.hourly.time || [];
+    const hourlyTemps: number[] = data.hourly.temperature_2m || [];
+    const hourlyCodes: number[] = data.hourly.weathercode || [];
+    const hourlyPrecip: number[] = data.hourly.precipitation || [];
+    const hourlyPrecipProb: number[] = data.hourly.precipitation_probability || [];
 
-    // Tonight's forecast: pick the last hourly entry of today
-    const today = data.weather?.[0];
-    const tonight = today?.hourly?.[7]; // 21:00 (index 7)
-
-    const tonightForecast = tonight && {
-      time: "Tonight",
-      temperature: wttrUnit === 'F' ? tonight.tempF : tonight.tempC,
-      description: tonight.weatherDesc?.[0]?.value ?? '',
-      iconUrl: tonight.weatherIconUrl?.[0]?.value ?? '',
+    const findForecast = (hour: number) => {
+      const idx = hourlyTimes.findIndex(t => new Date(t).getHours() === hour);
+      if (idx === -1) return null;
+      return {
+        temperature: hourlyTemps[idx],
+        weatherCode: hourlyCodes[idx],
+        description: getWeatherDescription(hourlyCodes[idx]),
+        precipitation: hourlyPrecip[idx],
+        precipitationProbability: hourlyPrecipProb[idx],
+      };
     };
 
-    // Tomorrow's forecast: pick midday (e.g., 12:00, index 4)
-    const tomorrow = data.weather?.[1];
-    const midday = tomorrow?.hourly?.[4];
+    const tonight = findForecast(21); // 21:00 today
+    const tomorrow = findForecast(12); // 12:00 tomorrow
 
-    const tomorrowForecast = midday && {
-      time: "Tomorrow",
-      temperature: wttrUnit === 'F' ? midday.tempF : midday.tempC,
-      description: midday.weatherDesc?.[0]?.value ?? '',
-      iconUrl: midday.weatherIconUrl?.[0]?.value ?? '',
-    };
+    // Determine when rain starts
+    const nowHour = new Date().getHours();
+    let rainMessage = "No rain expected soon";
+    for (let i = 0; i < hourlyPrecip.length; i++) {
+      if (hourlyPrecip[i] > 0) {
+        const hourDiff = i - nowHour;
+        if (hourDiff <= 0) rainMessage = "It is raining now";
+        else rainMessage = `Rain starts in ${hourDiff} hour(s)`;
+        break;
+      }
+    }
 
     const result = {
-      temperature,
-      weatherCode: current?.weatherCode ?? null,
-      description,
-      iconUrl,
-      unit: wttrUnit === 'F' ? '°F' : '°C',
-      tonight: tonightForecast,
-      tomorrow: tomorrowForecast,
-    };
+  temperature: temperature !== undefined ? Math.round(temperature) : undefined,
+  weatherCode,
+  description,
+  unit: unit.toUpperCase() === "F" ? "°F" : "°C",
+  windSpeed: current?.windspeed !== undefined ? Math.round(current.windspeed) : undefined,
+  windDirection: current?.winddirection !== undefined ? Math.round(current.winddirection) : undefined,
+  precipitation: hourlyPrecip[nowHour] !== undefined ? Math.round(hourlyPrecip[nowHour]) : undefined,
+  precipitationProbability: hourlyPrecipProb[nowHour] !== undefined ? Math.round(hourlyPrecipProb[nowHour]) : undefined,
+  tonight: tonight ? {
+    ...tonight,
+    temperature: tonight.temperature !== undefined ? Math.round(tonight.temperature) : undefined,
+    precipitation: tonight.precipitation !== undefined ? Math.round(tonight.precipitation) : undefined,
+    precipitationProbability: tonight.precipitationProbability !== undefined ? Math.round(tonight.precipitationProbability) : undefined,
+  } : null,
+  tomorrow: tomorrow ? {
+    ...tomorrow,
+    temperature: tomorrow.temperature !== undefined ? Math.round(tomorrow.temperature) : undefined,
+    precipitation: tomorrow.precipitation !== undefined ? Math.round(tomorrow.precipitation) : undefined,
+    precipitationProbability: tomorrow.precipitationProbability !== undefined ? Math.round(tomorrow.precipitationProbability) : undefined,
+  } : null,
+  rainMessage,
+};
+
 
     CACHE[cacheKey] = { timestamp: now, data: result };
     return NextResponse.json(result);

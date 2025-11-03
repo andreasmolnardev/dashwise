@@ -35,8 +35,11 @@ export default function WidgetComponent({ type, className, params }: WidgetProps
                             default: mod.CalendarTodayWidget,
                         }));
                         break;
-                    case "weather-weekly":
-                        imported = await import("./dashboard/Weather");
+                    case "weather-upcoming":
+                        imported = { default: (await import("./dashboard/Weather"))?.default };
+                        break;
+                    case "weather-overview":
+                        imported = { default: (await import("./dashboard/Weather"))?.WeatherOverviewWidget };
                         break;
                     case "placeholder":
                         imported = await import("./dashboard/Placeholder");

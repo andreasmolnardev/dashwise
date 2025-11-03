@@ -20,8 +20,8 @@
     ],
     "weather": [
         {
-            "slug": "weather-weekly",
-            "name": "Overview",
+            "slug": "weather-upcoming",
+            "name": "Upcoming Forecast",
             "description": "Shows the upcoming days' weather",
             "exampleProps": {
                 "locationDisplayname": "Munich",
@@ -35,6 +35,28 @@
                 "unit": "f|c",
                 "showLocation": "as:bool"
             }
+        },
+         {
+            "slug": "weather-overview",
+            "name": "Quick overview",
+            "description": "",
+            "exampleProps": {
+                "locationDisplayname": "Munich",
+                "locationCoordinates": "48.13371667563365, 11.572037161760225",
+                "unit": "c",
+                "showLocation": false
+            },
+            "properties": {
+                "locationDisplayname": "as:string",
+                "locationCoordinates": "as:string",
+                "unit": "f|c",
+                "showLocation": "as:bool"
+            }
+        }
+    ],
+    "int:karakeep": [
+        {
+            "name": "Latest Bookmarks"
         }
     ]
 }

@@ -12,6 +12,7 @@ import {
   faSnowflake,
   faSmog,
 } from "@fortawesome/free-solid-svg-icons";
+import { getWeatherIcon } from "../widgets/dashboard/Weather";
 
 export type GlanceableProps = {
   type: string;
@@ -70,8 +71,8 @@ function GlanceableDate({
   const weekday =
     dateFormat.includes("ddd") || dateFormat.includes("dddd")
       ? new Intl.DateTimeFormat(locale, {
-          weekday: dateFormat.includes("ddd") ? "short" : "long",
-        }).format(date)
+        weekday: dateFormat.includes("ddd") ? "short" : "long",
+      }).format(date)
       : "";
 
   // Replace tokens in the format
@@ -88,12 +89,12 @@ function GlanceableDate({
   return <div className={`glanceable-date ${className || ""}`}>{formattedDate}</div>;
 }
 
-function GlanceableGreeting({className}: {className?: string}){
+function GlanceableGreeting({ className }: { className?: string }) {
   return (
-        <div className={`glanceable-greeting ${className || ""}`}>
-          Hello
-        </div>
-      );
+    <div className={`glanceable-greeting ${className || ""}`}>
+      Hello
+    </div>
+  );
 }
 
 function GlanceableWeather({ params, className }: { params?: Record<string, any>, className?: string }) {
@@ -132,9 +133,10 @@ function GlanceableWeather({ params, className }: { params?: Record<string, any>
 
   return (
     <div className={`glanceable-weather flex items-center ${className || ""}`}>
-      <span className=" text-(--text-on-frosted) mr-2 drop-shadow-md">
-        {getWeatherIcon(weather.description, weather.iconCode)}
-      </span>
+       <span className="mr-2">
+          {getWeatherIcon(weather.description, undefined, weather.weatherCode, 22)}
+        </span>
+   
       <div>
         {weather.temperature}{weather.unit}
         {params?.showLocation === true ? ` in ${weather.name}` : ""}
@@ -146,7 +148,7 @@ function GlanceableWeather({ params, className }: { params?: Record<string, any>
 function GlanceableWorldClock({ params, className }: { params?: Record<string, any>, className?: string }) {
   const [time, setTime] = useState("");
 
-    useEffect(() => {
+  useEffect(() => {
     function updateTime() {
       const now = new Date();
       const formatted = new Intl.DateTimeFormat("en-US", {
@@ -168,48 +170,4 @@ function GlanceableWorldClock({ params, className }: { params?: Record<string, a
       {time} in {params?.location}
     </div>
   );
-}
-
-
-export function getWeatherIcon(description: string, iconCode?: string, className?: string) {
-  if (!description) return null;
-
-  const desc = description.toLowerCase();
-  const isNight = iconCode?.endsWith("n");
-
-  // shared icon style (white, semi-transparent)
-  const baseClass = className;
-
-  if (iconCode) {
-    if (iconCode.startsWith("01"))
-      return <FontAwesomeIcon icon={isNight ? faMoon : faSun} className={baseClass} />;
-    if (iconCode.startsWith("02"))
-      return <FontAwesomeIcon icon={isNight ? faCloudMoon : faCloudSun} className={baseClass} />;
-    if (iconCode.startsWith("03") || iconCode.startsWith("04"))
-      return <FontAwesomeIcon icon={faCloud} className={baseClass} />;
-    if (iconCode.startsWith("09") || iconCode.startsWith("10"))
-      return <FontAwesomeIcon icon={faCloudRain} className={baseClass} />;
-    if (iconCode.startsWith("11"))
-      return <FontAwesomeIcon icon={faBolt} className={baseClass} />;
-    if (iconCode.startsWith("13"))
-      return <FontAwesomeIcon icon={faSnowflake} className={baseClass} />;
-    if (iconCode.startsWith("50"))
-      return <FontAwesomeIcon icon={faSmog} className={baseClass} />;
-  }
-
-  // fallback using description
-  if (desc.includes("clear"))
-    return <FontAwesomeIcon icon={desc.includes("night") ? faMoon : faSun} className={baseClass} />;
-  if (desc.includes("cloud"))
-    return <FontAwesomeIcon icon={faCloud} className={baseClass} />;
-  if (desc.includes("rain") || desc.includes("drizzle"))
-    return <FontAwesomeIcon icon={faCloudRain} className={baseClass} />;
-  if (desc.includes("thunder"))
-    return <FontAwesomeIcon icon={faBolt} className={baseClass} />;
-  if (desc.includes("snow"))
-    return <FontAwesomeIcon icon={faSnowflake} className={baseClass} />;
-  if (desc.includes("fog") || desc.includes("mist") || desc.includes("haze"))
-    return <FontAwesomeIcon icon={faSmog} className={baseClass} />;
-
-  return <FontAwesomeIcon icon={faCloud} className={baseClass} />;
 }
