@@ -43,6 +43,8 @@ interface WeatherData {
   tonight?: SimpleForecast;
   tomorrow?: SimpleForecast;
   hourly?: HourlyItem[];
+  sunrise?: string;
+  sunset?: string;
   error?: string;
 }
 
@@ -75,22 +77,41 @@ const WEATHER_CODE_MAP: Record<number, { file: string; desc: string }> = {
   99: { file: "glass-storm-96.png", desc: "Thunderstorm with heavy hail" },
 };
 
+// helper: check if now is night based on sunrise/sunset
+function isNight(sunrise?: string, sunset?: string) {
+  if (!sunrise || !sunset) return false;
+  const now = new Date();
+  return now < new Date(sunrise) || now > new Date(sunset);
+}
+
 export function getWeatherIcon(
   description = "",
   iconUrl?: string,
   weatherCode?: number,
-  size = 48
+  size = 48,
+  sunrise?: string,
+  sunset?: string
 ) {
+  const night = isNight(sunrise, sunset);
+
   if (iconUrl && /^(https?:\/\/|\/)/.test(iconUrl)) {
     return <img src={iconUrl} alt={description} width={size} height={size} style={{ display: "inline-block", opacity: 0.85 }} />;
   }
 
   if (typeof weatherCode === "number" && WEATHER_CODE_MAP[weatherCode]) {
-    const file = WEATHER_CODE_MAP[weatherCode].file;
+    let file = WEATHER_CODE_MAP[weatherCode].file;
+
+    // switch to night variants for clear/partly cloudy
+    if (night) {
+      if (file.includes("sun")) file = file.replace("sun", "clear-night");
+      if (file.includes("day-cloudy")) file = file.replace("day-cloudy", "clear-night-cloudy");
+    }
+
     return <img src={`/weather-icons/${file}`} alt={WEATHER_CODE_MAP[weatherCode].desc} width={size} height={size} style={{ display: "inline-block" }} />;
   }
 
   const s = (description || "").toLowerCase();
+  if ((s.includes("clear") || s.includes("sun")) && night) return <img src="/weather-icons/glass-clear-night-96.png" alt={description} width={size} height={size} />;
   if (s.includes("clear") || s.includes("sun")) return <img src="/weather-icons/glass-sun-96.png" alt={description} width={size} height={size} />;
   if (s.includes("day") && s.includes("cloud")) return <img src="/weather-icons/glass-day-cloudy-96.png" alt={description} width={size} height={size} />;
   if (s.includes("cloud")) return <img src="/weather-icons/glass-cloud-96.png" alt={description} width={size} height={size} />;
@@ -166,6 +187,8 @@ export default function WeatherWidget({ className = "", params }: WeatherWidgetP
           humidity: parseNumber(raw.humidity),
           precipitation: parseNumber(raw.precipitation),
           precipitationProbability: parseNumber(raw.precipitationProbability),
+          sunrise: raw.sunrise,
+          sunset: raw.sunset,
           tonight: raw.tonight ? {
             temperature: parseNumber(raw.tonight.temperature),
             description: raw.tonight.description ?? (raw.tonight.weatherCode ? WEATHER_CODE_MAP[Number(raw.tonight.weatherCode)]?.desc : undefined),
@@ -225,11 +248,10 @@ export default function WeatherWidget({ className = "", params }: WeatherWidgetP
                 <strong className="text-sm">{col.label}</strong>
                 <div className="text-xl my-1">
                   {idx === 0
-                    ? getWeatherIcon(weather.description ?? "", weather.iconUrl, weather.weatherCode, 32)
-                    : getWeatherIcon(col.data.description ?? "", col.data.iconUrl, (col.data as any).weatherCode, 32)}
+                    ? getWeatherIcon(weather.description ?? "", weather.iconUrl, weather.weatherCode, 32, weather.sunrise, weather.sunset)
+                    : getWeatherIcon(col.data.description ?? "", col.data.iconUrl, (col.data as any).weatherCode, 32, weather.sunrise, weather.sunset)}
                 </div>
-                <div>{col.data.temperature ?? "—"}{weather.unit} - {col.data.precipitationProbability}%</div>
-
+                <div>{col.data.temperature ?? "—"}{weather.unit} - {col.data.precipitationProbability ?? 0}%</div>
               </div>
             )
         )}
@@ -280,6 +302,8 @@ export function WeatherOverviewWidget({ className = "", params }: WeatherWidgetP
             weatherCode: parseNumber(h.weatherCode),
           })) : undefined,
           rainMessage: raw.rainMessage,
+          sunrise: raw.sunrise,
+          sunset: raw.sunset,
         };
 
         if (!normalized.rainMessage) {
@@ -306,12 +330,8 @@ export function WeatherOverviewWidget({ className = "", params }: WeatherWidgetP
     }
 
     const desc = (weather.description || "").toLowerCase();
-    const tonight = (weather.tonight?.description || "").toLowerCase();
-    const tomorrow = (weather.tomorrow?.description || "").toLowerCase();
 
-    if (desc.includes("rain") || tonight.includes("rain") || tomorrow.includes("rain")) {
-      return "Rain likely later — keep an umbrella handy.";
-    }
+    if (desc.includes("rain")) return "Rain likely later — keep an umbrella handy.";
     if (desc.includes("sun") || desc.includes("clear")) return "Sunny day ahead";
     if (desc.includes("cloud")) return "Cloudy but stable weather.";
     if (desc.includes("snow")) return "Cold with possible snowfall.";
@@ -326,13 +346,25 @@ export function WeatherOverviewWidget({ className = "", params }: WeatherWidgetP
     return "Mild and stable weather ahead.";
   };
 
-
   return (
     <div className={`${className} flex items-center gap-3 p-2`}>
-      <div className="text-4xl">{getWeatherIcon(weather?.description ?? "", weather?.iconUrl, weather?.weatherCode)}</div>
+      <div className="text-4xl">
+        {getWeatherIcon(
+          weather?.description ?? "",
+          weather?.iconUrl,
+          weather?.weatherCode,
+          48,
+          weather?.sunrise,
+          weather?.sunset
+        )}
+      </div>
       <div className="flex flex-col text-sm leading-tight">
-        <div className="font-medium">{weather?.temperature ?? "—"}{weather?.unit} {weather?.description}</div>
-        <div className="text-xs text-(--text-secondary)">{getWeatherInsight()}</div>
+        <div className="font-medium">
+          {weather?.temperature ?? "—"}{weather?.unit} {weather?.description}
+        </div>
+        <div className="text-xs text-(--text-secondary)">
+          {getWeatherInsight()}
+        </div>
       </div>
     </div>
   );
