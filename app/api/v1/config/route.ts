@@ -112,6 +112,22 @@ export async function POST(request: Request) {
   }
 }
 
+function setNested(obj: Record<string, any>, path: string, value: any) {
+  const keys = path.split('.');
+  let current = obj;
+  keys.forEach((key, idx) => {
+    if (idx === keys.length - 1) {
+      current[key] = value;
+    } else {
+      if (!current[key] || typeof current[key] !== 'object') {
+        current[key] = {};
+      }
+      current = current[key];
+    }
+  });
+}
+
+
 export async function PATCH(request: Request) {
 
   try {
@@ -147,7 +163,7 @@ export async function PATCH(request: Request) {
 
     const config = record.config as Record<string, any>;
 
-    config[path] = newItem;
+    setNested(config, path, newItem);
 
     // 4. persist back to PocketBase
     await pb
