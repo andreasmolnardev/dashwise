@@ -50,7 +50,7 @@ type CommandBarProps = {
 
 function normalizeConfigLinks(input: IncomingSearchItem[] = []): LinkItem[] {
   return input
-    .filter((it) => !it.type || it.type === 'link' || it.type === 'karakeepBookmark')
+    .filter((it) => !it.type || it.type === 'link' || it.type === 'karakeepBookmark' || it.type === 'jellyfinItem')
     .map((it) => {
       const action = (it.action || '').toString().trim();
       let url = '';
@@ -62,18 +62,29 @@ function normalizeConfigLinks(input: IncomingSearchItem[] = []): LinkItem[] {
       } else {
         url = action || (it.url || '');
       }
+    
+      let type;
 
-      return {
-        name: it.name || '',
-        icon: it.icon || undefined,
-        linkGroup: it.secondaryInfo || it.linkGroup || '',
-        type: it.type === 'karakeepBookmark' ? 'Karakeep' : 'Link',
-        tags: it.tags || '',
-        url,
-      } as LinkItem;
-    });
+      if (it.type === 'karakeepBookmark') {
+        type = 'Karakeep';
+      } else if (it.type === 'jellyfinItem') {
+        type = 'Jellyfin';
+      } else {
+        type = "Link"
+      }
+
+        return {
+          name: it.name || '',
+          icon: it.icon || undefined,
+          linkGroup: it.secondaryInfo || it.linkGroup || '',
+          tags: it.tags || '',
+          type,
+          url,
+        } as LinkItem;
+      });
 }
 
+     
 export default function CommandBar({ open, setOpen, searchItems }: CommandBarProps) {
   const { config } = useConfig();
   // search engines still read from config (unchanged)

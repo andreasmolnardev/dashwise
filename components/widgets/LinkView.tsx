@@ -10,7 +10,7 @@ export interface LinkType {
   url?: string;
   icon?: string;
   linkGroup?: string;
-  statusCheck?: boolean; // whether this link is monitored by your server
+  statusCheck?: boolean;
 }
 
 export default function LinkView() {
@@ -19,20 +19,16 @@ export default function LinkView() {
 
   const filtered = config.links.filter((link: LinkType) => link.linkGroup === activeGroup);
 
-  // statusMap stores simple booleans keyed by link.id (server-driven)
   const [statusMap, setStatusMap] = useState<Record<string, boolean>>({});
 
-  // raw server map normalized and keyed by link id (e.g. 'tw6ljbcv96')
   const [monitoringDetails, setMonitoringDetails] = useState<Record<string, {
     status: string;
     dateChanged: string | null;
     durationChanged: number | null;
   }> | null>(null);
 
-  // which link.id has its dialog open
   const [openDialogFor, setOpenDialogFor] = useState<string | null>(null);
 
-  // Converts server status strings into boolean used for UI dots
   function serverStatusToBool(status?: string | null): boolean | undefined {
     if (status === undefined || status === null) return undefined;
     if (status === "healthy") return true;
@@ -40,8 +36,6 @@ export default function LinkView() {
     return false;
   }
 
-  // Fetch monitoring statuses for all jobs visible to the user.
-  // NOTE: API returns keys like "link tw6ljbcv96" — we normalize them to just the link id: "tw6ljbcv96".
   async function fetchMonitoringStatuses() {
     try {
       if (typeof window === "undefined") return;
@@ -64,15 +58,14 @@ export default function LinkView() {
 
       const data = await res.json();
 
-      // Normalize keys: API returns keys like "link <linkId>" — strip the "link " prefix
+
       const normalized: Record<string, any> = {};
       for (const [rawKey, entry] of Object.entries(data || {})) {
         const keyStr = String(rawKey);
         if (keyStr.startsWith("link ")) {
-          const id = keyStr.slice(5); // remove the "link " prefix
+          const id = keyStr.slice(5); // remove "link " prefix
           normalized[id] = entry;
         } else {
-          // if it doesn't match the expected prefix, fall back to using the raw key as-is
           normalized[rawKey] = entry;
         }
       }

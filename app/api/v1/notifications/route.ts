@@ -28,6 +28,10 @@ export async function GET(req: NextRequest) {
         });
         const topicIds = topics.map(t => t.id);
 
+        if (!topicIds) {
+            return NextResponse.json({}, { status: 204 });
+        }
+
         if (topicIds.length === 0) {
             return NextResponse.json({ items: [] });
         }
