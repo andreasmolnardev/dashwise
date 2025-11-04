@@ -52,7 +52,7 @@ const WEATHER_CODE_MAP: Record<number, { file: string; desc: string }> = {
   0: { file: "sun-clear.svg", desc: "Clear sky" },
   1: { file: "sun-clear.svg", desc: "Mainly clear" },
   2: { file: "cloudy-sun.svg", desc: "Partly cloudy" },
-  3: { file: "cloud-snow.svg", desc: "Overcast" },
+  3: { file: "clouds-overcast.svg", desc: "Overcast" },
   45: { file: "clouds-100.svg", desc: "Fog" },
   48: { file: "clouds-100.svg", desc: "Rime fog" },
   51: { file: "cloud-rain.svg", desc: "Light drizzle" },
