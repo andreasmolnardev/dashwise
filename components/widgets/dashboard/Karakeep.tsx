@@ -53,7 +53,7 @@ export default function latestKarakeepBookmarksWidget({
       <a className="font-medium mb-0.5 grid grid-cols-[18px_1fr_16px] w-full text-start items-center justify-center gap-2.5" href={data?.serverDetails?.url}>
         <img src="/icons/png/karakeep-light.png" className="h-4 mx-0.5"/>
         <p className="font-semibold">Latest Bookmarks</p>
-        <FontAwesomeIcon icon={faUpRightFromSquare} className="text-xs"/>
+        <FontAwesomeIcon icon={faUpRightFromSquare} className="text-xs hover:text-(--primary)"/>
       </a>
 
       {loading && <span className="text-sm opacity-60">Loading…</span>}

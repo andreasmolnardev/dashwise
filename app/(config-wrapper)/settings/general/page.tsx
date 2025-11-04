@@ -32,9 +32,9 @@ export default function GeneralSettingsPage() {
         }
       >
         <FontAwesomeIcon icon={faTemperature0} />
-        <p className="w-full">Temperature Unit</p>
+        <p className="w-full font-medium">Temperature Unit</p>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 px-8">
           <WeatherUnitSelector />
         </div>
       </div>
@@ -44,7 +44,7 @@ export default function GeneralSettingsPage() {
         }
       >
         <FontAwesomeIcon icon={faLocationDot} />
-        <p className="w-full">Location</p>
+        <p className="w-full font-medium">Location</p>
 
         <div className="flex items-center gap-2">
           <WeatherLocationSelector />
@@ -79,12 +79,12 @@ function WeatherUnitSelector() {
   }
 
   return (
-    <div className="flex gap-2">
+    <div className="flex gap-2 frosted rounded-full text-(--text-on-frosted) px-2 py-1">
       <button
         onClick={() => handleChange("c")}
         className={`
-        px-3 py-1 rounded-md
-        ${value === "c" ? "bg-primary text-primary-foreground" : "bg-muted"}
+        rounded-full px-2 py-1
+        ${value === "c" ? "bg-white/20" : ""}
       `}
       >
         °C
@@ -93,8 +93,8 @@ function WeatherUnitSelector() {
       <button
         onClick={() => handleChange("f")}
         className={`
-        px-3 py-1 rounded-md
-        ${value === "f" ? "bg-primary text-primary-foreground" : "bg-muted"}
+        rounded-full px-2 py-1
+        ${value === "f" ? "bg-white/20" : ""}
       `}
       >
         °F
