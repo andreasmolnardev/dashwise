@@ -121,7 +121,6 @@ export function getWeatherIcon({ description = "", iconUrl, weatherCode, size = 
       }}
       className="
           relative
-          rounded-xl
           bg-white/25
           backdrop-blur-md
           transition
