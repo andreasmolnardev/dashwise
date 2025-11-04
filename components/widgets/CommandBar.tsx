@@ -73,6 +73,14 @@ function normalizeConfigLinks(input: IncomingSearchItem[] = []): LinkItem[] {
     });
 }
 
+function resolveIconUrl(url?: string) {
+  if (!url) return undefined;
+  // Only proxy if it's an external URL
+  if (url.startsWith('/')) return url;
+  return `/api/v1/favicon-proxy?url=${encodeURIComponent(url)}`;
+}
+
+
 export default function CommandBar({ open, setOpen, searchItems }: CommandBarProps) {
   const { config } = useConfig();
   // search engines still read from config (unchanged)
@@ -317,8 +325,8 @@ export default function CommandBar({ open, setOpen, searchItems }: CommandBarPro
                       className="w-4 h-4 transition"
                       style={{
                         backgroundColor: "var(--primary)",
-                        maskImage: `url(${item.icon})`,
-                        WebkitMaskImage: `url(${item.icon})`,
+                        maskImage: `url(${resolveIconUrl(item.icon)}`,
+                        WebkitMaskImage: `url(${resolveIconUrl(item.icon)}`,
                         maskRepeat: "no-repeat",
                         WebkitMaskRepeat: "no-repeat",
                         maskPosition: "center",
