@@ -132,6 +132,7 @@ export async function JellyfinSearchItems({
             secondaryInfo: secondary,
             type: "jellyfinItem",
             action: `url:${actionUrl}`,
+            tags: [it.Name, "jellyfin", secondary].filter((t): t is string => !!t)
         } as SearchItem;
     });
 
