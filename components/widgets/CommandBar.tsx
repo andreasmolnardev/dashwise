@@ -5,6 +5,7 @@ import { Dialog, DialogContent } from '../ui/dialog';
 import { useConfig } from '@/context/ConfigContext';
 import { Separator } from '../ui/separator';
 import { DialogTitle } from '@radix-ui/react-dialog';
+import { cn } from '@/lib/utils';
 
 // --- Types ---
 
@@ -72,14 +73,6 @@ function normalizeConfigLinks(input: IncomingSearchItem[] = []): LinkItem[] {
       } as LinkItem;
     });
 }
-
-function resolveIconUrl(url?: string) {
-  if (!url) return undefined;
-  // Only proxy if it's an external URL
-  if (url.startsWith('/')) return url;
-  return `/api/v1/favicon-proxy?url=${encodeURIComponent(url)}`;
-}
-
 
 export default function CommandBar({ open, setOpen, searchItems }: CommandBarProps) {
   const { config } = useConfig();
@@ -321,28 +314,20 @@ export default function CommandBar({ open, setOpen, searchItems }: CommandBarPro
               >
                 <div className={`w-6 h-6 rounded-md flex items-center justify-center bg-white/20`}>
                   {item.icon ? (
-                    <div
-                      className="w-4 h-4 transition"
-                      style={{
-                        backgroundColor: "var(--primary)",
-                        maskImage: `url(${resolveIconUrl(item.icon)}`,
-                        WebkitMaskImage: `url(${resolveIconUrl(item.icon)}`,
-                        maskRepeat: "no-repeat",
-                        WebkitMaskRepeat: "no-repeat",
-                        maskPosition: "center",
-                        WebkitMaskPosition: "center",
-                        maskSize: "contain",
-                        WebkitMaskSize: "contain",
-                      }}
-                    />
+                    <Icon src={item?.icon} size={4} />
                   ) : (
                     <div className="w-4 h-4 bg-gray-300 rounded-sm" />
                   )}
                 </div>
-                <div className="flex-1 flex items-center">
-                  <div className="flex-1 min-w-0 flex gap-2 items-center">
-                    <div className="text-sm font-medium truncate">{item.name}</div>
-                    <span className='text-xs text-(--text-secondary) '>{item.linkGroup || ''}</span>
+                <div className="flex-1 flex items-center min-w-0">
+                  <div className="flex-1 min-w-0 flex gap-2 items-center overflow-hidden">
+                    <div className="text-sm font-medium truncate flex-shrink min-w-0">
+                      {item.name}
+                    </div>
+
+                    <span className="text-xs text-(--text-secondary) truncate flex-shrink-0 max-w-[30%]">
+                      {item.linkGroup || ""}
+                    </span>
                   </div>
 
                   <div className="ml-3 text-xs text-(--text-secondary) whitespace-nowrap">
@@ -361,4 +346,42 @@ export default function CommandBar({ open, setOpen, searchItems }: CommandBarPro
       </DialogContent>
     </Dialog>
   );
+}
+type IconProps = {
+  src?: string;       // URL of the icon
+  size?: number;      // optional size in pixels, default is 24
+  className?: string; // optional CSS classes
+};
+
+export function Icon({ src, size = 24, className }: IconProps) {
+  if (!src) {
+    // No icon URL provided → render a placeholder
+    return <div className={`w-${size} h-${size} bg-gray-300 ${className}`} />;
+  }
+
+  // Check if we should use a CSS mask
+  // Example condition: URL ends with "-light.<any extension>"
+  const shouldMask = /-light\.\w+$/.test(src);
+
+  if (shouldMask) {
+    return (
+      <div
+        className={`w-${size} h-${size} ${className}`}
+        style={{
+          backgroundColor: 'var(--primary)',
+          maskImage: `url(${src})`,
+          WebkitMaskImage: `url(${src})`,
+          maskRepeat: 'no-repeat',
+          WebkitMaskRepeat: 'no-repeat',
+          maskPosition: 'center',
+          WebkitMaskPosition: 'center',
+          maskSize: 'contain',
+          WebkitMaskSize: 'contain',
+        }}
+      />
+    );
+  }
+
+  // Default: render a normal <img> tag
+  return <img src={src} alt="" className={cn("h-4", className)} />;
 }

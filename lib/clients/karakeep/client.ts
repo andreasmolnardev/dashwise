@@ -79,9 +79,9 @@ export async function getBookmarks({
         let icon = raw.content?.favicon ?? raw.icon
         
         if (icon?.includes('youtube.com')) {
-          icon = '/icons/png/youtube.png';
+          icon = '/icons/png/youtube-light.png';
         } else if (icon?.includes('twitter.com')) {
-          icon = '/icons/png/twitter.png';
+          icon = '/icons/png/twitter-light.png';
         }
 
         return {
