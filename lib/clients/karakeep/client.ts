@@ -73,7 +73,7 @@ export async function getBookmarks({
     const baseBookmarks: KarakeepBookmark[] = rawArray
       .filter(raw => raw && raw.content && raw.content.type === "link")
       .map(raw => {
-        const title = raw.content?.title ?? raw.title ?? "Untitled";
+        const title =  raw.title ?? raw.content?.title ?? "Untitled";
         const urlStr = raw.content?.url ?? raw.url;
         return {
           id: raw.id,
