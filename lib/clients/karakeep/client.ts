@@ -157,6 +157,7 @@ export async function KarakeepSearchItems({
     secondaryInfo: b.collection ?? "",
     type: "karakeepBookmark",
     action: `url:${b.url}`,
+    tags: [b.title, "karakeep", b.collection].filter((t): t is string => !!t)
   }));
 
   // keep deterministic ordering

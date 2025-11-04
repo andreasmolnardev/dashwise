@@ -14,6 +14,7 @@ type LinkItem = {
   type?: string;
   name: string;
   url: string;
+  tags?: string[];
   isBangAction?: boolean;
   bangEngineSlug?: string;
   bangEngineName?: string;
@@ -36,6 +37,7 @@ type IncomingSearchItem = {
   action?: string;
   url?: string;
   linkGroup?: string;
+  tags?: string[];
 };
 
 type CommandBarProps = {
@@ -44,7 +46,6 @@ type CommandBarProps = {
   searchItems: IncomingSearchItem[];
 };
 
-// --- Helpers ---
 
 function normalizeConfigLinks(input: IncomingSearchItem[] = []): LinkItem[] {
   return input
@@ -65,13 +66,12 @@ function normalizeConfigLinks(input: IncomingSearchItem[] = []): LinkItem[] {
         name: it.name || '',
         icon: it.icon || undefined,
         linkGroup: it.secondaryInfo || it.linkGroup || '',
-        type: it.type === 'karakeepBookmark'? 'Karakeep': 'Link',
+        type: it.type === 'karakeepBookmark' ? 'Karakeep' : 'Link',
+        tags: it.tags || '',
         url,
       } as LinkItem;
     });
 }
-
-// --- Component ---
 
 export default function CommandBar({ open, setOpen, searchItems }: CommandBarProps) {
   const { config } = useConfig();
@@ -115,13 +115,20 @@ export default function CommandBar({ open, setOpen, searchItems }: CommandBarPro
       setHighlightIndex(0);
       return;
     }
-    const results = links.filter((l) => {
-      return (
-        l.name.toLowerCase().includes(q) ||
-        (l.linkGroup || '').toLowerCase().includes(q) ||
-        (l.url || '').toLowerCase().includes(q)
-      );
-    });
+
+    const queryWords = q.split(/\s+/).filter(Boolean);
+
+    const results = links
+      .map((item) => {
+        const tags = (item.tags || []).map(t => t.toLowerCase());
+        const matchCount = queryWords.reduce((count, word) =>
+          count + (tags.some(tag => tag.includes(word)) ? 1 : 0), 0);
+        return { item, matchCount };
+      })
+      .filter(({ matchCount }) => matchCount > 0)
+      .sort((a, b) => b.matchCount - a.matchCount)
+      .map(({ item }) => item);
+
     setFiltered(results);
     setHighlightIndex(0);
   }, [query, links]);
@@ -299,7 +306,7 @@ export default function CommandBar({ open, setOpen, searchItems }: CommandBarPro
             const isHighlighted = highlightIndex === index;
             return (
               <button
-                ref={(el) => {itemRefs.current[index] = el;}}
+                ref={(el) => { itemRefs.current[index] = el; }}
                 key={item.url + item.name + index}
                 onClick={(e) => onClickLink(e, item)}
                 className={`w-full text-left px-2 py-2 flex items-center gap-3 rounded ${isHighlighted ? 'bg-white/20 text-white' : 'hover:bg-white/10'}`}
