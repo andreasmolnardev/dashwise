@@ -41,6 +41,7 @@ export type SearchItem = {
     secondaryInfo: string;
     type: "link" | "karakeepBookmark" | "jellyfinItem";
     action: string;
+    tags?: string[];
 };
 
 function mapSearchItemsToJSON(items: SearchItem[]) {
@@ -52,6 +53,7 @@ function mapSearchItemsToJSON(items: SearchItem[]) {
                 secondaryInfo: i.secondaryInfo,
                 type: i.type,
                 action: i.action,
+                tags: i.tags
             }))
             .sort((a, b) => a.name.localeCompare(b.name))
     );
@@ -77,6 +79,7 @@ export default async function runBackgroundJobs() {
                 secondaryInfo: link.linkGroup,
                 type: "link",
                 action: `url:${link.url}`,
+                tags: [link.name, link.linkGroup,link.url.match(/^(?:https?:\/\/)?(?:www\.)?(?:[\w-]+\.)*([\w-]+)\.(?:[\w-]{2,}(?:\.[\w-]{2,})?)$/)?.[1]].filter((t): t is string => !!t)
             }));
 
             //check if user has any integrations configured

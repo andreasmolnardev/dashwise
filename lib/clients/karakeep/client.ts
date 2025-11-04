@@ -73,12 +73,21 @@ export async function getBookmarks({
     const baseBookmarks: KarakeepBookmark[] = rawArray
       .filter(raw => raw && raw.content && raw.content.type === "link")
       .map(raw => {
-        const title = raw.content?.title ?? raw.title ?? "Untitled";
+        const title = raw.title ?? raw.content?.title ?? "Untitled";
         const urlStr = raw.content?.url ?? raw.url;
+
+        let icon = raw.content?.favicon ?? raw.icon
+        
+        if (icon?.includes('youtube.com')) {
+          icon = '/icons/png/youtube-light.png';
+        } else if (icon?.includes('twitter.com')) {
+          icon = '/icons/png/twitter-light.png';
+        }
+
         return {
           id: raw.id,
           title,
-          icon: raw.content?.favicon ?? raw.icon,
+          icon,
           collection: raw.collection ?? raw.collectionName,
           url: urlStr,
           content: raw.content,
@@ -157,6 +166,7 @@ export async function KarakeepSearchItems({
     secondaryInfo: b.collection ?? "",
     type: "karakeepBookmark",
     action: `url:${b.url}`,
+    tags: [b.title, "karakeep", b.collection].filter((t): t is string => !!t)
   }));
 
   // keep deterministic ordering
