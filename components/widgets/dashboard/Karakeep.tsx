@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { WidgetItemProps } from "../Widget";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faPaperclip } from "@fortawesome/free-solid-svg-icons";
+import { faPaperclip, faUpRightFromSquare } from "@fortawesome/free-solid-svg-icons";
 
 type Bookmark = {
   id: string;
@@ -13,10 +13,16 @@ type Bookmark = {
   icon?: string | null;
 };
 
+type KarakeepResponse = {
+  latest: Bookmark[];
+  serverDetails: { url: string };
+};
+
+
 export default function latestKarakeepBookmarksWidget({
   className = "",
 }: WidgetItemProps) {
-  const [data, setData] = useState<Bookmark[]>([]);
+  const [data, setData] = useState<KarakeepResponse | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -34,7 +40,7 @@ export default function latestKarakeepBookmarksWidget({
       },
     })
       .then((r) => r.json())
-      .then((d) => setData(d.latest ?? []))
+      .then((d) => {setData(d ?? {}); console.log(data)})
       .catch(() => { })
       .finally(() => setLoading(false));
   }, []);
@@ -44,17 +50,21 @@ export default function latestKarakeepBookmarksWidget({
     <div
       className={`rounded-lg p-2 flex flex-col text-center items-start ${className}`}
     >
-      <span className="font-medium mb-0.5">Latest Bookmarks</span>
+      <a className="font-medium mb-0.5 grid grid-cols-[18px_1fr_16px] w-full text-start items-center justify-center gap-2.5" href={data?.serverDetails?.url}>
+        <img src="/icons/png/karakeep-light.png" className="h-4 mx-0.5"/>
+        <p className="font-semibold">Latest Bookmarks</p>
+        <FontAwesomeIcon icon={faUpRightFromSquare} className="text-xs"/>
+      </a>
 
       {loading && <span className="text-sm opacity-60">Loading…</span>}
 
-      {!loading && data.length === 0 && (
+      {!loading && data?.latest.length === 0 && (
         <span className="text-sm opacity-60">No bookmarks found.</span>
       )}
 
-      {!loading && data.length > 0 && (
+      {!loading && data?.latest?.[0] && (
         <ul className="flex flex-col gap-1 w-full text-left h-32 overflow-y-auto pr-1">
-          {data.map((bookmark) => (
+          {data?.latest.map((bookmark) => (
             <li key={bookmark.id} className="min-w-0">
 
               <a

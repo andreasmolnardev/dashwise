@@ -75,12 +75,12 @@ export async function GET(request: Request) {
                 .slice(0, 10)
                 .map(mapBookmark);
 
-            return NextResponse.json({ latest }, { status: 200 });
+                    return NextResponse.json({ latest: latest, serverDetails: {url: serverLocation} }, { status: 200 });
         }
 
         // full list mapped
         const mapped = (bookmarks?.bookmarks ?? []).map(mapBookmark);
-        return NextResponse.json({ bookmarks: mapped, details: {url} }, { status: 200 });
+        return NextResponse.json({ bookmarks: mapped, serverDetails: {url: serverLocation} }, { status: 200 });
 
 
     } catch (error) {
