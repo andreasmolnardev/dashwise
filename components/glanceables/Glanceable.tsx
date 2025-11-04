@@ -1,17 +1,5 @@
 import { useConfig } from "@/context/ConfigContext";
 import { useEffect, useMemo, useState } from "react";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import {
-  faSun,
-  faMoon,
-  faCloud,
-  faCloudSun,
-  faCloudMoon,
-  faCloudRain,
-  faBolt,
-  faSnowflake,
-  faSmog,
-} from "@fortawesome/free-solid-svg-icons";
 import { getWeatherIcon } from "../widgets/dashboard/Weather";
 
 export type GlanceableProps = {
@@ -133,10 +121,14 @@ function GlanceableWeather({ params, className }: { params?: Record<string, any>
 
   return (
     <div className={`glanceable-weather flex items-center ${className || ""}`}>
-       <span className="mr-2">
-          {getWeatherIcon(weather.description, undefined, weather.weatherCode, 22)}
-        </span>
-   
+      <span className="mr-2">
+        {getWeatherIcon({
+          description: weather.description,
+          weatherCode: weather.weatherCode,
+          size: 22,
+        })}
+      </span>
+
       <div>
         {weather.temperature}{weather.unit}
         {params?.showLocation === true ? ` in ${weather.name}` : ""}
