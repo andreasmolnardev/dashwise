@@ -126,6 +126,8 @@ function GlanceableWeather({ params, className }: { params?: Record<string, any>
           description: weather.description,
           weatherCode: weather.weatherCode,
           size: 22,
+          sunrise: weather?.sunrise,
+          sunset: weather?.sunset
         })}
       </span>
 
