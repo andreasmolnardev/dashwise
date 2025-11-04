@@ -48,7 +48,7 @@ type CommandBarProps = {
 
 function normalizeConfigLinks(input: IncomingSearchItem[] = []): LinkItem[] {
   return input
-    .filter((it) => !it.type || it.type === 'link' || it.type === 'karakeepBookmark')
+    .filter((it) => !it.type || it.type === 'link' || it.type === 'karakeepBookmark' || it.type === 'jellyfinItem')
     .map((it) => {
       const action = (it.action || '').toString().trim();
       let url = '';
@@ -61,17 +61,26 @@ function normalizeConfigLinks(input: IncomingSearchItem[] = []): LinkItem[] {
         url = action || (it.url || '');
       }
 
-      return {
-        name: it.name || '',
-        icon: it.icon || undefined,
-        linkGroup: it.secondaryInfo || it.linkGroup || '',
-        type: it.type === 'karakeepBookmark'? 'Karakeep': 'Link',
-        url,
-      } as LinkItem;
-    });
+      let type;
+
+      if (it.type === 'karakeepBookmark') {
+        type = 'Karakeep';
+      } else if (it.type === 'jellyfinItem') {
+        type = 'Jellyfin';
+      } else {
+        type = "Link"
+      }
+
+        return {
+          name: it.name || '',
+          icon: it.icon || undefined,
+          linkGroup: it.secondaryInfo || it.linkGroup || '',
+          type,
+          url,
+        } as LinkItem;
+      });
 }
 
-// --- Component ---
 
 export default function CommandBar({ open, setOpen, searchItems }: CommandBarProps) {
   const { config } = useConfig();
@@ -299,7 +308,7 @@ export default function CommandBar({ open, setOpen, searchItems }: CommandBarPro
             const isHighlighted = highlightIndex === index;
             return (
               <button
-                ref={(el) => {itemRefs.current[index] = el;}}
+                ref={(el) => { itemRefs.current[index] = el; }}
                 key={item.url + item.name + index}
                 onClick={(e) => onClickLink(e, item)}
                 className={`w-full text-left px-2 py-2 flex items-center gap-3 rounded ${isHighlighted ? 'bg-white/20 text-white' : 'hover:bg-white/10'}`}

@@ -18,5 +18,15 @@
                 "api_token": "as:string"
             }
         }
+    ],
+    "media": [
+        {
+            "name": "Jellyfin",
+            "description": "Integration for Jellyfin",
+            "properties": {
+                "server_location": "as:string",
+                "api_token": "as:string"
+            }
+        }
     ]
 }

@@ -1,3 +1,4 @@
+import { JellyfinSearchItems } from "./clients/jellyfin/client.ts";
 import { KarakeepSearchItems } from "./clients/karakeep/client.ts";
 import config from "./config.ts";
 import pb, { getSuperuserPB } from "./pb.ts";
@@ -14,6 +15,10 @@ type UserConfig = {
         }[];
         integrations?: {
             Karakeep?: {
+                api_token: string;
+                server_location: string;
+            };
+            Jellyfin?: {
                 api_token: string;
                 server_location: string;
             };
@@ -34,7 +39,7 @@ export type SearchItem = {
     name: string;
     icon: string;
     secondaryInfo: string;
-    type: "link" | "karakeepBookmark";
+    type: "link" | "karakeepBookmark" | "jellyfinItem";
     action: string;
 };
 
@@ -85,6 +90,17 @@ export default async function runBackgroundJobs() {
 
                 const bookmarks = await KarakeepSearchItems({serverUrl, token, allowInsecureCerts:  config.allowInsecureCertsForIntegrationUrls});
                 searchItems.push(...bookmarks);
+            }
+
+            if (userConfig.config.integrations?.Jellyfin) {
+                const JellyfinConfig = userConfig.config.integrations?.Jellyfin;
+                const token = Buffer.from(JellyfinConfig.api_token, "base64").toString("utf-8");
+                const serverUrl = Buffer.from(JellyfinConfig.server_location, "base64").toString("utf-8");
+
+                if (!token || !serverUrl) return;
+
+                const items = await JellyfinSearchItems({serverUrl, token, allowInsecureCerts:  config.allowInsecureCertsForIntegrationUrls});
+                searchItems.push(...items);
             }
 
             const desiredJson = mapSearchItemsToJSON(searchItems);
