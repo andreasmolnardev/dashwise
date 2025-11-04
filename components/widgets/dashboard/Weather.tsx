@@ -48,79 +48,100 @@ interface WeatherData {
   error?: string;
 }
 
-/* minimal weather code -> icon/desc map */
 const WEATHER_CODE_MAP: Record<number, { file: string; desc: string }> = {
-  0: { file: "glass-sun-96.png", desc: "Clear sky" },
-  1: { file: "glass-clear-night-96.png", desc: "Mainly clear" },
-  2: { file: "glass-day-cloudy-96.png", desc: "Partly cloudy" },
-  3: { file: "glass-cloud-96.png", desc: "Overcast" },
-  45: { file: "glass-clouds-100.png", desc: "Fog" },
-  48: { file: "glass-clouds-100.png", desc: "Rime fog" },
-  51: { file: "glass-rain-96.png", desc: "Light drizzle" },
-  53: { file: "glass-rain-96.png", desc: "Moderate drizzle" },
-  55: { file: "glass-rain-96.png", desc: "Dense drizzle" },
-  56: { file: "glass-sleet-96.png", desc: "Freezing drizzle" },
-  57: { file: "glass-sleet-96.png", desc: "Freezing drizzle (heavy)" },
-  61: { file: "glass-rain-96.png", desc: "Slight rain" },
-  63: { file: "glass-rain-96.png", desc: "Moderate rain" },
-  65: { file: "glass-rain-cloud-96.png", desc: "Heavy rain" },
-  66: { file: "glass-sleet-96.png", desc: "Freezing rain" },
-  67: { file: "glass-sleet-96.png", desc: "Freezing rain (heavy)" },
-  71: { file: "glass-snow-96.png", desc: "Slight snow" },
-  73: { file: "glass-snow-96.png", desc: "Moderate snow" },
-  75: { file: "glass-snow-96.png", desc: "Heavy snow" },
-  80: { file: "glass-rain-96.png", desc: "Slight showers" },
-  81: { file: "glass-rain-96.png", desc: "Moderate showers" },
-  82: { file: "glass-storm-96.png", desc: "Violent showers" },
-  95: { file: "glass-storm-96.png", desc: "Thunderstorm" },
-  96: { file: "glass-storm-96.png", desc: "Thunderstorm with slight hail" },
-  99: { file: "glass-storm-96.png", desc: "Thunderstorm with heavy hail" },
+  0: { file: "sun-clear.svg", desc: "Clear sky" },
+  1: { file: "sun-clear.svg", desc: "Mainly clear" },
+  2: { file: "cloudy-sun.svg", desc: "Partly cloudy" },
+  3: { file: "cloud-snow.svg", desc: "Overcast" },
+  45: { file: "clouds-100.svg", desc: "Fog" },
+  48: { file: "clouds-100.svg", desc: "Rime fog" },
+  51: { file: "cloud-rain.svg", desc: "Light drizzle" },
+  53: { file: "cloud-rain.svg", desc: "Moderate drizzle" },
+  55: { file: "cloud-rain-heavy.svg", desc: "Dense drizzle" },
+  56: { file: "glass-sleet-96.png", desc: "Freezing drizzle" }, // fallback, no svg
+  57: { file: "cloud-sleet.svg", desc: "Freezing drizzle (heavy)" },
+  61: { file: "cloud-rain.svg", desc: "Slight rain" },
+  63: { file: "cloud-rain.svg", desc: "Moderate rain" },
+  65: { file: "glass-rain-cloud-96.png", desc: "Heavy rain" }, // fallback, no svg
+  66: { file: "cloud-sleet.svg", desc: "Freezing rain" },
+  67: { file: "cloud-sleet.svg", desc: "Freezing rain (heavy)" },
+  71: { file: "cloud-snow.svg", desc: "Slight snow" },
+  73: { file: "cloud-snow.svg", desc: "Moderate snow" },
+  75: { file: "cloud-snow.svg", desc: "Heavy snow" },
+  80: { file: "cloud-rain.svg", desc: "Slight showers" },
+  81: { file: "cloud-rain.svg", desc: "Moderate showers" },
+  82: { file: "cloud-rain-heavy.svg", desc: "Violent showers" },
+  95: { file: "thunderstorm.svg", desc: "Thunderstorm" },
+  96: { file: "thunderstorm.svg", desc: "Thunderstorm with slight hail" },
+  99: { file: "thunderstorm.svg", desc: "Thunderstorm with heavy hail" },
 };
 
-// helper: check if now is night based on sunrise/sunset
+
 function isNight(sunrise?: string, sunset?: string) {
   if (!sunrise || !sunset) return false;
   const now = new Date();
   return now < new Date(sunrise) || now > new Date(sunset);
 }
 
-export function getWeatherIcon(
-  description = "",
-  iconUrl?: string,
-  weatherCode?: number,
-  size = 48,
-  sunrise?: string,
-  sunset?: string
-) {
+export function getWeatherIcon({ description = "", iconUrl, weatherCode, size = 48, sunrise, sunset, nightVersion,
+}: {
+  description?: string;
+  iconUrl?: string;
+  weatherCode?: number;
+  size?: number;
+  sunrise?: string;
+  sunset?: string;
+  nightVersion?: boolean;
+}) {
   const night = isNight(sunrise, sunset);
+  let file = WEATHER_CODE_MAP[weatherCode ?? 0]?.file || "clouds-100.svg";
 
-  if (iconUrl && /^(https?:\/\/|\/)/.test(iconUrl)) {
-    return <img src={iconUrl} alt={description} width={size} height={size} style={{ display: "inline-block", opacity: 0.85 }} />;
+  if (night === true || nightVersion === true) {
+    if (file.includes("sun-clear")) file = "moon-stars-night.svg";
+    if (file.includes("cloudy-sun")) file = "clouds-100.svg";
   }
 
-  if (typeof weatherCode === "number" && WEATHER_CODE_MAP[weatherCode]) {
-    let file = WEATHER_CODE_MAP[weatherCode].file;
-
-    // switch to night variants for clear/partly cloudy
-    if (night) {
-      if (file.includes("sun")) file = file.replace("sun", "clear-night");
-      if (file.includes("day-cloudy")) file = file.replace("day-cloudy", "clear-night-cloudy");
-    }
-
-    return <img src={`/weather-icons/${file}`} alt={WEATHER_CODE_MAP[weatherCode].desc} width={size} height={size} style={{ display: "inline-block" }} />;
+  if (file == "moon-stars-night.svg") {
+    size = 0.8 * size;
   }
 
-  const s = (description || "").toLowerCase();
-  if ((s.includes("clear") || s.includes("sun")) && night) return <img src="/weather-icons/glass-clear-night-96.png" alt={description} width={size} height={size} />;
-  if (s.includes("clear") || s.includes("sun")) return <img src="/weather-icons/glass-sun-96.png" alt={description} width={size} height={size} />;
-  if (s.includes("day") && s.includes("cloud")) return <img src="/weather-icons/glass-day-cloudy-96.png" alt={description} width={size} height={size} />;
-  if (s.includes("cloud")) return <img src="/weather-icons/glass-cloud-96.png" alt={description} width={size} height={size} />;
-  if (s.includes("rain") || s.includes("shower")) return <img src="/weather-icons/glass-rain-96.png" alt={description} width={size} height={size} />;
-  if (s.includes("sleet")) return <img src="/weather-icons/glass-sleet-96.png" alt={description} width={size} height={size} />;
-  if (s.includes("snow")) return <img src="/weather-icons/glass-snow-96.png" alt={description} width={size} height={size} />;
-  if (s.includes("storm") || s.includes("thunder")) return <img src="/weather-icons/glass-storm-96.png" alt={description} width={size} height={size} />;
-
-  return <img src="/weather-icons/glass-clouds-100.png" alt={description} width={size} height={size} />;
+  return (
+    <div
+      style={{
+        width: size,
+        height: size,
+        maskImage: `url(/weather-icons/${file})`,
+        WebkitMaskImage: `url(/weather-icons/${file})`,
+        maskRepeat: "no-repeat",
+        WebkitMaskRepeat: "no-repeat",
+        maskPosition: "center",
+        WebkitMaskPosition: "center",
+        maskSize: "contain",
+        WebkitMaskSize: "contain",
+      }}
+      className="
+          relative
+          rounded-xl
+          bg-white/25
+          backdrop-blur-md
+          transition
+          group-hover:bg-(--primary)
+        "
+      aria-label={description}
+    >
+      {/* glass gradient overlay */}
+      <div
+        className="
+            pointer-events-none
+            absolute inset-0
+            bg-gradient-to-br
+            from-white/50
+            to-transparent
+            mix-blend-overlay
+          "
+      />
+    </div>
+  );
 }
 
 const parseNumber = (v: any): number | undefined => {
@@ -247,11 +268,20 @@ export default function WeatherWidget({ className = "", params }: WeatherWidgetP
               <div key={idx} className="flex flex-col items-center text-center text-xs">
                 <strong className="text-sm">{col.label}</strong>
                 <div className="text-xl my-1">
-                  {idx === 0
-                    ? getWeatherIcon(weather.description ?? "", weather.iconUrl, weather.weatherCode, 32, weather.sunrise, weather.sunset)
-                    : getWeatherIcon(col.data.description ?? "", col.data.iconUrl, (col.data as any).weatherCode, 32, weather.sunrise, weather.sunset)}
+                  {getWeatherIcon({
+                    description: idx === 0 ? weather.description : col.data.description,
+                    iconUrl: idx === 0 ? weather.iconUrl : col.data.iconUrl,
+                    weatherCode: idx === 0 ? weather.weatherCode : (col.data as any).weatherCode,
+                    size: 32,
+                    sunrise: weather.sunrise,
+                    sunset: weather.sunset,
+                    nightVersion: idx === 1
+                  })}
                 </div>
-                <div>{col.data.temperature ?? "—"}{weather.unit} - {col.data.precipitationProbability ?? 0}%</div>
+                <div>
+                  {col.data.temperature ?? "—"}
+                  {weather.unit} - {col.data.precipitationProbability ?? 0}%
+                </div>
               </div>
             )
         )}
@@ -349,14 +379,14 @@ export function WeatherOverviewWidget({ className = "", params }: WeatherWidgetP
   return (
     <div className={`${className} flex items-center gap-3 p-2`}>
       <div className="text-4xl">
-        {getWeatherIcon(
-          weather?.description ?? "",
-          weather?.iconUrl,
-          weather?.weatherCode,
-          48,
-          weather?.sunrise,
-          weather?.sunset
-        )}
+        {getWeatherIcon({
+          description: weather?.description,
+          iconUrl: weather?.iconUrl,
+          weatherCode: weather?.weatherCode,
+          size: 48,
+          sunrise: weather?.sunrise,
+          sunset: weather?.sunset
+        })}
       </div>
       <div className="flex flex-col text-sm leading-tight">
         <div className="font-medium">
