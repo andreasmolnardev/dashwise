@@ -41,7 +41,7 @@ const renderWidgetColumn = (column?: typeof config.widgets[0]) => {
       key={widget.id || `${widget.type}-${index}`}
       type={widget.type}
       params={widget.properties}
-      className={`mb-3.5 h-[120px] ${widget.type === "placeholder" ? "invisible" : ""}`}
+      className={`mb-3.5 ${widget.type === "placeholder" ? "invisible" : ""}`}
     />
   ));
 };

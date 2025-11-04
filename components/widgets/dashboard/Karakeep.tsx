@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { WidgetItemProps } from "../Widget";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faPaperclip } from "@fortawesome/free-solid-svg-icons";
 
 type Bookmark = {
   id: string;
@@ -51,27 +53,31 @@ export default function latestKarakeepBookmarksWidget({
       )}
 
       {!loading && data.length > 0 && (
-        <ul className="flex flex-col gap-1 w-full text-left max-h-48 overflow-y-auto pr-1">
-          {data.map((bm) => (
-            <li key={bm.id} className="text-sm flex items-center gap-2 min-w-0">
-              {bm.icon ? (
-                <img
-                  src={bm.icon}
-                  alt=""
-                  className="w-4 h-4 shrink-0 rounded-sm"
-                />
-              ) : (
-                <div className="w-4 h-4 shrink-0 bg-gray-400/30 rounded-sm" />
-              )}
+        <ul className="flex flex-col gap-1 w-full text-left h-32 overflow-y-auto pr-1">
+          {data.map((bookmark) => (
+            <li key={bookmark.id} className="min-w-0">
 
               <a
-                href={bm.url}
+                href={bookmark.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="underline truncate"
+                className="grid grid-cols-[20px_1fr] gap-2 truncate group"
               >
-                {bm.title ?? bm.url}
+                {bookmark.icon ? (
+                  <img
+                    src={bookmark.icon}
+                    alt=""
+                    className="w-4 h-4 shrink-0 rounded-sm justify-self-center self-center"
+                  />
+                ) : (
+                  <div className="w-4 h-4 shrink-0 bg-gray-400/30 rounded-sm justify-self-start" />
+                )}
+                <div className="flex flex-col">
+                  <span className="font-semibold  group-hover:text-(--primary)">{bookmark.title}</span>
+                  <p className="text-sm text-(--text-on-frosted)"><FontAwesomeIcon icon={faPaperclip} className="text-xs text-(--primary)"/>{bookmark.url}</p>
+                </div>
               </a>
+
             </li>
           ))}
         </ul>
