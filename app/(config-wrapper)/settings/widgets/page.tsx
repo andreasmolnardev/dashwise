@@ -246,7 +246,6 @@ export default function WidgetsSettingsPage() {
     setDragOver(null);
   };
 
-  /* ---------- UI ---------- */
   const topPlaceholders = ["Clock", "Search", "Links"];
 
   return (
@@ -266,11 +265,23 @@ export default function WidgetsSettingsPage() {
             <SortableContext key={zoneKey} items={dropZones[zoneKey].map((w) => w.id)} strategy={verticalListSortingStrategy}>
               <DroppableColumn id={`${zoneKey}-container`} className="flex flex-col gap-2">
                 {zoneKey === "middle" &&
-                  topPlaceholders.map((p) => (
-                    <div key={p} className="frosted rounded-md p-2 flex items-center justify-center">
-                      <span className="text-sm">{p}</span>
-                    </div>
-                  ))}
+                  topPlaceholders.map((p) => {
+                    const h =
+                      p === "Clock"
+                        ? "h-[4rem]"
+                        : p === "Links"
+                          ? "h-[8rem]"
+                          : "h-[3rem]"; 
+
+                    return (
+                      <div
+                        key={p}
+                        className={`frosted rounded-md p-2 flex items-center justify-center ${h}`}
+                      >
+                        <span className="text-sm">{p}</span>
+                      </div>
+                    );
+                  })}
                 {dropZones[zoneKey].map((w, i) => (
                   <div key={w.id}>
                     {dragOver && dragOver.zone === zoneKey && dragOver.index === i && activeWidgetInfo && (
