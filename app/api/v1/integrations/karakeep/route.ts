@@ -30,11 +30,10 @@ export async function GET(request: Request) {
         );
 
         //  decode API credentials
-        const apiToken = Buffer.from(configRecord.api_token, "base64").toString("utf8");
-        const serverLocation = Buffer.from(configRecord.server_location, "base64").toString("utf8");
+        const apiToken = Buffer.from(configRecord.config.integrations.Karakeep.api_token, "base64").toString("utf8");
+        const serverLocation = Buffer.from(configRecord.config.integrations.Karakeep.server_location, "base64").toString("utf8");
 
-
-        // NEW — fetch bookmarks
+        // fetch bookmarks
         const res = await fetch(`${serverLocation}/api/v1/bookmarks`, {
             headers: {
                 Authorization: `Bearer ${apiToken}`,
@@ -51,7 +50,37 @@ export async function GET(request: Request) {
 
         const bookmarks = await res.json();
 
-        return NextResponse.json({ bookmarks }, { status: 200 });
+        // mapper helper
+        const mapBookmark = (b) => ({
+            id: b.id,
+            title: b.title ?? b.content?.title ?? null,
+            url: b.content?.url ?? null,
+            dateCreated: b.createdAt ?? null,
+            dateUpdated: b.modifiedAt ?? null,
+            archived: !!b.archived,
+            favourited: !!b.favourited,
+            tags: Array.isArray(b.tags) ? b.tags : [],
+            icon: b.content?.favicon ?? b.content?.imageUrl ?? null
+        });
+
+        const url = new URL(request.url);
+        const latestParam = url.searchParams.get("latest");
+
+        if (latestParam !== null) {
+            const latest = [...(bookmarks?.bookmarks ?? [])]
+                .sort(
+                    (a, b) =>
+                        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+                )
+                .slice(0, 10)
+                .map(mapBookmark);
+
+            return NextResponse.json({ latest }, { status: 200 });
+        }
+
+        // full list mapped
+        const mapped = (bookmarks?.bookmarks ?? []).map(mapBookmark);
+        return NextResponse.json({ bookmarks: mapped, details: {url} }, { status: 200 });
 
 
     } catch (error) {

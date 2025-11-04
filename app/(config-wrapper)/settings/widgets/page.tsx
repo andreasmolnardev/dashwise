@@ -16,14 +16,10 @@ import {
   DragStartEvent,
   DragOverEvent,
   DragOverlay,
-  useDroppable,
-  useDraggable,
 } from "@dnd-kit/core";
 import {
-  arrayMove,
   SortableContext,
-  verticalListSortingStrategy,
-  useSortable,
+  verticalListSortingStrategy
 } from "@dnd-kit/sortable";
 import { SortableWidget } from "@/components/settings/widgets/SortableWidget";
 import { LibraryDraggable } from "@/components/settings/widgets/LibraryDraggable";
@@ -58,7 +54,6 @@ function generateWidgetId(): string {
   return Math.random().toString(36).substring(2, 15);
 }
 
-/* ---------- MAIN COMPONENT ---------- */
 export default function WidgetsSettingsPage() {
   const { config, refreshConfig } = useConfig();
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
