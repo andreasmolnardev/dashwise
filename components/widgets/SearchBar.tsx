@@ -12,6 +12,7 @@ type SearchItem = {
   secondaryInfo: string;
   type: 'link';
   action: string;
+  tags?: string[];
 };
 
 

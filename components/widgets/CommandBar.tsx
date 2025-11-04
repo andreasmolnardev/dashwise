@@ -5,6 +5,7 @@ import { Dialog, DialogContent } from '../ui/dialog';
 import { useConfig } from '@/context/ConfigContext';
 import { Separator } from '../ui/separator';
 import { DialogTitle } from '@radix-ui/react-dialog';
+import { cn } from '@/lib/utils';
 
 // --- Types ---
 
@@ -14,6 +15,7 @@ type LinkItem = {
   type?: string;
   name: string;
   url: string;
+  tags?: string[];
   isBangAction?: boolean;
   bangEngineSlug?: string;
   bangEngineName?: string;
@@ -36,6 +38,7 @@ type IncomingSearchItem = {
   action?: string;
   url?: string;
   linkGroup?: string;
+  tags?: string[];
 };
 
 type CommandBarProps = {
@@ -44,7 +47,6 @@ type CommandBarProps = {
   searchItems: IncomingSearchItem[];
 };
 
-// --- Helpers ---
 
 function normalizeConfigLinks(input: IncomingSearchItem[] = []): LinkItem[] {
   return input
@@ -65,13 +67,12 @@ function normalizeConfigLinks(input: IncomingSearchItem[] = []): LinkItem[] {
         name: it.name || '',
         icon: it.icon || undefined,
         linkGroup: it.secondaryInfo || it.linkGroup || '',
-        type: it.type === 'karakeepBookmark'? 'Karakeep': 'Link',
+        type: it.type === 'karakeepBookmark' ? 'Karakeep' : 'Link',
+        tags: it.tags || '',
         url,
       } as LinkItem;
     });
 }
-
-// --- Component ---
 
 export default function CommandBar({ open, setOpen, searchItems }: CommandBarProps) {
   const { config } = useConfig();
@@ -115,13 +116,20 @@ export default function CommandBar({ open, setOpen, searchItems }: CommandBarPro
       setHighlightIndex(0);
       return;
     }
-    const results = links.filter((l) => {
-      return (
-        l.name.toLowerCase().includes(q) ||
-        (l.linkGroup || '').toLowerCase().includes(q) ||
-        (l.url || '').toLowerCase().includes(q)
-      );
-    });
+
+    const queryWords = q.split(/\s+/).filter(Boolean);
+
+    const results = links
+      .map((item) => {
+        const tags = (item.tags || []).map(t => t.toLowerCase());
+        const matchCount = queryWords.reduce((count, word) =>
+          count + (tags.some(tag => tag.includes(word)) ? 1 : 0), 0);
+        return { item, matchCount };
+      })
+      .filter(({ matchCount }) => matchCount > 0)
+      .sort((a, b) => b.matchCount - a.matchCount)
+      .map(({ item }) => item);
+
     setFiltered(results);
     setHighlightIndex(0);
   }, [query, links]);
@@ -299,35 +307,27 @@ export default function CommandBar({ open, setOpen, searchItems }: CommandBarPro
             const isHighlighted = highlightIndex === index;
             return (
               <button
-                ref={(el) => {itemRefs.current[index] = el;}}
+                ref={(el) => { itemRefs.current[index] = el; }}
                 key={item.url + item.name + index}
                 onClick={(e) => onClickLink(e, item)}
                 className={`w-full text-left px-2 py-2 flex items-center gap-3 rounded ${isHighlighted ? 'bg-white/20 text-white' : 'hover:bg-white/10'}`}
               >
                 <div className={`w-6 h-6 rounded-md flex items-center justify-center bg-white/20`}>
                   {item.icon ? (
-                    <div
-                      className="w-4 h-4 transition"
-                      style={{
-                        backgroundColor: "var(--primary)",
-                        maskImage: `url(${item.icon})`,
-                        WebkitMaskImage: `url(${item.icon})`,
-                        maskRepeat: "no-repeat",
-                        WebkitMaskRepeat: "no-repeat",
-                        maskPosition: "center",
-                        WebkitMaskPosition: "center",
-                        maskSize: "contain",
-                        WebkitMaskSize: "contain",
-                      }}
-                    />
+                    <Icon src={item?.icon} size={4} />
                   ) : (
                     <div className="w-4 h-4 bg-gray-300 rounded-sm" />
                   )}
                 </div>
-                <div className="flex-1 flex items-center">
-                  <div className="flex-1 min-w-0 flex gap-2 items-center">
-                    <div className="text-sm font-medium truncate">{item.name}</div>
-                    <span className='text-xs text-(--text-secondary) '>{item.linkGroup || ''}</span>
+                <div className="flex-1 flex items-center min-w-0">
+                  <div className="flex-1 min-w-0 flex gap-2 items-center overflow-hidden">
+                    <div className="text-sm font-medium truncate flex-shrink min-w-0">
+                      {item.name}
+                    </div>
+
+                    <span className="text-xs text-(--text-secondary) truncate flex-shrink-0 max-w-[30%]">
+                      {item.linkGroup || ""}
+                    </span>
                   </div>
 
                   <div className="ml-3 text-xs text-(--text-secondary) whitespace-nowrap">
@@ -346,4 +346,42 @@ export default function CommandBar({ open, setOpen, searchItems }: CommandBarPro
       </DialogContent>
     </Dialog>
   );
+}
+type IconProps = {
+  src?: string;       // URL of the icon
+  size?: number;      // optional size in pixels, default is 24
+  className?: string; // optional CSS classes
+};
+
+export function Icon({ src, size = 24, className }: IconProps) {
+  if (!src) {
+    // No icon URL provided → render a placeholder
+    return <div className={`w-${size} h-${size} bg-gray-300 ${className}`} />;
+  }
+
+  // Check if we should use a CSS mask
+  // Example condition: URL ends with "-light.<any extension>"
+  const shouldMask = /-light\.\w+$/.test(src);
+
+  if (shouldMask) {
+    return (
+      <div
+        className={`w-${size} h-${size} ${className}`}
+        style={{
+          backgroundColor: 'var(--primary)',
+          maskImage: `url(${src})`,
+          WebkitMaskImage: `url(${src})`,
+          maskRepeat: 'no-repeat',
+          WebkitMaskRepeat: 'no-repeat',
+          maskPosition: 'center',
+          WebkitMaskPosition: 'center',
+          maskSize: 'contain',
+          WebkitMaskSize: 'contain',
+        }}
+      />
+    );
+  }
+
+  // Default: render a normal <img> tag
+  return <img src={src} alt="" className={cn("h-4", className)} />;
 }
