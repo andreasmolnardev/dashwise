@@ -4,6 +4,7 @@ import { CSS } from "@dnd-kit/utilities";
 import {
   useSortable,
 } from "@dnd-kit/sortable";
+import { Button } from "@/components/ui/button";
 
 /**
  * Sortable Widget component; meaning a wrapper for the widget to be dagged
@@ -34,14 +35,14 @@ export function SortableWidget({
     <div ref={setNodeRef} style={style} {...attributes} {...listeners} className="relative">
       <WidgetComponent type={widget.type} params={widget.properties || {}} className="h-[90px] w-full" />
       {onEdit && (
-        <button className="absolute top-2 right-2 p-1 rounded hover:bg-white/10" onClick={onEdit} type="button">
+        <Button variant="outline" className="absolute top-2 right-2 p-1 rounded-full hover:bg-white/10" onClick={onEdit}>
           Edit
-        </button>
+        </Button>
       )}
-      {onRemove && (
-        <button className="absolute top-2 right-10 p-1 rounded hover:bg-white/10" onClick={onRemove} type="button">
+      {onRemove && ( 
+        <Button variant="outline" className="absolute top-2 right-12 p-1 hover:bg-white/10 rounded-full" onClick={onRemove}>
           Remove
-        </button>
+        </Button>
       )}
     </div>
   );
