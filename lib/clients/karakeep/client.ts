@@ -82,6 +82,8 @@ export async function getBookmarks({
           icon = '/icons/png/youtube-light.png';
         } else if (icon?.includes('twitter.com')) {
           icon = '/icons/png/twitter-light.png';
+        }  else if (icon?.includes('github.com')) {
+          icon = '/icons/png/github-light.png';
         }
 
         return {
