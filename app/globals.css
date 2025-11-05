@@ -137,6 +137,30 @@
   display: none;             /* Chrome/Safari */
 }
 
+.responsive-glance-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 96px auto;
+  grid-template-areas:
+    "clock clock"
+    "gl1 gl2";
+  align-items: center;
+  justify-items: center;
+}
+
+@media (min-width: 768px) {
+  .responsive-glance-grid {
+    grid-template-columns: 1fr auto 1fr;
+    grid-template-rows: auto;
+    grid-template-areas: "gl1 clock gl2";
+    gap: 0.5rem;
+  }
+}
+
+.area-clock { grid-area: clock; width:100%; }
+.area-gl1   { grid-area: gl1; }
+.area-gl2   { grid-area: gl2; }
+
 
 @layer base {
   * {
