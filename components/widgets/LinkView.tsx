@@ -128,15 +128,13 @@ export default function LinkView() {
       {/* PAGINATED LINKS */}
       <PaginatedCarouselViewComponent minColWidth={140}>
         {filtered.map((link: LinkType) => {
-          // server entry keyed by link.id after normalization
           const serverEntry = link.id && monitoringDetails ? monitoringDetails[link.id] : undefined;
-
-          // use explicit server status strings for dot logic
           const serverStatus = serverEntry?.status;
           const isHealthy = serverStatus === "healthy";
           const isDisabled = serverStatus === "disabled";
-
           const showDot = Boolean(link.statusCheck);
+
+          const isMono = link.icon?.includes("-light");
 
           return (
             <a
@@ -146,25 +144,33 @@ export default function LinkView() {
               rel="noopener noreferrer"
               className="group flex flex-col items-center justify-between space-y-2 frosted rounded-2xl p-2 hover:text-(primary) transition-colors min-h-18 w-full"
             >
-              <div
-                className="h-[35px] w-[35px] bg-white group-hover:bg-(--primary) transition"
-                style={{
-                  maskImage: `url(${link.icon})`,
-                  WebkitMaskImage: `url(${link.icon})`,
-                  maskRepeat: "no-repeat",
-                  WebkitMaskRepeat: "no-repeat",
-                  maskPosition: "center",
-                  WebkitMaskPosition: "center",
-                  maskSize: "contain",
-                  WebkitMaskSize: "contain",
-                }}
-              />
+              {isMono ? (
+                <div
+                  className="h-[35px] w-[35px] bg-white group-hover:bg-(--primary) transition"
+                  style={{
+                    maskImage: `url(${link.icon})`,
+                    WebkitMaskImage: `url(${link.icon})`,
+                    maskRepeat: "no-repeat",
+                    WebkitMaskRepeat: "no-repeat",
+                    maskPosition: "center",
+                    WebkitMaskPosition: "center",
+                    maskSize: "contain",
+                    WebkitMaskSize: "contain",
+                  }}
+                />
+              ) : link.icon ? (
+                <img
+                  src={link.icon}
+                  alt={link.name ?? "Icon"}
+                  className="h-[35px] w-[35px] object-contain"
+                />
+              ) : null}
 
-              {/* Name on left, dot on right — dot opens dialog when clicked */}
+              {/* Name on left, dot on right */}
               <div className="flex items-center w-full justify-center">
                 <span className="text-sm text-white">{link.name}</span>
 
-                {showDot ? (
+                {showDot && (
                   <button
                     aria-label={`Show monitoring details for ${link.name}`}
                     title={`Show monitoring details for ${link.name}`}
@@ -189,7 +195,7 @@ export default function LinkView() {
                       aria-hidden
                     />
                   </button>
-                ) : null}
+                )}
               </div>
             </a>
           );

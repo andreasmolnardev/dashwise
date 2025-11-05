@@ -17,6 +17,14 @@ interface Icon {
     CreatedAt?: string;
 }
 
+export interface IconResult {
+    variant?: string | null;
+    iconSet?: "default" | "mono" | "custom" | null;
+    name?: string | null;
+    url?: string | null;
+}
+
+
 export default function IconPickerComponent({
     initialIcons = [],
     onClose,
@@ -24,13 +32,13 @@ export default function IconPickerComponent({
 }: {
     initialIcons?: Icon[];
     onClose?: () => void;
-    onSelect?: (icon: Icon) => void;
+    onSelect?: (icon: IconResult) => void;
 }) {
     const [icons, setIcons] = useState<Icon[]>(initialIcons);
     const [selected, setSelected] = useState<string | null>(null);
     const [search, setSearch] = useState("");
 
-    // ✅ new: icon set mode
+    // icon set mode
     const [iconSet, setIconSet] = useState<"default" | "mono">("default");
 
     useEffect(() => {
@@ -40,15 +48,21 @@ export default function IconPickerComponent({
             .catch(console.error);
     }, []);
 
-    const getIconUrl = (icon: Icon) => {
-        const ext = icon.SVG === "Yes" ? "svg" : "png";
+    const getIconData = (icon: Icon): IconResult => {
         let variant = "";
-
         if (iconSet === "mono") {
             if (icon.Light === "Yes") variant = "light";
+            else if (icon.Dark === "Yes") variant = "dark";
         }
 
-        return `/icons/webp/${icon.Reference}${variant ? `-${variant}` : ""}.webp`;
+        const url = `/icons/webp/${icon.Reference}${variant ? `-${variant}` : ""}.webp`;
+
+        return {
+            variant: variant || "default",
+            iconSet,
+            name: icon.Name,
+            url,
+        };
     };
 
     const filteredIcons = icons.filter(
@@ -70,9 +84,10 @@ export default function IconPickerComponent({
     const handleSelect = (value: string) => {
         setSelected(value);
         const icon = icons.find((i) => i.Reference === value);
-        if (onSelect && icon) onSelect(icon);
+        if (onSelect && icon) onSelect(getIconData(icon));
         if (onClose) onClose();
     };
+
 
     return (
         <div>
@@ -127,7 +142,7 @@ export default function IconPickerComponent({
                                         />
 
                                         <img
-                                            src={getIconUrl(icon)}
+                                            src={getIconData(icon)?.url ?? ""}
                                             alt={icon.Name}
                                             loading="lazy"
                                             className="h-[20px] w-[20px]"
