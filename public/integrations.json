@@ -1,10 +1,6 @@
 {
     "dashwise": [
         {
-            "name": "News",
-            "description": "Subscribe to RSS feeds, filtered by topics"
-        },
-        {
             "name": "Notifications",
             "description": "Receive alerts via topic-based PUSH requests"
         }
