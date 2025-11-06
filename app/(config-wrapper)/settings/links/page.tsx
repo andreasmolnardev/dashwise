@@ -42,6 +42,7 @@ import DeleteUnusedLinkGroupsFormComponent from "@/components/settings/DeleteUnu
 import MoveLinkGroupsFormComponent from "@/components/settings/MoveLinkGroupsForm";
 
 type LinkItem = {
+  id?: string;
   name: string;
   url: string;
   icon?: string;
@@ -73,10 +74,6 @@ export default function LinksSettingsPage() {
   // insertion index where the drop will insert the dragged item
   const [dropIndex, setDropIndex] = useState<number | null>(null);
 
-  // delete-unused dialog state
-  const [delLoading, setDelLoading] = useState(false);
-  const [delError, setDelError] = useState<string | null>(null);
-  const [delSuccess, setDelSuccess] = useState<string | null>(null);
 
   useEffect(() => {
     if (!selectedGroup && Array.isArray(config?.linkGroups) && config!.linkGroups.length > 0) {
@@ -439,7 +436,7 @@ export default function LinksSettingsPage() {
                 const isDragging = draggingUrl === link.url;
 
                 return (
-                  <div key={link.url} className="relative">
+                  <div key={link.id ?? link.url ?? idx} className="relative">
                     {/* insertion line before this item */}
                     {dropIndex === idx && (
                       <div className="h-[2px] bg-primary w-full my-1 rounded" />
