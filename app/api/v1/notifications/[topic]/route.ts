@@ -14,7 +14,6 @@ export async function POST(
             return NextResponse.json({ error: "Missing topic" }, { status: 400 });
         }
 
-
         // 1. Extract Authorization header or ?auth=
         let authHeader = req.headers.get("authorization");
         if (!authHeader) {
