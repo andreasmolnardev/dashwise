@@ -39,8 +39,14 @@ export default function latestKarakeepBookmarksWidget({
         Authorization: `Bearer ${token}`,
       },
     })
-      .then((r) => r.json())
-      .then((d) => {setData(d ?? {}); console.log(data)})
+      .then((r) => r.json()).then((d) => {
+        setData({
+          latest: Array.isArray(d?.latest) ? d.latest : [],
+          serverDetails: {
+            url: typeof d?.serverDetails?.url === "string" ? d.serverDetails.url : "#",
+          },
+        });
+      })
       .catch(() => { })
       .finally(() => setLoading(false));
   }, []);
@@ -50,10 +56,10 @@ export default function latestKarakeepBookmarksWidget({
     <div
       className={`rounded-lg p-2 flex flex-col text-center items-start ${className}`}
     >
-      <a className="font-medium mb-0.5 grid grid-cols-[18px_1fr_16px] w-full text-start items-center justify-center gap-2.5" href={data?.serverDetails?.url}>
-        <img src="/icons/png/karakeep-light.png" className="h-4 mx-0.5"/>
+      <a className="font-medium mb-0.5 grid grid-cols-[18px_1fr_16px] w-full text-start items-center justify-center gap-2.5" href={data?.serverDetails?.url || "#"}>
+        <img src="/icons/png/karakeep-light.png" className="h-4 mx-0.5" />
         <p className="font-semibold">Latest Bookmarks</p>
-        <FontAwesomeIcon icon={faUpRightFromSquare} className="text-xs hover:text-(--primary)"/>
+        <FontAwesomeIcon icon={faUpRightFromSquare} className="text-xs hover:text-(--primary)" />
       </a>
 
       {loading && <span className="text-sm opacity-60">Loading…</span>}
@@ -73,7 +79,7 @@ export default function latestKarakeepBookmarksWidget({
                 rel="noopener noreferrer"
                 className="grid grid-cols-[20px_1fr] gap-2 truncate group"
               >
-                {bookmark.icon ? (
+                {bookmark.icon && typeof bookmark.icon === "string" ? (
                   <img
                     src={bookmark.icon}
                     alt=""
@@ -83,8 +89,14 @@ export default function latestKarakeepBookmarksWidget({
                   <div className="w-4 h-4 shrink-0 bg-gray-400/30 rounded-sm justify-self-start" />
                 )}
                 <div className="flex flex-col">
-                  <span className="font-semibold  group-hover:text-(--primary)">{bookmark.title}</span>
-                  <p className="text-sm text-(--text-on-frosted)"><FontAwesomeIcon icon={faPaperclip} className="text-xs text-(--primary)"/>{bookmark.url}</p>
+                  <span className="font-semibold group-hover:text-(--primary)">
+                    {bookmark.title || "Untitled"}
+                  </span>
+
+                  <p className="text-sm text-(--text-on-frosted)">
+                    <FontAwesomeIcon icon={faPaperclip} className="text-xs text-(--primary)" />
+                    {bookmark.url || "No URL"}
+                  </p>
                 </div>
               </a>
 
