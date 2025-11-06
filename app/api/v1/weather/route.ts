@@ -15,10 +15,14 @@ const WEATHER_MAP: Record<number, { desc: string; }> = {
   1: { desc: "Mainly clear" },
   2: { desc: "Partly cloudy" },
   3: { desc: "Overcast" },
+  45: {desc: "Fog"},
+  51: {desc: "Light drizzle"},
+  53: {desc: "Moderate drizzle"},
+  55: {desc: "Heavy drizzle"},
   61: { desc: "Rain" },
   63: { desc: "Heavy rain" },
   80: { desc: "Showers" },
-  // add more as needed
+  
 };
 
 function getWeatherDescription(code: number) {
