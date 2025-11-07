@@ -12,7 +12,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { MoreHorizontal } from "lucide-react";
-import { format } from "date-fns";
 import CreateTopicTokenDialogComponent from "@/components/notifications/CreateTopicTokenDialog";
 
 export type TokenItem = {
@@ -23,16 +22,14 @@ export type TokenItem = {
     expires?: string | null;
 };
 
-export default function SearchSettingsPage() {
+export default function NotificationTokensPage() {
     const [items, setItems] = useState<TokenItem[]>([]);
     const [topics, setTopics] = useState<{ id: string; title: string }[]>([]);
     const [activeTopic, setActiveTopic] = useState<string | null>(null);
     const [visible, setVisible] = useState<Record<string, boolean>>({});
     const [newTokenDialogVisible, setNewTokenDialogVisible] = useState(false);
-    const [newTopicId, setNewTopicId] = useState<string | null>(null);
-    const [creating, setCreating] = useState(false);
 
-    // New expiry UI states:
+    // Expiry UI states
     const [expiryMode, setExpiryMode] = useState<"never" | "inDays" | "onDate">("never");
     const [inDays, setInDays] = useState<number>(30);
     const [onDate, setOnDate] = useState<string>(() => {
@@ -41,26 +38,42 @@ export default function SearchSettingsPage() {
         return d.toISOString().split("T")[0];
     });
 
-    useEffect(() => {
-        const token = localStorage.getItem("pb_token");
+    const token = localStorage.getItem("pb_token");
+
+    // Reusable function to fetch topics
+    const fetchTopics = async () => {
         if (!token) return;
+        try {
+            const res = await fetch("/api/v1/notifications/topics", {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            const json = await res.json();
+            if (res.ok && Array.isArray(json.items)) {
+                setTopics(json.items);
+                if (!activeTopic && json.items.length) setActiveTopic(json.items[0].id);
+            }
+        } catch (err) {
+            console.error("Failed to fetch topics", err);
+        }
+    };
 
-        fetch("/api/v1/notifications/topicTokens", {
-            headers: { Authorization: `Bearer ${token}` },
-        })
-            .then((r) => r.json())
-            .then(({ items }) => setItems(items ?? []))
-            .catch(console.error);
+    // Fetch tokens
+    const fetchTokens = async () => {
+        if (!token) return;
+        try {
+            const res = await fetch("/api/v1/notifications/topicTokens", {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            const json = await res.json();
+            if (Array.isArray(json.items)) setItems(json.items);
+        } catch (err) {
+            console.error("Failed to fetch tokens", err);
+        }
+    };
 
-        fetch("/api/v1/notifications/topics", {
-            headers: { Authorization: `Bearer ${token}` },
-        })
-            .then((r) => r.json())
-            .then(({ items }) => {
-                setTopics(items ?? []);
-                if (items?.length) setActiveTopic(items[0].id);
-            })
-            .catch(console.error);
+    useEffect(() => {
+        fetchTokens();
+        fetchTopics();
     }, []);
 
     const filtered = activeTopic
@@ -86,28 +99,9 @@ export default function SearchSettingsPage() {
         await navigator.clipboard.writeText(v);
     };
 
-
-
-    // Helper to show a compact label for the chosen expiry
-    const expiryLabel = () => {
-        if (expiryMode === "never") return "Never";
-        if (expiryMode === "inDays") {
-            const d = new Date();
-            d.setDate(d.getDate() + (inDays || 0));
-            return `In ${inDays} day${inDays === 1 ? "" : "s"} — ${format(d, "yyyy-MM-dd")}`;
-        }
-        if (expiryMode === "onDate") {
-            return onDate ? format(new Date(onDate), "yyyy-MM-dd") : "Select date";
-        }
-        return "—";
-    };
-
     const revokeToken = async (tokenId: string) => {
-        const token = localStorage.getItem("pb_token");
         if (!token) return;
-
         if (!confirm("Are you sure you want to revoke this token?")) return;
-
         try {
             const res = await fetch("/api/v1/notifications/topicTokens", {
                 method: "DELETE",
@@ -117,18 +111,14 @@ export default function SearchSettingsPage() {
                 },
                 body: JSON.stringify({ tokenId }),
             });
-
             const json = await res.json();
             if (!res.ok) throw new Error(json.error ?? "Failed to revoke");
-
-            // Remove the token locally
             setItems((old) => old.filter((i) => i.id !== tokenId));
         } catch (err) {
             console.error(err);
             alert("Failed to revoke token");
         }
     };
-
 
     return (
         <>
@@ -230,10 +220,17 @@ export default function SearchSettingsPage() {
 
                 <CreateTopicTokenDialogComponent
                     open={newTokenDialogVisible}
-                    onOpenChange={setNewTokenDialogVisible} topics={topics}
-                    onTokenCreated={(newItem: TokenItem) => {
+                    onOpenChange={setNewTokenDialogVisible}
+                    topics={topics}
+                    onTokenCreated={async (newItem: TokenItem) => {
                         setItems((old) => [...old, newItem]);
-                    }} />
+
+                        // Refresh topics if the new topic is not already present
+                        if (!topics.some((t) => t.id === newItem.topic.id)) {
+                            await fetchTopics();
+                        }
+                    }}
+                />
             </div>
         </>
     );
