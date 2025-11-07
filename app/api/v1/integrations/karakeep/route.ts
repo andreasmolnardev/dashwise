@@ -1,3 +1,5 @@
+import { getBookmarks } from '@/lib/clients/karakeep/client';
+import config from '@/lib/config';
 import { getServerPB } from '@/lib/pb';
 import { NextResponse } from 'next/server';
 import { AuthModel, ClientResponseError } from 'pocketbase';
@@ -48,39 +50,24 @@ export async function GET(request: Request) {
             );
         }
 
-        const bookmarks = await res.json();
-
-        // mapper helper
-        const mapBookmark = (b) => ({
-            id: b.id,
-            title: b.title ?? b.content?.title ?? null,
-            url: b.content?.url ?? null,
-            dateCreated: b.createdAt ?? null,
-            dateUpdated: b.modifiedAt ?? null,
-            archived: !!b.archived,
-            favourited: !!b.favourited,
-            tags: Array.isArray(b.tags) ? b.tags : [],
-            icon: b.content?.favicon ?? b.content?.imageUrl ?? null
-        });
+        const bookmarks = await getBookmarks({ serverUrl: serverLocation, token: apiToken, allowInsecureCerts: config.allowInsecureCertsForIntegrationUrls ? true : false})
 
         const url = new URL(request.url);
         const latestParam = url.searchParams.get("latest");
 
         if (latestParam !== null) {
-            const latest = [...(bookmarks?.bookmarks ?? [])]
+            const latest = [...(bookmarks ?? [])]
                 .sort(
                     (a, b) =>
                         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
                 )
-                .slice(0, 10)
-                .map(mapBookmark);
+                .slice(0, 10);
 
-                    return NextResponse.json({ latest: latest, serverDetails: {url: serverLocation} }, { status: 200 });
+            return NextResponse.json({ latest: latest, serverDetails: { url: serverLocation } }, { status: 200 });
         }
 
         // full list mapped
-        const mapped = (bookmarks?.bookmarks ?? []).map(mapBookmark);
-        return NextResponse.json({ bookmarks: mapped, serverDetails: {url: serverLocation} }, { status: 200 });
+        return NextResponse.json({ bookmarks, serverDetails: { url: serverLocation } }, { status: 200 });
 
 
     } catch (error) {
