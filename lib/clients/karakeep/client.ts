@@ -32,25 +32,26 @@ export async function getBookmarks({
   try {
     const apiBase = serverUrl.replace(/\/+$/, "") + "/api/v1";
 
-    //test karakeep connectivity
-    try {
-      await axios.get(serverUrl, {
-        timeout: 3000,
-        httpsAgent: allowInsecureCerts ? new https.Agent({ rejectUnauthorized: false }) : undefined,
-      });
-      console.log("Karakeep is reachable")
-    } catch {
-      console.error(`[Karakeep] ${serverUrl} not reachable.`);
-      return [];
-    }
-
-    const url = `${apiBase}/bookmarks`;
-
-    const headers: Record<string, string> = {
+     const headers: Record<string, string> = {
       Accept: "application/json",
       "Content-Type": "application/json",
     };
     if (token) headers["Authorization"] = `Bearer ${token}`;
+
+
+    try {
+      await axios.get(serverUrl, {
+        headers,
+        timeout: 3000,
+        httpsAgent: allowInsecureCerts ? new https.Agent({ rejectUnauthorized: false }) : undefined,
+      });
+      console.log("Karakeep is reachable")
+    } catch (e){
+      console.error(`[Karakeep] ${serverUrl} not reachable.`, e);
+      return [];
+    }
+
+    const url = `${apiBase}/bookmarks`;
 
     const res = await axios.get(url, {
       headers,
@@ -74,15 +75,15 @@ export async function getBookmarks({
       .filter(raw => raw && raw.content && raw.content.type === "link")
       .map(raw => {
         const title = raw.title ?? raw.content?.title ?? "Untitled";
-        const urlStr = raw.content?.url ?? raw.url;
+        const url = raw.content?.url ?? raw.url;
 
         let icon = raw.content?.favicon ?? raw.icon
-        
+
         if (icon?.includes('youtube.com')) {
           icon = '/icons/png/youtube-light.png';
         } else if (icon?.includes('twitter.com')) {
           icon = '/icons/png/twitter-light.png';
-        }  else if (icon?.includes('github.com')) {
+        } else if (icon?.includes('github.com')) {
           icon = '/icons/png/github-light.png';
         }
 
@@ -91,9 +92,13 @@ export async function getBookmarks({
           title,
           icon,
           collection: raw.collection ?? raw.collectionName,
-          url: urlStr,
+          url: url,
           content: raw.content,
-          // lists will be filled below
+          dateCreated: raw.createdAt ?? null,
+          dateUpdated: raw.modifiedAt ?? null,
+          archived: !!raw.archived,
+          favourited: !!raw.favourited,
+          tags: Array.isArray(raw.tags) ? raw.tags : [],
         } as KarakeepBookmark;
       })
       .filter(b => !!b.url); // drop entries without a usable url
