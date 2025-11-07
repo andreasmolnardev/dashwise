@@ -6,6 +6,8 @@ import { useConfig } from '@/context/ConfigContext';
 import { Separator } from '../ui/separator';
 import { DialogTitle } from '@radix-ui/react-dialog';
 import { cn } from '@/lib/utils';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faGlobe } from '@fortawesome/free-solid-svg-icons';
 
 // --- Types ---
 
@@ -19,12 +21,15 @@ type LinkItem = {
   isBangAction?: boolean;
   bangEngineSlug?: string;
   bangEngineName?: string;
+  isSearchEngine?: boolean;
+  engineSlug?: string;
 };
 
 type SearchEngine = {
   icon?: string;
   name?: string;
   slug?: string;
+  bang?: string;
   status?: string;
   url_home?: string;
   url_params?: string;
@@ -62,7 +67,7 @@ function normalizeConfigLinks(input: IncomingSearchItem[] = []): LinkItem[] {
       } else {
         url = action || (it.url || '');
       }
-    
+
       let type;
 
       if (it.type === 'karakeepBookmark') {
@@ -73,18 +78,18 @@ function normalizeConfigLinks(input: IncomingSearchItem[] = []): LinkItem[] {
         type = "Link"
       }
 
-        return {
-          name: it.name || '',
-          icon: it.icon || undefined,
-          linkGroup: it.secondaryInfo || it.linkGroup || '',
-          tags: it.tags || '',
-          type,
-          url,
-        } as LinkItem;
-      });
+      return {
+        name: it.name || '',
+        icon: it.icon || undefined,
+        linkGroup: it.secondaryInfo || it.linkGroup || '',
+        tags: it.tags || '',
+        type,
+        url,
+      } as LinkItem;
+    });
 }
 
-     
+
 export default function CommandBar({ open, setOpen, searchItems }: CommandBarProps) {
   const { config } = useConfig();
   // search engines still read from config (unchanged)
@@ -168,14 +173,26 @@ export default function CommandBar({ open, setOpen, searchItems }: CommandBarPro
   const actions = React.useMemo(() => {
     const items = [...filtered];
 
-    // check for bang
-    const parsed = parseBang(query);
+    const trimmedQuery = query.trim();
+
+    // --- 1. Go to URL (only if valid URL) ---
+    if (isValidUrl(trimmedQuery)) {
+      items.unshift({
+        name: `Go to ${trimmedQuery}`,
+        url: trimmedQuery.startsWith('http') ? trimmedQuery : `https://${trimmedQuery}`,
+        icon: '/icons/faGlobe.svg', // globe icon
+        linkGroup: 'URL',
+        type: 'Go to URL',
+      } as LinkItem);
+    }
+
+    // --- 2. Bang search ---
+    const parsed = parseBang(trimmedQuery);
     if (parsed) {
       const engine = searchEngines.find((se) => (se.slug || '').toLowerCase() === parsed.slug);
       if (engine) {
-        // put bang action at the top
         items.unshift({
-          name: `Search with ${engine.name}`,
+          name: `Search with ${engine.name} (${engine.slug ? '!' + engine.slug : ''})`,
           url: '__bang_search__',
           icon: engine.icon,
           linkGroup: engine.name,
@@ -186,15 +203,31 @@ export default function CommandBar({ open, setOpen, searchItems }: CommandBarPro
       }
     }
 
-    // default search action (only show if no bang matched)
+    // --- 3. Default search engine (only once) ---
     if (!parsed || !searchEngines.find((se) => (se.slug || '').toLowerCase() === parsed.slug)) {
       items.push({
         name: `Search ${defaultEngine?.name || 'web'}`,
         url: '__search_action__',
         icon: defaultEngine?.icon,
         linkGroup: defaultEngine?.name || 'web',
+        type: 'Search',
       } as LinkItem);
     }
+
+    // --- 4. All other engines except default ---
+    (searchEngines || [])
+      .filter((se) => (se.status || '').toLowerCase() !== 'disabled' && se.slug !== defaultEngine?.slug)
+      .forEach((se) => {
+        items.push({
+          name: `${se.name}${se.slug ? ` (!${se.slug})` : ''}`,
+          url: `__engine_search__:${se.slug}`,
+          icon: se.icon,
+          linkGroup: se.name,
+          type: 'Search',
+          isSearchEngine: true,
+          engineSlug: se.slug,
+        } as LinkItem);
+      });
 
     return items;
   }, [filtered, defaultEngine, query, searchEngines]);
@@ -240,6 +273,9 @@ export default function CommandBar({ open, setOpen, searchItems }: CommandBarPro
       openBangSearch(query, a.bangEngineSlug);
     } else if (a.url === '__search_action__') {
       openSearch(query);
+    } else if (a.url.startsWith('__engine_search__:')) {
+      const slug = a.url.split(':', 2)[1];
+      openEngineSearch(slug, query);
     } else if (a.url.startsWith('command:')) {
       openCommandClient(a.url);
     } else {
@@ -271,6 +307,17 @@ export default function CommandBar({ open, setOpen, searchItems }: CommandBarPro
     if (!engine) return;
     const template = engine.url_params || engine.url_home || '';
     const searchUrl = template.replace('%s', encodeURIComponent(terms || ''));
+    if (!searchUrl) return;
+    window.open(searchUrl, '_blank');
+    setOpen(false);
+  }
+
+  function openEngineSearch(slug?: string, q?: string) {
+    if (!slug) return;
+    const engine = searchEngines.find((se) => (se.slug || '').toLowerCase() === (slug || '').toLowerCase());
+    if (!engine) return;
+    const template = engine.url_params || engine.url_home || '';
+    const searchUrl = template.replace('%s', encodeURIComponent((q || '').trim()));
     if (!searchUrl) return;
     window.open(searchUrl, '_blank');
     setOpen(false);
@@ -325,7 +372,9 @@ export default function CommandBar({ open, setOpen, searchItems }: CommandBarPro
               >
                 <div className={`w-6 h-6 rounded-md flex items-center justify-center bg-white/20`}>
                   {item.icon ? (
-                    <Icon src={item?.icon} size={4} />
+                    <Icon src={item.icon} size={4} />
+                  ) : isValidUrl(item.url) ? (
+                    <FontAwesomeIcon icon={faGlobe} className='text-xs' />
                   ) : (
                     <div className="w-4 h-4 bg-gray-300 rounded-sm" />
                   )}
@@ -395,4 +444,26 @@ export function Icon({ src, size = 24, className }: IconProps) {
 
   // Default: render a normal <img> tag
   return <img src={src} alt="" className={cn("h-4", className)} />;
+}
+
+function isValidUrl(url?: string) {
+  if (!url) return false;
+
+  try {
+    let withScheme = url;
+    
+    // if no scheme, assume https://
+    if (!url.match(/^\w+:\/\//)) {
+      withScheme = `https://${url}`;
+    }
+
+    const parsed = new URL(withScheme);
+
+    // hostname must exist and contain at least one dot (e.g., example.com)
+    if (!parsed.hostname || !parsed.hostname.includes('.')) return false;
+
+    return true;
+  } catch {
+    return false;
+  }
 }
