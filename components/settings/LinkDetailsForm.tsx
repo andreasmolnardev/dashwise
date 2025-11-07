@@ -220,7 +220,7 @@ export default function LinkDetailsForm({ link, onClose }: LinkDetailsFormProps)
                   defaultValue={icon?.url ?? ""}
                   onChange={(e) => {
                     const url = e.target.value;
-                    setIcon({ iconSet: "custom", url }); // only url is required
+                    setIcon({ iconSet: "custom", url });
                     setIconEdited(true);
 
                     const hidden = document.querySelector<HTMLInputElement>('input[name="icon"]');
