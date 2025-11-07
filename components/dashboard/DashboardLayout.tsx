@@ -6,7 +6,7 @@ import SearchBar from "../widgets/SearchBar";
 import LinkView from "../widgets/LinkView";
 import GlanceableComponent from "../glanceables/Glanceable";
 import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faBell, faGear } from "@fortawesome/free-solid-svg-icons";
@@ -19,6 +19,8 @@ export default function DashboardLayoutComponent(
 ) {
   const { config, refreshConfig } = useConfig();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const openFromURL = searchParams.get("search") === "1";
 
   useEffect(() => {
     const token = localStorage.getItem("pb_token");
@@ -248,7 +250,7 @@ export default function DashboardLayoutComponent(
             </div>
           </section>
 
-          <SearchBar useRedirect={true} />
+          <SearchBar useRedirect={true} defaultOpen={openFromURL ?? false}/>
           <LinkView />
           {/* Render middle column widgets */}
           {renderWidgetColumn(config?.widgets?.[1])}
