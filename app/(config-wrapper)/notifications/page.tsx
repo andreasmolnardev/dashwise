@@ -2,7 +2,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
-export default function SettingsRedirect() {
+export default function NotificationsRedirect() {
     const router = useRouter();
 
     useEffect(() => {
