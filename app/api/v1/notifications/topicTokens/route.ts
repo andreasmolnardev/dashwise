@@ -136,3 +136,38 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ error: "Internal Server Error", details: err.message }, { status: 500 });
     }
 }
+
+export async function DELETE(req: NextRequest) {
+    try {
+        const pb = getServerPB();
+
+        // --- 1. Require Bearer auth
+        const tokenHeader = requireBearerAuth(req);
+        if (!tokenHeader) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+        pb.authStore.save(tokenHeader, null);
+        const authModel = await pb.collection("users").authRefresh();
+        const userId = authModel?.record?.id;
+        if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+        // --- 2. Parse body for token ID to delete
+        const body = await req.json().catch(() => ({}));
+        const { tokenId } = body;
+        if (!tokenId) return NextResponse.json({ error: "Missing tokenId" }, { status: 400 });
+
+        // --- 3. Fetch token and check ownership
+        const tokenRecord = await pb.collection("notificationTopicTokens").getOne(tokenId);
+        const topicRecord = await pb.collection("notificationTopics").getOne(tokenRecord.topic);
+        if (!topicRecord || topicRecord.userId !== userId) {
+            return NextResponse.json({ error: "Token not found or not owned by user" }, { status: 404 });
+        }
+
+        // --- 4. Delete token
+        await pb.collection("notificationTopicTokens").delete(tokenId);
+
+        return NextResponse.json({ success: true });
+    } catch (err: any) {
+        console.error("Error in DELETE /notificationTopicTokens:", err);
+        return NextResponse.json({ error: "Internal Server Error", details: err.message }, { status: 500 });
+    }
+}
