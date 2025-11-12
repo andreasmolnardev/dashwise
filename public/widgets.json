@@ -65,9 +65,14 @@
             "slug": "dashdot-widget",
             "name": "System Overview",
             "properties": {
-                "default_override": "as:bool", 
-                "server_location": "as:string",
-                "server_displayname": "as:string"
+                "defaultOverride": "as:bool", 
+                "serverLocation": "as:string",
+                "serverLisplayname": "as:string"
+            },
+            "exampleProps": {
+                "defaultOverride": false, 
+                "serverLocation": null,
+                "serverLisplayname": null
             }
         }
     ]
