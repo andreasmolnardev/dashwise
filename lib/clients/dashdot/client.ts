@@ -1,3 +1,5 @@
+import https from 'https';
+
 export default async function getDashdotMetrics({
   serverUrl,
   allowInsecureCerts = false,
@@ -5,44 +7,64 @@ export default async function getDashdotMetrics({
   serverUrl: string;
   allowInsecureCerts?: boolean;
 }) {
-  const url = `${serverUrl.replace(/\/$/, '')}/info`;
+  const baseUrl = serverUrl.replace(/\/$/, '');
+  const agent = allowInsecureCerts ? new https.Agent({ rejectUnauthorized: false }) : undefined;
 
-  const res = await fetch(url, {
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    // support for self-signed TLS
-    ...(allowInsecureCerts ? { agent: new (require('https').Agent)({ rejectUnauthorized: false }) } : {}),
-  });
+  const fetchJson = async (path: string) => {
+    try {
+      const res = await fetch(`${baseUrl}${path}`, {
+        headers: { 'Content-Type': 'application/json' },
+        ...(agent ? { agent } : {}),
+      });
+      if (!res.ok) return null;
+      return await res.json();
+    } catch {
+      return null;
+    }
+  };
 
-  if (!res.ok) {
-    throw new Error(`Dashdot request failed (${res.status})`);
-  }
+  // --- fetch main info ---
+  const info = await fetchJson('/info');
+  if (!info) throw new Error('Dashdot /info request failed');
 
-  const data = await res.json();
+  // --- fetch load details ---
+  const load = {
+    cpu: await fetchJson('/load/cpu'),
+    ram: await fetchJson('/load/ram'),
+    storage: await fetchJson('/load/storage'),
+    network: await fetchJson('/load/network'),
+    gpu: await fetchJson('/load/gpu'),
+  };
 
-  // data normalization
+  // --- normalize and merge ---
   return {
-    hostname: data?.hostname,
-    os: data?.os,
+    hostname: info?.hostname,
+    os: info?.os,
     cpu: {
-      cores: data?.cpu?.cores,
-      usage: data?.cpu?.usage,
-      temperature: data?.cpu?.temperature,
+      cores: info?.cpu?.cores,
+      usage: info?.cpu?.usage,
+      temperature: info?.cpu?.temperature,
+      load: load.cpu ?? null,
     },
     memory: {
-      total: data?.ram?.total,
-      used: data?.ram?.used,
+      total: info?.ram?.total,
+      used: info?.ram?.used,
+      load: load.ram ?? null,
     },
-    storage: data?.storage?.map((disk: any) => ({
+    storage: (info?.storage ?? []).map((disk: any, i: number) => ({
       name: disk?.name,
       total: disk?.size,
       used: disk?.used,
+      load: load.storage?.[i] ?? null,
     })),
     network: {
-      up: data?.network?.speed_up,
-      down: data?.network?.speed_down,
+      up: info?.network?.speed_up,
+      down: info?.network?.speed_down,
+      load: load.network ?? null,
     },
-    gpu: data?.gpu,
+    gpu: {
+      ...info?.gpu,
+      load: load.gpu ?? null,
+    },
   };
 }
