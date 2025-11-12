@@ -44,6 +44,9 @@ export default function WidgetComponent({ type, className, params }: WidgetProps
                     case "latest-karakeep-bookmarks":
                         imported = await import("./dashboard/Karakeep");
                         break;
+                    case "dashdot-widget":
+                        imported = await import("./dashboard/Dashdot");
+                        break;
                     case "placeholder":
                         imported = await import("./dashboard/Placeholder");
                         break;
