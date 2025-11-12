@@ -24,7 +24,7 @@ import {
 import { SortableWidget } from "@/components/settings/widgets/SortableWidget";
 import { LibraryDraggable } from "@/components/settings/widgets/LibraryDraggable";
 import { DroppableColumn } from "@/components/settings/widgets/DroppableColumn";
-import WidgetEditDialog from "@/components/settings/widgets/WidgetEditDialog";
+import WidgetEditDialog from "@/components/settings/widgets/EditWidgetDialog";
 
 export interface Widget {
   id: string;
@@ -114,10 +114,12 @@ export default function WidgetsSettingsPage() {
     return filtered;
   }, [config?.integrations, widgetsData]);
 
-  const isEditable = (type: string) =>
-    Object.values(filteredWidgetsData)
+  const isEditable = (type: string) => {
+    return Object.values(filteredWidgetsData)
       .flat()
       .some((w) => w.slug === type && w.properties && Object.keys(w.properties).length > 0);
+  }
+
 
   const removeWidget = (zone: "left" | "middle" | "right", index: number) => {
     const newZones = { ...dropZones };
@@ -128,8 +130,10 @@ export default function WidgetsSettingsPage() {
 
   const editWidget = (widget: Widget, zone: "left" | "middle" | "right") => {
     const info = Object.values(filteredWidgetsData).flat().find((w) => w.slug === widget.type);
+    console.log(info)
+    console.log(widget.properties)
     if (!info) return;
-    setSelectedWidget({ ...info, id: widget.id, properties: widget.properties });
+    setSelectedWidget({ ...info, id: widget.id, properties: info.properties });
     setDropZoneTarget(zone);
     setDialogOpen(true);
   };
@@ -271,7 +275,7 @@ export default function WidgetsSettingsPage() {
                         ? "h-[4rem]"
                         : p === "Links"
                           ? "h-[8rem]"
-                          : "h-[3rem]"; 
+                          : "h-[3rem]";
 
                     return (
                       <div
