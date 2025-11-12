@@ -28,16 +28,24 @@ export async function GET(request: Request) {
             throw error;
         }
 
+        const body = await request.json().catch(() => ({}));
+
         const configRecord = await pb.collection('userConfig').getFirstListItem(
             `associatedUserId="${authModel.record.id}"`
         );
 
-        //  decode API credentials
-        const serverUrl = Buffer.from(configRecord.config.integrations.Dashdot.server_location, "base64").toString("utf8");
-        const displayName =  Buffer.from(configRecord.config.integrations.Dashdot.server_displayname, "base64").toString("utf8");
+        // take request arguments; default fallback: decode API credentials
+        const serverUrl =
+            body.serverUrl ??
+            Buffer.from(configRecord.config.integrations.Dashdot.server_location, "base64").toString("utf8");
+
+        const displayName =
+            body.displayName ??
+            Buffer.from(configRecord.config.integrations.Dashdot.server_displayname, "base64").toString("utf8");
+        
         // fetch bookmarks
-        const metrics = await getDashdotMetrics({serverUrl, allowInsecureCerts: config.allowInsecureCertsForIntegrationUrls ? true : false} )
-       
+        const metrics = await getDashdotMetrics({ serverUrl, allowInsecureCerts: config.allowInsecureCertsForIntegrationUrls ? true : false })
+        
         // full list mapped
         return NextResponse.json({ metrics, serverDetails: { url: serverUrl, displayName } }, { status: 200 });
 
