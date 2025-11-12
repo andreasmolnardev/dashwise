@@ -24,6 +24,8 @@ export default function WidgetEditDialog({ open, widget, onClose, onSave }: Widg
 
     if (!editedWidget) return null;
 
+    console.log(editedWidget)
+
     return (
         <Dialog open={open} onOpenChange={onClose}>
             <DialogContent className="frosted text-(--text-primary) max-h-[90vh] overflow-y-auto">
