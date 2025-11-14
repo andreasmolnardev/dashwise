@@ -4,6 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { useEffect, useState } from "react";
 import { WidgetInfo } from "@/app/(config-wrapper)/settings/widgets/page";
 import LocationSelectFormComponent from "../LocationSelectForm";
@@ -58,24 +59,26 @@ export default function WidgetEditDialog({ open, widget, onClose, onSave }: Widg
                     ) : (
                         <>
                             {editedWidget.properties &&
-                                Object.entries(editedWidget.properties).map(([key]) => (
-                                    <div key={key} className="space-y-2">
-                                        <Label htmlFor={key}>{key}</Label>
-                                        <Input
-                                            id={key}
-                                            value={editedWidget.properties?.[key] ?? ""}
-                                            onChange={(e) =>
-                                                setEditedWidget((prev) =>
-                                                    prev
-                                                        ? {
-                                                            ...prev,
-                                                            properties: { ...(prev.properties || {}), [key]: e.target.value },
-                                                        }
-                                                        : prev
-                                                )
-                                            }
-                                        />
-                                    </div>
+                                Object.entries(editedWidget.properties).map(([key, value]) => (
+                                    <PropertyEditInput
+                                        key={key}
+                                        propKey={key}
+                                        value={value}
+                                        placeholder={editedWidget.exampleProps?.[key]}
+                                        onChange={(newVal) =>
+                                            setEditedWidget((prev) =>
+                                                prev
+                                                    ? {
+                                                        ...prev,
+                                                        properties: {
+                                                            ...(prev.properties || {}),
+                                                            [key]: newVal,
+                                                        },
+                                                    }
+                                                    : prev
+                                            )
+                                        }
+                                    />
                                 ))}
                         </>
                     )}
@@ -89,5 +92,40 @@ export default function WidgetEditDialog({ open, widget, onClose, onSave }: Widg
                 </DialogFooter>
             </DialogContent>
         </Dialog>
+    );
+}
+
+interface PropertyEditInputProps {
+    propKey: string;
+    value: any;
+    placeholder?: string;
+    onChange: (newVal: any) => void;
+}
+
+function PropertyEditInput({ propKey, value, placeholder, onChange }: PropertyEditInputProps) {
+    const propertyType =
+        typeof value === "string" && value.startsWith("as:") ? value.replace("as:", "") : typeof value;
+console.log(propKey, propertyType)
+    const inputPlaceholder = propertyType === "string" ? placeholder ?? undefined : undefined;
+
+
+    return (
+        <div className="space-y-2">
+            <Label htmlFor={propKey}>{propKey}</Label>
+
+            {propertyType.includes("bool") ? (
+                <Switch
+                    id={propKey}
+                    checked={Boolean(value)}
+                    onCheckedChange={(checked) => onChange(Boolean(checked))}
+                />
+            ) : (
+                <Input
+                    id={propKey}
+                    placeholder={inputPlaceholder}
+                    onChange={(e) => onChange(e.target.value)}
+                />
+            )}
+        </div>
     );
 }
