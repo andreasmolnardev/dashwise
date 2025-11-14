@@ -23,11 +23,10 @@ export default async function getDashdotMetrics({
     }
   };
 
-  // --- fetch main info ---
+  // fetch info endpointm then load details
   const info = await fetchJson('/info');
   if (!info) throw new Error('Dashdot /info request failed');
 
-  // --- fetch load details ---
   const load = {
     cpu: await fetchJson('/load/cpu'),
     ram: await fetchJson('/load/ram'),
@@ -44,7 +43,7 @@ export default async function getDashdotMetrics({
     if (typeof total === 'number' && total > 0 && typeof usedAmount === 'number' && !Number.isNaN(usedAmount)) {
       usedPercentage = Math.min(100, Math.max(0, Number(((usedAmount / total) * 100).toFixed(2))));
     }
-    
+
     const disks = Array.isArray(store?.disks)
       ? store.disks.map((d: any) => ({
         device: d?.device ?? null,
@@ -72,9 +71,9 @@ export default async function getDashdotMetrics({
       load: load.cpu,
     },
     memory: {
-      total: info?.ram?.total,
+      total: info?.ram?.size,
       used: info?.ram?.used,
-      load: load.ram,
+      load: load.ram?.load,
     },
     storage,
     network: {

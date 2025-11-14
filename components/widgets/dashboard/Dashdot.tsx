@@ -54,7 +54,7 @@ export default function DashdotWidget({ params, className = "" }: DashdotWidgetP
 
     useEffect(() => {
         fetchMetrics();
-        const id = setInterval(fetchMetrics, 30_000);
+        const id = setInterval(fetchMetrics, 8000);
         return () => clearInterval(id);
     }, [params?.defaultOverride, params?.serverLocation, params?.serverDisplayname]);
 
@@ -97,11 +97,11 @@ export default function DashdotWidget({ params, className = "" }: DashdotWidgetP
                 : "—",
             secondary:
                 metrics?.memory?.total
-                    ? `${Math.round(
+                    ? `of ${humanBytes(metrics.memory.total)} used(${Math.round(
                         ((metrics.memory.load?.load ?? metrics.memory.load) /
                             metrics.memory.total) *
                         100
-                    )}%`
+                    )}%)`
                     : "—",
         },
         hasGpu
@@ -128,7 +128,7 @@ export default function DashdotWidget({ params, className = "" }: DashdotWidgetP
 
     // render columns
     return (
-        <WidgetColumnTemplate className={className}>
+        <WidgetColumnTemplate className={className} title={serverDetails?.displayName}>
             {items.map((item, i) => (
                 <div key={i} className="grid grid-rows-[20%_1fr_30%] items-center text-center">
                     <div className="text-xs font-medium">{item.type}</div>
