@@ -5,7 +5,7 @@ import { getServerPB } from '@/lib/pb';
 import { NextResponse } from 'next/server';
 import { AuthModel, ClientResponseError } from 'pocketbase';
 
-export async function GET(request: Request) {
+export async function POST(request: Request) {
     try {
         const authHeader = request.headers.get('authorization');
         if (!authHeader?.startsWith('Bearer ')) {
