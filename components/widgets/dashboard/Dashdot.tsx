@@ -34,9 +34,9 @@ export default function DashdotWidget({ params, className = "" }: DashdotWidgetP
                 : undefined;
 
             const res = await fetch(url, {
-                method: "GET",
+                method: "POST",
                 headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-                ...(body ? { body: JSON.stringify(body) } : {}),
+                ...({ body: JSON.stringify(body) }),
             });
 
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -117,7 +117,7 @@ export default function DashdotWidget({ params, className = "" }: DashdotWidgetP
                 type: "Storage",
                 primary:
                     metrics?.storage?.length && metrics.storage[0].load >= 0
-                        ? `${Math.round(metrics.storage[0].load)}%`
+                        ? `${Math.round(metrics.storage[0].usedPercentage)}%`
                         : "—",
                 secondary:
                     metrics?.storage?.length
