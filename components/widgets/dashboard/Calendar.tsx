@@ -1,5 +1,6 @@
 import React from "react";
 import { WidgetItemProps } from "../Widget";
+import WidgetColumnTemplate from "../templates/WidgetColumn";
 
 
 interface CalendarWidgetProps extends WidgetItemProps {
@@ -26,36 +27,30 @@ export default function CalendarWeekWidget({ startMonday = true, className = "" 
   });
 
   return (
-    <div className={`rounded-lg p-4 container-[type:inline-size] justify-center ${className}`}>
-      <div className="grid grid-cols-7 text-center gap-2">
-        {week.map((day) => {
-          const isToday =
-            day.getDate() === today.getDate() &&
-            day.getMonth() === today.getMonth() &&
-            day.getFullYear() === today.getFullYear();
+    <WidgetColumnTemplate className={className}>
+      {week.map((day) => {
+        const isToday =
+          day.getDate() === today.getDate() &&
+          day.getMonth() === today.getMonth() &&
+          day.getFullYear() === today.getFullYear();
 
-          return (
+        return (
+          <div key={day.toDateString()} className="day p-1 flex flex-col items-center justify-center">
             <div
-              key={day.toDateString()}
-              className="day p-1 flex flex-col items-center justify-center"
+              className={`w-6 h-6 flex items-center justify-center rounded-full text-[clamp(0.8rem,2.5cqw,1.2rem)] ${isToday ? "bg-(--primary) font-semibold" : "text-(--text-on-frosted)"
+                }`}
             >
-              <div
-                className={`w-6 h-6 flex items-center justify-center rounded-full text-[clamp(0.8rem,2.5cqw,1.2rem)] ${isToday
-                  ? "bg-(--primary) font-semibold"
-                  : "text-(--text-on-frosted)"
-                  }`}
-              >
-                {day.getDate()}
-              </div>
-              <div className="text-[clamp(0.7rem,2cqw,1rem)] mt-1 text-(--text-primary)">
-                {daysOfWeek[day.getDay()][0]}
-              </div>
+              {day.getDate()}
             </div>
-          );
-        })}
-      </div>
-    </div>
+            <div className="text-[clamp(0.7rem,2cqw,1rem)] mt-1 text-(--text-primary)">
+              {daysOfWeek[day.getDay()][0]}
+            </div>
+          </div>
+        );
+      })}
+    </WidgetColumnTemplate>
   );
+
 }
 
 export function CalendarTodayWidget({ className = "" }: WidgetItemProps) {

@@ -52,13 +52,16 @@ export async function getBookmarks({
     }
 
     const url = `${apiBase}/bookmarks`;
-
-    const res = await axios.get(url, {
+    let res;
+    try {
+      res = await axios.get(url, {
       headers,
       httpsAgent: allowInsecureCerts ? new https.Agent({ rejectUnauthorized: false }) : undefined,
     });
-
-    const body = res.data;
+    } catch (error) {
+      
+    }
+    const body = res?.data;
     if (!body) return [];
 
     // normalize to an array of raw bookmark objects

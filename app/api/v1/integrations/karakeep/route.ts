@@ -35,21 +35,6 @@ export async function GET(request: Request) {
         const apiToken = Buffer.from(configRecord.config.integrations.Karakeep.api_token, "base64").toString("utf8");
         const serverLocation = Buffer.from(configRecord.config.integrations.Karakeep.server_location, "base64").toString("utf8");
 
-        // fetch bookmarks
-        const res = await fetch(`${serverLocation}/api/v1/bookmarks`, {
-            headers: {
-                Authorization: `Bearer ${apiToken}`,
-                "Content-Type": "application/json",
-            },
-        });
-
-        if (!res.ok) {
-            return NextResponse.json(
-                { error: "Failed to fetch bookmarks" },
-                { status: res.status }
-            );
-        }
-
         const bookmarks = await getBookmarks({ serverUrl: serverLocation, token: apiToken, allowInsecureCerts: config.allowInsecureCertsForIntegrationUrls ? true : false})
 
         const url = new URL(request.url);
