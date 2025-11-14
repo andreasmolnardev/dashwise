@@ -67,12 +67,12 @@
             "properties": {
                 "defaultOverride": "as:bool", 
                 "serverLocation": "as:string",
-                "serverLisplayname": "as:string"
+                "serverDisplayname": "as:string"
             },
             "exampleProps": {
                 "defaultOverride": false, 
                 "serverLocation": null,
-                "serverLisplayname": null
+                "serverDisplayname": null
             }
         }
     ]
