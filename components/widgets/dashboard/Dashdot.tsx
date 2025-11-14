@@ -128,7 +128,7 @@ export default function DashdotWidget({ params, className = "" }: DashdotWidgetP
 
     // render columns
     return (
-        <WidgetColumnTemplate className={className} title={serverDetails?.displayName}>
+        <WidgetColumnTemplate className={className} title={serverDetails?.displayName} iconUrl="/icons/png/dashdot.png" url={serverDetails?.url}>
             {items.map((item, i) => (
                 <div key={i} className="grid grid-rows-[20%_1fr_30%] items-center text-center">
                     <div className="text-xs font-medium">{item.type}</div>
