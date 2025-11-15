@@ -83,24 +83,23 @@ export default async function runBackgroundJobs() {
             }));
 
             //check if user has any integrations configured
-            if (userConfig.config.integrations?.Karakeep) {
+            if (userConfig.config.integrations?.Karakeep && userConfig.config.integrations?.Karakeep?.api_token &&  userConfig.config.integrations?.Karakeep?.server_location) {
                 const karakeepConfig = userConfig.config.integrations?.Karakeep;
                 const token = Buffer.from(karakeepConfig.api_token, "base64").toString("utf-8");
                 const serverUrl = Buffer.from(karakeepConfig.server_location, "base64").toString("utf-8");
 
-                console.log("karakeep", token, serverUrl)
                 if (!token || !serverUrl) return;
 
                 const bookmarks = await KarakeepSearchItems({serverUrl, token, allowInsecureCerts:  config.allowInsecureCertsForIntegrationUrls});
                 searchItems.push(...bookmarks);
             }
 
-            if (userConfig.config.integrations?.Jellyfin) {
+            if (userConfig.config.integrations?.Jellyfin && userConfig.config.integrations?.Jellyfin.api_token && userConfig.config.integrations?.Jellyfin.server_location) {
+
                 const JellyfinConfig = userConfig.config.integrations?.Jellyfin;
+
                 const token = Buffer.from(JellyfinConfig.api_token, "base64").toString("utf-8");
                 const serverUrl = Buffer.from(JellyfinConfig.server_location, "base64").toString("utf-8");
-
-                if (!token || !serverUrl) return;
 
                 const items = await JellyfinSearchItems({serverUrl, token, allowInsecureCerts:  config.allowInsecureCertsForIntegrationUrls});
                 searchItems.push(...items);
