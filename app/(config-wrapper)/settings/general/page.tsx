@@ -3,7 +3,7 @@ import { RadioGroup } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useConfig } from "@/context/ConfigContext";
 import config from "@/lib/config";
-import { faLocationDot, faTemperature0, faThermometer } from "@fortawesome/free-solid-svg-icons";
+import { faLocationDot, faTemperature0, faThermometer, faWindowRestore } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { RadioGroupItem } from "@radix-ui/react-radio-group";
 import { useState, useEffect, useMemo } from "react";
@@ -25,6 +25,19 @@ export default function GeneralSettingsPage() {
         </ul>
       </div>
       <h2 className="text-xl font-semibold">Defaults</h2>
+      <h3 className="text-lg font-medium">Links</h3>
+      <div
+        className={
+          "flex border border-transparent items-center col-span-full p-1.5 rounded-md gap-2"
+        }
+      >
+        <FontAwesomeIcon icon={faWindowRestore} />
+        <p className="w-full font-medium">Open Behaviour</p>
+
+        <div className="flex items-center gap-2">
+          <LinkOpeningBehaviourSelect />
+        </div>
+      </div>
       <h3 className="text-lg font-medium">Weather</h3>
       <div
         className={
@@ -34,7 +47,7 @@ export default function GeneralSettingsPage() {
         <FontAwesomeIcon icon={faTemperature0} />
         <p className="w-full font-medium">Temperature Unit</p>
 
-        <div className="flex items-center gap-2 px-8">
+        <div className="flex items-center gap-2 px-12">
           <WeatherUnitSelector />
         </div>
       </div>
@@ -46,7 +59,7 @@ export default function GeneralSettingsPage() {
         <FontAwesomeIcon icon={faLocationDot} />
         <p className="w-full font-medium">Location</p>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 px-2">
           <WeatherLocationSelector />
         </div>
       </div>
@@ -119,7 +132,7 @@ function WeatherLocationSelector() {
       // fallback if stored with single quotes or other oddities
       try {
         const parsed = JSON.parse(raw.replaceAll("'", '"'));
-        return { displayName: parsed.name ?? "", coordinates: `${parsed.lat}, ${parsed.lon}`};
+        return { displayName: parsed.name ?? "", coordinates: `${parsed.lat}, ${parsed.lon}` };
       } catch {
         return { displayName: "", coordinates: "" };
       }
@@ -188,4 +201,55 @@ function WeatherLocationSelector() {
       </Dialog>
     </>
   );
+}
+
+function LinkOpeningBehaviourSelect() {
+  const { config, refreshConfig } = useConfig();
+  const value = config?.global?.linkOpenBehaviour ?? "sametab";
+
+  async function handleChange(setting: "newtab" | "sametab") {
+    const token = localStorage.getItem("pb_token");
+    if (!token) return;
+
+    await fetch(`/api/v1/config?path=global`, {
+      method: "PATCH",
+      headers: {
+        "Authorization": `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        updatedItem: {
+          ...config.global,
+          linkOpenBehaviour: setting,
+        },
+      }),
+    });
+
+    await refreshConfig();
+  }
+
+  return (
+    <div className="flex gap-2 frosted rounded-full text-(--text-on-frosted) px-2 py-1">
+      <button
+        onClick={() => handleChange("sametab")}
+        className={`
+        rounded-full px-2 py-1 whitespace-nowrap
+        ${value === "sametab" ? "bg-white/20" : ""}
+      `}
+      >
+        Same Tab
+      </button>
+
+      <button
+        onClick={() => handleChange("newtab")}
+        className={`
+        rounded-full px-2 py-1 whitespace-nowrap
+        ${value === "newtab" ? "bg-white/20" : ""}
+      `}
+      >
+        New Tab
+      </button>
+    </div>
+  );
+
 }
