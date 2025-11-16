@@ -1,10 +1,6 @@
 {
     "dashwise": [
         {
-            "name": "News",
-            "description": "Subscribe to RSS feeds, filtered by topics"
-        },
-        {
             "name": "Notifications",
             "description": "Receive alerts via topic-based PUSH requests"
         }
@@ -16,6 +12,26 @@
             "properties": {
                 "server_location": "as:string",
                 "api_token": "as:string"
+            }
+        }
+    ],
+    "media": [
+        {
+            "name": "Jellyfin",
+            "description": "Integration for Jellyfin",
+            "properties": {
+                "server_location": "as:string",
+                "api_token": "as:string"
+            }
+        }
+    ],
+    "monitoring": [
+        {
+            "name": "Dashdot",
+            "description": "Integration for Dashdot",
+            "properties": {
+                "server_location": "as:string",
+                "server_displayname": "as:string"
             }
         }
     ]

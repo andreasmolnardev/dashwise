@@ -18,7 +18,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { useConfig } from "@/context/ConfigContext";
-import IconPickerComponent from "@/components/settings/IconPicker";
+import IconPickerComponent, { IconResult } from "@/components/settings/IconPicker";
 import { RadioGroup, RadioGroupItem } from "../ui/radio-group";
 import { Switch } from "@/components/ui/switch";
 import { faEllipsisV, faPaperclip } from "@fortawesome/free-solid-svg-icons";
@@ -57,7 +57,7 @@ export default function LinkDetailsForm({ link, onClose }: LinkDetailsFormProps)
   const [name, setName] = useState("");
   const [linkId, setLinkId] = useState(() => link?.id || generateRandomId());
   const [url, setUrl] = useState("");
-  const [icon, setIcon] = useState("");
+  const [icon, setIcon] = useState<IconResult | null>(null);
   const [linkGroup, setLinkGroup] = useState("");
   const [statusCheck, setStatusCheck] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -93,7 +93,7 @@ export default function LinkDetailsForm({ link, onClose }: LinkDetailsFormProps)
     if (link?.name && link?.url && link?.icon) {
       setName(link.name);
       setUrl(link.url);
-      setIcon(link.icon);
+      setIcon({ url: link.icon, iconSet: link.icon.includes("-light") ? "mono" : "custom" });
       setIconEdited(true);
     }
   }, [link, linkGroups]);
@@ -102,7 +102,7 @@ export default function LinkDetailsForm({ link, onClose }: LinkDetailsFormProps)
   useEffect(() => {
     if (!iconEdited && name.trim()) {
       const safeName = name.trim().replace(/\s+/g, "-").toLowerCase();
-      setIcon(`/icons/svg/${safeName}-light.svg`);
+      setIcon({ url: `/icons/svg/${safeName}-light.svg`, iconSet: "custom" });
     }
   }, [name, iconEdited]);
 
@@ -115,7 +115,7 @@ export default function LinkDetailsForm({ link, onClose }: LinkDetailsFormProps)
       const token = localStorage.getItem("pb_token");
       if (!token) throw new Error("Not authenticated");
 
-      const payload = { id: linkId, name, url, icon, linkGroup };
+      const payload = { id: linkId, name, url, icon: icon?.url ?? "", linkGroup };
       if (statusCheck) {
         (payload as any).statusCheck = true;
       }
@@ -152,7 +152,7 @@ export default function LinkDetailsForm({ link, onClose }: LinkDetailsFormProps)
       if (!isEditing) {
         setName("");
         setUrl("");
-        setIcon("");
+        setIcon({});
         setLinkGroup("");
         setIconEdited(false);
         setLinkId(generateRandomId());
@@ -198,7 +198,7 @@ export default function LinkDetailsForm({ link, onClose }: LinkDetailsFormProps)
 
         <Label htmlFor="link-image">Icon</Label>
         <RadioGroup className="flex items-center gap-2" defaultValue="current">
-          <LinkIcon name="current" iconUrl={icon} />
+          <LinkIcon name="current" iconObj={icon} />
           <Popover modal={true}>
             <PopoverTrigger>
               <Label
@@ -217,15 +217,14 @@ export default function LinkDetailsForm({ link, onClose }: LinkDetailsFormProps)
                   name="iconUrl"
                   placeholder="https://example.com/icon.svg"
                   className="frosted"
-                  defaultValue={icon}
+                  defaultValue={icon?.url ?? ""}
                   onChange={(e) => {
-                    const value = e.target.value;
-                    setIcon(value);
+                    const url = e.target.value;
+                    setIcon({ iconSet: "custom", url });
                     setIconEdited(true);
 
-                    // update hidden input directly
                     const hidden = document.querySelector<HTMLInputElement>('input[name="icon"]');
-                    if (hidden) hidden.value = value;
+                    if (hidden) hidden.value = url;
                   }}
                 />
               </div>
@@ -245,19 +244,14 @@ export default function LinkDetailsForm({ link, onClose }: LinkDetailsFormProps)
               <IconPickerComponent
                 initialIcons={icons}
                 onSelect={(iconObj) => {
-                  const ext = iconObj.SVG === "Yes" ? "svg" : "png";
-                  let variant = "";
-                  if (iconObj.Light === "Yes") variant = "light";
-                  else if (iconObj.Dark === "Yes") variant = "dark";
-                  const url = `/icons/${ext}/${iconObj.Reference}${variant ? `-${variant}` : ""}.${ext}`;
-                  setIcon(url);
+                  setIcon(iconObj);
                   setIconEdited(true);
                   setOpen(false);
                 }}
               />
             </PopoverContent>
           </Popover>
-          <input type="hidden" name="icon" value={icon ?? ""} />
+          <input type="hidden" name="icon" value={icon?.url ?? ""} />
         </RadioGroup>
         <div className="mt-3 flex items-center gap-2">
           <Switch
@@ -294,19 +288,27 @@ export default function LinkDetailsForm({ link, onClose }: LinkDetailsFormProps)
             Preview {isEditing && "(Editing)"}
           </p>
           <div className="group flex flex-col items-center justify-between space-y-2 frosted rounded-2xl p-2 min-h-18 w-[120px]">
-            <div
-              className="h-[35px] w-[35px] bg-white group-hover:bg-(--primary) transition"
-              style={{
-                maskImage: icon ? `url(${icon})` : "none",
-                WebkitMaskImage: icon ? `url(${icon})` : "none",
-                maskRepeat: "no-repeat",
-                WebkitMaskRepeat: "no-repeat",
-                maskPosition: "center",
-                WebkitMaskPosition: "center",
-                maskSize: "contain",
-                WebkitMaskSize: "contain",
-              }}
-            />
+            {icon?.iconSet === "mono" ? (
+              <div
+                className="h-[35px] w-[35px] bg-white group-hover:bg-(--primary) transition"
+                style={{
+                  maskImage: `url(${icon.url})`,
+                  WebkitMaskImage: `url(${icon.url})`,
+                  maskRepeat: "no-repeat",
+                  WebkitMaskRepeat: "no-repeat",
+                  maskPosition: "center",
+                  WebkitMaskPosition: "center",
+                  maskSize: "contain",
+                  WebkitMaskSize: "contain",
+                }}
+              />
+            ) : icon?.url ? (
+              <img
+                src={icon.url}
+                alt={icon?.name ?? "Custom Icon"}
+                className="h-[35px] w-[35px] object-contain"
+              />
+            ) : null}
             <span className="text-sm text-white">{name || "Link name"}</span>
           </div>
         </div>
@@ -330,10 +332,10 @@ export default function LinkDetailsForm({ link, onClose }: LinkDetailsFormProps)
 
 export function LinkIcon({
   name,
-  iconUrl,
+  iconObj,
 }: {
   name: string;
-  iconUrl: string | null;
+  iconObj: IconResult | null;
 }) {
   return (
     <Label
@@ -341,20 +343,28 @@ export function LinkIcon({
       className="h-[35px] w-[35px] frosted rounded-md flex items-center justify-center outline-2 outline-transparent has-checked:outline-(--primary)"
     >
       <RadioGroupItem value={name} className="hidden" />
-      {iconUrl && (
-        <div
-          className="bg-white h-[22px] w-[22px]"
-          style={{
-            maskImage: `url(${iconUrl})`,
-            WebkitMaskImage: `url(${iconUrl})`,
-            maskRepeat: "no-repeat",
-            WebkitMaskRepeat: "no-repeat",
-            maskPosition: "center",
-            WebkitMaskPosition: "center",
-            maskSize: "contain",
-            WebkitMaskSize: "contain",
-          }}
-        />
+      {iconObj && (
+        iconObj.iconSet === "mono" ? (
+          <div
+            className="bg-white h-[22px] w-[22px]"
+            style={{
+              maskImage: `url(${iconObj.url})`,
+              WebkitMaskImage: `url(${iconObj.url})`,
+              maskRepeat: "no-repeat",
+              WebkitMaskRepeat: "no-repeat",
+              maskPosition: "center",
+              WebkitMaskPosition: "center",
+              maskSize: "contain",
+              WebkitMaskSize: "contain",
+            }}
+          />
+        ) : (
+          <img
+            src={iconObj.url ?? ""}
+            alt={iconObj.name ?? ""}
+            className="h-[22px] w-[22px] object-contain"
+          />
+        )
       )}
     </Label>
   );

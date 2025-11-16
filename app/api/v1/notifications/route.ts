@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerPB } from "@/lib/pb";
+import { getServerPB, getSuperuserPB } from "@/lib/pb";
 
 export async function GET(req: NextRequest) {
     try {
@@ -27,6 +27,10 @@ export async function GET(req: NextRequest) {
             filter: `userId="${userId}"`,
         });
         const topicIds = topics.map(t => t.id);
+
+        if (!topicIds) {
+            return NextResponse.json({}, { status: 204 });
+        }
 
         if (topicIds.length === 0) {
             return NextResponse.json({ items: [] });
@@ -102,3 +106,61 @@ export async function GET(req: NextRequest) {
         );
     }
 }
+
+export async function POST(req: NextRequest) {
+    try {
+        const body = await req.json().catch(() => ({}));
+
+
+        // --- 1. Get topic token from header or query
+        let token = req.headers.get("authorization")?.startsWith("Bearer ")
+            ? req.headers.get("authorization")!.split(" ")[1]
+            : req.nextUrl.searchParams.get("token");
+
+        if (!token) {
+            return NextResponse.json({ error: "Missing topic token" }, { status: 401 });
+        }
+
+        // --- 2. Lookup token in notificationTopicTokens using superuser
+        const _pocketbase = await getSuperuserPB();
+
+        let tokenRecord: any = null;
+        try {
+            tokenRecord = await _pocketbase
+                .collection("notificationTopicTokens")
+                .getFirstListItem(`token="${token}"`);
+        } catch {
+            return NextResponse.json({ error: "Invalid or unknown topic token" }, { status: 401 });
+        }
+
+        // --- 3. Check expiration, resolve topic, create notification (same as before)
+        if (tokenRecord.expires) {
+            const exp = new Date(tokenRecord.expires);
+            if (!isNaN(exp.getTime()) && exp.getTime() < Date.now()) {
+                return NextResponse.json({ error: "Topic token expired" }, { status: 401 });
+            }
+        }
+
+        const topicId = tokenRecord.topic ?? tokenRecord.topicId ?? tokenRecord.topic?.id;
+        if (!topicId) {
+            return NextResponse.json({ error: "Topic not found for token" }, { status: 400 });
+        }
+
+        // Create the notification item under the topic
+        const createdItem = await _pocketbase.collection("notificationItems").create({
+            topicId,
+            content: body,
+            status: "sent",
+            source: "token",
+        });
+
+        return NextResponse.json({ ok: true, topicId, itemId: createdItem.id }, { status: 201 });
+    } catch (err: any) {
+        console.error("Error in POST /notifications via topic token", err);
+        return NextResponse.json(
+            { error: "Internal Server Error", details: String(err?.message ?? err) },
+            { status: 500 }
+        );
+    }
+}
+

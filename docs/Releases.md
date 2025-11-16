@@ -1,3 +1,10 @@
+Features since v0.2
+- Jellyfin integration
+- Use glass weather icons
+- Widgets: Weather, Karakeep, Calendar
+- Set default temperature unit and weather location
+
+
 Features since v0.1.4
 - First draft: status monitoring
 - Job container added - not part of build pipeline yet

@@ -31,54 +31,55 @@ export default function IntegrationsSettingsPage() {
       .catch((err) => console.error("Failed to load integrations:", err));
   }, []);
 
-  async function updateConfig(updated: Record<string, Record<string, string>>) {
-    setActiveIntegrations(updated);
+  async function updateIntegration(name: string, props: Record<string, string> = {}) {
+    const updatedItem = { ...activeIntegrations, [name]: props };
+    setActiveIntegrations(updatedItem);
 
     try {
-      await fetch("/api/v1/config?path=integrations", {
+      await fetch(`/api/v1/config?path=integrations.${name}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${localStorage.getItem("pb_token")}`,
         },
-        body: JSON.stringify({ updatedItem: updated }),
+        body: JSON.stringify({ updatedItem: props }),
       });
     } catch (err) {
       console.error("Failed to update config:", err);
     }
   }
 
-  function toggleIntegration(integration: Integration) {
-    const updated = { ...activeIntegrations };
 
-    if (updated[integration.name]) {
-      // disable directly
+  function toggleIntegration(integration: Integration) {
+    if (activeIntegrations[integration.name]) {
+      // Disable
+      const updated = { ...activeIntegrations };
       delete updated[integration.name];
-      updateConfig(updated);
+      setActiveIntegrations(updated);
+      updateIntegration(integration.name, {}); // Empty disables
+    } else if (integration.properties) {
+      // Enable with dialog
+      setPendingIntegration(integration);
+      setPendingProps({});
+      setDialogOpen(true);
     } else {
-      // if properties required, open dialog
-      if (integration.properties) {
-        setPendingIntegration(integration);
-        setPendingProps({});
-        setDialogOpen(true);
-      } else {
-        // enable with empty props
-        updated[integration.name] = {};
-        updateConfig(updated);
-      }
+      // Enable directly with empty props
+      updateIntegration(integration.name, {});
     }
   }
 
   function handleDialogConfirm() {
     if (!pendingIntegration) return;
-    const updated = { ...activeIntegrations };
-    updated[pendingIntegration.name] = Object.fromEntries(
+
+    const encodedProps = Object.fromEntries(
       Object.entries(pendingProps).map(([k, v]) => [
         k,
         pendingIntegration.properties?.[k] === "as:string" ? btoa(v) : v,
       ])
     );
-    updateConfig(updated);
+
+    updateIntegration(pendingIntegration.name, encodedProps);
+
     setDialogOpen(false);
     setPendingIntegration(null);
   }

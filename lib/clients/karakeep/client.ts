@@ -32,32 +32,36 @@ export async function getBookmarks({
   try {
     const apiBase = serverUrl.replace(/\/+$/, "") + "/api/v1";
 
-    //test karakeep connectivity
-    try {
-      await axios.get(serverUrl, {
-        timeout: 3000,
-        httpsAgent: allowInsecureCerts ? new https.Agent({ rejectUnauthorized: false }) : undefined,
-      });
-      console.log("Karakeep is reachable")
-    } catch {
-      console.error(`[Karakeep] ${serverUrl} not reachable.`);
-      return [];
-    }
-
-    const url = `${apiBase}/bookmarks`;
-
-    const headers: Record<string, string> = {
+     const headers: Record<string, string> = {
       Accept: "application/json",
       "Content-Type": "application/json",
     };
     if (token) headers["Authorization"] = `Bearer ${token}`;
 
-    const res = await axios.get(url, {
+
+    try {
+      await axios.get(serverUrl, {
+        headers,
+        timeout: 3000,
+        httpsAgent: allowInsecureCerts ? new https.Agent({ rejectUnauthorized: false }) : undefined,
+      });
+      console.log("Karakeep is reachable")
+    } catch (e){
+      console.error(`[Karakeep] ${serverUrl} not reachable.`, e);
+      return [];
+    }
+
+    const url = `${apiBase}/bookmarks`;
+    let res;
+    try {
+      res = await axios.get(url, {
       headers,
       httpsAgent: allowInsecureCerts ? new https.Agent({ rejectUnauthorized: false }) : undefined,
     });
-
-    const body = res.data;
+    } catch (error) {
+      
+    }
+    const body = res?.data;
     if (!body) return [];
 
     // normalize to an array of raw bookmark objects
@@ -73,16 +77,31 @@ export async function getBookmarks({
     const baseBookmarks: KarakeepBookmark[] = rawArray
       .filter(raw => raw && raw.content && raw.content.type === "link")
       .map(raw => {
-        const title = raw.content?.title ?? raw.title ?? "Untitled";
-        const urlStr = raw.content?.url ?? raw.url;
+        const title = raw.title ?? raw.content?.title ?? "Untitled";
+        const url = raw.content?.url ?? raw.url;
+
+        let icon = raw.content?.favicon ?? raw.icon
+
+        if (icon?.includes('youtube.com')) {
+          icon = '/icons/png/youtube-light.png';
+        } else if (icon?.includes('twitter.com')) {
+          icon = '/icons/png/twitter-light.png';
+        } else if (icon?.includes('github.com')) {
+          icon = '/icons/png/github-light.png';
+        }
+
         return {
           id: raw.id,
           title,
-          icon: raw.content?.favicon ?? raw.icon,
+          icon,
           collection: raw.collection ?? raw.collectionName,
-          url: urlStr,
+          url: url,
           content: raw.content,
-          // lists will be filled below
+          dateCreated: raw.createdAt ?? null,
+          dateUpdated: raw.modifiedAt ?? null,
+          archived: !!raw.archived,
+          favourited: !!raw.favourited,
+          tags: Array.isArray(raw.tags) ? raw.tags : [],
         } as KarakeepBookmark;
       })
       .filter(b => !!b.url); // drop entries without a usable url
@@ -157,6 +176,7 @@ export async function KarakeepSearchItems({
     secondaryInfo: b.collection ?? "",
     type: "karakeepBookmark",
     action: `url:${b.url}`,
+    tags: [b.title, "karakeep", b.collection].filter((t): t is string => !!t)
   }));
 
   // keep deterministic ordering

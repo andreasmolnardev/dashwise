@@ -5,6 +5,9 @@ import { Dialog, DialogContent } from '../ui/dialog';
 import { useConfig } from '@/context/ConfigContext';
 import { Separator } from '../ui/separator';
 import { DialogTitle } from '@radix-ui/react-dialog';
+import { cn } from '@/lib/utils';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faGlobe } from '@fortawesome/free-solid-svg-icons';
 
 // --- Types ---
 
@@ -14,15 +17,19 @@ type LinkItem = {
   type?: string;
   name: string;
   url: string;
+  tags?: string[];
   isBangAction?: boolean;
   bangEngineSlug?: string;
   bangEngineName?: string;
+  isSearchEngine?: boolean;
+  engineSlug?: string;
 };
 
 type SearchEngine = {
   icon?: string;
   name?: string;
   slug?: string;
+  bang?: string;
   status?: string;
   url_home?: string;
   url_params?: string;
@@ -36,6 +43,7 @@ type IncomingSearchItem = {
   action?: string;
   url?: string;
   linkGroup?: string;
+  tags?: string[];
 };
 
 type CommandBarProps = {
@@ -44,11 +52,10 @@ type CommandBarProps = {
   searchItems: IncomingSearchItem[];
 };
 
-// --- Helpers ---
 
 function normalizeConfigLinks(input: IncomingSearchItem[] = []): LinkItem[] {
   return input
-    .filter((it) => !it.type || it.type === 'link' || it.type === 'karakeepBookmark')
+    .filter((it) => !it.type || it.type === 'link' || it.type === 'karakeepBookmark' || it.type === 'jellyfinItem')
     .map((it) => {
       const action = (it.action || '').toString().trim();
       let url = '';
@@ -61,17 +68,27 @@ function normalizeConfigLinks(input: IncomingSearchItem[] = []): LinkItem[] {
         url = action || (it.url || '');
       }
 
+      let type;
+
+      if (it.type === 'karakeepBookmark') {
+        type = 'Karakeep';
+      } else if (it.type === 'jellyfinItem') {
+        type = 'Jellyfin';
+      } else {
+        type = "Link"
+      }
+
       return {
         name: it.name || '',
         icon: it.icon || undefined,
         linkGroup: it.secondaryInfo || it.linkGroup || '',
-        type: it.type === 'karakeepBookmark'? 'Karakeep': 'Link',
+        tags: it.tags || '',
+        type,
         url,
       } as LinkItem;
     });
 }
 
-// --- Component ---
 
 export default function CommandBar({ open, setOpen, searchItems }: CommandBarProps) {
   const { config } = useConfig();
@@ -115,13 +132,20 @@ export default function CommandBar({ open, setOpen, searchItems }: CommandBarPro
       setHighlightIndex(0);
       return;
     }
-    const results = links.filter((l) => {
-      return (
-        l.name.toLowerCase().includes(q) ||
-        (l.linkGroup || '').toLowerCase().includes(q) ||
-        (l.url || '').toLowerCase().includes(q)
-      );
-    });
+
+    const queryWords = q.split(/\s+/).filter(Boolean);
+
+    const results = links
+      .map((item) => {
+        const tags = (item.tags || []).map(t => t.toLowerCase());
+        const matchCount = queryWords.reduce((count, word) =>
+          count + (tags.some(tag => tag.includes(word)) ? 1 : 0), 0);
+        return { item, matchCount };
+      })
+      .filter(({ matchCount }) => matchCount > 0)
+      .sort((a, b) => b.matchCount - a.matchCount)
+      .map(({ item }) => item);
+
     setFiltered(results);
     setHighlightIndex(0);
   }, [query, links]);
@@ -149,14 +173,26 @@ export default function CommandBar({ open, setOpen, searchItems }: CommandBarPro
   const actions = React.useMemo(() => {
     const items = [...filtered];
 
-    // check for bang
-    const parsed = parseBang(query);
+    const trimmedQuery = query.trim();
+
+    // --- 1. Go to URL (only if valid URL) ---
+    if (isValidUrl(trimmedQuery)) {
+      items.unshift({
+        name: `Go to ${trimmedQuery}`,
+        url: trimmedQuery.startsWith('http') ? trimmedQuery : `https://${trimmedQuery}`,
+        icon: '/icons/faGlobe.svg', // globe icon
+        linkGroup: 'URL',
+        type: 'Go to URL',
+      } as LinkItem);
+    }
+
+    // --- 2. Bang search ---
+    const parsed = parseBang(trimmedQuery);
     if (parsed) {
       const engine = searchEngines.find((se) => (se.slug || '').toLowerCase() === parsed.slug);
       if (engine) {
-        // put bang action at the top
         items.unshift({
-          name: `Search with ${engine.name}`,
+          name: `Search with ${engine.name} (${engine.slug ? '!' + engine.slug : ''})`,
           url: '__bang_search__',
           icon: engine.icon,
           linkGroup: engine.name,
@@ -167,15 +203,31 @@ export default function CommandBar({ open, setOpen, searchItems }: CommandBarPro
       }
     }
 
-    // default search action (only show if no bang matched)
+    // --- 3. Default search engine (only once) ---
     if (!parsed || !searchEngines.find((se) => (se.slug || '').toLowerCase() === parsed.slug)) {
       items.push({
         name: `Search ${defaultEngine?.name || 'web'}`,
         url: '__search_action__',
         icon: defaultEngine?.icon,
         linkGroup: defaultEngine?.name || 'web',
+        type: 'Search',
       } as LinkItem);
     }
+
+    // --- 4. All other engines except default ---
+    (searchEngines || [])
+      .filter((se) => (se.status || '').toLowerCase() !== 'disabled' && se.slug !== defaultEngine?.slug)
+      .forEach((se) => {
+        items.push({
+          name: `${se.name}${se.slug ? ` (!${se.slug})` : ''}`,
+          url: `__engine_search__:${se.slug}`,
+          icon: se.icon,
+          linkGroup: se.name,
+          type: 'Search',
+          isSearchEngine: true,
+          engineSlug: se.slug,
+        } as LinkItem);
+      });
 
     return items;
   }, [filtered, defaultEngine, query, searchEngines]);
@@ -221,16 +273,23 @@ export default function CommandBar({ open, setOpen, searchItems }: CommandBarPro
       openBangSearch(query, a.bangEngineSlug);
     } else if (a.url === '__search_action__') {
       openSearch(query);
+    } else if (a.url.startsWith('__engine_search__:')) {
+      const slug = a.url.split(':', 2)[1];
+      openEngineSearch(slug, query);
     } else if (a.url.startsWith('command:')) {
       openCommandClient(a.url);
     } else {
-      openUrl(a.url);
+      openUrl(a.url, config?.global?.linkOpenBehaviour);
     }
   }
 
-  function openUrl(url: string) {
+  function openUrl(url: string, method: 'newtab' | 'sametab' | null = 'sametab') {
     if (!url) return;
-    window.open(url, '_blank');
+    let target: '_self' | '_blank' = '_self';
+    if (method === 'newtab') {
+      target = '_blank';
+    }
+    window.open(url, target);
     setOpen(false);
   }
 
@@ -252,6 +311,17 @@ export default function CommandBar({ open, setOpen, searchItems }: CommandBarPro
     if (!engine) return;
     const template = engine.url_params || engine.url_home || '';
     const searchUrl = template.replace('%s', encodeURIComponent(terms || ''));
+    if (!searchUrl) return;
+    window.open(searchUrl, '_blank');
+    setOpen(false);
+  }
+
+  function openEngineSearch(slug?: string, q?: string) {
+    if (!slug) return;
+    const engine = searchEngines.find((se) => (se.slug || '').toLowerCase() === (slug || '').toLowerCase());
+    if (!engine) return;
+    const template = engine.url_params || engine.url_home || '';
+    const searchUrl = template.replace('%s', encodeURIComponent((q || '').trim()));
     if (!searchUrl) return;
     window.open(searchUrl, '_blank');
     setOpen(false);
@@ -299,35 +369,29 @@ export default function CommandBar({ open, setOpen, searchItems }: CommandBarPro
             const isHighlighted = highlightIndex === index;
             return (
               <button
-                ref={(el) => {itemRefs.current[index] = el;}}
+                ref={(el) => { itemRefs.current[index] = el; }}
                 key={item.url + item.name + index}
                 onClick={(e) => onClickLink(e, item)}
                 className={`w-full text-left px-2 py-2 flex items-center gap-3 rounded ${isHighlighted ? 'bg-white/20 text-white' : 'hover:bg-white/10'}`}
               >
                 <div className={`w-6 h-6 rounded-md flex items-center justify-center bg-white/20`}>
                   {item.icon ? (
-                    <div
-                      className="w-4 h-4 transition"
-                      style={{
-                        backgroundColor: "var(--primary)",
-                        maskImage: `url(${item.icon})`,
-                        WebkitMaskImage: `url(${item.icon})`,
-                        maskRepeat: "no-repeat",
-                        WebkitMaskRepeat: "no-repeat",
-                        maskPosition: "center",
-                        WebkitMaskPosition: "center",
-                        maskSize: "contain",
-                        WebkitMaskSize: "contain",
-                      }}
-                    />
+                    <Icon src={item.icon} size={4} />
+                  ) : isValidUrl(item.url) ? (
+                    <FontAwesomeIcon icon={faGlobe} className='text-xs' />
                   ) : (
                     <div className="w-4 h-4 bg-gray-300 rounded-sm" />
                   )}
                 </div>
-                <div className="flex-1 flex items-center">
-                  <div className="flex-1 min-w-0 flex gap-2 items-center">
-                    <div className="text-sm font-medium truncate">{item.name}</div>
-                    <span className='text-xs text-(--text-secondary) '>{item.linkGroup || ''}</span>
+                <div className="flex-1 flex items-center min-w-0">
+                  <div className="flex-1 min-w-0 flex gap-2 items-center overflow-hidden">
+                    <div className="text-sm font-medium truncate flex-shrink min-w-0">
+                      {item.name}
+                    </div>
+
+                    <span className="text-xs text-(--text-secondary) truncate flex-shrink-0 max-w-[30%]">
+                      {item.linkGroup || ""}
+                    </span>
                   </div>
 
                   <div className="ml-3 text-xs text-(--text-secondary) whitespace-nowrap">
@@ -346,4 +410,64 @@ export default function CommandBar({ open, setOpen, searchItems }: CommandBarPro
       </DialogContent>
     </Dialog>
   );
+}
+type IconProps = {
+  src?: string;       // URL of the icon
+  size?: number;      // optional size in pixels, default is 24
+  className?: string; // optional CSS classes
+};
+
+export function Icon({ src, size = 24, className }: IconProps) {
+  if (!src) {
+    // No icon URL provided → render a placeholder
+    return <div className={`w-${size} h-${size} bg-gray-300 ${className}`} />;
+  }
+
+  // Check if we should use a CSS mask
+  // Example condition: URL ends with "-light.<any extension>"
+  const shouldMask = /-light\.\w+$/.test(src);
+
+  if (shouldMask) {
+    return (
+      <div
+        className={`w-${size} h-${size} ${className}`}
+        style={{
+          backgroundColor: 'var(--primary)',
+          maskImage: `url(${src})`,
+          WebkitMaskImage: `url(${src})`,
+          maskRepeat: 'no-repeat',
+          WebkitMaskRepeat: 'no-repeat',
+          maskPosition: 'center',
+          WebkitMaskPosition: 'center',
+          maskSize: 'contain',
+          WebkitMaskSize: 'contain',
+        }}
+      />
+    );
+  }
+
+  // Default: render a normal <img> tag
+  return <img src={src} alt="" className={cn("h-4", className)} />;
+}
+
+function isValidUrl(url?: string) {
+  if (!url) return false;
+
+  try {
+    let withScheme = url;
+
+    // if no scheme, assume https://
+    if (!url.match(/^\w+:\/\//)) {
+      withScheme = `https://${url}`;
+    }
+
+    const parsed = new URL(withScheme);
+
+    // hostname must exist and contain at least one dot (e.g., example.com)
+    if (!parsed.hostname || !parsed.hostname.includes('.')) return false;
+
+    return true;
+  } catch {
+    return false;
+  }
 }

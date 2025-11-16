@@ -19,7 +19,7 @@ const config: Config = {
   app_base_url: process.env.NEXT_PUBLIC_APP_URL || 'http://dashwise:3000',
   pb_url: process.env.NEXT_PUBLIC_PB_URL || 'http://127.0.0.1:8090',
   default_bg_url: process.env.NEXT_PUBLIC_DEFAULT_BG_URL || '/dashboard-wallpaper.png',
-  version: '0.2.0',
+  version: '0.3',
   allowInsecureCertsForIntegrationUrls: allowInsecureCertsForIntegrationUrls || false,
   enableSSO: enableSSOLogin,
   pbAdminEmail: process.env.PB_ADMIN_EMAIL || "",

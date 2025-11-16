@@ -10,7 +10,7 @@ export interface LinkType {
   url?: string;
   icon?: string;
   linkGroup?: string;
-  statusCheck?: boolean; // whether this link is monitored by your server
+  statusCheck?: boolean;
 }
 
 export default function LinkView() {
@@ -19,20 +19,16 @@ export default function LinkView() {
 
   const filtered = config.links.filter((link: LinkType) => link.linkGroup === activeGroup);
 
-  // statusMap stores simple booleans keyed by link.id (server-driven)
   const [statusMap, setStatusMap] = useState<Record<string, boolean>>({});
 
-  // raw server map normalized and keyed by link id (e.g. 'tw6ljbcv96')
   const [monitoringDetails, setMonitoringDetails] = useState<Record<string, {
     status: string;
     dateChanged: string | null;
     durationChanged: number | null;
   }> | null>(null);
 
-  // which link.id has its dialog open
   const [openDialogFor, setOpenDialogFor] = useState<string | null>(null);
 
-  // Converts server status strings into boolean used for UI dots
   function serverStatusToBool(status?: string | null): boolean | undefined {
     if (status === undefined || status === null) return undefined;
     if (status === "healthy") return true;
@@ -40,8 +36,6 @@ export default function LinkView() {
     return false;
   }
 
-  // Fetch monitoring statuses for all jobs visible to the user.
-  // NOTE: API returns keys like "link tw6ljbcv96" — we normalize them to just the link id: "tw6ljbcv96".
   async function fetchMonitoringStatuses() {
     try {
       if (typeof window === "undefined") return;
@@ -64,15 +58,14 @@ export default function LinkView() {
 
       const data = await res.json();
 
-      // Normalize keys: API returns keys like "link <linkId>" — strip the "link " prefix
+
       const normalized: Record<string, any> = {};
       for (const [rawKey, entry] of Object.entries(data || {})) {
         const keyStr = String(rawKey);
         if (keyStr.startsWith("link ")) {
-          const id = keyStr.slice(5); // remove the "link " prefix
+          const id = keyStr.slice(5); // remove "link " prefix
           normalized[id] = entry;
         } else {
-          // if it doesn't match the expected prefix, fall back to using the raw key as-is
           normalized[rawKey] = entry;
         }
       }
@@ -135,43 +128,49 @@ export default function LinkView() {
       {/* PAGINATED LINKS */}
       <PaginatedCarouselViewComponent minColWidth={140}>
         {filtered.map((link: LinkType) => {
-          // server entry keyed by link.id after normalization
           const serverEntry = link.id && monitoringDetails ? monitoringDetails[link.id] : undefined;
-
-          // use explicit server status strings for dot logic
           const serverStatus = serverEntry?.status;
           const isHealthy = serverStatus === "healthy";
           const isDisabled = serverStatus === "disabled";
-
           const showDot = Boolean(link.statusCheck);
+
+          const isMono = link.icon?.includes("-light");
 
           return (
             <a
               key={link.id || link.url}
               href={link.url}
-              target="_blank"
-              rel="noopener noreferrer"
+              target={config?.global?.linkOpenBehaviour === 'newtab' ? '_blank' : '_self'}
+              rel={config?.global?.linkOpenBehaviour === 'newtab' ? 'noopener noreferrer' : undefined}
               className="group flex flex-col items-center justify-between space-y-2 frosted rounded-2xl p-2 hover:text-(primary) transition-colors min-h-18 w-full"
             >
-              <div
-                className="h-[35px] w-[35px] bg-white group-hover:bg-(--primary) transition"
-                style={{
-                  maskImage: `url(${link.icon})`,
-                  WebkitMaskImage: `url(${link.icon})`,
-                  maskRepeat: "no-repeat",
-                  WebkitMaskRepeat: "no-repeat",
-                  maskPosition: "center",
-                  WebkitMaskPosition: "center",
-                  maskSize: "contain",
-                  WebkitMaskSize: "contain",
-                }}
-              />
+              {isMono ? (
+                <div
+                  className="h-[35px] w-[35px] bg-white group-hover:bg-(--primary) transition"
+                  style={{
+                    maskImage: `url(${link.icon})`,
+                    WebkitMaskImage: `url(${link.icon})`,
+                    maskRepeat: "no-repeat",
+                    WebkitMaskRepeat: "no-repeat",
+                    maskPosition: "center",
+                    WebkitMaskPosition: "center",
+                    maskSize: "contain",
+                    WebkitMaskSize: "contain",
+                  }}
+                />
+              ) : link.icon ? (
+                <img
+                  src={link.icon}
+                  alt={link.name ?? "Icon"}
+                  className="h-[35px] w-[35px] object-contain"
+                />
+              ) : null}
 
-              {/* Name on left, dot on right — dot opens dialog when clicked */}
+              {/* Name on left, dot on right */}
               <div className="flex items-center w-full justify-center">
                 <span className="text-sm text-white">{link.name}</span>
 
-                {showDot ? (
+                {showDot && (
                   <button
                     aria-label={`Show monitoring details for ${link.name}`}
                     title={`Show monitoring details for ${link.name}`}
@@ -196,7 +195,7 @@ export default function LinkView() {
                       aria-hidden
                     />
                   </button>
-                ) : null}
+                )}
               </div>
             </a>
           );

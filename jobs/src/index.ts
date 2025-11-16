@@ -7,6 +7,7 @@ import { getSuperuserPB } from "./lib/pb";
 
 import indexStatusMonitoringJobs from "./monitoring/indexer";
 import { runStatusMonitoringJobs } from "./monitoring/runner";
+import { runComparisonRunner } from "./updates/comparison-runner";
 
 const fastify = Fastify({ logger: true });
 
@@ -55,6 +56,10 @@ fastify.get("/webhook/statusMonitoringRunner", async (request, reply) => {
   await runStatusMonitoringJobs();
   reply.send({ message: "status monitoring indexer triggered" });
 });
+
+//update checks
+runComparisonRunner();
+cron.schedule(config.UPDATE_CHECK_SCHEDULE, () => runStatusMonitoringJobs());
 
 // Start http server
 fastify.listen({ port: 3001, host: "0.0.0.0" });
