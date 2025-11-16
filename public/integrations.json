@@ -33,15 +33,6 @@
                 "server_location": "as:string",
                 "server_displayname": "as:string"
             }
-        },
-        {
-            "name": "Beszel",
-            "description": "Integration for Beszel",
-            "properties": {
-                "server_location": "as:string",
-                "admin_username": "as:string",
-                "admin_password": "as:string"
-            }
         }
     ]
 }
