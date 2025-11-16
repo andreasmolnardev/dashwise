@@ -140,8 +140,8 @@ export default function LinkView() {
             <a
               key={link.id || link.url}
               href={link.url}
-              target="_blank"
-              rel="noopener noreferrer"
+              target={config?.global?.linkOpenBehaviour === 'newtab' ? '_blank' : '_self'}
+              rel={config?.global?.linkOpenBehaviour === 'newtab' ? 'noopener noreferrer' : undefined}
               className="group flex flex-col items-center justify-between space-y-2 frosted rounded-2xl p-2 hover:text-(primary) transition-colors min-h-18 w-full"
             >
               {isMono ? (

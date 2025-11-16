@@ -279,13 +279,17 @@ export default function CommandBar({ open, setOpen, searchItems }: CommandBarPro
     } else if (a.url.startsWith('command:')) {
       openCommandClient(a.url);
     } else {
-      openUrl(a.url);
+      openUrl(a.url, config?.global?.linkOpenBehaviour);
     }
   }
 
-  function openUrl(url: string) {
+  function openUrl(url: string, method: 'newtab' | 'sametab' | null = 'sametab') {
     if (!url) return;
-    window.open(url, '_blank');
+    let target: '_self' | '_blank' = '_self';
+    if (method === 'newtab') {
+      target = '_blank';
+    }
+    window.open(url, target);
     setOpen(false);
   }
 
@@ -451,7 +455,7 @@ function isValidUrl(url?: string) {
 
   try {
     let withScheme = url;
-    
+
     // if no scheme, assume https://
     if (!url.match(/^\w+:\/\//)) {
       withScheme = `https://${url}`;
