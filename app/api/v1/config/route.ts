@@ -31,15 +31,17 @@ export async function GET(request: Request) {
 
     // convert credentials to a boolean list
     // integrations: { karakeep: {...} } -> integrations: { karakeep: true/false }
+    const rawIntegrations = configRecord?.config?.integrations ?? {};
+
     const strippedIntegrations = Object.fromEntries(
-      Object.entries(configRecord.config.integrations).map(([k, v]) => [
+      Object.entries(rawIntegrations).map(([k, v]) => [
         k,
-        // v needs special type checking
-        !!v && !Array.isArray(v) &&
+        !!v &&
+        !Array.isArray(v) &&
         typeof v === "object" &&
-        Object.keys(v).length > 0
+        Object.keys(v).length > 0,
       ])
-    )
+    );
 
     // replace original integrations
     configRecord.config.integrations = strippedIntegrations;
