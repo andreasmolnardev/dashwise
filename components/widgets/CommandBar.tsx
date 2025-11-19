@@ -299,8 +299,7 @@ export default function CommandBar({ open, setOpen, searchItems }: CommandBarPro
     const template = engine.url_params || engine.url_home || '';
     const searchUrl = template.replace('%s', encodeURIComponent(q || ''));
     if (!searchUrl) return;
-    window.open(searchUrl, '_blank');
-    setOpen(false);
+    openUrl(searchUrl, config?.global?.linkOpenBehaviour  ?? 'sametab');
   }
 
   function openBangSearch(q: string, slug?: string) {
@@ -312,8 +311,7 @@ export default function CommandBar({ open, setOpen, searchItems }: CommandBarPro
     const template = engine.url_params || engine.url_home || '';
     const searchUrl = template.replace('%s', encodeURIComponent(terms || ''));
     if (!searchUrl) return;
-    window.open(searchUrl, '_blank');
-    setOpen(false);
+    openUrl(searchUrl, config?.global?.linkOpenBehaviour  ?? 'sametab');
   }
 
   function openEngineSearch(slug?: string, q?: string) {
@@ -323,8 +321,7 @@ export default function CommandBar({ open, setOpen, searchItems }: CommandBarPro
     const template = engine.url_params || engine.url_home || '';
     const searchUrl = template.replace('%s', encodeURIComponent((q || '').trim()));
     if (!searchUrl) return;
-    window.open(searchUrl, '_blank');
-    setOpen(false);
+    openUrl(searchUrl, config?.global?.linkOpenBehaviour ?? 'sametab');
   }
 
   function openCommandClient(url: string) {

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import type { WidgetItemProps } from "../Widget";
+import { useConfig } from "@/context/ConfigContext";
 
 interface WeatherWidgetParams {
   locationCoordinates?: string;
@@ -148,105 +149,22 @@ const parseNumber = (v: any): number | undefined => {
   const n = Number(v);
   return Number.isFinite(n) ? n : undefined;
 };
-
-function computeRainMessageFromHourly(hourly?: HourlyItem[], now = new Date()): string | undefined {
-  if (!hourly || hourly.length === 0) return undefined;
-  const nowTs = now.getTime();
-  const thresholdMm = 0.1;
-  const thresholdProb = 30;
-  for (let i = 0; i < hourly.length; i++) {
-    const item = hourly[i];
-    const precip = item.precipitation ?? 0;
-    const prob = item.precipitationProbability ?? 0;
-    if (precip > thresholdMm || prob >= thresholdProb) {
-      const t = new Date(item.time).getTime();
-      const diffMs = t - nowTs;
-      const diffHours = Math.round(diffMs / (1000 * 60 * 60));
-      if (diffHours <= 0) return "It is raining now";
-      if (diffHours === 1) return "Rain starts in about an hour";
-      return `Rain starts in ${diffHours} hours`;
-    }
-  }
-  return "No rain expected soon";
-}
-
 export default function WeatherWidget({ className = "", params }: WeatherWidgetProps) {
   const [weather, setWeather] = useState<WeatherData | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const { config, refreshConfig } = useConfig();
+
   useEffect(() => {
-    const fetchWeather = async () => {
+    const load = async () => {
       setLoading(true);
-      try {
-        const coords = (params?.locationCoordinates ?? "").split(",").map((s) => s.trim());
-        const lat = coords[0];
-        const lon = coords[1];
-        const unit = params?.unit || "c";
-
-        if (!lat || !lon) {
-          setWeather({ error: "Missing lat/lon" });
-          return;
-        }
-
-        const res = await fetch(`/api/v1/weather?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}&unit=${encodeURIComponent(unit)}`);
-        const raw = await res.json();
-
-        if (!res.ok) {
-          setWeather({ error: raw?.error ?? `Upstream error ${res.status}` });
-          return;
-        }
-
-        const normalized: WeatherData = {
-          temperature: parseNumber(raw.temperature),
-          weatherCode: parseNumber(raw.weatherCode),
-          description: raw.description ?? (raw.weatherCode ? (WEATHER_CODE_MAP[Number(raw.weatherCode)]?.desc ?? "") : ""),
-          iconUrl: raw.iconUrl,
-          unit: raw.unit ?? (unit.toLowerCase() === "f" ? "°F" : "°C"),
-          windSpeed: parseNumber(raw.windSpeed),
-          windDirection: parseNumber(raw.windDirection),
-          humidity: parseNumber(raw.humidity),
-          precipitation: parseNumber(raw.precipitation),
-          precipitationProbability: parseNumber(raw.precipitationProbability),
-          sunrise: raw.sunrise,
-          sunset: raw.sunset,
-          tonight: raw.tonight ? {
-            temperature: parseNumber(raw.tonight.temperature),
-            description: raw.tonight.description ?? (raw.tonight.weatherCode ? WEATHER_CODE_MAP[Number(raw.tonight.weatherCode)]?.desc : undefined),
-            iconUrl: raw.tonight.iconUrl,
-            precipitation: parseNumber(raw.tonight.precipitation),
-            precipitationProbability: parseNumber(raw.tonight.precipitationProbability),
-          } : undefined,
-          tomorrow: raw.tomorrow ? {
-            temperature: parseNumber(raw.tomorrow.temperature),
-            description: raw.tomorrow.description ?? (raw.tomorrow.weatherCode ? WEATHER_CODE_MAP[Number(raw.tomorrow.weatherCode)]?.desc : undefined),
-            iconUrl: raw.tomorrow.iconUrl,
-            precipitation: parseNumber(raw.tomorrow.precipitation),
-            precipitationProbability: parseNumber(raw.tomorrow.precipitationProbability),
-          } : undefined,
-          hourly: Array.isArray(raw.hourly) ? raw.hourly.map((h: any) => ({
-            time: h.time,
-            temperature: parseNumber(h.temperature),
-            precipitation: parseNumber(h.precipitation),
-            precipitationProbability: parseNumber(h.precipitationProbability),
-            weatherCode: parseNumber(h.weatherCode),
-          })) : undefined,
-          rainMessage: raw.rainMessage,
-        };
-
-        if (!normalized.rainMessage) {
-          normalized.rainMessage = computeRainMessageFromHourly(normalized.hourly);
-        }
-
-        setWeather(normalized);
-      } catch {
-        setWeather({ error: "Failed to fetch weather data" });
-      } finally {
-        setLoading(false);
-      }
+      const data = await fetchWeather({ params, config });
+      setWeather(data);
+      setLoading(false);
     };
+    load();
+  }, [params, config]);
 
-    fetchWeather();
-  }, [params]);
 
   if (loading) return <div className={className}>Loading weather...</div>;
   if (!weather || weather.error) return <div className={className}>Error: {weather?.error}</div>;
@@ -260,11 +178,11 @@ export default function WeatherWidget({ className = "", params }: WeatherWidgetP
   return (
     <div className={`${className} gap-2 flex-col justify-center`}>
       {params?.showLocation && <h3 className="w-full text-center text-sm">{params.locationDisplayname}</h3>}
-      <div className="grid grid-cols-3 gap-2 w-full">
+      <div className="grid grid-cols-3 grid-rows-[1rem 1fr 1rem] gap-2 w-full my-1">
         {columns.map(
           (col, idx) =>
             col.data && (
-              <div key={idx} className="flex flex-col items-center text-center text-xs">
+              <div key={idx} className="grid grid-cols-subgrid gap-1.5 text-xs items-center justify-items-center">
                 <strong className="text-sm">{col.label}</strong>
                 <div className="text-xl my-1">
                   {getWeatherIcon({
@@ -293,62 +211,18 @@ export function WeatherOverviewWidget({ className = "", params }: WeatherWidgetP
   const [weather, setWeather] = useState<WeatherData | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const { config, refreshConfig } = useConfig();
+
   useEffect(() => {
-    const fetchWeather = async () => {
+    const load = async () => {
       setLoading(true);
-      try {
-        const coords = (params?.locationCoordinates ?? "").split(",").map((s) => s.trim());
-        const lat = coords[0];
-        const lon = coords[1];
-        const unit = params?.unit || "c";
-
-        if (!lat || !lon) {
-          setWeather({ error: "Missing lat/lon" });
-          return;
-        }
-
-        const res = await fetch(`/api/v1/weather?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}&unit=${encodeURIComponent(unit)}`);
-        const raw = await res.json();
-
-        if (!res.ok) {
-          setWeather({ error: raw?.error ?? `Upstream error ${res.status}` });
-          return;
-        }
-
-        const normalized: WeatherData = {
-          temperature: parseNumber(raw.temperature),
-          weatherCode: parseNumber(raw.weatherCode),
-          description: raw.description ?? (raw.weatherCode ? (WEATHER_CODE_MAP[Number(raw.weatherCode)]?.desc ?? "") : ""),
-          iconUrl: raw.iconUrl,
-          unit: raw.unit ?? (unit.toLowerCase() === "f" ? "°F" : "°C"),
-          precipitation: parseNumber(raw.precipitation),
-          precipitationProbability: parseNumber(raw.precipitationProbability),
-          hourly: Array.isArray(raw.hourly) ? raw.hourly.map((h: any) => ({
-            time: h.time,
-            temperature: parseNumber(h.temperature),
-            precipitation: parseNumber(h.precipitation),
-            precipitationProbability: parseNumber(h.precipitationProbability),
-            weatherCode: parseNumber(h.weatherCode),
-          })) : undefined,
-          rainMessage: raw.rainMessage,
-          sunrise: raw.sunrise,
-          sunset: raw.sunset,
-        };
-
-        if (!normalized.rainMessage) {
-          normalized.rainMessage = computeRainMessageFromHourly(normalized.hourly);
-        }
-
-        setWeather(normalized);
-      } catch {
-        setWeather({ error: "Failed to fetch weather data" });
-      } finally {
-        setLoading(false);
-      }
+      const data = await fetchWeather({ params, config });
+      setWeather(data);
+      setLoading(false);
     };
+    load();
+  }, [params, config]);
 
-    fetchWeather();
-  }, [params]);
 
   if (loading) return <div className={className}>Loading weather...</div>;
   if (!weather || weather.error) return <div className={className}>Error: {weather?.error}</div>;
@@ -397,4 +271,103 @@ export function WeatherOverviewWidget({ className = "", params }: WeatherWidgetP
       </div>
     </div>
   );
+}
+
+async function fetchWeather({
+  params,
+  config,
+}: {
+  params?: WeatherWidgetParams;
+  config: any;
+}): Promise<WeatherData> {
+  let lat: string | undefined;
+  let lon: string | undefined;
+
+  if (params?.locationCoordinates) {
+    const coords = params.locationCoordinates
+      .split(",")
+      .map((s) => s.trim());
+
+    lat = coords[0];
+    lon = coords[1];
+  }
+
+  if ((!lat || !lon) && config?.global?.weatherLocation) {
+    const fallback = JSON.parse(config.global.weatherLocation.replaceAll("'", '"'));
+    lat = fallback.lat;
+    lon = fallback.lon;
+  }
+
+  const unit = params?.unit || "c";
+
+  if (!lat || !lon) {
+    return { error: "Missing lat/lon" };
+  }
+
+  const res = await fetch(
+    `/api/v1/weather?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(
+      lon
+    )}&unit=${encodeURIComponent(unit)}`
+  );
+
+  const raw = await res.json();
+
+  if (!res.ok) {
+    return { error: raw?.error ?? `Upstream error ${res.status}` };
+  }
+
+  const normalized: WeatherData = {
+    temperature: parseNumber(raw.temperature),
+    weatherCode: parseNumber(raw.weatherCode),
+    description:
+      raw.description ??
+      (raw.weatherCode ? WEATHER_CODE_MAP[Number(raw.weatherCode)]?.desc ?? "" : ""),
+    iconUrl: raw.iconUrl,
+    unit: raw.unit ?? (unit.toLowerCase() === "f" ? "°F" : "°C"),
+    windSpeed: parseNumber(raw.windSpeed),
+    windDirection: parseNumber(raw.windDirection),
+    humidity: parseNumber(raw.humidity),
+    precipitation: parseNumber(raw.precipitation),
+    precipitationProbability: parseNumber(raw.precipitationProbability),
+    sunrise: raw.sunrise,
+    sunset: raw.sunset,
+    tonight: raw.tonight
+      ? {
+        temperature: parseNumber(raw.tonight.temperature),
+        description:
+          raw.tonight.description ??
+          (raw.tonight.weatherCode
+            ? WEATHER_CODE_MAP[Number(raw.tonight.weatherCode)]?.desc
+            : undefined),
+        iconUrl: raw.tonight.iconUrl,
+        precipitation: parseNumber(raw.tonight.precipitation),
+        precipitationProbability: parseNumber(raw.tonight.precipitationProbability),
+      }
+      : undefined,
+    tomorrow: raw.tomorrow
+      ? {
+        temperature: parseNumber(raw.tomorrow.temperature),
+        description:
+          raw.tomorrow.description ??
+          (raw.tomorrow.weatherCode
+            ? WEATHER_CODE_MAP[Number(raw.tomorrow.weatherCode)]?.desc
+            : undefined),
+        iconUrl: raw.tomorrow.iconUrl,
+        precipitation: parseNumber(raw.tomorrow.precipitation),
+        precipitationProbability: parseNumber(raw.tomorrow.precipitationProbability),
+      }
+      : undefined,
+    hourly: Array.isArray(raw.hourly)
+      ? raw.hourly.map((h: any) => ({
+        time: h.time,
+        temperature: parseNumber(h.temperature),
+        precipitation: parseNumber(h.precipitation),
+        precipitationProbability: parseNumber(h.precipitationProbability),
+        weatherCode: parseNumber(h.weatherCode),
+      }))
+      : undefined,
+    rainMessage: raw.rainMessage,
+  };
+
+  return normalized;
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useConfig } from "@/context/ConfigContext";
 import {
   Select,
@@ -48,6 +49,7 @@ type LinkItem = {
 
 export default function LinksSettingsPage() {
   const { config, refreshConfig } = useConfig();
+  const router = useRouter();
   const [isCreateGroupOpen, setIsCreateGroupOpen] = useState(false);
 
   const [selectedGroup, setSelectedGroup] = useState<string>("");
@@ -89,6 +91,25 @@ export default function LinksSettingsPage() {
       setLocalLinks([]);
     }
   }, [selectedGroup, config?.links]);
+
+
+  // read query params and open link group 
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    if (!searchParams) return;
+
+    const linkGroupOpenParam = searchParams.get("group");
+
+    if (linkGroupOpenParam) {
+      if (Array.isArray(config?.linkGroups) && config?.linkGroups.includes(linkGroupOpenParam)) {
+        setSelectedGroup(linkGroupOpenParam);
+      } else {
+        setSelectedGroup(linkGroupOpenParam);
+      }
+      return;
+    }
+  }, [searchParams, config?.linkGroups, config?.links]);
 
   const moveLinks = async (prevLocalIndex: number, newLocalIndex: number) => {
     try {
@@ -654,6 +675,10 @@ export default function LinksSettingsPage() {
                         (l) => (l.linkGroup ?? "") === selectedGroup
                       )
                     );
+                  }
+
+                  if (selectedGroup) {
+                    router.push(`/settings/links?group=${encodeURIComponent(selectedGroup)}`);
                   }
                 } catch (err) {
                   console.warn("Error refreshing config after edit", err);

@@ -7,7 +7,8 @@ This is my attempt to solving that.
 > **Breaking Changes for v0.2:** ARM images now have a seperate tag of stable-arm. Also, a jobs container has been added to docker compose
 
 ## Screenshot
-<img width="1445" height="827" alt="Screenshot 2025-10-22 at 08 03 40" src="https://github.com/user-attachments/assets/69061ca0-cba1-4c23-b7bd-59ca691507e0" />
+<img width="1165" height="828" alt="Screenshot 2025-11-18 at 17 24 19" src="https://github.com/user-attachments/assets/e5315f99-4a9f-49f6-8778-0e7cf77d2990" />
+
 
 ## Features
 - GUI Editing: Edit and manage links, search engines, your wallpapers in settings via the GUI instead of relying purely on a config.
@@ -16,6 +17,7 @@ This is my attempt to solving that.
 - Links: store your most important links for quick access and group them into Link Groups. Folders coming soon.
 - Monitor your links: Can be enabled via link details settings. Performs a GET request to that endpoint. Logs downtime.
 - Glanceables: Customizable bits of one-line information next to the clock.
+- Widgets: Modular blocks on the dashboard that show key info or actions at a glance. They can be moved and customized individually.
 - Wallpapers: Upload them to dashwise directly, or even change the default one for new users by mounting one into the container
 - Spotlight-like Search: Hit Ctrl+K from your dashboard, and you'll be able to search your links and integrations or use bangs for search engines specified in settings.
 - Integrations: directly integrates with your favourite self hosted apps. For now only Karakeep is supported but more integrations are planned.
