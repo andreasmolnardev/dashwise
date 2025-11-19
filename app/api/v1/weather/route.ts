@@ -15,14 +15,13 @@ const WEATHER_MAP: Record<number, { desc: string; }> = {
   1: { desc: "Mainly clear" },
   2: { desc: "Partly cloudy" },
   3: { desc: "Overcast" },
-  45: {desc: "Fog"},
-  51: {desc: "Light drizzle"},
-  53: {desc: "Moderate drizzle"},
-  55: {desc: "Heavy drizzle"},
+  45: { desc: "Fog" },
+  51: { desc: "Light drizzle" },
+  53: { desc: "Moderate drizzle" },
+  55: { desc: "Heavy drizzle" },
   61: { desc: "Rain" },
   63: { desc: "Heavy rain" },
-  80: { desc: "Showers" },
-  
+  80: { desc: "Showers" }
 };
 
 function getWeatherDescription(code: number) {
@@ -92,14 +91,22 @@ export async function GET(req: Request) {
     const tonight = findForecast(21); // 21:00 today
     const tomorrow = findForecast(12); // 12:00 tomorrow
 
-    // Determine when rain starts
+    const nowDate = new Date();
     const nowHour = new Date().getHours();
-    let rainMessage = "No rain expected soon";
+    let rainMessage = "No rain expected";
+
     for (let i = 0; i < hourlyPrecip.length; i++) {
       if (hourlyPrecip[i] > 0) {
-        const hourDiff = i - nowHour;
-        if (hourDiff <= 0) rainMessage = "It is raining now";
-        else rainMessage = `Rain starts in ${hourDiff} hour(s)`;
+        const rainDate = new Date(hourlyTimes[i]);
+
+        const hours = rainDate.getHours().toString().padStart(2, "0");
+        const minutes = rainDate.getMinutes().toString().padStart(2, "0");
+
+        if (rainDate <= nowDate) {
+          rainMessage = "It is raining now";
+        } else {
+          rainMessage = `Rain starts at ${hours}:${minutes}`;
+        }
         break;
       }
     }
