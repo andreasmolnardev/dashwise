@@ -84,7 +84,7 @@ export default function LocationSelectFormComponent({
 
             {hasSearched ? (
                 loading ? (
-                    <div className="text-center text-sm border rounded p-2">Loading…</div>
+                    <div className="text-center text-sm border rounded p-2 frosted">Loading…</div>
                 ) : searchResults.length > 0 ? (
                     <div className="max-h-48 overflow-auto rounded border p-2 frosted">
                         {searchResults.map((r, idx) => (
