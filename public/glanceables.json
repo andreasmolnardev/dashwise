@@ -13,6 +13,10 @@
         "displayName": "Greeting",
         "description": "Pretty self-explanatory"
     },
+    "local-timezone": {
+        "displayName": "Local Timezone",
+        "description": "Displays the user's current timezone"
+    },
     "weather": {
         "displayName": "Weather",
         "description": "Displaying the current weather condition at a given place",
@@ -34,11 +38,11 @@
         "description": "Shows the time at a specified place",
         "exampleProps": {
             "location": "New York, NY",
-            "timezone": "America/New_York" 
+            "timezone": "America/New_York"
         },
         "properties": {
             "location": "string",
-            "timezone": "as:tz" 
+            "timezone": "as:tz"
         }
     }
 }

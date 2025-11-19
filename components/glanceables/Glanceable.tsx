@@ -20,6 +20,8 @@ export default function GlanceableComponent({ type, params, className }: Glancea
       return <GlanceableDate params={params} className={className} />;
     case "greeting":
       return <GlanceableGreeting className={className} />;
+    case "local-timezone":
+      return <GlanceableLocalTimezone className={className} />; 
     case "weather":
       return <GlanceableWeather params={params} className={className} />;
     case "world-clock":
@@ -81,6 +83,23 @@ function GlanceableGreeting({ className }: { className?: string }) {
   return (
     <div className={`glanceable-greeting ${className || ""}`}>
       Hello
+    </div>
+  );
+}
+
+function GlanceableLocalTimezone({ className }: { className?: string }) {
+  // Get the user's local timezone abbreviation (like PST, EST)
+  const timezoneName = Intl.DateTimeFormat(undefined, { timeZoneName: 'short' })
+    .formatToParts(new Date())
+    .find(part => part.type === 'timeZoneName')?.value || '';
+
+  // Alternatively, get GMT offset like GMT+2
+  const offset = -new Date().getTimezoneOffset() / 60;
+  const gmtOffset = `GMT${offset >= 0 ? '+' : ''}${offset}`;
+
+  return (
+    <div className={`glanceable-local-timezone flex items-center justify-center ${className || ""}`}>
+      {timezoneName || gmtOffset}
     </div>
   );
 }
