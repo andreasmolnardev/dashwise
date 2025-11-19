@@ -9,7 +9,7 @@ To back your database up, follow these steps:
 
 
 1. **Open the PocketBase Admin Dashboard**  
-   Visit `http://<server-ip>:8092` and sign in using the credentials you configured through the `PB_ADMIN_EMAIL` and `PB_ADMIN_PASSWORD` environment variables.
+   Visit `http://<server-ip>:8092/_` and sign in using the credentials you configured through the `PB_ADMIN_EMAIL` and `PB_ADMIN_PASSWORD` environment variables.
 
 2. **Navigate to the Backup Section**  
    In the left sidebar, click the **Tools** icon (to go to settings), then select **Backups**.
