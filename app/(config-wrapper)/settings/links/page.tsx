@@ -436,7 +436,27 @@ export default function LinksSettingsPage() {
                       <DialogHeader>
                         <DialogTitle>Add new link</DialogTitle>
                       </DialogHeader>
-                      <LinkDetailsForm link={{ "linkGroup": selectedGroup }} />
+                      <LinkDetailsForm onClose={async () => {
+                        try {
+                          setEditOpen(false);
+                          setEditingLink(null);
+                          await refreshConfig();
+                          // try to update localLinks immediately
+                          if (selectedGroup && (config?.links as LinkItem[])) {
+                            setLocalLinks(
+                              (config.links as LinkItem[]).filter(
+                                (l) => (l.linkGroup ?? "") === selectedGroup
+                              )
+                            );
+                          }
+
+                          if (selectedGroup) {
+                            router.push(`/settings/links?group=${encodeURIComponent(selectedGroup)}`);
+                          }
+                        } catch (err) {
+                          console.warn("Error refreshing config after edit", err);
+                        }
+                      }} link={{ "linkGroup": selectedGroup }} />
                     </DialogContent>
                   </Dialog>
                 )}
@@ -594,7 +614,28 @@ export default function LinksSettingsPage() {
                 <DialogHeader>
                   <DialogTitle>Add new link</DialogTitle>
                 </DialogHeader>
-                <LinkDetailsForm link={{ linkGroup: selectedGroup }} />
+                <LinkDetailsForm onClose={async () => {
+                  try {
+                    setEditOpen(false);
+                    setEditingLink(null);
+                    await refreshConfig();
+                    // try to update localLinks immediately
+                    if (selectedGroup && (config?.links as LinkItem[])) {
+                      setLocalLinks(
+                        (config.links as LinkItem[]).filter(
+                          (l) => (l.linkGroup ?? "") === selectedGroup
+                        )
+                      );
+                    }
+
+                    if (selectedGroup) {
+                      router.push(`/settings/links?group=${encodeURIComponent(selectedGroup)}`);
+                    }
+                  } catch (err) {
+                    console.warn("Error refreshing config after edit", err);
+                  }
+                }}
+                  link={{ linkGroup: selectedGroup }} />
               </DialogContent>
             </Dialog>
           </div>
