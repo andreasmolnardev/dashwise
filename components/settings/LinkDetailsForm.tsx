@@ -147,17 +147,6 @@ export default function LinkDetailsForm({ link, onClose }: LinkDetailsFormProps)
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Failed to save link");
 
-      await refreshConfig();
-
-      if (!isEditing) {
-        setName("");
-        setUrl("");
-        setIcon({});
-        setLinkGroup("");
-        setIconEdited(false);
-        setLinkId(generateRandomId());
-      }
-
       // Call onClose after successful save
       if (onClose) await onClose();
     } catch (err) {
