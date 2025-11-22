@@ -116,7 +116,6 @@ export async function JellyfinSearchItems({
     allowInsecureCerts?: boolean;
 }): Promise<SearchItem[]> {
     const items = await getJellyfinItems({ serverUrl, token, allowInsecureCerts });
-    console.log("lenght", items.length)
     const base = serverUrl.replace(/\/+$/, "");
     const mapped: SearchItem[] = items.map((it) => {
 
