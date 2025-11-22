@@ -1,6 +1,7 @@
 import https from "https"
 import axios from "axios"
 import { URLSearchParams } from "url"
+import { SearchItem } from "@/lib/jobs";
 
 //authenticate to beszel pocketbase backend
 async function createToken({
@@ -225,4 +226,58 @@ export async function getBeszelMetrics({
     }
 
     return { systems: normalized }
+}
+
+export async function getSystemHealth({
+    url,
+    pb_email,
+    pb_password,
+    allowInsecureCerts = false,
+}: {
+    url: string
+    pb_email: string
+    pb_password: string
+    allowInsecureCerts?: boolean
+}){
+
+}
+
+export async function beszelSearchItems({
+    url,
+    pb_email,
+    pb_password,
+    allowInsecureCerts = false,
+}: {
+    url: string
+    pb_email: string
+    pb_password: string
+    allowInsecureCerts?: boolean
+}): Promise<SearchItem[]> {
+    try {
+        const { token } = await createToken({ url, pb_email, pb_password, allowInsecureCerts });
+        const systems = await fetchSystems(url, token, allowInsecureCerts);
+
+        const base = url.replace(/\/+$/, "");
+
+        const mapped: SearchItem[] = (systems || []).map((sys: any) => {
+            const id = sys.id;
+            const name = sys.name || sys.host || id || "unknown";
+            const actionUrl = `${base}/system/${encodeURIComponent(id)}`;
+
+            return {
+                id,
+                name,
+                icon: "/icons/png/beszel-light.png",
+                secondaryInfo: "System",
+                type: "beszelItem",
+                action: `url:${actionUrl}`,
+                tags: [sys.name, "beszel", "metrics", "monitoring"].filter((t): t is string => !!t),
+            } as SearchItem;
+        });
+
+        return mapped.sort((a, b) => a.name.localeCompare(b.name));
+    } catch (err) {
+        console.error("[Beszel] beszelSearchItems failed:", err);
+        return [];
+    }
 }
