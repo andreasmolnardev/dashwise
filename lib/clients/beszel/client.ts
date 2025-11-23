@@ -228,7 +228,7 @@ export async function getBeszelMetrics({
     return { systems: normalized }
 }
 
-export async function getSystemHealth({
+export async function getBeszelSystemHealth({
     url,
     pb_email,
     pb_password,
@@ -238,8 +238,80 @@ export async function getSystemHealth({
     pb_email: string
     pb_password: string
     allowInsecureCerts?: boolean
-}){
+}) {
+    const { token } = await createToken({ url, pb_email, pb_password, allowInsecureCerts });
+    const systems = await fetchSystems(url, token, allowInsecureCerts);
+    const base = url.replace(/\/+$/, "");
 
+    const healthData: Record<string, any> = {};
+
+    for (const sys of systems) {
+        if (!sys.id) continue;
+
+        const normalizedSystem = normalizeSystemRecord(sys);
+        const stats = await fetchSystemStatsForSystem(sys.id, { url, token, allowInsecureCerts });
+
+        normalizedSystem.details.memory_total_mb = stats.average_total_memory_mb_rounded ?? normalizedSystem.details.memory_total_mb;
+
+        // --- Compute health score ---
+        let score = 100;
+        let biggestMinus = "";
+
+        // CPU usage
+        const cpuUsage = normalizedSystem.details.cpu_usage_percent ?? 0;
+        if (cpuUsage > 90) {
+            score -= 30;
+            biggestMinus = `CPU usage very high: ${cpuUsage}%`;
+        } else if (cpuUsage > 70) {
+            score -= 15;
+            biggestMinus = `CPU usage high: ${cpuUsage}%`;
+        }
+
+        // Memory usage
+        const memUsed = normalizedSystem.details.memory_used_percent ?? 0;
+        if (memUsed > 90) {
+            score -= 30;
+            if (!biggestMinus) biggestMinus = `Memory usage very high: ${memUsed}%`;
+        } else if (memUsed > 70) {
+            score -= 15;
+            if (!biggestMinus) biggestMinus = `Memory usage high: ${memUsed}%`;
+        }
+
+        // Disk usage (pick the max usage among disks)
+        const diskUsed = normalizedSystem.details.disk_used_percent ?? 0;
+        if (diskUsed > 90) {
+            score -= 30;
+            if (!biggestMinus) biggestMinus = `Disk almost full: ${diskUsed}%`;
+        } else if (diskUsed > 70) {
+            score -= 15;
+            if (!biggestMinus) biggestMinus = `Disk usage high: ${diskUsed}%`;
+        }
+
+        // Load (long-term)
+        const longTermLoad = stats.load["480min"] ?? 0;
+        if (longTermLoad > (normalizedSystem.details.cpu_cores || 1)) {
+            score -= 20;
+            if (!biggestMinus) biggestMinus = `Long-term load high: ${longTermLoad}`;
+        }
+
+        if (!biggestMinus) biggestMinus = "No major issues detected";
+
+        // Clamp score
+        score = Math.max(0, Math.min(100, score));
+
+        healthData[sys.name || sys.host || sys.id || "unknown"] = {
+            system_name: sys.name || sys.host || sys.id || "unknown",
+            health_score: score,
+            biggest_minus: biggestMinus,
+            details: {
+                ...normalizedSystem.details,
+                load: stats.load,
+            },
+            action: `${base}/system/${sys.id}`
+        };
+    }
+
+    return healthData;
 }
 
 export async function beszelSearchItems({

@@ -111,6 +111,7 @@ export default function WidgetsSettingsPage() {
         filtered[category] = widgets;
       }
     }
+    console.log(filtered)
     return filtered;
   }, [config?.integrations, widgetsData]);
 

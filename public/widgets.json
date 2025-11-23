@@ -75,5 +75,11 @@
                 "serverDisplayname": null
             }
         }
+    ],
+    "int:Beszel": [
+        {
+            "slug": "beszel-system-health",
+            "name": "Beszel System Health"
+        }
     ]
 }

@@ -35,8 +35,10 @@ export async function GET(request: Request) {
         const serverLocation = Buffer.from(configRecord.config.integrations.Beszel.server_location, "base64").toString("utf8");
         const pbAdminEmail = Buffer.from(configRecord.config.integrations.Beszel.pb_email, "base64").toString("utf8");
         const pbAdminPassword = Buffer.from(configRecord.config.integrations.Beszel.pb_password, "base64").toString("utf8");
-        
-        const metrics = await getBeszelMetrics(
+
+        console.log(serverLocation)
+
+        const metrics = await getBeszelSystemHealth(
             {url: serverLocation, pb_email: pbAdminEmail, pb_password: pbAdminPassword, allowInsecureCerts: config.allowInsecureCertsForIntegrationUrls}
         )
 
