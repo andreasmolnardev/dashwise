@@ -59,7 +59,7 @@ fastify.get("/webhook/statusMonitoringRunner", async (request, reply) => {
 
 //update checks
 runComparisonRunner();
-cron.schedule(config.UPDATE_CHECK_SCHEDULE, () => runStatusMonitoringJobs());
+cron.schedule(config.UPDATE_CHECK_SCHEDULE, () => runComparisonRunner());
 
 // Start http server
 fastify.listen({ port: 3001, host: "0.0.0.0" });
