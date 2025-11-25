@@ -111,7 +111,6 @@ export default function WidgetsSettingsPage() {
         filtered[category] = widgets;
       }
     }
-    console.log(filtered)
     return filtered;
   }, [config?.integrations, widgetsData]);
 
@@ -131,8 +130,6 @@ export default function WidgetsSettingsPage() {
 
   const editWidget = (widget: Widget, zone: "left" | "middle" | "right") => {
     const info = Object.values(filteredWidgetsData).flat().find((w) => w.slug === widget.type);
-    console.log(info)
-    console.log(widget.properties)
     if (!info) return;
     setSelectedWidget({ ...info, id: widget.id, properties: info.properties });
     setDropZoneTarget(zone);
