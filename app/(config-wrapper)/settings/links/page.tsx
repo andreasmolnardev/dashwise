@@ -3,76 +3,41 @@
 import React, { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useConfig } from "@/context/ConfigContext";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Label } from "@radix-ui/react-label";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Button } from "@/components/ui/button";
 
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-} from "@/components/ui/dropdown-menu";
-
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-  DialogDescription,
-} from "@/components/ui/dialog";
-
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faBars, faBroom, faCaretRight, faPlusCircle, faTrash } from "@fortawesome/free-solid-svg-icons";
+import { faBars, faBroom, faCaretRight, faFolder } from "@fortawesome/free-solid-svg-icons";
+
 import LinkDetailsForm from "@/components/settings/LinkDetailsForm";
-import CreateLinkGroupDialog from "@/components/settings/CreateLinkGroupDialog";
 import DeleteUnusedLinkGroupsFormComponent from "@/components/settings/DeleteUnusedLinkGroupsForm";
 import MoveLinkGroupsFormComponent from "@/components/settings/MoveLinkGroupsForm";
-
+import EditFormComponent from "@/components/settings/EditForm";
 type LinkItem = {
-  id?: string;
-  name: string;
-  url: string;
-  icon?: string;
-  linkGroup?: string;
+id?: string;
+name: string;
+url: string;
+icon?: string;
+linkGroup?: string;
+// optional subgroup e.g. folder
+folder?: string;
 };
 
 export default function LinksSettingsPage() {
   const { config, refreshConfig } = useConfig();
   const router = useRouter();
-  const [isCreateGroupOpen, setIsCreateGroupOpen] = useState(false);
+  const searchParams = useSearchParams();
 
-  const [selectedGroup, setSelectedGroup] = useState<string>("");
-
-  const baseLinkGroups = config?.linkGroups || [];
-  const linkGroups = [...baseLinkGroups, "+ Add new"];
-
-  const [selectMode, setSelectMode] = useState(false);
-  const [moveMode, setMoveMode] = useState(false);
-  const [selected, setSelected] = useState<Record<string, boolean>>({});
-
-  // local list state for immediate frontend moves
-  const [localLinks, setLocalLinks] = useState<LinkItem[]>([]);
-
-  // edit dialog state
+  // Link edit dialog state (used by onEditItem)
   const [editOpen, setEditOpen] = useState(false);
   const [editingLink, setEditingLink] = useState<LinkItem | null>(null);
 
-  // drag state
-  const [draggingUrl, setDraggingUrl] = useState<string | null>(null);
-  // insertion index where the drop will insert the dragged item
-  const [dropIndex, setDropIndex] = useState<number | null>(null);
+  // Link add dialog state
+  const [addOpen, setAddOpen] = useState(false);
+  const [addingLinkGroup, setAddingLinkGroup] = useState<string>("");
 
+  // Track selected group from query params
+  const [selectedGroup, setSelectedGroup] = useState<string>("");
 
   useEffect(() => {
     if (!selectedGroup && Array.isArray(config?.linkGroups) && config!.linkGroups.length > 0) {
@@ -80,675 +45,360 @@ export default function LinksSettingsPage() {
     }
   }, [config?.linkGroups]);
 
-  useEffect(() => {
-    if (selectedGroup !== "" && config?.links) {
-      setLocalLinks(
-        (config.links as LinkItem[]).filter(
-          (l) => (l.linkGroup ?? "") === selectedGroup
-        )
-      );
-    } else {
-      setLocalLinks([]);
-    }
-  }, [selectedGroup, config?.links]);
-
-
-  // read query params and open link group 
-  const searchParams = useSearchParams();
-
+  // read query params and open link group
   useEffect(() => {
     if (!searchParams) return;
-
     const linkGroupOpenParam = searchParams.get("group");
 
     if (linkGroupOpenParam) {
-      if (Array.isArray(config?.linkGroups) && config?.linkGroups.includes(linkGroupOpenParam)) {
-        setSelectedGroup(linkGroupOpenParam);
-      } else {
-        setSelectedGroup(linkGroupOpenParam);
-      }
-      return;
+      setSelectedGroup(linkGroupOpenParam);
     }
   }, [searchParams, config?.linkGroups, config?.links]);
 
-  const moveLinks = async (prevLocalIndex: number, newLocalIndex: number) => {
-    try {
-      const token = localStorage.getItem("pb_token");
-      if (!token) throw new Error("Not authenticated");
-      if (!config?.links) throw new Error("No links in config");
+// Helper: patch links array on server
+const patchLinksOnServer = async (updatedLinks: LinkItem[]) => {
+const token = localStorage.getItem("pb_token");
+if (!token) throw new Error("Not authenticated");
 
-      const links = config.links as LinkItem[];
-      const movedLocal = localLinks[prevLocalIndex];
-      if (!movedLocal) throw new Error("Invalid source index (localLinks)");
+const res = await fetch("/api/v1/config?path=links", {
+  method: "PATCH",
+  headers: {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${token}`,
+  },
+  body: JSON.stringify({ updatedItem: updatedLinks }),
+});
 
-      // find source index in the full config.links array
-      const srcGlobal = links.findIndex((l) => l.url === movedLocal.url);
-      if (srcGlobal === -1) throw new Error("Source item not found in config.links");
+const json = await res.json().catch(() => ({}));
+if (!res.ok) {
+  throw new Error(json.error || "Failed to update links");
+}
 
-      // indices of items in the same group (global)
-      const group = selectedGroup ?? "";
-      const groupIndices = links
-        .map((l, i) => ((l.linkGroup ?? "") === group ? i : -1))
-        .filter((i) => i !== -1);
+};
 
-      // clamp destination local index
-      let dstLocal = newLocalIndex;
-      if (dstLocal < 0) dstLocal = 0;
-      if (dstLocal > groupIndices.length) dstLocal = groupIndices.length;
+// Helper: patch groups on server
+const patchGroupsOnServer = async (updatedGroups: string[]) => {
+const token = localStorage.getItem("pb_token");
+if (!token) throw new Error("Not authenticated");
 
-      // desired final index in the original array
-      let finalIndexOriginal: number;
-      if (groupIndices.length === 0) {
-        finalIndexOriginal = links.length; // append to end
-      } else if (dstLocal < groupIndices.length) {
-        finalIndexOriginal = groupIndices[dstLocal];
-      } else {
-        finalIndexOriginal = groupIndices[groupIndices.length - 1] + 1; // after last in group
-      }
+const res = await fetch("/api/v1/config?path=linkGroups", {
+  method: "PATCH",
+  headers: {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${token}`,
+  },
+  body: JSON.stringify({ updatedItem: updatedGroups }),
+});
 
-      // server removes src first, so adjust dst if it comes after src
-      const dstParam = finalIndexOriginal > srcGlobal ? finalIndexOriginal - 1 : finalIndexOriginal;
+const json = await res.json().catch(() => ({}));
+if (!res.ok) {
+  throw new Error(json.error || "Failed to update link groups");
+}
 
-      // call server to move item
-      const res = await fetch("/api/v1/config/move-arrayitems?path=links", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ src: srcGlobal, dst: dstParam }),
-      });
+};
 
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        await refreshConfig(); // revert optimistic UI
-        throw new Error(json.error || "Failed to move link on server");
-      }
+// onCreateGroup: creates a group server-side and refreshes config
+const handleCreateGroup = async (name: string) => {
+// optimistic local update handled inside EditFormComponent when requireConfirmation=false,
+// but here we are expected to create server-side right away because parent flow expects it.
+try {
+const nextGroups = Array.from(new Set([...(config?.linkGroups ?? []), name]));
+await patchGroupsOnServer(nextGroups);
+await refreshConfig();
+setSelectedGroup(name);
+} catch (err) {
+console.error("create group failed", err);
+window.alert("Failed to create group");
+}
+};
 
-      // success — refresh authoritative config
-      await refreshConfig();
-    } catch (err) {
-      console.error("moveLinks error:", err);
-      try {
-        await refreshConfig(); // ensure UI not stuck
-      } catch (e) {
-        console.warn("Failed to refresh config after move error", e);
-      }
-      throw err;
-    }
-  };
+// onGroupAction: rename or delete group
+const handleGroupAction = async (action: "rename" | "delete", groupName: string, payload?: any) => {
+try {
+if (!config?.links) throw new Error("No links");
+const links = (config.links as LinkItem[]).slice();
+const groups = (config.linkGroups ?? []).slice();
 
-  const deleteLinks = async (urls: string[]) => {
-    const token = localStorage.getItem("pb_token");
-    if (!token) throw new Error("Not authenticated");
-
-    // filter config.links and remove all urls that match
-    const updatedItem = (config.links as LinkItem[]).filter(
-      (l) => !urls.includes(l.url)
-    );
-
-    const res = await fetch("/api/v1/config?path=links", {
-      method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ updatedItem }),
-    });
-
-    const json = await res.json();
-    if (!res.ok) {
-      throw new Error(json.error || "Failed to delete link(s)");
-    }
-
-    // update local state immediately so UI feels snappy
+  if (action === "rename") {
+    const newName = payload?.newName ?? window.prompt("Rename group", groupName);
+    if (!newName || newName === groupName) return;
+    // update groups list
+    const nextGroups = groups.map((g) => (g === groupName ? newName : g));
+    // update link items that referenced old group
+    const nextLinks = links.map((l) => (l.linkGroup === groupName ? { ...l, linkGroup: newName } : l));
+    await patchLinksOnServer(nextLinks);
+    await patchGroupsOnServer(nextGroups);
     await refreshConfig();
-    setLocalLinks((prev) => prev.filter((l) => !urls.includes(l.url)));
-  };
+    setSelectedGroup(newName);
+  } else if (action === "delete") {
+    if (!confirm(`Delete group "${groupName}"? This will unassign it from links.`)) return;
+    const nextGroups = groups.filter((g) => g !== groupName);
+    const nextLinks = links.map((l) => (l.linkGroup === groupName ? { ...l, linkGroup: "" } : l));
+    await patchLinksOnServer(nextLinks);
+    await patchGroupsOnServer(nextGroups);
+    await refreshConfig();
+    setSelectedGroup(nextGroups[0] ?? "");
+  }
+} catch (err) {
+  console.error("group action failed", err);
+  window.alert("Failed to perform group action");
+}
 
-  const toggleSelect = (url: string) => {
-    setSelected((prev) => {
-      const next = { ...prev };
-      if (next[url]) delete next[url];
-      else next[url] = true;
-      return next;
-    });
-  };
+};
 
-  const selectedUrls = Object.keys(selected);
+// onUpdate handler for EditFormComponent — accepts staged items and optionally updated groups.
+// This will be invoked when the user clicks Save (requireConfirmation=true).
+const handleUpdateFromForm = async (updatedItems: LinkItem[], updatedGroups?: string[]) => {
+try {
+// persist links first
+await patchLinksOnServer(updatedItems);
+// persist groups if provided
+if (Array.isArray(updatedGroups)) {
+await patchGroupsOnServer(updatedGroups);
+}
+await refreshConfig();
+// keep the selected group sensible after update (if groups changed)
+if (updatedGroups && updatedGroups.length > 0) {
+if (!updatedGroups.includes(selectedGroup) && updatedGroups[0]) {
+setSelectedGroup(updatedGroups[0]);
+}
+}
+} catch (err) {
+console.error("Failed to save changes from EditFormComponent", err);
+window.alert("Failed to save changes");
+throw err;
+}
+};
 
-  const handleDeleteSelected = () => {
-    if (selectedUrls.length === 0) return;
-    deleteLinks(selectedUrls);
-    setSelected({});
-    setSelectMode(false);
-  };
+// onEditItem: open existing LinkDetailsForm modal so user can edit the single item.
+// The LinkDetailsForm is responsible for saving to server and our refreshConfig() will pick it up.
+const handleOnEditItem = async (item: LinkItem) => {
+setEditingLink(item);
+setEditOpen(true);
+};
 
-  useEffect(() => {
-    if (!selectMode) setSelected({});
-  }, [selectMode]);
+// utility: build groups array for passing into EditFormComponent
+const groupsForForm = config?.linkGroups ?? [];
 
-  // make selectMode and moveMode mutually exclusive
-  useEffect(() => {
-    if (selectMode && moveMode) setMoveMode(false);
-  }, [selectMode]);
+// Optional small wrapper to convert config.links to LinkItem[] safely
+const linksForForm: LinkItem[] = Array.isArray(config?.links) ? (config!.links as LinkItem[]) : [];
 
-  useEffect(() => {
-    if (moveMode && selectMode) setSelectMode(false);
-  }, [moveMode]);
-
-  const checkboxClass = "h-5 w-5 rounded-full";
-
-  // drag handlers — supports showing insertion line between items (dropIndex)
-  const handleDragStart = (
-    e: React.DragEvent<HTMLLIElement>,
-    link: LinkItem
-  ) => {
-    if (!moveMode) {
-      e.preventDefault();
-      return;
-    }
-    setDraggingUrl(link.url);
-    e.dataTransfer.setData("text/plain", link.url);
-    e.dataTransfer.effectAllowed = "move";
-  };
-
-  const handleDragOverItem = (
-    e: React.DragEvent<HTMLLIElement>,
-    index: number
-  ) => {
-    if (!moveMode) return;
-    e.preventDefault(); // allow drop
-
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    const offsetY = e.clientY - rect.top;
-    const insertBefore = offsetY < rect.height / 2;
-    const newIndex = insertBefore ? index : index + 1;
-
-    setDropIndex(newIndex);
-    e.dataTransfer.dropEffect = "move";
-  };
-
-  const handleDragOverList = (e: React.DragEvent<HTMLUListElement>) => {
-    // called when dragging over the list itself (to allow dropping at the end)
-    if (!moveMode) return;
-    e.preventDefault();
-
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    const offsetY = e.clientY - rect.top;
-
-    // rough heuristic: if below last item, set dropIndex to localLinks.length
-    if (localLinks.length === 0) {
-      setDropIndex(0);
-      return;
-    }
-
-    // if y is below the last item's bottom, set to end
-    const lastItem = e.currentTarget.querySelectorAll("li")[
-      localLinks.length - 1
-    ] as HTMLElement | undefined;
-
-    if (lastItem) {
-      const lastRect = lastItem.getBoundingClientRect();
-      if (e.clientY > lastRect.bottom) {
-        setDropIndex(localLinks.length);
-      }
-    }
-  };
-
-  const handleDropOnList = (e: React.DragEvent<HTMLUListElement>) => {
-    if (!moveMode) return;
-    e.preventDefault();
-    const fromUrl = e.dataTransfer.getData("text/plain") || draggingUrl || null;
-    if (!fromUrl) return;
-
-    const targetIndex = dropIndex ?? localLinks.length;
-    const fromIndex = localLinks.findIndex((l) => l.url === fromUrl);
-    if (fromIndex === -1) return;
-
-    let toIndex = targetIndex;
-    // if moving down the list and removing the source first, the insertion index shifts left by 1
-    if (fromIndex < toIndex) toIndex -= 1;
-    if (toIndex < 0) toIndex = 0;
-    if (toIndex > localLinks.length - 1) toIndex = localLinks.length - 1 + (fromIndex === -1 ? 1 : 1);
-
-    // perform frontend reorder
-    const updated = [...localLinks];
-    const [moved] = updated.splice(fromIndex, 1);
-    updated.splice(toIndex, 0, moved);
-    setLocalLinks(updated);
-
-    moveLinks(fromIndex, toIndex);
-
-    // reset drag state
-    setDraggingUrl(null);
-    setDropIndex(null);
-  };
-
-  const handleDropOnItem = (
-    e: React.DragEvent<HTMLLIElement>,
-    index: number
-  ) => {
-    handleDropOnList(e as unknown as React.DragEvent<HTMLUListElement>);
-  };
-
-  const handleDragEnd = () => {
-    setDraggingUrl(null);
-    setDropIndex(null);
-  };
+const checkboxClass = "h-5 w-5 rounded-full";
 
   return (
     <>
       <h1 className="text-2xl font-semibold mb-4">Links</h1>
 
       <div className="content space-y-2">
-        <div className="row flex justify-between items-center">
-          <Label htmlFor="link-group-select">Link Group</Label>
+        {/* EditFormComponent for managing links */}
+        <EditFormComponent<LinkItem>
+          title="Manage Links"
+          items={linksForForm}
+          groups={groupsForForm}
+          groupBy={"linkGroup"}
+          itemKey={"id"}
+          createNewGroup={true}
+          requireConfirmation={true}
+          switchBetweenModes={true}
+          defaultMode={"edit"}
+          singleActions={["edit", "delete", "moveOrder", "move"]}
+          bulkActions={["delete", "move"]}
+          moveItems={"onMoveMode"}
+          enableSubgroup={true} // if you want folders/subgroups enabled (reading `folder` prop)
+          subgroupBy={"folder"}
+          iconRounded={false}
+          onCreateGroup={async (name: string) => {
+            await handleCreateGroup(name);
+          }}
+          onGroupAction={async (action, groupName, payload) => {
+            // payload may contain newName for rename
+            await handleGroupAction(action as "rename" | "delete", groupName, payload);
+          }}
+          onUpdate={async (updatedItems, updatedGroups) => {
+            await handleUpdateFromForm(updatedItems, updatedGroups);
+          }}
+          onEditItem={async (item) => {
+            // open modal to let LinkDetailsForm handle editing
+            await handleOnEditItem(item);
+          }}
+          renderAddItem={(groupName: string, onAdded: (item: LinkItem) => void, onCancel: () => void) => {
+            // Avoid calling setState during render (causes React error).
+            // Instead return a component that opens the dialog in useEffect after mount.
+            const DialogOpener: React.FC = () => {
+              useEffect(() => {
+                setAddingLinkGroup(groupName);
+                setAddOpen(true);
+                // Close the inline add state in EditForm (onCancel) so this opener doesn't get remounted
+                // and reopen the dialog immediately when the user closes it.
+                try {
+                  onCancel();
+                } catch (e) {
+                  // ignore
+                }
+                // eslint-disable-next-line react-hooks/exhaustive-deps
+              }, []);
+              return null;
+            };
 
-          {/* Select link group */}
-          <Select
-            onValueChange={(val) => {
-              if (val === "+ Add new") {
-                setIsCreateGroupOpen(true);
-                return;
-              }
-              setSelectedGroup(val);
-            }}
-            value={selectedGroup ?? ""}
-          >
-            <SelectTrigger className="w-64">
-              <SelectValue placeholder="Select group" />
-            </SelectTrigger>
-            <SelectContent>
-              {linkGroups.map((group: any) => (
-                <SelectItem key={group} value={group}>
-                  {group}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <CreateLinkGroupDialog
-            open={isCreateGroupOpen}
-            onOpenChange={setIsCreateGroupOpen}
-            onCreated={(newGroup) => {
-              setSelectedGroup(newGroup);
-              setLocalLinks([]);
-            }}
-          />
-        </div>
-
-        {selectedGroup && localLinks.length > 0 ? (
-          <>
-            {/* Toolbar */}
-            <div className="flex items-center justify-between min-h-9 px-2">
-              <div className="flex items-center gap-2">
-                <label className="inline-flex items-center gap-2 cursor-pointer">
-                  <Checkbox
-                    checked={selectMode}
-                    onCheckedChange={(val) => setSelectMode(Boolean(val))}
-                    className={checkboxClass}
-                    id="toolbar-select-mode"
-                  />
-                  <span className="select-none">Select items {selectMode && `(${selectedUrls.length})`}</span>
-                </label>
-
-                <label className="inline-flex items-center gap-2 cursor-pointer">
-                  <Checkbox
-                    checked={moveMode}
-                    onCheckedChange={(val) => setMoveMode(Boolean(val))}
-                    className={checkboxClass}
-                    id="toolbar-move-mode"
-                  />
-                  <span className="select-none">Move items</span>
-                </label>
-              </div>
-
-              <div>
-                {selectMode ? (
-                  <Button
-                    onClick={handleDeleteSelected}
-                    disabled={selectedUrls.length === 0}
-                    variant="ghost"
-                    className="rounded-full h-6"
-                    title={
-                      selectedUrls.length === 0
-                        ? "Select items to delete"
-                        : "Delete selected links"
-                    }
-                  >
-                    <FontAwesomeIcon icon={faTrash} className="" />
-                    Delete selected
-                  </Button>
+            return <DialogOpener />;
+          }}
+          initialGroup={selectedGroup}
+          renderRow={(item: LinkItem, isSelected, mode) => (
+            <div className="flex items-center gap-3">
+              {/* small icon */}
+              <div className="w-8 h-8 flex items-center justify-center rounded overflow-hidden">
+                {item.icon ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={item.icon} alt={`${item.name} icon`} className="object-contain w-full h-full" />
                 ) : (
-                  <Dialog>
-                    <DialogTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        className="rounded-full h-6"
-                        title="Add new link"
-                      >
-                        <FontAwesomeIcon icon={faPlusCircle} />
-                        Add new link
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent className="frosted text-white">
-                      <DialogHeader>
-                        <DialogTitle>Add new link</DialogTitle>
-                      </DialogHeader>
-                      <LinkDetailsForm onClose={async () => {
-                        try {
-                          setEditOpen(false);
-                          setEditingLink(null);
-                          await refreshConfig();
-                          // try to update localLinks immediately
-                          if (selectedGroup && (config?.links as LinkItem[])) {
-                            setLocalLinks(
-                              (config.links as LinkItem[]).filter(
-                                (l) => (l.linkGroup ?? "") === selectedGroup
-                              )
-                            );
-                          }
-
-                          if (selectedGroup) {
-                            router.push(`/settings/links?group=${encodeURIComponent(selectedGroup)}`);
-                          }
-                        } catch (err) {
-                          console.warn("Error refreshing config after edit", err);
-                        }
-                      }} link={{ "linkGroup": selectedGroup }} />
-                    </DialogContent>
-                  </Dialog>
+                  <div className="w-8 h-8 bg-gray-200 flex items-center justify-center text-xs">
+                    {item.name?.slice(0, 1).toUpperCase()}
+                  </div>
                 )}
               </div>
+
+              <div className="flex-1 min-w-0">
+                <div className="font-medium truncate">{item.name}</div>
+                <div className="text-xs text-white/60 truncate">{item.url}</div>
+              </div>
             </div>
+          )}
+        />    <h2 className="text-xl pt-2">Manage link groups</h2>
 
-            {/* Links list */}
-            <ul
-              className="space-y-2 relative"
-              onDragOver={handleDragOverList}
-              onDrop={handleDropOnList}
-            >
-              {localLinks.map((link, idx) => {
-                const isSelected = !!selected[link.url];
-                const isDragging = draggingUrl === link.url;
+    <Dialog>
+      <DialogTrigger asChild>
+        <div className="flex border border-transparent hover-frosted items-center col-span-full p-1.5 rounded-md gap-2 cursor-pointer">
+          <FontAwesomeIcon icon={faBars} />
+          <p className="w-full">Rearrange</p>
+          <FontAwesomeIcon icon={faCaretRight} />
+        </div>
+      </DialogTrigger>
 
-                return (
-                  <div key={link.id ?? link.url ?? idx} className="relative">
-                    {/* insertion line before this item */}
-                    {dropIndex === idx && (
-                      <div className="h-[2px] bg-primary w-full my-1 rounded" />
-                    )}
+      <DialogContent className="frosted">
+        <DialogHeader>
+          <DialogTitle>Rearrange link groups</DialogTitle>
+        </DialogHeader>
+        <MoveLinkGroupsFormComponent linkGroups={config?.linkGroups ?? []} />
+      </DialogContent>
+    </Dialog>
 
-                    <li
-                      className={`group relative flex items-center gap-3 h-10 px-2 rounded-md transition-colors hover-frosted cursor-pointer ${isDragging ? "opacity-60" : ""}`}
-                      draggable={moveMode}
-                      onDragStart={(e) => handleDragStart(e, link)}
-                      onDragOver={(e) => handleDragOverItem(e, idx)}
-                      onDrop={(e) => handleDropOnItem(e, idx)}
-                      onDragEnd={handleDragEnd}
-                    >
-                      {/* icon/checkbox container */}
-                      <div className="w-6 h-6 flex items-center justify-center">
-                        {/* Checkbox (fade in when selectMode true) */}
-                        <Checkbox
-                          id={`chk-${encodeURIComponent(link.url)}`}
-                          checked={!!selected[link.url]}
-                          onCheckedChange={() => toggleSelect(link.url)}
-                          className={`${checkboxClass} transition-opacity duration-300 ${selectMode
-                            ? "opacity-100"
-                            : "opacity-0 pointer-events-none absolute"
-                            }`}
-                        />
+    {/* Delete unused groups dialog */}
+    <Dialog>
+      <DialogTrigger asChild>
+        <div className="flex border border-transparent hover-frosted items-center col-span-full p-1.5 rounded-md gap-2">
+          <FontAwesomeIcon icon={faBroom} />
+          <p className="w-full">Delete unused ones</p>
+          <FontAwesomeIcon icon={faCaretRight} />
+        </div>
+      </DialogTrigger>
 
-                        {/* Icon (fade out when selectMode true) */}
-                        {!selectMode && (
-                          link.icon ? (
-                            <img
-                              src={link.icon}
-                              alt={`${link.name} icon`}
-                              className="w-8 h-8 rounded-full object-contain transition-opacity duration-300"
-                              onError={(e) => {
-                                (e.target as HTMLImageElement).style.display = "none";
-                              }}
-                            />
-                          ) : (
-                            <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-xs transition-opacity duration-300">
-                              {link.name?.slice(0, 1).toUpperCase()}
-                            </div>
-                          )
-                        )}
-                      </div>
+      <DialogContent className="frosted text-(--text-primary)">
+        <DialogHeader>
+          <DialogTitle>Delete unused link groups</DialogTitle>
+        </DialogHeader>
+        <DialogDescription className="text-(--text-secondary)">
+          This will remove all link groups that do not contain any links. This action cannot be undone.
+        </DialogDescription>
 
-                      {/* link content */}
-                      <a
-                        href={link.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="flex items-center gap-3 flex-1 no-underline"
-                        onClick={(e) => {
-                          // prevent navigation if in select or move mode
-                          if (selectMode || moveMode) {
-                            e.preventDefault();
-                            if (selectMode) toggleSelect(link.url);
-                          }
-                        }}
-                      >
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium hover:text-primary">{link.name}</span>
-                          <span className="text-xs p-1 rounded-xl bg-(--primary) text-white text-muted-foreground truncate max-w-[560px]">
-                            {link.url}
-                          </span>
-                        </div>
-                      </a>
+        <DeleteUnusedLinkGroupsFormComponent
+          onDeleted={async () => {
+            await refreshConfig();
+          }}
+        />
+      </DialogContent>
+    </Dialog>
 
-                      {/* Dropdown menu */}
-                      {!selectMode && !moveMode && (
-                        <div className="relative">
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <button
-                                aria-label="Open menu"
-                                className="p-2 rounded hover:bg-muted"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                ⋮
-                              </button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" side="bottom" className="w-36">
-                              {/* EDIT action: open edit dialog populated with this link */}
-                              <DropdownMenuItem
-                                onSelect={() => {
-                                  setEditingLink(link);
-                                  setEditOpen(true);
-                                }}
-                              >
-                                Edit
-                              </DropdownMenuItem>
+    {/* Add Link dialog */}
+    <Dialog open={addOpen} onOpenChange={(v) => {
+      setAddOpen(v);
+      if (!v) setAddingLinkGroup("");
+    }}>
+      <DialogContent className="frosted text-white">
+        <DialogHeader>
+          <DialogTitle>Add new link</DialogTitle>
+        </DialogHeader>
 
-                              <DropdownMenuItem
-                                onSelect={() => {
-                                  deleteLinks([link.url]);
-                                }}
-                              >
-                                Delete
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem
-                                onSelect={() => {
-                                  // placeholder for future actions
-                                }}
-                              >
-                                Open
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
-                      )}
-                    </li>
-                  </div>
+        <LinkDetailsForm
+          preselectOpenedGroup={addingLinkGroup}
+          onClose={async () => {
+            try {
+              setAddOpen(false);
+              await refreshConfig();
+              // try to update localLinks immediately
+              if (addingLinkGroup && (config?.links as LinkItem[])) {
+                const updatedLinks = (config.links as LinkItem[]).filter(
+                  (l) => (l.linkGroup ?? "") === addingLinkGroup
                 );
-              })}
+              }
 
-              {/* insertion line at end */}
-              {dropIndex === localLinks.length && (
-                <div className="h-[2px] bg-primary w-full my-1 rounded" />
-              )}
-            </ul>
-          </>
-        ) : selectedGroup ? (
-          <div className="flex items-start gap-2 mt-4">
-            <p className="text-sm text-gray-200 w-full">No links in this group.</p>
-            <Dialog>
-              <DialogTrigger asChild>
-                <Button
-                  variant="ghost"
-                  className="rounded-full h-6"
-                  title="Add new link"
-                >
-                  <FontAwesomeIcon icon={faPlusCircle} />
-                  Add new link
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="frosted text-white">
-                <DialogHeader>
-                  <DialogTitle>Add new link</DialogTitle>
-                </DialogHeader>
-                <LinkDetailsForm onClose={async () => {
-                  try {
-                    setEditOpen(false);
-                    setEditingLink(null);
-                    await refreshConfig();
-                    // try to update localLinks immediately
-                    if (selectedGroup && (config?.links as LinkItem[])) {
-                      setLocalLinks(
-                        (config.links as LinkItem[]).filter(
-                          (l) => (l.linkGroup ?? "") === selectedGroup
-                        )
-                      );
-                    }
+              if (addingLinkGroup) {
+                router.push(`/settings/links?group=${encodeURIComponent(addingLinkGroup)}`);
+              }
+            } catch (err) {
+              console.warn("Error refreshing config after add", err);
+            }
+          }}
+          link={{ linkGroup: addingLinkGroup }}
+        />
+      </DialogContent>
+    </Dialog>
 
-                    if (selectedGroup) {
-                      router.push(`/settings/links?group=${encodeURIComponent(selectedGroup)}`);
-                    }
-                  } catch (err) {
-                    console.warn("Error refreshing config after edit", err);
-                  }
-                }}
-                  link={{ linkGroup: selectedGroup }} />
-              </DialogContent>
-            </Dialog>
-          </div>
-        ) : (
-          <p className="text-sm text-gray-200">Select a link group first</p>
-        )}
+    {/* Edit Link dialog (single instance) — opened by onEditItem
+    LinkDetailsForm is responsible for saving the single link to server and we refresh after it closes */}
+    <Dialog open={editOpen} onOpenChange={(v) => {
+      setEditOpen(v);
+      if (!v) setEditingLink(null);
+    }}>
+      <DialogContent className="frosted text-white">
+        <DialogHeader>
+          <DialogTitle>Edit link</DialogTitle>
+        </DialogHeader>
 
-        <h2 className="text-xl pt-2">Manage link groups</h2>
+        <LinkDetailsForm
+          preselectOpenedGroup={selectedGroup}
+          link={editingLink ?? undefined}
+          onClose={async () => {
+            try {
+              setEditOpen(false);
+              setEditingLink(null);
+              await refreshConfig();
+              // navigate to same group if possible
+              if (selectedGroup) {
+                router.push(`/settings/links?group=${encodeURIComponent(selectedGroup)}`);
+              }
+            } catch (err) {
+              console.warn("Error refreshing config after edit", err);
+            }
+          }}
+        />
+      </DialogContent>
+    </Dialog>
 
-        <Dialog>
-          <DialogTrigger asChild>
-            <div className="flex border border-transparent hover-frosted items-center col-span-full p-1.5 rounded-md gap-2 cursor-pointer">
-              <FontAwesomeIcon icon={faBars} />
-              <p className="w-full">Rearrange</p>
-              <FontAwesomeIcon icon={faCaretRight} />
-            </div>
-          </DialogTrigger>
+  </div>
+</>
 
-          <DialogContent className="frosted">
-            <DialogHeader>
-              <DialogTitle>Rearrange link groups</DialogTitle>
-            </DialogHeader>
-            <MoveLinkGroupsFormComponent linkGroups={config?.linkGroups ?? []} />
-          </DialogContent>
-        </Dialog>
-
-        {/* Delete unused groups dialog */}
-        <Dialog>
-          <DialogTrigger asChild>
-            <div className="flex border border-transparent hover-frosted items-center col-span-full p-1.5 rounded-md gap-2">
-              <FontAwesomeIcon icon={faBroom} />
-              <p className="w-full">Delete unused ones</p>
-              <FontAwesomeIcon icon={faCaretRight} />
-            </div>
-          </DialogTrigger>
-
-          <DialogContent className="frosted text-(--text-primary)">
-            <DialogHeader>
-              <DialogTitle>Delete unused link groups</DialogTitle>
-            </DialogHeader>
-            <DialogDescription className="text-(--text-secondary)">
-              This will remove all link groups that do not contain any links. This action cannot be undone.
-            </DialogDescription>
-
-            <DeleteUnusedLinkGroupsFormComponent
-              onDeleted={async () => {
-                await refreshConfig();
-              }}
-            />
-          </DialogContent>
-
-        </Dialog>
-
-        {/* Edit Link dialog (single instance) */}
-        <Dialog open={editOpen} onOpenChange={(v) => {
-          setEditOpen(v);
-          if (!v) setEditingLink(null);
-        }}>
-          <DialogContent className="frosted text-white">
-            <DialogHeader>
-              <DialogTitle>Edit link</DialogTitle>
-            </DialogHeader>
-
-            {/* Pass onClose so the form can close this dialog after save.
-                LinkDetailsForm is expected to call refreshConfig() after saving,
-                but we also call refreshConfig() here to ensure parent updates. */}
-            <LinkDetailsForm
-              link={editingLink ?? undefined}
-              onClose={async () => {
-                try {
-                  setEditOpen(false);
-                  setEditingLink(null);
-                  await refreshConfig();
-                  // try to update localLinks immediately
-                  if (selectedGroup && (config?.links as LinkItem[])) {
-                    setLocalLinks(
-                      (config.links as LinkItem[]).filter(
-                        (l) => (l.linkGroup ?? "") === selectedGroup
-                      )
-                    );
-                  }
-
-                  if (selectedGroup) {
-                    router.push(`/settings/links?group=${encodeURIComponent(selectedGroup)}`);
-                  }
-                } catch (err) {
-                  console.warn("Error refreshing config after edit", err);
-                }
-              }}
-            />
-          </DialogContent>
-        </Dialog>
-
-      </div>
-    </>
-  );
+);
 }
 
-function arraymove_helper<T>(arr: T[] = [], fromIndex: number, toIndex: number): T[] {
+/**
+
+* small helper - moves element in array (kept for compatibility with existing code)
+  */
+  function arraymove_helper<T>(arr: T[] = [], fromIndex: number, toIndex: number): T[] {
   const array = [...arr];
 
-  // invalid fromIndex -> return original array
-  if (fromIndex < 0 || fromIndex >= array.length) return array;
+// invalid fromIndex -> return original array
+if (fromIndex < 0 || fromIndex >= array.length) return array;
 
-  // remove the element
-  const [element] = array.splice(fromIndex, 1);
+// remove the element
+const [element] = array.splice(fromIndex, 1);
 
-  // clamp toIndex to valid insertion range [0, array.length]
-  if (toIndex < 0) toIndex = 0;
-  if (toIndex > array.length) toIndex = array.length;
+// clamp toIndex to valid insertion range [0, array.length]
+if (toIndex < 0) toIndex = 0;
+if (toIndex > array.length) toIndex = array.length;
 
-  // insert element at toIndex
-  array.splice(toIndex, 0, element);
+// insert element at toIndex
+array.splice(toIndex, 0, element);
 
-  return array;
+return array;
 }

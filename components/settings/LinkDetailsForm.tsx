@@ -23,7 +23,7 @@ import { RadioGroup, RadioGroupItem } from "../ui/radio-group";
 import { Switch } from "@/components/ui/switch";
 import { faEllipsisV, faPaperclip } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-
+import { useRouter } from "next/navigation";
 interface Icon {
   Name: string;
   Reference: string;
@@ -38,6 +38,7 @@ export interface LinkObject {
   id?: string;
   icon?: string;
   linkGroup?: string;
+  folder?: string;
   name?: string;
   url?: string;
   statusCheck?: boolean;
@@ -46,9 +47,10 @@ export interface LinkObject {
 interface LinkDetailsFormProps {
   link?: LinkObject;
   onClose?: () => void | Promise<void>;
+  preselectOpenedGroup?: string;
 }
 
-export default function LinkDetailsForm({ link, onClose }: LinkDetailsFormProps) {
+export default function LinkDetailsForm({ link, onClose, preselectOpenedGroup }: LinkDetailsFormProps) {
   const { config, refreshConfig } = useConfig();
 
   const linkGroups = useMemo(() => config?.linkGroups || [], [config?.linkGroups]);
@@ -58,7 +60,8 @@ export default function LinkDetailsForm({ link, onClose }: LinkDetailsFormProps)
   const [linkId, setLinkId] = useState(() => link?.id || generateRandomId());
   const [url, setUrl] = useState("");
   const [icon, setIcon] = useState<IconResult | null>(null);
-  const [linkGroup, setLinkGroup] = useState("");
+  const [linkGroup, setLinkGroup] = useState(() => preselectOpenedGroup || link?.linkGroup || "");
+  const [folder, setFolder] = useState(() => link?.folder || "");
   const [statusCheck, setStatusCheck] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -82,10 +85,13 @@ export default function LinkDetailsForm({ link, onClose }: LinkDetailsFormProps)
     if (link?.linkGroup) {
       setLinkGroup(link.linkGroup);
     }
+    if ((link as any)?.folder) {
+      setFolder((link as any).folder);
+    }
     if ((link as any)?.statusCheck) {
       setStatusCheck(Boolean((link as any).statusCheck));
     }
-  }, [link?.linkGroup]);
+  }, [link?.linkGroup, link?.folder]);
 
   // Prefill fields
   useEffect(() => {
@@ -116,6 +122,9 @@ export default function LinkDetailsForm({ link, onClose }: LinkDetailsFormProps)
       if (!token) throw new Error("Not authenticated");
 
       const payload = { id: linkId, name, url, icon: icon?.url ?? "", linkGroup };
+      if (folder) {
+        (payload as any).folder = folder;
+      }
       if (statusCheck) {
         (payload as any).statusCheck = true;
       }
@@ -256,27 +265,41 @@ export default function LinkDetailsForm({ link, onClose }: LinkDetailsFormProps)
 
       <Separator orientation="vertical" />
 
-      <section>
-        <Select
-          defaultValue={link?.linkGroup}
-          onValueChange={(v) => setLinkGroup(v)}
-        >
-          <SelectTrigger className="rounded-full bg-white border-0 frosted">
-            <SelectValue placeholder="Link Group" />
-          </SelectTrigger>
-          <SelectContent className="frosted text-white">
-            {linkGroups.map((grp) => (
-              <SelectItem key={grp} value={grp}>
-                {grp}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      <section className="flex flex-col gap-1.5">
+        <div className="flex gap-2 justify-between items-center">
+          <Label className="font-medium">Link Group</Label>
+          <Select
+            defaultValue={link?.linkGroup}
+            onValueChange={(v) => setLinkGroup(v)}
+          >
+            <SelectTrigger className="rounded-full bg-white border-0 frosted">
+              <SelectValue placeholder="Link Group" />
+            </SelectTrigger>
+            <SelectContent className="frosted text-white">
+              {linkGroups.map((grp) => (
+                <SelectItem key={grp} value={grp}>
+                  {grp}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex gap-4 justify-between items-center">
+          <Label className="font-medium">Folder</Label>
+          <Input
+            type="text"
+            placeholder="optional"
+            value={folder}
+            onChange={(e) => setFolder(e.target.value)}
+            className="frosted w-36"
+          />
+        </div>
+
         <div className="mt-4">
           <p className="text-xs text-gray-400 mb-1">
             Preview {isEditing && "(Editing)"}
           </p>
-          <div className="group flex flex-col items-center justify-between space-y-2 frosted rounded-2xl p-2 min-h-18 w-[120px]">
+          <div className="group flex flex-col items-center justify-between space-y-2 frosted rounded-2xl p-2 min-h-18 w-[120px] mx-auto">
             {icon?.iconSet === "mono" ? (
               <div
                 className="h-[35px] w-[35px] bg-white group-hover:bg-(--primary) transition"
