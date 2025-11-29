@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/tooltip"
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faCircleInfo, faExclamation, faExclamationCircle, faInfo } from "@fortawesome/free-solid-svg-icons";
+import { PaginatedCarouselViewComponent } from "../PaginatedCarouselView";
 
 type HealthRecord = {
     system_name: string;
@@ -86,33 +87,35 @@ function CircularHealthIndicator({
 
 // --- Card for a single system ---
 function SystemCard({ record }: { record: HealthRecord }) {
-    const shortMsg = record.biggest_minus || "No issues";
-    const showTooltip = !!record.biggest_minus && record.biggest_minus.length > 30;
-
     return (
-        <div className="flex flex-col items-center gap-1 p-1 w-full relative">
-
+        <a
+            className="text-sm font-medium max-w-[160px] gap-1 group grid grid-cols-1 justify-items-center grid-rows-[auto auto] gap-1 p-1 w-full relative"
+            title={record.system_name}
+            href={record.action}
+        >
             {record.biggest_minus &&
                 !record.biggest_minus.toLowerCase().includes("no") && (
                     <Tooltip>
                         <TooltipTrigger asChild>
-                            <FontAwesomeIcon
-                                icon={faExclamationCircle}
-                                className="absolute top-0.5 right-0.5 text-(--text-on-frosted)"
-                            />
+                            <div className="absolute top-0 right-1 rounded-full w-6 h-6 flex items-center justify-center">
+                                {/* Transparent ring */}
+                                <div className="absolute inset-0 rounded-full border-2 border-transparent bg-[rgba(0,0,0,0)] pointer-events-none"></div>
+
+                                {/* Icon sits in the center */}
+                                <FontAwesomeIcon
+                                    icon={faExclamationCircle}
+                                    className="relative z-10 text-(--text-on-frosted)"
+                                />
+                            </div>
                         </TooltipTrigger>
                         <TooltipContent>{record.biggest_minus}</TooltipContent>
                     </Tooltip>
                 )}
             <CircularHealthIndicator value={record?.details?.status?.includes("down") ? 0 : record.health_score} />
 
-            <div
-                className="text-sm font-medium max-w-[160px] inline-flex items-center gap-1"
-                title={record.system_name}
-            >
-                <span>{record.system_name}</span>
-            </div>
-        </div>
+
+            <span className="group-hover:text-(--primary)">{record.system_name}</span>
+        </a>
     );
 }
 
@@ -138,6 +141,8 @@ export default function BeszelSystemHealthWidget({ className = "" }: WidgetItemP
                 if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
                 const json = await res.json();
                 if (mounted) setData(json || {});
+                if (mounted) console.log(json);
+
             } catch (err: any) {
                 if (mounted) setError(err?.message || "Failed to fetch");
             } finally {
@@ -146,10 +151,6 @@ export default function BeszelSystemHealthWidget({ className = "" }: WidgetItemP
         }
 
         load();
-
-        // optionally: refresh every 30s (commented out — enable if desired)
-        // const id = setInterval(load, 30000);
-        // return () => { mounted = false; clearInterval(id); };
 
         return () => {
             mounted = false;
@@ -165,11 +166,14 @@ export default function BeszelSystemHealthWidget({ className = "" }: WidgetItemP
 
             {!loading && items.length === 0 && <div className="col-span-full text-center text-sm">No systems found</div>}
 
-            {items.map((rec, i) => (
-                <div key={i} className="flex items-center justify-center">
-                    <SystemCard record={rec} />
-                </div>
-            ))}
+            {!loading && items.length > 0 && (
+                <PaginatedCarouselViewComponent minColWidth={32} maxRows={1}>
+                    {items.map((rec, i) => (
+                        <SystemCard record={rec} key={i} />
+                    ))}
+                </PaginatedCarouselViewComponent>
+            )}
+
         </WidgetColumnTemplate>
     );
 }
