@@ -6,6 +6,7 @@ interface PaginatedCarouselViewProps {
   children: React.ReactNode[];
   rowHeight?: number;
   minColWidth?: number;
+  minCols?: number;
   maxCols?: number;
   maxRows?: number;
   className?: string;
@@ -15,6 +16,7 @@ export function PaginatedCarouselViewComponent({
   children,
   rowHeight = 90,
   minColWidth = 150,
+  minCols = 2,
   maxCols = 4,
   maxRows = 3,
   className,
@@ -47,7 +49,7 @@ export function PaginatedCarouselViewComponent({
       const perPage = finalRows * maxCols;
       const itemsOnPage = Math.min(perPage, children.length);
       computedCols = Math.min(computedCols, Math.ceil(itemsOnPage / finalRows));
-      setCols(computedCols);
+      setCols(computedCols > minCols ? computedCols : minCols);
     };
     calc();
     window.addEventListener("resize", calc);
