@@ -12,7 +12,6 @@ import { runComparisonRunner } from "./updates/comparison-runner";
 const fastify = Fastify({ logger: true });
 
 console.log("dashwise job runner is active")
-
 //connect to pocketbase
 getSuperuserPB().then(pb => {
   console.log("Connected to Pocketbase")
@@ -58,6 +57,7 @@ fastify.get("/webhook/statusMonitoringRunner", async (request, reply) => {
 });
 
 //update checks
+console.log("test")
 runComparisonRunner();
 cron.schedule(config.UPDATE_CHECK_SCHEDULE, () => runComparisonRunner());
 
