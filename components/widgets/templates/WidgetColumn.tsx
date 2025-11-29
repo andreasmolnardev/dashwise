@@ -18,7 +18,7 @@ export default function WidgetColumnTemplate({ children, className = "", title =
         {(title || iconUrl) && (
         <a
           href={url || "#"}
-          className="font-medium mb-1 grid grid-cols-[18px_1fr_16px] w-full text-start items-center gap-2.5"
+          className="font-medium mb-1 grid grid-cols-[18px_1fr_16px] w-full text-start items-center gap-2"
         >
           {iconUrl && (
             <img src={iconUrl} className="h-4 mx-0.5" />
