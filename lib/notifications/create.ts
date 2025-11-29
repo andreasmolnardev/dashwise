@@ -1,7 +1,7 @@
 import { getSuperuserPB } from "../pb";
 
 export async function createNotificationWithTopicToken(topicToken, content) {
-    const topicId = resolveTopicToken(topicToken);
+    const topicId = await resolveTopicToken(topicToken);
     if (!topicId) {
         return "";
     }
