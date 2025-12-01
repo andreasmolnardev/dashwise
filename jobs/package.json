@@ -25,6 +25,7 @@
     "fastify": "^5.6.1",
     "node-cron": "^4.2.1",
     "pocketbase": "^0.26.2",
+    "rss-parser": "^3.13.0",
     "semver": "^7.7.3"
   }
 }

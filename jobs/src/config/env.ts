@@ -9,6 +9,7 @@ export const config = {
   MONITORING_INDEXER_SCHEDULE: process.env.MONITORING_INDEXER_SCHEDULE || "*/10 * * * *",
   MONITORING_RUNNER_SCHEDULE: process.env.MONITORING_RUNNER_SCHEDULE || "*/1 * * * *",
   UPDATE_CHECK_SCHEDULE:  process.env.UPDATE_CHECK_SCHEDULE || "0 2 * * *",
+  FEED_BUILDING_SCHEDULE:  process.env.FEED_BUILDING_SCHEDULE || "0 30 * * *",
   ALLOW_SSL: processAllowSsl == "true" || processAllowSsl == "1",
   PB_ADMIN_EMAIL: process.env.PB_ADMIN_EMAIL!,
   PB_ADMIN_PASSWORD: process.env.PB_ADMIN_PASSWORD!,

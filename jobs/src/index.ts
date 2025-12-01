@@ -8,6 +8,7 @@ import { getSuperuserPB } from "./lib/pb";
 import indexStatusMonitoringJobs from "./monitoring/indexer";
 import { runStatusMonitoringJobs } from "./monitoring/runner";
 import { runComparisonRunner } from "./updates/comparison-runner";
+import { newsFeedBuilder } from "./news/feed-builder";
 
 const fastify = Fastify({ logger: true });
 
@@ -60,6 +61,10 @@ fastify.get("/webhook/statusMonitoringRunner", async (request, reply) => {
 console.log("test")
 runComparisonRunner();
 cron.schedule(config.UPDATE_CHECK_SCHEDULE, () => runComparisonRunner());
+
+newsFeedBuilder();
+cron.schedule(config.FEED_BUILDING_SCHEDULE, () => newsFeedBuilder());
+
 
 // Start http server
 fastify.listen({ port: 3001, host: "0.0.0.0" });
