@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerPB, getSuperuserPB } from "@/lib/pb";
+import { createNotificationWithTopicToken, resolveTopicToken } from "@/lib/notifications/create";
 
 export async function GET(req: NextRequest) {
     try {
@@ -121,40 +122,15 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "Missing topic token" }, { status: 401 });
         }
 
-        // --- 2. Lookup token in notificationTopicTokens using superuser
-        const _pocketbase = await getSuperuserPB();
+        const topicId = resolveTopicToken(token);
 
-        let tokenRecord: any = null;
-        try {
-            tokenRecord = await _pocketbase
-                .collection("notificationTopicTokens")
-                .getFirstListItem(`token="${token}"`);
-        } catch {
-            return NextResponse.json({ error: "Invalid or unknown topic token" }, { status: 401 });
-        }
-
-        // --- 3. Check expiration, resolve topic, create notification (same as before)
-        if (tokenRecord.expires) {
-            const exp = new Date(tokenRecord.expires);
-            if (!isNaN(exp.getTime()) && exp.getTime() < Date.now()) {
-                return NextResponse.json({ error: "Topic token expired" }, { status: 401 });
-            }
-        }
-
-        const topicId = tokenRecord.topic ?? tokenRecord.topicId ?? tokenRecord.topic?.id;
         if (!topicId) {
-            return NextResponse.json({ error: "Topic not found for token" }, { status: 400 });
+            return NextResponse.json({ ok: false, }, { status: 400 });
         }
 
-        // Create the notification item under the topic
-        const createdItem = await _pocketbase.collection("notificationItems").create({
-            topicId,
-            content: body,
-            status: "sent",
-            source: "token",
-        });
+        const createdNotificationId = createNotificationWithTopicToken(token, body);
 
-        return NextResponse.json({ ok: true, topicId, itemId: createdItem.id }, { status: 201 });
+        return NextResponse.json({ ok: true, topicId, itemId: createdNotificationId }, { status: 201 });
     } catch (err: any) {
         console.error("Error in POST /notifications via topic token", err);
         return NextResponse.json(

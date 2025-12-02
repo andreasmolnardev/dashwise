@@ -1,14 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
 import { v4 as uuidv4 } from "uuid";
 import { getServerPB } from "@/lib/pb";
+import { createNotificationWithTopicToken, resolveTopicToken } from "@/lib/notifications/create";
 
 export async function POST(
     req: NextRequest,
-    context: { params: Promise<{ topic: string }> }
+    context: { params: Promise<{ topic?: string }> }
 ) {
     try {
         const { topic } = await context.params;
         const body = await req.json();
+
+        if (topic) {
+            const topicId = resolveTopicToken(topic);
+
+            if (!topicId) {
+                return NextResponse.json({ ok: false, }, { status: 400 });
+            }
+
+            const createdNotificationId = createNotificationWithTopicToken(topic, body);
+
+            return NextResponse.json({ ok: true, topicId, itemId: createdNotificationId }, { status: 201 });
+        }
 
         if (!topic) {
             return NextResponse.json({ error: "Missing topic" }, { status: 400 });

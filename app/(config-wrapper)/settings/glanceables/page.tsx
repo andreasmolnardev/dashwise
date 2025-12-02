@@ -64,7 +64,7 @@ export default function GlanceablesSettingsPage() {
           value={selectedGlanceable}
           onValueChange={setSelectedGlanceable}
           asChild>
-          <PaginatedCarouselViewComponent>
+          <PaginatedCarouselViewComponent minCols={2}>
             <Label className="grid grid-rows-[2fr_1fr] justify-center items-center gap-1">
               <GlanceableComponent type={currentGlanceable.type} params={currentGlanceable.properties} className="frosted px-2 py-0.5 h-8 rounded-full" />
               <RadioGroupItem

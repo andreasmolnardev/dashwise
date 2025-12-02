@@ -13,12 +13,12 @@ interface WidgetColumnTemplateProps {
 
 export default function WidgetColumnTemplate({ children, className = "", title = "", url = "", iconUrl = "" }: WidgetColumnTemplateProps) {
   return (
-    <div className={`rounded-lg px-4 py-2 justify-center ${className} flex-col`}>
+    <div className={`rounded-lg p-2 justify-center ${className} flex-col`}>
 
         {(title || iconUrl) && (
         <a
           href={url || "#"}
-          className="font-medium mb-1 grid grid-cols-[18px_1fr_16px] w-full text-start items-center gap-2.5"
+          className="font-medium mb-1 grid grid-cols-[18px_1fr_16px] w-full text-start items-center gap-2"
         >
           {iconUrl && (
             <img src={iconUrl} className="h-4 mx-0.5" />

@@ -111,7 +111,7 @@ export default function SearchBar({ useRedirect, defaultOpen }: SearchBarProps) 
         <input
           type="text"
           data-slot="input"
-          className="w-full bg-transparent px-2 py-1.5 text-sm text-gray-900 dark:text-white placeholder-(--text-on-frosted) 
+          className="w-full bg-transparent px-2 py-1.5 text-sm text-gray-900 dark:text-white placeholder-(--text-on-frosted) hover:placeholder-(--text-color) 
                focus:outline-none"
           placeholder="Search..."
           onFocus={handleFocus}
