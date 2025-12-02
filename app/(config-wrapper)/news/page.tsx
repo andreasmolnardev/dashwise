@@ -1,5 +1,5 @@
+import NewsDashboardComponent from "@/components/news/NewsDashboard";
+
 export default function NewsPage(){
-    return (
-        "🚧 Soon to be Under construction!"
-    )
+    return <NewsDashboardComponent />
 }
