@@ -2,9 +2,16 @@ import { getServerPB } from '@/lib/pb';
 import { NextResponse } from 'next/server';
 import path from 'path';
 import { promises as fs } from 'fs';
+import config from '@/lib/config';
 
 export async function POST(request: Request) {
     try {
+        if (config.disableUserSignup) {
+           return new NextResponse(JSON.stringify({ error: 'Signup failed.' }), {
+                status: 401,
+                headers: { 'Content-Type': 'application/json' },
+            }); 
+        }
         const { name, email, password, passwordConfirm } = await request.json();
 
         if (!email || !password || !passwordConfirm) {
