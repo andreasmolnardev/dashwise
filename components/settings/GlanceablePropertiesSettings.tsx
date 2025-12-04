@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import GlanceableComponent, { GlanceableProps } from "@/components/glanceables/Glanceable";
 import glanceables from '@/public/glanceables.json'
 import { useConfig } from "@/context/ConfigContext";
+import { writeToConfig } from "@/lib/frontend/data/write";
 import { Input } from "../ui/input";
 import { Button } from "../ui/button";
 import { Checkbox } from "../ui/checkbox";
@@ -74,23 +75,13 @@ export default function GlanceablePropertiesSettingsComponent({
             };
 
             // 2) send PATCH to overwrite the glanceables path with our updated item
-            const patchRes = await fetch('/api/v1/config?path=glanceables', {
-                method: 'PATCH',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json',
+            await writeToConfig('glanceables', updatedGlanceables, {
+                token,
+                onSuccess: () => {
+                    setSaveSuccess('Saved glanceables successfully');
+                    refreshConfig();
                 },
-                body: JSON.stringify({ updatedItem: updatedGlanceables }),
             });
-
-            if (!patchRes.ok) {
-                const txt = await patchRes.text();
-                throw new Error(`Save failed: ${patchRes.status} ${txt}`);
-            }
-
-            setSaveSuccess('Saved glanceables successfully');
-
-            await refreshConfig();
         } catch (err: any) {
             console.error('Error saving glanceables:', err);
             setSaveError(err?.message ?? 'Failed to save glanceables');

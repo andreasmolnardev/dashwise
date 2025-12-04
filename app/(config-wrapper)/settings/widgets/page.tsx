@@ -3,6 +3,7 @@
 import { useMemo, useState, useEffect, useCallback } from "react";
 import WidgetComponent from "@/components/widgets/Widget";
 import { useConfig } from "@/context/ConfigContext";
+import { writeToConfig } from "@/lib/frontend/data/write";
 import WidgetCategoryFilters from "@/components/settings/widgets/WidgetCategoryFilters";
 import rawWidgetsData from "@/public/widgets.json";
 
@@ -83,11 +84,7 @@ export default function WidgetsSettingsPage() {
         const token = localStorage.getItem("pb_token");
         if (!token) throw new Error("Not authenticated");
 
-        await fetch("/api/v1/config?path=widgets", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ updatedItem: zones }),
-        });
+        await writeToConfig("widgets", zones, { token });
         await refreshConfig();
       } catch (err) {
         console.error(err);

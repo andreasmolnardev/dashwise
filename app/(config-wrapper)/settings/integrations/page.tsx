@@ -5,6 +5,7 @@ import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { useConfig } from "@/context/ConfigContext";
+import { writeToConfig } from "@/lib/frontend/data/write";
 
 type Integration = {
   name: string;
@@ -37,14 +38,7 @@ export default function IntegrationsSettingsPage() {
     setActiveIntegrations(updated);
 
     try {
-      await fetch(`/api/v1/config?path=integrations.${name}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("pb_token")}`,
-        },
-        body: JSON.stringify({ updatedItem: props }),
-      });
+      await writeToConfig(`integrations.${name}`, props);
     } catch (err) {
       console.error("Failed to update integration config:", err);
     }
@@ -52,14 +46,7 @@ export default function IntegrationsSettingsPage() {
 
   async function updatePages(pages: string[]) {
     try {
-      await fetch(`/api/v1/config?path=pages`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("pb_token")}`,
-        },
-        body: JSON.stringify({ updatedItem: pages }),
-      });
+      await writeToConfig("pages", pages);
     } catch (err) {
       console.error("Failed to update pages config:", err);
     }
