@@ -6,7 +6,8 @@
         },
         {
             "name": "News",
-            "description": "Receive alerts via topic-based PUSH requests"
+            "description": "Receive alerts via topic-based PUSH requests",
+            "page": "news"
         }
     ],
     "bookmarks": [
