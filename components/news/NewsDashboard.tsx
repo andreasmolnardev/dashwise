@@ -5,17 +5,22 @@ import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faArrowLeft } from "@fortawesome/free-solid-svg-icons";
-import PagesTabs from "../PagesTabs";
+import { faArrowLeft, faEllipsisVertical } from "@fortawesome/free-solid-svg-icons";
+
+interface Subscription {
+  name: string;
+  icon?: string;
+}
+
 
 export default function NewsDashboardComponent(
     children: React.PropsWithChildren<{}> = {}
 ) {
     const { config } = useConfig();
     const router = useRouter();
-    const searchParams = useSearchParams();
 
     const [feed, setFeed] = useState<Record<string, any[]> | null>(null);
+    const [subscriptions, setSubscriptions] = useState<Subscription[] | null>(null);
     const [expanded, setExpanded] = useState<Record<string, boolean>>({});
     const [limit, setLimit] = useState<Record<string, number>>({});
 
@@ -50,6 +55,7 @@ export default function NewsDashboardComponent(
 
             const data = await res.json();
             setFeed(data.feed);
+            setSubscriptions(data.subscriptions);
         }
 
         load();
@@ -72,8 +78,25 @@ export default function NewsDashboardComponent(
         }));
     };
 
+
+    const getIconUrl = (name) => {
+        if (!subscriptions) {
+            return "";
+        }
+        
+        const subscription = subscriptions.find(s => s.name === name);
+
+        if (subscription) {
+            return subscription.icon ?? "";
+        }
+    }
+
     return (
-        <div className="grid grid-rows-[1fr_36px] h-dvh pt-5 md:p-3.5 p-0 overflow-x-hidden text-(--surface-foreground) bg-(--surface)">
+        <div className="grid grid-rows-[36px_1fr_36px] h-dvh pt-5 md:p-3.5 p-0 overflow-x-hidden text-(--surface-foreground) bg-(--surface)">
+            <header className="flex gap-2 items-center">
+                <img src="/dashwise-icon.png" alt="" className="h-[36px]" />
+                <span className="font-semibold">News</span>
+            </header>
             <main
                 id="page-content-container"
                 className="
@@ -97,19 +120,19 @@ export default function NewsDashboardComponent(
                                     {/* Category header */}
                                     <button
                                         onClick={() => toggleCategory(category)}
-                                        className="w-full flex justify-between font-semibold text-lg py-1"
+                                        className="w-full flex justify-between font-semibold text-lg py-1 px-3"
                                     >
                                         <span>{category}</span>
                                         <span>
                                             {expanded[category]
-                                                ? "–"
-                                                : "+"}
+                                                ? "– Collapse"
+                                                : "+ Expand"}
                                         </span>
                                     </button>
 
                                     {/* Articles list */}
                                     {expanded[category] && (
-                                        <div className="mt-3 space-y-3">
+                                        <div className="space-y-1.5">
                                             {articles
                                                 .slice(0, limit[category] ?? 10)
                                                 .map((item, idx) => (
@@ -124,10 +147,10 @@ export default function NewsDashboardComponent(
                                                                 src={
                                                                     item.thumbnailUrl
                                                                 }
-                                                                className="w-20 h-20 object-cover rounded-2xl"
+                                                                className="my-2 h-30 object-cover rounded-xl self-center"
                                                             />
                                                         ) : (
-                                                            <div className="frosted h-full rounded-2xl">
+                                                            <div className="my-2 h-30 frosted rounded-xl self-center">
                                                             </div>
                                                         )}
 
@@ -143,28 +166,24 @@ export default function NewsDashboardComponent(
 
                                                             {item.source && (
                                                                 <p className="text-xs opacity-60 mt-1">
+
+                                                                    {item.source && (
+                                                                        <p className="text-xs mt-1 flex items-center">
+                                                                            {getIconUrl(item.source) && <img src={getIconUrl(item.source)} alt={item.source} className="h-4" />}
+                                                                            {item.source + (item.author ? ` • ${item.author}` : "")}
+                                                                        </p>
+                                                                    )}
+                                                                </p>
+                                                            )}
+
+                                                            {item.description && (
+                                                                <p className="text-sm opacity-80 line-clamp-2 mt-1">
                                                                     {
-                                                                        item.source
+                                                                        item.description
                                                                     }
                                                                 </p>
                                                             )}
 
-                                                            {item.summary && (
-                                                                <p className="text-sm opacity-80 line-clamp-3 mt-1">
-                                                                    {
-                                                                        item.summary
-                                                                    }
-                                                                </p>
-                                                            )}
-
-                                                            {item.author && (
-                                                                <p className="text-xs opacity-60 mt-1">
-                                                                    by{" "}
-                                                                    {
-                                                                        item.author
-                                                                    }
-                                                                </p>
-                                                            )}
                                                         </div>
                                                     </div>
                                                 ))}
@@ -199,11 +218,8 @@ export default function NewsDashboardComponent(
             </main>
 
             {/* FOOTER */}
-            <div className="grid grid-cols-[1fr_auto_180px] items-center" id="page-footer">
+            <div className="flex justify-between items-center" id="page-footer">
                 <div id="app-details" className="flex items-center gap-2">
-                    <img src="/dashwise-icon.png" alt="" className="h-[36px]" />
-                    <span className="font-semibold">News</span>
-
                     <Link
                         href="/"
                         className="frosted flex gap-2 items-center p-1.5 rounded-full text-sm group"
@@ -213,13 +229,11 @@ export default function NewsDashboardComponent(
                     </Link>
                 </div>
 
-                <PagesTabs />
-
                 <Link
-                    href="/manage-feeds"
+                    href="/news/manage-feeds"
                     className="frosted flex gap-2 items-center p-1.5 rounded-full text-sm group"
                 >
-                    <FontAwesomeIcon icon={faArrowLeft} />
+                    <FontAwesomeIcon icon={faEllipsisVertical} />
                     Manage subscriptions
                 </Link>
             </div>

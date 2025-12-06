@@ -1,4 +1,5 @@
 import Parser from 'rss-parser';
+import { JSDOM } from 'jsdom';
 
 export interface FeedItem {
     title: string;
@@ -7,6 +8,8 @@ export interface FeedItem {
     isoDate?: string;
     content?: string;
     thumbnailUrl?: string;
+    description?: string;
+    summary?: string;
     [key: string]: any;
 }
 
@@ -31,6 +34,7 @@ export async function getFeedItems({
                 ['dc:date', 'pubDate'],
                 ['media:thumbnail', 'media:thumbnail'],
                 ['enclosure', 'enclosure'],
+                ['content:encoded', 'content:encoded']
             ]
         }
     });
@@ -45,6 +49,9 @@ export async function getFeedItems({
         const formattedItems = feed.items
             .map((item: ParserItem) => {
                 const dateString = item.isoDate || item.pubDate;
+
+                // make description fallback: if no description but there's a summary, use summary
+                const descriptionText = item.description || item.summary || undefined;
 
                 let thumbnailUrl = '';
 
@@ -61,12 +68,23 @@ export async function getFeedItems({
                         thumbnailUrl = item.enclosure.url;
                     }
                 }
+
+                // fallback: scan content, content:encoded, description, summary (in that order) for an <img>
+                if (!thumbnailUrl) {
+                    const htmlToScan = getHtmlContent(item) ?? descriptionText;
+                    const found = extractImageFromHtml(htmlToScan);
+                    if (found) thumbnailUrl = found;
+                }
+
                 return {
                     ...item,
                     title: item.title || 'No Title',
                     link: item.link || '',
+                    description: item.description || item.summary || (getHtmlContent(item) ?? item.content) as string || undefined,
+                    content: (getHtmlContent(item) ?? item.content) as string | undefined,
                     pubDate: dateString ? new Date(dateString) : new Date(),
                     thumbnailUrl: thumbnailUrl || undefined,
+                    author: item.author || item.creator || undefined,
                     source: feedName
                 } as FeedItem;
             })
@@ -78,4 +96,26 @@ export async function getFeedItems({
         console.error(`Error fetching or parsing feed: ${feedUrl}`, error.message);
         return [];
     }
+}
+
+// get HTML content string from various fields ---
+function getHtmlContent(item: ParserItem): string | undefined {
+    // rss-parser sometimes provides content as string, sometimes as object { _ : 'html' } for XML
+    const contentDescription = item.content ?? (item['content:encoded'] ?? item.description ?? item.summary);
+    if (!contentDescription) return undefined;
+    if (typeof contentDescription === 'string') return contentDescription;
+    // object with _ property
+    if ((contentDescription as any)._ && typeof (contentDescription as any)._ === 'string') {
+        return (contentDescription as any)._;
+    }
+    return String(contentDescription);
+}
+// --- helper: extract first image URL from an HTML string ---
+function extractImageFromHtml(html?: string): string | undefined {
+    if (!html) return undefined;
+    const dom = new JSDOM(html);
+    const doc = dom.window.document;
+    const img = doc.querySelector('img');
+    if (!img) return undefined;
+    return img.getAttribute('src') || img.getAttribute('data-src') || img.getAttribute('data-original') || undefined;
 }
