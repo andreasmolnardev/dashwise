@@ -223,7 +223,7 @@ export default function NewsDashboardComponent(
             <div className="flex justify-between items-center" id="page-footer">
                 <div id="app-details" className="flex items-center gap-2">
                     <Link
-                        href="/"
+                        href="/home"
                         className="frosted flex gap-2 items-center p-1.5 rounded-full text-sm group"
                     >
                         <FontAwesomeIcon icon={faArrowLeft} />
