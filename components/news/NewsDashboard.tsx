@@ -5,11 +5,12 @@ import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faArrowLeft, faEllipsisVertical } from "@fortawesome/free-solid-svg-icons";
+import { faArrowLeft, faCaretDown, faEllipsisVertical } from "@fortawesome/free-solid-svg-icons";
+import { Button } from "../ui/button";
 
 interface Subscription {
-  name: string;
-  icon?: string;
+    name: string;
+    icon?: string;
 }
 
 
@@ -83,7 +84,7 @@ export default function NewsDashboardComponent(
         if (!subscriptions) {
             return "";
         }
-        
+
         const subscription = subscriptions.find(s => s.name === name);
 
         if (subscription) {
@@ -101,7 +102,7 @@ export default function NewsDashboardComponent(
                 id="page-content-container"
                 className="
                     flex snap-x snap-mandatory overflow-x-auto touch-pan-x scrollbar-hide md:overflow-hidden
-                    md:grid md:grid-cols-[2fr_1fr] gap-2
+                    gap-2 px-25
                 "
             >
                 {/* LEFT PANEL */}
@@ -147,7 +148,7 @@ export default function NewsDashboardComponent(
                                                                 src={
                                                                     item.thumbnailUrl
                                                                 }
-                                                                className="my-2 h-30 object-cover rounded-xl self-center"
+                                                                className="my-2 h-30 object-cover rounded-xl self-center w-full max-w-52"
                                                             />
                                                         ) : (
                                                             <div className="my-2 h-30 frosted rounded-xl self-center">
@@ -165,14 +166,9 @@ export default function NewsDashboardComponent(
                                                             </a>
 
                                                             {item.source && (
-                                                                <p className="text-xs opacity-60 mt-1">
-
-                                                                    {item.source && (
-                                                                        <p className="text-xs mt-1 flex items-center">
-                                                                            {getIconUrl(item.source) && <img src={getIconUrl(item.source)} alt={item.source} className="h-4" />}
-                                                                            {item.source + (item.author ? ` • ${item.author}` : "")}
-                                                                        </p>
-                                                                    )}
+                                                                <p className="text-xs mt-1 flex items-center gap-1">
+                                                                    {getIconUrl(item.source) && <img src={getIconUrl(item.source)} alt={item.source} className="h-4" />}
+                                                                    {item.source + (item.author ? ` • ${item.author}` : "")}
                                                                 </p>
                                                             )}
 
@@ -191,14 +187,17 @@ export default function NewsDashboardComponent(
                                             {/* Show more button */}
                                             {limit[category] <
                                                 articles.length && (
-                                                    <button
-                                                        onClick={() =>
-                                                            showMore(category)
-                                                        }
-                                                        className="w-full py-2 text-sm rounded-lg bg-(--primary) text-white hover:opacity-90"
-                                                    >
-                                                        Show 10 more
-                                                    </button>
+                                                    <div className="flex justify-center">
+                                                        <Button
+                                                            onClick={() =>
+                                                                showMore(category)
+                                                            }
+                                                            variant="ghost"
+                                                            className="text-lg"
+                                                        >
+                                                            <FontAwesomeIcon icon={faCaretDown} /> Show 10 more
+                                                        </Button>
+                                                    </div>
                                                 )}
                                         </div>
                                     )}
@@ -207,14 +206,17 @@ export default function NewsDashboardComponent(
                     </section>
                 </div>
 
-                {/* RIGHT PANEL (empty for now) */}
-                <div
+                {/* RIGHT PANEL (empty for now)
+                
+                 <div
                     id="right-news-panel"
                     className="flex-shrink-0 w-screen snap-start md:w-auto md:flex-grow space-y-3.5 overflow-y-auto min-w-0"
                     style={{ scrollSnapStop: "always", touchAction: "pan-x" }}
                 >
                     Right news panel here, empty for now
                 </div>
+            */}
+
             </main>
 
             {/* FOOTER */}
