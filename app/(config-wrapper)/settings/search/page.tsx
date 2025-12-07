@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
+import { writeToConfig } from "@/lib/frontend/data/write";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -37,18 +38,7 @@ export default function SearchSettingsPage() {
     try {
       const token = localStorage.getItem("pb_token");
       if (!token) throw new Error("Not authenticated");
-      const res = await fetch(`/api/v1/config?path=searchEngines`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ updatedItem: updated }),
-      });
-      if (!res.ok) {
-        const j = await res.json().catch(() => ({}));
-        throw new Error(j?.error || `Request failed: ${res.status}`);
-      }
+      await writeToConfig(`searchEngines`, updated, { token });
       // refresh authoritative config on success
       await refreshConfig();
     } catch (err) {

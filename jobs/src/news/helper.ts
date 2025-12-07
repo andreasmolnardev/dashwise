@@ -1,69 +1,125 @@
 import Parser from 'rss-parser';
+import { JSDOM } from 'jsdom';
 
-// --- Type Definition ---
-// Structure for a single item from an RSS feed
 export interface FeedItem {
     title: string;
     link: string;
-    pubDate: Date; // The JS Date object for sorting
-    isoDate?: string; // The original string, for reference
+    pubDate: Date;
+    isoDate?: string;
     content?: string;
-    [key: string]: any; // Allow other properties
+    thumbnailUrl?: string;
+    description?: string;
+    summary?: string;
+    [key: string]: any;
 }
 
-// Define the expected structure of an item parsed by the RSS parser.
-// This allows us to explicitly type the 'item' parameter in the map function.
-type ParserItem = Parser.Item & FeedItem; 
+type ParserItem = Parser.Item & FeedItem & {
+    'media:thumbnail'?: { $: { url: string } } | string;
+    enclosure?: { url: string; type: string };
+};
 
-/**
- * Fetches and parses an RSS/Atom feed from a given URL.
- *
- * @param feedUrl The URL of the RSS/Atom feed to fetch.
- * @param maxItems The maximum number of items to return from the feed.
- * @returns A promise that resolves to an array of FeedItem objects.
- */
-export async function getFeedItems(feedUrl: string, maxItems: number = 100): Promise<FeedItem[]> {
-    // Instantiate the parser, using 'any' for the feed object type and FeedItem for the item type.
+export async function getFeedItems({
+    feedUrl,
+    maxItems = 100,
+    feedName,
+}: {
+    feedUrl: string;
+    maxItems?: number;
+    feedName?: string | undefined;
+}): Promise<FeedItem[]> {
     const parser = new Parser<any, FeedItem>({
         customFields: {
             item: [
-                ['pubDate', 'pubDate'], // Standard RSS
-                ['dc:date', 'pubDate'], // Dublin Core date
+                ['pubDate', 'pubDate'],
+                ['dc:date', 'pubDate'],
+                ['media:thumbnail', 'media:thumbnail'],
+                ['enclosure', 'enclosure'],
+                ['content:encoded', 'content:encoded']
             ]
         }
     });
 
     try {
-        // Fetch and parse the feed
         const feed = await parser.parseURL(feedUrl);
 
         if (!feed.items || feed.items.length === 0) {
             return [];
         }
 
-        // Map items to our FeedItem structure and ensure pubDate is a Date object
         const formattedItems = feed.items
-            // FIX 1: Explicitly type 'item' for .map()
             .map((item: ParserItem) => {
-                // rss-parser provides isoDate, which is reliable for creating a Date
                 const dateString = item.isoDate || item.pubDate;
-                
-                // The return value of this map is a FeedItem
+
+                // make description fallback: if no description but there's a summary, use summary
+                const descriptionText = item.description || item.summary || undefined;
+
+                let thumbnailUrl = '';
+
+                if (item['media:thumbnail']) {
+                    if (typeof item['media:thumbnail'] === 'object' && item['media:thumbnail'].$) {
+                        thumbnailUrl = item['media:thumbnail'].$.url;
+                    } else if (typeof item['media:thumbnail'] === 'string') {
+                        thumbnailUrl = item['media:thumbnail'];
+                    }
+                }
+
+                if (!thumbnailUrl && item.enclosure && item.enclosure.url) {
+                    if (item.enclosure.type && item.enclosure.type.startsWith('image/')) {
+                        thumbnailUrl = item.enclosure.url;
+                    }
+                }
+
+                // fallback: scan content, content:encoded, description, summary (in that order) for an <img>
+                if (!thumbnailUrl) {
+                    const htmlToScan = getHtmlContent(item) ?? descriptionText;
+                    const found = extractImageFromHtml(htmlToScan);
+                    if (found) thumbnailUrl = found;
+                }
+
+                if (!thumbnailUrl && (feed as any).image && (feed as any).image.url) {
+                    thumbnailUrl = (feed as any).image.url;
+                }
+
                 return {
                     ...item,
                     title: item.title || 'No Title',
                     link: item.link || '',
-                    pubDate: dateString ? new Date(dateString) : new Date(), // Create Date object
-                } as FeedItem; // Cast the result to the desired type
+                    description: item.description || item.summary || (getHtmlContent(item) ?? item.content) as string || undefined,
+                    content: (getHtmlContent(item) ?? item.content) as string | undefined,
+                    pubDate: dateString ? new Date(dateString) : new Date(),
+                    thumbnailUrl: thumbnailUrl || undefined,
+                    author: item.author || item.creator || undefined,
+                    source: feedName
+                } as FeedItem;
             })
-            // FIX 2: Explicitly type 'item' for .filter(), which is the source of the TS7006 error on line 60.
             .filter((item: FeedItem) => item.pubDate instanceof Date && !isNaN(item.pubDate.getTime()));
-        
-        // Return the items, respecting the maxItems limit
+
         return formattedItems.slice(0, maxItems);
 
     } catch (error: any) {
         console.error(`Error fetching or parsing feed: ${feedUrl}`, error.message);
         return [];
     }
+}
+
+// get HTML content string from various fields ---
+function getHtmlContent(item: ParserItem): string | undefined {
+    // rss-parser sometimes provides content as string, sometimes as object { _ : 'html' } for XML
+    const contentDescription = item.content ?? (item['content:encoded'] ?? item.description ?? item.summary);
+    if (!contentDescription) return undefined;
+    if (typeof contentDescription === 'string') return contentDescription;
+    // object with _ property
+    if ((contentDescription as any)._ && typeof (contentDescription as any)._ === 'string') {
+        return (contentDescription as any)._;
+    }
+    return String(contentDescription);
+}
+// --- helper: extract first image URL from an HTML string ---
+function extractImageFromHtml(html?: string): string | undefined {
+    if (!html) return undefined;
+    const dom = new JSDOM(html);
+    const doc = dom.window.document;
+    const img = doc.querySelector('img');
+    if (!img) return undefined;
+    return img.getAttribute('src') || img.getAttribute('data-src') || img.getAttribute('data-original') || undefined;
 }

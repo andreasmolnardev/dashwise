@@ -1,14 +1,6 @@
 import { getSuperuserPB } from "../lib/pb";
-import { getFeedItems } from "./helper";
+import { FeedItem, getFeedItems } from "./helper";
 import PocketBase from "pocketbase";
-
-// --- Type Definitions ---
-interface FeedItem {
-  title: string;
-  link: string;
-  pubDate: Date;
-  [key: string]: any;
-}
 
 interface Subscription {
   category: string;
@@ -23,7 +15,6 @@ interface NewsFeedRecord {
   [k: string]: any;
 }
 
-// --- Job Function ---
 export async function newsFeedBuilder(): Promise<{
   processed: number;
   skipped: number;
@@ -76,7 +67,7 @@ export async function newsFeedBuilder(): Promise<{
       }
 
       try {
-        const feedItems = await getFeedItems(sub.feedUrl, maxItemsPerFeed) as FeedItem[];
+        const feedItems = await getFeedItems({feedUrl: sub.feedUrl, maxItems: maxItemsPerFeed, feedName: sub.name}) as FeedItem[];
         if (!newFeedData[sub.category]) {
           newFeedData[sub.category] = [];
         }
@@ -96,7 +87,7 @@ export async function newsFeedBuilder(): Promise<{
 
     // Sort and trim per category
     for (const category in newFeedData) {
-      const items = newFeedData[category]!; // safe, we initialized above
+      const items = newFeedData[category]!;
       items.sort((a, b) => {
         const timeA = a.pubDate?.getTime() || 0;
         const timeB = b.pubDate?.getTime() || 0;

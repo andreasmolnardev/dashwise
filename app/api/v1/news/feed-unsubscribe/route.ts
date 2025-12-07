@@ -1,13 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerPB, getSuperuserPB } from "@/lib/pb";
 
-interface SubscribeRequestBody {
+interface UnsubscribeRequestBody {
     feedUrl: string;
-    name?: string;
-    icon?: string;
-    category?: string;
 }
-
 
 export async function POST(req: NextRequest) {
     try {
@@ -38,19 +34,15 @@ export async function POST(req: NextRequest) {
 
         const superPb = await getSuperuserPB();
 
-        if (!body.icon) {
-            //TODO: try to get icon from rss feed
-        }
-
         // await db call
-        await addNewsFeed(superPb, userId, body);
+        await removeNewsFeed(superPb, userId, body);
 
         return NextResponse.json(
-            { message: "Feed successfully subscribed." },
-            { status: 201 }
+            { message: "Feed successfully unsubscribed." },
+            { status: 200 }
         );
     } catch (err: any) {
-        console.error("Error in POST /api/subscribe:", err);
+        console.error("Error in POST /api/news/feed-unsubscribe:", err);
         return NextResponse.json(
             { error: "Internal Server Error", details: String(err?.message ?? err) },
             { status: 500 }
@@ -62,7 +54,7 @@ function escapeFilter(str: string) {
     return str.replace(/"/g, '\\"');
 }
 
-async function validateBody(req: NextRequest): Promise<SubscribeRequestBody> {
+async function validateBody(req: NextRequest): Promise<UnsubscribeRequestBody> {
     let json: any;
 
     try {
@@ -81,16 +73,13 @@ async function validateBody(req: NextRequest): Promise<SubscribeRequestBody> {
 
     return {
         feedUrl: json.feedUrl,
-        name: json.name ?? "",
-        icon: json.icon ?? "",
-        category: json.category ?? "",
     };
 }
 
-async function addNewsFeed(
+async function removeNewsFeed(
     pb: any,
     userId: string,
-    sub: SubscribeRequestBody
+    req: UnsubscribeRequestBody
 ) {
     const filter = `userId="${escapeFilter(userId)}"`;
 
@@ -100,11 +89,7 @@ async function addNewsFeed(
         record = await pb.collection("newsFeeds").getFirstListItem(filter);
     } catch (e: any) {
         if (e?.status === 404) {
-            // No record → create new one
-            return pb.collection("newsFeeds").create({
-                userId,
-                subscriptions: [sub],
-            });
+            throw new Error("No feeds found");
         }
         throw e;
     }
@@ -115,13 +100,12 @@ async function addNewsFeed(
         )
         : [];
 
-    const exists = current.some((x) => x.feedUrl === sub.feedUrl);
-    if (!exists) {
-        current.push(sub);
-        await pb.collection("newsFeeds").update(record.id, {
-            subscriptions: current,
-        });
-    }
+    // Remove the feed
+    current = current.filter((x) => x.feedUrl !== req.feedUrl);
+
+    await pb.collection("newsFeeds").update(record.id, {
+        subscriptions: current,
+    });
 
     return record;
 }

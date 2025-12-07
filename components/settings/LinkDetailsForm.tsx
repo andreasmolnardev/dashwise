@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@radix-ui/react-label";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
+import { writeToConfig } from "@/lib/frontend/data/write";
 import {
   Select,
   SelectContent,
@@ -129,21 +130,12 @@ export default function LinkDetailsForm({ link, onClose, preselectOpenedGroup }:
         (payload as any).statusCheck = true;
       }
 
-      let res: Response;
-
       if (isEditing) {
         const updatedLinks = links.map((l: LinkObject) => l.url === link?.url ? payload : l);
 
-        res = await fetch("/api/v1/config?path=links", {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ updatedItem: updatedLinks }),
-        });
+        await writeToConfig("links", updatedLinks, { token });
       } else {
-        res = await fetch("/api/v1/config?path=links", {
+        const res = await fetch("/api/v1/config?path=links", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -151,10 +143,10 @@ export default function LinkDetailsForm({ link, onClose, preselectOpenedGroup }:
           },
           body: JSON.stringify({ newItem: payload }),
         });
-      }
 
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Failed to save link");
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error || "Failed to save link");
+      }
 
       // Call onClose after successful save
       if (onClose) await onClose();

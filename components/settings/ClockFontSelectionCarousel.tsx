@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { PaginatedCarouselViewComponent } from "../widgets/PaginatedCarouselView";
 import { useConfig } from "@/context/ConfigContext";
 import { loadFont } from "@/lib/loadFont";
+import { writeToConfig } from "@/lib/frontend/data/write";
 
 type FontEntry = {
   name: string;
@@ -68,7 +69,7 @@ export default function ClockFontSelectionCarousel() {
     const valueForConfig = font.name === "Default" ? null : font.name;
 
     // Build updated appearance by shallow-merging existing appearance
-    const currentAppearance = (config && config.appearance) ? config.appearance : {};
+    const currentAppearance = config?.appearance ?? {};
     const updatedAppearance = {
       ...currentAppearance,
       clock: {
@@ -77,35 +78,19 @@ export default function ClockFontSelectionCarousel() {
       },
     };
 
-    // Read pb_token for auth (still stored client-side per your earlier setup)
-    const pbToken = typeof window !== "undefined" ? localStorage.getItem("pb_token") : null;
-
     // Optimistically update UI so the chosen card highlights immediately
     setSelected(font.name);
 
     try {
-      const res = await fetch("/api/v1/config?path=appearance", {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          ...(pbToken ? { Authorization: `Bearer ${pbToken}` } : {}),
-        },
-        body: JSON.stringify({ updatedItem:updatedAppearance }),
-      });
+      // Persist to server
+      await writeToConfig("appearance", updatedAppearance);
 
-      if (!res.ok) {
-        // non-blocking error path: log and optionally revert (we keep optimistic UX)
-        console.error("Failed to update config:", await res.text());
-      } else {
-        // ask the app to refresh its config so other components pick up the change
-        try {
-          await refreshConfig?.();
-        } catch (e) {
-          console.warn("refreshConfig failed:", e);
-        }
+      // Refresh app config if a refresh function is available
+      if (refreshConfig) {
+        await refreshConfig();
       }
-    } catch (e) {
-      console.error("Error while calling config PATCH:", e);
+    } catch (err) {
+      console.error("Failed to update appearance config:", err);
     }
   };
 
@@ -124,11 +109,10 @@ export default function ClockFontSelectionCarousel() {
           <button
             key={font.name}
             onClick={() => handleSelect(font)}
-            className={`rounded-xl p-4 text-center transition-all border-2 ${
-              selected === font.name
+            className={`rounded-xl p-4 text-center transition-all border-2 ${selected === font.name
                 ? "border-[var(--primary)] shadow-lg"
                 : "border-transparent hover:border-[var(--primary)]/50"
-            }`}
+              }`}
           >
             <div
               className="text-4xl font-semibold leading-none"

@@ -5,6 +5,7 @@ services:
     ports:
       - "3016:3000"
     restart: unless-stopped
+    env_file: ./.env
 
   pocketbase:
     build: ./pocketbase

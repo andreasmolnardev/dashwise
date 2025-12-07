@@ -1,19 +1,23 @@
-interface Config{
-    app_base_url: string;
-    pb_url: string;
-    default_bg_url: string;
-    version: string;
-    allowInsecureCertsForIntegrationUrls: boolean;
-    enableSSO: boolean;
-    pbAdminEmail: string;
-    pbAdminPassword: string;
+interface Config {
+  app_base_url: string;
+  pb_url: string;
+  default_bg_url: string;
+  version: string;
+  allowInsecureCertsForIntegrationUrls: boolean;
+  enableSSO: boolean;
+  pbAdminEmail: string;
+  pbAdminPassword: string;
+  disableUserSignup: boolean;
 }
 const allowInsecureCertsForIntegrationUrls =
   process.env.NEXT_PUBLIC_INTEGRATIONS_ENABLE_SSL === 'true' ||
   process.env.NEXT_PUBLIC_INTEGRATIONS_ENABLE_SSL === '1';
 
-const enableSSOLogin = 
+const enableSSOLogin =
   process.env.NEXT_PUBLIC_ENABLE_SSO === 'true' || process.env.NEXT_PUBLIC_ENABLE_SSO === '1' || false;
+
+const disableUserSignup =
+  process.env.NEXT_PUBLIC_DISABLE_USER_SIGNUP === 'true' || process.env.NEXT_PUBLIC_DISABLE_USER_SIGNUP === '1' || false;
 
 const config: Config = {
   app_base_url: process.env.NEXT_PUBLIC_APP_URL || 'http://dashwise:3000',
@@ -23,7 +27,8 @@ const config: Config = {
   allowInsecureCertsForIntegrationUrls: allowInsecureCertsForIntegrationUrls || false,
   enableSSO: enableSSOLogin,
   pbAdminEmail: process.env.PB_ADMIN_EMAIL || "",
-  pbAdminPassword: process.env.PB_ADMIN_PASSWORD || ""
+  pbAdminPassword: process.env.PB_ADMIN_PASSWORD || "",
+  disableUserSignup: disableUserSignup
 };
 
 export default config;

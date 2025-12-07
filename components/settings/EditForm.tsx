@@ -8,6 +8,7 @@ import {
   faTrash,
   faArrowRightArrowLeft,
   faPlus,
+  faCaretDown,
 } from "@fortawesome/free-solid-svg-icons";
 
 import {
@@ -88,6 +89,7 @@ type Props<T extends Record<string, any>> = {
   renderAddItem?: (groupName: string, onAdded: (item: T) => void, onCancel: () => void) => React.ReactNode;
   renderEditItem?: (item: T, onSaved: (updated: T) => void, onCancel: () => void) => React.ReactNode;
   iconRounded?: boolean; // default true; if false icons are NOT round
+  enableMoveMode?: boolean; // default true; set false to completely disable move mode UI
 };
 
 
@@ -120,6 +122,7 @@ export default function EditFormComponent<T extends Record<string, any>>(props: 
     renderAddItem,
     renderEditItem,
     iconRounded = true,
+    enableMoveMode = true,
   } = props;
   const { initialGroup } = props as any;
 
@@ -597,6 +600,7 @@ export default function EditFormComponent<T extends Record<string, any>>(props: 
         isDirty={isDirty}
         onSave={handleSave}
         onCancel={handleCancel}
+        enableMoveMode={enableMoveMode}
       />
 
       {currentGroup ? (
@@ -706,10 +710,10 @@ const GroupTab: React.FC<{
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button
-            className={`pr-2 py-1 ${isActive ? "bg-white/20" : "bg-transparent"} text-sm rounded-r-full`}
+            className={`pr-2 py-1 ${isActive ? "bg-white/20" : "bg-transparent"} text-sm rounded-r-full hover:text-(--primary)`}
             title={`Actions for ${groupName}`}
           >
-            <FontAwesomeIcon icon={faEllipsisV} className="text-xs" />
+            <FontAwesomeIcon icon={faCaretDown} className="text-xs" />
           </button>
         </DropdownMenuTrigger>
 
@@ -722,14 +726,6 @@ const GroupTab: React.FC<{
 
             <DropdownMenuItem onSelect={onDelete}>
               <FontAwesomeIcon icon={faTrash} className="mr-2" /> Delete
-            </DropdownMenuItem>
-          </DropdownMenuGroup>
-
-          <DropdownMenuSeparator />
-
-          <DropdownMenuGroup>
-            <DropdownMenuItem onSelect={onCreateGroup}>
-              <FontAwesomeIcon icon={faPlus} className="mr-2" /> New group
             </DropdownMenuItem>
           </DropdownMenuGroup>
         </DropdownMenuContent>
@@ -759,6 +755,7 @@ const ModeAndTabsBar: React.FC<{
   isDirty: boolean;
   onSave: () => void;
   onCancel: () => void;
+  enableMoveMode: boolean;
 }> = (props) => {
   const {
     switchBetweenModes,
@@ -778,13 +775,16 @@ const ModeAndTabsBar: React.FC<{
     isDirty,
     onSave,
     onCancel,
+    enableMoveMode,
   } = props;
+
+  const showModeSwitch = switchBetweenModes && enableMoveMode;
 
   return (
     <div className="w-full flex items-center justify-between gap-3 my-4">
       {/* Left: Mode selector */}
-      {switchBetweenModes && (
-        <Select value={mode} onValueChange={(val) => onSetMode(val as "edit" | "move")}>
+      {showModeSwitch && (
+        <Select value={mode} onValueChange={(val) => onSetMode(val as "edit" | "move") }>
           <SelectTrigger className="w-32">
             <SelectValue />
           </SelectTrigger>

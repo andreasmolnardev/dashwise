@@ -8,6 +8,7 @@ import { Separator } from "@/components/ui/separator";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import IconPickerComponent from "@/components/settings/IconPicker";
 import { useConfig } from "@/context/ConfigContext";
+import { writeToConfig } from "@/lib/frontend/data/write";
 
 import {
     Select,
@@ -125,17 +126,7 @@ export default function SearchEngineDetailsForm({
                     s.slug === engine!.slug ? payloadEngine : s
                 );
 
-                const res = await fetch(`/api/v1/config?path=searchEngines`, {
-                    method: "PATCH",
-                    headers: {
-                        "Content-Type": "application/json",
-                        Authorization: `Bearer ${token}`,
-                    },
-                    body: JSON.stringify({ updatedItem: updated }),
-                });
-
-                const json = await res.json().catch(() => ({}));
-                if (!res.ok) throw new Error(json.error || `Request failed ${res.status}`);
+                await writeToConfig(`searchEngines`, updated, { token });
             } else {
                 const res = await fetch(`/api/v1/config?path=searchEngines`, {
                     method: "POST",

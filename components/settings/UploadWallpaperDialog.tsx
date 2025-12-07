@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useConfig } from "@/context/ConfigContext";
+import { writeToConfig } from "@/lib/frontend/data/write";
 import Image from "next/image";
 
 interface UploadWallpaperDialogProps {
@@ -84,16 +85,7 @@ export default function UploadWallpaperDialog({
         ...(config.appearance ?? {}),
         backgroundImageUrl: wallpaperPath,
       };
-      const patchRes = await fetch(`/api/v1/config?path=appearance`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({ updatedItem: updatedAppearance }),
-      });
-      const patchBody = await patchRes.json();
-      if (!patchRes.ok) throw new Error(patchBody?.error || "Failed to update config");
+      await writeToConfig(`appearance`, updatedAppearance, { token });
 
       setMessage("Upload complete — wallpaper updated.");
 

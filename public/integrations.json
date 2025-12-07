@@ -3,6 +3,11 @@
         {
             "name": "Notifications",
             "description": "Receive alerts via topic-based PUSH requests"
+        },
+        {
+            "name": "News",
+            "description": "Receive alerts via topic-based PUSH requests",
+            "page": "news"
         }
     ],
     "bookmarks": [
