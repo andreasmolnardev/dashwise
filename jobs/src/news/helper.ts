@@ -76,6 +76,10 @@ export async function getFeedItems({
                     if (found) thumbnailUrl = found;
                 }
 
+                if (!thumbnailUrl && (feed as any).image && (feed as any).image.url) {
+                    thumbnailUrl = (feed as any).image.url;
+                }
+
                 return {
                     ...item,
                     title: item.title || 'No Title',
