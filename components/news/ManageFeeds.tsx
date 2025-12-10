@@ -1,24 +1,28 @@
 "use client";
 
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useConfig } from "@/context/ConfigContext";
 import EditFormComponent from "@/components/settings/EditForm";
-import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import SubscribeForm from "@/components/news/SubscribeForm";
 
 type NewsFeed = {
     id?: string;
     feedUrl: string;
-    name: string;
+    name?: string;
     icon?: string;
     category?: string;
 };
 
 export default function ManageFeedsComponent() {
-    const { config, refreshConfig } = useConfig();
-    const router = useRouter();
     const [feeds, setFeeds] = useState<NewsFeed[]>([]);
     const [loading, setLoading] = useState(true);
+
+    // dialog state for subscribe form
+    const [addOpen, setAddOpen] = useState(false);
+    const [addingGroup, setAddingGroup] = useState<string>("");
+    const addOnAddedRef = useRef<((item: NewsFeed) => void) | null>(null);
 
     const categories = useMemo(() => {
         const s = new Set<string>();
@@ -176,169 +180,33 @@ export default function ManageFeedsComponent() {
                     iconRounded={false}
                     onUpdate={async (updatedItems, updatedGroups) => {
                         // Placeholder: no individual update yet
-                        // When edit/delete happens, we handle it differently
                     }}
                     onEditItem={async (item) => {
-                        // Placeholder: no individual update yet
                         console.log("Edit feed:", item);
                     }}
                     onGroupAction={async (action, groupName, payload) => {
                         await handleGroupAction(action as "rename" | "delete", groupName, payload);
                     }}
                     renderAddItem={(groupName: string, onAdded: (item: NewsFeed) => void, onCancel: () => void) => {
-                        const AddFeedDialog: React.FC = () => {
-                            const [feedUrl, setFeedUrl] = useState("");
-                            const [name, setName] = useState("");
-                            const [icon, setIcon] = useState("");
-                            const [category, setCategory] = useState(categories.length ? categories[0] : "Uncategorized");
-                            const [customCategory, setCustomCategory] = useState("");
-                            const [useCustom, setUseCustom] = useState(false);
-                            const [error, setError] = useState("");
-                            const [saving, setSaving] = useState(false);
-
-                            const handleSubscribe = async () => {
-                                if (!feedUrl.trim()) {
-                                    setError("Feed URL is required");
-                                    return;
-                                }
-
-                                const finalCategory = useCustom ? customCategory.trim() || "Uncategorized" : (category || "Uncategorized");
-
-                                setSaving(true);
+                        // Open add dialog after mount to avoid setting state during render.
+                        const DialogOpener: React.FC = () => {
+                            useEffect(() => {
+                                setAddingGroup(groupName);
+                                // store the onAdded callback so dialog can call it after subscribe completes
+                                addOnAddedRef.current = onAdded;
+                                setAddOpen(true);
+                                // call onCancel to tell EditFormComponent to close its inline add UI
                                 try {
-                                    await subscribeFeed({
-                                        feedUrl: feedUrl.trim(),
-                                        name: name.trim() || "",
-                                        icon: icon.trim() || "",
-                                        category: finalCategory,
-                                    });
-                                    onAdded({
-                                        feedUrl: feedUrl.trim(),
-                                        name: name.trim() || "",
-                                        icon: icon.trim() || "",
-                                        category: finalCategory,
-                                    });
-                                } catch (err) {
-                                    setError(err instanceof Error ? err.message : "Failed to subscribe");
-                                } finally {
-                                    setSaving(false);
+                                    onCancel();
+                                } catch (e) {
+                                    // ignore
                                 }
-                            };
-
-                            return (
-                                <Dialog>
-                                    <DialogTrigger asChild>
-                                        <div className="px-3 py-2 bg-blue-600 text-white rounded inline-block cursor-pointer">Add Feed</div>
-                                    </DialogTrigger>
-                                    <DialogContent className="frosted text-(--text-primary)">
-                                        <DialogHeader>
-                                            <DialogTitle>Add Feed</DialogTitle>
-                                            <DialogDescription>Subscribe to a new RSS/Atom feed</DialogDescription>
-                                        </DialogHeader>
-
-                                        <div className="space-y-4 mt-2">
-                                            <div>
-                                                <label className="block text-sm font-medium mb-1">Feed URL *</label>
-                                                <input
-                                                    type="text"
-                                                    placeholder="https://example.com/feed.xml"
-                                                    value={feedUrl}
-                                                    onChange={(e) => setFeedUrl(e.target.value)}
-                                                    className="w-full px-3 py-2 rounded-md bg-(--surface-3) border border-(--surface-4)"
-                                                    disabled={saving}
-                                                />
-                                            </div>
-
-                                            <div>
-                                                <label className="block text-sm font-medium mb-1">Feed Name</label>
-                                                <input
-                                                    type="text"
-                                                    placeholder="My Feed"
-                                                    value={name}
-                                                    onChange={(e) => setName(e.target.value)}
-                                                    className="w-full px-3 py-2 rounded-md bg-(--surface-3) border border-(--surface-4)"
-                                                    disabled={saving}
-                                                />
-                                            </div>
-
-                                            <div>
-                                                <label className="block text-sm font-medium mb-1">Icon URL</label>
-                                                <input
-                                                    type="text"
-                                                    placeholder="https://example.com/icon.png"
-                                                    value={icon}
-                                                    onChange={(e) => setIcon(e.target.value)}
-                                                    className="w-full px-3 py-2 rounded-md bg-(--surface-3) border border-(--surface-4)"
-                                                    disabled={saving}
-                                                />
-                                            </div>
-
-                                            <div>
-                                                <label className="block text-sm font-medium mb-1">Category</label>
-                                                <select
-                                                    value={useCustom ? "__custom__" : category}
-                                                    onChange={(e) => {
-                                                        const v = e.target.value;
-                                                        if (v === "__custom__") {
-                                                            setUseCustom(true);
-                                                        } else {
-                                                            setUseCustom(false);
-                                                            setCategory(v);
-                                                        }
-                                                    }}
-                                                    className="w-full px-3 py-2 rounded-md bg-(--surface-3) border border-(--surface-4)"
-                                                    disabled={saving}
-                                                >
-                                                    {categories.length === 0 && <option value="Uncategorized">Uncategorized</option>}
-                                                    {categories.map((c) => (
-                                                        <option key={c} value={c}>{c}</option>
-                                                    ))}
-                                                    <option value="__custom__">New category...</option>
-                                                </select>
-
-                                                {useCustom && (
-                                                    <input
-                                                        type="text"
-                                                        placeholder="Enter custom category"
-                                                        value={customCategory}
-                                                        onChange={(e) => setCustomCategory(e.target.value)}
-                                                        className="w-full mt-2 px-3 py-2 rounded-md bg-(--surface-3) border border-(--surface-4)"
-                                                        disabled={saving}
-                                                    />
-                                                )}
-
-                                                <div className="text-xs text-white/60 mt-1">Name and icon are added automatically if left empty.</div>
-                                            </div>
-
-                                            {error && <div className="text-red-500 text-sm">{error}</div>}
-
-                                            <DialogFooter>
-                                                <div className="flex gap-2 w-full">
-                                                    <button
-                                                        onClick={handleSubscribe}
-                                                        disabled={saving}
-                                                        className="flex-1 px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
-                                                    >
-                                                        {saving ? "Subscribing..." : "Subscribe"}
-                                                    </button>
-                                                    <DialogClose asChild>
-                                                        <button
-                                                            onClick={onCancel}
-                                                            disabled={saving}
-                                                            className="flex-1 px-4 py-2 rounded-md bg-(--surface-3) text-white hover:bg-(--surface-4) disabled:opacity-50"
-                                                        >
-                                                            Cancel
-                                                        </button>
-                                                    </DialogClose>
-                                                </div>
-                                            </DialogFooter>
-                                        </div>
-                                    </DialogContent>
-                                </Dialog>
-                            );
+                                // eslint-disable-next-line react-hooks/exhaustive-deps
+                            }, []);
+                            return null;
                         };
 
-                        return <AddFeedDialog />;
+                        return <DialogOpener />;
                     }}
                     renderRow={(item: NewsFeed, isSelected, mode) => (
                         <div className="flex items-center gap-3">
@@ -368,6 +236,46 @@ export default function ManageFeedsComponent() {
                     )}
                 />
             </div>
+
+            {/* Subscribe dialog (controlled) */}
+            <Dialog open={addOpen} onOpenChange={(v) => {
+                setAddOpen(v);
+                if (!v) {
+                    setAddingGroup("");
+                    addOnAddedRef.current = null;
+                }
+            }}>
+                <DialogContent className="frosted text-(--text-primary)">
+                    <DialogHeader>
+                        <DialogTitle>Subscribe to feed</DialogTitle>
+                    </DialogHeader>
+
+                    <SubscribeForm
+                        categories={categories}
+                        defaultCategory={addingGroup}
+                        subscribeFeed={subscribeFeed}
+                        onAdded={(item: NewsFeed) => {
+                            try {
+                                if (addOnAddedRef.current) {
+                                    addOnAddedRef.current(item);
+                                    addOnAddedRef.current = null;
+                                }
+                            } catch (e) {
+                                console.warn("onAdded callback failed", e);
+                            } finally {
+                                setAddOpen(false);
+                                setAddingGroup("");
+                            }
+                        }}
+                        onCancel={() => {
+                            // close dialog and clear stored callback
+                            addOnAddedRef.current = null;
+                            setAddOpen(false);
+                            setAddingGroup("");
+                        }}
+                    />
+                </DialogContent>
+            </Dialog>
         </main>
     );
 }

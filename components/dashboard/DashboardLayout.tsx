@@ -217,7 +217,7 @@ export default function DashboardLayoutComponent(
           {renderWidgetColumn(config?.widgets?.[0])}
         </div>
 
-        <div className="flex-shrink-0 w-screen snap-start md:w-auto md:flex-grow md:basis-auto space-y-3.5 overflow-y-auto min-w-0" style={{ scrollSnapStop: "always", touchAction: "pan-x" }}>
+        <div className="flex-shrink-0 w-screen snap-start md:w-auto md:flex-grow md:basis-auto space-y-3.5 overflow-y-auto overflow-x-hidden min-w-0" style={{ scrollSnapStop: "always", touchAction: "pan-x" }}>
           <section className="responsive-glance-grid w-full">
             {/* Clock (grid-area: clock) */}
             <div
