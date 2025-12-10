@@ -20,7 +20,6 @@ type LinkItem = {
   url: string;
   icon?: string;
   linkGroup?: string;
-  // optional subgroup e.g. folder
   folder?: string;
 };
 
@@ -29,15 +28,12 @@ export default function LinksSettingsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // Link edit dialog state (used by onEditItem)
   const [editOpen, setEditOpen] = useState(false);
   const [editingLink, setEditingLink] = useState<LinkItem | null>(null);
 
-  // Link add dialog state
   const [addOpen, setAddOpen] = useState(false);
   const [addingLinkGroup, setAddingLinkGroup] = useState<string>("");
 
-  // Track selected group from query params
   const [selectedGroup, setSelectedGroup] = useState<string>("");
 
   useEffect(() => {
@@ -57,22 +53,20 @@ export default function LinksSettingsPage() {
   }, [searchParams, config?.linkGroups, config?.links]);
 
   // Helper: patch links array on server
-  const patchLinksOnServer = async (updatedLinks: LinkItem[]) => {
+  const pushLinks = async (updatedLinks: LinkItem[]) => {
     await writeToConfig("links", updatedLinks);
   };
 
   // Helper: patch groups on server
-  const patchGroupsOnServer = async (updatedGroups: string[]) => {
+  const pushGroups = async (updatedGroups: string[]) => {
     await writeToConfig("linkGroups", updatedGroups);
   };
 
   // onCreateGroup: creates a group server-side and refreshes config
   const handleCreateGroup = async (name: string) => {
-    // optimistic local update handled inside EditFormComponent when requireConfirmation=false,
-    // but here we are expected to create server-side right away because parent flow expects it.
     try {
       const nextGroups = Array.from(new Set([...(config?.linkGroups ?? []), name]));
-      await patchGroupsOnServer(nextGroups);
+      await pushGroups(nextGroups);
       await refreshConfig();
       setSelectedGroup(name);
     } catch (err) {
@@ -95,16 +89,16 @@ export default function LinksSettingsPage() {
         const nextGroups = groups.map((g) => (g === groupName ? newName : g));
         // update link items that referenced old group
         const nextLinks = links.map((l) => (l.linkGroup === groupName ? { ...l, linkGroup: newName } : l));
-        await patchLinksOnServer(nextLinks);
-        await patchGroupsOnServer(nextGroups);
+        await pushLinks(nextLinks);
+        await pushGroups(nextGroups);
         await refreshConfig();
         setSelectedGroup(newName);
       } else if (action === "delete") {
         if (!confirm(`Delete group "${groupName}"? This will unassign it from links.`)) return;
         const nextGroups = groups.filter((g) => g !== groupName);
         const nextLinks = links.map((l) => (l.linkGroup === groupName ? { ...l, linkGroup: "" } : l));
-        await patchLinksOnServer(nextLinks);
-        await patchGroupsOnServer(nextGroups);
+        await pushLinks(nextLinks);
+        await pushGroups(nextGroups);
         await refreshConfig();
         setSelectedGroup(nextGroups[0] ?? "");
       }
@@ -120,10 +114,10 @@ export default function LinksSettingsPage() {
   const handleUpdateFromForm = async (updatedItems: LinkItem[], updatedGroups?: string[]) => {
     try {
       // persist links first
-      await patchLinksOnServer(updatedItems);
+      await pushLinks(updatedItems);
       // persist groups if provided
       if (Array.isArray(updatedGroups)) {
-        await patchGroupsOnServer(updatedGroups);
+        await pushGroups(updatedGroups);
       }
       await refreshConfig();
       // keep the selected group sensible after update (if groups changed)
