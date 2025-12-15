@@ -3,11 +3,11 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faSave,
   faTimes,
-  faEllipsisV,
   faEdit,
   faTrash,
   faArrowRightArrowLeft,
   faPlus,
+  faFolder,
   faCaretDown,
 } from "@fortawesome/free-solid-svg-icons";
 
@@ -53,12 +53,6 @@ import {
 
 import { CSS } from "@dnd-kit/utilities";
 
-/**
- * Generic EditFormComponent with requireConfirmation option
- *
- * Designed to be plugged into your app.
- */
-
 type SingleActionType = "edit" | "delete" | "moveOrder" | "move";
 type BulkActionType = "delete" | "move" | "createSubgroup";
 
@@ -83,8 +77,6 @@ type Props<T extends Record<string, any>> = {
   renderRow?: (item: T, isSelected: boolean, mode: "edit" | "move") => React.ReactNode;
   requireConfirmation?: boolean; // if true: stage changes locally and only call onUpdate/onCreateGroup/onGroupAction on Save
   initialGroup?: string; // optional initial group to open
-
-  // new props for custom add/edit forms and icon style
   onAddItem?: (groupName: string) => Promise<T> | T;
   renderAddItem?: (groupName: string, onAdded: (item: T) => void, onCancel: () => void) => React.ReactNode;
   renderEditItem?: (item: T, onSaved: (updated: T) => void, onCancel: () => void) => React.ReactNode;
@@ -93,9 +85,7 @@ type Props<T extends Record<string, any>> = {
 };
 
 
-// =================================================================================
-// Main Component
-// =================================================================================
+// EditFormComponent to be used as a UI template for rendeting columns in groups of data
 
 export default function EditFormComponent<T extends Record<string, any>>(props: Props<T>) {
   const {
@@ -140,6 +130,8 @@ export default function EditFormComponent<T extends Record<string, any>>(props: 
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
+  // expanded state for secondary groups (subgroups) rendered as folders
+  const [expandedSubgroups, setExpandedSubgroups] = useState<Record<string, boolean>>({});
 
   // sensors for dnd-kit
   const pointerSensor = useSensor(PointerSensor);
@@ -399,6 +391,61 @@ export default function EditFormComponent<T extends Record<string, any>>(props: 
     await writeChange(next, nextGroups);
   };
 
+  // Rename a subgroup (secondary group) across items
+  const handleRenameSubgroup = async (oldName: string) => {
+    if (!subgroupBy) return;
+    const newName = window.prompt("Rename folder", oldName);
+    if (!newName) return;
+    const trimmed = newName.trim();
+    if (!trimmed || trimmed === oldName) return;
+
+    const nextItems = workingItems.map((it) =>
+      String(it[subgroupBy] ?? "") === oldName ? ({ ...it, [String(subgroupBy)]: trimmed } as T) : it
+    );
+
+    await writeChange(nextItems, workingGroups);
+  };
+
+  // Delete a subgroup: remove every item that belongs to this subgroup
+  const handleDeleteSubgroup = async (subName: string) => {
+    if (!subgroupBy) return;
+    const ok = window.confirm(`Delete folder "${subName}" and ALL its links? This cannot be undone.`);
+    if (!ok) return;
+
+    const nextItems = workingItems.filter((it) => String(it[subgroupBy] ?? "") !== subName);
+    await writeChange(nextItems, workingGroups);
+    setExpandedSubgroups((prev) => {
+      const copy = { ...prev };
+      delete copy[subName];
+      return copy;
+    });
+  };
+
+  // Move an item up/down within its subgroup
+  const moveItemWithinSubgroup = async (item: T, delta: number) => {
+    if (!subgroupBy) return;
+    const sub = String(item[subgroupBy] ?? "");
+    const group = String(item[groupBy] ?? "");
+
+    // consider only items in same primary group and same subgroup
+    const entries = workingItems
+      .map((it, idx) => ({ it, idx }))
+      .filter(({ it }) => String(it[groupBy] ?? "") === group && String(it[subgroupBy] ?? "") === sub);
+
+    const localIndex = entries.findIndex(({ it }) => getKeyFor(it) === getKeyFor(item));
+    if (localIndex === -1) return;
+
+    let targetLocal = localIndex + delta;
+    if (targetLocal < 0) targetLocal = 0;
+    if (targetLocal >= entries.length) targetLocal = entries.length - 1;
+
+    const fromGlobal = entries[localIndex].idx;
+    const toGlobal = entries[targetLocal].idx;
+
+    const newItems = arrayMove(workingItems, fromGlobal, toGlobal);
+    await writeChange(newItems, workingGroups);
+  };
+
   /* ---------- bulk actions ---------- */
   const toggleSelect = (key: string) => {
     setSelected((prev) => {
@@ -516,26 +563,82 @@ export default function EditFormComponent<T extends Record<string, any>>(props: 
     if (!over || active.id === over.id) {
       return;
     }
+    // Build ordered view of current group's entries as blocks: subgroups (folders) and single items
+    const groupEntries = workingItems
+      .map((it, idx) => ({ it, idx }))
+      .filter(({ it }) => String(it[groupBy] ?? "") === currentGroup);
 
-    // Find the positions of the active and over items
-    const allItems = workingItems.filter((it) => String(it[groupBy] ?? "") === currentGroup);
-    const activeIndex = allItems.findIndex((it) => getKeyFor(it) === String(active.id));
-    const overIndex = allItems.findIndex((it) => getKeyFor(it) === String(over.id));
+    // Build blocks: contiguous runs sharing same subgroup name become a subgroup block
+    type Block = { type: "subgroup"; name: string; indices: number[] } | { type: "item"; idx: number };
+    const blocks: Block[] = [];
 
-    if (activeIndex === -1 || overIndex === -1) {
+    for (const entry of groupEntries) {
+      const sub = subgroupBy ? String(entry.it[subgroupBy] ?? "") : "";
+      if (subgroupBy && sub) {
+        const last = blocks[blocks.length - 1];
+        if (last && last.type === "subgroup" && last.name === sub) {
+          last.indices.push(entry.idx);
+        } else {
+          blocks.push({ type: "subgroup", name: sub, indices: [entry.idx] });
+        }
+      } else {
+        blocks.push({ type: "item", idx: entry.idx });
+      }
+    }
+
+    // Helper: id for block or item
+    const idFor = (b: Block) => (b.type === "subgroup" ? `subgroup::${b.name}` : getKeyFor(workingItems[b.idx]));
+
+    const activeId = String(active.id);
+    const overId = String(over.id);
+
+    // Find active block/index
+    const activeBlockIndex = blocks.findIndex((b) => idFor(b) === activeId || (b.type === "item" && getKeyFor(workingItems[b.idx]) === activeId));
+    const overBlockIndex = blocks.findIndex((b) => idFor(b) === overId || (b.type === "item" && getKeyFor(workingItems[b.idx]) === overId));
+
+    if (activeBlockIndex === -1 || overBlockIndex === -1) return;
+
+    const activeBlock = blocks[activeBlockIndex];
+    const overBlock = blocks[overBlockIndex];
+
+    // If dragging a subgroup block, move the whole block of indices
+    if (activeBlock.type === "subgroup") {
+      const fromStart = activeBlock.indices[0];
+      const blockLen = activeBlock.indices.length;
+
+      // Determine insertion target global index (we'll insert before the overBlock start)
+      let toGlobalIndex = overBlock.type === "subgroup" ? overBlock.indices[0] : overBlock.idx;
+
+      // Compute insertion index in the array after removing the block
+      const rest = workingItems.filter((_, i) => !(i >= fromStart && i < fromStart + blockLen));
+      const computeInsertion = (tg: number) => {
+        let count = 0;
+        for (let i = 0; i < workingItems.length; i++) {
+          if (i >= fromStart && i < fromStart + blockLen) continue;
+          if (i < tg) count++;
+        }
+        return count;
+      };
+
+      const insertAt = computeInsertion(toGlobalIndex);
+
+      const blockItems = workingItems.slice(fromStart, fromStart + blockLen);
+      const before = rest.slice(0, insertAt);
+      const after = rest.slice(insertAt);
+      const newItems = [...before, ...blockItems, ...after];
+      writeChange(newItems, workingGroups);
       return;
     }
 
-    // Get global indices of items in the current group
-    const groupGlobalIndices = workingItems
-      .map((it, idx) => ({ it, idx }))
-      .filter(({ it }) => String(it[groupBy] ?? "") === currentGroup)
-      .map(({ idx }) => idx);
+    // fallback: dragging single item -> previous behavior (reorder single item)
+    const allItems = groupEntries.map((g) => g.idx);
+    const activeGlobalIndex = allItems.findIndex((i) => getKeyFor(workingItems[i]) === activeId);
+    const overGlobalIndex = allItems.findIndex((i) => getKeyFor(workingItems[i]) === overId);
 
-    const fromGlobalIndex = groupGlobalIndices[activeIndex];
-    const toGlobalIndex = groupGlobalIndices[overIndex];
+    if (activeGlobalIndex === -1 || overGlobalIndex === -1) return;
 
-    // Use arrayMove to reorder
+    const fromGlobalIndex = allItems[activeGlobalIndex];
+    const toGlobalIndex = allItems[overGlobalIndex];
     const newItems = arrayMove(workingItems, fromGlobalIndex, toGlobalIndex);
     writeChange(newItems, workingGroups);
   };
@@ -637,6 +740,12 @@ export default function EditFormComponent<T extends Record<string, any>>(props: 
             onEditItem={handleEditItem}
             onMoveItemToGroup={handleMoveItemToGroup}
             onDeleteItem={handleDeleteItem}
+            // subgroup-folder UI handlers
+            expandedSubgroups={expandedSubgroups}
+            onToggleSubgroup={(n) => setExpandedSubgroups((prev) => ({ ...prev, [n]: !prev[n] }))}
+            onDeleteSubgroup={handleDeleteSubgroup}
+            onRenameSubgroup={handleRenameSubgroup}
+            moveItemWithinSubgroup={moveItemWithinSubgroup}
             onDragEnd={handleDragEnd}
           />
 
@@ -658,9 +767,7 @@ export default function EditFormComponent<T extends Record<string, any>>(props: 
   );
 }
 
-// =================================================================================
-// Sub-components for Rendering
-// =================================================================================
+// Subcomponents 
 
 /**
  * Renders the top header with Title and Save/Cancel buttons
@@ -1054,6 +1161,12 @@ const ItemList: React.FC<{
   onMoveItemToGroup: (item: any, targetGroup: string) => void;
   onDeleteItem: (key: string) => void;
   onDragEnd: (event: DragEndEvent) => void;
+  // new props for subgroup-folder UI
+  expandedSubgroups?: Record<string, boolean>;
+  onToggleSubgroup?: (name: string) => void;
+  onDeleteSubgroup?: (name: string) => void;
+  onRenameSubgroup?: (name: string) => void;
+  moveItemWithinSubgroup?: (item: any, delta: number) => void;
 }> = (props) => {
   const {
     groupedForCurrent,
@@ -1064,15 +1177,25 @@ const ItemList: React.FC<{
     moveItems,
     dropIndex,
     onDragEnd,
+    expandedSubgroups = {},
+    onToggleSubgroup,
+    onDeleteSubgroup,
+    onRenameSubgroup,
+    moveItemWithinSubgroup,
     ...itemRowProps
   } = props;
 
   let runningLocalIndex = 0;
 
   // Build all sortable IDs for the current view
-  const sortableIds = groupedForCurrent.flatMap((bucket) =>
-    bucket.items.map((it, idx) => getKeyFor(it, idx))
-  );
+  const sortableIds = groupedForCurrent.flatMap((bucket) => {
+    if (enableSubgroup && bucket.subgroup !== null) {
+      const sgId = `subgroup::${bucket.subgroup}`;
+      const childIds = bucket.items.map((it, idx) => getKeyFor(it, idx));
+      return [sgId, ...childIds];
+    }
+    return bucket.items.map((it, idx) => getKeyFor(it, idx));
+  });
 
   return (
     <DndContext
@@ -1082,35 +1205,134 @@ const ItemList: React.FC<{
     >
       <SortableContext items={sortableIds} strategy={verticalListSortingStrategy} disabled={mode !== "move"}>
         <ul className="space-y-2">
-          {groupedForCurrent.map((bucket, bucketIdx) => (
-            <li key={`bucket-${bucket.subgroup ?? "root"}-${bucketIdx}`} className="mb-2">
-              {enableSubgroup && bucket.subgroup !== null && (
-                <div className="px-2 py-1 text-xs text-white/60">{bucket.subgroup}</div>
-              )}
-              <ul className="space-y-1">
-                {bucket.items.map((it, idxInBucket) => {
-                  const key = getKeyFor(it, idxInBucket);
-                  const isSelected = !!selected[key];
-                  const localIndex = runningLocalIndex;
-                  runningLocalIndex += 1;
-                  const showDragHandle = moveItems === "always" || (moveItems === "onMoveMode" && mode === "move");
+          {groupedForCurrent.map((bucket, bucketIdx) => {
+            const subgroup = bucket.subgroup;
+            const keyBase = `bucket-${subgroup ?? "root"}-${bucketIdx}`;
 
-                  return (
-                    <ItemRow
-                      key={key}
-                      item={it}
-                      itemKey={key}
-                      localIndex={localIndex}
-                      isSelected={isSelected}
-                      mode={mode}
-                      showDragHandle={showDragHandle}
-                      {...itemRowProps}
-                    />
-                  );
-                })}
-              </ul>
-            </li>
-          ))}
+            // If subgroup is present and folders are enabled, render as folder row
+            if (enableSubgroup && subgroup !== null) {
+              const expanded = !!expandedSubgroups[subgroup];
+              return (
+                <li key={keyBase} className="mb-2">
+                  {(() => {
+                    const subgroupId = `subgroup::${subgroup}`;
+                    const {
+                      attributes: sgAttributes,
+                      listeners: sgListeners,
+                      setNodeRef: setSgRef,
+                      transform: sgTransform,
+                      transition: sgTransition,
+                      isDragging: sgIsDragging,
+                    } = useSortable({ id: subgroupId });
+
+                    const sgStyle = { transform: CSS.Transform.toString(sgTransform), transition: sgTransition, opacity: sgIsDragging ? 0.5 : 1 };
+                    const sgDragAttrs = mode === "move" ? { ...sgAttributes, ...sgListeners } : {};
+
+                    return (
+                      <div ref={setSgRef} {...sgDragAttrs} style={sgStyle} className="flex items-center justify-between p-2 rounded-md hover:bg-white/5">
+                        <div className="flex items-center gap-3 cursor-pointer" onClick={() => onToggleSubgroup && onToggleSubgroup(subgroup)}>
+                          <FontAwesomeIcon icon={faFolder} />
+                          <div className="font-medium">{subgroup}</div>
+                          <div className="text-xs text-white/60">{bucket.items.length} links</div>
+                        </div>
+
+                        <div className="flex gap-2">
+                          <button className="px-2 py-1 text-sm" onClick={() => onRenameSubgroup && onRenameSubgroup(subgroup)} title="Rename folder">
+                            <FontAwesomeIcon icon={faEdit} />
+                          </button>
+                          <button className="px-2 py-1 text-sm text-red-400" onClick={() => onDeleteSubgroup && onDeleteSubgroup(subgroup)} title="Delete folder and its links">
+                            <FontAwesomeIcon icon={faTrash} />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {expanded && (
+                    <ul className="mt-2 ml-6 space-y-1">
+                      {bucket.items.map((it, idxInBucket) => {
+                        const key = getKeyFor(it, idxInBucket);
+                        const isSelected = !!selected[key];
+                        const localIndex = runningLocalIndex;
+                        runningLocalIndex += 1;
+                        const showDragHandle = moveItems === "always" || (moveItems === "onMoveMode" && mode === "move");
+
+                        return (
+                          <li key={key}>
+                            <div className="flex items-center justify-between p-2 rounded-md hover:bg-white/5">
+                              <div className="flex-1">
+                                {itemRowProps.renderRow ? itemRowProps.renderRow(it, isSelected, mode) : (
+                                  <>
+                                    <div className="font-medium">{(it as any).name ?? key}</div>
+                                    <div className="text-xs text-white/60 truncate">{(it as any).url ?? ""}</div>
+                                  </>
+                                )}
+                              </div>
+
+                              <div className="flex gap-2">
+                                {mode === "move" ? (
+                                  <>
+                                    <button className="px-2 py-1 text-sm" onClick={() => moveItemWithinSubgroup && moveItemWithinSubgroup(it, -1)} title="Move up">▲</button>
+                                    <button className="px-2 py-1 text-sm" onClick={() => moveItemWithinSubgroup && moveItemWithinSubgroup(it, 1)} title="Move down">▼</button>
+                                    <button className="px-2 py-1 text-sm" onClick={() => {
+                                      const target = window.prompt("Move to group (enter group name)");
+                                      if (!target) return;
+                                      itemRowProps.onMoveItemToGroup(it, target);
+                                    }} title="Move to another group">↦</button>
+                                  </>
+                                ) : (
+                                  <>
+                                    {itemRowProps.singleActions.includes("edit") && (
+                                      <button className="px-2 py-1 text-sm" onClick={() => itemRowProps.onEditItem(it)} title="Edit link">
+                                        <FontAwesomeIcon icon={faEdit} />
+                                      </button>
+                                    )}
+                                    {itemRowProps.singleActions.includes("delete") && (
+                                      <button className="px-2 py-1 text-sm text-red-400" onClick={() => itemRowProps.onDeleteItem(getKeyFor(it, idxInBucket))} title="Delete link">
+                                        <FontAwesomeIcon icon={faTrash} />
+                                      </button>
+                                    )}
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </li>
+              );
+            }
+
+            // no subgroup (root bucket) - render items directly
+            return (
+              <li key={keyBase} className="mb-2">
+                <ul className="space-y-1">
+                  {bucket.items.map((it, idxInBucket) => {
+                    const key = getKeyFor(it, idxInBucket);
+                    const isSelected = !!selected[key];
+                    const localIndex = runningLocalIndex;
+                    runningLocalIndex += 1;
+                    const showDragHandle = moveItems === "always" || (moveItems === "onMoveMode" && mode === "move");
+
+                    return (
+                      <ItemRow
+                        key={key}
+                        item={it}
+                        itemKey={key}
+                        localIndex={localIndex}
+                        isSelected={isSelected}
+                        mode={mode}
+                        showDragHandle={showDragHandle}
+                        {...itemRowProps}
+                      />
+                    );
+                  })}
+                </ul>
+              </li>
+            );
+          })}
         </ul>
       </SortableContext>
       {mode === "move" && dropIndex !== null && (
