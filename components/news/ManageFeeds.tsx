@@ -6,6 +6,7 @@ import { useConfig } from "@/context/ConfigContext";
 import EditFormComponent from "@/components/settings/EditForm";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import SubscribeForm from "@/components/news/SubscribeForm";
+import { Button } from "../ui/button";
 
 type NewsFeed = {
     id?: string;
@@ -162,79 +163,97 @@ export default function ManageFeedsComponent() {
             <h1 className="text-2xl font-semibold mb-4">Manage Feeds</h1>
 
             <div className="content space-y-2">
-                <EditFormComponent<NewsFeed>
-                    title="Your Feed Subscriptions"
-                    items={feeds}
-                    groups={categories}
-                    groupBy={"category" as keyof NewsFeed}
-                    itemKey={"feedUrl"}
-                    createNewGroup={false}
-                    requireConfirmation={true}
-                    switchBetweenModes={true}
-                    enableMoveMode={false}
-                    defaultMode={"edit"}
-                    singleActions={["edit", "delete"]}
-                    bulkActions={["delete"]}
-                    moveItems={false}
-                    enableSubgroup={false}
-                    iconRounded={false}
-                    onUpdate={async (updatedItems, updatedGroups) => {
-                        // Placeholder: no individual update yet
-                    }}
-                    onEditItem={async (item) => {
-                        console.log("Edit feed:", item);
-                    }}
-                    onGroupAction={async (action, groupName, payload) => {
-                        await handleGroupAction(action as "rename" | "delete", groupName, payload);
-                    }}
-                    renderAddItem={(groupName: string, onAdded: (item: NewsFeed) => void, onCancel: () => void) => {
-                        // Open add dialog after mount to avoid setting state during render.
-                        const DialogOpener: React.FC = () => {
-                            useEffect(() => {
-                                setAddingGroup(groupName);
-                                // store the onAdded callback so dialog can call it after subscribe completes
-                                addOnAddedRef.current = onAdded;
-                                setAddOpen(true);
-                                // call onCancel to tell EditFormComponent to close its inline add UI
-                                try {
-                                    onCancel();
-                                } catch (e) {
-                                    // ignore
-                                }
-                                // eslint-disable-next-line react-hooks/exhaustive-deps
-                            }, []);
-                            return null;
-                        };
+                {feeds.length > 0 ? (
+                    <EditFormComponent<NewsFeed>
+                        title="Your Feed Subscriptions"
+                        items={feeds}
+                        groups={categories}
+                        groupBy={"category" as keyof NewsFeed}
+                        itemKey={"feedUrl"}
+                        createNewGroup={false}
+                        requireConfirmation={true}
+                        switchBetweenModes={true}
+                        enableMoveMode={false}
+                        defaultMode={"edit"}
+                        singleActions={["edit", "delete"]}
+                        bulkActions={["delete"]}
+                        moveItems={false}
+                        enableSubgroup={false}
+                        iconRounded={false}
+                        onUpdate={async (updatedItems, updatedGroups) => {
+                            // Placeholder: no individual update yet
+                        }}
+                        onEditItem={async (item) => {
+                            console.log("Edit feed:", item);
+                        }}
+                        onGroupAction={async (action, groupName, payload) => {
+                            await handleGroupAction(action as "rename" | "delete", groupName, payload);
+                        }}
+                        renderAddItem={(
+                            groupName: string,
+                            onAdded: (item: NewsFeed) => void,
+                            onCancel: () => void
+                        ) => {
+                            const DialogOpener: React.FC = () => {
+                                useEffect(() => {
+                                    setAddingGroup(groupName);
+                                    addOnAddedRef.current = onAdded;
+                                    setAddOpen(true);
+                                    try {
+                                        onCancel();
+                                    } catch { }
+                                    // eslint-disable-next-line react-hooks/exhaustive-deps
+                                }, []);
+                                return null;
+                            };
 
-                        return <DialogOpener />;
-                    }}
-                    renderRow={(item: NewsFeed, isSelected, mode) => (
-                        <div className="flex items-center gap-3">
-                            {/* small icon */}
-                            <div className="w-8 h-8 flex items-center justify-center rounded overflow-hidden">
-                                {item.icon ? (
-                                    // eslint-disable-next-line @next/next/no-img-element
-                                    <img src={item.icon} alt={`${item.name} icon`} className="object-contain w-full h-full" />
-                                ) : (
-                                    <div className="w-8 h-8 bg-gray-200 flex items-center justify-center text-xs">
-                                        {item.name?.slice(0, 1).toUpperCase()}
+                            return <DialogOpener />;
+                        }}
+                        renderRow={(item: NewsFeed) => (
+                            <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 flex items-center justify-center rounded overflow-hidden">
+                                    {item.icon ? (
+                                        // eslint-disable-next-line @next/next/no-img-element
+                                        <img
+                                            src={item.icon}
+                                            alt={`${item.name} icon`}
+                                            className="object-contain w-full h-full"
+                                        />
+                                    ) : (
+                                        <div className="w-8 h-8 bg-gray-200 flex items-center justify-center text-xs">
+                                            {item.name?.slice(0, 1).toUpperCase()}
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className="flex-1 min-w-0">
+                                    <div className="font-medium truncate">{item.name}</div>
+                                    <div className="text-xs text-white/60 truncate">
+                                        {item.feedUrl}
                                     </div>
+                                </div>
+
+                                {item.category && (
+                                    <span className="text-xs px-2 py-1 rounded-full bg-(--surface-3)">
+                                        {item.category}
+                                    </span>
                                 )}
                             </div>
-
-                            <div className="flex-1 min-w-0">
-                                <div className="font-medium truncate">{item.name}</div>
-                                <div className="text-xs text-white/60 truncate">{item.feedUrl}</div>
-                            </div>
-
-                            {item.category && (
-                                <span className="text-xs px-2 py-1 rounded-full bg-(--surface-3)">
-                                    {item.category}
-                                </span>
-                            )}
-                        </div>
-                    )}
-                />
+                        )}
+                    />
+                ) : (
+                    <div className="flex flex-col items-center justify-center py-24 text-center gap-4">
+                        <p className="text-lg text-white/70">
+                            Add your first subscription to get started
+                        </p>
+                        <Button
+                            onClick={() => setAddOpen(true)}
+                            className="px-5 py-2 rounded-md hover:opacity-90 transition"
+                        >
+                            Add feed
+                        </Button>
+                    </div>
+                )}
             </div>
 
             {/* Subscribe dialog (controlled) */}
