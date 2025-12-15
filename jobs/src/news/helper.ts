@@ -71,7 +71,7 @@ export async function getFeedItems({
 
                 // fallback: scan content, content:encoded, description, summary (in that order) for an <img>
                 if (!thumbnailUrl) {
-                    const htmlToScan = getHtmlContent(item) ?? descriptionText;
+                    const htmlToScan = getHtmlContent(item, true) ?? descriptionText;
                     const found = extractImageFromHtml(htmlToScan);
                     if (found) thumbnailUrl = found;
                 }
@@ -103,10 +103,18 @@ export async function getFeedItems({
 }
 
 // get HTML content string from various fields ---
-function getHtmlContent(item: ParserItem): string | undefined {
+function getHtmlContent(item: ParserItem, priotizeEncode?: boolean) {
     // rss-parser sometimes provides content as string, sometimes as object { _ : 'html' } for XML
-    const contentDescription = item.content ?? (item['content:encoded'] ?? item.description ?? item.summary);
+    let contentDescription;
+
+    if (priotizeEncode === true) {
+        contentDescription = (item['content:encoded'] ?? item.content ?? item.description ?? item.summary);
+    } else {
+        contentDescription = item.content ?? (item['content:encoded'] ?? item.description ?? item.summary);
+    }
+
     if (!contentDescription) return undefined;
+
     if (typeof contentDescription === 'string') return contentDescription;
     // object with _ property
     if ((contentDescription as any)._ && typeof (contentDescription as any)._ === 'string') {
