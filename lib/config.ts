@@ -1,6 +1,7 @@
 interface Config {
   app_base_url: string;
   pb_url: string;
+  jobs_url?: string | undefined;
   default_bg_url: string;
   version: string;
   allowInsecureCertsForIntegrationUrls: boolean;
@@ -22,6 +23,7 @@ const disableUserSignup =
 const config: Config = {
   app_base_url: process.env.NEXT_PUBLIC_APP_URL || 'http://dashwise:3000',
   pb_url: process.env.NEXT_PUBLIC_PB_URL || 'http://127.0.0.1:8090',
+  jobs_url: process.env.NEXT_PUBLIC_JOBS_URL || 'http://127.0.0.1:3001',
   default_bg_url: process.env.NEXT_PUBLIC_DEFAULT_BG_URL || '/dashboard-wallpaper.png',
   version: '0.3.1',
   allowInsecureCertsForIntegrationUrls: allowInsecureCertsForIntegrationUrls || false,
