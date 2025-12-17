@@ -82,9 +82,9 @@ export async function getFeedItems({
 
                 return {
                     ...item,
-                    title: item.title || 'No Title',
+                    title: getTextContent(item.title) || 'No Title',
                     link: item.link || '',
-                    description: item.description || item.summary || (getHtmlContent(item) ?? item.content) as string || undefined,
+                    description: filteredText(item.description || item.summary || (getHtmlContent(item) ?? item.content)) as string || undefined,
                     content: (getHtmlContent(item) ?? item.content) as string | undefined,
                     pubDate: dateString ? new Date(dateString) : new Date(),
                     thumbnailUrl: thumbnailUrl || undefined,
@@ -122,6 +122,15 @@ function getHtmlContent(item: ParserItem, priotizeEncode?: boolean) {
     }
     return String(contentDescription);
 }
+
+function filteredText(text: string) {
+    return text.replace(/<[^>]*>/g, "");
+}
+
+function getTextContent(text: string) {
+  return new JSDOM(text).window.document.body.textContent ?? "";
+}
+
 // --- helper: extract first image URL from an HTML string ---
 function extractImageFromHtml(html?: string): string | undefined {
     if (!html) return undefined;
