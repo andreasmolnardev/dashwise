@@ -12,7 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { MoreHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
-import readEndpoint from "@/lib/frontend/data/read";
+import readEndpoint from "@/lib/frontend/data/GET/readEndpoint";
 
 export type NotificationItem = {
   id: string;

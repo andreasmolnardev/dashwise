@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { Slider } from "@/components/ui/slider";
 import { useConfig } from "@/context/ConfigContext";
-import { writeToConfig } from "@/lib/frontend/data/write";
+import { writeToConfig } from "@/lib/frontend/data/MUTATE/config/writeToConfig";
 
 export default function WallpaperBlurSliderComponent({ className }: { className?: string }) {
   const { config, refreshConfig } = useConfig();

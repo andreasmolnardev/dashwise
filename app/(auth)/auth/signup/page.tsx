@@ -1,7 +1,7 @@
 "use client";
 import SignupCard from "@/components/auth/SignupForm";
 import config from "@/lib/config";
-import readEndpoint from "@/lib/frontend/data/read";
+import readEndpoint from "@/lib/frontend/data/GET/readEndpoint";
 import { useEffect, useState } from "react";
 
 export default function SignupPage() {

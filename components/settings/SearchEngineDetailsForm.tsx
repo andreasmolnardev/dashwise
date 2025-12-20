@@ -8,7 +8,7 @@ import { Separator } from "@/components/ui/separator";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import IconPickerComponent from "@/components/settings/IconPicker";
 import { useConfig } from "@/context/ConfigContext";
-import { writeToConfig } from "@/lib/frontend/data/write";
+import { writeToConfig } from "@/lib/frontend/data/MUTATE/config/writeToConfig";
 
 import {
     Select,

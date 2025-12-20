@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ColorPicker } from "@/components/settings/ColorPicker";
 import { useConfig } from "@/context/ConfigContext";
-import { writeToConfig } from "@/lib/frontend/data/write";
+import { writeToConfig } from "@/lib/frontend/data/MUTATE/config/writeToConfig";
 
 // Type for the appearance config
 type AppearanceConfig = {
