@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useConfig } from "@/context/ConfigContext";
 import EditFormComponent from "@/components/settings/EditForm";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import SubscribeForm from "@/components/news/SubscribeForm";
+import SubscriptionDetailsForm from "@/components/news/SubscriptionDetailsForm";
 import { Button } from "../ui/button";
 
 type NewsFeed = {
@@ -20,8 +20,9 @@ export default function ManageFeedsComponent() {
     const [feeds, setFeeds] = useState<NewsFeed[]>([]);
     const [loading, setLoading] = useState(true);
 
-    // dialog state for subscribe form
+    // dialog state for subscription details form
     const [addOpen, setAddOpen] = useState(false);
+    const [editingFeed, setEditingFeed] = useState<NewsFeed | null>(null);
     const [addingGroup, setAddingGroup] = useState<string>("");
     const addOnAddedRef = useRef<((item: NewsFeed) => void) | null>(null);
 
@@ -139,19 +140,89 @@ export default function ManageFeedsComponent() {
         }
     };
 
-    const handleGroupAction = async (action: "rename" | "delete", groupName: string, payload?: any) => {
-        try {
-            console.log("group action")
-            if (action === "rename") {
-                console.log(payload)
-            } else if (action === "delete") {
+    // Update an existing feed
+    const updateFeed = async (oldFeedUrl: string, updatedFeed: NewsFeed) => {
+        if (!token) throw new Error("Not authenticated");
 
-            }
-        } catch (err) {
-            console.error("group action failed", err);
-            window.alert("Failed to perform group action");
+        const res = await fetch("/api/v1/news/feed-update", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+                oldFeedUrl,
+                feedUrl: updatedFeed.feedUrl,
+                name: updatedFeed.name || "",
+                icon: updatedFeed.icon || "",
+                category: updatedFeed.category || "",
+            }),
+        });
+
+        if (!res.ok) {
+            const json = await res.json();
+            throw new Error(json.error || "Failed to update feed");
         }
 
+        // Refresh feeds list
+        const refreshRes = await fetch("/api/v1/news", {
+            headers: {
+                Authorization: `Bearer ${token}`,
+            },
+        });
+
+        if (refreshRes.ok) {
+            const data = await refreshRes.json();
+            setFeeds(data.subscriptions || []);
+        }
+    };
+
+    const handleGroupAction = async (action: "rename" | "delete", groupName: string, payload?: any) => {
+        try {
+            if (action === "rename") {
+                const newCategory = payload?.newName || payload;
+                if (!newCategory) return;
+
+                const res = await fetch("/api/v1/news/feed-category-rename", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        Authorization: `Bearer ${token}`,
+                    },
+                    body: JSON.stringify({
+                        oldCategory: groupName,
+                        newCategory: newCategory,
+                    }),
+                });
+
+                if (!res.ok) {
+                    const json = await res.json();
+                    throw new Error(json.error || "Failed to rename category");
+                }
+
+                // Refresh feeds list to reflect category change
+                const refreshRes = await fetch("/api/v1/news", {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                    },
+                });
+
+                if (refreshRes.ok) {
+                    const data = await refreshRes.json();
+                    setFeeds(data.subscriptions || []);
+                }
+            } else if (action === "delete") {
+                // Delete all feeds in this category
+                const feedsInCategory = feeds.filter(f => (f.category || "Uncategorized") === groupName);
+                for (const feed of feedsInCategory) {
+                    await unsubscribeFeed(feed.feedUrl);
+                }
+            }
+            console.log(action)
+        } catch (err) {
+            console.error("group action failed", err);
+            window.alert(`Failed to perform group action: ${err instanceof Error ? err.message : String(err)}`);
+        }
     };
 
     if (loading) {
@@ -183,10 +254,15 @@ export default function ManageFeedsComponent() {
                         onUpdate={async (updatedItems, updatedGroups) => {
                             // Placeholder: no individual update yet
                         }}
-                        onEditItem={async (item) => {
-                            console.log("Edit feed:", item);
+                        onEditItem={async (item, updated) => {
+                            const originalFeed = feeds.find(f => f.feedUrl === item.feedUrl);
+                            if (originalFeed) {
+                                await updateFeed(item.feedUrl, { ...item, ...updated });
+                            }
                         }}
                         onGroupAction={async (action, groupName, payload) => {
+                            console.log(action);
+                            console.log("test");
                             await handleGroupAction(action as "rename" | "delete", groupName, payload);
                         }}
                         renderAddItem={(
@@ -198,6 +274,26 @@ export default function ManageFeedsComponent() {
                                 useEffect(() => {
                                     setAddingGroup(groupName);
                                     addOnAddedRef.current = onAdded;
+                                    setEditingFeed(null);
+                                    setAddOpen(true);
+                                    try {
+                                        onCancel();
+                                    } catch { }
+                                    // eslint-disable-next-line react-hooks/exhaustive-deps
+                                }, []);
+                                return null;
+                            };
+
+                            return <DialogOpener />;
+                        }}
+                        renderEditItem={(
+                            item: NewsFeed,
+                            onSaved: (updated: NewsFeed) => void,
+                            onCancel: () => void
+                        ) => {
+                            const DialogOpener: React.FC = () => {
+                                useEffect(() => {
+                                    setEditingFeed(item);
                                     setAddOpen(true);
                                     try {
                                         onCancel();
@@ -247,7 +343,10 @@ export default function ManageFeedsComponent() {
                             Add your first subscription to get started
                         </p>
                         <Button
-                            onClick={() => setAddOpen(true)}
+                            onClick={() => {
+                                setEditingFeed(null);
+                                setAddOpen(true);
+                            }}
                             className="px-5 py-2 rounded-md hover:opacity-90 transition"
                         >
                             Add feed
@@ -256,40 +355,52 @@ export default function ManageFeedsComponent() {
                 )}
             </div>
 
-            {/* Subscribe dialog (controlled) */}
+            {/* Subscription Details Dialog (controlled) */}
             <Dialog open={addOpen} onOpenChange={(v) => {
                 setAddOpen(v);
                 if (!v) {
+                    setEditingFeed(null);
                     setAddingGroup("");
                     addOnAddedRef.current = null;
                 }
             }}>
                 <DialogContent className="frosted text-(--text-primary)">
                     <DialogHeader>
-                        <DialogTitle>Subscribe to feed</DialogTitle>
+                        <DialogTitle>
+                            {editingFeed ? "Edit Feed Subscription" : "Subscribe to Feed"}
+                        </DialogTitle>
                     </DialogHeader>
 
-                    <SubscribeForm
+                    <SubscriptionDetailsForm
+                        feed={editingFeed || undefined}
                         categories={categories}
-                        defaultCategory={addingGroup}
-                        subscribeFeed={subscribeFeed}
-                        onAdded={(item: NewsFeed) => {
-                            try {
-                                if (addOnAddedRef.current) {
-                                    addOnAddedRef.current(item);
-                                    addOnAddedRef.current = null;
-                                }
-                            } catch (e) {
-                                console.warn("onAdded callback failed", e);
-                            } finally {
+                        onClose={() => {
+                            if (editingFeed) {
+                                setAddOpen(false);
+                                setEditingFeed(null);
+                            } else {
                                 setAddOpen(false);
                                 setAddingGroup("");
                             }
                         }}
-                        onCancel={() => {
-                            // close dialog and clear stored callback
-                            addOnAddedRef.current = null;
+                        onSave={async (feed: NewsFeed) => {
+                            if (editingFeed) {
+                                // Update existing feed
+                                await updateFeed(editingFeed.feedUrl, feed);
+                            } else {
+                                // Subscribe to new feed
+                                await subscribeFeed(feed);
+                                try {
+                                    if (addOnAddedRef.current) {
+                                        addOnAddedRef.current(feed);
+                                        addOnAddedRef.current = null;
+                                    }
+                                } catch (e) {
+                                    console.warn("onAdded callback failed", e);
+                                }
+                            }
                             setAddOpen(false);
+                            setEditingFeed(null);
                             setAddingGroup("");
                         }}
                     />
