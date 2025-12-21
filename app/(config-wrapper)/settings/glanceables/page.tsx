@@ -2,8 +2,8 @@
 import { useEffect, useState } from "react";
 import GlanceableComponent from "@/components/glanceables/Glanceable";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { PaginatedCarouselViewComponent } from "@/components/widgets/PaginatedCarouselView";
+import TabSwitcher from "@/components/common/TabSwitcher";
 import { useConfig } from "@/context/ConfigContext";
 import { Label } from "@radix-ui/react-label";
 import GlanceablePropertiesSettingsComponent from "@/components/settings/GlanceablePropertiesSettings";
@@ -48,16 +48,14 @@ export default function GlanceablesSettingsPage() {
     <>
       <h1 className="text-3xl font-semibold mb-4">Glanceables</h1>
 
-      <Tabs
+      <TabSwitcher
         value={currentTab}
         onValueChange={(val) => setCurrentTab(val as "left" | "right")}
-        className="w-full  flex items-center my-4"
-      >
-        <TabsList className="frosted rounded-full gap-2 text-white/20">
-          <TabsTrigger value="left" className="data-[state=active]:bg-white/20 rounded-full"><span className="text-(--text-primary)">Left one</span></TabsTrigger>
-          <TabsTrigger value="right" className="data-[state=active]:bg-white/20 rounded-full"><span className="text-(--text-primary)">Right one</span></TabsTrigger>
-        </TabsList>
-      </Tabs>
+        items={[
+          { value: "left", label: "Left one" },
+          { value: "right", label: "Right one" },
+        ]}
+      />
 
       <section className="grid grid-cols-[3fr_2fr]">
         <RadioGroup
