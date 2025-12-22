@@ -3,10 +3,28 @@
 import React, { useEffect, useState, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useConfig } from "@/context/ConfigContext";
-import EditFormComponent from "@/components/settings/EditForm";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import RenameGroupDialog from "@/components/settings/RenameGroupDialog";
 import SubscriptionDetailsForm from "@/components/news/SubscriptionDetailsForm";
 import { Button } from "../ui/button";
+import {
+  EditItemsForm,
+  useEditItemsForm,
+  ListHeader,
+  Modes,
+  Tabs,
+  Tab,
+  CreateGroupAction,
+  Actions,
+  ListContent,
+  ListItemPrototype,
+  IndividualActions,
+  Action,
+  BulkActionsFooter,
+  BulkItemsSelectedActions,
+} from "@/components/EditItemsForm";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faEdit, faTrash } from "@fortawesome/free-solid-svg-icons";
 
 type NewsFeed = {
     id?: string;
@@ -25,6 +43,10 @@ export default function ManageFeedsComponent() {
     const [editingFeed, setEditingFeed] = useState<NewsFeed | null>(null);
     const [addingGroup, setAddingGroup] = useState<string>("");
     const addOnAddedRef = useRef<((item: NewsFeed) => void) | null>(null);
+
+    // dialog state for rename group
+    const [renameDialogOpen, setRenameDialogOpen] = useState(false);
+    const [renameDialogGroupName, setRenameDialogGroupName] = useState("");
 
     const categories = useMemo(() => {
         const s = new Set<string>();
@@ -218,10 +240,24 @@ export default function ManageFeedsComponent() {
                     await unsubscribeFeed(feed.feedUrl);
                 }
             }
-            console.log(action)
         } catch (err) {
             console.error("group action failed", err);
             window.alert(`Failed to perform group action: ${err instanceof Error ? err.message : String(err)}`);
+        }
+    };
+
+    const handleGroupRename = async (groupName: string) => {
+        setRenameDialogGroupName(groupName);
+        setRenameDialogOpen(true);
+    };
+
+    const handleGroupRenameConfirm = async (newName: string) => {
+        try {
+            await handleGroupAction("rename", renameDialogGroupName, { newName });
+            setRenameDialogOpen(false);
+        } catch (err) {
+            console.error("Failed to rename category:", err);
+            // Dialog stays open on error so user can try again
         }
     };
 
@@ -235,108 +271,63 @@ export default function ManageFeedsComponent() {
 
             <div className="content space-y-2">
                 {feeds.length > 0 ? (
-                    <EditFormComponent<NewsFeed>
-                        title="Your Feed Subscriptions"
+                    <EditItemsForm<NewsFeed>
                         items={feeds}
                         groups={categories}
-                        groupBy={"category" as keyof NewsFeed}
-                        itemKey={"feedUrl"}
-                        createNewGroup={false}
-                        requireConfirmation={true}
-                        switchBetweenModes={true}
-                        enableMoveMode={false}
-                        defaultMode={"edit"}
-                        singleActions={["edit", "delete"]}
-                        bulkActions={["delete"]}
-                        moveItems={false}
+                        groupBy="category"
+                        itemKey="feedUrl"
                         enableSubgroup={false}
-                        iconRounded={false}
                         onUpdate={async (updatedItems, updatedGroups) => {
-                            // Placeholder: no individual update yet
+                            // Items already updated via individual feed handlers
                         }}
-                        onEditItem={async (item, updated) => {
-                            const originalFeed = feeds.find(f => f.feedUrl === item.feedUrl);
-                            if (originalFeed) {
-                                await updateFeed(item.feedUrl, { ...item, ...updated });
-                            }
-                        }}
-                        onGroupAction={async (action, groupName, payload) => {
-                            console.log(action);
-                            console.log("test");
-                            await handleGroupAction(action as "rename" | "delete", groupName, payload);
-                        }}
-                        renderAddItem={(
-                            groupName: string,
-                            onAdded: (item: NewsFeed) => void,
-                            onCancel: () => void
-                        ) => {
-                            const DialogOpener: React.FC = () => {
-                                useEffect(() => {
-                                    setAddingGroup(groupName);
-                                    addOnAddedRef.current = onAdded;
-                                    setEditingFeed(null);
-                                    setAddOpen(true);
-                                    try {
-                                        onCancel();
-                                    } catch { }
-                                    // eslint-disable-next-line react-hooks/exhaustive-deps
-                                }, []);
-                                return null;
-                            };
+                    >
+                        {/* Header with Mode Toggle and Group Tabs */}
+                        <ListHeader>
+                            {/* Mode Toggle: Edit Mode */}
+                            <Modes
+                                editLabel="Edit"
+                                moveLabel="Move"
+                            />
 
-                            return <DialogOpener />;
-                        }}
-                        renderEditItem={(
-                            item: NewsFeed,
-                            onSaved: (updated: NewsFeed) => void,
-                            onCancel: () => void
-                        ) => {
-                            const DialogOpener: React.FC = () => {
-                                useEffect(() => {
-                                    setEditingFeed(item);
-                                    setAddOpen(true);
-                                    try {
-                                        onCancel();
-                                    } catch { }
-                                    // eslint-disable-next-line react-hooks/exhaustive-deps
-                                }, []);
-                                return null;
-                            };
+                            {/* Group Tabs */}
+                            <Tabs>
+                                {categories.map((category) => (
+                                    <Tab
+                                        key={category}
+                                        name={category}
+                                        onRename={() => {
+                                            setRenameDialogGroupName(category);
+                                            setRenameDialogOpen(true);
+                                        }}
+                                        onDelete={() => {
+                                            if (confirm(`Delete category "${category}"? Feeds will be unassigned.`)) {
+                                                handleGroupAction("delete", category);
+                                            }
+                                        }}
+                                    />
+                                ))}
+                            </Tabs>
+                        </ListHeader>
 
-                            return <DialogOpener />;
-                        }}
-                        renderRow={(item: NewsFeed) => (
-                            <div className="flex items-center gap-3">
-                                <div className="w-8 h-8 flex items-center justify-center rounded overflow-hidden">
-                                    {item.icon ? (
-                                        // eslint-disable-next-line @next/next/no-img-element
-                                        <img
-                                            src={item.icon}
-                                            alt={`${item.name} icon`}
-                                            className="object-contain w-full h-full"
-                                        />
-                                    ) : (
-                                        <div className="w-8 h-8 bg-gray-200 flex items-center justify-center text-xs">
-                                            {item.name?.slice(0, 1).toUpperCase()}
-                                        </div>
-                                    )}
-                                </div>
+                        {/* Feeds List */}
+                        <FeedsListContent 
+                            feeds={feeds}
+                            onEditFeed={(feed) => {
+                                setEditingFeed(feed);
+                                setAddOpen(true);
+                            }}
+                            onDeleteFeed={(feed) => {
+                                if (confirm(`Unsubscribe from "${feed.name}"?`)) {
+                                    unsubscribeFeed(feed.feedUrl);
+                                }
+                            }}
+                        />
 
-                                <div className="flex-1 min-w-0">
-                                    <div className="font-medium truncate">{item.name}</div>
-                                    <div className="text-xs text-white/60 truncate">
-                                        {item.feedUrl}
-                                    </div>
-                                </div>
-
-                                {item.category && (
-                                    <span className="text-xs px-2 py-1 rounded-full bg-(--surface-3)">
-                                        {item.category}
-                                    </span>
-                                )}
-                            </div>
-                        )}
-                    />
+                        {/* Bulk Actions Footer */}
+                        <BulkActionsFooter>
+                            <BulkItemsSelectedActions />
+                        </BulkActionsFooter>
+                    </EditItemsForm>
                 ) : (
                     <div className="flex flex-col items-center justify-center py-24 text-center gap-4">
                         <p className="text-lg text-white/70">
@@ -406,6 +397,95 @@ export default function ManageFeedsComponent() {
                     />
                 </DialogContent>
             </Dialog>
+
+            {/* Rename Group Dialog */}
+            <RenameGroupDialog
+                open={renameDialogOpen}
+                onOpenChange={setRenameDialogOpen}
+                currentName={renameDialogGroupName}
+                onConfirm={handleGroupRenameConfirm}
+                title="Rename category"
+            />
         </main>
+    );
+}
+
+/**
+ * FeedsListContent - Helper component that uses useEditItemsForm hook
+ * to filter feeds by current group and render them with actions
+ */
+function FeedsListContent({
+    feeds,
+    onEditFeed,
+    onDeleteFeed,
+}: {
+    feeds: NewsFeed[];
+    onEditFeed: (feed: NewsFeed) => void;
+    onDeleteFeed: (feed: NewsFeed) => void;
+}) {
+    const { currentGroup, groupBy, mode } = useEditItemsForm<NewsFeed>();
+
+    // Filter feeds by current group
+    const filteredFeeds = feeds.filter(
+        (feed) => (feed[groupBy as keyof NewsFeed] ?? "Uncategorized") === currentGroup
+    );
+
+    return (
+        <ListContent>
+            {filteredFeeds.length === 0 ? (
+                <div className="text-center py-8 text-white/50">
+                    No feeds in this category
+                </div>
+            ) : (
+                filteredFeeds.map((feed) => (
+                    <ListItemPrototype
+                        key={feed.feedUrl}
+                        item={feed}
+                    >
+                        <div className="flex items-center gap-3 flex-1">
+                            {/* Feed Icon */}
+                            <div className="w-8 h-8 flex-shrink-0 flex items-center justify-center rounded overflow-hidden">
+                                {feed.icon ? (
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img
+                                        src={feed.icon}
+                                        alt={`${feed.name} icon`}
+                                        className="object-contain w-full h-full"
+                                    />
+                                ) : (
+                                    <div className="w-8 h-8 bg-gray-200 flex items-center justify-center text-xs font-semibold">
+                                        {feed.name?.slice(0, 1).toUpperCase()}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Feed Info */}
+                            <div className="flex-1 min-w-0">
+                                <div className="font-medium truncate">{feed.name}</div>
+                                <div className="text-xs text-white/60 truncate">
+                                    {feed.feedUrl}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Actions (Edit/Delete) */}
+                        {mode === "edit" && (
+                            <IndividualActions>
+                                <Action
+                                    type="edit"
+                                    label="Edit"
+                                    onClick={() => onEditFeed(feed)}
+                                />
+                                <Action
+                                    type="delete"
+                                    label="Delete"
+                                    onClick={() => onDeleteFeed(feed)}
+                                />
+                            </IndividualActions>
+                        )}
+                    </ListItemPrototype>
+                ))
+            )}
+        </ListContent>
     );
 }
