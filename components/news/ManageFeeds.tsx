@@ -1,30 +1,27 @@
 "use client";
 
 import React, { useEffect, useState, useMemo, useRef } from "react";
-import { useRouter } from "next/navigation";
-import { useConfig } from "@/context/ConfigContext";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import RenameGroupDialog from "@/components/settings/RenameGroupDialog";
 import SubscriptionDetailsForm from "@/components/news/SubscriptionDetailsForm";
 import { Button } from "../ui/button";
 import {
-  EditItemsForm,
-  useEditItemsForm,
-  ListHeader,
-  Modes,
-  Tabs,
-  Tab,
-  CreateGroupAction,
-  Actions,
-  ListContent,
-  ListItemPrototype,
-  IndividualActions,
-  Action,
-  BulkActionsFooter,
-  BulkItemsSelectedActions,
+    EditItemsForm,
+    useEditItemsForm,
+    ListHeader,
+    Modes,
+    Tabs,
+    Tab,
+    CreateGroupAction,
+    Actions,
+    ListContent,
+    ListItemPrototype,
+    IndividualActions,
+    Action,
+    BulkActionsFooter,
+    BulkItemsSelectedActions,
 } from "@/components/EditItemsForm";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faEdit, faTrash } from "@fortawesome/free-solid-svg-icons";
+import { faEdit, faPlus, faTrash } from "@fortawesome/free-solid-svg-icons";
 
 type NewsFeed = {
     id?: string;
@@ -283,11 +280,7 @@ export default function ManageFeedsComponent() {
                     >
                         {/* Header with Mode Toggle and Group Tabs */}
                         <ListHeader>
-                            {/* Mode Toggle: Edit Mode */}
-                            <Modes
-                                editLabel="Edit"
-                                moveLabel="Move"
-                            />
+                            <div></div>
 
                             {/* Group Tabs */}
                             <Tabs>
@@ -307,10 +300,20 @@ export default function ManageFeedsComponent() {
                                     />
                                 ))}
                             </Tabs>
+
+                            {/* Additional Actions */}
+                            <Actions className="frosted rounded-md">
+                                <Action
+                                    type="add"
+                                    icon={faPlus}
+                                    onClick={() => setAddOpen(true)}
+                                />
+                            </Actions>
+
                         </ListHeader>
 
                         {/* Feeds List */}
-                        <FeedsListContent 
+                        <FeedsListContent
                             feeds={feeds}
                             onEditFeed={(feed) => {
                                 setEditingFeed(feed);

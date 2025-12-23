@@ -7,12 +7,11 @@ import { useConfig } from "@/context/ConfigContext";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faBars, faBroom, faCaretRight, faFolder, faEdit, faArrowRight, faTrash, faPlus, faXmark } from "@fortawesome/free-solid-svg-icons";
+import { faBars, faBroom, faCaretRight, faFolder, faEdit, faTrash, faPlus, faXmark } from "@fortawesome/free-solid-svg-icons";
 
 import LinkDetailsForm from "@/components/settings/LinkDetailsForm";
 import DeleteUnusedLinkGroupsFormComponent from "@/components/settings/DeleteUnusedLinkGroupsForm";
 import MoveLinkGroupsFormComponent from "@/components/settings/MoveLinkGroupsForm";
-import TabSwitcher from "@/components/common/TabSwitcher";
 import { Badge } from "@/components/ui/badge";
 import { writeToConfig } from "@/lib/frontend/data/MUTATE/config/writeToConfig";
 import {
