@@ -3,7 +3,7 @@
 import { useMemo, useState, useEffect, useCallback } from "react";
 import WidgetComponent from "@/components/widgets/Widget";
 import { useConfig } from "@/context/ConfigContext";
-import { writeToConfig } from "@/lib/frontend/data/write";
+import { writeToConfig } from "@/lib/frontend/data/MUTATE/config/writeToConfig";
 import WidgetCategoryFilters from "@/components/settings/widgets/WidgetCategoryFilters";
 import rawWidgetsData from "@/public/widgets.json";
 

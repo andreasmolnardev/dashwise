@@ -4,7 +4,7 @@ import React, { useEffect, useState } from "react";
 import GlanceableComponent, { GlanceableProps } from "@/components/glanceables/Glanceable";
 import glanceables from '@/public/glanceables.json'
 import { useConfig } from "@/context/ConfigContext";
-import { writeToConfig } from "@/lib/frontend/data/write";
+import { writeToConfig } from "@/lib/frontend/data/MUTATE/config/writeToConfig.ts";
 import { Input } from "../ui/input";
 import { Button } from "../ui/button";
 import { Checkbox } from "../ui/checkbox";

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerPB, getSuperuserPB } from "@/lib/pb";
+import config from "@/lib/config";
 
 interface SubscribeRequestBody {
     feedUrl: string;
@@ -44,6 +45,8 @@ export async function POST(req: NextRequest) {
 
         // await db call
         await addNewsFeed(superPb, userId, body);
+
+        await fetch(config.jobs_url + '/webhook/newsFeedBuilder');
 
         return NextResponse.json(
             { message: "Feed successfully subscribed." },

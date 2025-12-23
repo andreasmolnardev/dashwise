@@ -37,6 +37,8 @@ You can use the following environment variables for the main container:
 | NEXT_PUBLIC_APP_URL | Yes | `http://localhost:3000` | URL of the application |
 | NEXT_PUBLIC_ENABLE_SSO | No | `false` | Enable Single Sign-On (SSO) |
 | NEXT_PUBLIC_DEFAULT_BG_URL | No | `/dashboard-wallpaper.png` | Default background URL |
+| NEXT_PUBLIC_JOBS_WEBHOOK_ENABLE | No | `false` | Explicitly enable the jobs webhook. Set to `1` or `true`- to force-enable the webhook regardless of whether a jobs URL is configured. |
+| NEXT_PUBLIC_JOBS_URL | No | `http://127.0.0.1:3001` | URL of the jobs webhook endpoint. If overwritten, the jobs webhook is automatically enabled even if `NEXT_PUBLIC_JOBS_WEBHOOK_ENABLE` is not set. |
 
 The jobs container can be configured with the following environment variables:
 

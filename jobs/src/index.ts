@@ -58,13 +58,18 @@ fastify.get("/webhook/statusMonitoringRunner", async (request, reply) => {
 });
 
 //update checks
-console.log("test")
 runComparisonRunner();
 cron.schedule(config.UPDATE_CHECK_SCHEDULE, () => runComparisonRunner());
 
 newsFeedBuilder();
 cron.schedule(config.FEED_BUILDING_SCHEDULE, () => newsFeedBuilder());
 
+
+fastify.get("/webhook/newsFeedBuilder", async (request, reply) => {
+  console.log("Webhook received");
+  await newsFeedBuilder();
+  reply.send({ message: "news feed builder triggered" });
+});
 
 // Start http server
 fastify.listen({ port: 3001, host: "0.0.0.0" });

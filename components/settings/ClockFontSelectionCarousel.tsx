@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { PaginatedCarouselViewComponent } from "../widgets/PaginatedCarouselView";
 import { useConfig } from "@/context/ConfigContext";
 import { loadFont } from "@/lib/loadFont";
-import { writeToConfig } from "@/lib/frontend/data/write";
+import { writeToConfig } from "@/lib/frontend/data/MUTATE/config/writeToConfig";
 
 type FontEntry = {
   name: string;

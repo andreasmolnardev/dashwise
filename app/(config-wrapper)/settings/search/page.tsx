@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
-import { writeToConfig } from "@/lib/frontend/data/write";
+import { writeToConfig } from "@/lib/frontend/data/MUTATE/config/writeToConfig";
 import {
   DropdownMenu,
   DropdownMenuContent,

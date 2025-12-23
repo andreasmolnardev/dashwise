@@ -2,7 +2,7 @@ export type WriteOpts = {
   method?: "PATCH" | "PUT" | "POST" | "DELETE";
   token?: string | null;
   signal?: AbortSignal;
-  onSuccess?: (resp: any) => void; // your refreshConfig callback fits here
+  onSuccess?: (resp: any) => void; // callback 
   dispatchEvent?: boolean; // dispatch window custom event "config:updated"
 };
 

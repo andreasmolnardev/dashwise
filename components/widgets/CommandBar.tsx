@@ -124,7 +124,7 @@ export default function CommandBar({ open, setOpen, searchItems }: CommandBarPro
     }
   }, [open, links]);
 
-  // item filtering
+  //item filtering 
   React.useEffect(() => {
     const q = query.trim().toLowerCase();
     if (!q) {
@@ -133,17 +133,39 @@ export default function CommandBar({ open, setOpen, searchItems }: CommandBarPro
       return;
     }
 
+    const minMatchRatio = 0.5;
+    const matchMode = 'prefix';
+
     const queryWords = q.split(/\s+/).filter(Boolean);
 
     const results = links
       .map((item) => {
-        const tags = (item.tags || []).map(t => t.toLowerCase());
-        const matchCount = queryWords.reduce((count, word) =>
-          count + (tags.some(tag => tag.includes(word)) ? 1 : 0), 0);
-        return { item, matchCount };
+        // turn tags into words: split on non-word chars so "foo-bar" -> ["foo","bar"]
+        const tagWords = (item.tags || [])
+          .flatMap(t => String(t).toLowerCase().split(/\W+/).filter(Boolean));
+
+        // for each query word, find if it matches any tag word (count each query word at most once)
+        let matchedQueryCount = 0;
+        for (const qw of queryWords) {
+          const matched = tagWords.some(tw => {
+            //if (matchMode === 'whole') return tw === qw;
+            if (matchMode === 'prefix') return tw.startsWith(qw);
+            return tw === qw;
+          });
+          if (matched) matchedQueryCount += 1;
+        }
+
+        const matchRatio = queryWords.length > 0 ? matchedQueryCount / queryWords.length : 0;
+
+        return { item, matchedQueryCount, matchRatio };
       })
-      .filter(({ matchCount }) => matchCount > 0)
-      .sort((a, b) => b.matchCount - a.matchCount)
+      // drop weak matches below the threshold
+      .filter(({ matchRatio }) => matchRatio >= minMatchRatio)
+      // sort descending by ratio, then by raw matched count
+      .sort((a, b) => {
+        if (b.matchRatio !== a.matchRatio) return b.matchRatio - a.matchRatio;
+        return b.matchedQueryCount - a.matchedQueryCount;
+      })
       .map(({ item }) => item);
 
     setFiltered(results);
@@ -299,7 +321,7 @@ export default function CommandBar({ open, setOpen, searchItems }: CommandBarPro
     const template = engine.url_params || engine.url_home || '';
     const searchUrl = template.replace('%s', encodeURIComponent(q || ''));
     if (!searchUrl) return;
-    openUrl(searchUrl, config?.global?.linkOpenBehaviour  ?? 'sametab');
+    openUrl(searchUrl, config?.global?.linkOpenBehaviour ?? 'sametab');
   }
 
   function openBangSearch(q: string, slug?: string) {
@@ -311,7 +333,7 @@ export default function CommandBar({ open, setOpen, searchItems }: CommandBarPro
     const template = engine.url_params || engine.url_home || '';
     const searchUrl = template.replace('%s', encodeURIComponent(terms || ''));
     if (!searchUrl) return;
-    openUrl(searchUrl, config?.global?.linkOpenBehaviour  ?? 'sametab');
+    openUrl(searchUrl, config?.global?.linkOpenBehaviour ?? 'sametab');
   }
 
   function openEngineSearch(slug?: string, q?: string) {

@@ -93,21 +93,31 @@ export default function NewsDashboardComponent(
     }
 
     return (
-        <div className="grid grid-rows-[36px_1fr_36px] h-dvh pt-5 md:p-3.5 p-0 overflow-x-hidden text-(--surface-foreground) bg-(--surface)">
-            <header className="flex gap-2 items-center">
+        <div className="grid grid-rows-[36px_1fr_auto] h-dvh pt-5 md:p-3.5 p-0 overflow-x-hidden text-(--surface-foreground) bg-(--surface)">
+            {/* HEADER */}
+            <header className="flex gap-2 items-center px-3 md:px-6">
                 <img src="/dashwise-icon.png" alt="" className="h-[36px]" />
                 <span className="font-semibold">News</span>
             </header>
+
+            {/* MAIN */}
             <main
                 id="page-content-container"
                 className="
-                    flex snap-x snap-mandatory overflow-x-auto touch-pan-x scrollbar-hide md:overflow-hidden
-                    gap-2 px-25
-                "
+            flex gap-2
+            overflow-x-auto snap-x snap-mandatory touch-pan-x scrollbar-hide
+            md:overflow-visible md:snap-none
+            px-3 md:px-6
+        "
             >
                 {/* LEFT PANEL */}
-                <div className="flex-grow-1 w-screen snap-start md:w-auto md:flex-grow space-y-3.5 overflow-y-auto min-w-0">
-                    <section>
+                <div
+                    className="
+                w-screen md:w-auto flex-grow snap-start
+                space-y-3.5 overflow-y-auto min-w-0
+            "
+                >
+                    <section className="space-y-3.5">
                         {!feed && (
                             <div className="opacity-60">Loading news…</div>
                         )}
@@ -121,7 +131,7 @@ export default function NewsDashboardComponent(
                                     {/* Category header */}
                                     <button
                                         onClick={() => toggleCategory(category)}
-                                        className="w-full flex justify-between font-semibold text-lg py-1 px-3"
+                                        className="w-full flex justify-between items-center font-semibold text-base md:text-lg py-1 px-3"
                                     >
                                         <span>{category}</span>
                                         <span>
@@ -133,72 +143,77 @@ export default function NewsDashboardComponent(
 
                                     {/* Articles list */}
                                     {expanded[category] && (
-                                        <div className="space-y-1.5">
+                                        <div className="space-y-1.5 mt-2">
                                             {articles
                                                 .slice(0, limit[category] ?? 10)
                                                 .map((item, idx) => (
                                                     <div
                                                         key={idx}
-                                                        className="p-3 rounded-lg bg-(--surface-3) grid grid-cols-[1fr_3fr] gap-3 h-32"
+                                                        className="p-3 rounded-lg bg-(--surface-3) grid gap-3 grid-cols-1 md:grid-cols-[1fr_3fr]"
                                                     >
-
-                                                        {/* Image */}
                                                         {item.thumbnailUrl ? (
                                                             <img
-                                                                src={
-                                                                    item.thumbnailUrl
-                                                                }
-                                                                className="my-2 h-30 object-cover rounded-xl self-center w-full max-w-52"
+                                                                src={item.thumbnailUrl}
+                                                                className="w-full aspect-[1.5/1] object-cover rounded-xl"
                                                             />
                                                         ) : (
-                                                            <div className="my-2 h-30 frosted rounded-xl self-center">
-                                                            </div>
+                                                            <div
+                                                                className="w-full aspect-[1.5/1] frosted rounded-xl"
+                                                            />
                                                         )}
 
-                                                        {/* Text */}
                                                         <div className="min-w-0">
-                                                            <a
+                                                            <a   
                                                                 href={item.link}
                                                                 target="_blank"
-                                                                className="font-semibold line-clamp-2 hover:text-(--primary) text-lg"
+                                                                className="
+                                                            font-semibold
+                                                            line-clamp-2
+                                                            text-base md:text-lg
+                                                            hover:text-(--primary)
+                                                        "
                                                             >
                                                                 {item.title}
                                                             </a>
 
                                                             {item.source && (
-                                                                <p className="text-xs mt-1 flex items-center gap-1">
-                                                                    {getIconUrl(item.source) && <img src={getIconUrl(item.source)} alt={item.source} className="h-4" />}
-                                                                    {item.source + (item.author ? ` • ${item.author}` : "")}
-                                                                </p>
+                                                                <div className="flex justify-between text-xs mt-1 opacity-80">
+                                                                    <p className="flex items-center gap-1 ">
+                                                                        {getIconUrl(item.source) && (
+                                                                            <img
+                                                                                src={getIconUrl(item.source)}
+                                                                                alt={item.source}
+                                                                                className="h-4"
+                                                                            />
+                                                                        )}
+                                                                        {item.source}
+                                                                        {item.author && ` • ${item.author}`}
+                                                                    </p>
+                                                                    <p> {formatRelativeTime(item.pubDate)}</p>
+                                                                </div>
                                                             )}
 
                                                             {item.description && (
-                                                                <p className="text-sm opacity-80 line-clamp-2 mt-1">
-                                                                    {
-                                                                        item.description
-                                                                    }
+                                                                <p className="text-sm md:text-[0.95rem] opacity-80 line-clamp-2 mt-1">
+                                                                    {item.description}
                                                                 </p>
                                                             )}
-
                                                         </div>
                                                     </div>
                                                 ))}
 
-                                            {/* Show more button */}
-                                            {limit[category] <
-                                                articles.length && (
-                                                    <div className="flex justify-center">
-                                                        <Button
-                                                            onClick={() =>
-                                                                showMore(category)
-                                                            }
-                                                            variant="ghost"
-                                                            className="text-lg"
-                                                        >
-                                                            <FontAwesomeIcon icon={faCaretDown} /> Show 10 more
-                                                        </Button>
-                                                    </div>
-                                                )}
+                                            {/* Show more */}
+                                            {limit[category] < articles.length && (
+                                                <div className="flex justify-center">
+                                                    <Button
+                                                        onClick={() => showMore(category)}
+                                                        variant="ghost"
+                                                        className="text-base md:text-lg"
+                                                    >
+                                                        <FontAwesomeIcon icon={faCaretDown} /> Show 10 more
+                                                    </Button>
+                                                </div>
+                                            )}
                                         </div>
                                     )}
                                 </div>
@@ -206,39 +221,99 @@ export default function NewsDashboardComponent(
                     </section>
                 </div>
 
-                {/* RIGHT PANEL (empty for now)
-                
-                 <div
-                    id="right-news-panel"
-                    className="flex-shrink-0 w-screen snap-start md:w-auto md:flex-grow space-y-3.5 overflow-y-auto min-w-0"
-                    style={{ scrollSnapStop: "always", touchAction: "pan-x" }}
-                >
-                    Right news panel here, empty for now
-                </div>
-            */}
-
+                {/* RIGHT PANEL (optional, swipe-enabled on mobile)
+                    <div
+                        id="right-news-panel"
+                        className="
+                            w-screen md:w-auto flex-grow snap-start
+                            space-y-3.5 overflow-y-auto min-w-0
+                        "
+                    >
+                        Right news panel here
+                    </div>
+                    */}
             </main>
 
             {/* FOOTER */}
-            <div className="flex justify-between items-center" id="page-footer">
-                <div id="app-details" className="flex items-center gap-2">
-                    <Link
-                        href="/home"
-                        className="frosted flex gap-2 items-center p-1.5 rounded-full text-sm group"
-                    >
-                        <FontAwesomeIcon icon={faArrowLeft} />
-                        Back to dashboard
-                    </Link>
-                </div>
+            <footer
+                id="page-footer"
+                className="
+            flex flex-col gap-2
+            md:flex-row md:justify-between md:items-center
+            px-3 md:px-6 py-2
+        "
+            >
+                <Link
+                    href="/home"
+                    className="frosted flex gap-2 items-center p-1.5 rounded-full text-sm"
+                >
+                    <FontAwesomeIcon icon={faArrowLeft} />
+                    Back to dashboard
+                </Link>
 
                 <Link
                     href="/news/manage-feeds"
-                    className="frosted flex gap-2 items-center p-1.5 rounded-full text-sm group"
+                    className="frosted flex gap-2 items-center p-1.5 rounded-full text-sm"
                 >
                     <FontAwesomeIcon icon={faEllipsisVertical} />
                     Manage subscriptions
                 </Link>
-            </div>
+            </footer>
         </div>
     );
+}
+
+export function formatRelativeTime(isoDate: string): string {
+    const date = new Date(isoDate)
+    const now = new Date()
+
+    const diffMs = now.getTime() - date.getTime()
+    const diffSeconds = Math.floor(diffMs / 1000)
+    const diffMinutes = Math.floor(diffSeconds / 60)
+    const diffHours = Math.floor(diffMinutes / 60)
+    const diffDays = Math.floor(diffHours / 24)
+
+    // Just now
+    if (diffSeconds < 60) {
+        return "Just now"
+    }
+
+    // Minutes ago
+    if (diffMinutes < 60) {
+        return `${diffMinutes}m ago`
+    }
+
+    // Hours ago
+    if (diffHours < 24) {
+        return `${diffHours}h ago`
+    }
+
+    // Yesterday
+    const yesterday = new Date(now)
+    yesterday.setDate(now.getDate() - 1)
+
+    const isYesterday =
+        date.getDate() === yesterday.getDate() &&
+        date.getMonth() === yesterday.getMonth() &&
+        date.getFullYear() === yesterday.getFullYear()
+
+    if (isYesterday) {
+        return `Yesterday at ${date.toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+        })}`
+    }
+
+    // Same year
+    if (date.getFullYear() === now.getFullYear()) {
+        return date.toLocaleDateString([], {
+            month: "short",
+            day: "2-digit",
+            hour: "2-digit",
+            minute: "2-digit",
+        })
+    }
+
+    // Fallback
+    return date.toISOString().split("T")[0]
 }

@@ -10,7 +10,7 @@ import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
 import LocationSelectFormComponent from "@/components/settings/LocationSelectForm";
-import { writeToConfig } from "@/lib/frontend/data/write";
+import { writeToConfig } from "@/lib/frontend/data/MUTATE/config/writeToConfig";
 
 
 export default function GeneralSettingsPage() {
