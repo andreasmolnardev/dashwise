@@ -176,6 +176,9 @@ export interface EditItemsFormContextType<T extends Record<string, any>> {
   selected: Record<string, boolean>;
   editingKey: string | null;
   expandedSubgroups: Record<string, boolean>;
+  draggedItemKey: string | null;
+  draggedOverItemKey: string | null;
+  insertPosition: "before" | "after" | null;
 
   // Config
   groupBy: keyof T;
@@ -200,6 +203,12 @@ export interface EditItemsFormContextType<T extends Record<string, any>> {
   // Item operations
   updateItems: (items: T[]) => void;
   updateGroups: (groups: string[]) => void;
+
+  // Drag handlers
+  handleDragStart: (key: string, e: React.DragEvent<HTMLDivElement>) => void;
+  handleDragOver: (key: string, e: React.DragEvent<HTMLDivElement>) => void;
+  handleDragLeave: (e: React.DragEvent<HTMLDivElement>) => void;
+  handleDrop: (key: string, e: React.DragEvent<HTMLDivElement>) => void;
 
   // Callbacks
   onEditItem?: (item: T) => void;
@@ -319,6 +328,9 @@ export function EditItemsForm<T extends Record<string, any>>({
   const [expandedSubgroups, setExpandedSubgroups] = useState<Record<string, boolean>>({});
   const [workingItems, setWorkingItems] = useState<T[]>(items);
   const [workingGroups, setWorkingGroups] = useState<string[]>(computedGroups);
+  const [draggedItemKey, setDraggedItemKey] = useState<string | null>(null);
+  const [draggedOverItemKey, setDraggedOverItemKey] = useState<string | null>(null);
+  const [insertPosition, setInsertPosition] = useState<"before" | "after" | null>(null);
 
   // Sync with parent props
   useEffect(() => {
@@ -382,6 +394,105 @@ export function EditItemsForm<T extends Record<string, any>>({
     }));
   }, []);
 
+  const handleDragStart = useCallback((key: string, e: React.DragEvent<HTMLDivElement>) => {
+    setDraggedItemKey(key);
+    e.dataTransfer.effectAllowed = "move";
+  }, []);
+
+  const handleDragOver = useCallback((key: string, e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+
+    if (!draggedItemKey || draggedItemKey === key) {
+      setDraggedOverItemKey(null);
+      setInsertPosition(null);
+      return;
+    }
+
+    setDraggedOverItemKey(key);
+
+    // Determine if should insert before or after based on mouse position
+    const rect = e.currentTarget.getBoundingClientRect();
+    const midpoint = rect.top + rect.height / 2;
+    const position = e.clientY < midpoint ? "before" : "after";
+    setInsertPosition(position);
+  }, [draggedItemKey]);
+
+  const handleDragLeave = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setDraggedOverItemKey(null);
+    setInsertPosition(null);
+  }, []);
+
+  const handleDrop = useCallback(
+    (key: string, e: React.DragEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      if (!draggedItemKey || draggedItemKey === key) {
+        setDraggedItemKey(null);
+        setDraggedOverItemKey(null);
+        setInsertPosition(null);
+        return;
+      }
+
+      // Find indices of dragged and target items (only in current group)
+      const itemsInGroup = workingItems.filter((it) => String(it[groupBy] ?? "") === currentGroup);
+      const draggedIndex = itemsInGroup.findIndex((it) => getKeyFor(it) === draggedItemKey);
+      const targetIndex = itemsInGroup.findIndex((it) => getKeyFor(it) === key);
+
+      if (draggedIndex === -1 || targetIndex === -1) {
+        setDraggedItemKey(null);
+        setDraggedOverItemKey(null);
+        setInsertPosition(null);
+        return;
+      }
+
+      // Calculate new position
+      let newIndex = targetIndex;
+      if (insertPosition === "after") {
+        newIndex = targetIndex + 1;
+      }
+
+      // Adjust if dragging backwards
+      if (draggedIndex < targetIndex && insertPosition === "after") {
+        newIndex = targetIndex + 1;
+      } else if (draggedIndex > targetIndex && insertPosition === "before") {
+        newIndex = targetIndex;
+      } else if (draggedIndex < targetIndex) {
+        newIndex = targetIndex;
+      }
+
+      // Create new items array with reordered items
+      const newItems = [...workingItems];
+      const draggedItem = itemsInGroup[draggedIndex];
+      const otherItems = itemsInGroup.filter((_, i) => i !== draggedIndex);
+      const reorderedGroup = [...otherItems.slice(0, newIndex), draggedItem, ...otherItems.slice(newIndex)];
+
+      // Update items: replace the group's items with reordered ones
+      const groupItemIndices = newItems
+        .map((it, i) => (String(it[groupBy] ?? "") === currentGroup ? i : -1))
+        .filter((i) => i !== -1);
+
+      groupItemIndices.forEach((globalIndex, localIndex) => {
+        newItems[globalIndex] = reorderedGroup[localIndex];
+      });
+
+      setWorkingItems(newItems);
+
+      // Call onUpdate with new items
+      if (onUpdate) {
+        onUpdate(newItems, workingGroups);
+      }
+
+      // Reset drag state
+      setDraggedItemKey(null);
+      setDraggedOverItemKey(null);
+      setInsertPosition(null);
+    },
+    [draggedItemKey, workingItems, workingGroups, currentGroup, groupBy, getKeyFor, onUpdate]
+  );
+
   const context: EditItemsFormContextType<T> = {
     // Data
     items: workingItems,
@@ -391,6 +502,9 @@ export function EditItemsForm<T extends Record<string, any>>({
     selected,
     editingKey,
     expandedSubgroups,
+    draggedItemKey,
+    draggedOverItemKey,
+    insertPosition,
 
     // Config
     groupBy,
@@ -416,6 +530,12 @@ export function EditItemsForm<T extends Record<string, any>>({
     updateItems: setWorkingItems,
     updateGroups: setWorkingGroups,
 
+    // Drag handlers
+    handleDragStart,
+    handleDragOver,
+    handleDragLeave,
+    handleDrop,
+
     // Callbacks
     onEditItem,
     onDeleteItem: undefined,
@@ -427,7 +547,7 @@ export function EditItemsForm<T extends Record<string, any>>({
 
   return (
     <EditItemsFormContext.Provider value={context}>
-      <div className="edit-items-form space-y-4">
+      <div className="edit-items-form space-y-4 relative">
         {children}
       </div>
     </EditItemsFormContext.Provider>
@@ -465,7 +585,7 @@ export function Modes({ editLabel = "Edit", moveLabel = "Move" }: { editLabel?: 
 /** Container for group tabs */
 export function Tabs({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex gap-2 overflow-x-auto pb-2">
+    <div className="flex gap-2 p-1 overflow-x-auto frosted rounded-full text-white/20 items-center justify-center">
       {children}
     </div>
   );
@@ -492,10 +612,10 @@ export function Tab({
       {/* Main tab button - clicking changes group */}
       <button
         onClick={() => setCurrentGroup(name)}
-        className={`px-3 py-1.5 rounded-full text-sm whitespace-nowrap transition ${
+        className={`px-3 py-1.5 rounded-full text-sm whitespace-nowrap transition font-medium ${
           isActive
             ? "bg-white/20 text-(--text-primary)"
-            : "text-white/50 hover:text-white/70"
+            : "text-white/70 hover:text-white/80"
         }`}
       >
         {name}
@@ -505,7 +625,7 @@ export function Tab({
       {(onRename || onDelete) && (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="px-1 opacity-50 hover:opacity-100 transition">
+            <button className="px-1 opacity-70 hover:opacity-100 transition">
               <FontAwesomeIcon icon={faCaretDown} className="text-xs" />
             </button>
           </DropdownMenuTrigger>
@@ -558,6 +678,17 @@ export function Actions({
 
 /** Container for list items */
 export function ListContent({ children }: { children: React.ReactNode }) {
+  const hasChildren = React.Children.count(children) > 0;
+
+  if (!hasChildren) {
+    return (
+      <div className="h-20 flex items-center justify-center flex-col font-medium">
+        <p className="text-lg">Nothing here</p>
+        <p>Add an item to get started</p>
+      </div>
+    );
+  }
+
   return <div className="space-y-3">{children}</div>;
 }
 
@@ -581,37 +712,63 @@ export function ListItemPrototype({
   onDragStart?: (e: React.DragEvent<HTMLDivElement>) => void;
   onDragEnd?: (e: React.DragEvent<HTMLDivElement>) => void;
 }) {
-  const { mode, selected, toggleSelect } = useEditItemsForm();
+  const { mode, selected, toggleSelect, handleDragStart: contextDragStart, handleDragOver, handleDragLeave, handleDrop, draggedItemKey, draggedOverItemKey, insertPosition } = useEditItemsForm();
   const itemKey = item.id || JSON.stringify(item);
   const isSelected = selected[itemKey];
+  const isDragged = draggedItemKey === itemKey;
+  const isDraggedOver = draggedOverItemKey === itemKey;
+
+  const handleLocalDragStart = (e: React.DragEvent<HTMLDivElement>) => {
+    contextDragStart(itemKey, e);
+    onDragStart?.(e);
+  };
+
+  const handleLocalDragEnd = (e: React.DragEvent<HTMLDivElement>) => {
+    onDragEnd?.(e);
+  };
 
   return (
-    <div
-      draggable={mode === "move"}
-      onDragStart={onDragStart}
-      onDragEnd={onDragEnd}
-      className="flex items-center gap-3 p-3 rounded-md border border-transparent hover:bg-(--surface-2) transition group cursor-default"
-    >
-      {/* Move or Select Icon - Left side */}
-      {mode === "move" && (
-        <div className="flex-shrink-0 cursor-grab active:cursor-grabbing opacity-50 group-hover:opacity-100 transition">
-          <FontAwesomeIcon icon={faArrowsUpDown} className="text-white/40" />
+    <>
+      {/* Insertion line above */}
+      {isDraggedOver && insertPosition === "before" && (
+        <div className="h-0.5 bg-blue-500 rounded mb-2" />
+      )}
+      <div
+        draggable={mode === "move"}
+        onDragStart={handleLocalDragStart}
+        onDragEnd={handleLocalDragEnd}
+        onDragOver={(e) => handleDragOver(itemKey, e)}
+        onDragLeave={handleDragLeave}
+        onDrop={(e) => handleDrop(itemKey, e)}
+        className={`flex items-center gap-3 p-3 rounded-md border border-transparent hover:bg-(--surface-2) transition group cursor-default relative ${
+          isDragged ? "opacity-50" : ""
+        } ${isDraggedOver ? "bg-(--surface-1)" : ""}`}
+      >
+        {/* Move or Select Icon - Left side */}
+        {mode === "move" && (
+          <div className="flex-shrink-0 cursor-grab active:cursor-grabbing opacity-50 group-hover:opacity-100 transition">
+            <FontAwesomeIcon icon={faArrowsUpDown} className="text-white/40" />
+          </div>
+        )}
+
+        {mode === "edit" && (
+          <Checkbox
+            checked={isSelected}
+            onCheckedChange={() => toggleSelect(itemKey)}
+            className="flex-shrink-0"
+          />
+        )}
+
+        {/* Content wrapper */}
+        <div className="flex-1 min-w-0 flex items-center gap-3">
+          {children}
         </div>
-      )}
-
-      {mode === "edit" && (
-        <Checkbox
-          checked={isSelected}
-          onCheckedChange={() => toggleSelect(itemKey)}
-          className="flex-shrink-0"
-        />
-      )}
-
-      {/* Content wrapper */}
-      <div className="flex-1 min-w-0 flex items-center gap-3">
-        {children}
       </div>
-    </div>
+      {/* Insertion line below */}
+      {isDraggedOver && insertPosition === "after" && (
+        <div className="h-0.5 bg-blue-500 rounded mt-2" />
+      )}
+    </>
   );
 }
 
@@ -636,7 +793,7 @@ export function Action({
   type,
   label,
   onClick,
-  icon,
+  icon
 }: {
   type: "edit" | "move" | "delete" | "create" | "clean" | "add";
   label?: string;
@@ -677,7 +834,7 @@ export function BulkActionsFooter({ children }: { children: React.ReactNode }) {
   if (selectedCount === 0) return null;
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 bg-(--surface-1) border-t border-(--border-color) p-4 flex items-center justify-between gap-4">
+    <div className="sticky bottom-0 left-0 right-0 frosted backdrop-blur-lg bg-(--surface-1) border-t border-(--border-color) p-2 flex items-center justify-between gap-4 rounded-full mx-25">
       <div className="text-sm">
         <span className="font-semibold">{selectedCount}</span>
         <span className="text-white/70 ml-2">items selected</span>

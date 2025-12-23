@@ -7,7 +7,7 @@ import { useConfig } from "@/context/ConfigContext";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faBars, faBroom, faCaretRight, faFolder, faEdit, faArrowRight, faTrash, faPlus } from "@fortawesome/free-solid-svg-icons";
+import { faBars, faBroom, faCaretRight, faFolder, faEdit, faArrowRight, faTrash, faPlus, faXmark } from "@fortawesome/free-solid-svg-icons";
 
 import LinkDetailsForm from "@/components/settings/LinkDetailsForm";
 import DeleteUnusedLinkGroupsFormComponent from "@/components/settings/DeleteUnusedLinkGroupsForm";
@@ -51,6 +51,9 @@ export default function LinksSettingsPage() {
 
   const [addOpen, setAddOpen] = useState(false);
   const [addingLinkGroup, setAddingLinkGroup] = useState<string>("");
+
+  const [removeLinkFolderOpen, setRemoveLinkFolderOpen] = useState(false);
+  const [linkToBeRemovedFromFolder, setLinkToBeRemovedFromFolder] = useState<string>("");
 
   const [selectedGroup, setSelectedGroup] = useState<string>("");
 
@@ -220,14 +223,7 @@ export default function LinksSettingsPage() {
             </Tabs>
 
             {/* Additional Actions */}
-            <Actions className="frosted">
-              <Action
-                type="clean"
-                icon={faBroom}
-                onClick={() => {
-                  // Clean unused groups handled separately below
-                }}
-              />
+            <Actions className="frosted rounded-md">
               <Action
                 type="add"
                 icon={faPlus}
@@ -237,9 +233,11 @@ export default function LinksSettingsPage() {
           </ListHeader>
 
           {/* Main Items List - Use inner component for groupBy filtering */}
-          <LinksListContent 
-            items={linksForForm} 
+          <LinksListContent
+            items={linksForForm}
             onEdit={handleOnEditItem}
+            setRemoveLinkFolderOpen={setRemoveLinkFolderOpen}
+            setLinkToBeRemovedFromFolder={setLinkToBeRemovedFromFolder}
           />
 
           {/* Bulk Actions Footer */}
@@ -265,7 +263,9 @@ export default function LinksSettingsPage() {
               }}
             />
           </BulkActionsFooter>
-        </EditItemsForm>    <h2 className="text-xl pt-2">Manage link groups</h2>
+        </EditItemsForm>
+
+        <h2 className="text-xl pt-2">Manage link groups</h2>
 
         <Dialog>
           <DialogTrigger asChild>
@@ -309,6 +309,50 @@ export default function LinksSettingsPage() {
             />
           </DialogContent>
         </Dialog>
+
+        {/* Remove link subgroup*/}
+        <Dialog open={removeLinkFolderOpen} onOpenChange={setRemoveLinkFolderOpen}>
+          <DialogContent className="frosted text-(--text-primary)">
+            <DialogHeader>
+              <DialogTitle>Remove link from Folder</DialogTitle>
+            </DialogHeader>
+            <DialogDescription className="text-(--text-secondary)">
+              This will remove the link from its folder but keep the link itself.
+            </DialogDescription>
+            <div className="flex gap-2 justify-end pt-4">
+              <button
+                onClick={() => setRemoveLinkFolderOpen(false)}
+                className="px-4 py-2 rounded-md border border-(--border-color) hover:bg-(--surface-2) transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  if (!linkToBeRemovedFromFolder) return;
+                  try {
+                    // Find the link and remove folder
+                    const updatedLinks = linksForForm.map((link) =>
+                      link.id === linkToBeRemovedFromFolder
+                        ? { ...link, folder: undefined }
+                        : link
+                    );
+                    // Call update
+                    await handleUpdateFromForm(updatedLinks);
+                    setRemoveLinkFolderOpen(false);
+                    setLinkToBeRemovedFromFolder("");
+                  } catch (err) {
+                    console.error("Failed to remove link from folder", err);
+                    window.alert("Failed to remove link from folder");
+                  }
+                }}
+                className="px-4 py-2 rounded-md bg-red-600 hover:bg-red-700 text-white transition"
+              >
+                Remove
+              </button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
 
         {/* Add Link dialog */}
         <Dialog open={addOpen} onOpenChange={(v) => {
@@ -386,16 +430,25 @@ export default function LinksSettingsPage() {
 function LinksListContent({
   items,
   onEdit,
+  setRemoveLinkFolderOpen,
+  setLinkToBeRemovedFromFolder,
 }: {
   items: LinkItem[];
   onEdit: (item: LinkItem) => void;
+  setRemoveLinkFolderOpen: (value: boolean) => void;
+  setLinkToBeRemovedFromFolder: (value: string) => void;
 }) {
-  const { currentGroup } = useEditItemsForm();
+  const { currentGroup, updateItems } = useEditItemsForm();
 
   // Filter items based on currently selected group
   const filteredItems = currentGroup
     ? items.filter((item) => item.linkGroup === currentGroup)
     : items;
+
+  const handleRemoveFromFolder = (item: LinkItem) => {
+    setLinkToBeRemovedFromFolder(item.id || "");
+    setRemoveLinkFolderOpen(true);
+  };
 
   return (
     <ListContent>
@@ -421,16 +474,23 @@ function LinksListContent({
 
           {/* Folder Badge if in subgroup */}
           {item.folder && (
-            <Badge variant="secondary" className="flex items-center gap-1 flex-shrink-0">
+            <Badge variant="secondary" className="flex items-center gap-1 flex-shrink-0 pr-1.5">
               <FontAwesomeIcon icon={faFolder} className="text-xs" />
-              {item.folder}
+              <span>{item.folder}</span>
+              <button
+                onClick={() => handleRemoveFromFolder(item)}
+                className="ml-1 hover:opacity-70 transition-opacity flex-shrink-0"
+                title="Remove from folder"
+              >
+                <FontAwesomeIcon icon={faXmark} className="text-xs" />
+              </button>
             </Badge>
           )}
 
           {/* Individual Item Actions */}
           <IndividualActions>
-            <Action type="edit" icon={faEdit} onClick={() => onEdit(item)} />
-            <Action
+            <Action type="edit" icon={faEdit} onClick={() => onEdit(item)} label="Edit Link"/>
+            {/* <Action
               type="move"
               icon={faArrowRight}
               onClick={() => {
@@ -442,10 +502,11 @@ function LinksListContent({
                   // For now, we'll trigger it through the context or parent callback
                 }
               }}
-            />
+            /> */}
             <Action
               type="delete"
               icon={faTrash}
+              label="Delete Link"
               onClick={() => {
                 if (window.confirm("Delete this link?")) {
                   // This would be handled by parent - needs to filter and update
