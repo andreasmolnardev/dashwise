@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/dialog";
 import { Plus, MoreHorizontal } from "lucide-react";
 import { useConfig } from "@/context/ConfigContext";
-import SearchEngineDetailsForm, { SearchEngine } from "@/components/settings/SearchEngineDetailsForm";
+import SearchEngineDetailsForm from "@/components/settings/SearchEngineDetailsForm";
 
 export default function SearchSettingsPage() {
   const { config, refreshConfig } = useConfig();
