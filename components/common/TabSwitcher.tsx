@@ -34,7 +34,7 @@ export default function TabSwitcher({
     <Tabs
       value={value}
       onValueChange={onValueChange}
-      className={`w-full flex items-center my-4 ${className}`}
+      className={`w-full flex items-center ${className}`}
     >
       <TabsList className={`frosted rounded-full gap-2 text-white/20 ${listClassName}`}>
         {items ? (
