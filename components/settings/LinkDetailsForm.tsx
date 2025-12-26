@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@radix-ui/react-label";
 import { Input } from "@/components/ui/input";
@@ -24,7 +24,7 @@ import { RadioGroup, RadioGroupItem } from "../ui/radio-group";
 import { Switch } from "@/components/ui/switch";
 import { faEllipsisV, faPaperclip } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { useRouter } from "next/navigation";
+
 interface Icon {
   Name: string;
   Reference: string;
@@ -94,7 +94,46 @@ export default function LinkDetailsForm({ link, onClose, preselectOpenedGroup }:
     }
   }, [link?.linkGroup, link?.folder]);
 
-  // Prefill fields
+  const iconRequestId = useRef(0);
+
+  const handleNameBlur = async () => {
+    if (iconEdited) return;
+
+    const nameSnapshot = name;
+    const urlSnapshot = url;
+    const reqId = ++iconRequestId.current;
+
+    const result = await getIcon(nameSnapshot, urlSnapshot);
+
+    if (reqId !== iconRequestId.current) return;
+    if (nameSnapshot !== name || urlSnapshot !== url) return;
+
+    if (result) {
+      setIcon(result);
+      const hidden = document.querySelector<HTMLInputElement>('input[name="icon"]');
+      if (hidden) hidden.value = String(result.url);
+    }
+  };
+
+  const handleUrlBlur = async () => {
+    if (iconEdited) return;
+
+    const nameSnapshot = name;
+    const urlSnapshot = url;
+    const reqId = ++iconRequestId.current;
+
+    const result = await getIcon(nameSnapshot, urlSnapshot);
+
+    if (reqId !== iconRequestId.current) return;
+    if (nameSnapshot !== name || urlSnapshot !== url) return;
+
+    if (result) {
+      setIcon(result);
+      const hidden = document.querySelector<HTMLInputElement>('input[name="icon"]');
+      if (hidden) hidden.value = String(result.url);
+    }
+  };
+
   useEffect(() => {
     if (linkGroups.length === 0) return;
     if (link?.name && link?.url && link?.icon) {
@@ -105,13 +144,51 @@ export default function LinkDetailsForm({ link, onClose, preselectOpenedGroup }:
     }
   }, [link, linkGroups]);
 
-  // Auto-generate icon until manually edited
-  useEffect(() => {
-    if (!iconEdited && name.trim()) {
-      const safeName = name.trim().replace(/\s+/g, "-").toLowerCase();
-      setIcon({ url: `/icons/svg/${safeName}-light.svg`, iconSet: "custom" });
+  const saveLink = async () => {
+    const token = localStorage.getItem("pb_token");
+    if (!token) throw new Error("Not authenticated");
+
+    const payload: LinkObject = {
+      id: linkId,
+      name,
+      url,
+      icon: icon?.url ?? "",
+      linkGroup,
+    };
+
+    if (folder) payload.folder = folder;
+    if (statusCheck) payload.statusCheck = true;
+
+    if (isEditing) {
+      const updatedLinks = links.map((l) =>
+        l.url === link?.url ? payload : l
+      );
+      await writeToConfig("links", updatedLinks, { token });
+    } else {
+      const res = await fetch("/api/v1/config?path=links", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ newItem: payload }),
+      });
+
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Failed to save link");
     }
-  }, [name, iconEdited]);
+  };
+
+  const resetForm = () => {
+    setName("");
+    setUrl("");
+    setIcon(null);
+    setIconEdited(false);
+    setFolder("");
+    setStatusCheck(false);
+    setLinkId(generateRandomId());
+  };
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -119,45 +196,25 @@ export default function LinkDetailsForm({ link, onClose, preselectOpenedGroup }:
     setError(null);
 
     try {
-      const token = localStorage.getItem("pb_token");
-      if (!token) throw new Error("Not authenticated");
-
-      const payload = { id: linkId, name, url, icon: icon?.url ?? "", linkGroup };
-      if (folder) {
-        (payload as any).folder = folder;
-      }
-      if (statusCheck) {
-        (payload as any).statusCheck = true;
-      }
-
-      if (isEditing) {
-        const updatedLinks = links.map((l: LinkObject) => l.url === link?.url ? payload : l);
-
-        await writeToConfig("links", updatedLinks, { token });
-      } else {
-        const res = await fetch("/api/v1/config?path=links", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ newItem: payload }),
-        });
-
-        const json = await res.json();
-        if (!res.ok) throw new Error(json.error || "Failed to save link");
-      }
-
-      // Call onClose after successful save
+      await saveLink();
       if (onClose) await onClose();
     } catch (err) {
-      if (err instanceof Error) {
-        setError(err.message);
-      } else {
-        setError(String(err));
-      }
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setLoading(false);
     }
-    finally {
+  };
+
+  const handleAddAnother = async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      await saveLink();
+      resetForm();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
       setLoading(false);
     }
   };
@@ -175,6 +232,7 @@ export default function LinkDetailsForm({ link, onClose, preselectOpenedGroup }:
           placeholder="Title"
           value={name ?? ""}
           onChange={(e) => setName(e.target.value)}
+          onBlur={handleNameBlur}
         />
 
         <Label htmlFor="link-url">URL</Label>
@@ -184,18 +242,31 @@ export default function LinkDetailsForm({ link, onClose, preselectOpenedGroup }:
           placeholder="https://example.com"
           value={url ?? ""}
           onChange={(e) => setUrl(e.target.value)}
+          onBlur={handleUrlBlur}
         />
 
         <Label htmlFor="link-image">Icon</Label>
-        <RadioGroup className="flex items-center gap-2" defaultValue="current">
-          <LinkIcon name="current" iconObj={icon} />
+        <RadioGroup className="flex flex-wrap items-center gap-2" defaultValue="current">
+          <Label
+            key={name}
+            className="h-[35px] w-[96px] frosted rounded-md flex items-center justify-center gap-2 outline-2 outline-transparent has-checked:outline-(--primary)"
+          >
+            <RadioGroupItem value={name} className="hidden" />
+            <Icon set={String(icon?.iconSet) || ""} url={String(icon?.url) || ""} name={String(icon?.name) || ""} />
+            <span>
+              {isEditing
+                ? "Current"
+                : "Auto"}
+            </span>
+          </Label>
           <Popover modal={true}>
             <PopoverTrigger>
               <Label
-                className="h-[35px] w-[35px] frosted rounded-md flex items-center justify-center outline-2 outline-transparent cursor-pointer"
+                className="h-[35px] frosted rounded-md flex items-center justify-center px-2 gap-2 outline-2 outline-transparent cursor-pointer"
                 title="Set icon by link"
               >
                 <FontAwesomeIcon icon={faPaperclip} />
+                <span>Link</span>
               </Label>
             </PopoverTrigger>
 
@@ -225,9 +296,10 @@ export default function LinkDetailsForm({ link, onClose, preselectOpenedGroup }:
             <PopoverTrigger>
               <Label
                 key={name}
-                className="h-[35px] w-[35px] frosted rounded-md flex items-center justify-center outline-2 outline-transparent has-checked:outline-(--primary)"
+                className="h-[35px] frosted rounded-md flex items-center justify-center px-2 gap-2 outline-2 outline-transparent has-checked:outline-(--primary)"
               >
                 <FontAwesomeIcon icon={faEllipsisV} />
+                <span>Icon Picker</span>
               </Label>
             </PopoverTrigger>
             <PopoverContent className="frosted text-(--text-primary)">
@@ -255,7 +327,7 @@ export default function LinkDetailsForm({ link, onClose, preselectOpenedGroup }:
         </div>
       </section>
 
-      <Separator orientation="vertical" />
+      <Separator orientation="vertical" className="frosted" />
 
       <section className="flex flex-col gap-1.5">
         <div className="flex gap-2 justify-between items-center">
@@ -318,8 +390,19 @@ export default function LinkDetailsForm({ link, onClose, preselectOpenedGroup }:
         </div>
       </section>
 
-      <div className="col-span-3 mt-2">
+      <div className="col-span-3 mt-2 flex gap-2 justify-end">
         {error && <p className="text-red-500">{error}</p>}
+        {!isEditing && (
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={loading}
+            onClick={handleAddAnother}
+          >
+            Add Another
+          </Button>
+        )}
+
         <Button type="submit" disabled={loading}>
           {loading
             ? isEditing
@@ -334,43 +417,94 @@ export default function LinkDetailsForm({ link, onClose, preselectOpenedGroup }:
   );
 }
 
-export function LinkIcon({
+async function getIcon(
+  name?: string,
+  linkUrl?: string
+): Promise<IconResult | null> {
+  console.log("TEST")
+  const testImage = (src: string): Promise<boolean> =>
+    new Promise((resolve) => {
+      if (!src) return resolve(false);
+      const img = new Image();
+      img.onload = () => resolve(true);
+      img.onerror = () => resolve(false);
+      img.src = src;
+    });
+
+  const normalizeUrl = (raw?: string) => {
+    if (!raw) return null;
+    try {
+      return new URL(raw.includes("://") ? raw : `https://${raw}`);
+    } catch {
+      return null;
+    }
+  };
+
+
+  if (name) {
+    const safeName = name.trim().replace(/\s+/g, "-").toLowerCase();
+    if (safeName) {
+      const autoIcon = `/icons/svg/${safeName}-light.svg`;
+      if (await testImage(autoIcon)) {
+        return { iconSet: "custom", url: autoIcon };
+      }
+    }
+  }
+
+  const parsed = normalizeUrl(linkUrl);
+  if (parsed) {
+    const favicon = `${parsed.origin}/favicon.ico`;
+    if (await testImage(favicon)) {
+      return { iconSet: "custom", url: favicon };
+    }
+
+    const googleFavicon = `https://www.google.com/s2/favicons?sz=128&domain=${parsed.hostname}`;
+    if (await testImage(googleFavicon)) {
+      return { iconSet: "custom", url: googleFavicon };
+    }
+  }
+
+  return null;
+}
+
+export function Icon({
+  url,
   name,
-  iconObj,
+  set,
 }: {
-  name: string;
-  iconObj: IconResult | null;
+  url: string;
+  set: string | null;
+  name: string | null;
 }) {
-  return (
-    <Label
-      key={name}
-      className="h-[35px] w-[35px] frosted rounded-md flex items-center justify-center outline-2 outline-transparent has-checked:outline-(--primary)"
-    >
-      <RadioGroupItem value={name} className="hidden" />
-      {iconObj && (
-        iconObj.iconSet === "mono" ? (
-          <div
-            className="bg-white h-[22px] w-[22px]"
-            style={{
-              maskImage: `url(${iconObj.url})`,
-              WebkitMaskImage: `url(${iconObj.url})`,
-              maskRepeat: "no-repeat",
-              WebkitMaskRepeat: "no-repeat",
-              maskPosition: "center",
-              WebkitMaskPosition: "center",
-              maskSize: "contain",
-              WebkitMaskSize: "contain",
-            }}
-          />
-        ) : (
-          <img
-            src={iconObj.url ?? ""}
-            alt={iconObj.name ?? ""}
-            className="h-[22px] w-[22px] object-contain"
-          />
-        )
-      )}
-    </Label>
+  if (!url || url == "undefined") {
+    return (
+      <div
+        className="bg-white rounded-md opacity-30 h-[22px] w-[22px]"
+        aria-label="icon placeholder"
+      />
+    );
+  }
+
+  return set === "mono" ? (
+    <div
+      className="bg-white h-[22px] w-[22px]"
+      style={{
+        maskImage: `url(${url})`,
+        WebkitMaskImage: `url(${url})`,
+        maskRepeat: "no-repeat",
+        WebkitMaskRepeat: "no-repeat",
+        maskPosition: "center",
+        WebkitMaskPosition: "center",
+        maskSize: "contain",
+        WebkitMaskSize: "contain",
+      }}
+    />
+  ) : (
+    <img
+      src={url}
+      alt={name ?? ""}
+      className="h-[22px] w-[22px] object-contain"
+    />
   );
 }
 
