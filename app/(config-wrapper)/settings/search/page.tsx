@@ -20,16 +20,27 @@ import {
 } from "@/components/ui/dialog";
 import { Plus, MoreHorizontal } from "lucide-react";
 import { useConfig } from "@/context/ConfigContext";
-import SearchEngineDetailsForm, { SearchEngine } from "@/components/settings/SearchEngineDetailsForm";
+import SearchEngineDetailsForm from "@/components/settings/SearchEngineDetailsForm";
+import TabSwitcher from "@/components/common/TabSwitcher";
+import SearchEngineBrowseFeedComponent from "@/components/settings/SearchEngineBrowseFeed";
 
 export default function SearchSettingsPage() {
   const { config, refreshConfig } = useConfig();
   const [engines, setEngines] = useState<SearchEngine[]>(config?.searchEngines || []);
+  const [activeTab, setActiveTab] = useState("manual");
 
   // sync when config changes
   useEffect(() => {
     setEngines(config?.searchEngines || []);
   }, [config?.searchEngines]);
+
+  const handleOpenChange = (open: boolean) => {
+    setCreateOpen(open);
+    if (!open) {
+      // Small delay to reset tab so it looks fresh next time
+      setTimeout(() => setActiveTab("manual"), 200);
+    }
+  };
 
   async function persistEngines(updated: SearchEngine[]) {
     // update local state immediately for snappy UI
@@ -51,9 +62,9 @@ export default function SearchSettingsPage() {
     const updated = engines.map((e) => {
       if (e.slug !== slug) return e;
       if (e.status === "default") return e;
-      return { 
-        ...e, 
-        status: e.status === "disabled" ? "enabled" as "enabled" : "disabled" as "disabled" 
+      return {
+        ...e,
+        status: e.status === "disabled" ? "enabled" as "enabled" : "disabled" as "disabled"
       };
     });
     persistEngines(updated);
@@ -62,10 +73,10 @@ export default function SearchSettingsPage() {
   function setDefault(slug: string) {
     const updated = engines.map((e) => ({
       ...e,
-      status: e.slug === slug 
-        ? "default" as "default" 
-        : e.status === "default" 
-          ? "enabled" as "enabled" 
+      status: e.slug === slug
+        ? "default" as "default"
+        : e.status === "default"
+          ? "enabled" as "enabled"
           : e.status,
     }));
     persistEngines(updated);
@@ -73,8 +84,8 @@ export default function SearchSettingsPage() {
 
   function removeDefault(slug: string) {
     const updated = engines.map((e) =>
-      e.slug === slug && e.status === "default" 
-        ? { ...e, status: "enabled" as "enabled" } 
+      e.slug === slug && e.status === "default"
+        ? { ...e, status: "enabled" as "enabled" }
         : e
     );
     persistEngines(updated);
@@ -171,31 +182,52 @@ export default function SearchSettingsPage() {
               <DialogTitle>Add search engine</DialogTitle>
             </DialogHeader>
 
-            <SearchEngineDetailsForm
-              formId={createFormId}
-              hideActions
-              onSaved={async () => {
-                // close dialog, refresh config and re-sync local engines (same pattern as Links page)
-                setCreateOpen(false);
-                try {
-                  await refreshConfig();
-                  setEngines(config?.searchEngines || []);
-                } catch (err) {
-                  console.warn("Error refreshing config after creating search engine", err);
-                }
-              }}
+            <TabSwitcher
+              value={activeTab}
+              onValueChange={setActiveTab}
+              className="mt-1"
+              items={[
+                { value: "manual", label: "Manual" },
+                { value: "browse", label: "Browse" },
+              ]}
             />
 
-            {/* footer with Cancel + Submit on same line */}
-            <DialogFooter className="flex justify-end gap-2">
+            <div className="flex-1 min-h-0 relative">
+              {/* MANUAL MODE */}
+              {activeTab === "manual" && (
+                <SearchEngineDetailsForm
+                  formId="create-engine-form"
+                  hideActions
+                  onSaved={async () => {
+                    setCreateOpen(false);
+                    // Trigger your refresh/sync logic here
+                  }}
+                />
+              )}
+
+              {/* BROWSE MODE */}
+              {activeTab === "browse" && (
+                // Scroll area wrapper is critical for infinite scroll to work inside a modal
+                <div className="h-[50vh] overflow-y-auto">
+                  <SearchEngineBrowseFeedComponent />
+                </div>
+              )}
+            </div>
+
+            {/* 4. Dynamic Footer */}
+            <DialogFooter className="flex justify-end gap-2 mt-4">
               <DialogClose asChild>
-                <Button variant="outline">Cancel</Button>
+                <Button variant="outline">
+                  {activeTab === "browse" ? "Done" : "Cancel"}
+                </Button>
               </DialogClose>
 
-              {/* this button submits the child form via form attribute */}
-              <Button form={createFormId} type="submit">
-                Add
-              </Button>
+              {/* Only show 'Add' button if in Manual mode (Browse mode has individual add buttons) */}
+              {activeTab === "manual" && (
+                <Button form="create-engine-form" type="submit">
+                  Add
+                </Button>
+              )}
             </DialogFooter>
           </DialogContent>
         </Dialog>
