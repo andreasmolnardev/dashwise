@@ -102,7 +102,7 @@ export async function POST(req: NextRequest) {
 
         return NextResponse.json({ message: "Category rename applied", changed }, { status: 200 });
     } catch (err: any) {
-        console.error("Error in POST /api/news/feed-category-rename:", err);
+        console.error("Error in POST /api/v1/news/feed-category-rename:", err);
         return NextResponse.json(
             { error: "Internal Server Error", details: String(err?.message ?? err) },
             { status: 500 }
