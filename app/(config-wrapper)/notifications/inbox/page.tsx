@@ -44,7 +44,6 @@ export default function NotificationsInboxPage() {
         if (!mounted) return;
         setNotifications(notResp?.items || []);
         setTopics(topicResp?.items || []);
-        if (topicResp?.items?.length) setActiveTopic((t) => t ?? topicResp.items[0].id);
       } catch (err) {
         console.error("Notifications/topics fetch failed:", err);
       }
