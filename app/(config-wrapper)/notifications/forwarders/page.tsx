@@ -11,6 +11,14 @@ import {
     DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from "@/components/ui/table";
 import { MoreHorizontal, Copy, Trash2, Edit2 } from "lucide-react";
 import CreateForwarderDialogComponent, { ForwarderItem } from "@/components/notifications/CreateForwarderDialog";
 
@@ -204,86 +212,87 @@ export default function NotificationForwardersPage() {
                         No forwarders configured
                     </div>
                 ) : (
-                    <div className="overflow-x-auto border border-white/10 rounded-lg">
-                        <table className="w-full text-sm">
-                            <thead>
-                                <tr className="border-b border-white/10 bg-white/5">
-                                    <th className="px-4 py-3 text-left font-medium">Topic</th>
-                                    <th className="px-4 py-3 text-left font-medium">Target</th>
-                                    <th className="px-4 py-3 text-left font-medium">Status</th>
-                                    <th className="px-4 py-3 text-left font-medium">Created</th>
-                                    <th className="px-4 py-3 text-center font-medium">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {filtered.map((fwd) => (
-                                    <tr key={fwd.id} className="border-b border-white/10 hover:bg-white/5 transition">
-                                        <td className="px-4 py-3">
-                                            {getTopicTitle(fwd.topic.id)}
-                                        </td>
-                                        <td className="px-4 py-3 font-mono text-xs">
-                                            {editingForwarder?.id === fwd.id ? (
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Topic</TableHead>
+                                <TableHead>Target</TableHead>
+                                <TableHead>Status</TableHead>
+                                <TableHead>Created</TableHead>
+                                <TableHead className="text-right">Actions</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {filtered.map((fwd) => (
+                                <TableRow key={fwd.id}>
+                                    <TableCell>
+                                        {getTopicTitle(fwd.topic.id)}
+                                    </TableCell>
+                                    <TableCell className="font-mono text-xs">
+                                        {editingForwarder?.id === fwd.id ? (
+                                            <input
+                                                type="text"
+                                                value={editTarget}
+                                                onChange={(e) => setEditTarget(e.target.value)}
+                                                className="w-full bg-white/10 border border-white/20 rounded px-2 py-1"
+                                            />
+                                        ) : (
+                                            <span title={fwd.target}>{mask(fwd.target)}</span>
+                                        )}
+                                    </TableCell>
+                                    <TableCell>
+                                        {editingForwarder?.id === fwd.id ? (
+                                            <label className="inline-flex items-center gap-2">
                                                 <input
-                                                    type="text"
-                                                    value={editTarget}
-                                                    onChange={(e) => setEditTarget(e.target.value)}
-                                                    className="w-full bg-white/10 border border-white/20 rounded px-2 py-1"
+                                                    type="checkbox"
+                                                    checked={editIsActive}
+                                                    onChange={(e) => setEditIsActive(e.target.checked)}
                                                 />
-                                            ) : (
-                                                <span title={fwd.target}>{mask(fwd.target)}</span>
-                                            )}
-                                        </td>
-                                        <td className="px-4 py-3">
-                                            {editingForwarder?.id === fwd.id ? (
-                                                <label className="inline-flex items-center gap-2">
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={editIsActive}
-                                                        onChange={(e) => setEditIsActive(e.target.checked)}
-                                                    />
-                                                    <span className="text-xs">Active</span>
-                                                </label>
-                                            ) : (
-                                                <span className={cn(
-                                                    "inline-block px-2 py-1 rounded text-xs",
-                                                    fwd.isActive ? "bg-green-500/20 text-green-300" : "bg-red-500/20 text-red-300"
-                                                )}>
-                                                    {fwd.isActive ? "Active" : "Inactive"}
-                                                </span>
-                                            )}
-                                        </td>
-                                        <td className="px-4 py-3 text-center">
-                                            {editingForwarder?.id === fwd.id ? (
-                                                <div className="flex gap-2 justify-center">
-                                                    <button
-                                                        onClick={saveEdit}
-                                                        disabled={isSaving}
-                                                        className="px-2 py-1 bg-blue-500/20 text-blue-300 rounded text-xs hover:bg-blue-500/30"
-                                                    >
-                                                        {isSaving ? "Saving..." : "Save"}
-                                                    </button>
-                                                    <button
-                                                        onClick={cancelEdit}
-                                                        className="px-2 py-1 bg-gray-500/20 text-gray-300 rounded text-xs hover:bg-gray-500/30"
-                                                    >
-                                                        Cancel
-                                                    </button>
-                                                </div>
-                                            ) : (
-                                                <ForwarderActionsMenu
-                                                    forwarderId={fwd.id}
-                                                    target={fwd.target}
-                                                    onEdit={() => startEdit(fwd)}
-                                                    onDelete={() => deleteForwarder(fwd.id)}
-                                                    onCopy={() => copy(fwd.target)}
-                                                />
-                                            )}
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
+                                                <span className="text-xs">Active</span>
+                                            </label>
+                                        ) : (
+                                            <span className={cn(
+                                                "inline-block px-2 py-1 rounded text-xs",
+                                                fwd.isActive ? "bg-green-500/20 text-green-300" : "bg-red-500/20 text-red-300"
+                                            )}>
+                                                {fwd.isActive ? "Active" : "Inactive"}
+                                            </span>
+                                        )}
+                                    </TableCell>
+                                    <TableCell>
+                                        {fmt(fwd.created)}
+                                    </TableCell>
+                                    <TableCell className="text-right">
+                                        {editingForwarder?.id === fwd.id ? (
+                                            <div className="flex gap-2 justify-end">
+                                                <button
+                                                    onClick={saveEdit}
+                                                    disabled={isSaving}
+                                                    className="px-2 py-1 bg-blue-500/20 text-blue-300 rounded text-xs hover:bg-blue-500/30"
+                                                >
+                                                    {isSaving ? "Saving..." : "Save"}
+                                                </button>
+                                                <button
+                                                    onClick={cancelEdit}
+                                                    className="px-2 py-1 bg-gray-500/20 text-gray-300 rounded text-xs hover:bg-gray-500/30"
+                                                >
+                                                    Cancel
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <ForwarderActionsMenu
+                                                forwarderId={fwd.id}
+                                                target={fwd.target}
+                                                onEdit={() => startEdit(fwd)}
+                                                onDelete={() => deleteForwarder(fwd.id)}
+                                                onCopy={() => copy(fwd.target)}
+                                            />
+                                        )}
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
                 )}
             </div>
 
