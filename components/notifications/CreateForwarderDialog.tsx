@@ -24,7 +24,14 @@ import { Input } from "../ui/input";
 import { Checkbox } from "../ui/checkbox";
 
 export type Topic = { id: string; title: string };
-export type ForwarderItem = { id: string; topic: { id: string }; target: string; isActive: boolean };
+export type ForwarderItem = { 
+  id: string; 
+  topic: { id: string }; 
+  target: string; 
+  isActive: boolean;
+  created?: string | null;
+  updated?: string | null;
+};
 
 type CreateForwarderDialogProps = {
   open: boolean;
