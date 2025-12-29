@@ -9,6 +9,7 @@ import indexStatusMonitoringJobs from "./monitoring/indexer";
 import { runStatusMonitoringJobs } from "./monitoring/runner";
 import { runComparisonRunner } from "./updates/comparison-runner";
 import { newsFeedBuilder } from "./news/feed-builder";
+import { processQueuedNotifications } from "./notifications/forwarder";
 
 const fastify = Fastify({ logger: true });
 
@@ -69,6 +70,15 @@ fastify.get("/webhook/newsFeedBuilder", async (request, reply) => {
   console.log("Webhook received");
   await newsFeedBuilder();
   reply.send({ message: "news feed builder triggered" });
+});
+
+//notification forwarding
+cron.schedule(config.NOTIFICATION_FORWARDER_SCHEDULE, () => processQueuedNotifications());
+
+fastify.post("/api/forward-notifications", async (request, reply) => {
+  console.log("Notification forwarding webhook received");
+  await processQueuedNotifications();
+  reply.send({ message: "notification forwarding triggered" });
 });
 
 // Start http server
