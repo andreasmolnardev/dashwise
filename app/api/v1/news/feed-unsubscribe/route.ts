@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
             { status: 200 }
         );
     } catch (err: any) {
-        console.error("Error in POST /api/news/feed-unsubscribe:", err);
+        console.error("Error in POST /api/v1/news/feed-unsubscribe:", err);
         return NextResponse.json(
             { error: "Internal Server Error", details: String(err?.message ?? err) },
             { status: 500 }
