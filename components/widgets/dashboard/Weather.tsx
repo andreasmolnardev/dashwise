@@ -315,12 +315,12 @@ async function fetchWeather({
   if (!res.ok) {
     return { error: raw?.error ?? `Upstream error ${res.status}` };
   }
-
+  
   const normalized: WeatherData = {
     temperature: parseNumber(raw.temperature),
     weatherCode: parseNumber(raw.weatherCode),
     description:
-      raw.description ??
+      (raw.description && raw.description.lenth > 0) ? raw.description :
       (raw.weatherCode ? WEATHER_CODE_MAP[Number(raw.weatherCode)]?.desc ?? "" : ""),
     iconUrl: raw.iconUrl,
     unit: raw.unit ?? (unit.toLowerCase() === "f" ? "°F" : "°C"),
