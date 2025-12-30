@@ -191,7 +191,7 @@ export default function CommandBar({ open, setOpen, searchItems }: CommandBarPro
     return { slug: m[1].toLowerCase(), rest: (m[2] || '').trim() };
   };
 
-  // build actions; if a valid bang is present, add a bang action at the top
+  // build actions; if a valid bang is present, add a bang action at the top, or advertise "go to url"
   const actions = React.useMemo(() => {
     const items = [...filtered];
 
@@ -212,6 +212,7 @@ export default function CommandBar({ open, setOpen, searchItems }: CommandBarPro
     const parsed = parseBang(trimmedQuery);
     if (parsed) {
       const engine = searchEngines.find((se) => (se.slug || '').toLowerCase() === parsed.slug);
+      const fallbackEngine = searchEngines.find((se) => (se.slug || '').toLowerCase() === config.global.searchEngineShortcutFallback)
       if (engine) {
         items.unshift({
           name: `Search with ${engine.name} (${engine.slug ? '!' + engine.slug : ''})`,
@@ -221,6 +222,16 @@ export default function CommandBar({ open, setOpen, searchItems }: CommandBarPro
           isBangAction: true,
           bangEngineSlug: engine.slug,
           bangEngineName: engine.name,
+        } as LinkItem);
+      } else if (fallbackEngine) {
+        items.unshift({
+          name: `Forward shortcut to ${fallbackEngine?.name}`,
+          url: '__forward_search__',
+          icon: fallbackEngine?.icon,
+          linkGroup: "Dashwise",
+          isBangAction: true,
+          bangEngineSlug: fallbackEngine?.slug,
+          bangEngineName: fallbackEngine?.name,
         } as LinkItem);
       }
     }
@@ -293,6 +304,8 @@ export default function CommandBar({ open, setOpen, searchItems }: CommandBarPro
     if (!a) return;
     if (a.url === '__bang_search__') {
       openBangSearch(query, a.bangEngineSlug);
+    } else if (a.url === '__forward_search__') {
+      openBangSearch(`!${a.bangEngineSlug + '' + query}`, a.bangEngineSlug);
     } else if (a.url === '__search_action__') {
       openSearch(query);
     } else if (a.url.startsWith('__engine_search__:')) {

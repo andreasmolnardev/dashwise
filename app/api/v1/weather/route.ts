@@ -9,22 +9,36 @@ const CACHE: Record<string, WeatherCache> = {};
 const SUCCESS_TTL = 30 * 60 * 1000; // 30 min
 const ERROR_TTL = 1 * 60 * 1000;    // 1 min
 
-const WEATHER_MAP: Record<number, { desc: string }> = {
-  0: { desc: "Clear sky" },
-  1: { desc: "Mainly clear" },
-  2: { desc: "Partly cloudy" },
-  3: { desc: "Overcast" },
-  45: { desc: "Fog" },
-  51: { desc: "Light drizzle" },
-  53: { desc: "Moderate drizzle" },
-  55: { desc: "Heavy drizzle" },
-  61: { desc: "Rain" },
-  63: { desc: "Heavy rain" },
-  80: { desc: "Showers" },
+const WEATHER_MAP: Record<number, { file: string; desc: string }> = {
+  0: { file: "sun-clear.svg", desc: "Clear sky" },
+  1: { file: "sun-clear.svg", desc: "Mainly clear" },
+  2: { file: "cloudy-sun.svg", desc: "Partly cloudy" },
+  3: { file: "clouds-overcast.svg", desc: "Overcast" },
+  45: { file: "cloud-fog.svg", desc: "Fog" },
+  48: { file: "cloud-fog.svg", desc: "Rime fog" },
+  51: { file: "cloud-drizzle.svg", desc: "Light drizzle" },
+  53: { file: "cloud-drizzle.svg", desc: "Moderate drizzle" },
+  55: { file: "cloud-rain-heavy.svg", desc: "Dense drizzle" },
+  56: { file: "glass-sleet-96.png", desc: "Freezing drizzle" }, // fallback, no svg
+  57: { file: "cloud-sleet.svg", desc: "Freezing drizzle (heavy)" },
+  61: { file: "cloud-rain.svg", desc: "Slight rain" },
+  63: { file: "cloud-rain.svg", desc: "Moderate rain" },
+  65: { file: "glass-rain-cloud-96.png", desc: "Heavy rain" }, // fallback, no svg
+  66: { file: "cloud-sleet.svg", desc: "Freezing rain" },
+  67: { file: "cloud-sleet.svg", desc: "Freezing rain (heavy)" },
+  71: { file: "cloud-snow.svg", desc: "Slight snow" },
+  73: { file: "cloud-snow.svg", desc: "Moderate snow" },
+  75: { file: "cloud-snow.svg", desc: "Heavy snow" },
+  80: { file: "cloud-rain.svg", desc: "Slight showers" },
+  81: { file: "cloud-rain.svg", desc: "Moderate showers" },
+  82: { file: "cloud-rain-heavy.svg", desc: "Violent showers" },
+  95: { file: "thunderstorm.svg", desc: "Thunderstorm" },
+  96: { file: "thunderstorm.svg", desc: "Thunderstorm with slight hail" },
+  99: { file: "thunderstorm.svg", desc: "Thunderstorm with heavy hail" },
 };
 
 function getWeatherDescription(code: number) {
-  return WEATHER_MAP[code]?.desc ?? `Weather code: ${code}`;
+  return WEATHER_MAP[code]?.desc ?? ``;
 }
 
 export async function GET(req: Request) {

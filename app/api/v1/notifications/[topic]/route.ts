@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { v4 as uuidv4 } from "uuid";
 import { getServerPB } from "@/lib/pb";
 import { createNotificationWithTopicToken, resolveTopicToken } from "@/lib/notifications/create";
+import { queueNotificationForForwarding } from "@/lib/notifications/forwarder";
 
 export async function POST(
     req: NextRequest,
@@ -12,13 +13,16 @@ export async function POST(
         const body = await req.json();
 
         if (topic) {
-            const topicId = resolveTopicToken(topic);
+            const topicId = await resolveTopicToken(topic);
 
             if (!topicId) {
                 return NextResponse.json({ ok: false, }, { status: 400 });
             }
 
-            const createdNotificationId = createNotificationWithTopicToken(topic, body);
+            const createdNotificationId = await createNotificationWithTopicToken(topic, body);
+
+            // Queue for forwarding (will be processed by jobs container)
+            await queueNotificationForForwarding(String(createdNotificationId), topicId);
 
             return NextResponse.json({ ok: true, topicId, itemId: createdNotificationId }, { status: 201 });
         }
@@ -122,8 +126,12 @@ export async function POST(
             topicId,
             content: body,
             status: "sent",
-            source: "web"
+            source: "web",
+            forwardStatus: "none",
         });
+
+        // 5. Queue for forwarding (will be processed by jobs container)
+        await queueNotificationForForwarding(notificationItem.id, topicId);
 
         return NextResponse.json({ ok: true, topicId, itemId: notificationItem.id });
     } catch (err: any) {

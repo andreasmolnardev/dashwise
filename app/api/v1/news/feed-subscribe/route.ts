@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+const { channelId } = require("@gonetone/get-youtube-id-by-url");
 import { getServerPB, getSuperuserPB } from "@/lib/pb";
 import config from "@/lib/config";
 
@@ -39,21 +40,17 @@ export async function POST(req: NextRequest) {
 
         const superPb = await getSuperuserPB();
 
-        if (!body.icon) {
-            //TODO: try to get icon from rss feed
-        }
-
         // await db call
         await addNewsFeed(superPb, userId, body);
 
-        await fetch(config.jobs_url + '/webhook/newsFeedBuilder');
+        //await fetch(config.jobs_url + '/webhook/newsFeedBuilder');
 
         return NextResponse.json(
             { message: "Feed successfully subscribed." },
             { status: 201 }
         );
     } catch (err: any) {
-        console.error("Error in POST /api/subscribe:", err);
+        console.error("Error in POST /api/v1/news/feed-subscribe:", err);
         return NextResponse.json(
             { error: "Internal Server Error", details: String(err?.message ?? err) },
             { status: 500 }
@@ -97,6 +94,7 @@ async function addNewsFeed(
 ) {
     const filter = `userId="${escapeFilter(userId)}"`;
 
+    //create json record
     let record: any = null;
 
     try {
@@ -111,7 +109,14 @@ async function addNewsFeed(
         }
         throw e;
     }
-
+    //check if subscription is a youtube channel, in that case overwrite
+    if (sub.feedUrl.includes("https://www.youtube.com/@")) {
+        const _channelId = await channelId(sub.feedUrl);
+        if (!_channelId) return;
+        sub.feedUrl = "https://www.youtube.com/feeds/videos.xml?channel_id=" + _channelId;
+        console.log(sub.feedUrl)
+    }
+    //check if subscription already exists
     let current = Array.isArray(record.subscriptions)
         ? record.subscriptions.map((x: any) =>
             typeof x === "string" ? { feedUrl: x } : x

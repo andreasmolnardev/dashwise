@@ -120,6 +120,13 @@ export async function GET(req: NextRequest) {
             filter: `topic.userId = "${userId}"`,
         });
 
+        const now = new Date();
+        for (const tok of tokens) {
+            if (tok.expires && new Date(tok.expires) <= now) {
+                await pb.collection("notificationTopicTokens").delete(tok.id);
+            }
+        }
+
         // Optionally expand the topic data by matching against topics we already fetched
         const topicsById = Object.fromEntries(topics.map(t => [t.id, { id: t.id, title: t.title, userId: t.userId }]));
         const items = tokens.map((tok: any) => ({

@@ -9,6 +9,7 @@ import { Input } from "../ui/input";
 import { Button } from "../ui/button";
 import { Checkbox } from "../ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select.tsx";
+import LocationSelectFormComponent from "./LocationSelectForm";
 
 type Glanceable = {
     type: string;
@@ -188,7 +189,8 @@ function PropertyInput({
 }) {
     const isTz = schema.startsWith("as:tz");
     const isDateFormat = schema.startsWith("as:dateformat");
-    const isEnum = !isTz && !isDateFormat && schema.includes("|");
+    const isLocation = schema.startsWith("as:location");
+    const isEnum = !isTz && !isDateFormat && !isLocation && schema.includes("|");
     const isBool = schema.startsWith("as:bool");
 
     const [text, setText] = useState<string>(
@@ -236,6 +238,16 @@ function PropertyInput({
                     Use date format strings (e.g. <code>YYYY-MM-DD</code>, <code>HH:mm</code>)
                 </div>
             </div>
+        );
+    }
+
+    if (isLocation) {
+        const locationValue = (value as any) ?? { displayName: "", coordinates: "" };
+        return (
+            <LocationSelectFormComponent
+                value={locationValue}
+                onChange={onChange}
+            />
         );
     }
 

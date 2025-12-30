@@ -23,6 +23,10 @@ import { useConfig } from "@/context/ConfigContext";
 import SearchEngineDetailsForm from "@/components/settings/SearchEngineDetailsForm";
 import TabSwitcher from "@/components/common/TabSwitcher";
 import SearchEngineBrowseFeedComponent from "@/components/settings/SearchEngineBrowseFeed";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faArrowRight } from "@fortawesome/free-solid-svg-icons";
+import { Select, SelectValue, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
+import { write } from "fs";
 
 export default function SearchSettingsPage() {
   const { config, refreshConfig } = useConfig();
@@ -121,12 +125,12 @@ export default function SearchSettingsPage() {
           {engines.map((engine) => (
             <div
               key={engine.slug}
-              className="frosted rounded-2xl p-4 flex justify-between items-center"
+              className="frosted rounded-2xl p-4 flex justify-between items-center group"
             >
               <div className="flex items-center gap-4">
                 <img src={engine.icon} alt="" className="w-6 h-6" />
                 <div>
-                  <h3 className="text-lg font-medium">{engine.name}</h3>
+                  <h3 className="text-lg font-medium group-hover:text-(--primary)">{engine.name}</h3>
                   <p className="text-sm text-gray-100">
                     {engine.url_home} - !{engine.slug} {engine.status === "default" && " - Default engine"}
                   </p>
@@ -269,7 +273,46 @@ export default function SearchSettingsPage() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+          <h2 className="text-xl font-semibold mb-0">Shortcuts</h2>
+        <RedirectBangsSetting />
       </div>
     </>
+  );
+}
+
+function RedirectBangsSetting() {
+  const { config, refreshConfig } = useConfig();
+
+  async function handleChange(newVal: string) {
+    await writeToConfig("global", {
+      ...config.global,
+      searchEngineShortcutFallback: newVal,
+    });
+
+    refreshConfig();
+  }
+
+  return (
+    <div className="flex border border-transparent items-center col-span-full p-1.5 rounded-md gap-2">
+      <FontAwesomeIcon icon={faArrowRight} />
+      <p className="w-full">Redirect Unknown Shortcuts To</p>
+
+      <Select
+        value={config.global.searchEngineShortcutFallback}
+        onValueChange={handleChange}
+      >
+        <SelectTrigger>
+          <SelectValue placeholder="Engine" />
+        </SelectTrigger>
+
+        <SelectContent>
+          {config.searchEngines.map((engine) => (
+            <SelectItem key={engine.slug} value={engine.slug}>
+              {engine.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
   );
 }

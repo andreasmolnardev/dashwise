@@ -111,7 +111,7 @@ export async function POST(req: NextRequest) {
 
         return NextResponse.json({ message: "Feed updated", subscriptions: current }, { status: 200 });
     } catch (err: any) {
-        console.error("Error in POST /api/news/feed-update:", err);
+        console.error("Error in POST /api/v1/news/feed-update:", err);
         return NextResponse.json(
             { error: "Internal Server Error", details: String(err?.message ?? err) },
             { status: 500 }
