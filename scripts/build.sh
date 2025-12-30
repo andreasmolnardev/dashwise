@@ -123,34 +123,20 @@ build_and_push() {
     tag_args+=("-t" "${DOCKER_USERNAME}/${base_name}${tag}")
   done
 
-  # Try buildx with --push first. If that fails, fall back to manual pushes per-tag.
-  echo "🔁 Running docker buildx build --platform ${PLATFORM} --push for ${base_name}..."
-  if ! docker buildx build \
+  # Build without pushing
+  docker buildx build \
     --platform "$PLATFORM" \
     "${tag_args[@]}" \
     -f "${dir}/Dockerfile" \
-    --push "${dir}"
-  then
-    echo "⚠️ buildx push failed for ${base_name}. Attempting manual docker push for each tag..."
-    local any_failure=0
-    for tag in "${tags[@]}"; do
-      full="${DOCKER_USERNAME}/${base_name}${tag}"
-      echo "→ Manual push attempt: ${full}"
-      if ! manual_push_with_retries "$full"; then
-        any_failure=1
-      fi
-    done
+    --load \
+    "${dir}"
 
-    if [[ $any_failure -ne 0 ]]; then
-      echo "❌ One or more manual pushes failed for ${base_name}."
-      return 1
-    else
-      echo "✅ Manual pushes succeeded for all tags of ${base_name}."
-      return 0
-    fi
-  else
-    echo "✅ buildx build and push succeeded for ${base_name}."
-  fi
+  # Push manually with retries
+  for tag in "${tags[@]}"; do
+    full="${DOCKER_USERNAME}/${base_name}${tag}"
+    echo "→ Pushing ${full}..."
+    manual_push_with_retries "$full"
+  done
 }
 
 # === Build targets ===
