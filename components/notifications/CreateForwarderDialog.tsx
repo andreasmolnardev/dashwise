@@ -8,22 +8,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Check, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Checkbox } from "../ui/checkbox";
-
-export type Topic = { id: string; title: string };
+import TopicCombobox, { type Topic } from "./TopicCombobox";
 export type ForwarderItem = { 
   id: string; 
   topic: { id: string }; 
@@ -50,6 +39,10 @@ export default function CreateForwarderDialogComponent({
   const [target, setTarget] = useState("");
   const [isActive, setIsActive] = useState(true);
   const [creating, setCreating] = useState(false);
+
+  const handleTopicChange = (topic: Topic) => {
+    setSelectedTopic(topic);
+  };
 
   const handleCreate = async () => {
     if (!selectedTopic || !target) {
@@ -106,7 +99,7 @@ export default function CreateForwarderDialogComponent({
             <TopicCombobox
               topics={topics}
               value={selectedTopic}
-              onChange={setSelectedTopic}
+              onChange={handleTopicChange}
             />
           </div>
 
@@ -144,61 +137,5 @@ export default function CreateForwarderDialogComponent({
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  );
-}
-
-function TopicCombobox({
-  topics,
-  value,
-  onChange,
-}: {
-  topics: Topic[];
-  value: Topic | null;
-  onChange: (topic: Topic | null) => void;
-}) {
-  const [open, setOpen] = useState(false);
-
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          role="combobox"
-          aria-expanded={open}
-          className="w-full justify-between"
-        >
-          {value ? value.title : "Select topic..."}
-          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-full p-0 frosted">
-        <Command>
-          <CommandInput placeholder="Search topics..." />
-          <CommandEmpty>No topics found.</CommandEmpty>
-          <CommandGroup>
-            <CommandList>
-              {topics.map((topic) => (
-                <CommandItem
-                  key={topic.id}
-                  value={topic.id}
-                  onSelect={() => {
-                    onChange(value?.id === topic.id ? null : topic);
-                    setOpen(false);
-                  }}
-                >
-                  <Check
-                    className={cn(
-                      "mr-2 h-4 w-4",
-                      value?.id === topic.id ? "opacity-100" : "opacity-0"
-                    )}
-                  />
-                  {topic.title}
-                </CommandItem>
-              ))}
-            </CommandList>
-          </CommandGroup>
-        </Command>
-      </PopoverContent>
-    </Popover>
   );
 }
