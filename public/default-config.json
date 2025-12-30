@@ -8,7 +8,11 @@
         "weatherLocation": "{'lat':'48.133716690534804','lon':'11.584396056686236','name':'Munich'}"
     },
     "appearance": {
-        "backgroundImageUrl": "/dashboard-wallpaper.png"
+        "backgroundImageUrl": "/dashboard-wallpaper.png",
+        "wallpaperFilters": {
+            "blur": 10,
+            "brightness": 61
+        }
     },
     "pages": [
         "home"
