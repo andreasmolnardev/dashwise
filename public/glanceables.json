@@ -21,14 +21,15 @@
         "displayName": "Weather",
         "description": "Displaying the current weather condition at a given place",
         "exampleProps": {
-            "locationDisplayname": "Munich",
-            "locationCoordinates": "48.13371667563365, 11.572037161760225",
+            "location": {
+                "name": "Munich",
+                "coordinates":  "48.13371667563365, 11.572037161760225"
+            },
             "unit": "c",
             "showLocation": false
         },
         "properties": {
-            "locationDisplayname": "as:string",
-            "locationCoordinates": "as:string",
+            "location": "as:location",
             "unit": "f|c",
             "showLocation": "as:bool"
         }
