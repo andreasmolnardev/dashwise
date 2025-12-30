@@ -117,9 +117,9 @@ export default function CreateForwarderDialogComponent({
               value={target}
               onChange={(e) => setTarget(e.target.value)}
             />
-            <p className="text-xs text-gray-400 mt-1">
-              Enter a Shoutrrr service expression for forwarding notifications
-            </p>
+            <a className="text-xs text-gray-400 mt-1 hover:text-(--text-primary)" href="https://shoutrrr.nickfedor.com/">
+              For more info, visit Shoutrrr's docs
+            </a>
           </div>
 
           <div className="flex items-center space-x-2">
@@ -171,7 +171,7 @@ function TopicCombobox({
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-full p-0">
+      <PopoverContent className="w-full p-0 frosted">
         <Command>
           <CommandInput placeholder="Search topics..." />
           <CommandEmpty>No topics found.</CommandEmpty>
