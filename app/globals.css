@@ -52,6 +52,7 @@
   --primary: oklch(79.258% 0.14708 222.532);
   --primary-foreground: oklch(0.985 0 0);
   --text-primary: oklch(100% 0.00011 271.152);
+  --text-on-frosted: oklch(100% 0.00011 271.152 / 0.803);
   --text-secondary: oklch(80% 0.00011 271.152);
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
@@ -120,6 +121,10 @@
   @apply bg-white/5 backdrop-blur-md border border-white/10 shadow-sm;
 }
 
+.frosted.light {
+  @apply bg-white/5 dark:bg-white/5 backdrop-blur-md border border-white/10 dark:border-white/10 shadow-sm;
+}
+
 .hover-frosted:hover {
   @apply bg-white/10 dark:bg-white/5 backdrop-blur-md border border-white/20 dark:border-white/10 shadow-sm;
 }
@@ -131,6 +136,30 @@
 .scrollbar-hide::-webkit-scrollbar {
   display: none;             /* Chrome/Safari */
 }
+
+.responsive-glance-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 96px auto;
+  grid-template-areas:
+    "clock clock"
+    "gl1 gl2";
+  align-items: center;
+  justify-items: center;
+}
+
+@media (min-width: 768px) {
+  .responsive-glance-grid {
+    grid-template-columns: 1fr auto 1fr;
+    grid-template-rows: auto;
+    grid-template-areas: "gl1 clock gl2";
+    gap: 0.5rem;
+  }
+}
+
+.area-clock { grid-area: clock; width:100%; }
+.area-gl1   { grid-area: gl1; }
+.area-gl2   { grid-area: gl2; }
 
 
 @layer base {

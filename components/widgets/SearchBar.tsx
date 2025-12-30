@@ -4,6 +4,7 @@ import CommandBar from './CommandBar';
 
 type SearchBarProps = {
   useRedirect: boolean;
+  defaultOpen?: boolean;
 };
 
 type SearchItem = {
@@ -12,10 +13,11 @@ type SearchItem = {
   secondaryInfo: string;
   type: 'link';
   action: string;
+  tags?: string[];
 };
 
 
-export default function SearchBar({ useRedirect }: SearchBarProps) {
+export default function SearchBar({ useRedirect, defaultOpen }: SearchBarProps) {
   const [redirecting, setRedirecting] = useState(false);
   const [open, setOpen] = useState(false); // control CommandBar
 
@@ -23,6 +25,11 @@ export default function SearchBar({ useRedirect }: SearchBarProps) {
   const [searchItems, setSearchItems] = useState<SearchItem[]>([]);
   const [loadingItems, setLoadingItems] = useState(false);
   const [itemsError, setItemsError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (defaultOpen) setOpen(true);
+  }, [defaultOpen]);
+
 
   const handleFocus = () => {
     if (useRedirect) {
@@ -104,7 +111,7 @@ export default function SearchBar({ useRedirect }: SearchBarProps) {
         <input
           type="text"
           data-slot="input"
-          className="w-full bg-transparent px-2 py-1.5 text-sm text-gray-900 dark:text-white placeholder-gray-400 
+          className="w-full bg-transparent px-2 py-1.5 text-sm text-gray-900 dark:text-white placeholder-(--text-on-frosted) hover:placeholder-(--text-color) 
                focus:outline-none"
           placeholder="Search..."
           onFocus={handleFocus}

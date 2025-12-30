@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { Slider } from "@/components/ui/slider";
 import { useConfig } from "@/context/ConfigContext";
+import { writeToConfig } from "@/lib/frontend/data/MUTATE/config/writeToConfig";
 
 export default function WallpaperBlurSliderComponent({ className }: { className?: string }) {
   const { config, refreshConfig } = useConfig();
@@ -42,17 +43,10 @@ export default function WallpaperBlurSliderComponent({ className }: { className?
         },
       };
 
-      const res = await fetch(`/api/v1/config?path=appearance`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ updatedItem: updatedAppearance }),
+      await writeToConfig(`appearance`, updatedAppearance, {
+        token,
+        onSuccess: () => refreshConfig(),
       });
-
-      if (!res.ok) throw new Error("Failed to update blur value");
-      await refreshConfig();
     } catch (err) {
       console.error("Error updating blur:", err);
     } finally {

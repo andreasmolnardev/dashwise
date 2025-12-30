@@ -1,333 +1,208 @@
-"use client"
+"use client";
 
-import React, { useState, useEffect } from "react"
-import {
-  ColumnDef,
-  ColumnFiltersState,
-  flexRender,
-  getCoreRowModel,
-  getFilteredRowModel,
-  getPaginationRowModel,
-  getSortedRowModel,
-  SortingState,
-  useReactTable,
-  VisibilityState,
-} from "@tanstack/react-table"
-import { ArrowUpDown, ChevronDown, MoreHorizontal } from "lucide-react"
-
-import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Input } from "@/components/ui/input"
+import React, { useState, useEffect } from "react";
 import {
   DropdownMenu,
-  DropdownMenuCheckboxItem,
+  DropdownMenuTrigger,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
+} from "@/components/ui/dropdown-menu";
+import { Button } from "@/components/ui/button";
+import { MoreHorizontal } from "lucide-react";
+import { cn } from "@/lib/utils";
+import readEndpoint from "@/lib/frontend/data/GET/readEndpoint";
 
 export type NotificationItem = {
-  id: string
-  content: string
-  status: string
-  created: string
-  topicId: string
-  topicName: string
-  title?: string
-  description?: string
-}
+  id: string;
+  content: string;
+  status: string;
+  created: string;
+  topicId: string;
+  topicName: string;
+  title?: string;
+  description?: string;
+};
 
-const columns: ColumnDef<NotificationItem>[] = [
-  {
-    id: "select",
-    header: ({ table }) => (
-      <Checkbox
-        checked={
-          table.getIsAllPageRowsSelected() ||
-          (table.getIsSomePageRowsSelected() && "indeterminate")
-        }
-        onCheckedChange={(val) => table.toggleAllPageRowsSelected(!!val)}
-        aria-label="Select all"
-      />
-    ),
-    cell: ({ row }) => (
-      <Checkbox
-        checked={row.getIsSelected()}
-        onCheckedChange={(val) => row.toggleSelected(!!val)}
-        aria-label="Select row"
-      />
-    ),
-    enableSorting: false,
-    enableHiding: false,
-  },
-  {
-    accessorKey: "topicName",
-    header: "Topic",
-  },
-  {
-    accessorKey: "content",
-    header: "Content",
-    cell: ({ row }) => {
-      const content = row.original.content
+export default function NotificationsInboxPage() {
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [topics, setTopics] = useState<{ id: string; title: string }[]>([]);
+  const [activeTopic, setActiveTopic] = useState<string | null>(null);
 
-      if (content && typeof content === "object" && !Array.isArray(content)) {
-        const contentObj = content as { title?: string; description?: string }
+  useEffect(() => {
+    let mounted = true;
+    const ctl = new AbortController();
 
-        if (contentObj.title) {
-          return (
-            <div className="max-w-[65%] break-words whitespace-normal">
-              <div className="font-semibold">{contentObj.title}</div>
-              {contentObj.description && (
-                <div className="text-sm break-words">{contentObj.description}</div>
+    (async () => {
+      try {
+        const [notResp, topicResp] = await Promise.all([
+          readEndpoint<{ items: any[] }>("/api/v1/notifications", { signal: ctl.signal }),
+          readEndpoint<{ items: any[] }>("/api/v1/notifications/topics", { signal: ctl.signal }),
+        ]);
+
+        if (!mounted) return;
+        setNotifications(notResp?.items || []);
+        setTopics(topicResp?.items || []);
+      } catch (err) {
+        console.error("Notifications/topics fetch failed:", err);
+      }
+    })();
+
+    return () => { mounted = false; ctl.abort(); };
+  }, []);
+
+  const markAsRead = async (notifId: string) => {
+    const token = localStorage.getItem("pb_token");
+    if (!token) return;
+    try {
+      await fetch("/api/v1/notifications/markAsRead", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ id: notifId }),
+      });
+      setNotifications((prev) =>
+        prev.map((n) => (n.id === notifId ? { ...n, status: "read" } : n))
+      );
+    } catch (err) {
+      console.error("Failed to mark notification as read:", err);
+    }
+  };
+
+  // Filter notifications by active topic; null shows all
+  const filteredNotifications = activeTopic
+    ? notifications.filter((n) => n.topicId === activeTopic)
+    : notifications;
+
+  if (!notifications.length) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 text-muted-foreground">
+        <h2 className="text-xl font-semibold mb-2">No notifications</h2>
+        <p className="text-center">You're all caught up!</p>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <h1 className="text-3xl font-semibold mb-4">Inbox</h1>
+      <div className="space-y-4">
+        {/* --- Topic Chips (including “All”) --- */}
+        <div className="flex gap-2 overflow-x-auto mb-4">
+          {/* All notifications chip */}
+          <button
+            key="all"
+            onClick={() => setActiveTopic(null)}
+            className={cn(
+              "px-4 py-2 rounded-xl text-sm font-medium transition whitespace-nowrap",
+              activeTopic === null
+                ? "bg-white/20 backdrop-blur-md text-white border border-(--primary)"
+                : "bg-white/10 text-gray-100 hover:bg-white/20"
+            )}
+          >
+            All
+          </button>
+
+          {/* Individual topic chips */}
+          {topics.map((topic) => (
+            <button
+              key={topic.id}
+              onClick={() => setActiveTopic(topic.id)}
+              className={cn(
+                "px-4 py-2 rounded-xl text-sm font-medium transition whitespace-nowrap",
+                activeTopic === topic.id
+                  ? "bg-white/20 backdrop-blur-md text-white border border-(--primary)"
+                  : "bg-white/10 text-gray-100 hover:bg-white/20"
               )}
-            </div>
-          )
-        }
+            >
+              {topic.title}
+            </button>
+          ))}
+        </div>
 
-        // fallback for other objects
-        return (
-          <code className="max-w-[65%] block whitespace-pre-wrap break-words">
-            {JSON.stringify(contentObj, null, 2)}
-          </code>
-        )
-      }
-
-      return (
-        <span className="max-w-[65%] block whitespace-normal break-words">
-          {String(content)}
-        </span>
-      )
-    },
-  },
-  {
-    accessorKey: "status",
-    header: ({ column }) => (
-      <Button
-        variant="ghost"
-        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-      >
-        Status
-        <ArrowUpDown className="ml-1 h-4 w-4" />
-      </Button>
-    ),
-    cell: ({ row }) => {
-      const status = row.getValue("status")
-      if (status === "not read") {
-        return <span className="font-bold capitalize">{status}</span>
-      }
-      return null
-    },
-    enableHiding: true,
-  },
-  {
-    accessorKey: "created",
-    header: () => <div className="text-right">Created</div>,
-    cell: ({ row }) => {
-      const date = new Date(row.getValue("created"))
-      return (
-        <div className="text-right font-medium">
-          {date.toLocaleString("default", {
+        {/* --- Notifications --- */}
+        {filteredNotifications.map((notif) => {
+          const createdDate = new Date(notif.created).toLocaleString(undefined, {
             year: "numeric",
             month: "short",
             day: "numeric",
             hour: "2-digit",
             minute: "2-digit",
-          })}
-        </div>
-      )
-    },
-  },
-  {
-    id: "actions",
-    enableHiding: false,
-    cell: ({ row }) => {
-      const notif = row.original
-      return (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="h-8 w-8 p-0">
-              <span className="sr-only">Open menu</span>
-              <MoreHorizontal />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="frosted text-(--text-primary)">
-            <DropdownMenuLabel>Actions</DropdownMenuLabel>
-            <DropdownMenuItem
-              onClick={() => navigator.clipboard.writeText(notif.id)}
+          });
+
+          const contentTitle =
+            notif.title ||
+            (notif.content &&
+              typeof notif.content === "object" &&
+              "title" in notif.content
+              ? String((notif.content as { title?: string }).title || "")
+              : String(JSON.stringify(notif.content)));
+
+          const contentDesc =
+            notif.description ||
+            (notif.content &&
+              typeof notif.content === "object" &&
+              "description" in notif.content
+              ? String((notif.content as { description?: string }).description)
+              : undefined);
+
+          return (
+            <div
+              key={notif.id}
+              onClick={() => markAsRead(notif.id)}
+              className="frosted p-4 rounded-xl border border-white/20 backdrop-blur-md flex justify-between items-start shadow-lg group"
             >
-              Copy notification ID
-            </DropdownMenuItem>
-            <DropdownMenuSeparator className="bg-(--text-primary)" />
-            <DropdownMenuItem
-              onClick={() => alert(`Topic ID: ${notif.topicId}`)}
-            >
-              Show topic ID
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      )
-    },
-  },
-]
+              <div className="flex flex-col gap-1 w-full">
+                <div className="notification-header flex justify-between w-full">
+                  <div className="text-sm font-semibold">{notif.topicName}</div>
+                  <div className="text-xs text-(--text-secondary) mt-1">
+                    {createdDate}
+                  </div>
+                </div>
+                {contentTitle && (
+                  <div
+                    className={cn(
+                      "text-base",
+                      notif.status !== "read" ? "font-bold" : "font-semibold",
+                      "group-hover:text-(--primary)"
+                    )}
+                  >
+                    {contentTitle}
+                  </div>
+                )}
+                {contentDesc && (
+                  <div className="text-sm text-(--text-primary)">{contentDesc}</div>
+                )}
+              </div>
 
-export default function NotificationsInboxPage() {
-  const [data, setData] = useState<NotificationItem[]>([])
-  const [sorting, setSorting] = useState<SortingState>([])
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({
-    status: false, // hide by default
-  })
-  const [rowSelection, setRowSelection] = useState({})
-
-  useEffect(() => {
-    const token = localStorage.getItem("pb_token")
-    if (!token) return
-
-    fetch("/api/v1/notifications", {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-    })
-      .then((res) => res.json())
-      .then((json) => setData(json.items))
-      .catch(console.error)
-  }, [])
-
-  const table = useReactTable({
-    data,
-    columns,
-    onSortingChange: setSorting,
-    onColumnFiltersChange: setColumnFilters,
-    onColumnVisibilityChange: setColumnVisibility,
-    onRowSelectionChange: setRowSelection,
-    getCoreRowModel: getCoreRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
-    state: {
-      sorting,
-      columnFilters,
-      columnVisibility,
-      rowSelection,
-    },
-  })
-
-  return (
-    <>
-      <h1 className="text-3xl font-semibold mb-4">Inbox</h1>
-
-      <div className="flex items-center py-4">
-        <Input
-          placeholder="Filter topics..."
-          value={(table.getColumn("topicName")?.getFilterValue() as string) ?? ""}
-          onChange={(e) =>
-            table.getColumn("topicName")?.setFilterValue(e.target.value)
-          }
-          className="max-w-sm"
-        />
-
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" className="ml-auto">
-              Columns
-              <ChevronDown className="ml-1 h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            {table
-              .getAllColumns()
-              .filter((col) => col.getCanHide())
-              .map((col) => (
-                <DropdownMenuCheckboxItem
-                  key={col.id}
-                  className="capitalize"
-                  checked={col.getIsVisible()}
-                  onCheckedChange={(v) => col.toggleVisibility(!!v)}
-                >
-                  {col.id}
-                </DropdownMenuCheckboxItem>
-              ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-
-      <div className="overflow-hidden rounded-md">
-        <Table className="border-transparent">
-          <TableHeader className="bg-muted/30 border-none">
-            {table.getHeaderGroups().map((hg) => (
-              <TableRow key={hg.id} className=" border-white/50">
-                {hg.headers.map((header) => (
-                  <TableHead key={header.id} className="text-(--text-primary)">
-                    {header.isPlaceholder
-                      ? null
-                      : flexRender(header.column.columnDef.header, header.getContext())}
-                  </TableHead>
-                ))}
-              </TableRow>
-            ))}
-          </TableHeader>
-          <TableBody>
-            {table.getRowModel().rows.length ? (
-              table.getRowModel().rows.map((row) => (
-                <TableRow
-                  key={row.id}
-                  data-state={row.getIsSelected() ? "selected" : undefined}
-                  className="frosted my-2 border-transparent data-[state=selected]:border-2 data-[state=selected]:border-(--primary)"
-                >
-
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id} className="border-transparent">
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell colSpan={columns.length} className="h-24 text-center">
-                  No notifications.
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </div>
-
-      <div className="flex items-center justify-end space-x-2 py-4">
-        <div className="text-muted-foreground flex-1 text-sm">
-          {table.getFilteredSelectedRowModel().rows.length} of{" "}
-          {table.getFilteredRowModel().rows.length} row(s) selected.
-        </div>
-        <div className="space-x-2">
-          <Button
-            className="frosted"
-            size="sm"
-            onClick={() => table.previousPage()}
-            disabled={!table.getCanPreviousPage()}
-          >
-            Previous
-          </Button>
-          <Button
-            className="frosted"
-            size="sm"
-            onClick={() => table.nextPage()}
-            disabled={!table.getCanNextPage()}
-          >
-            Next
-          </Button>
-        </div>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="sm" className="p-2">
+                    <MoreHorizontal />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="frosted">
+                  <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                  <DropdownMenuItem
+                    onClick={() => navigator.clipboard.writeText(notif.id)}
+                  >
+                    Copy notification ID
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={() => alert(`Topic ID: ${notif.topicId}`)}
+                  >
+                    Show topic ID
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          );
+        })}
       </div>
     </>
-  )
+  );
 }

@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ColorPicker } from "@/components/settings/ColorPicker";
 import { useConfig } from "@/context/ConfigContext";
+import { writeToConfig } from "@/lib/frontend/data/MUTATE/config/writeToConfig";
 
 // Type for the appearance config
 type AppearanceConfig = {
@@ -44,6 +45,7 @@ export default function AccentColorSelectComponent({ className }: { className?: 
   async function updateAccentColor(newColor: string) {
     const color_hex = newColor.startsWith("#") ? newColor : `#${newColor}`;
 
+    // update local state
     setAccent(color_hex);
 
     // update local CSS var for immediate feedback
@@ -57,40 +59,13 @@ export default function AccentColorSelectComponent({ className }: { className?: 
 
     // persist to server
     try {
-      const token = localStorage.getItem("pb_token");
-      if (!token) throw new Error("Not authenticated");
-
-      const appearanceConfig: AppearanceConfig = { ...(config?.appearance || {}) };
-      appearanceConfig.accentColor = color_hex;
-
-      const payload = { updatedItem: appearanceConfig };
-
-      const res = await fetch("/api/v1/config?path=appearance", {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(payload),
-      });
-
-      let json: Record<string, unknown> = {};
-      try {
-        json = await res.json();
-      } catch {
-        // non-json response is ok
-      }
-
-      if (!res.ok) {
-        console.error("Failed to update accent color", json);
-        return;
-      }
-
+      const appearanceConfig: AppearanceConfig = { ...(config?.appearance || {}), accentColor: color_hex };
+      await writeToConfig("appearance", appearanceConfig);
     } catch (err: unknown) {
       if (err instanceof Error) {
-        console.error("updateAccentColor error:", err.message);
+        console.error("Failed to update accent color:", err.message);
       } else {
-        console.error("updateAccentColor unknown error:", err);
+        console.error("Failed to update accent color (unknown error):", err);
       }
     }
   }
@@ -126,7 +101,7 @@ export default function AccentColorSelectComponent({ className }: { className?: 
               variant="ghost"
               className={`frosted rounded-full w-8 h-8 outline-none shadow-none hover:ring-2 hover:ring-gray-300 hover:text-gray-300
       transition-all duration-150 ${isCustomAccent ? "ring-2" : ""}`}
-              style={{ background: accent}}
+              style={{ background: accent }}
             >
               <FontAwesomeIcon icon={faEyeDropper} fontSize={10} />
             </Button>

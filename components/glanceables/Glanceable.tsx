@@ -1,15 +1,6 @@
 import { useConfig } from "@/context/ConfigContext";
 import { useEffect, useMemo, useState } from "react";
-import {
-  WiDaySunny,
-  WiNightClear,
-  WiCloud,
-  WiRain,
-  WiShowers,
-  WiThunderstorm,
-  WiSnow,
-  WiFog,
-} from 'react-icons/wi';
+import { getWeatherIcon } from "../widgets/dashboard/Weather";
 
 export type GlanceableProps = {
   type: string;
@@ -29,6 +20,8 @@ export default function GlanceableComponent({ type, params, className }: Glancea
       return <GlanceableDate params={params} className={className} />;
     case "greeting":
       return <GlanceableGreeting className={className} />;
+    case "local-timezone":
+      return <GlanceableLocalTimezone className={className} />; 
     case "weather":
       return <GlanceableWeather params={params} className={className} />;
     case "world-clock":
@@ -68,8 +61,8 @@ function GlanceableDate({
   const weekday =
     dateFormat.includes("ddd") || dateFormat.includes("dddd")
       ? new Intl.DateTimeFormat(locale, {
-          weekday: dateFormat.includes("ddd") ? "short" : "long",
-        }).format(date)
+        weekday: dateFormat.includes("ddd") ? "short" : "long",
+      }).format(date)
       : "";
 
   // Replace tokens in the format
@@ -86,12 +79,29 @@ function GlanceableDate({
   return <div className={`glanceable-date ${className || ""}`}>{formattedDate}</div>;
 }
 
-function GlanceableGreeting({className}: {className?: string}){
+function GlanceableGreeting({ className }: { className?: string }) {
   return (
-        <div className={`glanceable-greeting ${className || ""}`}>
-          Hello
-        </div>
-      );
+    <div className={`glanceable-greeting ${className || ""}`}>
+      Hello
+    </div>
+  );
+}
+
+function GlanceableLocalTimezone({ className }: { className?: string }) {
+  // Get the user's local timezone abbreviation (like PST, EST)
+  const timezoneName = Intl.DateTimeFormat(undefined, { timeZoneName: 'short' })
+    .formatToParts(new Date())
+    .find(part => part.type === 'timeZoneName')?.value || '';
+
+  // Alternatively, get GMT offset like GMT+2
+  const offset = -new Date().getTimezoneOffset() / 60;
+  const gmtOffset = `GMT${offset >= 0 ? '+' : ''}${offset}`;
+
+  return (
+    <div className={`glanceable-local-timezone flex items-center justify-center ${className || ""}`}>
+      {timezoneName || gmtOffset}
+    </div>
+  );
 }
 
 function GlanceableWeather({ params, className }: { params?: Record<string, any>, className?: string }) {
@@ -99,18 +109,65 @@ function GlanceableWeather({ params, className }: { params?: Record<string, any>
 
   const weatherLocation: WeatherLocation | null = useMemo(() => {
     if (params?.locationDisplayname && params?.locationCoordinates) {
-      const coordinates = params.locationCoordinates.replaceAll(" ", "").split(",")
+      let coordinates: { lat: number; lon: number } | null = null;
+
+      if (typeof params.locationCoordinates === "string") {
+        const match = params.locationCoordinates.match(
+          /^\s*\{\s*'lat'\s*:\s*'([^']+)'\s*,\s*'lon'\s*:\s*'([^']+)'\s*(?:,\s*'name'\s*:\s*'([^']+)')?\s*\}\s*$/
+        );
+
+        if (match) {
+          coordinates = {
+            lat: Number(match[1]),
+            lon: Number(match[2]),
+          };
+        }
+      }
+
+      // fallback
+      if (!coordinates && Array.isArray(params.location)) {
+        coordinates = {
+          lat: Number(params.location[0]),
+          lon: Number(params.location[1]),
+        };
+      }
+
+      if (!coordinates) return null;
+
       return {
         name: params.locationDisplayname,
-        lat: coordinates[0],
-        lon: coordinates[1]
-      }
-    } else if (config.global.weatherLocation) {
-      return JSON.parse(config.global.weatherLocation.replaceAll("'", '"'));
+        lat: coordinates.lat,
+        lon: coordinates.lon,
+      };
+    }
+
+    if (typeof params?.location?.coordinates === "string") {
+    const match = params.location.coordinates.match(
+      /^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$/
+    );
+
+    if (match) {
+      return {
+        name: params.location.displayName,
+        lat: Number(match[1]),
+        lon:  Number(match[2])
+      };
+    }
+  }
+
+    if (config.global.weatherLocation) {
+      return JSON.parse(
+        config.global.weatherLocation.replaceAll("'", '"')
+      );
     }
 
     return null;
-  }, [params?.location]);
+  }, [
+    params?.locationCoordinates,
+    params?.locationDisplayname,
+    params?.location,
+    config.global.weatherLocation,
+  ]);
 
   const weatherUnit = params?.unit || config?.global?.weatherUnit || "c";
   const [weather, setWeather] = useState<any>(null);
@@ -130,12 +187,19 @@ function GlanceableWeather({ params, className }: { params?: Record<string, any>
 
   return (
     <div className={`glanceable-weather flex items-center ${className || ""}`}>
-      <span className="text-4xl text-yellow-400 mr-2">
-        {getWeatherIcon(weather.description, weather.iconCode)}
+      <span className="mr-2">
+        {getWeatherIcon({
+          description: weather.description,
+          weatherCode: weather.weatherCode,
+          size: 22,
+          sunrise: weather?.sunrise,
+          sunset: weather?.sunset
+        })}
       </span>
-      <div>
+
+      <div className="text-wrap w-min text-center">
         {weather.temperature}{weather.unit}
-        {params?.showLocation === true ? ` in ${weather.name}` : ""}
+        {params?.showLocation === true ? ` in ${weather.name.split(',')[0]}` : ""}
       </div>
     </div>
   );
@@ -144,7 +208,7 @@ function GlanceableWeather({ params, className }: { params?: Record<string, any>
 function GlanceableWorldClock({ params, className }: { params?: Record<string, any>, className?: string }) {
   const [time, setTime] = useState("");
 
-    useEffect(() => {
+  useEffect(() => {
     function updateTime() {
       const now = new Date();
       const formatted = new Intl.DateTimeFormat("en-US", {
@@ -166,31 +230,4 @@ function GlanceableWorldClock({ params, className }: { params?: Record<string, a
       {time} in {params?.location}
     </div>
   );
-}
-
-function getWeatherIcon(description: string, iconCode?: string) {
-  if (!description) return null;
-  const desc = description.toLowerCase();
-
-  if (iconCode) {
-    if (iconCode === '01d') return <WiDaySunny />;
-    if (iconCode === '01n') return <WiNightClear />;
-    if (iconCode.startsWith('02')) return <WiCloud />;
-    if (iconCode.startsWith('03') || iconCode.startsWith('04')) return <WiCloud />;
-    if (iconCode.startsWith('09')) return <WiShowers />;
-    if (iconCode.startsWith('10')) return <WiRain />;
-    if (iconCode.startsWith('11')) return <WiThunderstorm />;
-    if (iconCode.startsWith('13')) return <WiSnow />;
-    if (iconCode.startsWith('50')) return <WiFog />;
-  }
-
-  if (desc.includes('clear')) return <WiDaySunny />;
-  if (desc.includes('cloud')) return <WiCloud />;
-  if (desc.includes('rain')) return <WiRain />;
-  if (desc.includes('drizzle')) return <WiShowers />;
-  if (desc.includes('thunder')) return <WiThunderstorm />;
-  if (desc.includes('snow')) return <WiSnow />;
-  if (desc.includes('mist') || desc.includes('fog') || desc.includes('haze')) return <WiFog />;
-
-  return <WiCloud />;
 }

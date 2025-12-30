@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerPB } from "@/lib/pb";
+import { getServerPB, getSuperuserPB } from "@/lib/pb";
+import { createNotificationWithTopicToken, resolveTopicToken } from "@/lib/notifications/create";
 
 export async function GET(req: NextRequest) {
     try {
@@ -27,6 +28,10 @@ export async function GET(req: NextRequest) {
             filter: `userId="${userId}"`,
         });
         const topicIds = topics.map(t => t.id);
+
+        if (!topicIds) {
+            return NextResponse.json({}, { status: 204 });
+        }
 
         if (topicIds.length === 0) {
             return NextResponse.json({ items: [] });
@@ -102,3 +107,36 @@ export async function GET(req: NextRequest) {
         );
     }
 }
+
+export async function POST(req: NextRequest) {
+    try {
+        const body = await req.json().catch(() => ({}));
+
+
+        // --- 1. Get topic token from header or query
+        let token = req.headers.get("authorization")?.startsWith("Bearer ")
+            ? req.headers.get("authorization")!.split(" ")[1]
+            : req.nextUrl.searchParams.get("token");
+
+        if (!token) {
+            return NextResponse.json({ error: "Missing topic token" }, { status: 401 });
+        }
+
+        const topicId = resolveTopicToken(token);
+
+        if (!topicId) {
+            return NextResponse.json({ ok: false, }, { status: 400 });
+        }
+
+        const createdNotificationId = createNotificationWithTopicToken(token, body);
+
+        return NextResponse.json({ ok: true, topicId, itemId: createdNotificationId }, { status: 201 });
+    } catch (err: any) {
+        console.error("Error in POST /notifications via topic token", err);
+        return NextResponse.json(
+            { error: "Internal Server Error", details: String(err?.message ?? err) },
+            { status: 500 }
+        );
+    }
+}
+

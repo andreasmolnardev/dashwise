@@ -1,3 +1,5 @@
+import { beszelSearchItems } from "./clients/beszel/client.ts";
+import { JellyfinSearchItems } from "./clients/jellyfin/client.ts";
 import { KarakeepSearchItems } from "./clients/karakeep/client.ts";
 import config from "./config.ts";
 import pb, { getSuperuserPB } from "./pb.ts";
@@ -17,6 +19,15 @@ type UserConfig = {
                 api_token: string;
                 server_location: string;
             };
+            Jellyfin?: {
+                api_token: string;
+                server_location: string;
+            };
+            Beszel?: {
+                server_location: string;
+                pb_email: string;
+                pb_password: string;
+            }
             News?: Record<string, never>;
             Notifications?: Record<string, never>;
         };
@@ -34,8 +45,9 @@ export type SearchItem = {
     name: string;
     icon: string;
     secondaryInfo: string;
-    type: "link" | "karakeepBookmark";
+    type: "link" | "karakeepBookmark" | "jellyfinItem" | "beszelItem";
     action: string;
+    tags?: string[];
 };
 
 function mapSearchItemsToJSON(items: SearchItem[]) {
@@ -47,6 +59,7 @@ function mapSearchItemsToJSON(items: SearchItem[]) {
                 secondaryInfo: i.secondaryInfo,
                 type: i.type,
                 action: i.action,
+                tags: i.tags
             }))
             .sort((a, b) => a.name.localeCompare(b.name))
     );
@@ -72,19 +85,42 @@ export default async function runBackgroundJobs() {
                 secondaryInfo: link.linkGroup,
                 type: "link",
                 action: `url:${link.url}`,
+                tags: [link.name, link.linkGroup, link.url.match(/^(?:https?:\/\/)?(?:www\.)?(?:[\w-]+\.)*([\w-]+)\.(?:[\w-]{2,}(?:\.[\w-]{2,})?)$/)?.[1]].filter((t): t is string => !!t)
             }));
 
             //check if user has any integrations configured
-            if (userConfig.config.integrations?.Karakeep) {
+            if (userConfig.config.integrations?.Karakeep && userConfig.config.integrations?.Karakeep?.api_token && userConfig.config.integrations?.Karakeep?.server_location) {
                 const karakeepConfig = userConfig.config.integrations?.Karakeep;
                 const token = Buffer.from(karakeepConfig.api_token, "base64").toString("utf-8");
                 const serverUrl = Buffer.from(karakeepConfig.server_location, "base64").toString("utf-8");
 
-                console.log("karakeep", token, serverUrl)
                 if (!token || !serverUrl) return;
 
-                const bookmarks = await KarakeepSearchItems({serverUrl, token, allowInsecureCerts:  config.allowInsecureCertsForIntegrationUrls});
+                const bookmarks = await KarakeepSearchItems({ serverUrl, token, allowInsecureCerts: config.allowInsecureCertsForIntegrationUrls });
                 searchItems.push(...bookmarks);
+            }
+
+            if (userConfig.config.integrations?.Jellyfin && userConfig.config.integrations?.Jellyfin.api_token && userConfig.config.integrations?.Jellyfin.server_location) {
+
+                const JellyfinConfig = userConfig.config.integrations?.Jellyfin;
+
+                const token = Buffer.from(JellyfinConfig.api_token, "base64").toString("utf-8");
+                const serverUrl = Buffer.from(JellyfinConfig.server_location, "base64").toString("utf-8");
+
+                const items = await JellyfinSearchItems({ serverUrl, token, allowInsecureCerts: config.allowInsecureCertsForIntegrationUrls });
+                searchItems.push(...items);
+            }
+
+            if (userConfig.config.integrations?.Beszel && userConfig.config.integrations?.Beszel.server_location && userConfig.config.integrations?.Beszel.pb_email) {
+
+                const JellyfinConfig = userConfig.config.integrations?.Beszel;
+
+                const serverUrl = Buffer.from(JellyfinConfig.server_location, "base64").toString("utf-8");
+                const pb_email = Buffer.from(JellyfinConfig.pb_email, "base64").toString("utf-8");
+                const pb_password = Buffer.from(JellyfinConfig.pb_password, "base64").toString("utf-8");
+
+                const items = await beszelSearchItems({ url: serverUrl, pb_email, pb_password, allowInsecureCerts: config.allowInsecureCertsForIntegrationUrls });
+                searchItems.push(...items);
             }
 
             const desiredJson = mapSearchItemsToJSON(searchItems);

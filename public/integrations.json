@@ -1,12 +1,13 @@
 {
     "dashwise": [
         {
-            "name": "News",
-            "description": "Subscribe to RSS feeds, filtered by topics"
-        },
-        {
             "name": "Notifications",
             "description": "Receive alerts via topic-based PUSH requests"
+        },
+        {
+            "name": "News",
+            "description": "Receive alerts via topic-based PUSH requests",
+            "page": "news"
         }
     ],
     "bookmarks": [
@@ -16,6 +17,35 @@
             "properties": {
                 "server_location": "as:string",
                 "api_token": "as:string"
+            }
+        }
+    ],
+    "media": [
+        {
+            "name": "Jellyfin",
+            "description": "Integration for Jellyfin",
+            "properties": {
+                "server_location": "as:string",
+                "api_token": "as:string"
+            }
+        }
+    ],
+    "monitoring": [
+        {
+            "name": "Dashdot",
+            "description": "Integration for Dashdot",
+            "properties": {
+                "server_location": "as:string",
+                "server_displayname": "as:string"
+            }
+        },
+        {
+            "name": "Beszel",
+            "description": "Integration for Beszel",
+            "properties": {
+                "server_location": "as:string",
+                "pb_email": "as:string",
+                "pb_password": "as:string"
             }
         }
     ]

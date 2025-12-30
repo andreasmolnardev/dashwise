@@ -1,3 +1,4 @@
+import { ensureUserConfig } from '@/lib/api/config/retrieve';
 import { getServerPB } from '@/lib/pb';
 import { NextResponse } from 'next/server';
 import { AuthModel, ClientResponseError } from 'pocketbase';
@@ -25,21 +26,32 @@ export async function GET(request: Request) {
       throw error;
     }
 
-    const configRecord = await pb.collection('userConfig').getFirstListItem(
-      `associatedUserId="${authModel.record.id}"`
-    );
+    //get config, ensure it exists
+    let configRecord;
+    try {
+      configRecord = await ensureUserConfig(pb, authModel.record.id);
+    } catch (err: any) {
+      // If the user doesn't exist or creation failed, return a helpful error
+      if (err.status === 403 || err.message === 'Associated user not found') {
+        return NextResponse.json({ error: 'Invalid user' }, { status: 403 });
+      }
+      console.error('ensureUserConfig error:', err);
+      return NextResponse.json({ error: 'Failed to fetch config' }, { status: 500 });
+    }
 
     // convert credentials to a boolean list
     // integrations: { karakeep: {...} } -> integrations: { karakeep: true/false }
+    const rawIntegrations = configRecord?.config?.integrations ?? {};
+
     const strippedIntegrations = Object.fromEntries(
-      Object.entries(configRecord.config.integrations).map(([k, v]) => [
+      Object.entries(rawIntegrations).map(([k, v]) => [
         k,
-        // v needs special type checking
-        !!v && !Array.isArray(v) &&
+        !!v &&
+        !Array.isArray(v) &&
         typeof v === "object" &&
-        Object.keys(v).length > 0
+        Object.keys(v).length > 0,
       ])
-    )
+    );
 
     // replace original integrations
     configRecord.config.integrations = strippedIntegrations;
@@ -112,6 +124,22 @@ export async function POST(request: Request) {
   }
 }
 
+function setNested(obj: Record<string, any>, path: string, value: any) {
+  const keys = path.split('.');
+  let current = obj;
+  keys.forEach((key, idx) => {
+    if (idx === keys.length - 1) {
+      current[key] = value;
+    } else {
+      if (!current[key] || typeof current[key] !== 'object') {
+        current[key] = {};
+      }
+      current = current[key];
+    }
+  });
+}
+
+
 export async function PATCH(request: Request) {
 
   try {
@@ -147,7 +175,7 @@ export async function PATCH(request: Request) {
 
     const config = record.config as Record<string, any>;
 
-    config[path] = newItem;
+    setNested(config, path, newItem);
 
     // 4. persist back to PocketBase
     await pb

@@ -1,6 +1,6 @@
 services:
   nextjs:
-    image: node:18-alpine
+    image: node:20-alpine
     ports:
       - "3000:3000"
     volumes:
@@ -25,6 +25,8 @@ services:
       - "3001:3001"
     environment:
       NODE_ENV: development 
+    env_file:
+      - ./jobs/.env
     volumes:
-      - ./jobs/:/usr/src/app
+      - ./jobs:/usr/src/app
     command: npm run dev

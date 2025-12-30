@@ -13,18 +13,23 @@
         "displayName": "Greeting",
         "description": "Pretty self-explanatory"
     },
+    "local-timezone": {
+        "displayName": "Local Timezone",
+        "description": "Displays the user's current timezone"
+    },
     "weather": {
         "displayName": "Weather",
         "description": "Displaying the current weather condition at a given place",
         "exampleProps": {
-            "locationDisplayname": "Munich",
-            "locationCoordinates": "48.13371667563365, 11.572037161760225",
+            "location": {
+                "name": "Munich",
+                "coordinates":  "48.13371667563365, 11.572037161760225"
+            },
             "unit": "c",
             "showLocation": false
         },
         "properties": {
-            "locationDisplayname": "as:string",
-            "locationCoordinates": "as:string",
+            "location": "as:location",
             "unit": "f|c",
             "showLocation": "as:bool"
         }
@@ -34,11 +39,11 @@
         "description": "Shows the time at a specified place",
         "exampleProps": {
             "location": "New York, NY",
-            "timezone": "America/New_York" 
+            "timezone": "America/New_York"
         },
         "properties": {
             "location": "string",
-            "timezone": "as:tz" 
+            "timezone": "as:tz"
         }
     }
 }
