@@ -33,6 +33,7 @@ export async function getFeedItems({
                 ['pubDate', 'pubDate'],
                 ['dc:date', 'pubDate'],
                 ['media:thumbnail', 'media:thumbnail'],
+                ['media:group', 'media:group'],
                 ['enclosure', 'enclosure'],
                 ['content:encoded', 'content:encoded']
             ]
@@ -50,41 +51,14 @@ export async function getFeedItems({
             .map((item: ParserItem) => {
                 const dateString = item.isoDate || item.pubDate;
 
-                // make description fallback: if no description but there's a summary, use summary
-                const descriptionText = item.description || item.summary || undefined;
-
-                let thumbnailUrl = '';
-
-                if (item['media:thumbnail']) {
-                    if (typeof item['media:thumbnail'] === 'object' && item['media:thumbnail'].$) {
-                        thumbnailUrl = item['media:thumbnail'].$.url;
-                    } else if (typeof item['media:thumbnail'] === 'string') {
-                        thumbnailUrl = item['media:thumbnail'];
-                    }
-                }
-
-                if (!thumbnailUrl && item.enclosure && item.enclosure.url) {
-                    if (item.enclosure.type && item.enclosure.type.startsWith('image/')) {
-                        thumbnailUrl = item.enclosure.url;
-                    }
-                }
-
-                // fallback: scan content, content:encoded, description, summary (in that order) for an <img>
-                if (!thumbnailUrl) {
-                    const htmlToScan = getHtmlContent(item, true) ?? descriptionText;
-                    const found = extractImageFromHtml(htmlToScan);
-                    if (found) thumbnailUrl = found;
-                }
-
-                if (!thumbnailUrl && (feed as any).image && (feed as any).image.url) {
-                    thumbnailUrl = (feed as any).image.url;
-                }
+                const thumbnailUrl = getThumbnail(item);
+                const descriptionText = getDescription(item);
 
                 return {
                     ...item,
                     title: getTextContent(item.title) || 'No Title',
                     link: item.link || '',
-                    description: filteredText(item.description || item.summary || (getHtmlContent(item) ?? item.content)) as string || undefined,
+                    description: descriptionText || "",
                     content: (getHtmlContent(item) ?? item.content) as string | undefined,
                     pubDate: dateString ? new Date(dateString) : new Date(),
                     thumbnailUrl: thumbnailUrl || undefined,
@@ -97,7 +71,7 @@ export async function getFeedItems({
         return formattedItems.slice(0, maxItems);
 
     } catch (error: any) {
-        console.error(`Error fetching or parsing feed: ${feedUrl}`, error.message);
+        console.error(`Error fetching or parsing feed: ${feedUrl}`, error);
         return [];
     }
 }
@@ -124,19 +98,107 @@ function getHtmlContent(item: ParserItem, priotizeEncode?: boolean) {
 }
 
 function filteredText(text: string) {
+    if (!text) { return "" }
     return text.replace(/<[^>]*>/g, "");
 }
 
 function getTextContent(text: string) {
-  return new JSDOM(text).window.document.body.textContent ?? "";
+    return new JSDOM(text).window.document.body.textContent ?? "";
 }
 
-// --- helper: extract first image URL from an HTML string ---
-function extractImageFromHtml(html?: string): string | undefined {
-    if (!html) return undefined;
-    const dom = new JSDOM(html);
-    const doc = dom.window.document;
-    const img = doc.querySelector('img');
-    if (!img) return undefined;
-    return img.getAttribute('src') || img.getAttribute('data-src') || img.getAttribute('data-original') || undefined;
+export function getThumbnail(item: any): string | undefined {
+    // helper to extract URL from rss-parser style objects
+    const extractUrl = (obj: any): string | undefined => {
+        if (!obj) return undefined;
+
+        // array form: [{ $: { url } }]
+        if (Array.isArray(obj)) {
+            for (const entry of obj) {
+                const url = extractUrl(entry);
+                if (url) return url;
+            }
+            return undefined;
+        }
+
+        // attribute form: { $: { url } }
+        if (obj.$?.url) return obj.$.url;
+
+        // direct string
+        if (typeof obj === 'string') return obj;
+
+        // direct object with url
+        if (typeof obj.url === 'string') return obj.url;
+
+        return undefined;
+    };
+
+    // 1. media:thumbnail on item
+    let url =
+        extractUrl(item['media:thumbnail']) ||
+        extractUrl(item.media?.thumbnail);
+
+    if (url) return url;
+
+    // 2. media:group thumbnails (YouTube)
+    const mediaGroup = item['media:group'];
+    if (mediaGroup) {
+        url =
+            extractUrl(mediaGroup['media:thumbnail']) ||
+            extractUrl(mediaGroup.thumbnail);
+        if (url) return url;
+
+        // 3. media:content fallback
+        url = extractUrl(mediaGroup['media:content']);
+        if (url) return url;
+    }
+
+    // 4. enclosure
+    if (item.enclosure?.url) {
+        return item.enclosure.url;
+    }
+
+    // 5. HTML <img> fallback
+    const html =
+        item['content:encoded'] ||
+        item.content ||
+        item.summary ||
+        item.description;
+
+    if (typeof html === 'string') {
+        try {
+            const dom = new JSDOM(html);
+            const img = dom.window.document.querySelector('img');
+            if (img?.getAttribute('src')) {
+                return img.getAttribute('src') ?? undefined;
+            }
+        } catch {
+            /* ignore HTML parsing errors */
+        }
+    }
+
+    return undefined;
+}
+
+export function getDescription(item: any): string | undefined {
+    const stripHtml = (html: string) => html.replace(/<[^>]*>/g, '').trim();
+
+    // 1. Try media:group → media:description (YouTube)
+    const mediaGroup = item['media:group'];
+    if (mediaGroup) {
+        const mediaDesc = mediaGroup['media:description'] ?? mediaGroup.description;
+        if (typeof mediaDesc === 'string') return stripHtml(mediaDesc);
+        if (typeof mediaDesc === 'object') return stripHtml(mediaDesc[0]);
+        // rss-parser sometimes wraps text in $?._
+        if (mediaDesc?.$?._) return stripHtml(mediaDesc.$._);
+    }
+
+    // 2. Try item.description or item['content:encoded']
+    if (typeof item.description === 'string') return stripHtml(item.description);
+    if (typeof item['content:encoded'] === 'string') return stripHtml(item['content:encoded']);
+
+    // 3. Fallback: summary or content
+    if (typeof item.summary === 'string') return stripHtml(item.summary);
+    if (typeof item.content === 'string') return stripHtml(item.content);
+
+    return undefined;
 }
