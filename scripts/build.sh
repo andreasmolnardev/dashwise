@@ -51,6 +51,7 @@ echo "🏷️  Tag suffix: '$TAG_SUFFIX'"
 
 # === Clone repo ===
 TMP_DIR="$(mktemp -d)"
+trap 'rm -rf "$TMP_DIR"' EXIT
 echo "📦 Cloning $GITHUB_REPO (branch: $BRANCH) into $TMP_DIR..."
 git clone --branch "$BRANCH" --depth 1 "$GITHUB_REPO" "$TMP_DIR"
 cd "$TMP_DIR"
@@ -89,6 +90,27 @@ should_build() {
   [[ "$CONTAINERS" == "all" ]] || [[ "$CONTAINERS" == *"$1"* ]]
 }
 
+# Attempt a manual docker push with a few retries/backoff
+manual_push_with_retries() {
+  local full_tag=$1
+  local max_attempts=5
+  local attempt=0
+
+  until docker push "$full_tag"; do
+    attempt=$((attempt + 1))
+    if [[ $attempt -ge $max_attempts ]]; then
+      echo "❌ Failed to push ${full_tag} after ${attempt} attempts."
+      return 1
+    fi
+    sleep_time=$((attempt * 2))
+    echo "⚠️ Retry ${attempt}/${max_attempts} for ${full_tag} after ${sleep_time}s..."
+    sleep "${sleep_time}"
+  done
+
+  echo "✅ Successfully pushed ${full_tag}."
+  return 0
+}
+
 build_and_push() {
   local dir=$1
   local base_name=$2
@@ -101,11 +123,34 @@ build_and_push() {
     tag_args+=("-t" "${DOCKER_USERNAME}/${base_name}${tag}")
   done
 
-  docker buildx build \
+  # Try buildx with --push first. If that fails, fall back to manual pushes per-tag.
+  echo "🔁 Running docker buildx build --platform ${PLATFORM} --push for ${base_name}..."
+  if ! docker buildx build \
     --platform "$PLATFORM" \
     "${tag_args[@]}" \
     -f "${dir}/Dockerfile" \
     --push "${dir}"
+  then
+    echo "⚠️ buildx push failed for ${base_name}. Attempting manual docker push for each tag..."
+    local any_failure=0
+    for tag in "${tags[@]}"; do
+      full="${DOCKER_USERNAME}/${base_name}${tag}"
+      echo "→ Manual push attempt: ${full}"
+      if ! manual_push_with_retries "$full"; then
+        any_failure=1
+      fi
+    done
+
+    if [[ $any_failure -ne 0 ]]; then
+      echo "❌ One or more manual pushes failed for ${base_name}."
+      return 1
+    else
+      echo "✅ Manual pushes succeeded for all tags of ${base_name}."
+      return 0
+    fi
+  else
+    echo "✅ buildx build and push succeeded for ${base_name}."
+  fi
 }
 
 # === Build targets ===
