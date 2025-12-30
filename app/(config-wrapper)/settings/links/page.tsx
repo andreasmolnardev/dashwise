@@ -235,31 +235,16 @@ export default function LinksSettingsPage() {
           <LinksListContent
             items={linksForForm}
             onEdit={handleOnEditItem}
+            onUpdateItems={handleUpdateFromForm}
             setRemoveLinkFolderOpen={setRemoveLinkFolderOpen}
             setLinkToBeRemovedFromFolder={setLinkToBeRemovedFromFolder}
           />
 
           {/* Bulk Actions Footer */}
           <BulkActionsFooter>
-            <BulkItemsSelectedActions
-              onDelete={() => {
-                if (window.confirm("Delete all selected links?")) {
-                  // Get selected keys from context if needed
-                  // For now, this is handled by the parent component
-                }
-              }}
-              onMove={() => {
-                const targetGroup = window.prompt("Move all selected links to:");
-                if (targetGroup) {
-                  // Handle bulk move
-                }
-              }}
-              onCreateSubgroup={() => {
-                const folderName = window.prompt("Create folder for selected items:");
-                if (folderName) {
-                  // Handle bulk create subgroup
-                }
-              }}
+            <SubgroupBulkActions
+              items={linksForForm}
+              onUpdateItems={handleUpdateFromForm}
             />
           </BulkActionsFooter>
         </EditItemsForm>
@@ -429,11 +414,13 @@ export default function LinksSettingsPage() {
 function LinksListContent({
   items,
   onEdit,
+  onUpdateItems,
   setRemoveLinkFolderOpen,
   setLinkToBeRemovedFromFolder,
 }: {
   items: LinkItem[];
   onEdit: (item: LinkItem) => void;
+  onUpdateItems: (items: LinkItem[]) => Promise<void>;
   setRemoveLinkFolderOpen: (value: boolean) => void;
   setLinkToBeRemovedFromFolder: (value: string) => void;
 }) {
@@ -477,7 +464,19 @@ function LinksListContent({
               <FontAwesomeIcon icon={faFolder} className="text-xs" />
               <span>{item.folder}</span>
               <button
-                onClick={() => handleRemoveFromFolder(item)}
+                onClick={async () => {
+                  try {
+                    const updatedItems = items.map((link) =>
+                      link.id === item.id
+                        ? { ...link, folder: undefined }
+                        : link
+                    );
+                    await onUpdateItems(updatedItems);
+                  } catch (err) {
+                    console.error("Failed to remove link from folder", err);
+                    window.alert("Failed to remove link from folder");
+                  }
+                }}
                 className="ml-1 hover:opacity-70 transition-opacity flex-shrink-0"
                 title="Remove from folder"
               >
@@ -539,4 +538,60 @@ function arraymove_helper<T>(arr: T[] = [], fromIndex: number, toIndex: number):
   array.splice(toIndex, 0, element);
 
   return array;
+}
+
+// Component to handle bulk subgroup creation with selected items
+function SubgroupBulkActions({
+  items,
+  onUpdateItems,
+}: {
+  items: LinkItem[];
+  onUpdateItems: (items: LinkItem[]) => Promise<void>;
+}) {
+  const { selected, itemKey } = useEditItemsForm();
+
+  return (
+    <BulkItemsSelectedActions
+      onDelete={async () => {
+        if (window.confirm("Delete all selected links?")) {
+          try {
+            // Filter out selected items, keeping only unselected ones
+            const updatedItems = items.filter((item) => {
+              const itemId = String(item[itemKey as keyof LinkItem] ?? "");
+              return !selected[itemId];
+            });
+            await onUpdateItems(updatedItems);
+          } catch (err) {
+            console.error("Failed to delete selected links", err);
+            window.alert("Failed to delete selected links");
+          }
+        }
+      }}
+      onMove={() => {
+        const targetGroup = window.prompt("!WIP NOT WORKING! Move all selected links to:");
+        if (targetGroup) {
+          // Handle bulk move
+        }
+      }}
+      onCreateSubgroup={async () => {
+        const folderName = window.prompt("Create folder for selected items:");
+        if (folderName && Object.values(selected).some(Boolean)) {
+          try {
+            // Update only selected items with new folder
+            const updatedItems = items.map((item) => {
+              const itemId = String(item[itemKey as keyof LinkItem] ?? "");
+              if (selected[itemId]) {
+                return { ...item, folder: folderName };
+              }
+              return item;
+            });
+            await onUpdateItems(updatedItems);
+          } catch (err) {
+            console.error("Failed to create subgroup", err);
+            window.alert("Failed to create subgroup");
+          }
+        }
+      }}
+    />
+  );
 }
