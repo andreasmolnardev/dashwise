@@ -37,7 +37,7 @@ export default function GlanceablesSettingsPage() {
   }, []);
 
   const currentGlanceable =
-    currentTab === "left" ? config.glanceables[0] : config.glanceables[1];
+    currentTab === "left" ? config?.glanceables[0] : config?.glanceables[1];
 
   const selected =
   selectedGlanceable === "current"
@@ -55,6 +55,7 @@ export default function GlanceablesSettingsPage() {
           { value: "left", label: "Left one" },
           { value: "right", label: "Right one" },
         ]}
+        className="pb-2"
       />
 
       <section className="grid grid-cols-[3fr_2fr]">
