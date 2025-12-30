@@ -156,6 +156,7 @@ import {
   faTrash,
   faCaretDown,
   faArrowsUpDown,
+  faFolderPlus,
 } from "@fortawesome/free-solid-svg-icons";
 import type { IconDefinition } from "@fortawesome/fontawesome-svg-core";
 
@@ -795,7 +796,7 @@ export function Action({
   onClick,
   icon
 }: {
-  type: "edit" | "move" | "delete" | "create" | "clean" | "add";
+  type: "edit" | "move" | "delete" | "create" | "clean" | "add" | "create-folder";
   label?: string;
   onClick: () => void;
   icon?: IconDefinition;
@@ -805,6 +806,7 @@ export function Action({
     move: faArrowRight,
     delete: faTrash,
     create: faPlus,
+    'create-folder': faFolderPlus
   };
 
   const selectedIcon = icon || iconMap[type];
@@ -865,7 +867,7 @@ export function BulkItemsSelectedActions({
       {onDelete && <Action type="delete" label="Delete" onClick={onDelete} />}
       {onMove && <Action type="move" label="Move" onClick={onMove} />}
       {onCreateSubgroup && enableSubgroup && (
-        <Action type="create" label="Create Folder" onClick={onCreateSubgroup} />
+        <Action type="create-folder" label="Create Folder" onClick={onCreateSubgroup} />
       )}
     </>
   );
