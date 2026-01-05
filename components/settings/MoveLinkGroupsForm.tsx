@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import useAuth from "@/context/useAuth";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { DialogClose } from "@/components/ui/dialog";
 import { useConfig } from "@/context/ConfigContext";
@@ -28,6 +29,8 @@ export default function MoveLinkGroupsFormComponent({ linkGroups = [], onReorder
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+
+  const { token } = useAuth();
 
   // -- Drag handlers --
   const handleDragStart = (e: React.DragEvent<HTMLLIElement>, idx: number) => {
@@ -91,7 +94,6 @@ export default function MoveLinkGroupsFormComponent({ linkGroups = [], onReorder
     setLoading(true);
 
     try {
-      const token = localStorage.getItem("pb_token");
       if (!token) throw new Error("Not authenticated");
 
       // current server list (we use the prop snapshot to calculate diffs)

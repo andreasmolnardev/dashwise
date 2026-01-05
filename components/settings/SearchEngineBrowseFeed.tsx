@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input"; // shadcn input
 import { addSearchEngine } from "@/lib/frontend/data/MUTATE/config/searchEngines/add";
 import { useConfig } from "@/context/ConfigContext";
+import useAuth from "@/context/useAuth";
 
 // --- Types ---
 
@@ -46,6 +47,7 @@ const transformToSearchEngine = (bang: DDGBang): SearchEngine => {
 
 export default function SearchEngineBrowseFeedComponent() {
     const { config, refreshConfig } = useConfig();
+    const { token } = useAuth();
     const [bangs, setBangs] = useState<DDGBang[]>([]);
     const [visibleBangs, setVisibleBangs] = useState<DDGBang[]>([]);
     const [loading, setLoading] = useState(true);
@@ -153,9 +155,9 @@ export default function SearchEngineBrowseFeedComponent() {
     // Add Handler (async, then refresh config)
     const handleAddEngine = async (bang: DDGBang) => {
         const engineConfig = transformToSearchEngine(bang);
-        const token = localStorage.getItem("pb_token") ?? "";
+        const tokenStr = token ?? "";
         try {
-            await addSearchEngine(engineConfig, { token });
+            await addSearchEngine(engineConfig, { token: tokenStr });
             console.log(`Added ${engineConfig.name}`);
             // Refresh config so the new engine will be filtered out
             try {

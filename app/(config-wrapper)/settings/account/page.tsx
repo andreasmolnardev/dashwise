@@ -29,11 +29,13 @@ import { useRouter } from "next/navigation"
 import { DialogDescription } from "@radix-ui/react-dialog"
 import ExportConfigDialog from "@/components/settings/ExportConfigDialog"
 import { useConfig } from "@/context/ConfigContext"
+import useAuth from "@/context/useAuth"
 import ImportConfigDialog from "@/components/settings/ImportConfigDialog.tsx"
 
 export default function AccountSettingsPage() {
  const { config } = useConfig();
   const router = useRouter();
+  const { user, token, setAuth, logout } = useAuth();
   const [oldPassword, setOldPassword] = useState("")
   const [newPassword, setNewPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
@@ -61,7 +63,7 @@ export default function AccountSettingsPage() {
 
     setLoading(true)
     try {
-      const token = localStorage.getItem("pb_token");
+      // token from auth hook
 
       const payload = {
         oldPassword,
@@ -87,7 +89,7 @@ export default function AccountSettingsPage() {
         setOldPassword("");
         setNewPassword("");
         setConfirmPassword("");
-        if (body.token) localStorage.setItem("pb_token", body.token);
+        if (body.token) setAuth(user, body.token);
         setTimeout(() => {
           setSuccess(null);
         }, 900);
@@ -104,8 +106,7 @@ export default function AccountSettingsPage() {
   }
 
   const handleLogoutSubmit = async () => {
-    localStorage.removeItem('pb_token');
-    localStorage.removeItem('pb_user');
+    logout();
     router.push('/auth/login');
   }
 
@@ -116,7 +117,7 @@ export default function AccountSettingsPage() {
       <div className="content grid grid-cols-[auto_1fr_auto] font-medium gap-2 items-center">
         <section className="frosted flex rounded-lg justify-center col-span-full p-2 items-center gap-6">
           <FontAwesomeIcon icon={faCircleUser} className="text-4xl" />
-          <span>{JSON.parse(localStorage.getItem('pb_user') ?? "").name ?? 'Lorem ipsum'}</span>
+          <span>{user?.name ?? 'Lorem ipsum'}</span>
         </section>
 
         <h2 className="text-xl col-span-full">Authentication</h2>

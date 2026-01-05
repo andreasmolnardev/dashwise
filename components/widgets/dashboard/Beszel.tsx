@@ -1,4 +1,7 @@
+"use client";
+
 import React, { useEffect, useState } from "react";
+import useAuth from "@/context/useAuth";
 import WidgetColumnTemplate from "../templates/WidgetColumn";
 import { WidgetItemProps } from "../Widget";
 import {
@@ -124,6 +127,7 @@ export default function BeszelSystemHealthWidget({ className = "" }: WidgetItemP
     const [data, setData] = useState<HealthApiResponse | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const { token } = useAuth();
 
     useEffect(() => {
         let mounted = true;
@@ -131,7 +135,6 @@ export default function BeszelSystemHealthWidget({ className = "" }: WidgetItemP
             setLoading(true);
             setError(null);
             try {
-                const token = localStorage.getItem("pb_token");
                 if (!token) {
                     return;
                 }

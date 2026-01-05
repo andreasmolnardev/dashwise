@@ -1,6 +1,7 @@
 "use client";
 
 import { ReactNode, useEffect, useState } from "react";
+import useAuth from "@/context/useAuth";
 import { usePathname, useRouter } from "next/navigation";
 import { ConfigProvider } from "@/context/ConfigContext";
 import { cn } from "@/lib/utils";
@@ -22,11 +23,12 @@ export default function ConfigWrapper({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const { token } = useAuth();
+
   // --- Fetch config ---
   const fetchConfig = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem("pb_token");
       if (!token) {
         router.push("/auth/login");
         return;
@@ -73,7 +75,7 @@ export default function ConfigWrapper({ children }: { children: ReactNode }) {
     if (!config) return;
 
     const imgUrl = config?.appearance?.backgroundImageUrl || "/default-background.png";
-    const token = localStorage.getItem("pb_token");
+    const tokenToUse = token;
     let revokeUrl: string | null = null;
 
     const loadBackground = async () => {
@@ -81,8 +83,8 @@ export default function ConfigWrapper({ children }: { children: ReactNode }) {
         let finalUrl = imgUrl;
 
         if (imgUrl.startsWith("/api/v1/wallpapers") || imgUrl.includes(window.location.host)) {
-          if (!token) return;
-          const res = await fetch(imgUrl, { headers: { Authorization: `Bearer ${token}` } });
+          if (!tokenToUse) return;
+          const res = await fetch(imgUrl, { headers: { Authorization: `Bearer ${tokenToUse}` } });
           if (!res.ok) throw new Error("Failed to fetch wallpaper with auth");
 
           const blob = await res.blob();

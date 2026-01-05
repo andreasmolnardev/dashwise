@@ -9,6 +9,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import IconPickerComponent from "@/components/settings/IconPicker";
 import { useConfig } from "@/context/ConfigContext";
 import { writeToConfig } from "@/lib/frontend/data/MUTATE/config/writeToConfig";
+import useAuth from "@/context/useAuth";
 
 import {
     Select,
@@ -118,9 +119,14 @@ export default function SearchEngineDetailsForm({
                     s.slug === engine!.slug ? payloadEngine : s
                 );
 
+                const { token } = useAuth();
+                if (!token) throw new Error("Not authenticated");
+
                 await writeToConfig(`searchEngines`, updated, { token });
             } else {
-                await addSearchEngine(payloadEngine, { token });
+                const { token } = useAuth();
+                const tokenStr = token ?? "";
+                await addSearchEngine(payloadEngine, { token: tokenStr });
             }
 
             await refreshConfig();

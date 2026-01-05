@@ -2,6 +2,7 @@
 
 import { useConfig } from "@/context/ConfigContext";
 import { useEffect, useState } from "react";
+import useAuth from "@/context/useAuth";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -25,16 +26,12 @@ export default function NewsDashboardComponent(
     const [expanded, setExpanded] = useState<Record<string, boolean>>({});
     const [limit, setLimit] = useState<Record<string, number>>({});
 
+    const { token } = useAuth();
+
     // --- Auth redirect ---
     useEffect(() => {
-        const token = localStorage.getItem("pb_token");
         if (!token) router.push("/auth/login");
-    }, [router]);
-
-    const token =
-        typeof window !== "undefined"
-            ? localStorage.getItem("pb_token")
-            : null;
+    }, [router, token]);
 
     if (!token) return null;
 

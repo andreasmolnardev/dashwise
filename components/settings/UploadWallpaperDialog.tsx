@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useConfig } from "@/context/ConfigContext";
 import { writeToConfig } from "@/lib/frontend/data/MUTATE/config/writeToConfig";
+import useAuth from "@/context/useAuth";
 import Image from "next/image";
 
 interface UploadWallpaperDialogProps {
@@ -51,6 +52,8 @@ export default function UploadWallpaperDialog({
     }
   }, [open]);
 
+  const { token } = useAuth();
+
   const handleUpload = async (): Promise<void> => {
     if (!file) {
       setMessage("Please pick a file first.");
@@ -62,8 +65,6 @@ export default function UploadWallpaperDialog({
     const formData = new FormData();
     formData.append("image", file, file.name);
     formData.append("fileName", file.name);
-
-    const token = localStorage.getItem("pb_token") || "";
     const headers: Record<string, string> = token
       ? { Authorization: `Bearer ${token}` }
       : {};

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useMemo, useRef } from "react";
+import useAuth from "@/context/useAuth";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import RenameGroupDialog from "@/components/settings/RenameGroupDialog";
 import SubscriptionDetailsForm from "@/components/news/SubscriptionDetailsForm";
@@ -53,10 +54,7 @@ export default function ManageFeedsComponent() {
         return Array.from(s);
     }, [feeds]);
 
-    const token =
-        typeof window !== "undefined"
-            ? localStorage.getItem("pb_token")
-            : null;
+    const { token } = useAuth();
 
     // Fetch feeds on mount
     useEffect(() => {
