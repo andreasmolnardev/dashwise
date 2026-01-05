@@ -197,7 +197,7 @@ function GlanceableWeather({ params, className }: { params?: Record<string, any>
         })}
       </span>
 
-      <div className="text-wrap w-min text-center">
+      <div className="text-wrap text-center">
         {weather.temperature}{weather.unit}
         {params?.showLocation === true ? ` in ${weather.name.split(',')[0]}` : ""}
       </div>
