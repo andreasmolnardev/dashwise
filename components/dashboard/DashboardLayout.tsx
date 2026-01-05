@@ -13,6 +13,7 @@ import { faBell, faGear } from "@fortawesome/free-solid-svg-icons";
 import PagesTabs from "../PagesTabs";
 import UpdateDetailsDialogComponent from "./UpdateDetailsDialog";
 import WidgetComponent from "../widgets/Widget";
+import useAuth from "@/context/useAuth";
 
 export default function DashboardLayoutComponent(
   children: React.PropsWithChildren<{}> = {}
@@ -22,14 +23,12 @@ export default function DashboardLayoutComponent(
   const searchParams = useSearchParams();
   const openFromURL = searchParams.get("search") === "1";
 
-  useEffect(() => {
-    const token = localStorage.getItem("pb_token");
-    if (!token) {
-      router.push("/auth/login");
-    }
-  }, [router]);
+  const { token } = useAuth();
 
-  const token = typeof window !== "undefined" ? localStorage.getItem("pb_token") : null;
+  useEffect(() => {
+    if (!token) router.push("/auth/login");
+  }, [router, token]);
+
   if (!token) return null;
 
   useEffect(() => {

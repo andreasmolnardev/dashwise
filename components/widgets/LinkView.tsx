@@ -1,5 +1,8 @@
-import React, { useEffect, useState } from "react";
+"use client";
+
+import React, { useEffect, useState, useRef } from "react";
 import { useConfig } from "@/context/ConfigContext";
+import useAuth from "@/context/useAuth";
 import { cn } from "@/lib/utils";
 import { PaginatedCarouselViewComponent } from "./PaginatedCarouselView";
 import MonitoringDialog, { JobEntry } from "./MonitoringDialog";
@@ -62,11 +65,19 @@ export default function LinkView() {
     return false;
   }
 
+  const { token } = useAuth();
+
+  const tokenRef = useRef<string | null | undefined>(token);
+
+  useEffect(() => {
+    tokenRef.current = token;
+  }, [token]);
+
   async function fetchMonitoringStatuses() {
     try {
       if (typeof window === "undefined") return;
-      const token = localStorage.getItem("pb_token");
-      if (!token) {
+      const tokenToUse = tokenRef.current;
+      if (!tokenToUse) {
         // no token — clear details
         setMonitoringDetails(null);
         setStatusMap({});
@@ -74,7 +85,7 @@ export default function LinkView() {
       }
 
       const res = await fetch("/api/v1/monitoringStatus", {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${tokenToUse}` },
       });
 
       if (!res.ok) {

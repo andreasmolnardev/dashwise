@@ -21,10 +21,15 @@ import {
 } from "@/components/ui/table";
 import { MoreHorizontal, Copy, Trash2, Edit2 } from "lucide-react";
 import CreateForwarderDialogComponent, { ForwarderItem } from "@/components/notifications/CreateForwarderDialog";
+import useAuth from "@/context/useAuth";
+import {
+    getNotificationTopics,
+    getNotificationForwarders,
+} from "@/lib/frontend/data/notifications";
 
 export default function NotificationForwardersPage() {
     const [items, setItems] = useState<ForwarderItem[]>([]);
-    const [topics, setTopics] = useState<{ id: string; title: string }[]>([]);
+    const [topics, setTopics] = useState<{ id: string; title?: string }[]>([]);
     const [activeTopic, setActiveTopic] = useState<string | null>(null);
     const [newForwarderDialogVisible, setNewForwarderDialogVisible] = useState(false);
     const [editingForwarder, setEditingForwarder] = useState<ForwarderItem | null>(null);
@@ -32,43 +37,22 @@ export default function NotificationForwardersPage() {
     const [editIsActive, setEditIsActive] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
 
-    const token = localStorage.getItem("pb_token");
-
-    // Fetch topics
-    const fetchTopics = async () => {
-        if (!token) return;
-        try {
-            const res = await fetch("/api/v1/notifications/topics", {
-                headers: { Authorization: `Bearer ${token}` },
-            });
-            const json = await res.json();
-            if (res.ok && Array.isArray(json.items)) {
-                setTopics(json.items);
-                if (!activeTopic && json.items.length) setActiveTopic(json.items[0].id);
-            }
-        } catch (err) {
-            console.error("Failed to fetch topics", err);
-        }
-    };
-
-    // Fetch forwarders
-    const fetchForwarders = async () => {
-        if (!token) return;
-        try {
-            const res = await fetch("/api/v1/notifications/forwarders", {
-                headers: { Authorization: `Bearer ${token}` },
-            });
-            const json = await res.json();
-            if (Array.isArray(json.items)) setItems(json.items);
-        } catch (err) {
-            console.error("Failed to fetch forwarders", err);
-        }
-    };
+    const { token } = useAuth();
 
     useEffect(() => {
-        fetchForwarders();
-        fetchTopics();
-    }, []);
+        if (!token) return;
+
+        const load = async () => {
+            const topics = await getNotificationTopics(token);
+            setTopics(topics);
+            if (!activeTopic && topics.length) setActiveTopic(topics[0].id);
+
+            const forwarders = await getNotificationForwarders(token);
+            setItems(forwarders);
+        };
+
+        load();
+    }, [token]);
 
     const filtered = activeTopic
         ? items.filter((i) => i.topic?.id === activeTopic)
@@ -299,7 +283,7 @@ export default function NotificationForwardersPage() {
             <CreateForwarderDialogComponent
                 open={newForwarderDialogVisible}
                 onOpenChange={setNewForwarderDialogVisible}
-                topics={topics}
+                topics={topics.map((t) => ({ id: t.id, title: t.title ?? t.id }))}
                 onForwarderCreated={(newItem) => {
                     setItems((old) => [...old, newItem]);
                 }}

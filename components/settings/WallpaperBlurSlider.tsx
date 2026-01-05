@@ -4,9 +4,11 @@ import React, { useState, useEffect } from "react";
 import { Slider } from "@/components/ui/slider";
 import { useConfig } from "@/context/ConfigContext";
 import { writeToConfig } from "@/lib/frontend/data/MUTATE/config/writeToConfig";
+import useAuth from "@/context/useAuth";
 
 export default function WallpaperBlurSliderComponent({ className }: { className?: string }) {
   const { config, refreshConfig } = useConfig();
+  const { token } = useAuth();
   const [percent, setPercent] = useState(50); // slider percentage
   const [previewBlur, setPreviewBlur] = useState(3); // px
   const [saving, setSaving] = useState(false);
@@ -29,7 +31,6 @@ export default function WallpaperBlurSliderComponent({ className }: { className?
 
   // Save on release
   async function handleSave(pxValue: number) {
-    const token = localStorage.getItem("pb_token");
     if (!token) return;
 
     setSaving(true);

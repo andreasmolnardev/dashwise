@@ -4,10 +4,12 @@ import React, { useState, useEffect } from "react";
 import { Slider } from "@/components/ui/slider";
 import { cn } from "@/lib/utils";
 import { useConfig } from "@/context/ConfigContext";
+import useAuth from "@/context/useAuth";
 import { writeToConfig } from "@/lib/frontend/data/MUTATE/config/writeToConfig";
 
 export default function WallpaperBrightnessSliderComponent({ className }: { className?: string }) {
   const { config, refreshConfig } = useConfig();
+  const { token } = useAuth();
   const [percent, setPercent] = useState(100); // slider percentage (mapped to 50–150%)
   const [previewBrightness, setPreviewBrightness] = useState(100);
   const [saving, setSaving] = useState(false);
@@ -32,7 +34,6 @@ export default function WallpaperBrightnessSliderComponent({ className }: { clas
 
   // Save when released
   async function handleSave(value: number) {
-    const token = localStorage.getItem("pb_token");
     if (!token) return;
 
     setSaving(true);
