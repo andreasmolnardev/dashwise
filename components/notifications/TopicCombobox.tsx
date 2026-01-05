@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import useAuth from "@/context/useAuth";
 import { Check, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -34,6 +35,8 @@ export default function TopicCombobox({ topics, value, onChange }: TopicCombobox
     ? localTopics.filter((t) => t.title.toLowerCase().includes(inputValue.toLowerCase()))
     : localTopics;
 
+  const { token } = useAuth();
+
   const handleSelect = async (title: string) => {
     const existing = localTopics.find((t) => t.title === title);
     if (existing) {
@@ -44,7 +47,6 @@ export default function TopicCombobox({ topics, value, onChange }: TopicCombobox
 
     try {
       setCreating(true);
-      const token = localStorage.getItem("pb_token");
       if (!token) throw new Error("Missing auth token");
 
       const res = await fetch("/api/v1/notifications/topics", {

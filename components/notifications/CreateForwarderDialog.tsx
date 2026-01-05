@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import useAuth from "@/context/useAuth";
 import {
   Dialog,
   DialogContent,
@@ -40,6 +41,8 @@ export default function CreateForwarderDialogComponent({
   const [isActive, setIsActive] = useState(true);
   const [creating, setCreating] = useState(false);
 
+  const { token } = useAuth();
+
   const handleTopicChange = (topic: Topic) => {
     setSelectedTopic(topic);
   };
@@ -52,13 +55,13 @@ export default function CreateForwarderDialogComponent({
     setCreating(true);
 
     try {
-      const token = localStorage.getItem("pb_token");
-      if (!token) throw new Error("Missing auth token");
+      const tokenToUse = token;
+      if (!tokenToUse) throw new Error("Missing auth token");
 
       const res = await fetch("/api/v1/notifications/forwarders", {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${token}`,
+          Authorization: `Bearer ${tokenToUse}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({

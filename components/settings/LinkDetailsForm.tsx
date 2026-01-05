@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import useAuth from "@/context/useAuth";
 import { Button } from "@/components/ui/button";
 import { Label } from "@radix-ui/react-label";
 import { Input } from "@/components/ui/input";
@@ -53,6 +54,7 @@ interface LinkDetailsFormProps {
 
 export default function LinkDetailsForm({ link, onClose, preselectOpenedGroup }: LinkDetailsFormProps) {
   const { config, refreshConfig } = useConfig();
+  const { token } = useAuth();
 
   const linkGroups = useMemo(() => config?.linkGroups || [], [config?.linkGroups]);
   const links = config?.links || [];
@@ -145,7 +147,6 @@ export default function LinkDetailsForm({ link, onClose, preselectOpenedGroup }:
   }, [link, linkGroups]);
 
   const saveLink = async () => {
-    const token = localStorage.getItem("pb_token");
     if (!token) throw new Error("Not authenticated");
 
     const payload: LinkObject = {

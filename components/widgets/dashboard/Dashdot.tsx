@@ -1,4 +1,7 @@
+"use client";
+
 import React, { useEffect, useState, useMemo } from "react";
+import useAuth from "@/context/useAuth";
 import WidgetColumnTemplate from "../templates/WidgetColumn";
 import type { WidgetItemProps } from "../Widget";
 
@@ -19,11 +22,12 @@ export default function DashdotWidget({ params, className = "" }: DashdotWidgetP
     const [error, setError] = useState<string | null>(null);
 
     // fetch logic
+    const { token } = useAuth();
+
     const fetchMetrics = async () => {
         setLoading(true);
         setError(null);
         try {
-            const token = localStorage.getItem("pb_token");
             if (!token) {
                 return;
             }
