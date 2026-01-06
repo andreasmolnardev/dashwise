@@ -79,7 +79,7 @@ export default function SignupCard() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name,
+          _name: name,
           email,
           password,
           passwordConfirm: confirmPassword,
