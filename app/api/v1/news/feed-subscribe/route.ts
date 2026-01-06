@@ -109,12 +109,24 @@ async function addNewsFeed(
         }
         throw e;
     }
-    //check if subscription is a youtube channel, in that case overwrite
-    if (sub.feedUrl.includes("https://www.youtube.com/@")) {
-        const _channelId = await channelId(sub.feedUrl);
+    // preserve original feed URL (needed to extract handle/name)
+    const originalFeedUrl = sub.feedUrl;
+
+    // check if subscription is a youtube channel, in that case overwrite the feed URL
+    if (originalFeedUrl.includes("https://www.youtube.com/@")) {
+        const _channelId = await channelId(originalFeedUrl);
         if (!_channelId) return;
         sub.feedUrl = "https://www.youtube.com/feeds/videos.xml?channel_id=" + _channelId;
-        console.log(sub.feedUrl)
+    }
+
+    // if it doesn't have a name and is a youtube channel, extract the @handle as the name
+    if (sub.name == "" && originalFeedUrl.includes("https://www.youtube.com/@")) {
+        const m = originalFeedUrl.match(/@([^\/?#]+)/);
+        if (m && m[1]) {
+            sub.name = `@${m[1]}`;
+        } else {
+            sub.name = originalFeedUrl;
+        }
     }
     //check if subscription already exists
     let current = Array.isArray(record.subscriptions)
