@@ -16,7 +16,24 @@ export function useAuth() {
 
   const [token, setToken] = useState<string | null>(() => {
     try {
-      return typeof window !== "undefined" ? localStorage.getItem("pb_token") : null;
+      if (typeof window === "undefined") return null;
+      
+      // First check localStorage
+      const localToken = localStorage.getItem("pb_token");
+      if (localToken) return localToken;
+      
+      // If no localStorage token, check cookies (from SSO callback)
+      const cookieToken = document.cookie
+        .split('; ')
+        .find(row => row.startsWith('pb_token='))
+        ?.split('=')[1];
+      
+      if (cookieToken) {
+        localStorage.setItem("pb_token", cookieToken);
+        return cookieToken;
+      }
+      
+      return null;
     } catch (e) {
       return null;
     }
@@ -62,11 +79,34 @@ export function useAuth() {
     }
   }, []);
 
+  const setTokenOnly = useCallback((t?: string | null) => {
+    try {
+      if (t === undefined || t === null) {
+        localStorage.removeItem("pb_token");
+        setToken(null);
+      } else {
+        localStorage.setItem("pb_token", t);
+        setToken(t);
+      }
+    } catch (err) {
+      // ignore storage errors
+    }
+  }, []);
+
   const logout = useCallback(() => {
-    setAuth(null, null);
+    try {
+      setAuth(null, null);
+
+      if (typeof document !== "undefined") {
+        document.cookie = "pb_token=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax; Secure";
+        document.cookie = "pb_user=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax; Secure";
+      }
+    } catch (err) {
+      // ignore
+    }
   }, [setAuth]);
 
-  return { user, token, setAuth, logout };
+  return { user, token, setAuth, setToken: setTokenOnly, logout };
 }
 
 export default useAuth;
