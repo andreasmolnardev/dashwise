@@ -187,7 +187,7 @@ export default function LoginCard() {
 
         {(enableSSO === true)  && (
           <Button variant="outline" className="w-full frosted">
-            <Link href="/auth/signup">Use SSO</Link>
+            <Link href="/api/v1/auth/sso">Use SSO</Link>
           </Button>
         )}
 
