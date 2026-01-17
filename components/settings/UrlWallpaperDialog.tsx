@@ -34,6 +34,7 @@ export default function UrlWallpaperDialogComponent({
 }: UrlWallpaperDialogProps) {
   const { config, refreshConfig } = useConfig();
   const { token } = useAuth();
+  
   const [url, setUrl] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);

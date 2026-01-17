@@ -36,6 +36,7 @@ export default function SearchEngineDetailsForm({
     hideActions?: boolean;
 }) {
     const { config, refreshConfig } = useConfig();
+    const { token } = useAuth();
 
     const [name, setName] = useState(engine?.name ?? "");
     const [slug, setSlug] = useState(engine?.slug ?? "");
@@ -84,9 +85,6 @@ export default function SearchEngineDetailsForm({
         setError(null);
 
         try {
-            const token = localStorage.getItem("pb_token");
-            if (!token) throw new Error("Not authenticated");
-
             // Basic validation
             if (!name.trim()) throw new Error("Name is required");
             if (!slug.trim()) throw new Error("Slug is required");
@@ -119,12 +117,10 @@ export default function SearchEngineDetailsForm({
                     s.slug === engine!.slug ? payloadEngine : s
                 );
 
-                const { token } = useAuth();
                 if (!token) throw new Error("Not authenticated");
 
                 await writeToConfig(`searchEngines`, updated, { token });
             } else {
-                const { token } = useAuth();
                 const tokenStr = token ?? "";
                 await addSearchEngine(payloadEngine, { token: tokenStr });
             }
