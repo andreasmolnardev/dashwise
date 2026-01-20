@@ -9,6 +9,7 @@ import useAuth from "@/context/useAuth";
 export default function WallpaperBlurSliderComponent({ className }: { className?: string }) {
   const { config, refreshConfig } = useConfig();
   const { token } = useAuth();
+  
   const [percent, setPercent] = useState(50); // slider percentage
   const [previewBlur, setPreviewBlur] = useState(3); // px
   const [saving, setSaving] = useState(false);

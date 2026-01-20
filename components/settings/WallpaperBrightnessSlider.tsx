@@ -10,6 +10,7 @@ import { writeToConfig } from "@/lib/frontend/data/MUTATE/config/writeToConfig";
 export default function WallpaperBrightnessSliderComponent({ className }: { className?: string }) {
   const { config, refreshConfig } = useConfig();
   const { token } = useAuth();
+  
   const [percent, setPercent] = useState(100); // slider percentage (mapped to 50–150%)
   const [previewBrightness, setPreviewBrightness] = useState(100);
   const [saving, setSaving] = useState(false);

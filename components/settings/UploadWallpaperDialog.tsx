@@ -26,6 +26,8 @@ export default function UploadWallpaperDialog({
   onOpenChange,
 }: UploadWallpaperDialogProps) {
   const { config, refreshConfig } = useConfig();
+  const { token } = useAuth();
+
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -51,8 +53,6 @@ export default function UploadWallpaperDialog({
       setUploading(false);
     }
   }, [open]);
-
-  const { token } = useAuth();
 
   const handleUpload = async (): Promise<void> => {
     if (!file) {

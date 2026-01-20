@@ -24,8 +24,10 @@ export interface LinkType {
 
 export default function LinkView() {
   const { config } = useConfig();
+  const { token } = useAuth();
+  const tokenRef = useRef<string | null | undefined>(token);
+  
   const [activeGroup, setActiveGroup] = useState<string>(config.linkGroups[0]);
-
   const filtered = config.links.filter((link: LinkType) => link.linkGroup === activeGroup);
 
   const emittedFolders = new Set<string>();
@@ -64,10 +66,6 @@ export default function LinkView() {
     if (status === "disabled") return undefined;
     return false;
   }
-
-  const { token } = useAuth();
-
-  const tokenRef = useRef<string | null | undefined>(token);
 
   useEffect(() => {
     tokenRef.current = token;
