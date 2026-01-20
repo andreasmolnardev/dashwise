@@ -13,6 +13,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useConfig } from "@/context/ConfigContext";
+import { writeToConfig } from "@/lib/frontend/data/MUTATE/config/writeToConfig";
+import useAuth from "@/context/useAuth";
 
 interface UrlWallpaperDialogProps {
   open: boolean;
@@ -31,6 +33,8 @@ export default function UrlWallpaperDialogComponent({
   configKey = "settings/appearance",
 }: UrlWallpaperDialogProps) {
   const { config, refreshConfig } = useConfig();
+  const { token } = useAuth();
+  
   const [url, setUrl] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -45,8 +49,6 @@ export default function UrlWallpaperDialogComponent({
     setSaving(true);
     setMessage(null);
 
-    const token = localStorage.getItem("pb_token");
-
     try {
       const cfgRoot: Record<string, AppearanceConfig> = config ?? {};
       const currentAppearance = cfgRoot[configKey] ?? {};
@@ -55,17 +57,7 @@ export default function UrlWallpaperDialogComponent({
         backgroundImageUrl: url,
       };
 
-      const patchRes = await fetch(`/api/v1/config?path=appearance`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({ updatedItem: updatedAppearance }),
-      });
-
-      const patchBody = await patchRes.json();
-      if (!patchRes.ok) throw new Error(patchBody?.error || "Failed to update config");
+      await writeToConfig(`appearance`, updatedAppearance, { token });
 
       setMessage("Wallpaper updated.");
 

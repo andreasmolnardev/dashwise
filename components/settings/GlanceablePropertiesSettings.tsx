@@ -1,13 +1,16 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import useAuth from "@/context/useAuth";
 import GlanceableComponent, { GlanceableProps } from "@/components/glanceables/Glanceable";
 import glanceables from '@/public/glanceables.json'
 import { useConfig } from "@/context/ConfigContext";
+import { writeToConfig } from "@/lib/frontend/data/MUTATE/config/writeToConfig.ts";
 import { Input } from "../ui/input";
 import { Button } from "../ui/button";
 import { Checkbox } from "../ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select.tsx";
+import LocationSelectFormComponent from "./LocationSelectForm";
 
 type Glanceable = {
     type: string;
@@ -29,6 +32,7 @@ export default function GlanceablePropertiesSettingsComponent({
 }) {
     const glanceables_mapped = mapGlanceablesJsonToArray(glanceables);
     const { config, refreshConfig } = useConfig();
+    const { token } = useAuth();
 
     const [params, setParams] = useState<Record<string, any>>(() => {
         const def = isCurrent == true ? selected.properties : selected.exampleProps;
@@ -47,11 +51,10 @@ export default function GlanceablePropertiesSettingsComponent({
     async function handleSave() {
         setSaveError(null);
         setSaveSuccess(null);
-        const token = typeof window !== 'undefined' ? localStorage.getItem('pb_token') : null;
-        if (!token) {
-            setSaveError('No auth token found (localStorage.pb_token)');
-            return;
-        }
+            if (!token) {
+                setSaveError('No auth token found (pb token)');
+                return;
+            }
 
         setSaving(true);
         try {
@@ -74,23 +77,13 @@ export default function GlanceablePropertiesSettingsComponent({
             };
 
             // 2) send PATCH to overwrite the glanceables path with our updated item
-            const patchRes = await fetch('/api/v1/config?path=glanceables', {
-                method: 'PATCH',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json',
+            await writeToConfig('glanceables', updatedGlanceables, {
+                token,
+                onSuccess: () => {
+                    setSaveSuccess('Saved glanceables successfully');
+                    refreshConfig();
                 },
-                body: JSON.stringify({ updatedItem: updatedGlanceables }),
             });
-
-            if (!patchRes.ok) {
-                const txt = await patchRes.text();
-                throw new Error(`Save failed: ${patchRes.status} ${txt}`);
-            }
-
-            setSaveSuccess('Saved glanceables successfully');
-
-            await refreshConfig();
         } catch (err: any) {
             console.error('Error saving glanceables:', err);
             setSaveError(err?.message ?? 'Failed to save glanceables');
@@ -197,7 +190,8 @@ function PropertyInput({
 }) {
     const isTz = schema.startsWith("as:tz");
     const isDateFormat = schema.startsWith("as:dateformat");
-    const isEnum = !isTz && !isDateFormat && schema.includes("|");
+    const isLocation = schema.startsWith("as:location");
+    const isEnum = !isTz && !isDateFormat && !isLocation && schema.includes("|");
     const isBool = schema.startsWith("as:bool");
 
     const [text, setText] = useState<string>(
@@ -245,6 +239,16 @@ function PropertyInput({
                     Use date format strings (e.g. <code>YYYY-MM-DD</code>, <code>HH:mm</code>)
                 </div>
             </div>
+        );
+    }
+
+    if (isLocation) {
+        const locationValue = (value as any) ?? { displayName: "", coordinates: "" };
+        return (
+            <LocationSelectFormComponent
+                value={locationValue}
+                onChange={onChange}
+            />
         );
     }
 

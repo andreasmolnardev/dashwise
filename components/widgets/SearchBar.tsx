@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
+import useAuth from "@/context/useAuth";
 import CommandBar from './CommandBar';
 
 type SearchBarProps = {
@@ -41,6 +42,8 @@ export default function SearchBar({ useRedirect, defaultOpen }: SearchBarProps) 
 
   // Fetch items when the command bar is opened.
   // Uses Authorization: Bearer <pb_token> from localStorage
+  const { token } = useAuth();
+
   useEffect(() => {
     if (!open) return;
 
@@ -51,13 +54,13 @@ export default function SearchBar({ useRedirect, defaultOpen }: SearchBarProps) 
       setLoadingItems(true);
       setItemsError(null);
 
-      try {
-        const token = typeof window !== 'undefined' ? localStorage.getItem('pb_token') : null;
+        try {
+        const tokenToUse = token;
 
         const headers: Record<string, string> = {
           Accept: 'application/json',
         };
-        if (token) headers['Authorization'] = `Bearer ${token}`;
+        if (tokenToUse) headers['Authorization'] = `Bearer ${tokenToUse}`;
 
         const res = await fetch('/api/v1/searchItems', {
           method: 'GET',
@@ -111,7 +114,7 @@ export default function SearchBar({ useRedirect, defaultOpen }: SearchBarProps) 
         <input
           type="text"
           data-slot="input"
-          className="w-full bg-transparent px-2 py-1.5 text-sm text-gray-900 dark:text-white placeholder-(--text-on-frosted) 
+          className="w-full bg-transparent px-2 py-1.5 text-sm text-gray-900 dark:text-white placeholder-(--text-on-frosted) hover:placeholder-(--text-color) 
                focus:outline-none"
           placeholder="Search..."
           onFocus={handleFocus}

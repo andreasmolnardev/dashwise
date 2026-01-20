@@ -12,6 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { MoreHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
+import readEndpoint from "@/lib/frontend/data/GET/readEndpoint";
 
 export type NotificationItem = {
   id: string;
@@ -30,27 +31,25 @@ export default function NotificationsInboxPage() {
   const [activeTopic, setActiveTopic] = useState<string | null>(null);
 
   useEffect(() => {
-    const token = localStorage.getItem("pb_token");
-    if (!token) return;
+    let mounted = true;
+    const ctl = new AbortController();
 
-    // Fetch notifications
-    fetch("/api/v1/notifications", {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((res) => res.json())
-      .then((json) => setNotifications(json.items || []))
-      .catch(console.error);
+    (async () => {
+      try {
+        const [notResp, topicResp] = await Promise.all([
+          readEndpoint<{ items: any[] }>("/api/v1/notifications", { signal: ctl.signal }),
+          readEndpoint<{ items: any[] }>("/api/v1/notifications/topics", { signal: ctl.signal }),
+        ]);
 
-    // Fetch topics
-    fetch("/api/v1/notifications/topics", {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        setTopics(data.items || []);
-        if (data.items?.length) setActiveTopic(data.items[0].id); // default active
-      })
-      .catch(console.error);
+        if (!mounted) return;
+        setNotifications(notResp?.items || []);
+        setTopics(topicResp?.items || []);
+      } catch (err) {
+        console.error("Notifications/topics fetch failed:", err);
+      }
+    })();
+
+    return () => { mounted = false; ctl.abort(); };
   }, []);
 
   const markAsRead = async (notifId: string) => {
@@ -142,13 +141,20 @@ export default function NotificationsInboxPage() {
               ? String((notif.content as { title?: string }).title || "")
               : String(JSON.stringify(notif.content)));
 
-          const contentDesc =
+         const contentDesc =
             notif.description ||
-            (notif.content &&
-              typeof notif.content === "object" &&
-              "description" in notif.content
-              ? String((notif.content as { description?: string }).description)
-              : undefined);
+            (() => {
+              // try object.description
+              if (notif.content && typeof notif.content === "object" && "description" in notif.content) {
+                return String((notif.content as { description?: string }).description);
+              }
+              // if content is a plain string, use it as description
+              if (typeof notif.content === "string") {
+                return notif.content;
+              }
+              // fallback to notif.message if present
+              return (notif as any).message as string | undefined;
+            })();
 
           return (
             <div

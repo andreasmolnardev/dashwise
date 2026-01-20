@@ -8,6 +8,8 @@ import { Separator } from "@/components/ui/separator";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import IconPickerComponent from "@/components/settings/IconPicker";
 import { useConfig } from "@/context/ConfigContext";
+import { writeToConfig } from "@/lib/frontend/data/MUTATE/config/writeToConfig";
+import useAuth from "@/context/useAuth";
 
 import {
     Select,
@@ -20,15 +22,7 @@ import {
 } from "@/components/ui/select";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faEllipsisH, faPaperclip } from "@fortawesome/free-solid-svg-icons";
-
-export type SearchEngine = {
-    icon?: string;
-    name: string;
-    slug: string;
-    status: "default" | "enabled" | "disabled";
-    url_home: string;
-    url_params: string;
-};
+import { addSearchEngine } from "@/lib/frontend/data/MUTATE/config/searchEngines/add";
 
 export default function SearchEngineDetailsForm({
     engine,
@@ -42,6 +36,7 @@ export default function SearchEngineDetailsForm({
     hideActions?: boolean;
 }) {
     const { config, refreshConfig } = useConfig();
+    const { token } = useAuth();
 
     const [name, setName] = useState(engine?.name ?? "");
     const [slug, setSlug] = useState(engine?.slug ?? "");
@@ -90,9 +85,6 @@ export default function SearchEngineDetailsForm({
         setError(null);
 
         try {
-            const token = localStorage.getItem("pb_token");
-            if (!token) throw new Error("Not authenticated");
-
             // Basic validation
             if (!name.trim()) throw new Error("Name is required");
             if (!slug.trim()) throw new Error("Slug is required");
@@ -125,29 +117,12 @@ export default function SearchEngineDetailsForm({
                     s.slug === engine!.slug ? payloadEngine : s
                 );
 
-                const res = await fetch(`/api/v1/config?path=searchEngines`, {
-                    method: "PATCH",
-                    headers: {
-                        "Content-Type": "application/json",
-                        Authorization: `Bearer ${token}`,
-                    },
-                    body: JSON.stringify({ updatedItem: updated }),
-                });
+                if (!token) throw new Error("Not authenticated");
 
-                const json = await res.json().catch(() => ({}));
-                if (!res.ok) throw new Error(json.error || `Request failed ${res.status}`);
+                await writeToConfig(`searchEngines`, updated, { token });
             } else {
-                const res = await fetch(`/api/v1/config?path=searchEngines`, {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        Authorization: `Bearer ${token}`,
-                    },
-                    body: JSON.stringify({ newItem: payloadEngine }),
-                });
-
-                const json = await res.json().catch(() => ({}));
-                if (!res.ok) throw new Error(json.error || `Request failed ${res.status}`);
+                const tokenStr = token ?? "";
+                await addSearchEngine(payloadEngine, { token: tokenStr });
             }
 
             await refreshConfig();

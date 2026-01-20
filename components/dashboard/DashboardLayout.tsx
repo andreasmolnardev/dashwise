@@ -13,6 +13,7 @@ import { faBell, faGear } from "@fortawesome/free-solid-svg-icons";
 import PagesTabs from "../PagesTabs";
 import UpdateDetailsDialogComponent from "./UpdateDetailsDialog";
 import WidgetComponent from "../widgets/Widget";
+import useAuth from "@/context/useAuth";
 
 export default function DashboardLayoutComponent(
   children: React.PropsWithChildren<{}> = {}
@@ -22,14 +23,12 @@ export default function DashboardLayoutComponent(
   const searchParams = useSearchParams();
   const openFromURL = searchParams.get("search") === "1";
 
-  useEffect(() => {
-    const token = localStorage.getItem("pb_token");
-    if (!token) {
-      router.push("/auth/login");
-    }
-  }, [router]);
+  const { token } = useAuth();
 
-  const token = typeof window !== "undefined" ? localStorage.getItem("pb_token") : null;
+  useEffect(() => {
+    if (!token) router.push("/auth/login");
+  }, [router, token]);
+
   if (!token) return null;
 
   useEffect(() => {
@@ -217,7 +216,7 @@ export default function DashboardLayoutComponent(
           {renderWidgetColumn(config?.widgets?.[0])}
         </div>
 
-        <div className="flex-shrink-0 w-screen snap-start md:w-auto md:flex-grow md:basis-auto space-y-3.5 overflow-y-auto min-w-0" style={{ scrollSnapStop: "always", touchAction: "pan-x" }}>
+        <div className="flex-shrink-0 w-screen snap-start md:w-auto md:flex-grow md:basis-auto space-y-3.5 overflow-y-auto overflow-x-hidden min-w-0" style={{ scrollSnapStop: "always", touchAction: "pan-x" }}>
           <section className="responsive-glance-grid w-full">
             {/* Clock (grid-area: clock) */}
             <div

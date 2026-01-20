@@ -5,11 +5,13 @@ import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { useConfig } from "@/context/ConfigContext";
+import { writeToConfig } from "@/lib/frontend/data/MUTATE/config/writeToConfig";
 
 type Integration = {
   name: string;
   description: string;
-  properties?: Record<string, string>; // e.g. { api_token: "as:string" }
+  properties?: Record<string, string>;
+  page?: string;
 };
 
 export default function IntegrationsSettingsPage() {
@@ -31,40 +33,59 @@ export default function IntegrationsSettingsPage() {
       .catch((err) => console.error("Failed to load integrations:", err));
   }, []);
 
-  async function updateIntegration(name: string, props: Record<string, string> = {}) {
-    const updatedItem = { ...activeIntegrations, [name]: props };
-    setActiveIntegrations(updatedItem);
+  async function updateIntegration(name: string, props: Record<string, string>) {
+    const updated = { ...activeIntegrations, [name]: props };
+    setActiveIntegrations(updated);
 
     try {
-      await fetch(`/api/v1/config?path=integrations.${name}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("pb_token")}`,
-        },
-        body: JSON.stringify({ updatedItem: props }),
-      });
+      await writeToConfig(`integrations.${name}`, props);
     } catch (err) {
-      console.error("Failed to update config:", err);
+      console.error("Failed to update integration config:", err);
     }
   }
 
+  async function updatePages(pages: string[]) {
+    try {
+      await writeToConfig("pages", pages);
+    } catch (err) {
+      console.error("Failed to update pages config:", err);
+    }
+  }
 
   function toggleIntegration(integration: Integration) {
-    if (activeIntegrations[integration.name]) {
-      // Disable
+    const isEnabled = Boolean(activeIntegrations[integration.name]);
+
+    // DISABLE
+    if (isEnabled) {
       const updated = { ...activeIntegrations };
       delete updated[integration.name];
       setActiveIntegrations(updated);
-      updateIntegration(integration.name, {}); // Empty disables
-    } else if (integration.properties) {
-      // Enable with dialog
+      updateIntegration(integration.name, {});
+
+      if (integration.page) {
+        const currentPages = config.pages || [];
+        const newPages = currentPages.filter((p) => p !== integration.page);
+        updatePages(newPages);
+      }
+
+      return;
+    }
+
+    // ENABLE (needs user props)
+    if (integration.properties) {
       setPendingIntegration(integration);
       setPendingProps({});
       setDialogOpen(true);
-    } else {
-      // Enable directly with empty props
-      updateIntegration(integration.name, {});
+      return;
+    }
+
+    // ENABLE directly (no props)
+    updateIntegration(integration.name, {});
+
+    if (integration.page) {
+      const currentPages = config.pages || [];
+      const combined = Array.from(new Set([...currentPages, integration.page]));
+      updatePages(combined);
     }
   }
 
@@ -79,6 +100,12 @@ export default function IntegrationsSettingsPage() {
     );
 
     updateIntegration(pendingIntegration.name, encodedProps);
+
+    if (pendingIntegration.page) {
+      const currentPages = config.pages || [];
+      const combined = Array.from(new Set([...currentPages, pendingIntegration.page]));
+      updatePages(combined);
+    }
 
     setDialogOpen(false);
     setPendingIntegration(null);
@@ -103,12 +130,8 @@ export default function IntegrationsSettingsPage() {
                 >
                   <div className="flex justify-between items-center">
                     <div>
-                      <h3 className="text-lg font-medium">
-                        {integration.name}
-                      </h3>
-                      <p className="text-sm text-gray-100">
-                        {integration.description}
-                      </p>
+                      <h3 className="text-lg font-medium">{integration.name}</h3>
+                      <p className="text-sm text-gray-100">{integration.description}</p>
                     </div>
                     <Switch
                       checked={!!activeIntegrations[integration.name]}
@@ -123,34 +146,29 @@ export default function IntegrationsSettingsPage() {
         ))}
       </div>
 
-      {/* Enable dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="frosted text-(--text-primary)">
           <DialogHeader>
-            <DialogTitle>
-              Enable {pendingIntegration?.name}
-            </DialogTitle>
+            <DialogTitle>Enable {pendingIntegration?.name}</DialogTitle>
           </DialogHeader>
 
           <div className="space-y-4">
             {pendingIntegration?.properties &&
-              Object.entries(pendingIntegration.properties).map(
-                ([propName, propType]) => (
-                  <input
-                    key={propName}
-                    type="text"
-                    placeholder={propName}
-                    value={pendingProps[propName] || ""}
-                    onChange={(e) =>
-                      setPendingProps((prev) => ({
-                        ...prev,
-                        [propName]: e.target.value,
-                      }))
-                    }
-                    className="rounded-md p-2 text-black w-full frosted"
-                  />
-                )
-              )}
+              Object.entries(pendingIntegration.properties).map(([propName]) => (
+                <input
+                  key={propName}
+                  type="text"
+                  placeholder={propName}
+                  value={pendingProps[propName] || ""}
+                  onChange={(e) =>
+                    setPendingProps((prev) => ({
+                      ...prev,
+                      [propName]: e.target.value,
+                    }))
+                  }
+                  className="rounded-md p-2 text-black w-full frosted"
+                />
+              ))}
           </div>
 
           <DialogFooter>

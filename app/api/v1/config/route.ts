@@ -1,3 +1,4 @@
+import { ensureUserConfig } from '@/lib/api/config/retrieve';
 import { getServerPB } from '@/lib/pb';
 import { NextResponse } from 'next/server';
 import { AuthModel, ClientResponseError } from 'pocketbase';
@@ -25,9 +26,18 @@ export async function GET(request: Request) {
       throw error;
     }
 
-    const configRecord = await pb.collection('userConfig').getFirstListItem(
-      `associatedUserId="${authModel.record.id}"`
-    );
+    //get config, ensure it exists
+    let configRecord;
+    try {
+      configRecord = await ensureUserConfig(pb, authModel.record.id);
+    } catch (err: any) {
+      // If the user doesn't exist or creation failed, return a helpful error
+      if (err.status === 403 || err.message === 'Associated user not found') {
+        return NextResponse.json({ error: 'Invalid user' }, { status: 403 });
+      }
+      console.error('ensureUserConfig error:', err);
+      return NextResponse.json({ error: 'Failed to fetch config' }, { status: 500 });
+    }
 
     // convert credentials to a boolean list
     // integrations: { karakeep: {...} } -> integrations: { karakeep: true/false }

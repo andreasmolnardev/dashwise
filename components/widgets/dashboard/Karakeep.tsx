@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import useAuth from "@/context/useAuth";
 import { WidgetItemProps } from "../Widget";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faPaperclip, faUpRightFromSquare } from "@fortawesome/free-solid-svg-icons";
@@ -24,10 +25,9 @@ export default function latestKarakeepBookmarksWidget({
 }: WidgetItemProps) {
   const [data, setData] = useState<KarakeepResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const { token } = useAuth();
 
   useEffect(() => {
-    const token = localStorage.getItem("pb_token");
-
     if (!token) {
       return;
     }
@@ -49,7 +49,7 @@ export default function latestKarakeepBookmarksWidget({
       })
       .catch(() => { })
       .finally(() => setLoading(false));
-  }, []);
+  }, [token]);
 
 
   return (

@@ -2,6 +2,7 @@
 
 import Link from "next/link"
 import { useEffect, useState } from "react"
+import useAuth from "@/context/useAuth"
 import { useRouter } from "next/navigation"
 
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
@@ -9,11 +10,20 @@ import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome"
 import { faCircleCheck, faExclamationTriangle } from "@fortawesome/free-solid-svg-icons"
 
 export default function LoginCard() {
   const router = useRouter()
+  const { token, setAuth } = useAuth();
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState<string | null>(null)
@@ -31,19 +41,17 @@ export default function LoginCard() {
       .catch(() => setEnableSSO(false));
 
     const validateAuth = async () => {
-      const token = localStorage.getItem('pb_token');
-      if (!token) return;
+      const tokenToCheck = token;
+      if (!tokenToCheck) return;
 
       try {
         const res = await fetch("/api/v1/auth/validate-auth", {
           method: "POST",
-          headers: { Authorization: `Bearer ${token}` },
+          headers: { Authorization: `Bearer ${tokenToCheck}` },
         });
 
         if (res.ok) {
           router.push("/home");
-        } else {
-          return;
         }
       } catch (err) {
         console.error("Auth validation failed:", err);
@@ -51,7 +59,7 @@ export default function LoginCard() {
     };
 
     validateAuth();
-  }, [router]);
+  }, [router, token]);
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -72,8 +80,7 @@ export default function LoginCard() {
       }
 
       const { token, user } = await res.json();
-      localStorage.setItem('pb_token', token);
-      localStorage.setItem('pb_user', JSON.stringify(user));
+      setAuth(user, token);
 
       setSuccess("Login successful! Redirecting to home...");
       setTimeout(() => {
@@ -131,12 +138,32 @@ export default function LoginCard() {
           <div className="grid gap-2">
             <div className="flex items-center">
               <Label htmlFor="password">Password</Label>
-              <a
-                href="#"
-                className="ml-auto inline-block text-sm underline-offset-4 hover:underline"
-              >
-                Forgot your password?
-              </a>
+              <Dialog>
+                <DialogTrigger asChild>
+                  <Button
+                    variant="link"
+                    type="button"
+                    className="ml-auto inline-block h-auto p-0 text-sm underline-offset-4 hover:underline"
+                  >
+                    Forgot your password?
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-[425px] frosted text-(--text-primary)">
+                  <DialogHeader>
+                    <DialogTitle>Problems Authenticating?</DialogTitle>
+                      <div>
+                        <h3 className="font-semibold">If you're a user...</h3>
+                        <p className="text-(--text-on-frosted)">Contact your admin.</p>
+                      </div>
+                      <div>
+                        <h3 className="font-semibold">If you're an admin...</h3>
+                        <p className="text-(--text-on-frosted)">
+                          Go into pocketbase dashboard (authenticate using th eenv vars set for pocketbase container) and change login details for your user there.
+                        </p>
+                      </div>
+                  </DialogHeader>
+                </DialogContent>
+              </Dialog>
             </div>
             <Input
               id="password"
@@ -160,7 +187,7 @@ export default function LoginCard() {
 
         {(enableSSO === true)  && (
           <Button variant="outline" className="w-full frosted">
-            <Link href="/auth/signup">Use SSO</Link>
+            <Link href="/api/v1/auth/sso">Use SSO</Link>
           </Button>
         )}
 

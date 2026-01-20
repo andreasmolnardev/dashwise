@@ -1,5 +1,3 @@
-// File: app/api/version-check/route.ts (or .js)
-
 import { NextResponse } from 'next/server';
 import { getServerPB, getSuperuserPB } from '@/lib/pb';
 import config from '@/lib/config';
@@ -32,6 +30,7 @@ export async function GET() {
     return NextResponse.json({
       updateAvailable: record.updateAvailable,
       currentAppVersion: config.version,
+      userSignupDisabled: config.disableUserSignup
     });
 
   } catch (err: any) {

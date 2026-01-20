@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { useConfig } from "@/context/ConfigContext";
+import useAuth from "@/context/useAuth";
 
 type Props = {
   open: boolean;
@@ -34,7 +35,7 @@ export default function CreateLinkGroupDialog({
 
   const onCreateNewLinkGroupSubmit = async (newGroup: string) => {
     try {
-      const token = localStorage.getItem("pb_token");
+      const { token } = useAuth();
       if (!token) throw new Error("Not authenticated");
 
       const res = await fetch("/api/v1/config?path=linkGroups", {

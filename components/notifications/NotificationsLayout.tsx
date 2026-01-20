@@ -5,6 +5,7 @@ import { faHome, faInbox, faKey, faShareNodes } from "@fortawesome/free-solid-sv
 import { usePathname } from "next/navigation";
 import { Label } from "@/components/ui/label";
 import { useEffect, useRef, useState } from "react";
+import useAuth from "@/context/useAuth";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 
 
@@ -20,9 +21,10 @@ export default function NotificationsLayoutComponent({ children }: { children: R
     const activeBgRef = useRef<HTMLDivElement | null>(null);
     const [unreadCount, setUnreadCount] = useState<number>(0);
 
+    const { token } = useAuth();
+
     useEffect(() => {
         const fetchNotifications = async () => {
-            const token = localStorage.getItem("pb_token");
             if (!token) return;
 
             try {
@@ -40,7 +42,7 @@ export default function NotificationsLayoutComponent({ children }: { children: R
         };
 
         fetchNotifications();
-    }, [config.baseUrl]);
+    }, [config.baseUrl, token]);
 
     useEffect(() => {
         const activeEl = document.querySelector<HTMLElement>(`.settings-label-div[data-href="${pathname}"]`);

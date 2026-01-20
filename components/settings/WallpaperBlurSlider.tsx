@@ -3,9 +3,13 @@
 import React, { useState, useEffect } from "react";
 import { Slider } from "@/components/ui/slider";
 import { useConfig } from "@/context/ConfigContext";
+import { writeToConfig } from "@/lib/frontend/data/MUTATE/config/writeToConfig";
+import useAuth from "@/context/useAuth";
 
 export default function WallpaperBlurSliderComponent({ className }: { className?: string }) {
   const { config, refreshConfig } = useConfig();
+  const { token } = useAuth();
+  
   const [percent, setPercent] = useState(50); // slider percentage
   const [previewBlur, setPreviewBlur] = useState(3); // px
   const [saving, setSaving] = useState(false);
@@ -28,7 +32,6 @@ export default function WallpaperBlurSliderComponent({ className }: { className?
 
   // Save on release
   async function handleSave(pxValue: number) {
-    const token = localStorage.getItem("pb_token");
     if (!token) return;
 
     setSaving(true);
@@ -42,17 +45,10 @@ export default function WallpaperBlurSliderComponent({ className }: { className?
         },
       };
 
-      const res = await fetch(`/api/v1/config?path=appearance`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ updatedItem: updatedAppearance }),
+      await writeToConfig(`appearance`, updatedAppearance, {
+        token,
+        onSuccess: () => refreshConfig(),
       });
-
-      if (!res.ok) throw new Error("Failed to update blur value");
-      await refreshConfig();
     } catch (err) {
       console.error("Error updating blur:", err);
     } finally {

@@ -99,7 +99,7 @@ export function getWeatherIcon({ description = "", iconUrl, weatherCode, size = 
 
   if (night === true || nightVersion === true) {
     if (file.includes("sun-clear")) file = "moon-stars-night.svg";
-    if (file.includes("cloudy-sun")) file = "clouds-100.svg";
+    if (file.includes("cloudy-sun")) file = "cloud.svg";
   }
 
   if (file == "moon-stars-night.svg") {
@@ -315,12 +315,12 @@ async function fetchWeather({
   if (!res.ok) {
     return { error: raw?.error ?? `Upstream error ${res.status}` };
   }
-
+  
   const normalized: WeatherData = {
     temperature: parseNumber(raw.temperature),
     weatherCode: parseNumber(raw.weatherCode),
     description:
-      raw.description ??
+      (raw.description && raw.description.lenth > 0) ? raw.description :
       (raw.weatherCode ? WEATHER_CODE_MAP[Number(raw.weatherCode)]?.desc ?? "" : ""),
     iconUrl: raw.iconUrl,
     unit: raw.unit ?? (unit.toLowerCase() === "f" ? "°F" : "°C"),

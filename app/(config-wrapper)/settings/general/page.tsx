@@ -10,6 +10,7 @@ import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
 import LocationSelectFormComponent from "@/components/settings/LocationSelectForm";
+import { writeToConfig } from "@/lib/frontend/data/MUTATE/config/writeToConfig";
 
 
 export default function GeneralSettingsPage() {
@@ -74,21 +75,10 @@ function WeatherUnitSelector() {
     const token = localStorage.getItem("pb_token");
     if (!token) return;
 
-    await fetch(`/api/v1/config?path=global`, {
-      method: "PATCH",
-      headers: {
-        "Authorization": `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        updatedItem: {
-          ...config.global,
-          weatherUnit: unit,
-        },
-      }),
+    await writeToConfig("global", { ...config.global, weatherUnit: unit }, {
+      onSuccess: () => refreshConfig(),
+      dispatchEvent: true
     });
-
-    await refreshConfig();
   }
 
   return (
@@ -160,14 +150,7 @@ function WeatherLocationSelector() {
     };
 
     try {
-      await fetch(`/api/v1/config?path=global`, {
-        method: "PATCH",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ updatedItem: updatedGlobal }),
-      });
+      await writeToConfig("global", updatedGlobal);
       await refreshConfig();
       setOpen(false);
     } catch (err) {
@@ -208,22 +191,10 @@ function LinkOpeningBehaviourSelect() {
   const value = config?.global?.linkOpenBehaviour ?? "sametab";
 
   async function handleChange(setting: "newtab" | "sametab") {
-    const token = localStorage.getItem("pb_token");
-    if (!token) return;
-
-    await fetch(`/api/v1/config?path=global`, {
-      method: "PATCH",
-      headers: {
-        "Authorization": `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        updatedItem: {
-          ...config.global,
-          linkOpenBehaviour: setting,
-        },
-      }),
-    });
+    await writeToConfig("global", {
+      ...config.global,
+      linkOpenBehaviour: setting,
+    })
 
     await refreshConfig();
   }

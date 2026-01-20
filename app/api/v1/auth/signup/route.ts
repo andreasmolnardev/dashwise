@@ -2,10 +2,17 @@ import { getServerPB } from '@/lib/pb';
 import { NextResponse } from 'next/server';
 import path from 'path';
 import { promises as fs } from 'fs';
+import config from '@/lib/config';
 
 export async function POST(request: Request) {
     try {
-        const { name, email, password, passwordConfirm } = await request.json();
+        if (config.disableUserSignup) {
+           return new NextResponse(JSON.stringify({ error: 'Signup failed.' }), {
+                status: 401,
+                headers: { 'Content-Type': 'application/json' },
+            }); 
+        }
+        const { _name, email, password, passwordConfirm } = await request.json();
 
         if (!email || !password || !passwordConfirm) {
             return new NextResponse(JSON.stringify({ error: 'All fields are required' }), {
@@ -22,25 +29,24 @@ export async function POST(request: Request) {
         }
 
         // using localpart of email as fallback
-        let newName;
-        if (name === "" || !name && typeof email === "string") {
+        let name;
+        if (_name === "" || !_name && typeof email === "string") {
             const localPart = email.split("@")[0];
-            // a little transformation can't be missing
-            newName = localPart
+            name = localPart
                 .replace(/[._-]+/g, ' ')
                 .trim()
                 .split(' ')
                 .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()) // capitalize
                 .join(' ');
         } else {
-            newName = name;
+            name = _name;
         }
 
         const pb = getServerPB();
 
         // 1. Create the user
         const user = await pb.collection('users').create({
-            newName,
+            name,
             email,
             password,
             passwordConfirm,

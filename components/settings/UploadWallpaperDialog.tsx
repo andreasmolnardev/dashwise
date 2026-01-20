@@ -12,6 +12,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useConfig } from "@/context/ConfigContext";
+import { writeToConfig } from "@/lib/frontend/data/MUTATE/config/writeToConfig";
+import useAuth from "@/context/useAuth";
 import Image from "next/image";
 
 interface UploadWallpaperDialogProps {
@@ -24,6 +26,8 @@ export default function UploadWallpaperDialog({
   onOpenChange,
 }: UploadWallpaperDialogProps) {
   const { config, refreshConfig } = useConfig();
+  const { token } = useAuth();
+
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -61,8 +65,6 @@ export default function UploadWallpaperDialog({
     const formData = new FormData();
     formData.append("image", file, file.name);
     formData.append("fileName", file.name);
-
-    const token = localStorage.getItem("pb_token") || "";
     const headers: Record<string, string> = token
       ? { Authorization: `Bearer ${token}` }
       : {};
@@ -84,16 +86,7 @@ export default function UploadWallpaperDialog({
         ...(config.appearance ?? {}),
         backgroundImageUrl: wallpaperPath,
       };
-      const patchRes = await fetch(`/api/v1/config?path=appearance`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({ updatedItem: updatedAppearance }),
-      });
-      const patchBody = await patchRes.json();
-      if (!patchRes.ok) throw new Error(patchBody?.error || "Failed to update config");
+      await writeToConfig(`appearance`, updatedAppearance, { token });
 
       setMessage("Upload complete — wallpaper updated.");
 

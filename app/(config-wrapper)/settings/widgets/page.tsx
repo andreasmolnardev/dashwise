@@ -3,6 +3,7 @@
 import { useMemo, useState, useEffect, useCallback } from "react";
 import WidgetComponent from "@/components/widgets/Widget";
 import { useConfig } from "@/context/ConfigContext";
+import { writeToConfig } from "@/lib/frontend/data/MUTATE/config/writeToConfig";
 import WidgetCategoryFilters from "@/components/settings/widgets/WidgetCategoryFilters";
 import rawWidgetsData from "@/public/widgets.json";
 
@@ -83,11 +84,7 @@ export default function WidgetsSettingsPage() {
         const token = localStorage.getItem("pb_token");
         if (!token) throw new Error("Not authenticated");
 
-        await fetch("/api/v1/config?path=widgets", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ updatedItem: zones }),
-        });
+        await writeToConfig("widgets", zones, { token });
         await refreshConfig();
       } catch (err) {
         console.error(err);
@@ -130,8 +127,6 @@ export default function WidgetsSettingsPage() {
 
   const editWidget = (widget: Widget, zone: "left" | "middle" | "right") => {
     const info = Object.values(filteredWidgetsData).flat().find((w) => w.slug === widget.type);
-    console.log(info)
-    console.log(widget.properties)
     if (!info) return;
     setSelectedWidget({ ...info, id: widget.id, properties: info.properties });
     setDropZoneTarget(zone);

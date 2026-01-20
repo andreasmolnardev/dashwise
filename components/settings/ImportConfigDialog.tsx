@@ -1,3 +1,5 @@
+"use client"
+
 import {
     Dialog,
     DialogContent,
@@ -13,10 +15,12 @@ import { faCaretRight, faUpload } from "@fortawesome/free-solid-svg-icons"
 import { Label } from "../ui/label.tsx"
 import { Input } from "../ui/input.tsx"
 import { useEffect, useState } from "react"
+import useAuth from "@/context/useAuth"
 import { useConfig } from "@/context/ConfigContext.tsx"
 
 export default function ImportConfigDialog() {
     const { config, refreshConfig } = useConfig();
+    const { token } = useAuth();
     const [raw, setRaw] = useState<string>("");
     const [parsed, setParsed] = useState<{} | null>(null);
     const [isUploading, setIsUploading] = useState<boolean>(false);
@@ -48,14 +52,14 @@ export default function ImportConfigDialog() {
         setIsUploading(true);
         setMessage(null);
 
-        const token = localStorage.getItem('pb_token') || "";
+        const tokenStr = token ?? "";
 
         try {
             const res = await fetch("/api/v1/config", {
                 method: "PUT",
                 headers: {
                     "Content-Type": "application/json",
-                    Authorization: `Bearer ${token}`,
+                    Authorization: `Bearer ${tokenStr}`,
                 },
                 body: JSON.stringify({ config: parsed })
             })
