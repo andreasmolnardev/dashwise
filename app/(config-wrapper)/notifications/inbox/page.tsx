@@ -141,13 +141,20 @@ export default function NotificationsInboxPage() {
               ? String((notif.content as { title?: string }).title || "")
               : String(JSON.stringify(notif.content)));
 
-          const contentDesc =
+         const contentDesc =
             notif.description ||
-            (notif.content &&
-              typeof notif.content === "object" &&
-              "description" in notif.content
-              ? String((notif.content as { description?: string }).description)
-              : undefined);
+            (() => {
+              // try object.description
+              if (notif.content && typeof notif.content === "object" && "description" in notif.content) {
+                return String((notif.content as { description?: string }).description);
+              }
+              // if content is a plain string, use it as description
+              if (typeof notif.content === "string") {
+                return notif.content;
+              }
+              // fallback to notif.message if present
+              return (notif as any).message as string | undefined;
+            })();
 
           return (
             <div
