@@ -31,12 +31,30 @@ export default function DashboardLayoutComponent(
     if (!token) router.push("/auth/login");
   }, [router, token]);
 
+  const [localScreensaverConfig, setLocalScreensaverConfig] = useState<any>(null);
+
+  useEffect(() => {
+    const checkLocal = () => {
+      const local = localStorage.getItem("dashwise_screensaver_local");
+      if (local) {
+        setLocalScreensaverConfig(JSON.parse(local));
+      } else {
+        setLocalScreensaverConfig(null);
+      }
+    };
+
+    checkLocal();
+    window.addEventListener("dashwise_local_config_updated", checkLocal);
+    return () => window.removeEventListener("dashwise_local_config_updated", checkLocal);
+  }, []);
+
   useEffect(() => {
     let inactivityTimer: NodeJS.Timeout;
 
     const resetTimer = () => {
       clearTimeout(inactivityTimer);
-      const timeout = config.appearance?.screensaver?.inactivityTimeout;
+      const screensaverConfig = localScreensaverConfig || config.appearance?.screensaver;
+      const timeout = screensaverConfig?.inactivityTimeout;
       if (timeout && timeout > 0) {
         inactivityTimer = setTimeout(() => {
           setScreensaverActive(true);
@@ -214,6 +232,8 @@ export default function DashboardLayoutComponent(
     };
   }, [containerRef]);
 
+  const activeScreensaverConfig = localScreensaverConfig || config.appearance?.screensaver;
+
   const renderWidgetColumn = (column?: typeof config.widgets[0]) => {
     if (!column) return null;
     return column.map((widget, index) => (
@@ -322,8 +342,8 @@ export default function DashboardLayoutComponent(
             </div>
           </div>
 
-        <ul className="grid grid-flow-col auto-cols-max items-center gap-3">
-            {config.appearance?.screensaver?.showButton && (
+        <ul className="grid grid-flow-col auto-cols-max items-center justify-end gap-3">
+            {activeScreensaverConfig?.showButton && (
               <li>
                 <div
                   onClick={() => setScreensaverActive(true)}

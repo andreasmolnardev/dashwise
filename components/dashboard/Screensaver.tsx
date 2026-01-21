@@ -8,13 +8,26 @@ import ClockWidget from "../widgets/ClockWidget";
 export default function Screensaver({ active, onExit }: { active: boolean; onExit: () => void }) {
   const { config } = useConfig();
   const [fonts, setFonts] = useState<{ name: string; path: string }[]>([]);
-  const screensaverConfig = config.appearance?.screensaver;
+  const [screensaverConfig, setScreensaverConfig] = useState<any>(config.appearance?.screensaver);
 
   useEffect(() => {
     fetch("/fonts/index.json")
       .then((res) => res.json())
       .then(setFonts);
-  }, []);
+    
+    const checkLocal = () => {
+      const local = localStorage.getItem("dashwise_screensaver_local");
+      if (local) {
+        setScreensaverConfig(JSON.parse(local));
+      } else {
+        setScreensaverConfig(config.appearance?.screensaver);
+      }
+    };
+
+    checkLocal();
+    window.addEventListener("dashwise_local_config_updated", checkLocal);
+    return () => window.removeEventListener("dashwise_local_config_updated", checkLocal);
+  }, [config.appearance?.screensaver]);
 
   const useHomePageStyle = screensaverConfig?.useHomePageStyle ?? true;
   const homePageFont = config.appearance?.clock?.defaultFont ||  "MomoTrustDisplay";

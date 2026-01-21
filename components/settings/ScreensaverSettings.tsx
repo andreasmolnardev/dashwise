@@ -28,6 +28,7 @@ const fontWeights = [
 
 export default function ScreensaverSettings() {
   const { config, refreshConfig } = useConfig();
+  const [scope, setScope] = useState<"global" | "local">("global");
   const [screensaverConfig, setScreensaverConfig] = useState(
     config.appearance.screensaver || {}
   );
@@ -36,21 +37,49 @@ export default function ScreensaverSettings() {
   );
 
   useEffect(() => {
-    setScreensaverConfig(config.appearance.screensaver || {});
-    setUseHomePageStyle(config.appearance.screensaver?.useHomePageStyle ?? true);
+    const local = localStorage.getItem("dashwise_screensaver_local");
+    if (local) {
+      setScope("local");
+      const parsed = JSON.parse(local);
+      setScreensaverConfig(parsed);
+      setUseHomePageStyle(parsed.useHomePageStyle ?? true);
+    } else {
+      setScope("global");
+      setScreensaverConfig(config.appearance.screensaver || {});
+      setUseHomePageStyle(config.appearance.screensaver?.useHomePageStyle ?? true);
+    }
   }, [config.appearance.screensaver]);
 
   const updateScreensaverConfig = async (newPart: any) => {
     const updatedScreensaver = { ...screensaverConfig, ...newPart };
     setScreensaverConfig(updatedScreensaver);
-    
-    const updatedAppearance = {
-      ...config.appearance,
-      screensaver: updatedScreensaver
-    };
 
-    await writeToConfig("appearance", updatedAppearance);
-    await refreshConfig();
+    if (scope === "local") {
+      localStorage.setItem("dashwise_screensaver_local", JSON.stringify(updatedScreensaver));
+      // Dispatch event for components to react to local change
+      window.dispatchEvent(new Event("dashwise_local_config_updated"));
+    } else {
+      const updatedAppearance = {
+        ...config.appearance,
+        screensaver: updatedScreensaver
+      };
+      await writeToConfig("appearance", updatedAppearance);
+      await refreshConfig();
+    }
+  };
+
+  const handleScopeChange = (newScope: "global" | "local") => {
+    setScope(newScope);
+    if (newScope === "global") {
+      localStorage.removeItem("dashwise_screensaver_local");
+      setScreensaverConfig(config.appearance.screensaver || {});
+      setUseHomePageStyle(config.appearance.screensaver?.useHomePageStyle ?? true);
+      window.dispatchEvent(new Event("dashwise_local_config_updated"));
+    } else {
+      // Initialize local with current global
+      const initialLocal = { ...screensaverConfig };
+      localStorage.setItem("dashwise_screensaver_local", JSON.stringify(initialLocal));
+    }
   };
 
   const homePageFont = config.appearance?.clock?.defaultFont || "MomoTrustDisplay";
@@ -70,7 +99,23 @@ export default function ScreensaverSettings() {
 
   return (
     <>
-      <h1 className="text-3xl font-semibold mb-4">Screensaver</h1>
+      <div className="flex flex-col gap-2 mb-4">
+        <h1 className="text-3xl font-semibold">Screensaver</h1>
+        <div className="flex bg-white/5 p-1 border border-white/10 w-fit rounded-full gap-2">
+          <button
+            onClick={() => handleScopeChange("global")}
+            className={`px-3 py-1 text-sm rounded-full transition-all ${scope === "global" ? "frosted shadow-sm" : "hover:bg-white/5 border-transparent"}`}
+          >
+            Global
+          </button>
+          <button
+            onClick={() => handleScopeChange("local")}
+            className={`px-3 py-1 text-sm rounded-full  transition-all ${scope === "local" ? "frosted shadow-sm" : "hover:bg-white/5 border-transparent"}`}
+          >
+            Local (Device)
+          </button>
+        </div>
+      </div>
       <div className="content space-y-6">
         <section className="space-y-4">
           <h2 className="text-xl font-semibold">Triggers</h2>
