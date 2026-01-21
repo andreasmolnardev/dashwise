@@ -6,20 +6,24 @@ import { useEffect, useState } from "react";
 
 type ClockWidgetProps = {
   format?: "24h" | "12h";
+  font?: string;
+  weight?: string;
+  color?: string;
+  className?: string;
+  style?: React.CSSProperties;
 };
-
 
 type FontEntry = {
   name: string;
   path: string;
 };
 
-export default function ClockWidget({ format = "24h" }: ClockWidgetProps) {
+export default function ClockWidget({ format = "24h", font: propFont, weight, color, className, style }: ClockWidgetProps) {
   const [time, setTime] = useState("");
-  const { config, refreshConfig } = useConfig();
+  const { config } = useConfig();
 
   const [fonts, setFonts] = useState<FontEntry[]>([]);
-  const [font, setFont] = useState<FontEntry>();
+  const [internalFont, setInternalFont] = useState<FontEntry>();
 
   // Fetch font list and add "Default" option
   useEffect(() => {
@@ -28,18 +32,25 @@ export default function ClockWidget({ format = "24h" }: ClockWidgetProps) {
       .then((r) => r.json())
       .then((data: FontEntry[]) => {
         if (!mounted) return;
-        const fixed = data.map((f) => ({ name: f.name, path: f.path }));
+        const fixed = data.map((f: FontEntry) => ({ name: f.name, path: f.path }));
         setFonts([{ name: "Default", path: "" }, ...fixed]);
-        const font = fixed.find(item => (item.name == (config?.appearance?.clock?.defaultFont)))
-        loadFont(font?.name ?? "Default", font?.path)
-        setFont(font)
+        
+        const fontNameToUse = propFont || config?.appearance?.clock?.defaultFont;
+        const foundFont = fixed.find(item => (item.name === fontNameToUse));
+        
+        if (foundFont) {
+          loadFont(foundFont.name, foundFont.path);
+          setInternalFont(foundFont);
+        } else {
+          setInternalFont({ name: "Default", path: "" });
+        }
       })
       .catch((e) => console.error("Failed to load fonts", e));
 
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [propFont, config?.appearance?.clock?.defaultFont]);
 
 
   useEffect(() => {
@@ -62,10 +73,14 @@ export default function ClockWidget({ format = "24h" }: ClockWidgetProps) {
     <div
       className={cn(
         "text-6xl text-center p-4",
-        font?.name === "Default" ? "font-semibold" : "font-medium"
+        internalFont?.name === "Default" ? "font-semibold" : "font-medium",
+        className
       )}
       style={{
-        fontFamily: font?.name !== "Default" ? `"${font?.name}", system-ui` : undefined,
+        fontFamily: internalFont?.name !== "Default" ? `"${internalFont?.name}", system-ui` : undefined,
+        fontWeight: weight,
+        color: color,
+        ...style
       }}
     >
       {time}
