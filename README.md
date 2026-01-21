@@ -4,8 +4,6 @@ This is my attempt to solving that.
 
 > **Disclaimer:** This project is still under development. Therefore, only the working features of the app are listed in the features section. Integration with additional services is planned, but will not be available until widget implementation is complete.
 
-> **Breaking Changes for v0.2:** ARM images now have a seperate tag of stable-arm. Also, a jobs container has been added to docker compose
-
 ## Screenshot
 <img width="1165" height="828" alt="Screenshot 2025-11-18 at 17 24 19" src="https://github.com/user-attachments/assets/e5315f99-4a9f-49f6-8778-0e7cf77d2990" />
 
@@ -20,7 +18,7 @@ This is my attempt to solving that.
 - Widgets: Modular blocks on the dashboard that show key info or actions at a glance. They can be moved and customized individually.
 - Wallpapers: Upload them to dashwise directly, or even change the default one for new users by mounting one into the container
 - Spotlight-like Search: Hit Ctrl+K from your dashboard, and you'll be able to search your links and integrations or use bangs for search engines specified in settings.
-- Integrations: directly integrates with your favourite self hosted apps. For now only Karakeep is supported but more integrations are planned.
+- Integrations: directly integrates with your favourite self hosted apps. Supported services are Karakeep, Dashdot, Beszel and Jellyfin. More integrations are planned
 
 ## Installation
 Grab the docker compose file (docker-compose.prod.yaml), edit env vars, pull, deploy. That's it.
