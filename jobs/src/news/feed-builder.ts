@@ -112,7 +112,7 @@ export async function newsFeedBuilder(): Promise<{
       result.details.push({
         feedId: newsFeed.id,
         action: 'feed_update_error',
-        error: err?.message || String(err),
+        error: String(err),
       });
     }
   }
