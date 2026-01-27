@@ -24,8 +24,30 @@ export default function DashboardLayoutComponent(
   const searchParams = useSearchParams();
   const openFromURL = searchParams.get("search") === "1";
   const [isScreensaverActive, setScreensaverActive] = useState(false);
+  const [unreadCount, setUnreadCount] = useState<number>(0);
 
   const { token } = useAuth();
+
+  useEffect(() => {
+    const fetchNotifications = async () => {
+      if (!token) return;
+
+      try {
+        const res = await fetch(`/api/v1/notifications?count=true`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        if (!res.ok) throw new Error("Failed to fetch notifications");
+        const data = await res.json();
+        setUnreadCount(data.unread || 0);
+      } catch (err) {
+        console.error(err);
+      }
+    };
+
+    fetchNotifications();
+  }, [token]);
 
   useEffect(() => {
     if (!token) router.push("/auth/login");
@@ -362,7 +384,7 @@ export default function DashboardLayoutComponent(
               Object.keys(config?.integrations)
                 .map((i: string) => i.toLowerCase())
                 .includes("notifications")) && (
-              <li>
+              <li className="relative">
                 <Link
                   href="/notifications"
                   className="frosted p-2 rounded-full group transition-colors duration-200"
@@ -372,6 +394,11 @@ export default function DashboardLayoutComponent(
                     className="text-(--text-primary) group-hover:text-(--primary) transition-colors duration-200"
                   />
                 </Link>
+                {unreadCount > 0 && (
+                  <span className="absolute -top-3 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-(--primary) text-[10px] font-bold text-white pointer-events-none">
+                    {unreadCount > 9 ? "9+" : unreadCount}
+                  </span>
+                )}
               </li>
             )}
 
