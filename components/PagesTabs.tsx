@@ -1,13 +1,14 @@
 "use client";
 
 import { useConfig } from "@/context/ConfigContext";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRouter, usePathname } from "next/navigation";
 
 export default function PagesTabs() {
    const { config, refreshConfig } = useConfig();
   const router = useRouter();
-  const [selectedPage, setSelectedPage] = useState(config?.pages?.[0] || "");
+  const pathname = usePathname();
+
+  const selectedPage = pathname?.split("/").filter(Boolean)[0] || "";
 
   if (!config?.pages || config?.pages.length < 2) return <div></div>;
 
@@ -17,7 +18,6 @@ export default function PagesTabs() {
         <button
           key={page}
           onClick={() => {
-            setSelectedPage(page);
             router.push(`/${page}`);
           }}
           className={`py-1 px-2 rounded-full ${
