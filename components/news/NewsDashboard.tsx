@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/pagination";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import SubscriptionDetailsForm from "@/components/news/SubscriptionDetailsForm";
+import BottomNavbar from "../dashboard/BottomNavbar";
 
 interface Subscription {
     name: string;
@@ -205,8 +206,7 @@ export default function NewsDashboardComponent(
         <div className="grid grid-rows-[auto_auto_1fr_auto] min-h-0 h-dvh pt-5 md:p-3.5 p-0 overflow-hidden text-(--surface-foreground) bg-(--surface)">
             {/* HEADER */}
             <header className="flex gap-2 items-center px-3 md:px-6 h-[40px]">
-                <img src="/dashwise-icon.png" alt="" className="h-[36px]" />
-                <span className="font-semibold">News</span>
+                <h1 className="font-semibold text-2xl">News</h1>
             </header>
 
             {/* TABS */}
@@ -399,20 +399,8 @@ export default function NewsDashboardComponent(
             {/* FOOTER */}
             <footer
                 id="page-footer"
-                className="
-            flex flex-col gap-2
-            md:flex-row md:justify-between md:items-center
-            px-3 md:px-6 py-2
-        "
             >
-                <Link
-                    href="/home"
-                    className="frosted flex gap-2 items-center p-1.5 rounded-full text-sm"
-                >
-                    <FontAwesomeIcon icon={faArrowLeft} />
-                    Back to dashboard
-                </Link>
-
+                <BottomNavbar showPages={true} />
             </footer>
 
             {/* Subscription Details Dialog */}
