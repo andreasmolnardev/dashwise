@@ -6,12 +6,27 @@ import useAuth from "@/context/useAuth";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faArrowLeft, faCaretDown, faEllipsisVertical } from "@fortawesome/free-solid-svg-icons";
+import { faArrowLeft, faCaretDown, faEllipsisVertical, faPlus, faEdit, faTrash, faXmark, faArrowsRotate } from "@fortawesome/free-solid-svg-icons";
 import { Button } from "../ui/button";
+import TabSwitcher from "../common/TabSwitcher";
+import {
+    Pagination,
+    PaginationContent,
+    PaginationEllipsis,
+    PaginationItem,
+    PaginationLink,
+    PaginationNext,
+    PaginationPrevious,
+} from "@/components/ui/pagination";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import SubscriptionDetailsForm from "@/components/news/SubscriptionDetailsForm";
+import BottomNavbar from "../dashboard/BottomNavbar";
 
 interface Subscription {
     name: string;
     icon?: string;
+    category: string;
+    feedUrl: string;
 }
 
 
@@ -23,10 +38,26 @@ export default function NewsDashboardComponent(
 
     const [feed, setFeed] = useState<Record<string, any[]> | null>(null);
     const [subscriptions, setSubscriptions] = useState<Subscription[] | null>(null);
-    const [expanded, setExpanded] = useState<Record<string, boolean>>({});
-    const [limit, setLimit] = useState<Record<string, number>>({});
+    const [feedId, setFeedId] = useState<string | null>(null);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [selectedCategory, setSelectedCategory] = useState("All");
+    const [selectedSource, setSelectedSource] = useState<string | null>(null);
+    const [addOpen, setAddOpen] = useState(false);
+    const [editingFeed, setEditingFeed] = useState<Subscription | null>(null);
+    const [isRefreshing, setIsRefreshing] = useState(false);
 
+    const itemsPerPage = 15;
     const { token } = useAuth();
+
+    const categories = Array.from(new Set(subscriptions?.map((s) => s.category) ?? [])).sort();
+    const tabItems = [
+        { value: "All", label: "All" },
+        ...categories.map((cat) => ({ value: cat, label: cat })),
+    ];
+
+    const currentCategorySources = subscriptions
+        ? subscriptions.filter(s => selectedCategory === "All" || s.category === selectedCategory)
+        : [];
 
     // --- Auth redirect ---
     useEffect(() => {
@@ -40,42 +71,142 @@ export default function NewsDashboardComponent(
         router.prefetch("/manage-feeds");
     }, [router]);
 
+    const loadData = async () => {
+        if (!token) return;
+        const url = new URL("/api/v1/news", window.location.origin);
+        if (selectedCategory !== "All") {
+            url.searchParams.set("category", selectedCategory);
+        }
+
+        const res = await fetch(url.toString(), {
+            headers: {
+                Authorization: `Bearer ${token}`,
+            },
+        });
+
+        if (!res.ok) return;
+
+        const data = await res.json();
+        setFeed(data.feed);
+        setSubscriptions(data.subscriptions);
+        if (data.id) setFeedId(data.id);
+        setCurrentPage(1); // Reset to first page on category change
+        setSelectedSource(null); // Reset source filter on category change
+    };
+
     // --- Fetch news ---
     useEffect(() => {
-        async function load() {
-            const res = await fetch("/api/v1/news", {
+        loadData();
+    }, [token, selectedCategory]);
+
+    const refreshFeeds = async (id?: string) => {
+        if (!token) return;
+        const targetId = id || feedId;
+        setIsRefreshing(true);
+        try {
+            const url = new URL("/api/v1/news/feed-refresh", window.location.origin);
+            if (targetId) {
+                url.searchParams.set("feedId", targetId);
+            }
+
+            const res = await fetch(url.toString(), {
+                method: "POST",
                 headers: {
                     Authorization: `Bearer ${token}`,
                 },
             });
 
-            if (!res.ok) return;
+            if (!res.ok) throw new Error("Failed to refresh feeds");
 
-            const data = await res.json();
-            setFeed(data.feed);
-            setSubscriptions(data.subscriptions);
+            await loadData();
+        } catch (err) {
+            console.error("Refresh failed:", err);
+        } finally {
+            setIsRefreshing(false);
+        }
+    };
+
+    const subscribeFeed = async (feed: any) => {
+        if (!token) throw new Error("Not authenticated");
+
+        const res = await fetch("/api/v1/news/feed-subscribe", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+                feedUrl: feed.feedUrl,
+                name: feed.name || "",
+                icon: feed.icon || "",
+                category: feed.category || "",
+            }),
+        });
+
+        if (!res.ok) {
+            const json = await res.json();
+            throw new Error(json.error || "Failed to subscribe to feed");
         }
 
-        load();
-    }, [token]);
-
-    // --- Toggles a category ---
-    const toggleCategory = (cat: string) => {
-        setExpanded((prev) => ({ ...prev, [cat]: !prev[cat] }));
-        setLimit((prev) => ({
-            ...prev,
-            [cat]: prev[cat] ?? 10, // default 10
-        }));
+        await loadData();
+        refreshFeeds();
     };
 
-    // --- Show more entries (10 at a time) ---
-    const showMore = (cat: string) => {
-        setLimit((prev) => ({
-            ...prev,
-            [cat]: (prev[cat] ?? 10) + 10,
-        }));
+    const unsubscribeFeed = async (feedUrl: string) => {
+        if (!token) throw new Error("Not authenticated");
+
+        const res = await fetch("/api/v1/news/feed-unsubscribe", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ feedUrl }),
+        });
+
+        if (!res.ok) {
+            const json = await res.json();
+            throw new Error(json.error || "Failed to unsubscribe from feed");
+        }
+
+        await loadData();
+        refreshFeeds();
     };
 
+    const updateFeed = async (oldFeedUrl: string, updatedFeed: any) => {
+        if (!token) throw new Error("Not authenticated");
+
+        const res = await fetch("/api/v1/news/feed-update", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+                oldFeedUrl,
+                feedUrl: updatedFeed.feedUrl,
+                name: updatedFeed.name || "",
+                icon: updatedFeed.icon || "",
+                category: updatedFeed.category || "",
+            }),
+        });
+
+        if (!res.ok) {
+            const json = await res.json();
+            throw new Error(json.error || "Failed to update feed");
+        }
+
+        await loadData();
+        refreshFeeds();
+    };
+
+    // --- Scroll to top on page change ---
+    useEffect(() => {
+        const container = document.getElementById("news-scroll-container");
+        if (container) {
+            container.scrollTo({ top: 0, behavior: "smooth" });
+        }
+    }, [currentPage, selectedSource]);
 
     const getIconUrl = (name) => {
         if (!subscriptions) {
@@ -89,132 +220,214 @@ export default function NewsDashboardComponent(
         }
     }
 
+    // Flatten and sort articles
+    const allArticles = feed
+        ? Object.entries(feed).flatMap(([category, articles]) =>
+            articles.map((a) => ({ ...a, category }))
+        )
+            .filter((a) => !selectedSource || a.source === selectedSource)
+            .sort((a, b) => new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime())
+        : [];
+
+    const totalPages = Math.ceil(allArticles.length / itemsPerPage);
+    const paginatedArticles = allArticles.slice(
+        (currentPage - 1) * itemsPerPage,
+        currentPage * itemsPerPage
+    );
+
     return (
-        <div className="grid grid-rows-[36px_1fr_auto] h-dvh pt-5 md:p-3.5 p-0 overflow-x-hidden text-(--surface-foreground) bg-(--surface)">
+        <div className="grid grid-rows-[auto_auto_1fr_auto] min-h-0 h-dvh pt-5 md:p-3.5 p-0 overflow-hidden text-(--surface-foreground) bg-(--surface)">
             {/* HEADER */}
-            <header className="flex gap-2 items-center px-3 md:px-6">
-                <img src="/dashwise-icon.png" alt="" className="h-[36px]" />
-                <span className="font-semibold">News</span>
+            <header className="flex gap-2 items-center justify-between px-3 md:px-6 h-[40px]">
+                <h1 className="font-semibold text-2xl">News</h1>
+                <button
+                    onClick={() => refreshFeeds()}
+                    disabled={isRefreshing}
+                    className={`
+                        flex items-center justify-center w-9 h-9 rounded-full frosted 
+                        transition-all duration-300 hover:bg-white/10
+                        ${isRefreshing ? "opacity-50" : "opacity-80 hover:opacity-100"}
+                    `}
+                    title="Refresh all feeds"
+                >
+                    <FontAwesomeIcon
+                        icon={faArrowsRotate}
+                        className={`${isRefreshing ? "animate-spin" : ""}`}
+                    />
+                </button>
             </header>
+
+            {/* TABS */}
+            <div className="px-3 md:px-6 py-4 overflow-x-auto scrollbar-hide h-14">
+                <TabSwitcher
+                    value={selectedCategory}
+                    onValueChange={setSelectedCategory}
+                    items={tabItems}
+                />
+            </div>
 
             {/* MAIN */}
             <main
                 id="page-content-container"
                 className="
-            flex gap-2
-            overflow-x-auto snap-x snap-mandatory touch-pan-x scrollbar-hide
-            md:overflow-visible md:snap-none
+            flex flex-col md:flex-row gap-2 min-h-0 rounded-2xl w-full min-w-0
             px-3 md:px-6
         "
             >
-                {/* LEFT PANEL */}
+                {/* SOURCE SELECT PANEL */}
+                {currentCategorySources.length >= 0 && (
+                    <aside className="
+                    flex md:flex-col items-center
+                    gap-4 px-5 md:px-0 py-5 md:py-6 
+                    overflow-x-scroll md:overflow-y-scroll overflow-y-hidden
+                    min-w-0 md:min-w-22 frosted rounded-full h-fit max-h-full max-w-full">
+                        {currentCategorySources.map((sub) => (
+                            <div key={sub.name} className="relative group">
+                                <button
+                                    onClick={() => {
+                                        setSelectedSource(selectedSource === sub.name ? null : sub.name);
+                                        setCurrentPage(1);
+                                    }}
+                                    title={sub.name}
+                                    className={`
+                                        flex justify-center items-center rounded-full gap-3 min-h-12 aspect-square transition-all duration-200
+                                        ${selectedSource === sub.name ? "bg-white/15 text-white ring-1 ring-(--accent-color)" : "opacity-50 hover:opacity-100 hover:bg-white/5"}
+                                    `}
+                                >
+                                    {sub.icon ? (
+                                        <img src={sub.icon} alt={sub.name} className="object-contain pointer-events-none max-w-8 aspect-square" />
+                                    ) : (
+                                        <span className="text-xs font-bold uppercase">{sub.name.slice(0, 2)}</span>
+                                    )}
+                                </button>
+
+                                {/* Hover actions */}
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (confirm(`Unsubscribe from "${sub.name}"?`)) {
+                                            unsubscribeFeed(sub.feedUrl);
+                                        }
+                                    }}
+                                    className="absolute -top-1 -right-1 hidden group-hover:flex items-center justify-center w-6 h-6 rounded-full frosted text-white text-[10px] shadow-lg hover:scale-110 transition-transform"
+                                    title="Unsubscribe"
+                                >
+                                    <FontAwesomeIcon icon={faXmark} />
+                                </button>
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setEditingFeed(sub);
+                                        setAddOpen(true);
+                                    }}
+                                    className="absolute -top-1 -left-1 hidden group-hover:flex items-center justify-center w-6 h-6 rounded-full frosted text-white text-[10px] shadow-lg hover:scale-110 transition-transform"
+                                    title="Edit feed"
+                                >
+                                    <FontAwesomeIcon icon={faEdit} />
+                                </button>
+                            </div>
+                        ))}
+
+                        {/* Add feed button */}
+                        <button
+                            onClick={() => {
+                                setEditingFeed(null);
+                                setAddOpen(true);
+                            }}
+                            className="flex justify-center items-center rounded-full min-h-12 aspect-square border-2 border-dashed border-white/30 text-white/50 hover:text-white hover:border-white/60 transition-all duration-200"
+                            title="Add feed"
+                        >
+                            <FontAwesomeIcon icon={faPlus} />
+                        </button>
+                    </aside>
+                )}
+
+                {/* NEWS PANEL */}
                 <div
+                    id="news-scroll-container"
                     className="
-                w-screen md:w-auto flex-grow snap-start
+                w-full md:w-auto flex-grow
                 space-y-3.5 overflow-y-auto min-w-0
             "
                 >
-                    <section className="space-y-3.5">
+                    <section className="space-y-3.5 pb-10">
                         {!feed && (
                             <div className="opacity-60">Loading news…</div>
                         )}
 
-                        {feed &&
-                            Object.entries(feed).map(([category, articles]) => (
-                                <div
-                                    key={category}
-                                    className="p-3 rounded-xl bg-(--surface-2) w-full"
-                                >
-                                    {/* Category header */}
-                                    <button
-                                        onClick={() => toggleCategory(category)}
-                                        className="w-full flex justify-between items-center font-semibold text-base md:text-lg py-1 px-3"
-                                    >
-                                        <span>{category}</span>
-                                        <span>
-                                            {expanded[category]
-                                                ? "– Collapse"
-                                                : "+ Expand"}
-                                        </span>
-                                    </button>
+                        {feed && paginatedArticles.map((item, idx) => (
+                            <NewsArticle
+                                key={idx}
+                                item={item}
+                                iconUrl={getIconUrl(item.source)}
+                            />
+                        ))}
 
-                                    {/* Articles list */}
-                                    {expanded[category] && (
-                                        <div className="space-y-1.5 mt-2">
-                                            {articles
-                                                .slice(0, limit[category] ?? 10)
-                                                .map((item, idx) => (
-                                                    <div
-                                                        key={idx}
-                                                        className="p-3 rounded-lg bg-(--surface-3) grid gap-3 grid-cols-1 md:grid-cols-[1fr_3fr]"
-                                                    >
-                                                        {item.thumbnailUrl ? (
-                                                            <img
-                                                                src={item.thumbnailUrl}
-                                                                className="w-full aspect-[1.5/1] object-cover rounded-xl"
-                                                            />
-                                                        ) : (
-                                                            <div
-                                                                className="w-full aspect-[1.5/1] frosted rounded-xl"
-                                                            />
-                                                        )}
+                        {/* Pagination */}
+                        {feed && totalPages > 1 && (
+                            <div className="py-8">
+                                <Pagination>
+                                    <PaginationContent>
+                                        <PaginationItem>
+                                            <PaginationPrevious
+                                                href="#"
+                                                onClick={(e) => {
+                                                    e.preventDefault();
+                                                    if (currentPage > 1) setCurrentPage(currentPage - 1);
+                                                }}
+                                                className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                                            />
+                                        </PaginationItem>
 
-                                                        <div className="min-w-0">
-                                                            <a   
-                                                                href={item.link}
-                                                                target="_blank"
-                                                                className="
-                                                            font-semibold
-                                                            line-clamp-2
-                                                            text-base md:text-lg
-                                                            hover:text-(--primary)
-                                                        "
-                                                            >
-                                                                {item.title}
-                                                            </a>
+                                        {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
+                                            // Logic to show limited page numbers with ellipsis
+                                            if (
+                                                page === 1 ||
+                                                page === totalPages ||
+                                                (page >= currentPage - 1 && page <= currentPage + 1)
+                                            ) {
+                                                return (
+                                                    <PaginationItem key={page}>
+                                                        <PaginationLink
+                                                            href="#"
+                                                            onClick={(e) => {
+                                                                e.preventDefault();
+                                                                setCurrentPage(page);
+                                                            }}
+                                                            isActive={currentPage === page}
+                                                            className="cursor-pointer"
+                                                        >
+                                                            {page}
+                                                        </PaginationLink>
+                                                    </PaginationItem>
+                                                );
+                                            } else if (
+                                                page === currentPage - 2 ||
+                                                page === currentPage + 2
+                                            ) {
+                                                return (
+                                                    <PaginationItem key={page}>
+                                                        <PaginationEllipsis />
+                                                    </PaginationItem>
+                                                );
+                                            }
+                                            return null;
+                                        })}
 
-                                                            {item.source && (
-                                                                <div className="flex justify-between text-xs mt-1 opacity-80">
-                                                                    <p className="flex items-center gap-1 ">
-                                                                        {getIconUrl(item.source) && (
-                                                                            <img
-                                                                                src={getIconUrl(item.source)}
-                                                                                alt={item.source}
-                                                                                className="h-4"
-                                                                            />
-                                                                        )}
-                                                                        {item.source}
-                                                                        {item.author && ` • ${item.author}`}
-                                                                    </p>
-                                                                    <p> {formatRelativeTime(item.pubDate)}</p>
-                                                                </div>
-                                                            )}
-
-                                                            {item.description && (
-                                                                <p className="text-sm md:text-[0.95rem] opacity-80 line-clamp-2 mt-1">
-                                                                    {item.description}
-                                                                </p>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                ))}
-
-                                            {/* Show more */}
-                                            {limit[category] < articles.length && (
-                                                <div className="flex justify-center">
-                                                    <Button
-                                                        onClick={() => showMore(category)}
-                                                        variant="ghost"
-                                                        className="text-base md:text-lg"
-                                                    >
-                                                        <FontAwesomeIcon icon={faCaretDown} /> Show 10 more
-                                                    </Button>
-                                                </div>
-                                            )}
-                                        </div>
-                                    )}
-                                </div>
-                            ))}
+                                        <PaginationItem>
+                                            <PaginationNext
+                                                href="#"
+                                                onClick={(e) => {
+                                                    e.preventDefault();
+                                                    if (currentPage < totalPages) setCurrentPage(currentPage + 1);
+                                                }}
+                                                className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                                            />
+                                        </PaginationItem>
+                                    </PaginationContent>
+                                </Pagination>
+                            </div>
+                        )}
                     </section>
                 </div>
 
@@ -234,28 +447,112 @@ export default function NewsDashboardComponent(
             {/* FOOTER */}
             <footer
                 id="page-footer"
-                className="
-            flex flex-col gap-2
-            md:flex-row md:justify-between md:items-center
-            px-3 md:px-6 py-2
-        "
             >
-                <Link
-                    href="/home"
-                    className="frosted flex gap-2 items-center p-1.5 rounded-full text-sm"
-                >
-                    <FontAwesomeIcon icon={faArrowLeft} />
-                    Back to dashboard
-                </Link>
-
-                <Link
-                    href="/news/manage-feeds"
-                    className="frosted flex gap-2 items-center p-1.5 rounded-full text-sm"
-                >
-                    <FontAwesomeIcon icon={faEllipsisVertical} />
-                    Manage subscriptions
-                </Link>
+                <BottomNavbar showPages={true} />
             </footer>
+
+            {/* Subscription Details Dialog */}
+            <Dialog open={addOpen} onOpenChange={(v) => {
+                setAddOpen(v);
+                if (!v) setEditingFeed(null);
+            }}>
+                <DialogContent className="frosted text-(--text-primary)">
+                    <DialogHeader>
+                        <DialogTitle>
+                            {editingFeed ? "Edit Feed Subscription" : "Subscribe to Feed"}
+                        </DialogTitle>
+                    </DialogHeader>
+
+                    <SubscriptionDetailsForm
+                        feed={editingFeed || undefined}
+                        categories={categories}
+                        onClose={() => {
+                            setAddOpen(false);
+                            setEditingFeed(null);
+                        }}
+                        onSave={async (feed: any) => {
+                            try {
+                                if (editingFeed) {
+                                    await updateFeed(editingFeed.feedUrl, feed);
+                                } else {
+                                    await subscribeFeed(feed);
+                                }
+                                setAddOpen(false);
+                                setEditingFeed(null);
+                            } catch (err) {
+                                console.error("Failed to save feed:", err);
+                                alert(err instanceof Error ? err.message : "Failed to save feed");
+                            }
+                        }}
+                    />
+                </DialogContent>
+            </Dialog>
+        </div>
+    );
+}
+
+function NewsArticle({ item, iconUrl }: { item: any; iconUrl?: string }) {
+    return (
+        <div className="p-3 rounded-xl bg-(--surface-2) w-full">
+            <div className="grid gap-3 grid-cols-1 md:grid-cols-[1fr_3fr]">
+                {item.thumbnailUrl ? (
+                    <img
+                        src={item.thumbnailUrl}
+                        className="w-full aspect-[1.5/1] object-cover rounded-xl"
+                    />
+                ) : (
+                    <div className="w-full aspect-[1.5/1] frosted rounded-xl" />
+                )}
+
+                <div className="min-w-0">
+                    <a
+                        href={item.link}
+                        target="_blank"
+                        className="
+                font-semibold
+                line-clamp-2
+                text-base md:text-lg
+                hover:text-(--primary)
+            "
+                    >
+                        {item.title}
+                    </a>
+
+                    <div className="flex flex-wrap justify-between text-xs mt-1 opacity-80 gap-y-1">
+                        <div className="flex items-center gap-1 flex-wrap">
+                            {item.source && (
+                                <span className="flex items-center gap-1">
+                                    {iconUrl && (
+                                        <img
+                                            src={iconUrl}
+                                            alt={item.source}
+                                            className="h-4"
+                                        />
+                                    )}
+                                    {item.source}
+                                </span>
+                            )}
+                            {item.category && (
+                                <span className="before:content-['•'] before:mx-1 opacity-60">
+                                    {item.category}
+                                </span>
+                            )}
+                            {item.author && (
+                                <span className="before:content-['•'] before:mx-1 opacity-60">
+                                    {item.author}
+                                </span>
+                            )}
+                        </div>
+                        <p> {formatRelativeTime(item.pubDate)}</p>
+                    </div>
+
+                    {item.description && (
+                        <p className="text-sm md:text-[0.95rem] opacity-80 line-clamp-2 mt-1">
+                            {item.description}
+                        </p>
+                    )}
+                </div>
+            </div>
         </div>
     );
 }

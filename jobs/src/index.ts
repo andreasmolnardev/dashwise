@@ -67,9 +67,10 @@ cron.schedule(config.FEED_BUILDING_SCHEDULE, () => newsFeedBuilder());
 
 
 fastify.get("/webhook/newsFeedBuilder", async (request, reply) => {
-  console.log("Webhook received");
-  await newsFeedBuilder();
-  reply.send({ message: "news feed builder triggered" });
+  const { feedId } = request.query as { feedId?: string };
+  console.log("Webhook received", feedId ? `for feed ${feedId}` : "for all feeds");
+  const result = await newsFeedBuilder(feedId);
+  reply.send({ message: "news feed builder triggered", result });
 });
 
 //notification forwarding

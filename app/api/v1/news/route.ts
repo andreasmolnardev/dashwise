@@ -30,6 +30,7 @@ function escapeFilter(str: string) {
 //Get a user's feed
 export async function GET(req: NextRequest) {
   try {
+    const category = req.nextUrl.searchParams.get("category");
     const serverPb = getServerPB();
     const authHeader = req.headers.get("authorization");
 
@@ -64,8 +65,13 @@ export async function GET(req: NextRequest) {
       throw e;
     }
     
+    let feed = record.feed ?? {};
+    if (category && category !== "All") {
+      feed = feed[category] ? { [category]: feed[category] } : {};
+    }
+
     return NextResponse.json({
-      feed: record.feed ?? {},
+      feed,
       subscriptions: record.subscriptions ?? [],
     });
   } catch (err: any) {

@@ -144,15 +144,7 @@ export default function SubscribeForm(props: {
                 {error && <div className="text-red-500 text-sm">{error}</div>}
 
                 <footer>
-                    <div className="flex gap-2 w-full">
-                        <button
-                            onClick={handleSubscribe}
-                            disabled={saving}
-                            className="flex-1 px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
-                        >
-                            {saving ? "Subscribing..." : "Subscribe"}
-                        </button>
-
+                    <div className="flex gap-2 w-full items-end justify-end">
                         <button
                             type="button"
                             onClick={() => onCancel()}
@@ -160,6 +152,14 @@ export default function SubscribeForm(props: {
                             className="px-4 py-2 rounded-md bg-transparent border border-(--surface-4)"
                         >
                             Cancel
+                        </button>
+
+                        <button
+                            onClick={handleSubscribe}
+                            disabled={saving}
+                            className="flex-1 px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+                        >
+                            {saving ? "Subscribing..." : "Subscribe"}
                         </button>
                     </div>
                 </footer>

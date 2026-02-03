@@ -10,11 +10,10 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faBell, faGear, faMoon } from "@fortawesome/free-solid-svg-icons";
-import PagesTabs from "../PagesTabs";
-import UpdateDetailsDialogComponent from "./UpdateDetailsDialog";
-import WidgetComponent from "../widgets/Widget";
+import BottomNavbar from "./BottomNavbar";
 import useAuth from "@/context/useAuth";
 import Screensaver from "./Screensaver";
+import WidgetComponent from "../widgets/Widget";
 
 export default function DashboardLayoutComponent(
   children: React.PropsWithChildren<{}> = {}
@@ -232,8 +231,6 @@ export default function DashboardLayoutComponent(
     };
   }, [containerRef]);
 
-  const activeScreensaverConfig = localScreensaverConfig || config.appearance?.screensaver;
-
   const renderWidgetColumn = (column?: typeof config.widgets[0]) => {
     if (!column) return null;
     return column.map((widget, index) => (
@@ -318,107 +315,12 @@ export default function DashboardLayoutComponent(
           </div>
         </main >
 
-        <div className="grid grid-cols-[1fr_80%_1fr] items-center" id="page-footer">
-          <div id="app-details" className="flex items-center gap-2">
-            <img src="/dashwise-icon.png" alt="" className="h-[36px]" />
-            <span className="font-semibold">dashwise</span>
-
-            <div className="aspect-square rounded-full frosted w-2 h-2"></div>
-
-            <UpdateDetailsDialogComponent />
-          </div>
-
-          <div>
-            <PagesTabs />
-
-            {/* Mobile dot indicator */}
-            <div className="md:hidden fixed left-0 right-0 bottom-6 flex justify-center z-50 pointer-events-none">
-              <div className="pointer-events-auto bg-transparent px-2 py-1 rounded-full">
-                <DotIndicator
-                  showThreeDots={Boolean(config?.widgets?.[0]?.length && config?.widgets?.[2]?.length)}
-                  active={activePanel}
-                />
-              </div>
-            </div>
-          </div>
-
-        <ul className="grid grid-flow-col auto-cols-max items-center justify-end gap-3">
-            {activeScreensaverConfig?.showButton && (
-              <li>
-                <div
-                  onClick={() => setScreensaverActive(true)}
-                  className="frosted px-2 py-1.5 rounded-full group transition-colors duration-200"
-                >
-                  <FontAwesomeIcon
-                    icon={faMoon}
-                    className="text-(--text-primary) group-hover:text-(--primary) transition-colors duration-200 h-1.5"
-                  />
-                </div>
-              </li>
-            )}
-            {(typeof config?.integrations === "object" &&
-              !Array.isArray(config?.integrations) &&
-              config?.integrations !== null &&
-              Object.keys(config?.integrations)
-                .map((i: string) => i.toLowerCase())
-                .includes("notifications")) && (
-              <li>
-                <Link
-                  href="/notifications"
-                  className="frosted p-2 rounded-full group transition-colors duration-200"
-                >
-                  <FontAwesomeIcon
-                    icon={faBell}
-                    className="text-(--text-primary) group-hover:text-(--primary) transition-colors duration-200"
-                  />
-                </Link>
-              </li>
-            )}
-
-            <li>
-              <Link
-                href="/settings/appearance"
-                prefetch={false}
-                className="frosted p-2 rounded-full group transition-colors duration-200"
-              >
-                <FontAwesomeIcon
-                  icon={faGear}
-                  className="text-(--text-primary) group-hover:text-(--primary) transition-colors duration-200"
-                />
-              </Link>
-            </li>
-          </ul>
-        </div>
+        <BottomNavbar
+          activePanel={activePanel}
+          setScreensaverActive={setScreensaverActive}
+        />
       </div >
     </>
   );
 }
 
-function DotIndicator({ showThreeDots, active }: { showThreeDots: boolean; active: number }) {
-  const dotBase = "inline-block w-2.5 h-2.5 rounded-full transition-transform transition-opacity";
-  const activeClasses = "scale-110 opacity-100";
-  const inactiveClasses = "scale-100 opacity-60";
-
-  if (!showThreeDots) {
-    return (
-      <div className="flex items-center gap-2">
-        <span
-          className={`${dotBase} ${active === 1 ? activeClasses : inactiveClasses} bg-white`}
-          aria-hidden
-        />
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex items-center gap-2">
-      {[0, 1, 2].map((i) => (
-        <span
-          key={i}
-          aria-hidden
-          className={`${dotBase} ${active === i ? activeClasses : inactiveClasses} bg-white`}
-        />
-      ))}
-    </div>
-  );
-}

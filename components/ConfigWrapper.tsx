@@ -128,7 +128,7 @@ export default function ConfigWrapper({ children }: { children: ReactNode }) {
   return (
     <ConfigProvider value={{ config, refreshConfig: fetchConfig }}>
       <div
-        className={cn("min-h-screen")}
+        className={cn("min-h-screen overflow-hidden")}
         style={{
           backdropFilter: `blur(${blur}px) brightness(${brightness}%)`,
           WebkitBackdropFilter: `blur(${blur}px) brightness(${brightness}%)`,
