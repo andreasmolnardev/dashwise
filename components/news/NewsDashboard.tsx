@@ -6,7 +6,7 @@ import useAuth from "@/context/useAuth";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faArrowLeft, faCaretDown, faEllipsisVertical, faPlus, faEdit, faTrash, faXmark } from "@fortawesome/free-solid-svg-icons";
+import { faArrowLeft, faCaretDown, faEllipsisVertical, faPlus, faEdit, faTrash, faXmark, faArrowsRotate } from "@fortawesome/free-solid-svg-icons";
 import { Button } from "../ui/button";
 import TabSwitcher from "../common/TabSwitcher";
 import {
@@ -38,11 +38,13 @@ export default function NewsDashboardComponent(
 
     const [feed, setFeed] = useState<Record<string, any[]> | null>(null);
     const [subscriptions, setSubscriptions] = useState<Subscription[] | null>(null);
+    const [feedId, setFeedId] = useState<string | null>(null);
     const [currentPage, setCurrentPage] = useState(1);
     const [selectedCategory, setSelectedCategory] = useState("All");
     const [selectedSource, setSelectedSource] = useState<string | null>(null);
     const [addOpen, setAddOpen] = useState(false);
     const [editingFeed, setEditingFeed] = useState<Subscription | null>(null);
+    const [isRefreshing, setIsRefreshing] = useState(false);
 
     const itemsPerPage = 15;
     const { token } = useAuth();
@@ -87,6 +89,7 @@ export default function NewsDashboardComponent(
         const data = await res.json();
         setFeed(data.feed);
         setSubscriptions(data.subscriptions);
+        if (data.id) setFeedId(data.id);
         setCurrentPage(1); // Reset to first page on category change
         setSelectedSource(null); // Reset source filter on category change
     };
@@ -95,6 +98,33 @@ export default function NewsDashboardComponent(
     useEffect(() => {
         loadData();
     }, [token, selectedCategory]);
+
+    const refreshFeeds = async (id?: string) => {
+        if (!token) return;
+        const targetId = id || feedId;
+        setIsRefreshing(true);
+        try {
+            const url = new URL("/api/v1/news/feed-refresh", window.location.origin);
+            if (targetId) {
+                url.searchParams.set("feedId", targetId);
+            }
+
+            const res = await fetch(url.toString(), {
+                method: "POST",
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                },
+            });
+
+            if (!res.ok) throw new Error("Failed to refresh feeds");
+
+            await loadData();
+        } catch (err) {
+            console.error("Refresh failed:", err);
+        } finally {
+            setIsRefreshing(false);
+        }
+    };
 
     const subscribeFeed = async (feed: any) => {
         if (!token) throw new Error("Not authenticated");
@@ -119,6 +149,7 @@ export default function NewsDashboardComponent(
         }
 
         await loadData();
+        refreshFeeds();
     };
 
     const unsubscribeFeed = async (feedUrl: string) => {
@@ -139,6 +170,7 @@ export default function NewsDashboardComponent(
         }
 
         await loadData();
+        refreshFeeds();
     };
 
     const updateFeed = async (oldFeedUrl: string, updatedFeed: any) => {
@@ -165,6 +197,7 @@ export default function NewsDashboardComponent(
         }
 
         await loadData();
+        refreshFeeds();
     };
 
     // --- Scroll to top on page change ---
@@ -205,8 +238,23 @@ export default function NewsDashboardComponent(
     return (
         <div className="grid grid-rows-[auto_auto_1fr_auto] min-h-0 h-dvh pt-5 md:p-3.5 p-0 overflow-hidden text-(--surface-foreground) bg-(--surface)">
             {/* HEADER */}
-            <header className="flex gap-2 items-center px-3 md:px-6 h-[40px]">
+            <header className="flex gap-2 items-center justify-between px-3 md:px-6 h-[40px]">
                 <h1 className="font-semibold text-2xl">News</h1>
+                <button
+                    onClick={() => refreshFeeds()}
+                    disabled={isRefreshing}
+                    className={`
+                        flex items-center justify-center w-9 h-9 rounded-full frosted 
+                        transition-all duration-300 hover:bg-white/10
+                        ${isRefreshing ? "opacity-50" : "opacity-80 hover:opacity-100"}
+                    `}
+                    title="Refresh all feeds"
+                >
+                    <FontAwesomeIcon
+                        icon={faArrowsRotate}
+                        className={`${isRefreshing ? "animate-spin" : ""}`}
+                    />
+                </button>
             </header>
 
             {/* TABS */}

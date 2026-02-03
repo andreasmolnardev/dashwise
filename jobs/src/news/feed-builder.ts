@@ -15,7 +15,7 @@ interface NewsFeedRecord {
   [k: string]: any;
 }
 
-export async function newsFeedBuilder(): Promise<{
+export async function newsFeedBuilder(feedId?: string): Promise<{
   processed: number;
   skipped: number;
   updated: number;
@@ -32,56 +32,75 @@ export async function newsFeedBuilder(): Promise<{
 
   let newsFeeds: NewsFeedRecord[] = [];
   try {
-    newsFeeds = await adminPb.collection('newsFeeds').getFullList<NewsFeedRecord>(2000);
+    if (feedId) {
+      const singleFeed = await adminPb.collection('newsFeeds').getOne<NewsFeedRecord>(feedId);
+      newsFeeds = [singleFeed];
+    } else {
+      newsFeeds = await adminPb.collection('newsFeeds').getFullList<NewsFeedRecord>(2000);
+    }
   } catch (err: any) {
-    console.error("Failed to fetch 'newsFeeds' collection:", err);
+    console.error("Failed to fetch 'newsFeeds':", err);
     return {
       ...result,
       errors: 1,
-      details: [{ action: 'fetch_all_failed', error: err?.message || String(err) }],
+      details: [{ action: feedId ? 'fetch_one_failed' : 'fetch_all_failed', feedId, error: err?.message || String(err) }],
     };
   }
 
-  for (const newsFeed of newsFeeds) {
-    result.processed++;
+  const processFeed = async (newsFeed: NewsFeedRecord) => {
+    const feedResult = { processed: 1, skipped: 0, updated: 0, errors: 0, details: [] as any[] };
     const subscriptions = newsFeed.subscriptions || [];
 
     if (!subscriptions.length) {
-      result.skipped++;
-      result.details.push({ feedId: newsFeed.id, action: 'skipped', reason: 'no subscriptions' });
-      continue;
+      feedResult.skipped++;
+      feedResult.details.push({ feedId: newsFeed.id, action: 'skipped', reason: 'no subscriptions' });
+      return feedResult;
     }
 
     const newFeedData: Record<string, FeedItem[]> = {};
     let feedFetchErrors = 0;
 
-    for (const sub of subscriptions) {
+    // Fetch subscriptions in parallel
+    const subPromises = subscriptions.map(async (sub) => {
       if (!sub.feedUrl || !sub.category) {
-        result.details.push({
-          feedId: newsFeed.id,
-          subName: sub.name,
+        return {
           action: 'skip_subscription',
+          subName: sub.name,
           reason: 'missing feedUrl or category',
-        });
-        continue;
+        };
       }
 
       try {
-        const feedItems = await getFeedItems({feedUrl: sub.feedUrl, maxItems: maxItemsPerFeed, feedName: sub.name}) as FeedItem[];
-        if (!newFeedData[sub.category]) {
-          newFeedData[sub.category] = [];
-        }
-        newFeedData[sub.category]!.push(...feedItems);
+        const feedItems = await getFeedItems({ feedUrl: sub.feedUrl, maxItems: maxItemsPerFeed, feedName: sub.name }) as FeedItem[];
+        return {
+          action: 'success',
+          category: sub.category,
+          items: feedItems
+        };
       } catch (err: any) {
-        feedFetchErrors++;
-        result.errors++;
-        result.details.push({
-          feedId: newsFeed.id,
+        return {
+          action: 'feed_fetch_error',
           subName: sub.name,
           feedUrl: sub.feedUrl,
-          action: 'feed_fetch_error',
           error: err?.message || String(err),
-        });
+        };
+      }
+    });
+
+    const subResults = await Promise.all(subPromises);
+
+    for (const res of subResults) {
+      if (res.action === 'success') {
+        if (!newFeedData[res.category!]) {
+          newFeedData[res.category!] = [];
+        }
+        newFeedData[res.category!]!.push(...res.items!);
+      } else if (res.action === 'feed_fetch_error') {
+        feedFetchErrors++;
+        feedResult.errors++;
+        feedResult.details.push({ feedId: newsFeed.id, ...res });
+      } else {
+        feedResult.details.push({ feedId: newsFeed.id, ...res });
       }
     }
 
@@ -100,21 +119,36 @@ export async function newsFeedBuilder(): Promise<{
       await adminPb.collection('newsFeeds').update(newsFeed.id, {
         feed: newFeedData,
       });
-      result.updated++;
-      result.details.push({
+      feedResult.updated++;
+      feedResult.details.push({
         feedId: newsFeed.id,
         action: 'updated',
         categories: Object.keys(newFeedData),
         fetchErrors: feedFetchErrors,
       });
     } catch (err: any) {
-      result.errors++;
-      result.details.push({
+      feedResult.errors++;
+      feedResult.details.push({
         feedId: newsFeed.id,
         action: 'feed_update_error',
         error: String(err),
       });
     }
+
+    return feedResult;
+  };
+
+  // Process all feeds in parallel
+  const feedPromises = newsFeeds.map(feed => processFeed(feed));
+  const allFeedResults = await Promise.all(feedPromises);
+
+  // Aggregate results
+  for (const fr of allFeedResults) {
+    result.processed += fr.processed;
+    result.skipped += fr.skipped;
+    result.updated += fr.updated;
+    result.errors += fr.errors;
+    result.details.push(...fr.details);
   }
 
   console.log("newsFeedBuilder job finished:", result);
