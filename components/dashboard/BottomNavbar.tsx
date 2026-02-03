@@ -3,6 +3,7 @@
 import { useConfig } from "@/context/ConfigContext";
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faBell, faGear, faMoon } from "@fortawesome/free-solid-svg-icons";
 import PagesTabs from "../PagesTabs";
@@ -22,8 +23,11 @@ export default function BottomNavbar({
 }: BottomNavbarProps) {
   const { config } = useConfig();
   const { token } = useAuth();
+  const pathname = usePathname();
   const [unreadCount, setUnreadCount] = useState<number>(0);
   const [localScreensaverConfig, setLocalScreensaverConfig] = useState<any>(null);
+
+  const isHomePage = pathname === "/home";
 
   useEffect(() => {
     const fetchNotifications = async () => {
@@ -64,7 +68,7 @@ export default function BottomNavbar({
   const activeScreensaverConfig = localScreensaverConfig || config.appearance?.screensaver;
 
   return (
-    <div className="grid grid-cols-[1fr_80%_1fr] items-center px-3 md:px-0" id="page-footer">
+    <div className="grid grid-cols-[1fr_auto_1fr] items-center px-3 md:px-0" id="page-footer">
       <div id="app-details" className="flex items-center gap-2">
         <Link href="/home" className="flex items-center gap-2">
             <img src="/dashwise-icon.png" alt="" className="h-[36px]" />
@@ -79,8 +83,8 @@ export default function BottomNavbar({
       <div className="flex justify-center">
         {showPages && <PagesTabs />}
 
-        {/* Mobile dot indicator */}
-        {showPages && (
+        {/* Mobile dot indicator, only in home page */}
+        {showPages && isHomePage && (
             <div className="md:hidden fixed left-0 right-0 bottom-6 flex justify-center z-50 pointer-events-none">
             <div className="pointer-events-auto bg-transparent px-2 py-1 rounded-full">
                 <DotIndicator
