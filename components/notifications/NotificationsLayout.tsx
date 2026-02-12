@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { Label } from "@/components/ui/label";
 import { useEffect, useRef, useState } from "react";
 import useAuth from "@/context/useAuth";
+import { get } from "@/lib/apiClient";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 
 
@@ -28,13 +29,7 @@ export default function NotificationsLayoutComponent({ children }: { children: R
             if (!token) return;
 
             try {
-                const res = await fetch(`/api/v1/notifications?count=true`, {
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                    },
-                });
-                if (!res.ok) throw new Error("Failed to fetch notifications");
-                const data = await res.json();
+                const data = await get(`/notifications?count=true`, { token });
                 setUnreadCount(data.unread || 0);
             } catch (err) {
                 console.error(err);

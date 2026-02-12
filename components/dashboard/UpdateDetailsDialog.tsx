@@ -14,9 +14,8 @@ export default function UpdateDetailsDialogComponent() {
   useEffect(() => {
     async function fetchUpdateInfo() {
       try {
-        const res = await fetch("/api/v1/appInfo");
-        if (!res.ok) throw new Error("Failed to fetch update info");
-        const data = await res.json();
+        const { get } = await import("@/lib/apiClient");
+        const data = await get("/appInfo");
 
         if (data.updateAvailable != "0") {
           setUpdateAvailable(true);

@@ -2,6 +2,7 @@
 
 import Link from "next/link"
 import { useEffect, useState } from "react"
+import { get, post } from "@/lib/apiClient";
 import useAuth from "@/context/useAuth"
 import { useRouter } from "next/navigation"
 
@@ -35,23 +36,18 @@ export default function LoginCard() {
   //on load: check for existing auth, validate using /api/v1/auth/validate-auth endpoint if returned success to /home
    useEffect(() => {
     // Fetch runtime config (e.g. enableSSO)
-    fetch("/api/v1/appConfig")
-      .then(res => res.json())
-      .then(data => setEnableSSO(data.enableSSO ?? false))
-      .catch(() => setEnableSSO(false));
+    get("/appConfig").then(data => setEnableSSO(data.enableSSO ?? false)).catch(() => setEnableSSO(false));
 
     const validateAuth = async () => {
       const tokenToCheck = token;
       if (!tokenToCheck) return;
 
       try {
-        const res = await fetch("/api/v1/auth/validate-auth", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${tokenToCheck}` },
-        });
-
-        if (res.ok) {
+        try {
+          await post("/auth/validate-auth", undefined, { token: tokenToCheck });
           router.push("/home");
+        } catch (e) {
+          // ignore
         }
       } catch (err) {
         console.error("Auth validation failed:", err);
@@ -68,19 +64,8 @@ export default function LoginCard() {
     setLoading(true);
 
     try {
-      const res = await fetch("/api/v1/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
-
-      if (!res.ok) {
-        const { error } = await res.json();
-        throw new Error(error || "Login failed");
-      }
-
-      const { token, user } = await res.json();
-      setAuth(user, token);
+      const { token: newToken, user } = await post("/auth/login", { email, password });
+      setAuth(user, newToken);
 
       setSuccess("Login successful! Redirecting to home...");
       setTimeout(() => {

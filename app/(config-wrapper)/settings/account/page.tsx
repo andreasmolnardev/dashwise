@@ -26,6 +26,7 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome"
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert"
 import { ChangePasswordError, ChangePasswordRequest, ChangePasswordSuccess } from "@/app/api/v1/auth/change-password/route"
 import { useRouter } from "next/navigation"
+import { post } from "@/lib/apiClient";
 import { DialogDescription } from "@radix-ui/react-dialog"
 import ExportConfigDialog from "@/components/settings/ExportConfigDialog"
 import { useConfig } from "@/context/ConfigContext"
@@ -71,20 +72,8 @@ export default function AccountSettingsPage() {
         confirmPassword,
       } satisfies ChangePasswordRequest;
 
-      const res = await fetch("/api/v1/auth/change-password", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (!res.ok) {
-        const body: ChangePasswordError = await res.json()
-        setError(body.error || "Failed to change password");
-      } else {
-        const body: ChangePasswordSuccess = await res.json()
+      try {
+        const body: any = await post("/auth/change-password", payload, { token });
         setSuccess(body.message || "Password changed successfully");
         setOldPassword("");
         setNewPassword("");
@@ -93,6 +82,8 @@ export default function AccountSettingsPage() {
         setTimeout(() => {
           setSuccess(null);
         }, 900);
+      } catch (err: any) {
+        setError(err?.body?.error ?? err?.message ?? "Failed to change password");
       }
     } catch (err) {
       if (err instanceof Error) {

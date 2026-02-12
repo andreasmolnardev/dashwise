@@ -9,6 +9,7 @@ import { faBell, faGear, faMoon } from "@fortawesome/free-solid-svg-icons";
 import PagesTabs from "../PagesTabs";
 import UpdateDetailsDialogComponent from "./UpdateDetailsDialog";
 import useAuth from "@/context/useAuth";
+import { get } from "@/lib/apiClient";
 
 interface BottomNavbarProps {
   activePanel?: number;
@@ -34,13 +35,7 @@ export default function BottomNavbar({
       if (!token) return;
 
       try {
-        const res = await fetch(`/api/v1/notifications?count=true`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-        if (!res.ok) throw new Error("Failed to fetch notifications");
-        const data = await res.json();
+        const data = await get(`/notifications?count=true`, { token });
         setUnreadCount(data.unread || 0);
       } catch (err) {
         console.error(err);

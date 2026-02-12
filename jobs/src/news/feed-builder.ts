@@ -115,6 +115,18 @@ export async function newsFeedBuilder(feedId?: string): Promise<{
       newFeedData[category] = items.slice(0, maxItemsPerCategory);
     }
 
+    const hasAnyItems = Object.values(newFeedData).some(arr => arr.length > 0);
+
+    if (!hasAnyItems) {
+      feedResult.skipped++;
+      feedResult.details.push({
+        feedId: newsFeed.id,
+        action: 'skipped_update',
+        reason: 'no valid feed data (all fetches failed)',
+      });
+      return feedResult;
+    }
+
     try {
       await adminPb.collection('newsFeeds').update(newsFeed.id, {
         feed: newFeedData,

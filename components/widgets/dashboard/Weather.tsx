@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { get } from "@/lib/apiClient";
 import type { WidgetItemProps } from "../Widget";
 import { useConfig } from "@/context/ConfigContext";
 
@@ -304,16 +305,11 @@ async function fetchWeather({
     return { error: "Missing lat/lon" };
   }
 
-  const res = await fetch(
-    `/api/v1/weather?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(
-      lon
-    )}&unit=${encodeURIComponent(unit)}`
-  );
-
-  const raw = await res.json();
-
-  if (!res.ok) {
-    return { error: raw?.error ?? `Upstream error ${res.status}` };
+  let raw: any;
+  try {
+    raw = await get(`/weather?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}&unit=${encodeURIComponent(unit)}`);
+  } catch (e: any) {
+    return { error: e?.message ?? "Upstream error" };
   }
   
   const normalized: WeatherData = {

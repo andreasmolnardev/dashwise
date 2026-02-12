@@ -17,6 +17,7 @@ import { Input } from "../ui/input.tsx"
 import { useEffect, useState } from "react"
 import useAuth from "@/context/useAuth"
 import { useConfig } from "@/context/ConfigContext.tsx"
+import { put } from "@/lib/apiClient";
 
 export default function ImportConfigDialog() {
     const { config, refreshConfig } = useConfig();
@@ -55,17 +56,9 @@ export default function ImportConfigDialog() {
         const tokenStr = token ?? "";
 
         try {
-            const res = await fetch("/api/v1/config", {
-                method: "PUT",
-                headers: {
-                    "Content-Type": "application/json",
-                    Authorization: `Bearer ${tokenStr}`,
-                },
-                body: JSON.stringify({ config: parsed })
-            })
-            if (!res.ok) {
-                const j = await res.json().catch(() => ({}));
-                setMessage(j.error || `HTTP ${res.status}`);
+            const res = await put("/config", { config: parsed }, { token: tokenStr });
+            if (res?.error) {
+                setMessage(res.error || `HTTP`);
             }
             setMessage("Upload successful");
             setParsed(null);
