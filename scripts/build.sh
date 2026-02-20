@@ -10,7 +10,8 @@ fi
 # === Parse CLI arguments ===
 DOCKER_USERNAME="andreasmolnardev"
 GITHUB_REPO="https://github.com/andreasmolnardev/dashwise-next.git"
-BRANCH="preview"
+BRANCH=""
+BRANCH_SET=false
 VERSION=""
 CONTAINERS="all"
 BUILD_TYPE="preview" # default
@@ -19,7 +20,7 @@ for arg in "$@"; do
   case $arg in
     --docker-username=*) DOCKER_USERNAME="${arg#*=}" ;;
     --github-repo=*) GITHUB_REPO="${arg#*=}" ;;
-    --branch=*) BRANCH="${arg#*=}" ;;
+    --branch=*) BRANCH="${arg#*=}"; BRANCH_SET=true ;;
     --version=*) VERSION="${arg#*=}" ;;
     --containers=*) CONTAINERS="${arg#*=}" ;;
     --build-type=*) BUILD_TYPE="${arg#*=}" ;;
@@ -27,15 +28,18 @@ for arg in "$@"; do
   esac
 done
 
-if [[ -z "$VERSION" ]]; then
-  echo "Usage:"
-  echo "  sudo ./build.sh --version=\"1.0.0\" --build-type=preview|dev|stable [--containers=all|jobs|pocketbase|app]"
-  exit 1
+# If branch is not explicitly set, use BUILD_TYPE as branch if not a standard type
+if [[ "$BRANCH_SET" == false ]]; then
+  if [[ "$BUILD_TYPE" =~ ^(dev|preview|stable)$ ]]; then
+    BRANCH="preview" # Default legacy branch
+  else
+    BRANCH="$BUILD_TYPE"
+  fi
 fi
 
-# === Validate build type ===
-if [[ ! "$BUILD_TYPE" =~ ^(dev|preview|stable)$ ]]; then
-  echo "❌ Invalid build type: $BUILD_TYPE (must be dev, preview, or stable)"
+if [[ -z "$VERSION" ]]; then
+  echo "Usage:"
+  echo "  sudo ./build.sh --version=\"1.0.0\" --build-type=preview|dev|stable|custom [--branch=\"some-branch\"] [--containers=all|jobs|pocketbase|app]"
   exit 1
 fi
 
@@ -83,6 +87,12 @@ case "$BUILD_TYPE" in
     TAGS_PB=(":${VERSION}${TAG_SUFFIX}" ":stable${TAG_SUFFIX}")
     TAGS_JOBS=(":${VERSION}${TAG_SUFFIX}" ":stable${TAG_SUFFIX}")
     ;;
+  *)
+    echo "💡 Using custom build type: ${BUILD_TYPE}"
+    TAGS_APP=(":${VERSION}-${BUILD_TYPE}${TAG_SUFFIX}" ":${BUILD_TYPE}${TAG_SUFFIX}")
+    TAGS_PB=(":${VERSION}-${BUILD_TYPE}${TAG_SUFFIX}" ":${BUILD_TYPE}${TAG_SUFFIX}")
+    TAGS_JOBS=(":${VERSION}-${BUILD_TYPE}${TAG_SUFFIX}" ":${BUILD_TYPE}${TAG_SUFFIX}")
+    ;;
 esac
 
 # === Helper functions ===
@@ -123,10 +133,15 @@ build_and_push() {
     tag_args+=("-t" "${DOCKER_USERNAME}/${base_name}${tag}")
   done
 
+  # Generate build date in ISO 8601 format
+  local build_date=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
   # Build without pushing
   docker buildx build \
     --platform "$PLATFORM" \
     "${tag_args[@]}" \
+    --build-arg VERSION="${VERSION}" \
+    --build-arg BUILD_DATE="${build_date}" \
     -f "${dir}/Dockerfile" \
     --load \
     "${dir}"

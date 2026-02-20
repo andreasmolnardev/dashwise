@@ -5,6 +5,7 @@ interface Config {
   jobs_webhook_enabled: boolean;
   default_bg_url: string;
   version: string;
+  buildDate: string;
   allowInsecureCertsForIntegrationUrls: boolean;
   enableSSO: boolean;
   pbAdminEmail: string;
@@ -30,7 +31,8 @@ const config: Config = {
   jobs_webhook_enabled: enableJobsWebhook,
   jobs_url: process.env.NEXT_PUBLIC_JOBS_URL || 'http://127.0.0.1:3001',
   default_bg_url: process.env.NEXT_PUBLIC_DEFAULT_BG_URL || '/dashboard-wallpaper.png',
-  version: '0.4',
+  version: process.env.NEXT_PUBLIC_VERSION || '0.4-dev',
+  buildDate: process.env.NEXT_PUBLIC_BUILD_DATE || new Date().toISOString(),
   allowInsecureCertsForIntegrationUrls: allowInsecureCertsForIntegrationUrls || false,
   enableSSO: enableSSOLogin,
   pbAdminEmail: process.env.PB_ADMIN_EMAIL || "",
