@@ -74,14 +74,19 @@ export default function NewsDashboardComponent(
 
     const loadData = async () => {
         if (!token) return;
-            try {
-                const query = selectedCategory !== "All" ? `?category=${encodeURIComponent(selectedCategory)}` : "";
-                const data = await get(`/news${query}`, { token });
-        setFeed(data.feed);
-        setSubscriptions(data.subscriptions);
-        if (data.id) setFeedId(data.id);
-        setCurrentPage(1); // Reset to first page on category change
-        setSelectedSource(null); // Reset source filter on category change
+
+        try {
+            const query = selectedCategory !== "All" ? `?category=${encodeURIComponent(selectedCategory)}` : "";
+            const data = await get(`/news${query}`, { token });
+
+            setFeed(data.feed);
+            setSubscriptions(data.subscriptions);
+            if (data.id) setFeedId(data.id);
+            setCurrentPage(1); // Reset to first page on category change
+            setSelectedSource(null); // Reset source filter on category change
+        } catch (err) {
+            console.error("Failed to load news:", err);
+        }
     };
 
     // --- Fetch news ---
