@@ -17,7 +17,7 @@ import { post } from "@/lib/apiClient";
 
 export type NotificationItem = {
   id: string;
-  content: string;
+  content: any;
   status: string;
   created: string;
   topicId: string;
@@ -169,7 +169,7 @@ export default function NotificationsInboxPage() {
               }
 
               // choose string to parse: prefer notif.content (if string) else fallback to notif.message
-              const msg = typeof notif.content === "string" ? notif.content : ((notif as any).message as string | undefined);
+              const msg = typeof notif.content === "string" ? notif.content : (notif.content.message as string | undefined);
               if (!msg) return undefined;
 
               // split on newlines and render each line. If a line is "Key: Value", render with key styling.
