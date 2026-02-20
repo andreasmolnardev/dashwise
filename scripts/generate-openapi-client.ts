@@ -22,7 +22,7 @@ function render() {
       const fn = toFnName(method, route as string);
 
       const hasBody = ['post','put','patch'].includes(method.toLowerCase());
-      const pathParams = Array.from(((route as string).matchAll(/\{([^}]+)\}/g)).values()).map((m:any)=>m[1]);
+      const pathParams = Array.from((route as string).matchAll(/\{([^}]+)\}/g), (m: any) => m[1]);
 
       // function signature
       const generics = '<T = any>';
