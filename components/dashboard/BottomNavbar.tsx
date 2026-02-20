@@ -69,6 +69,9 @@ export default function BottomNavbar({
             <img src="/dashwise-icon.png" alt="" className="h-[36px]" />
             <span className="font-semibold">dashwise</span>
         </Link>
+        <Link href="https://github.com/andreasmolnardev/dashwise-next" className="frosted rounded-full p-1 transition-colors duration-200 group">
+          <img src="/icons/png/github-light.png" alt="GitHub" className="h-5 w-5 opacity-85 group-hover:opacity-100 transition-opacity duration-200" />
+        </Link>
 
         <div className="aspect-square rounded-full frosted w-2 h-2"></div>
 
