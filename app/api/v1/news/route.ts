@@ -98,11 +98,8 @@ export async function GET(req: NextRequest) {
       ),
     );
 
-    console.log(
-      `User ${userId} has ${subscriptions.length} subscriptions, ${urls.length} unique feed URLs`,
-    );
-
-    const cacheByUrl = {};
+    // typed cache map
+    const cacheByUrl: Record<string, FeedItem[]> = {};
 
     if (urls.length > 0) {
       const filter = urls.map((url) => `url="${escapeFilter(url)}"`).join(
@@ -111,13 +108,33 @@ export async function GET(req: NextRequest) {
       const cacheRecords = await serverPb
         .collection("newsFeedItemsCache")
         .getFullList<NewsFeedItemsCacheRecord>({ filter });
-      console.log(
-        `Fetched ${cacheRecords.length} cache records for user ${userId}`,
-      );
+
       for (const cacheRecord of cacheRecords) {
-        cacheByUrl[cacheRecord.url] = cacheRecord.json ?? [];
+        const raw = cacheRecord.json;
+        if (!raw) {
+          cacheByUrl[cacheRecord.url] = [];
+          continue;
+        }
+
+        // cacheRecord.json may be a JSON string; parse safely
+        try {
+          if (typeof raw === "string") {
+            const parsed = JSON.parse(raw);
+            cacheByUrl[cacheRecord.url] = Array.isArray(parsed) ? parsed : [];
+          } else if (Array.isArray(raw)) {
+            cacheByUrl[cacheRecord.url] = raw;
+          } else {
+            cacheByUrl[cacheRecord.url] = [];
+          }
+        } catch (parseErr) {
+          console.warn(
+            "Failed to parse cached feed JSON for",
+            cacheRecord.url,
+            parseErr,
+          );
+          cacheByUrl[cacheRecord.url] = [];
+        }
       }
-      console.log("cache", cacheByUrl)
     }
 
     for (const sub of subscriptions) {
@@ -125,8 +142,11 @@ export async function GET(req: NextRequest) {
       if (!feed[sub.category]) {
         feed[sub.category] = [];
       }
-      feed[sub.category].push(...(cacheByUrl[sub.feedUrl]));
-      console.log("feed here", feed);
+
+      const items = Array.isArray(cacheByUrl[sub.feedUrl])
+        ? cacheByUrl[sub.feedUrl]
+        : [];
+      feed[sub.category].push(...items);
     }
 
     for (const feedCategory of Object.keys(feed)) {
@@ -139,10 +159,6 @@ export async function GET(req: NextRequest) {
       feed = feed[category] ? { [category]: feed[category] } : {};
     }
 
-    console.log(`Returning feed for user ${userId}:`, {
-      feed
-    });
-
     return NextResponse.json({
       feed,
       subscriptions,
@@ -151,7 +167,7 @@ export async function GET(req: NextRequest) {
     console.error("Error in GET /api/feed:", err);
     return NextResponse.json(
       { error: "Internal Server Error", details: String(err?.message ?? err) },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
