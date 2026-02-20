@@ -15,6 +15,17 @@ interface NewsFeedRecord {
   [k: string]: any;
 }
 
+interface NewsFeedItemsCacheRecord {
+  id: string;
+  url: string;
+  json: string;
+  [k: string]: any;
+}
+
+function escapeFilter(str: string) {
+  return str.replace(/"/g, '\\"');
+}
+
 export async function newsFeedBuilder(feedId?: string): Promise<{
   processed: number;
   skipped: number;
@@ -25,8 +36,7 @@ export async function newsFeedBuilder(feedId?: string): Promise<{
   const adminPb = await getSuperuserPB() as PocketBase;
   const result = { processed: 0, skipped: 0, updated: 0, errors: 0, details: [] as any[] };
 
-  const maxItemsPerFeed = 100;
-  const maxItemsPerCategory = 100;
+  const maxItemsPerFeed = 10;
 
   console.log("Running newsFeedBuilder job...");
 
@@ -57,8 +67,8 @@ export async function newsFeedBuilder(feedId?: string): Promise<{
       return feedResult;
     }
 
-    const newFeedData: Record<string, FeedItem[]> = {};
     let feedFetchErrors = 0;
+    let cachedCount = 0;
 
     // Fetch subscriptions in parallel
     const subPromises = subscriptions.map(async (sub) => {
@@ -74,7 +84,7 @@ export async function newsFeedBuilder(feedId?: string): Promise<{
         const feedItems = await getFeedItems({ feedUrl: sub.feedUrl, maxItems: maxItemsPerFeed, feedName: sub.name }) as FeedItem[];
         return {
           action: 'success',
-          category: sub.category,
+          feedUrl: sub.feedUrl,
           items: feedItems
         };
       } catch (err: any) {
@@ -91,10 +101,38 @@ export async function newsFeedBuilder(feedId?: string): Promise<{
 
     for (const res of subResults) {
       if (res.action === 'success') {
-        if (!newFeedData[res.category!]) {
-          newFeedData[res.category!] = [];
+        const items = (res.items ?? []).slice(0, maxItemsPerFeed);
+        const filter = `url="${escapeFilter(res.feedUrl!)}"`;
+
+        try {
+          const existing = await adminPb
+            .collection('newsFeedItemsCache')
+            .getList<NewsFeedItemsCacheRecord>(1, 1, { filter });
+
+          const existingItem = existing.items.length > 0 ? existing.items[0] : undefined;
+
+          if (existingItem) {
+            await adminPb.collection('newsFeedItemsCache').update(existingItem.id, {
+              url: res.feedUrl,
+              json: JSON.stringify(items),
+            });
+          } else {
+            await adminPb.collection('newsFeedItemsCache').create({
+              url: res.feedUrl,
+              json: JSON.stringify(items),
+            });
+          }
+
+          cachedCount++;
+        } catch (err: any) {
+          feedResult.errors++;
+          feedResult.details.push({
+            feedId: newsFeed.id,
+            action: 'cache_upsert_error',
+            feedUrl: res.feedUrl,
+            error: err?.message || String(err),
+          });
         }
-        newFeedData[res.category!]!.push(...res.items!);
       } else if (res.action === 'feed_fetch_error') {
         feedFetchErrors++;
         feedResult.errors++;
@@ -104,36 +142,13 @@ export async function newsFeedBuilder(feedId?: string): Promise<{
       }
     }
 
-    // Sort and trim per category
-    for (const category in newFeedData) {
-      const items = newFeedData[category]!;
-      items.sort((a, b) => {
-        const timeA = a.pubDate?.getTime() || 0;
-        const timeB = b.pubDate?.getTime() || 0;
-        return timeB - timeA;
-      });
-      newFeedData[category] = items.slice(0, maxItemsPerCategory);
-    }
-
-    try {
-      await adminPb.collection('newsFeeds').update(newsFeed.id, {
-        feed: newFeedData,
-      });
-      feedResult.updated++;
-      feedResult.details.push({
-        feedId: newsFeed.id,
-        action: 'updated',
-        categories: Object.keys(newFeedData),
-        fetchErrors: feedFetchErrors,
-      });
-    } catch (err: any) {
-      feedResult.errors++;
-      feedResult.details.push({
-        feedId: newsFeed.id,
-        action: 'feed_update_error',
-        error: String(err),
-      });
-    }
+    feedResult.updated += cachedCount;
+    feedResult.details.push({
+      feedId: newsFeed.id,
+      action: 'cache_updated',
+      cached: cachedCount,
+      fetchErrors: feedFetchErrors,
+    });
 
     return feedResult;
   };
