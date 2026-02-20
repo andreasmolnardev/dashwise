@@ -4,6 +4,7 @@ import React, { useEffect, useState, useRef } from "react";
 import { useConfig } from "@/context/ConfigContext";
 import useAuth from "@/context/useAuth";
 import { cn } from "@/lib/utils";
+import { get } from "@/lib/apiClient";
 import { PaginatedCarouselViewComponent } from "./PaginatedCarouselView";
 import MonitoringDialog, { JobEntry } from "./MonitoringDialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -82,16 +83,13 @@ export default function LinkView() {
         return;
       }
 
-      const res = await fetch("/api/v1/monitoringStatus", {
-        headers: { Authorization: `Bearer ${tokenToUse}` },
-      });
-
-      if (!res.ok) {
-        console.warn("/api/v1/monitoringStatus returned:", await res.text());
+      let data: any = null;
+      try {
+        data = await get("/monitoringStatus", { token: tokenToUse });
+      } catch (err) {
+        console.warn("/api/v1/monitoringStatus error:", err);
         return;
       }
-
-      const data = await res.json();
 
 
       const normalized: Record<string, any> = {};
