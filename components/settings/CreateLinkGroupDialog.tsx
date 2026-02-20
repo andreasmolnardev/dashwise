@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { useConfig } from "@/context/ConfigContext";
 import useAuth from "@/context/useAuth";
+import { post } from "@/lib/apiClient";
 
 type Props = {
   open: boolean;
@@ -38,17 +39,8 @@ export default function CreateLinkGroupDialog({
       const { token } = useAuth();
       if (!token) throw new Error("Not authenticated");
 
-      const res = await fetch("/api/v1/config?path=linkGroups", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ newItem: newGroup }),
-      });
-
-      const json = await res.json();
-      if (!res.ok) {
+      const json = await post("/config?path=linkGroups", { newItem: newGroup }, { token });
+      if (json?.error) {
         throw new Error(json?.error || json?.message || "Failed to create link group");
       }
 

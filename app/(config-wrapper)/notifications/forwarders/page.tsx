@@ -22,6 +22,7 @@ import {
 import { MoreHorizontal, Copy, Trash2, Edit2 } from "lucide-react";
 import CreateForwarderDialogComponent, { ForwarderItem } from "@/components/notifications/CreateForwarderDialog";
 import useAuth from "@/context/useAuth";
+import { post, put, del } from "@/lib/apiClient";
 import {
     getNotificationTopics,
     getNotificationForwarders,
@@ -81,16 +82,8 @@ export default function NotificationForwardersPage() {
         if (!token) return;
         if (!confirm("Are you sure you want to delete this forwarder?")) return;
         try {
-            const res = await fetch("/api/v1/notifications/forwarders", {
-                method: "DELETE",
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({ forwarderId }),
-            });
-            const json = await res.json();
-            if (!res.ok) throw new Error(json.error ?? "Failed to delete");
+            const json = await del("/notifications/forwarders", { token, body: { forwarderId } });
+            if (json?.error) throw new Error(json.error ?? "Failed to delete");
             setItems((old) => old.filter((i) => i.id !== forwarderId));
         } catch (err) {
             console.error(err);
@@ -109,30 +102,15 @@ export default function NotificationForwardersPage() {
         setIsSaving(true);
 
         try {
-            const res = await fetch("/api/v1/notifications/forwarders", {
-                method: "PUT",
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({
-                    forwarderId: editingForwarder.id,
-                    target: editTarget,
-                    isActive: editIsActive,
-                }),
-            });
+            const json = await put("/notifications/forwarders", {
+                forwarderId: editingForwarder.id,
+                target: editTarget,
+                isActive: editIsActive,
+            }, { token });
 
-            const json = await res.json();
-            if (!res.ok) throw new Error(json.error ?? "Failed to update");
+            if (json?.error) throw new Error(json.error ?? "Failed to update");
 
-            // Update the item in the list
-            setItems((old) =>
-                old.map((i) =>
-                    i.id === editingForwarder.id
-                        ? { ...i, target: editTarget, isActive: editIsActive }
-                        : i
-                )
-            );
+            setItems((old) => old.map((i) => i.id === editingForwarder.id ? { ...i, target: editTarget, isActive: editIsActive } : i));
 
             setEditingForwarder(null);
         } catch (err) {

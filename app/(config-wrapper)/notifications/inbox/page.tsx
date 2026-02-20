@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { MoreHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
 import readEndpoint from "@/lib/frontend/data/GET/readEndpoint";
+import { post } from "@/lib/apiClient";
 
 export type NotificationItem = {
   id: string;
@@ -37,8 +38,8 @@ export default function NotificationsInboxPage() {
     (async () => {
       try {
         const [notResp, topicResp] = await Promise.all([
-          readEndpoint<{ items: any[] }>("/api/v1/notifications", { signal: ctl.signal }),
-          readEndpoint<{ items: any[] }>("/api/v1/notifications/topics", { signal: ctl.signal }),
+          readEndpoint<{ items: any[] }>("/notifications", { signal: ctl.signal }),
+          readEndpoint<{ items: any[] }>("/notifications/topics", { signal: ctl.signal }),
         ]);
 
         if (!mounted) return;
@@ -56,17 +57,8 @@ export default function NotificationsInboxPage() {
     const token = localStorage.getItem("pb_token");
     if (!token) return;
     try {
-      await fetch("/api/v1/notifications/markAsRead", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ id: notifId }),
-      });
-      setNotifications((prev) =>
-        prev.map((n) => (n.id === notifId ? { ...n, status: "read" } : n))
-      );
+      await post("/notifications/markAsRead", { id: notifId }, { token });
+      setNotifications((prev) => prev.map((n) => (n.id === notifId ? { ...n, status: "read" } : n)));
     } catch (err) {
       console.error("Failed to mark notification as read:", err);
     }
@@ -85,10 +77,37 @@ export default function NotificationsInboxPage() {
       </div>
     );
   }
+  const hasUnread = notifications.some((n) => n.status !== "read");
+
+  const markAllAsRead = async () => {
+    const token = localStorage.getItem("pb_token");
+    if (!token) return;
+    try {
+      await post("/notifications/markAllAsRead", undefined, { token });
+      setNotifications((prev) => prev.map((n) => ({ ...n, status: "read" })));
+    } catch (err) {
+      console.error("Failed to mark all notifications as read:", err);
+    }
+  };
 
   return (
     <>
-      <h1 className="text-3xl font-semibold mb-4">Inbox</h1>
+      <div className="flex items-center justify-between mb-4">
+        <h1 className="text-3xl font-semibold">Inbox</h1>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={(e) => {
+            e.stopPropagation();
+            markAllAsRead();
+          }}
+          disabled={!hasUnread}
+          aria-label="Mark all notifications as read"
+          className="ml-2"
+        >
+          Mark all as read
+        </Button>
+      </div>
       <div className="space-y-4">
         {/* --- Topic Chips (including “All”) --- */}
         <div className="flex gap-2 overflow-x-auto mb-4">

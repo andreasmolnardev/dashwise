@@ -4,6 +4,7 @@ import { useConfig } from "@/context/ConfigContext";
 import { useEffect, useState } from "react";
 import useAuth from "@/context/useAuth";
 import { useRouter, useSearchParams } from "next/navigation";
+import { get, post } from "@/lib/apiClient";
 import Link from "next/link";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faArrowLeft, faCaretDown, faEllipsisVertical, faPlus, faEdit, faTrash, faXmark, faArrowsRotate } from "@fortawesome/free-solid-svg-icons";
@@ -73,20 +74,9 @@ export default function NewsDashboardComponent(
 
     const loadData = async () => {
         if (!token) return;
-        const url = new URL("/api/v1/news", window.location.origin);
-        if (selectedCategory !== "All") {
-            url.searchParams.set("category", selectedCategory);
-        }
-
-        const res = await fetch(url.toString(), {
-            headers: {
-                Authorization: `Bearer ${token}`,
-            },
-        });
-
-        if (!res.ok) return;
-
-        const data = await res.json();
+            try {
+                const query = selectedCategory !== "All" ? `?category=${encodeURIComponent(selectedCategory)}` : "";
+                const data = await get(`/news${query}`, { token });
         setFeed(data.feed);
         setSubscriptions(data.subscriptions);
         if (data.id) setFeedId(data.id);
@@ -104,21 +94,10 @@ export default function NewsDashboardComponent(
         const targetId = id || feedId;
         setIsRefreshing(true);
         try {
-            const url = new URL("/api/v1/news/feed-refresh", window.location.origin);
-            if (targetId) {
-                url.searchParams.set("feedId", targetId);
-            }
-
-            const res = await fetch(url.toString(), {
-                method: "POST",
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                },
-            });
-
-            if (!res.ok) throw new Error("Failed to refresh feeds");
-
-            await loadData();
+                    const opts: any = { token };
+                    if (targetId) opts.qs = { feedId: targetId };
+                    await post(`/news/feed-refresh`, undefined, opts);
+                    await loadData();
         } catch (err) {
             console.error("Refresh failed:", err);
         } finally {
@@ -129,24 +108,12 @@ export default function NewsDashboardComponent(
     const subscribeFeed = async (feed: any) => {
         if (!token) throw new Error("Not authenticated");
 
-        const res = await fetch("/api/v1/news/feed-subscribe", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify({
-                feedUrl: feed.feedUrl,
-                name: feed.name || "",
-                icon: feed.icon || "",
-                category: feed.category || "",
-            }),
-        });
-
-        if (!res.ok) {
-            const json = await res.json();
-            throw new Error(json.error || "Failed to subscribe to feed");
-        }
+        await post("/news/feed-subscribe", {
+            feedUrl: feed.feedUrl,
+            name: feed.name || "",
+            icon: feed.icon || "",
+            category: feed.category || "",
+        }, { token });
 
         await loadData();
         refreshFeeds();
@@ -155,19 +122,7 @@ export default function NewsDashboardComponent(
     const unsubscribeFeed = async (feedUrl: string) => {
         if (!token) throw new Error("Not authenticated");
 
-        const res = await fetch("/api/v1/news/feed-unsubscribe", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify({ feedUrl }),
-        });
-
-        if (!res.ok) {
-            const json = await res.json();
-            throw new Error(json.error || "Failed to unsubscribe from feed");
-        }
+        await post("/news/feed-unsubscribe", { feedUrl }, { token });
 
         await loadData();
         refreshFeeds();
@@ -176,25 +131,13 @@ export default function NewsDashboardComponent(
     const updateFeed = async (oldFeedUrl: string, updatedFeed: any) => {
         if (!token) throw new Error("Not authenticated");
 
-        const res = await fetch("/api/v1/news/feed-update", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify({
-                oldFeedUrl,
-                feedUrl: updatedFeed.feedUrl,
-                name: updatedFeed.name || "",
-                icon: updatedFeed.icon || "",
-                category: updatedFeed.category || "",
-            }),
-        });
-
-        if (!res.ok) {
-            const json = await res.json();
-            throw new Error(json.error || "Failed to update feed");
-        }
+        await post("/news/feed-update", {
+            oldFeedUrl,
+            feedUrl: updatedFeed.feedUrl,
+            name: updatedFeed.name || "",
+            icon: updatedFeed.icon || "",
+            category: updatedFeed.category || "",
+        }, { token });
 
         await loadData();
         refreshFeeds();

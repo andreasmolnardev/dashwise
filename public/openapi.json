@@ -1,0 +1,526 @@
+{
+	"openapi": "3.0.3",
+	"info": {
+		"title": "Dashwise API",
+		"version": "1.0.0",
+		"description": "OpenAPI specification for Dashwise v1 API routes."
+	},
+	"servers": [
+		{
+			"url": "/api/v1"
+		}
+	],
+	"tags": [
+		{ "name": "app" },
+		{ "name": "auth" },
+		{ "name": "config" },
+		{ "name": "integrations" },
+		{ "name": "jobs" },
+		{ "name": "locations" },
+		{ "name": "monitoring" },
+		{ "name": "news" },
+		{ "name": "notifications" },
+		{ "name": "search" },
+		{ "name": "test" },
+		{ "name": "wallpapers" },
+		{ "name": "weather" }
+	],
+	"paths": {
+		"/appConfig": {
+			"get": {
+				"tags": ["app"],
+				"summary": "Get application config",
+				"responses": {
+					"200": { "$ref": "#/components/responses/JsonOk" }
+				}
+			}
+		},
+		"/appInfo": {
+			"get": {
+				"tags": ["app"],
+				"summary": "Get application info",
+				"responses": {
+					"200": { "$ref": "#/components/responses/JsonOk" }
+				}
+			}
+		},
+		"/auth/callback": {
+			"get": {
+				"tags": ["auth"],
+				"summary": "Auth callback",
+				"responses": {
+					"200": { "$ref": "#/components/responses/JsonOk" },
+					"302": { "description": "Redirect" }
+				}
+			}
+		},
+		"/auth/change-password": {
+			"post": {
+				"tags": ["auth"],
+				"summary": "Change password",
+				"requestBody": { "$ref": "#/components/requestBodies/JsonBody" },
+				"responses": {
+					"200": { "$ref": "#/components/responses/JsonOk" },
+					"401": { "$ref": "#/components/responses/JsonUnauthorized" }
+				}
+			}
+		},
+		"/auth/delete-account": {
+			"delete": {
+				"tags": ["auth"],
+				"summary": "Delete account",
+				"responses": {
+					"200": { "$ref": "#/components/responses/JsonOk" },
+					"401": { "$ref": "#/components/responses/JsonUnauthorized" }
+				}
+			}
+		},
+		"/auth/login": {
+			"post": {
+				"tags": ["auth"],
+				"summary": "Login",
+				"requestBody": { "$ref": "#/components/requestBodies/JsonBody" },
+				"responses": {
+					"200": { "$ref": "#/components/responses/JsonOk" },
+					"401": { "$ref": "#/components/responses/JsonUnauthorized" }
+				}
+			}
+		},
+		"/auth/mfa": {
+			"post": {
+				"tags": ["auth"],
+				"summary": "MFA verification",
+				"requestBody": { "$ref": "#/components/requestBodies/JsonBody" },
+				"responses": {
+					"200": { "$ref": "#/components/responses/JsonOk" },
+					"401": { "$ref": "#/components/responses/JsonUnauthorized" }
+				}
+			}
+		},
+		"/auth/signup": {
+			"post": {
+				"tags": ["auth"],
+				"summary": "Signup",
+				"requestBody": { "$ref": "#/components/requestBodies/JsonBody" },
+				"responses": {
+					"200": { "$ref": "#/components/responses/JsonOk" },
+					"400": { "$ref": "#/components/responses/JsonBadRequest" }
+				}
+			}
+		},
+		"/auth/sso": {
+			"get": {
+				"tags": ["auth"],
+				"summary": "SSO start",
+				"responses": {
+					"200": { "$ref": "#/components/responses/JsonOk" },
+					"302": { "description": "Redirect" }
+				}
+			}
+		},
+		"/auth/validate-auth": {
+			"post": {
+				"tags": ["auth"],
+				"summary": "Validate auth",
+				"requestBody": { "$ref": "#/components/requestBodies/JsonBody" },
+				"responses": {
+					"200": { "$ref": "#/components/responses/JsonOk" },
+					"401": { "$ref": "#/components/responses/JsonUnauthorized" }
+				}
+			}
+		},
+		"/config": {
+			"get": {
+				"tags": ["config"],
+				"summary": "Get config",
+				"responses": {
+					"200": { "$ref": "#/components/responses/JsonOk" }
+				}
+			},
+			"post": {
+				"tags": ["config"],
+				"summary": "Create config",
+				"requestBody": { "$ref": "#/components/requestBodies/JsonBody" },
+				"responses": {
+					"200": { "$ref": "#/components/responses/JsonOk" }
+				}
+			},
+			"patch": {
+				"tags": ["config"],
+				"summary": "Patch config",
+				"requestBody": { "$ref": "#/components/requestBodies/JsonBody" },
+				"responses": {
+					"200": { "$ref": "#/components/responses/JsonOk" }
+				}
+			},
+			"put": {
+				"tags": ["config"],
+				"summary": "Replace config",
+				"requestBody": { "$ref": "#/components/requestBodies/JsonBody" },
+				"responses": {
+					"200": { "$ref": "#/components/responses/JsonOk" }
+				}
+			}
+		},
+		"/config/delete-unused-linkgroups": {
+			"post": {
+				"tags": ["config"],
+				"summary": "Delete unused link groups",
+				"requestBody": { "$ref": "#/components/requestBodies/JsonBody" },
+				"responses": {
+					"200": { "$ref": "#/components/responses/JsonOk" }
+				}
+			}
+		},
+		"/config/move-arrayitems": {
+			"post": {
+				"tags": ["config"],
+				"summary": "Move config array items",
+				"requestBody": { "$ref": "#/components/requestBodies/JsonBody" },
+				"responses": {
+					"200": { "$ref": "#/components/responses/JsonOk" }
+				}
+			}
+		},
+		"/integrations/beszel": {
+			"get": {
+				"tags": ["integrations"],
+				"summary": "Get Beszel integration",
+				"responses": {
+					"200": { "$ref": "#/components/responses/JsonOk" }
+				}
+			}
+		},
+		"/integrations/beszel/system-healthstats": {
+			"get": {
+				"tags": ["integrations"],
+				"summary": "Get Beszel system health stats",
+				"responses": {
+					"200": { "$ref": "#/components/responses/JsonOk" }
+				}
+			}
+		},
+		"/integrations/dashdot": {
+			"post": {
+				"tags": ["integrations"],
+				"summary": "Proxy Dashdot integration",
+				"requestBody": { "$ref": "#/components/requestBodies/JsonBody" },
+				"responses": {
+					"200": { "$ref": "#/components/responses/JsonOk" }
+				}
+			}
+		},
+		"/integrations/karakeep": {
+			"get": {
+				"tags": ["integrations"],
+				"summary": "Get Karakeep integration",
+				"responses": {
+					"200": { "$ref": "#/components/responses/JsonOk" }
+				}
+			}
+		},
+		"/jobs/searchItems": {
+			"get": {
+				"tags": ["jobs"],
+				"summary": "Search items job",
+				"responses": {
+					"200": { "$ref": "#/components/responses/JsonOk" }
+				}
+			}
+		},
+		"/locations": {
+			"get": {
+				"tags": ["locations"],
+				"summary": "Get locations",
+				"responses": {
+					"200": { "$ref": "#/components/responses/JsonOk" }
+				}
+			}
+		},
+		"/monitoringStatus": {
+			"get": {
+				"tags": ["monitoring"],
+				"summary": "Get monitoring status",
+				"responses": {
+					"200": { "$ref": "#/components/responses/JsonOk" }
+				}
+			}
+		},
+		"/news": {
+			"get": {
+				"tags": ["news"],
+				"summary": "Get news subscriptions",
+				"responses": {
+					"200": { "$ref": "#/components/responses/JsonOk" }
+				}
+			}
+		},
+		"/news/feed-category-rename": {
+			"post": {
+				"tags": ["news"],
+				"summary": "Rename feed category",
+				"requestBody": { "$ref": "#/components/requestBodies/JsonBody" },
+				"responses": {
+					"200": { "$ref": "#/components/responses/JsonOk" }
+				}
+			}
+		},
+		"/news/feed-refresh": {
+			"post": {
+				"tags": ["news"],
+				"summary": "Refresh feeds",
+				"requestBody": { "$ref": "#/components/requestBodies/JsonBody" },
+				"responses": {
+					"200": { "$ref": "#/components/responses/JsonOk" }
+				}
+			},
+			"get": {
+				"tags": ["news"],
+				"summary": "Get feed refresh status",
+				"responses": {
+					"200": { "$ref": "#/components/responses/JsonOk" }
+				}
+			}
+		},
+		"/news/feed-subscribe": {
+			"post": {
+				"tags": ["news"],
+				"summary": "Subscribe to feed",
+				"requestBody": { "$ref": "#/components/requestBodies/JsonBody" },
+				"responses": {
+					"200": { "$ref": "#/components/responses/JsonOk" }
+				}
+			}
+		},
+		"/news/feed-unsubscribe": {
+			"post": {
+				"tags": ["news"],
+				"summary": "Unsubscribe from feed",
+				"requestBody": { "$ref": "#/components/requestBodies/JsonBody" },
+				"responses": {
+					"200": { "$ref": "#/components/responses/JsonOk" }
+				}
+			}
+		},
+		"/news/feed-update": {
+			"post": {
+				"tags": ["news"],
+				"summary": "Update feed",
+				"requestBody": { "$ref": "#/components/requestBodies/JsonBody" },
+				"responses": {
+					"200": { "$ref": "#/components/responses/JsonOk" }
+				}
+			}
+		},
+		"/notifications": {
+			"get": {
+				"tags": ["notifications"],
+				"summary": "Get notifications",
+				"responses": {
+					"200": { "$ref": "#/components/responses/JsonOk" }
+				}
+			},
+			"post": {
+				"tags": ["notifications"],
+				"summary": "Create notification",
+				"requestBody": { "$ref": "#/components/requestBodies/JsonBody" },
+				"responses": {
+					"200": { "$ref": "#/components/responses/JsonOk" }
+				}
+			}
+		},
+		"/notifications/forwarders": {
+			"get": {
+				"tags": ["notifications"],
+				"summary": "List forwarders",
+				"responses": {
+					"200": { "$ref": "#/components/responses/JsonOk" }
+				}
+			},
+			"post": {
+				"tags": ["notifications"],
+				"summary": "Create forwarder",
+				"requestBody": { "$ref": "#/components/requestBodies/JsonBody" },
+				"responses": {
+					"200": { "$ref": "#/components/responses/JsonOk" }
+				}
+			},
+			"put": {
+				"tags": ["notifications"],
+				"summary": "Update forwarder",
+				"requestBody": { "$ref": "#/components/requestBodies/JsonBody" },
+				"responses": {
+					"200": { "$ref": "#/components/responses/JsonOk" }
+				}
+			},
+			"delete": {
+				"tags": ["notifications"],
+				"summary": "Delete forwarder",
+				"responses": {
+					"200": { "$ref": "#/components/responses/JsonOk" }
+				}
+			}
+		},
+		"/notifications/markAsRead": {
+			"post": {
+				"tags": ["notifications"],
+				"summary": "Mark notifications as read",
+				"requestBody": { "$ref": "#/components/requestBodies/JsonBody" },
+				"responses": {
+					"200": { "$ref": "#/components/responses/JsonOk" }
+				}
+			}
+		},
+		"/notifications/{topic}": {
+			"post": {
+				"tags": ["notifications"],
+				"summary": "Send notification to topic",
+				"parameters": [
+					{
+						"name": "topic",
+						"in": "path",
+						"required": true,
+						"schema": { "type": "string" }
+					}
+				],
+				"requestBody": { "$ref": "#/components/requestBodies/JsonBody" },
+				"responses": {
+					"200": { "$ref": "#/components/responses/JsonOk" }
+				}
+			}
+		},
+		"/notifications/topics": {
+			"get": {
+				"tags": ["notifications"],
+				"summary": "List topics",
+				"responses": {
+					"200": { "$ref": "#/components/responses/JsonOk" }
+				}
+			},
+			"post": {
+				"tags": ["notifications"],
+				"summary": "Create topic",
+				"requestBody": { "$ref": "#/components/requestBodies/JsonBody" },
+				"responses": {
+					"200": { "$ref": "#/components/responses/JsonOk" }
+				}
+			}
+		},
+		"/notifications/topicTokens": {
+			"post": {
+				"tags": ["notifications"],
+				"summary": "Create topic token",
+				"requestBody": { "$ref": "#/components/requestBodies/JsonBody" },
+				"responses": {
+					"200": { "$ref": "#/components/responses/JsonOk" }
+				}
+			},
+			"get": {
+				"tags": ["notifications"],
+				"summary": "List topic tokens",
+				"responses": {
+					"200": { "$ref": "#/components/responses/JsonOk" }
+				}
+			},
+			"delete": {
+				"tags": ["notifications"],
+				"summary": "Delete topic token",
+				"responses": {
+					"200": { "$ref": "#/components/responses/JsonOk" }
+				}
+			}
+		},
+		"/searchItems": {
+			"get": {
+				"tags": ["search"],
+				"summary": "Search items",
+				"responses": {
+					"200": { "$ref": "#/components/responses/JsonOk" }
+				}
+			}
+		},
+		"/test/bookmarks": {
+			"get": {
+				"tags": ["test"],
+				"summary": "Test bookmarks",
+				"responses": {
+					"200": { "$ref": "#/components/responses/JsonOk" }
+				}
+			}
+		},
+		"/wallpapers": {
+			"post": {
+				"tags": ["wallpapers"],
+				"summary": "Upload or update wallpaper",
+				"requestBody": { "$ref": "#/components/requestBodies/JsonBody" },
+				"responses": {
+					"200": { "$ref": "#/components/responses/JsonOk" }
+				}
+			},
+			"get": {
+				"tags": ["wallpapers"],
+				"summary": "Get wallpaper",
+				"responses": {
+					"200": { "$ref": "#/components/responses/JsonOk" }
+				}
+			}
+		},
+		"/weather": {
+			"get": {
+				"tags": ["weather"],
+				"summary": "Get weather",
+				"responses": {
+					"200": { "$ref": "#/components/responses/JsonOk" }
+				}
+			}
+		}
+	},
+	"components": {
+		"schemas": {
+			"GenericObject": {
+				"type": "object",
+				"additionalProperties": true
+			},
+			"Error": {
+				"type": "object",
+				"additionalProperties": true
+			}
+		},
+		"requestBodies": {
+			"JsonBody": {
+				"required": false,
+				"content": {
+					"application/json": {
+						"schema": { "$ref": "#/components/schemas/GenericObject" }
+					}
+				}
+			}
+		},
+		"responses": {
+			"JsonOk": {
+				"description": "OK",
+				"content": {
+					"application/json": {
+						"schema": { "$ref": "#/components/schemas/GenericObject" }
+					}
+				}
+			},
+			"JsonBadRequest": {
+				"description": "Bad Request",
+				"content": {
+					"application/json": {
+						"schema": { "$ref": "#/components/schemas/Error" }
+					}
+				}
+			},
+			"JsonUnauthorized": {
+				"description": "Unauthorized",
+				"content": {
+					"application/json": {
+						"schema": { "$ref": "#/components/schemas/Error" }
+					}
+				}
+			}
+		}
+	}
+}

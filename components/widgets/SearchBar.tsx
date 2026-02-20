@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import useAuth from "@/context/useAuth";
 import CommandBar from './CommandBar';
+import { get } from '@/lib/apiClient';
 
 type SearchBarProps = {
   useRedirect: boolean;
@@ -56,40 +57,15 @@ export default function SearchBar({ useRedirect, defaultOpen }: SearchBarProps) 
 
         try {
         const tokenToUse = token;
-
-        const headers: Record<string, string> = {
-          Accept: 'application/json',
-        };
-        if (tokenToUse) headers['Authorization'] = `Bearer ${tokenToUse}`;
-
-        const res = await fetch('/api/v1/searchItems', {
-          method: 'GET',
-          headers,
-          signal,
-        });
-
-        if (!res.ok) {
-          // handle common status codes gracefully
-          if (res.status === 401 || res.status === 403) {
-            setItemsError('Unauthorized (invalid token)');
-          } else {
-            setItemsError(`Request failed: ${res.status}`);
-          }
-          setSearchItems([]);
-          setLoadingItems(false);
-          return;
-        }
-
-        const data = await res.json();
-        // ensure we always pass an array
+        const data = await get('/searchItems', { token: tokenToUse, signal });
         setSearchItems(Array.isArray(data) ? data : []);
       } catch (err: unknown) {
-        if (err instanceof Error) {
-          console.warn('Failed to load searchItems', err);
-          setItemsError(err.message);
+        const e = err as any;
+        console.warn('Failed to load searchItems', err);
+        if (e?.status === 401 || e?.status === 403) {
+          setItemsError('Unauthorized (invalid token)');
         } else {
-          console.warn('Failed to load searchItems', err);
-          setItemsError('Failed to load items');
+          setItemsError(e?.message ?? 'Failed to load items');
         }
         setSearchItems([]);
       } finally {

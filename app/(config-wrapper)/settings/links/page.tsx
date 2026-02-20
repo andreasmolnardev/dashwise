@@ -226,7 +226,10 @@ export default function LinksSettingsPage() {
               <Action
                 type="add"
                 icon={faPlus}
-                onClick={() => setAddOpen(true)}
+                onClick={() => {
+                  setAddingLinkGroup(selectedGroup);
+                  setAddOpen(true);
+                }}
               />
             </Actions>
           </ListHeader>

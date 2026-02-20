@@ -5,6 +5,7 @@ import useAuth from "@/context/useAuth";
 import { usePathname, useRouter } from "next/navigation";
 import { ConfigProvider } from "@/context/ConfigContext";
 import { cn } from "@/lib/utils";
+import { get } from "@/lib/apiClient";
 
 export default function ConfigWrapper({ children }: { children: ReactNode }) {
   const pathname = usePathname();
@@ -34,19 +35,16 @@ export default function ConfigWrapper({ children }: { children: ReactNode }) {
         return;
       }
 
-      const res = await fetch("/api/v1/config", {
-        method: "GET",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (res.status === 401) {
-        router.push("/auth/login");
-        throw new Error(`Unauthorized`);
+      try {
+        const data = await get("/config", { token });
+        setConfig(data);
+      } catch (err: any) {
+        if (err?.status === 401) {
+          router.push("/auth/login");
+          throw new Error("Unauthorized");
+        }
+        throw err;
       }
-
-      if (!res.ok) throw new Error(`Failed to fetch config: ${res.status}`);
-      const data = await res.json();
-      setConfig(data);
     } catch (err: any) {
       setError(err.message || "Unknown error");
     } finally {

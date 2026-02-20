@@ -14,6 +14,7 @@ import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Checkbox } from "../ui/checkbox";
 import TopicCombobox, { type Topic } from "./TopicCombobox";
+import { post } from "@/lib/apiClient";
 export type ForwarderItem = { 
   id: string; 
   topic: { id: string }; 
@@ -58,21 +59,10 @@ export default function CreateForwarderDialogComponent({
       const tokenToUse = token;
       if (!tokenToUse) throw new Error("Missing auth token");
 
-      const res = await fetch("/api/v1/notifications/forwarders", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${tokenToUse}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          topic: selectedTopic.id,
-          target,
-          isActive,
-        }),
-      });
-
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "Failed to create forwarder");
+      const json = await post("/notifications/forwarders",
+        { topic: selectedTopic.id, target, isActive },
+        { token: tokenToUse }
+      );
 
       // Reset
       setSelectedTopic(null);
