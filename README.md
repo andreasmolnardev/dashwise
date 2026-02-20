@@ -16,6 +16,7 @@ This is my attempt to solving that.
 - Monitor your links: Can be enabled via link details settings. Performs a GET request to that endpoint. Logs downtime.
 - Glanceables: Customizable bits of one-line information next to the clock.
 - Widgets: Modular blocks on the dashboard that show key info or actions at a glance. They can be moved and customized individually.
+- News: Subscribe to RSS feeds to stay on top of everything.
 - Wallpapers: Upload them to dashwise directly, or even change the default one for new users by mounting one into the container
 - Spotlight-like Search: Hit Ctrl+K from your dashboard, and you'll be able to search your links and integrations or use bangs for search engines specified in settings.
 - Integrations: directly integrates with your favourite self hosted apps. Supported services are Karakeep, Dashdot, Beszel and Jellyfin. More integrations are planned
