@@ -65,11 +65,10 @@ export default function SignupCard() {
 
     setLoading(true)
     try {
-      try {
-        const data = await post("/auth/signup", { _name: name, email, password, passwordConfirm: confirmPassword });
-        if (data?.error) {
-          setError(data.error || "Signup failed");
-        } else {
+      const data = await post("/auth/signup", { _name: name, email, password, passwordConfirm: confirmPassword });
+      if (data?.error) {
+        setError(data.error || "Signup failed");
+      } else {
         setSuccess("Redirecting to login...")
 
         setTimeout(() => {
@@ -82,10 +81,7 @@ export default function SignupCard() {
           router.push("/auth/login")
         }, 2000)
       }
-
-
-
-      } catch (err) {
+    } catch (err) {
       console.error("Signup request failed:", err)
       setError((err as any)?.message || "Network error")
     } finally {
