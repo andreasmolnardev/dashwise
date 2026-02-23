@@ -4,7 +4,7 @@ import React, { useEffect, useState, useRef } from "react";
 import { useConfig } from "@/context/ConfigContext";
 import useAuth from "@/context/useAuth";
 import { cn } from "@/lib/utils";
-import { get } from "@/lib/apiClient";
+import { getMonitoringStatus } from "@/lib/apiClient";
 import { PaginatedCarouselViewComponent } from "./PaginatedCarouselView";
 import MonitoringDialog, { JobEntry } from "./MonitoringDialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -73,7 +73,7 @@ export default function LinkView() {
   }, [token]);
 
   async function fetchMonitoringStatuses() {
-    try {
+      try {
       if (typeof window === "undefined") return;
       const tokenToUse = tokenRef.current;
       if (!tokenToUse) {
@@ -85,7 +85,7 @@ export default function LinkView() {
 
       let data: any = null;
       try {
-        data = await get("/monitoringStatus", { token: tokenToUse });
+        data = await getMonitoringStatus({ token: tokenToUse });
       } catch (err) {
         console.warn("/api/v1/monitoringStatus error:", err);
         return;

@@ -26,7 +26,7 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome"
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert"
 import { ChangePasswordError, ChangePasswordRequest, ChangePasswordSuccess } from "@/app/api/v1/auth/change-password/route"
 import { useRouter } from "next/navigation"
-import { post } from "@/lib/apiClient";
+import { postAuthChangePassword } from "@/lib/apiClient";
 import { DialogDescription } from "@radix-ui/react-dialog"
 import ExportConfigDialog from "@/components/settings/ExportConfigDialog"
 import { useConfig } from "@/context/ConfigContext"
@@ -73,7 +73,7 @@ export default function AccountSettingsPage() {
       } satisfies ChangePasswordRequest;
 
       try {
-        const body: any = await post("/auth/change-password", payload, { token });
+        const body: any = await postAuthChangePassword(payload, { token });
         setSuccess(body.message || "Password changed successfully");
         setOldPassword("");
         setNewPassword("");

@@ -4,7 +4,7 @@ import React, { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import useAuth from "@/context/useAuth";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
-import { post } from "@/lib/apiClient";
+import { postConfigMoveArrayitems } from "@/lib/apiClient";
 import { DialogClose } from "@/components/ui/dialog";
 import { useConfig } from "@/context/ConfigContext";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -112,7 +112,7 @@ export default function MoveLinkGroupsFormComponent({ linkGroups = [], onReorder
         }
         if (src === i) continue; // already in place
 
-        const json = await post(`/config/move-arrayitems?path=linkGroups`, { src, dst: i }, { token });
+        const json = await postConfigMoveArrayitems({ src, dst: i }, { qs: { path: "linkGroups" }, token });
         if (json?.error) throw new Error(json?.error || `Move failed (src=${src}, dst=${i})`);
 
         // update our local representation of the server array

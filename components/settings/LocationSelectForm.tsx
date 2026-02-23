@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { get } from "@/lib/apiClient";
+import { getLocations } from "@/lib/apiClient";
 
 interface SearchResult {
     display_name: string;
@@ -39,7 +39,7 @@ export default function LocationSelectFormComponent({
         setLoading(true);
 
         try {
-            const json = await get(`/locations?q=${encodeURIComponent(q)}`);
+            const json = await getLocations({ qs: { q } });
             setSearchResults(json || []);
             setAnimateResults(true);
         } catch (err) {

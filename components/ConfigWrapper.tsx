@@ -5,7 +5,7 @@ import useAuth from "@/context/useAuth";
 import { usePathname, useRouter } from "next/navigation";
 import { ConfigProvider } from "@/context/ConfigContext";
 import { cn } from "@/lib/utils";
-import { get } from "@/lib/apiClient";
+import { getConfig } from "@/lib/apiClient";
 
 export default function ConfigWrapper({ children }: { children: ReactNode }) {
   const pathname = usePathname();
@@ -35,8 +35,8 @@ export default function ConfigWrapper({ children }: { children: ReactNode }) {
         return;
       }
 
-      try {
-        const data = await get("/config", { token });
+        try {
+        const data = await getConfig({ token });
         setConfig(data);
       } catch (err: any) {
         if (err?.status === 401) {

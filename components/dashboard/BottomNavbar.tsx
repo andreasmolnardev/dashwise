@@ -9,7 +9,7 @@ import { faBell, faGear, faMoon } from "@fortawesome/free-solid-svg-icons";
 import PagesTabs from "../PagesTabs";
 import UpdateDetailsDialogComponent from "./UpdateDetailsDialog";
 import useAuth from "@/context/useAuth";
-import { get } from "@/lib/apiClient";
+import { getNotifications } from "@/lib/apiClient";
 
 interface BottomNavbarProps {
   activePanel?: number;
@@ -35,7 +35,7 @@ export default function BottomNavbar({
       if (!token) return;
 
       try {
-        const data = await get(`/notifications?count=true`, { token });
+        const data = await getNotifications({ qs: { count: true }, token });
         setUnreadCount(data.unread || 0);
       } catch (err) {
         console.error(err);

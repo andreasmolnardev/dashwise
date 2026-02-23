@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { get } from "@/lib/apiClient";
+import { getWeather } from "@/lib/apiClient";
 import type { WidgetItemProps } from "../Widget";
 import { useConfig } from "@/context/ConfigContext";
 
@@ -307,7 +307,7 @@ async function fetchWeather({
 
   let raw: any;
   try {
-    raw = await get(`/weather?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}&unit=${encodeURIComponent(unit)}`);
+    raw = await getWeather({ qs: { lat: String(lat), lon: String(lon), unit: String(unit) } });
   } catch (e: any) {
     return { error: e?.message ?? "Upstream error" };
   }
