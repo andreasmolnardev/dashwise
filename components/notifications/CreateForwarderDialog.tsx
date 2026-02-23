@@ -14,7 +14,7 @@ import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Checkbox } from "../ui/checkbox";
 import TopicCombobox, { type Topic } from "./TopicCombobox";
-import { post } from "@/lib/apiClient";
+import { postNotificationsForwarders } from "@/lib/apiClient";
 export type ForwarderItem = { 
   id: string; 
   topic: { id: string }; 
@@ -59,10 +59,7 @@ export default function CreateForwarderDialogComponent({
       const tokenToUse = token;
       if (!tokenToUse) throw new Error("Missing auth token");
 
-      const json = await post("/notifications/forwarders",
-        { topic: selectedTopic.id, target, isActive },
-        { token: tokenToUse }
-      );
+      const json = await postNotificationsForwarders({ topic: selectedTopic.id, target, isActive }, { token: tokenToUse });
 
       // Reset
       setSelectedTopic(null);

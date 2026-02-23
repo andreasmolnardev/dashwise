@@ -13,7 +13,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
 import { Button } from "../ui/button";
-import { post } from "@/lib/apiClient";
+import { postNotificationsTopicTokens } from "@/lib/apiClient";
 import { TokenItem } from "@/app/(config-wrapper)/notifications/tokens/page";
 import TopicCombobox, { type Topic } from "./TopicCombobox";
 
@@ -70,11 +70,7 @@ export default function CreateTopicTokenDialogComponent({
       const tokenToUse = token;
       if (!tokenToUse) throw new Error("Missing auth token");
 
-      const json = await post(
-        "/notifications/topicTokens",
-        { topicId: selectedTopic.id, ...(expiresVal ? { expires: expiresVal } : {}) },
-        { token: tokenToUse }
-      );
+      const json = await postNotificationsTopicTokens({ topicId: selectedTopic.id, ...(expiresVal ? { expires: expiresVal } : {}) }, { token: tokenToUse });
 
       // Reset
       setSelectedTopic(null);

@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { MoreHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
 import readEndpoint from "@/lib/frontend/data/GET/readEndpoint";
-import { post } from "@/lib/apiClient";
+import { postNotificationsMarkAsRead, postNotificationsMarkAllAsRead } from "@/lib/apiClient";
 
 export type NotificationItem = {
   id: string;
@@ -57,7 +57,7 @@ export default function NotificationsInboxPage() {
     const token = localStorage.getItem("pb_token");
     if (!token) return;
     try {
-      await post("/notifications/markAsRead", { id: notifId }, { token });
+      await postNotificationsMarkAsRead({ id: notifId }, { token });
       setNotifications((prev) => prev.map((n) => (n.id === notifId ? { ...n, status: "read" } : n)));
     } catch (err) {
       console.error("Failed to mark notification as read:", err);
@@ -83,7 +83,7 @@ export default function NotificationsInboxPage() {
     const token = localStorage.getItem("pb_token");
     if (!token) return;
     try {
-      await post("/notifications/markAllAsRead", undefined, { token });
+      await postNotificationsMarkAllAsRead(undefined, { token });
       setNotifications((prev) => prev.map((n) => ({ ...n, status: "read" })));
     } catch (err) {
       console.error("Failed to mark all notifications as read:", err);

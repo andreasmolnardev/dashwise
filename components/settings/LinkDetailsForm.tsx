@@ -7,7 +7,7 @@ import { Label } from "@radix-ui/react-label";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { writeToConfig } from "@/lib/frontend/data/MUTATE/config/writeToConfig";
-import { post } from "@/lib/apiClient";
+import { postConfig } from "@/lib/apiClient";
 import {
   Select,
   SelectContent,
@@ -167,7 +167,7 @@ export default function LinkDetailsForm({ link, onClose, preselectOpenedGroup }:
       );
       await writeToConfig("links", updatedLinks, { token });
     } else {
-      const json = await post("/config?path=links", { newItem: payload }, { token });
+      const json = await postConfig({ newItem: payload }, { qs: { path: "links" }, token });
       if (json?.error) throw new Error(json.error || "Failed to save link");
     }
   };
