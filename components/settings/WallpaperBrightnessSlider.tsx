@@ -70,7 +70,7 @@ export default function WallpaperBrightnessSliderComponent({ className }: { clas
     >
       {/* Label */}
       <div className="flex items-center gap-1 min-w-[180px]">
-        <p className="font-medium text-(--text-primary)">Darken/Brighten</p>
+        <p className="font-medium text-foreground">Darken/Brighten</p>
       </div>
 
       {/* Slider */}

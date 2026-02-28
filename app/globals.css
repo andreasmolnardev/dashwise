@@ -25,8 +25,8 @@
   --color-destructive: var(--destructive);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-muted: var(--muted);
+  --color-muted-foreground: var(--secondary);
+  --color-muted: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
   --color-secondary: var(--secondary);
   --color-primary-foreground: var(--primary-foreground);
@@ -43,7 +43,7 @@
 
 :root {
   --radius: 0.625rem;
-  --foreground: oklch(0.145 0 0);
+  --foreground: oklch(100% 0.00011 271.152);
   --surface-foreground: oklch(100% 0.00011 271.152);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.145 0 0);
@@ -54,7 +54,7 @@
   --text-primary: oklch(100% 0.00011 271.152);
   --text-on-frosted: oklch(100% 0.00011 271.152 / 0.803);
   --text-secondary: oklch(80% 0.00011 271.152);
-  --secondary: oklch(0.97 0 0);
+  --secondary: oklch(85.142% 0.0001 271.152);
   --secondary-foreground: oklch(0.205 0 0);
   --muted: oklch(0.97 0 0);
   --muted-foreground: oklch(0.556 0 0);

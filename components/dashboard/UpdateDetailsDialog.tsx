@@ -43,7 +43,7 @@ export default function UpdateDetailsDialogComponent() {
         </div>
       </DialogTrigger>
 
-      <DialogContent className="frosted text-(--text-primary)">
+      <DialogContent className="frosted text-foreground">
         <DialogTitle>Update Available</DialogTitle>
         <div className="space-y-2 mt-2">
           <p>Current version: <strong>{currentVersion}</strong></p>

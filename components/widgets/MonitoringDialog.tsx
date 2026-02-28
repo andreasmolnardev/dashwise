@@ -97,7 +97,7 @@ export default function MonitoringDialogComponent({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="w-[min(680px,96%)] frosted text-(--text-primary) [&>button]:hidden">
+            <DialogContent className="w-[min(680px,96%)] frosted text-foreground [&>button]:hidden">
                 <DialogHeader>
                     <DialogTitle className="flex items-center justify-between">
                         <span>Status for {siteName}</span>

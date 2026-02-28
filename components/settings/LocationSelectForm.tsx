@@ -108,7 +108,7 @@ export default function LocationSelectFormComponent({
                 )
             ) : null}
 
-            <div className="text-sm text-(--text-primary)">
+            <div className="text-sm text-foreground">
                 Selected: <strong>{value.displayName || "none"}</strong>
                 {value.coordinates ? <span> ({value.coordinates})</span> : null}
             </div>

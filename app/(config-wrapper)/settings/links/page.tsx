@@ -281,11 +281,11 @@ export default function LinksSettingsPage() {
             </div>
           </DialogTrigger>
 
-          <DialogContent className="frosted text-(--text-primary)">
+          <DialogContent className="frosted text-foreground">
             <DialogHeader>
               <DialogTitle>Delete unused link groups</DialogTitle>
             </DialogHeader>
-            <DialogDescription className="text-(--text-secondary)">
+            <DialogDescription className="text-muted-foreground">
               This will remove all link groups that do not contain any links. This action cannot be undone.
             </DialogDescription>
 
@@ -299,11 +299,11 @@ export default function LinksSettingsPage() {
 
         {/* Remove link subgroup*/}
         <Dialog open={removeLinkFolderOpen} onOpenChange={setRemoveLinkFolderOpen}>
-          <DialogContent className="frosted text-(--text-primary)">
+          <DialogContent className="frosted text-foreground">
             <DialogHeader>
               <DialogTitle>Remove link from Folder</DialogTitle>
             </DialogHeader>
-            <DialogDescription className="text-(--text-secondary)">
+            <DialogDescription className="text-muted-foreground">
               This will remove the link from its folder but keep the link itself.
             </DialogDescription>
             <div className="flex gap-2 justify-end pt-4">
@@ -457,8 +457,8 @@ function LinksListContent({
 
           {/* Text Content - Name and URL */}
           <div className="flex-1 min-w-0">
-            <div className="font-medium truncate text-(--text-primary)">{item.name}</div>
-            <div className="text-xs text-(--text-secondary) truncate">{item.url}</div>
+            <div className="font-medium truncate text-foreground">{item.name}</div>
+            <div className="text-xs text-muted-foreground truncate">{item.url}</div>
           </div>
 
           {/* Folder Badge if in subgroup */}

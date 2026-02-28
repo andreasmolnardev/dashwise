@@ -615,7 +615,7 @@ export function Tab({
         onClick={() => setCurrentGroup(name)}
         className={`px-3 py-1.5 rounded-full text-sm whitespace-nowrap transition font-medium ${
           isActive
-            ? "bg-white/20 text-(--text-primary)"
+            ? "bg-white/20 text-foreground"
             : "text-white/70 hover:text-white/80"
         }`}
       >
@@ -651,7 +651,7 @@ export function CreateGroupAction({ onCreateGroup }: { onCreateGroup: () => void
       variant="ghost"
       size="sm"
       onClick={onCreateGroup}
-      className="text-(--text-primary) hover:bg-(--surface-2)"
+      className="text-foreground hover:bg-(--surface-2)"
     >
       <FontAwesomeIcon icon={faPlus} className="text-sm" />
     </Button>
@@ -816,7 +816,7 @@ export function Action({
       variant="ghost"
       size="sm"
       onClick={onClick}
-      className="text-(--text-primary) hover:bg-(--surface-2) px-2 h-8 transition-colors"
+      className="text-foreground hover:bg-(--surface-2) px-2 h-8 transition-colors"
       title={label}
     >
       {selectedIcon && <FontAwesomeIcon icon={selectedIcon} className="text-sm" />}

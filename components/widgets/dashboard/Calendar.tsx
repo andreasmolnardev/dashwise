@@ -42,7 +42,7 @@ export default function CalendarWeekWidget({ startMonday = true, className = "" 
             >
               {day.getDate()}
             </div>
-            <div className="text-[clamp(0.7rem,2cqw,1rem)] mt-1 text-(--text-primary)">
+            <div className="text-[clamp(0.7rem,2cqw,1rem)] mt-1 text-foreground">
               {daysOfWeek[day.getDay()][0]}
             </div>
           </div>
@@ -68,7 +68,7 @@ export function CalendarTodayWidget({ className = "" }: WidgetItemProps) {
 
   return (
     <div className={`rounded-lg p-4 flex flex-col items-center justify-center text-center ${className}`}>
-      <div className="text-(--text-primary) text-[clamp(0.6rem,1.5cqw,0.9rem)] font-medium">
+      <div className="text-foreground text-[clamp(0.6rem,1.5cqw,0.9rem)] font-medium">
         {weekday}
       </div>
 

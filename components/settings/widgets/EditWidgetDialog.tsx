@@ -29,7 +29,7 @@ export default function WidgetEditDialog({ open, widget, onClose, onSave }: Widg
 
     return (
         <Dialog open={open} onOpenChange={onClose}>
-            <DialogContent className="frosted text-(--text-primary) max-h-[90vh] overflow-y-auto">
+            <DialogContent className="frosted text-foreground max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                     <DialogTitle>Edit Widget</DialogTitle>
                 </DialogHeader>

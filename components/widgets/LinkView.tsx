@@ -248,7 +248,7 @@ export default function LinkView() {
                 </button>
               </PopoverTrigger>
 
-              <PopoverContent className="w-[350px] frosted text-(--text-primary) space-y-2">
+              <PopoverContent className="w-[350px] frosted text-foreground space-y-2">
                 <header className="flex justify-between items-center">
                 <h4 className="font-semibold mb-2">{folder.name}</h4>
                 <PopoverClose asChild>

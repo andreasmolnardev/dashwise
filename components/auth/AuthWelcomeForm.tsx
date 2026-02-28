@@ -30,10 +30,10 @@ export default function AuthWelcomeFormComponent() {
     }, [router]);
 
     return (
-        <Card className="w-full max-w-sm frosted text-(--text-primary)">
+        <Card className="w-full max-w-sm frosted text-foreground">
             <CardHeader>
                 <CardTitle>Welcome to Dashwise</CardTitle>
-                <CardDescription className="text-(--text-primary/80)">
+                <CardDescription className="text-muted-foreground">
                     Choose how you’d like to sign in.
                 </CardDescription>
             </CardHeader>

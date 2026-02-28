@@ -404,7 +404,7 @@ export default function NewsDashboardComponent(
                 setAddOpen(v);
                 if (!v) setEditingFeed(null);
             }}>
-                <DialogContent className="frosted text-(--text-primary)">
+                <DialogContent className="frosted text-foreground">
                     <DialogHeader>
                         <DialogTitle>
                             {editingFeed ? "Edit Feed Subscription" : "Subscribe to Feed"}

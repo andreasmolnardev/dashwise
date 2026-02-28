@@ -379,7 +379,7 @@ export default function CommandBar({ open, setOpen, searchItems }: CommandBarPro
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTitle className='hidden'>Search Bar</DialogTitle>
-      <DialogContent className="min-w-[50vw] mx-auto frosted backdrop-blur-md rounded-lg p-0 shadow-lg text-(--text-primary) grid-rows-[auto_35vh_auto] gap-1">
+      <DialogContent className="min-w-[50vw] mx-auto frosted backdrop-blur-md rounded-lg p-0 shadow-lg text-foreground grid-rows-[auto_35vh_auto] gap-1">
         <div>
           <input
             ref={inputRef}
@@ -421,12 +421,12 @@ export default function CommandBar({ open, setOpen, searchItems }: CommandBarPro
                       {item.name}
                     </div>
 
-                    <span className="text-xs text-(--text-secondary) truncate flex-shrink-0 max-w-[30%]">
+                    <span className="text-xs text-muted-foreground truncate flex-shrink-0 max-w-[30%]">
                       {item.linkGroup || ""}
                     </span>
                   </div>
 
-                  <div className="ml-3 text-xs text-(--text-secondary) whitespace-nowrap">
+                  <div className="ml-3 text-xs text-muted-foreground whitespace-nowrap">
                     {isCommand ? <span className="italic">use client</span> : <span>{item.type}</span>}
                   </div>
                 </div>

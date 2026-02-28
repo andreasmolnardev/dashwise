@@ -204,7 +204,7 @@ export default function NotificationsInboxPage() {
               <div className="flex flex-col gap-1 w-full">
                 <div className="notification-header flex justify-between w-full">
                   <div className="text-sm font-semibold">{notif.topicName}</div>
-                  <div className="text-xs text-(--text-secondary) mt-1">
+                  <div className="text-xs text-muted-foreground mt-1">
                     {createdDate}
                   </div>
                 </div>
@@ -220,7 +220,7 @@ export default function NotificationsInboxPage() {
                   </div>
                 )}
                 {contentDesc && (
-                  <div className="text-sm text-(--text-primary)">{contentDesc}</div>
+                  <div className="text-sm text-foreground">{contentDesc}</div>
                 )}
               </div>
 
@@ -230,7 +230,7 @@ export default function NotificationsInboxPage() {
                     <MoreHorizontal />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="frosted text-(--text-primary)">
+                <DropdownMenuContent align="end" className="frosted text-foreground">
                   <DropdownMenuLabel className="font-semibold">Actions</DropdownMenuLabel>
                   <DropdownMenuItem
                     onClick={() => navigator.clipboard.writeText(notif.id)}

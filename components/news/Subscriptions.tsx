@@ -313,7 +313,7 @@ export default function NewsSubscriptionsOverview() {
 
                                 <div className="p-2">
                                     <a href={feed.url} target="_blank" rel="noopener noreferrer"
-                                        className="text-sm text-(--text-primary) hover:underline block truncate">
+                                        className="text-sm text-foreground hover:underline block truncate">
                                         {feed.url}
                                     </a>
                                 </div>

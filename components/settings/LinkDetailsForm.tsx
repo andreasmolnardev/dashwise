@@ -263,7 +263,7 @@ export default function LinkDetailsForm({ link, onClose, preselectOpenedGroup }:
               </Label>
             </PopoverTrigger>
 
-            <PopoverContent className="frosted p-3 text-(--text-primary) w-[300px]">
+            <PopoverContent className="frosted p-3 text-foreground w-[300px]">
               <div className="flex flex-col gap-2">
                 <Label htmlFor="iconUrl">Icon URL</Label>
                 <Input
@@ -295,7 +295,7 @@ export default function LinkDetailsForm({ link, onClose, preselectOpenedGroup }:
                 <span>Icon Picker</span>
               </Label>
             </PopoverTrigger>
-            <PopoverContent className="frosted text-(--text-primary)">
+            <PopoverContent className="frosted text-foreground">
               <IconPickerComponent
                 initialIcons={icons}
                 onSelect={(iconObj) => {

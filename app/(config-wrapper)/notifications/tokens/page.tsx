@@ -153,7 +153,7 @@ export default function NotificationTokensPage() {
                         className="frosted p-4 rounded-xl border border-white/20 backdrop-blur-md flex justify-between items-start shadow-lg group"
                     >
                         <div className="flex flex-col gap-2 w-full">
-                            <div className="flex justify-between text-xs text-(--text-secondary)">
+                            <div className="flex justify-between text-xs text-muted-foreground">
                                 <span className="font-semibold">{tk.topic?.title ?? tk.topic?.id}</span>
                                 <span>{fmt(tk.created)}</span>
                             </div>
@@ -167,7 +167,7 @@ export default function NotificationTokensPage() {
                                 {visible[tk.id] ? tk.token ?? "—" : mask(tk.token)}
                             </div>
 
-                            <div className="text-xs text-(--text-secondary)">
+                            <div className="text-xs text-muted-foreground">
                                 Expires: {tk.expires ? fmt(tk.expires) : "Never"}
                             </div>
 

@@ -120,7 +120,7 @@ export default function AccountSettingsPage() {
             <FontAwesomeIcon icon={faCaretRight} />
           </DialogTrigger>
 
-          <DialogContent className="frosted text-(--text-primary)">
+          <DialogContent className="frosted text-foreground">
             <DialogHeader>
               <DialogTitle>Change password</DialogTitle>
             </DialogHeader>
@@ -209,7 +209,7 @@ export default function AccountSettingsPage() {
             <FontAwesomeIcon icon={faCaretRight} />
           </DialogTrigger>
 
-          <DialogContent className="frosted text-(--text-primary)">
+          <DialogContent className="frosted text-foreground">
             <DialogHeader>
               <DialogTitle>Confirm Logout</DialogTitle>
             </DialogHeader>
