@@ -1,0 +1,32 @@
+services:
+  nextjs:
+    image: node:20-alpine
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./:/app
+    working_dir: /app
+    command: sh -c "npm install && npm run dev"
+  pocketbase:
+    build: ./pocketbase
+    environment:
+      PB_ADMIN_EMAIL: default@dashwise.local
+      PB_ADMIN_PASSWORD: dashwiseIsAwesome
+    ports:
+      - "8090:8090"
+    volumes:
+      - ./pocketbase/pb_data:/app/pb_data
+      - ./pocketbase/pb_migrations:/app/pb_migrations
+    restart: unless-stopped
+  jobs:
+    build:
+      context: ./jobs
+    ports:
+      - "3001:3001"
+    environment:
+      NODE_ENV: development 
+    env_file:
+      - ./jobs/.env
+    volumes:
+      - ./jobs:/usr/src/app
+    command: npm run dev
