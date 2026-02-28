@@ -228,6 +228,16 @@
 				}
 			}
 		},
+		"/jobs/pullIcons": {
+			"get": {
+				"tags": ["jobs"],
+				"summary": "Pull icons job",
+				"responses": {
+					"200": { "$ref": "#/components/responses/JsonOk" },
+					"409": { "$ref": "#/components/responses/JsonBadRequest" }
+				}
+			}
+		},
 		"/locations": {
 			"get": {
 				"tags": ["locations"],

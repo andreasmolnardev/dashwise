@@ -46,6 +46,7 @@ export const getIntegrationsBeszelSystemHealthstats = (...args: any[]) => import
 export const postIntegrationsDashdot = (...args: any[]) => import('./generatedApiClient').then(m => (m as any).postIntegrationsDashdot(...args));
 export const getIntegrationsKarakeep = (...args: any[]) => import('./generatedApiClient').then(m => (m as any).getIntegrationsKarakeep(...args));
 export const getJobsSearchItems = (...args: any[]) => import('./generatedApiClient').then(m => (m as any).getJobsSearchItems(...args));
+export const getJobsPullIcons = (...args: any[]) => import('./generatedApiClient').then(m => (m as any).getJobsPullIcons(...args));
 export const getLocations = (...args: any[]) => import('./generatedApiClient').then(m => (m as any).getLocations(...args));
 export const getMonitoringStatus = (...args: any[]) => import('./generatedApiClient').then(m => (m as any).getMonitoringStatus(...args));
 export const getNews = (...args: any[]) => import('./generatedApiClient').then(m => (m as any).getNews(...args));
