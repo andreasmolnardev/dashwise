@@ -61,6 +61,7 @@ export default function AccentColorSelectComponent({ className }: { className?: 
     try {
       const appearanceConfig: AppearanceConfig = { ...(config?.appearance || {}), accentColor: color_hex };
       await writeToConfig("appearance", appearanceConfig);
+      await refreshConfig();
     } catch (err: unknown) {
       if (err instanceof Error) {
         console.error("Failed to update accent color:", err.message);
@@ -109,7 +110,7 @@ export default function AccentColorSelectComponent({ className }: { className?: 
 
           <DropdownMenuContent
             align="end"
-            className="p-3 w-[320px] frosted text-(--text-primary)"
+            className="p-3 w-[320px] frosted text-foreground"
           >
             <div className="w-72">
               <ColorPicker
