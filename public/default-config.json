@@ -55,7 +55,7 @@
         {
             "name": "Dashwise",
             "url": "https://github.com/andreasmolnardev/dashwise-next",
-            "icon": "/icons/svg/",
+            "icon": "/icons/svg/dashwise.svg",
             "linkGroup": "dashwise"
         }
     ],

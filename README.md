@@ -2,7 +2,9 @@
 I've been self hosting for a while but did not find a dashboard that suits my needs and that I like the look of.
 This is my attempt to solving that.
 
-> **Disclaimer:** This project is still under development. Therefore, only the working features of the app are listed in the features section. Integration with additional services is planned, but will not be available until widget implementation is complete.
+> **Disclaimer:** This project is still under development. Therefore, only the working features of the app are listed in the features section. Integration with additional services is planned. Currently the integration logic is therefore being revamped.
+
+> **Use of AI:** The development of this project is AI-Assisted by using it as a tool - not as a substitute for programming skills.
 
 ## Screenshot
 <img width="1165" height="828" alt="Screenshot 2025-11-18 at 17 24 19" src="https://github.com/user-attachments/assets/e5315f99-4a9f-49f6-8778-0e7cf77d2990" />
@@ -12,17 +14,17 @@ This is my attempt to solving that.
 - GUI Editing: Edit and manage links, search engines, your wallpapers in settings via the GUI instead of relying purely on a config.
 - Built-in Authentication: dashwise has Auth built right into it - and even features
 - SSO via OIDC: While tested with PocketId, it should work via OIDC - which can be configured in Pocketbase directly.
-- Links: store your most important links for quick access and group them into Link Groups. Folders coming soon.
-- Monitor your links: Can be enabled via link details settings. Performs a GET request to that endpoint. Logs downtime.
+- Links: store your most important links for quick access and group them into Link Groups and Folders coming. Links can also be monitored with downtime being logged.
 - Glanceables: Customizable bits of one-line information next to the clock.
 - Widgets: Modular blocks on the dashboard that show key info or actions at a glance. They can be moved and customized individually.
 - News: Subscribe to RSS feeds to stay on top of everything.
+- Notfications: Dashwise can receive notifications via PUSH requests to /api/v1/notifications/TOPIC-NAME
 - Wallpapers: Upload them to dashwise directly, or even change the default one for new users by mounting one into the container
 - Spotlight-like Search: Hit Ctrl+K from your dashboard, and you'll be able to search your links and integrations or use bangs for search engines specified in settings.
 - Integrations: directly integrates with your favourite self hosted apps. Supported services are Karakeep, Dashdot, Beszel and Jellyfin. More integrations are planned
 
 ## Installation
-Grab the docker compose file (docker-compose.prod.yaml), edit env vars, pull, deploy. That's it.
+Grab the docker compose file (docker-compose.yaml), edit env vars, pull, deploy. That's it.
 
 ## Configuration
 You can use the following environment variables for the main container:

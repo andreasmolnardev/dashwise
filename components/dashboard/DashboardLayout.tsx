@@ -7,9 +7,6 @@ import LinkView from "../widgets/LinkView";
 import GlanceableComponent from "../glanceables/Glanceable";
 import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import Link from "next/link";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faBell, faGear, faMoon } from "@fortawesome/free-solid-svg-icons";
 import BottomNavbar from "./BottomNavbar";
 import useAuth from "@/context/useAuth";
 import Screensaver from "./Screensaver";
@@ -253,8 +250,8 @@ export default function DashboardLayoutComponent(
           ref={containerRef}
           className="
           /* mobile: horizontal swipe panels */
-          flex snap-x snap-mandatory overflow-x-auto touch-pan-x scrollbar-hide md:overflow-hidden
-          md:grid md:grid-cols-[25%_1fr_25%] gap-2
+          flex snap-x snap-mandatory overflow-x-auto touch-pan-x scrollbar-hide overflow-y-scroll
+          md:grid md:grid-cols-[25%_1fr_25%] min-h-0
         "
         >
           <div
@@ -265,7 +262,7 @@ export default function DashboardLayoutComponent(
             {renderWidgetColumn(config?.widgets?.[0])}
           </div>
 
-          <div className="flex-shrink-0 w-screen snap-start md:w-auto md:flex-grow md:basis-auto space-y-3.5 overflow-y-auto overflow-x-hidden min-w-0" style={{ scrollSnapStop: "always", touchAction: "pan-x" }}>
+          <div className="flex-shrink-0 w-screen snap-start md:w-auto md:flex-grow md:basis-auto space-y-3.5 overflow-x-hidden min-w-0 px-2" style={{ scrollSnapStop: "always", touchAction: "pan-x" }}>
             <section className="responsive-glance-grid w-full">
               {/* Clock (grid-area: clock) */}
               <div
