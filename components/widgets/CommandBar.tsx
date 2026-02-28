@@ -186,9 +186,20 @@ export default function CommandBar({ open, setOpen, searchItems }: CommandBarPro
 
   // parse bang: returns {slug, rest} or null
   const parseBang = (q: string) => {
-    const m = q.trim().match(/^!(\w+)\s*(.*)$/s);
-    if (!m) return null;
-    return { slug: m[1].toLowerCase(), rest: (m[2] || '').trim() };
+    const trimmed = q.trim();
+    if (!trimmed) return null;
+
+    const leadingMatch = trimmed.match(/^!(\w+)\s*(.*)$/s);
+    if (leadingMatch) {
+      return { slug: leadingMatch[1].toLowerCase(), rest: (leadingMatch[2] || '').trim() };
+    }
+
+    const trailingMatch = trimmed.match(/^(.*\S)\s*!([A-Za-z0-9_]+)\s*$/s);
+    if (trailingMatch) {
+      return { slug: trailingMatch[2].toLowerCase(), rest: (trailingMatch[1] || '').trim() };
+    }
+
+    return null;
   };
 
   // build actions; if a valid bang is present, add a bang action at the top, or advertise "go to url"
