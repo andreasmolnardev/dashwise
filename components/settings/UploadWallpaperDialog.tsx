@@ -25,7 +25,7 @@ export default function UploadWallpaperDialog({
   open,
   onOpenChange,
 }: UploadWallpaperDialogProps) {
-  const { config, refreshConfig } = useConfig();
+  const { config, patchConfig } = useConfig();
   const { token } = useAuth();
 
   const [file, setFile] = useState<File | null>(null);
@@ -86,18 +86,15 @@ export default function UploadWallpaperDialog({
         ...(config.appearance ?? {}),
         backgroundImageUrl: wallpaperPath,
       };
+      patchConfig((prev) => ({
+        ...prev,
+        appearance: updatedAppearance,
+      }));
       await writeToConfig(`appearance`, updatedAppearance, { token });
 
       setMessage("Upload complete — wallpaper updated.");
 
-      // 3) Refresh global config
-      try {
-        await refreshConfig();
-      } catch (refreshError) {
-        console.error("Failed to refresh config", refreshError);
-      }
-
-      // 4) Close dialog
+      // 3) Close dialog
       onOpenChange(false);
     } catch (err: unknown) {
       console.error(err);

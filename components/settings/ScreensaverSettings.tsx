@@ -149,7 +149,6 @@ export default function ScreensaverSettings() {
           <div className="space-y-4 px-2">
             <div className="w-full h-48 rounded-xl flex items-center justify-center relative overflow-hidden border frosted">
               <ClockWidget
-                format={(config?.global?.["time-format"] as "12h" | "24h") || "24h"}
                 font={previewFont}
                 weight={previewWeight.startsWith('font-') ? previewWeight.split('-')[1] : previewWeight}
                 color={previewColor}

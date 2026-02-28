@@ -2,7 +2,8 @@ import { createContext, useContext, ReactNode } from "react";
 
 type ConfigContextType = {
   config: any;
-  refreshConfig: () => Promise<void>;
+  refreshConfig: (opts?: { showLoading?: boolean }) => Promise<void>;
+  patchConfig: (updater: (prev: any) => any) => void;
 };
 
 export const ConfigContext = createContext<ConfigContextType | undefined>(undefined);

@@ -50,7 +50,7 @@ function applyThemeClasses(themeMode: ThemeMode, frostedAppearance: ThemeMode = 
 }
 
 export default function ThemeSelectComponent({ className }: { className?: string }) {
-  const { config, refreshConfig } = useConfig();
+  const { config, patchConfig } = useConfig();
   const [accent, setAccent] = useState<string | undefined>(
     config?.appearance?.accentColor
   );
@@ -99,8 +99,11 @@ export default function ThemeSelectComponent({ className }: { className?: string
     // persist to server
     try {
       const appearanceConfig: AppearanceConfig = { ...(config?.appearance || {}), accentColor: color_hex };
+      patchConfig((prev) => ({
+        ...prev,
+        appearance: appearanceConfig,
+      }));
       await writeToConfig("appearance", appearanceConfig);
-      await refreshConfig();
     } catch (err: unknown) {
       if (err instanceof Error) {
         console.error("Failed to update accent color:", err.message);
@@ -120,8 +123,11 @@ export default function ThemeSelectComponent({ className }: { className?: string
         themeMode: newMode,
         frostedAppearance: newMode,
       };
+      patchConfig((prev) => ({
+        ...prev,
+        appearance: appearanceConfig,
+      }));
       await writeToConfig("appearance", appearanceConfig);
-      await refreshConfig();
     } catch (err: unknown) {
       if (err instanceof Error) {
         console.error("Failed to update theme mode:", err.message);

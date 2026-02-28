@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState } from "react";
-import Image from "next/image";
 import {
   Dialog,
   DialogContent,
@@ -30,9 +29,8 @@ interface AppearanceConfig {
 export default function UrlWallpaperDialogComponent({
   open,
   onOpenChange,
-  configKey = "settings/appearance",
 }: UrlWallpaperDialogProps) {
-  const { config, refreshConfig } = useConfig();
+  const { config, patchConfig } = useConfig();
   const { token } = useAuth();
   
   const [url, setUrl] = useState("");
@@ -50,21 +48,20 @@ export default function UrlWallpaperDialogComponent({
     setMessage(null);
 
     try {
-      const cfgRoot: Record<string, AppearanceConfig> = config ?? {};
-      const currentAppearance = cfgRoot[configKey] ?? {};
+      const currentAppearance = (config?.appearance ?? {}) as AppearanceConfig;
       const updatedAppearance: AppearanceConfig = {
         ...currentAppearance,
         backgroundImageUrl: url,
       };
 
+      patchConfig((prev) => ({
+        ...prev,
+        appearance: updatedAppearance,
+      }));
+
       await writeToConfig(`appearance`, updatedAppearance, { token });
 
       setMessage("Wallpaper updated.");
-
-      // refresh config
-      try {
-        await refreshConfig();
-      } catch {}
 
       setSaving(false);
       onOpenChange(false);

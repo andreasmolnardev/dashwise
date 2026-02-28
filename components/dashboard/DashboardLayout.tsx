@@ -15,7 +15,7 @@ import WidgetComponent from "../widgets/Widget";
 export default function DashboardLayoutComponent(
   children: React.PropsWithChildren<{}> = {}
 ) {
-  const { config, refreshConfig } = useConfig();
+  const { config } = useConfig();
   const router = useRouter();
   const searchParams = useSearchParams();
   const openFromURL = searchParams.get("search") === "1";
@@ -26,6 +26,14 @@ export default function DashboardLayoutComponent(
   useEffect(() => {
     if (!token) router.push("/auth/login");
   }, [router, token]);
+
+  const shouldShowOnboarding = config?.meta?.onboard === true;
+
+  useEffect(() => {
+    if (shouldShowOnboarding) {
+      router.replace("/onboarding");
+    }
+  }, [shouldShowOnboarding, router]);
 
   const [localScreensaverConfig, setLocalScreensaverConfig] = useState<any>(null);
 
@@ -74,6 +82,7 @@ export default function DashboardLayoutComponent(
   }, [config.appearance?.screensaver?.inactivityTimeout]);
 
   if (!token) return null;
+  if (shouldShowOnboarding) return null;
 
   useEffect(() => {
     router.prefetch("/settings/appearance");
@@ -272,7 +281,6 @@ export default function DashboardLayoutComponent(
                 {/* ensure the widget itself is centered, even if it renders full-width elements */}
                 <div style={{ margin: "0 auto", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
                   <ClockWidget 
-                    format={(config?.global?.["time-format"] as "12h" | "24h") || "24h"} 
                     font={config?.appearance?.clock?.defaultFont}
                   />
                 </div>

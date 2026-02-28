@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { getWeather } from "@/lib/apiClient";
 import type { WidgetItemProps } from "../Widget";
 import { useConfig } from "@/context/ConfigContext";
+import { useLocalization } from "@/context/LocalizationContext";
 
 interface WeatherWidgetParams {
   locationCoordinates?: string;
@@ -34,6 +35,7 @@ interface WeatherData {
   temperature?: number;
   weatherCode?: number;
   description?: string;
+  locationName?: string;
   iconUrl?: string;
   unit?: string;
   windSpeed?: number;
@@ -150,21 +152,47 @@ const parseNumber = (v: any): number | undefined => {
   const n = Number(v);
   return Number.isFinite(n) ? n : undefined;
 };
+
+function parseConfiguredWeatherLocation(raw: unknown): { lat?: string; lon?: string; name?: string } {
+  if (typeof raw !== "string" || raw.trim().length === 0) return {};
+
+  try {
+    const parsed = JSON.parse(raw);
+    return {
+      lat: parsed?.lat ? String(parsed.lat) : undefined,
+      lon: parsed?.lon ? String(parsed.lon) : undefined,
+      name: parsed?.name ? String(parsed.name) : undefined,
+    };
+  } catch {
+    try {
+      const parsed = JSON.parse(raw.replaceAll("'", '"'));
+      return {
+        lat: parsed?.lat ? String(parsed.lat) : undefined,
+        lon: parsed?.lon ? String(parsed.lon) : undefined,
+        name: parsed?.name ? String(parsed.name) : undefined,
+      };
+    } catch {
+      return {};
+    }
+  }
+}
+
 export default function WeatherWidget({ className = "", params }: WeatherWidgetProps) {
   const [weather, setWeather] = useState<WeatherData | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const { config, refreshConfig } = useConfig();
+  const { config } = useConfig();
+  const { weatherUnit, formatTemperature } = useLocalization();
 
   useEffect(() => {
     const load = async () => {
       setLoading(true);
-      const data = await fetchWeather({ params, config });
+      const data = await fetchWeather({ params, config, defaultUnit: weatherUnit });
       setWeather(data);
       setLoading(false);
     };
     load();
-  }, [params, config]);
+  }, [params, config, weatherUnit]);
 
 
   if (loading) return <div className={className}>Loading weather...</div>;
@@ -178,7 +206,7 @@ export default function WeatherWidget({ className = "", params }: WeatherWidgetP
 
   return (
     <div className={`${className} gap-2 flex-col justify-center`}>
-      {params?.showLocation && <h3 className="w-full text-center text-sm">{params.locationDisplayname}</h3>}
+      {params?.showLocation && <h3 className="w-full text-center text-sm">{weather.locationName ?? params.locationDisplayname}</h3>}
       <div className="grid grid-cols-3 grid-rows-[1rem 1fr 1rem] gap-2 w-full my-1">
         {columns.map(
           (col, idx) =>
@@ -197,8 +225,7 @@ export default function WeatherWidget({ className = "", params }: WeatherWidgetP
                   })}
                 </div>
                 <div>
-                  {col.data.temperature ?? "—"}
-                  {weather.unit} - {col.data.precipitationProbability ?? 0}%
+                  {formatTemperature(col.data.temperature, weather.unit)} - {col.data.precipitationProbability ?? 0}%
                 </div>
               </div>
             )
@@ -212,17 +239,18 @@ export function WeatherOverviewWidget({ className = "", params }: WeatherWidgetP
   const [weather, setWeather] = useState<WeatherData | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const { config, refreshConfig } = useConfig();
+  const { config } = useConfig();
+  const { weatherUnit, formatTemperature } = useLocalization();
 
   useEffect(() => {
     const load = async () => {
       setLoading(true);
-      const data = await fetchWeather({ params, config });
+      const data = await fetchWeather({ params, config, defaultUnit: weatherUnit });
       setWeather(data);
       setLoading(false);
     };
     load();
-  }, [params, config]);
+  }, [params, config, weatherUnit]);
 
 
   if (loading) return <div className={className}>Loading weather...</div>;
@@ -264,7 +292,7 @@ export function WeatherOverviewWidget({ className = "", params }: WeatherWidgetP
       </div>
       <div className="flex flex-col text-sm leading-tight">
         <div className="font-medium">
-          {weather?.temperature ?? "—"}{weather?.unit} {weather?.description}
+          {formatTemperature(weather?.temperature, weather?.unit)} {weather?.description}
         </div>
         <div className="text-xs text-muted-foreground">
           {getWeatherInsight()}
@@ -277,12 +305,15 @@ export function WeatherOverviewWidget({ className = "", params }: WeatherWidgetP
 async function fetchWeather({
   params,
   config,
+  defaultUnit,
 }: {
   params?: WeatherWidgetParams;
   config: any;
+  defaultUnit: string;
 }): Promise<WeatherData> {
   let lat: string | undefined;
   let lon: string | undefined;
+  let locationName = params?.locationDisplayname;
 
   if (params?.locationCoordinates) {
     const coords = params.locationCoordinates
@@ -294,12 +325,15 @@ async function fetchWeather({
   }
 
   if ((!lat || !lon) && config?.global?.weatherLocation) {
-    const fallback = JSON.parse(config.global.weatherLocation.replaceAll("'", '"'));
+    const fallback = parseConfiguredWeatherLocation(config.global.weatherLocation);
     lat = fallback.lat;
     lon = fallback.lon;
+    if (!locationName && fallback.name) {
+      locationName = fallback.name;
+    }
   }
 
-  const unit = params?.unit || "c";
+  const unit = String(params?.unit || defaultUnit || config?.global?.weatherUnit || "c").toLowerCase();
 
   if (!lat || !lon) {
     return { error: "Missing lat/lon" };
@@ -315,8 +349,9 @@ async function fetchWeather({
   const normalized: WeatherData = {
     temperature: parseNumber(raw.temperature),
     weatherCode: parseNumber(raw.weatherCode),
+    locationName,
     description:
-      (raw.description && raw.description.lenth > 0) ? raw.description :
+      (raw.description && raw.description.length > 0) ? raw.description :
       (raw.weatherCode ? WEATHER_CODE_MAP[Number(raw.weatherCode)]?.desc ?? "" : ""),
     iconUrl: raw.iconUrl,
     unit: raw.unit ?? (unit.toLowerCase() === "f" ? "°F" : "°C"),
