@@ -1,11 +1,6 @@
 {
-    "global": {
-        "language": "en",
-        "locale": "de-DE",
-        "timeFormat": "24-hour",
-        "dateFormat": "DD-MM-YYYY",
-        "weatherUnit": "c",
-        "weatherLocation": "{'lat':'48.133716690534804','lon':'11.584396056686236','name':'Munich'}"
+    "meta": {
+        "onboard": true
     },
     "appearance": {
         "backgroundImageUrl": "/dashboard-wallpaper.png",

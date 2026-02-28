@@ -4,6 +4,7 @@ import { ReactNode, useEffect, useState } from "react";
 import useAuth from "@/context/useAuth";
 import { usePathname, useRouter } from "next/navigation";
 import { ConfigProvider } from "@/context/ConfigContext";
+import { LocalizationProvider } from "@/context/LocalizationContext";
 import { cn } from "@/lib/utils";
 import { getConfig } from "@/lib/apiClient";
 
@@ -51,9 +52,10 @@ export default function ConfigWrapper({ children }: { children: ReactNode }) {
   const { token } = useAuth();
 
   // --- Fetch config ---
-  const fetchConfig = async () => {
+  const fetchConfig = async (opts?: { showLoading?: boolean }) => {
+    const showLoading = opts?.showLoading ?? false;
     try {
-      setLoading(true);
+      if (showLoading) setLoading(true);
       if (!token) {
         router.push("/auth/login");
         return;
@@ -72,14 +74,18 @@ export default function ConfigWrapper({ children }: { children: ReactNode }) {
     } catch (err: any) {
       setError(err.message || "Unknown error");
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
+  };
+
+  const patchConfig = (updater: (prev: any) => any) => {
+    setConfig((prev: any) => updater(prev));
   };
 
   // --- Fetch config on mount or when path changes ---
   useEffect(() => {
     if (!config && pathname && !pathname.includes("auth")) {
-      fetchConfig();
+      fetchConfig({ showLoading: true });
     } else if (!pathname || pathname.includes("auth")) {
       setConfig({});
       setLoading(false);
@@ -173,16 +179,18 @@ export default function ConfigWrapper({ children }: { children: ReactNode }) {
 
 
   return (
-    <ConfigProvider value={{ config, refreshConfig: fetchConfig }}>
-      <div
-        className={cn("min-h-screen overflow-hidden")}
-        style={{
-          backdropFilter: `blur(${blur}px) brightness(${appliedBrightness}%)`,
-          WebkitBackdropFilter: `blur(${blur}px) brightness(${appliedBrightness}%)`,
-        }}
-      >
-        {children}
-      </div>
+    <ConfigProvider value={{ config, refreshConfig: fetchConfig, patchConfig }}>
+      <LocalizationProvider>
+        <div
+          className={cn("min-h-screen overflow-hidden")}
+          style={{
+            backdropFilter: `blur(${blur}px) brightness(${appliedBrightness}%)`,
+            WebkitBackdropFilter: `blur(${blur}px) brightness(${appliedBrightness}%)`,
+          }}
+        >
+          {children}
+        </div>
+      </LocalizationProvider>
     </ConfigProvider>
   );
 }

@@ -55,7 +55,6 @@ export default function Screensaver({ active, onExit }: { active: boolean; onExi
       onClick={onExit}
     >
       <ClockWidget 
-        format={(config?.global?.["time-format"] as "12h" | "24h") || "24h"} 
         font={clockFont}
         weight={clockFontWeight.startsWith('font-') ? clockFontWeight.split('-')[1] : clockFontWeight}
         color={color}

@@ -1,5 +1,6 @@
 "use client";
 import { useConfig } from "@/context/ConfigContext";
+import { useLocalization } from "@/context/LocalizationContext";
 import { loadFont } from "@/lib/loadFont";
 import { cn } from "@/lib/utils";
 import { useEffect, useState } from "react";
@@ -18,9 +19,10 @@ type FontEntry = {
   path: string;
 };
 
-export default function ClockWidget({ format = "24h", font: propFont, weight, color, className, style }: ClockWidgetProps) {
+export default function ClockWidget({ format, font: propFont, weight, color, className, style }: ClockWidgetProps) {
   const [time, setTime] = useState("");
   const { config } = useConfig();
+  const { formatTime, timeFormat } = useLocalization();
 
   const [fonts, setFonts] = useState<FontEntry[]>([]);
   const [internalFont, setInternalFont] = useState<FontEntry>();
@@ -56,18 +58,14 @@ export default function ClockWidget({ format = "24h", font: propFont, weight, co
   useEffect(() => {
     const updateTime = () => {
       const now = new Date();
-      const options: Intl.DateTimeFormatOptions = {
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: format === "12h",
-      };
-      setTime(now.toLocaleTimeString([], options));
+      const resolvedFormat = format || (timeFormat === "12-hour" ? "12h" : "24h");
+      setTime(formatTime(now, { hour12: resolvedFormat === "12h" }));
     };
 
     updateTime();
     const timer = setInterval(updateTime, 1000);
     return () => clearInterval(timer);
-  }, [format]);
+  }, [format, formatTime, timeFormat]);
 
   return (
     <div
