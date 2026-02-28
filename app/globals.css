@@ -88,9 +88,9 @@
   --popover-foreground: oklch(0.985 0 0);
   --primary: oklch(0.922 0 0);
   --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
+  --secondary: oklch(0.708 0 0);
   --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
+  --muted: oklch(0.708 0 0);
   --muted-foreground: oklch(0.708 0 0);
   --accent: oklch(0.269 0 0);
   --accent-foreground: oklch(0.985 0 0);
@@ -114,11 +114,19 @@
 }
 
 .frosted {
-  @apply bg-white/10 dark:bg-white/5 backdrop-blur-md border border-white/20 dark:border-white/10 shadow-sm;
+  @apply bg-white/10 dark:bg-black/35 backdrop-blur-md border border-white/20 dark:border-white/10 shadow-sm;
+}
+
+.frosted-theme-dark .frosted {
+  @apply bg-black/35 backdrop-blur-md border border-white/10 shadow-sm;
+}
+
+.frosted-theme-light .frosted {
+  @apply bg-white/5 dark:bg-white/5 backdrop-blur-md border border-white/10 dark:border-white/10 shadow-sm;
 }
 
 .frosted.dark {
-  @apply bg-white/5 backdrop-blur-md border border-white/10 shadow-sm;
+  @apply bg-black/25 backdrop-blur-md border border-white/10 shadow-sm;
 }
 
 .frosted.light {
@@ -126,7 +134,7 @@
 }
 
 .hover-frosted:hover {
-  @apply bg-white/10 dark:bg-white/5 backdrop-blur-md border border-white/20 dark:border-white/10 shadow-sm;
+  @apply bg-white/10 dark:bg-black/45 backdrop-blur-md border border-white/20 dark:border-white/10 shadow-sm;
 }
 
 .scrollbar-hide {

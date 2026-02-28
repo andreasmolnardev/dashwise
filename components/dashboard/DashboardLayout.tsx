@@ -256,13 +256,13 @@ export default function DashboardLayoutComponent(
         >
           <div
             id="left-widget-panel"
-            className="flex-shrink-0 w-screen snap-start md:w-auto md:basis-auto space-y-3.5 overflow-y-visible min-w-0 min-h-0 h-fit"
+            className="flex-shrink-0 w-screen snap-start md:w-auto md:basis-auto space-y-3.5 overflow-y-visible min-w-0 min-h-0 h-fit p-1"
             style={{ scrollSnapStop: "always", touchAction: "pan-x" }}
           >
             {renderWidgetColumn(config?.widgets?.[0])}
           </div>
 
-          <div className="flex-shrink-0 w-screen snap-start md:w-auto md:basis-auto space-y-3.5 overflow-x-hidden min-w-0 min-h-0 h-fit x-2" style={{ scrollSnapStop: "always", touchAction: "pan-x" }}>
+          <div className="flex-shrink-0 w-screen snap-start md:w-auto md:basis-auto space-y-3.5 overflow-x-hidden min-w-0 min-h-0 h-fit p-1" style={{ scrollSnapStop: "always", touchAction: "pan-x" }}>
             <section className="responsive-glance-grid w-full">
               {/* Clock (grid-area: clock) */}
               <div
@@ -305,7 +305,7 @@ export default function DashboardLayoutComponent(
           </div>
           <div
             id="right-widget-panel"
-            className="flex-shrink-0 w-screen snap-start md:w-auto md:basis-auto space-y-3.5 overflow-y-visible min-w-0 min-h-0 h-fit"
+            className="flex-shrink-0 w-screen snap-start md:w-auto md:basis-auto space-y-3.5 overflow-y-visible min-w-0 min-h-0 h-fit p-1"
             style={{ scrollSnapStop: "always", touchAction: "pan-x" }}
           >
             {renderWidgetColumn(config?.widgets?.[2])}
