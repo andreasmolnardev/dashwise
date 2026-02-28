@@ -143,7 +143,7 @@ export default function LoginCard() {
                       <div>
                         <h3 className="font-semibold">If you're an admin...</h3>
                         <p className="text-(--text-on-frosted)">
-                          Go into pocketbase dashboard (authenticate using th eenv vars set for pocketbase container) and change login details for your user there.
+                          Go into pocketbase dashboard (authenticate using the env vars set for pocketbase container) and change login details for your user there.
                         </p>
                       </div>
                   </DialogHeader>
