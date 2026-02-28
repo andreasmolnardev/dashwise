@@ -2,7 +2,7 @@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useConfig } from "@/context/ConfigContext";
 import config from "@/lib/config";
-import { faCalendar, faClock, faLocationDot, faTemperature0, faThermometer, faWindowRestore } from "@fortawesome/free-solid-svg-icons";
+import { faCalendar, faClock, faLocationDot, faRefresh, faTemperature0, faThermometer, faWindowRestore } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogT
 import LocationSelectFormComponent from "@/components/settings/LocationSelectForm";
 import { writeToConfig } from "@/lib/frontend/data/MUTATE/config/writeToConfig";
 import useAuth from "@/context/useAuth";
+import { getJobsPullIcons } from "@/lib/apiClient";
 
 type TimeFormatValue = "24-hour" | "12-hour";
 
@@ -28,6 +29,21 @@ const DATE_FORMAT_OPTIONS = [
 ] as const;
 
 export default function GeneralSettingsPage() {
+  const [isRefreshingIcons, setIsRefreshingIcons] = useState(false);
+
+  async function handleRefreshIcons() {
+    if (isRefreshingIcons) return;
+
+    try {
+      setIsRefreshingIcons(true);
+      await getJobsPullIcons();
+    } catch (error) {
+      console.error("Failed to refresh icons", error);
+    } finally {
+      setIsRefreshingIcons(false);
+    }
+  }
+
   return <> <h1 className="text-3xl font-semibold mb-4">General</h1>
 
     <div className="space-y-2">
@@ -38,6 +54,14 @@ export default function GeneralSettingsPage() {
           <li className="frosted rounded-md px-2 py-1 font-medium min-w-40 text-center"><a href="https://github.com/andreasmolnardev/dashwise-next" className="hover:text-(--primary)">GitHub Repo</a></li>
           <li className="frosted rounded-md px-2 py-1 font-medium min-w-40 text-center"><a href="https://github.com/andreasmolnardev/dashwise-next/issues" className="hover:text-(--primary)">GitHub Issues</a></li>
         </ul>
+      </div>
+      <h2 className="text-xl font-semibold">External data</h2>
+      <div
+        className="content space-y-2 frosted rounded-md p-2 flex items-center gap-2 group cursor-pointer"
+        onClick={handleRefreshIcons}
+      >
+        <FontAwesomeIcon icon={faRefresh} className="p-0 m-0 group-hover:text-(--primary)"/>
+        <p className="text-muted-foreground">{isRefreshingIcons ? "Refreshing icons..." : "Refresh icons"}</p>
       </div>
       <h2 className="text-xl font-semibold">Defaults</h2>
       <h3 className="text-lg font-medium">Links</h3>
@@ -82,7 +106,7 @@ export default function GeneralSettingsPage() {
       <h3 className="text-lg font-medium">Localization</h3>
       <LocalizationSettings />
     </div>
-    </>;
+  </>;
 }
 
 function LocalizationSettings() {

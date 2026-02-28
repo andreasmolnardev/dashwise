@@ -1,7 +1,9 @@
 import fs from 'fs';
 import path from 'path';
 
-const OPENAPI = path.resolve(process.cwd(), 'openapi.json');
+const OPENAPI = fs.existsSync(path.resolve(process.cwd(), 'openapi.json'))
+  ? path.resolve(process.cwd(), 'openapi.json')
+  : path.resolve(process.cwd(), 'public/openapi.json');
 const OUT = path.resolve(process.cwd(), 'lib/generatedApiClient.ts');
 
 function toFnName(method: string, route: string) {
