@@ -10,10 +10,10 @@ import { faImage, faPaperclip, faUpload } from "@fortawesome/free-solid-svg-icon
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import UploadWallpaperDialogComponent from "@/components/settings/UploadWallpaperDialog";
 import UrlWallpaperDialogComponent from "@/components/settings/UrlWallpaperDialog";
-import AccentColorSelectComponent from "@/components/settings/AccentColorSelect";
+import ThemeSelectComponent from "@/components/settings/ThemeSelect";
 import WallpaperBlurSliderComponent from "@/components/settings/WallpaperBlurSlider";
-import WallpaperBrightnessSliderComponent from "@/components/settings/WallpaperBrightnessSlider";
 import ClockFontSelectionCarousel from "@/components/settings/ClockFontSelectionCarousel";
+import WallpaperBrightnessSliderComponent, { WallpaperBrightnessDarkModeSliderComponent } from "@/components/settings/WallpaperBrightnessSlider";
 
 export default function AppearanceSettingsPage() {
   const [value, setValue] = useState("current");
@@ -97,12 +97,13 @@ export default function AppearanceSettingsPage() {
         <h3 className="text-lg font-medium">Filters</h3>
 
         <WallpaperBrightnessSliderComponent />
+        <WallpaperBrightnessDarkModeSliderComponent />
         <WallpaperBlurSliderComponent />
 
         <h2 className="text-xl font-semibold">Theme</h2>
 
         {/* Accent color moved to its own component */}
-        <AccentColorSelectComponent/>
+        <ThemeSelectComponent/>
 
         <h3 className="text-lg font-medium">Clock</h3>
         <ClockFontSelectionCarousel/>

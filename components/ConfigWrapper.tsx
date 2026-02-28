@@ -7,11 +7,35 @@ import { ConfigProvider } from "@/context/ConfigContext";
 import { cn } from "@/lib/utils";
 import { getConfig } from "@/lib/apiClient";
 
+type ThemeMode = "system" | "dark" | "light";
+
+function applyThemeClasses(themeMode: ThemeMode, frostedAppearance: ThemeMode = themeMode) {
+  if (typeof document === "undefined" || typeof window === "undefined") return;
+
+  const root = document.documentElement;
+  const media = window.matchMedia("(prefers-color-scheme: dark)");
+
+  const resolvedTheme = themeMode === "system" ? (media.matches ? "dark" : "light") : themeMode;
+  const resolvedFrosted =
+    frostedAppearance === "system"
+      ? media.matches
+        ? "dark"
+        : "light"
+      : frostedAppearance;
+
+  root.classList.toggle("dark", resolvedTheme === "dark");
+  root.style.colorScheme = resolvedTheme;
+
+  root.classList.remove("frosted-theme-dark", "frosted-theme-light");
+  root.classList.add(resolvedFrosted === "dark" ? "frosted-theme-dark" : "frosted-theme-light");
+}
+
 export default function ConfigWrapper({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const [config, setConfig] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isDarkThemeActive, setIsDarkThemeActive] = useState(false);
   const router = useRouter();
 
   // --- Service worker registration ---
@@ -68,6 +92,27 @@ export default function ConfigWrapper({ children }: { children: ReactNode }) {
     document.documentElement.style.setProperty("--primary", accentColor);
   }, [config]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const themeMode: ThemeMode = config?.appearance?.themeMode ?? "system";
+    const frostedAppearance: ThemeMode = config?.appearance?.frostedAppearance ?? themeMode;
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+
+    const apply = () => {
+      applyThemeClasses(themeMode, frostedAppearance);
+      const resolvedTheme = themeMode === "system" ? (media.matches ? "dark" : "light") : themeMode;
+      setIsDarkThemeActive(resolvedTheme === "dark");
+    };
+    apply();
+
+    const shouldWatchSystem = themeMode === "system" || frostedAppearance === "system";
+    if (!shouldWatchSystem) return;
+
+    media.addEventListener("change", apply);
+    return () => media.removeEventListener("change", apply);
+  }, [config?.appearance?.themeMode, config?.appearance?.frostedAppearance]);
+
   // --- Wallpaper loading ---
   useEffect(() => {
     if (!config) return;
@@ -121,6 +166,10 @@ export default function ConfigWrapper({ children }: { children: ReactNode }) {
   // Wallpaper blur + brightness from config
   const blur = config?.appearance?.wallpaperFilters?.blur ?? 3; // px
   const brightness = config?.appearance?.wallpaperFilters?.brightness ?? 85; // percent
+  const darkModeBrightness = config?.appearance?.wallpaperFilters?.darkModeBrightness ?? 0; // extra darken percent (0-50)
+  const appliedBrightness = isDarkThemeActive
+    ? Math.max(0, brightness - Math.max(0, Math.min(50, darkModeBrightness)))
+    : brightness;
 
 
   return (
@@ -128,8 +177,8 @@ export default function ConfigWrapper({ children }: { children: ReactNode }) {
       <div
         className={cn("min-h-screen overflow-hidden")}
         style={{
-          backdropFilter: `blur(${blur}px) brightness(${brightness}%)`,
-          WebkitBackdropFilter: `blur(${blur}px) brightness(${brightness}%)`,
+          backdropFilter: `blur(${blur}px) brightness(${appliedBrightness}%)`,
+          WebkitBackdropFilter: `blur(${blur}px) brightness(${appliedBrightness}%)`,
         }}
       >
         {children}

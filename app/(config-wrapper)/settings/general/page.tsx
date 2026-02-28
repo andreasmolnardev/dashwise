@@ -165,7 +165,7 @@ function WeatherLocationSelector() {
         <DialogTrigger asChild>
           <Button onClick={() => setOpen(true)} variant="outline" className="rounded-full">Edit weather location</Button>
         </DialogTrigger>
-        <DialogContent className="max-h-[80vh] overflow-auto frosted text-(--text-primary)">
+        <DialogContent className="max-h-[80vh] overflow-auto frosted text-foreground">
           <DialogHeader>
             <DialogTitle>Set global weather location</DialogTitle>
           </DialogHeader>

@@ -91,7 +91,7 @@ export default function SignupCard() {
 
 
   return (
-    <Card className="w-full max-w-sm frosted text-(--text-primary) backdrop-saturate-90 backdrop-brightness-90">
+    <Card className="w-full max-w-sm frosted text-foreground backdrop-saturate-90 backdrop-brightness-90">
       <CardHeader>
         <CardTitle>Welcome to Dashwise!</CardTitle>
         <CardDescription>

@@ -103,7 +103,7 @@ export default function BottomNavbar({
             >
               <FontAwesomeIcon
                 icon={faMoon}
-                className="text-(--text-primary) group-hover:text-(--primary) transition-colors duration-200 h-1.5"
+                className="text-foreground group-hover:text-(--primary) transition-colors duration-200 h-1.5"
               />
             </div>
           </li>
@@ -121,7 +121,7 @@ export default function BottomNavbar({
             >
               <FontAwesomeIcon
                 icon={faBell}
-                className="text-(--text-primary) group-hover:text-(--primary) transition-colors duration-200"
+                className="text-foreground group-hover:text-(--primary) transition-colors duration-200"
               />
             </Link>
             {unreadCount > 0 && (
@@ -140,7 +140,7 @@ export default function BottomNavbar({
           >
             <FontAwesomeIcon
               icon={faGear}
-              className="text-(--text-primary) group-hover:text-(--primary) transition-colors duration-200"
+              className="text-foreground group-hover:text-(--primary) transition-colors duration-200"
             />
           </Link>
         </li>

@@ -49,7 +49,7 @@ function applyThemeClasses(themeMode: ThemeMode, frostedAppearance: ThemeMode = 
   root.classList.add(resolvedFrosted === "dark" ? "frosted-theme-dark" : "frosted-theme-light");
 }
 
-export default function AccentColorSelectComponent({ className }: { className?: string }) {
+export default function ThemeSelectComponent({ className }: { className?: string }) {
   const { config, refreshConfig } = useConfig();
   const [accent, setAccent] = useState<string | undefined>(
     config?.appearance?.accentColor
@@ -132,7 +132,7 @@ export default function AccentColorSelectComponent({ className }: { className?: 
   }
 
   return (
-    <div className={className ?? "border border-transparent col-span-full p-1.5 rounded-md space-y-2"}>
+    <div className={className ?? "border border-transparent col-span-full p-1.5 rounded-md space-y-6"}>
       <div className="flex items-center gap-2">
         <FontAwesomeIcon icon={faPaintBrush} />
         <p className="w-full">Accent Color</p>

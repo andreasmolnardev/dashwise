@@ -147,7 +147,7 @@ export default function IntegrationsSettingsPage() {
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="frosted text-(--text-primary)">
+        <DialogContent className="frosted text-foreground">
           <DialogHeader>
             <DialogTitle>Enable {pendingIntegration?.name}</DialogTitle>
           </DialogHeader>

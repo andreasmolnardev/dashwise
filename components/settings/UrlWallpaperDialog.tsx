@@ -78,7 +78,7 @@ export default function UrlWallpaperDialogComponent({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="frosted text-(--text-primary)">
+      <DialogContent className="frosted text-foreground">
         <DialogHeader>
           <DialogTitle>Set wallpaper from URL</DialogTitle>
         </DialogHeader>

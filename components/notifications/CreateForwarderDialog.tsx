@@ -78,7 +78,7 @@ export default function CreateForwarderDialogComponent({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="frosted text-(--text-primary)">
+      <DialogContent className="frosted text-foreground">
         <DialogHeader>
           <DialogTitle>New Forwarder</DialogTitle>
         </DialogHeader>
@@ -100,7 +100,7 @@ export default function CreateForwarderDialogComponent({
               value={target}
               onChange={(e) => setTarget(e.target.value)}
             />
-            <a className="text-xs text-gray-400 mt-1 hover:text-(--text-primary)" href="https://shoutrrr.nickfedor.com/">
+            <a className="text-xs text-gray-400 mt-1 hover:text-foreground" href="https://shoutrrr.nickfedor.com/">
               For more info, visit Shoutrrr's docs
             </a>
           </div>

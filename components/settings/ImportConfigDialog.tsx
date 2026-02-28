@@ -87,7 +87,7 @@ export default function ImportConfigDialog() {
                 <FontAwesomeIcon icon={faCaretRight} />
             </DialogTrigger>
 
-            <DialogContent className="frosted text-(--text-primary)">
+            <DialogContent className="frosted text-foreground">
                 <DialogHeader>
                     <DialogTitle>Import Config</DialogTitle>
                 </DialogHeader>

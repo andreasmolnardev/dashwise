@@ -83,10 +83,10 @@ export default function LoginCard() {
 
 
   return (
-    <Card className="w-full max-w-sm frosted text-(--text-primary) backdrop-saturate-90 backdrop-brightness-90">
+    <Card className="w-full max-w-sm frosted text-foreground backdrop-saturate-90 backdrop-brightness-90">
       <CardHeader>
         <CardTitle>Welcome back to Dashwise!</CardTitle>
-        <CardDescription className="text-(--text-primary/80)">
+        <CardDescription className="text-muted-foreground">
           Login using your credentials below.
         </CardDescription>
       </CardHeader>
@@ -133,7 +133,7 @@ export default function LoginCard() {
                     Forgot your password?
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="sm:max-w-[425px] frosted text-(--text-primary)">
+                <DialogContent className="sm:max-w-[425px] frosted text-foreground">
                   <DialogHeader>
                     <DialogTitle>Problems Authenticating?</DialogTitle>
                       <div>

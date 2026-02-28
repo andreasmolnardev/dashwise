@@ -67,7 +67,7 @@ export default function WallpaperBlurSliderComponent({ className }: { className?
     >
       {/* Label + tooltip */}
       <div className="flex items-center gap-1 min-w-[180px]">
-        <p className="font-medium text-(--text-primary)">Blur Wallpaper</p>
+        <p className="font-medium text-foreground">Blur Wallpaper</p>
       </div>
 
       {/* Slider */}

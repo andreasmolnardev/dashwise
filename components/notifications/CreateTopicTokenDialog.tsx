@@ -93,7 +93,7 @@ export default function CreateTopicTokenDialogComponent({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="frosted text-(--text-primary)">
+      <DialogContent className="frosted text-foreground">
         <DialogHeader>
           <DialogTitle>New Token</DialogTitle>
         </DialogHeader>
@@ -155,7 +155,7 @@ export default function CreateTopicTokenDialogComponent({
                   onChange={(e) => setInDays(Number(e.target.value || 0))}
                 />
                 <span>day{inDays === 1 ? "" : "s"}</span>
-                <span className="text-xs text-(--text-secondary)">({expiryLabel()})</span>
+                <span className="text-xs text-muted-foreground">({expiryLabel()})</span>
               </div>
             )}
 

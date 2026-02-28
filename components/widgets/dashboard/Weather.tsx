@@ -266,7 +266,7 @@ export function WeatherOverviewWidget({ className = "", params }: WeatherWidgetP
         <div className="font-medium">
           {weather?.temperature ?? "—"}{weather?.unit} {weather?.description}
         </div>
-        <div className="text-xs text-(--text-secondary)">
+        <div className="text-xs text-muted-foreground">
           {getWeatherInsight()}
         </div>
       </div>

@@ -244,25 +244,25 @@ export default function DashboardLayoutComponent(
   return (
     <>
       <Screensaver active={isScreensaverActive} onExit={() => setScreensaverActive(false)} />
-      <div className="grid grid-rows-[1fr_36px] h-dvh pt-5 md:p-3.5 p-0 overflow-x-hidden text-(--surface-foreground) bg-(--surface)">
+      <div className="grid grid-rows-[minmax(0,1fr)_36px] h-dvh pt-5 md:p-3.5 p-0 overflow-x-hidden text-(--surface-foreground) bg-(--surface)">
         <main
           id="page-content-container"
           ref={containerRef}
           className="
           /* mobile: horizontal swipe panels */
-          flex snap-x snap-mandatory overflow-x-auto touch-pan-x scrollbar-hide overflow-y-scroll
+          flex snap-x snap-mandatory overflow-x-auto touch-pan-x overflow-y-auto scrollbar-hidden md:scrollbar-auto
           md:grid md:grid-cols-[25%_1fr_25%] min-h-0
         "
         >
           <div
             id="left-widget-panel"
-            className="flex-shrink-0 w-screen snap-start md:w-auto md:flex-grow md:basis-auto space-y-3.5 overflow-y-auto min-w-0"
+            className="flex-shrink-0 w-screen snap-start md:w-auto md:basis-auto space-y-3.5 overflow-y-visible min-w-0 min-h-0 h-fit p-1"
             style={{ scrollSnapStop: "always", touchAction: "pan-x" }}
           >
             {renderWidgetColumn(config?.widgets?.[0])}
           </div>
 
-          <div className="flex-shrink-0 w-screen snap-start md:w-auto md:flex-grow md:basis-auto space-y-3.5 overflow-x-hidden min-w-0 px-2" style={{ scrollSnapStop: "always", touchAction: "pan-x" }}>
+          <div className="flex-shrink-0 w-screen snap-start md:w-auto md:basis-auto space-y-3.5 overflow-x-hidden min-w-0 min-h-0 h-fit p-1" style={{ scrollSnapStop: "always", touchAction: "pan-x" }}>
             <section className="responsive-glance-grid w-full">
               {/* Clock (grid-area: clock) */}
               <div
@@ -305,7 +305,7 @@ export default function DashboardLayoutComponent(
           </div>
           <div
             id="right-widget-panel"
-            className="flex-shrink-0 w-screen snap-start md:w-auto md:flex-grow md:basis-auto space-y-3.5 overflow-y-auto min-w-0"
+            className="flex-shrink-0 w-screen snap-start md:w-auto md:basis-auto space-y-3.5 overflow-y-visible min-w-0 min-h-0 h-fit p-1"
             style={{ scrollSnapStop: "always", touchAction: "pan-x" }}
           >
             {renderWidgetColumn(config?.widgets?.[2])}

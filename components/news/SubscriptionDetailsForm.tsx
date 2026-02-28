@@ -157,7 +157,7 @@ export default function SubscriptionDetailsForm({
           <SelectTrigger className="frosted mt-1">
             <SelectValue placeholder="Select category" />
           </SelectTrigger>
-          <SelectContent className="frosted text-(--text-primary)">
+          <SelectContent className="frosted text-foreground">
             {categories.length === 0 && (
               <SelectItem value="Uncategorized">Uncategorized</SelectItem>
             )}
