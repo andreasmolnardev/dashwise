@@ -57,11 +57,11 @@ export default function GeneralSettingsPage() {
       </div>
       <h2 className="text-xl font-semibold">External data</h2>
       <div
-        className="content space-y-2 frosted rounded-md p-2 flex items-center gap-2 group cursor-pointer"
+        className="content space-y-2 rounded-md p-2 flex items-center gap-2 group cursor-pointer"
         onClick={handleRefreshIcons}
       >
         <FontAwesomeIcon icon={faRefresh} className="p-0 m-0 group-hover:text-(--primary)"/>
-        <p className="text-muted-foreground">{isRefreshingIcons ? "Refreshing icons..." : "Refresh icons"}</p>
+        {isRefreshingIcons ? "Refreshing icons..." : "Refresh icons"}
       </div>
       <h2 className="text-xl font-semibold">Defaults</h2>
       <h3 className="text-lg font-medium">Links</h3>
