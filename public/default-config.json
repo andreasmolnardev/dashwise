@@ -109,5 +109,33 @@
             "url_params": "https://www.startpage.com/sp/search?query=%s"
         }
     ],
-    "integrations": {}
+    "integrations": {},
+    "widgets": [
+        [
+            {
+                "id": "7owye41qz5t",
+                "properties": {},
+                "type": "placeholder"
+            }
+        ],
+        [
+            {
+                "id": "5n9j2lqz5t6",
+                "properties": {},
+                "type": "placeholder"
+            }
+        ],
+        [
+            {
+                "id": "86jpdoqyqz4",
+                "properties": {},
+                "type": "placeholder"
+            },
+            {
+                "id": "fb2nfo62oc",
+                "properties": {},
+                "type": "beszel-system-health"
+            }
+        ]
+    ]
 }
