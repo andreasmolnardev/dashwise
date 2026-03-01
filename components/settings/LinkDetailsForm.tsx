@@ -37,6 +37,13 @@ interface Icon {
   Category: string;
 }
 
+type StatusCheckMethod = "GET" | "HEAD" | "POST" | "PUT" | "PATCH" | "DELETE" | "OPTIONS";
+
+type StatusCheckAuth =
+  | { type: "bearer"; token: string }
+  | { type: "basic"; username: string; password: string }
+  | { type: "header"; name: string; value: string };
+
 export interface LinkObject {
   id?: string;
   icon?: string;
@@ -45,6 +52,10 @@ export interface LinkObject {
   name?: string;
   url?: string;
   statusCheck?: boolean;
+  statusCheckEndpoint?: string;
+  statusCheckMethod?: StatusCheckMethod;
+  statusCheckAuth?: StatusCheckAuth;
+  statusCheckShowAsUp?: number[];
 }
 
 interface LinkDetailsFormProps {
@@ -54,7 +65,7 @@ interface LinkDetailsFormProps {
 }
 
 export default function LinkDetailsForm({ link, onClose, preselectOpenedGroup }: LinkDetailsFormProps) {
-  const { config, refreshConfig } = useConfig();
+  const { config } = useConfig();
   const { token } = useAuth();
 
   const linkGroups = useMemo(() => config?.linkGroups || [], [config?.linkGroups]);
@@ -67,6 +78,15 @@ export default function LinkDetailsForm({ link, onClose, preselectOpenedGroup }:
   const [linkGroup, setLinkGroup] = useState(() => preselectOpenedGroup || link?.linkGroup || "");
   const [folder, setFolder] = useState(() => link?.folder || "");
   const [statusCheck, setStatusCheck] = useState(false);
+  const [statusCheckEndpoint, setStatusCheckEndpoint] = useState("");
+  const [statusCheckMethod, setStatusCheckMethod] = useState<StatusCheckMethod>("GET");
+  const [statusCheckAuthType, setStatusCheckAuthType] = useState<"none" | "bearer" | "basic" | "header">("none");
+  const [bearerToken, setBearerToken] = useState("");
+  const [basicUsername, setBasicUsername] = useState("");
+  const [basicPassword, setBasicPassword] = useState("");
+  const [customHeaderName, setCustomHeaderName] = useState("");
+  const [customHeaderValue, setCustomHeaderValue] = useState("");
+  const [statusCheckShowAsUpRaw, setStatusCheckShowAsUpRaw] = useState("200,201,202,204,301,302,304");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -95,7 +115,40 @@ export default function LinkDetailsForm({ link, onClose, preselectOpenedGroup }:
     if ((link as any)?.statusCheck) {
       setStatusCheck(Boolean((link as any).statusCheck));
     }
-  }, [link?.linkGroup, link?.folder]);
+    const statusCheckEndpointFromLink = (link as any)?.statusCheckEndpoint;
+    if (typeof statusCheckEndpointFromLink === "string") {
+      setStatusCheckEndpoint(statusCheckEndpointFromLink);
+    }
+
+    const statusCheckMethodFromLink = (link as any)?.statusCheckMethod;
+    if (typeof statusCheckMethodFromLink === "string") {
+      setStatusCheckMethod(statusCheckMethodFromLink as StatusCheckMethod);
+    }
+
+    const statusCheckShowAsUpFromLink = (link as any)?.statusCheckShowAsUp;
+    if (Array.isArray(statusCheckShowAsUpFromLink) && statusCheckShowAsUpFromLink.length > 0) {
+      setStatusCheckShowAsUpRaw(
+        statusCheckShowAsUpFromLink
+          .map((code: unknown) => Number(code))
+          .filter((code: number) => Number.isInteger(code) && code > 0)
+          .join(",")
+      );
+    }
+
+    const statusCheckAuth = parseStatusCheckAuth((link as any)?.statusCheckAuth);
+    if (statusCheckAuth?.type === "bearer") {
+      setStatusCheckAuthType("bearer");
+      setBearerToken(statusCheckAuth.token ?? "");
+    } else if (statusCheckAuth?.type === "basic") {
+      setStatusCheckAuthType("basic");
+      setBasicUsername(statusCheckAuth.username ?? "");
+      setBasicPassword(statusCheckAuth.password ?? "");
+    } else if (statusCheckAuth?.type === "header") {
+      setStatusCheckAuthType("header");
+      setCustomHeaderName(statusCheckAuth.name ?? "");
+      setCustomHeaderValue(statusCheckAuth.value ?? "");
+    }
+  }, [link]);
 
   const iconRequestId = useRef(0);
 
@@ -160,6 +213,35 @@ export default function LinkDetailsForm({ link, onClose, preselectOpenedGroup }:
 
     if (folder) payload.folder = folder;
     if (statusCheck) payload.statusCheck = true;
+    if (statusCheck) {
+      const endpoint = statusCheckEndpoint.trim();
+      if (endpoint) payload.statusCheckEndpoint = endpoint;
+
+      payload.statusCheckMethod = statusCheckMethod;
+
+      const parsedCodes = parseStatusCodeList(statusCheckShowAsUpRaw);
+      payload.statusCheckShowAsUp = parsedCodes.length > 0 ? parsedCodes : [200, 201, 202, 204, 301, 302, 304];
+
+      if (statusCheckAuthType === "bearer" && bearerToken.trim()) {
+        payload.statusCheckAuth = { type: "bearer", token: bearerToken.trim() };
+      }
+
+      if (statusCheckAuthType === "basic" && basicUsername.trim()) {
+        payload.statusCheckAuth = {
+          type: "basic",
+          username: basicUsername.trim(),
+          password: basicPassword,
+        };
+      }
+
+      if (statusCheckAuthType === "header" && customHeaderName.trim()) {
+        payload.statusCheckAuth = {
+          type: "header",
+          name: customHeaderName.trim(),
+          value: customHeaderValue,
+        };
+      }
+    }
 
     if (isEditing) {
       const updatedLinks = links.map((l) =>
@@ -179,6 +261,15 @@ export default function LinkDetailsForm({ link, onClose, preselectOpenedGroup }:
     setIconEdited(false);
     setFolder("");
     setStatusCheck(false);
+    setStatusCheckEndpoint("");
+    setStatusCheckMethod("GET");
+    setStatusCheckAuthType("none");
+    setBearerToken("");
+    setBasicUsername("");
+    setBasicPassword("");
+    setCustomHeaderName("");
+    setCustomHeaderValue("");
+    setStatusCheckShowAsUpRaw("200,201,202,204,301,302,304");
     setLinkId(generateRandomId());
   };
 
@@ -318,6 +409,126 @@ export default function LinkDetailsForm({ link, onClose, preselectOpenedGroup }:
             Status checks
           </Label>
         </div>
+        {statusCheck && (
+          <div className="mt-3 space-y-2 rounded-md frosted p-2">
+            <div className="space-y-1">
+              <Label htmlFor="status-check-endpoint" className="text-sm">Endpoint override</Label>
+              <Input
+                id="status-check-endpoint"
+                className="frosted"
+                placeholder="defaults to link URL"
+                value={statusCheckEndpoint}
+                onChange={(e) => setStatusCheckEndpoint(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-sm">Method</Label>
+              <Select value={statusCheckMethod} onValueChange={(value) => setStatusCheckMethod(value as StatusCheckMethod)}>
+                <SelectTrigger className="rounded-md bg-white border-0 frosted">
+                  <SelectValue placeholder="Method" />
+                </SelectTrigger>
+                <SelectContent className="frosted text-white">
+                  {(["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"] as StatusCheckMethod[]).map((method) => (
+                    <SelectItem key={method} value={method}>
+                      {method}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-sm">Auth</Label>
+              <Select value={statusCheckAuthType} onValueChange={(value) => setStatusCheckAuthType(value as "none" | "bearer" | "basic" | "header") }>
+                <SelectTrigger className="rounded-md bg-white border-0 frosted">
+                  <SelectValue placeholder="None" />
+                </SelectTrigger>
+                <SelectContent className="frosted text-white">
+                  <SelectItem value="none">None</SelectItem>
+                  <SelectItem value="bearer">Bearer token</SelectItem>
+                  <SelectItem value="basic">Basic auth</SelectItem>
+                  <SelectItem value="header">Custom header</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {statusCheckAuthType === "bearer" && (
+              <div className="space-y-1">
+                <Label htmlFor="status-check-bearer" className="text-sm">Bearer token</Label>
+                <Input
+                  id="status-check-bearer"
+                  className="frosted"
+                  placeholder="token"
+                  value={bearerToken}
+                  onChange={(e) => setBearerToken(e.target.value)}
+                />
+              </div>
+            )}
+
+            {statusCheckAuthType === "basic" && (
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <Label htmlFor="status-check-basic-user" className="text-sm">Username</Label>
+                  <Input
+                    id="status-check-basic-user"
+                    className="frosted"
+                    placeholder="user"
+                    value={basicUsername}
+                    onChange={(e) => setBasicUsername(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="status-check-basic-pass" className="text-sm">Password</Label>
+                  <Input
+                    id="status-check-basic-pass"
+                    type="password"
+                    className="frosted"
+                    placeholder="password"
+                    value={basicPassword}
+                    onChange={(e) => setBasicPassword(e.target.value)}
+                  />
+                </div>
+              </div>
+            )}
+
+            {statusCheckAuthType === "header" && (
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <Label htmlFor="status-check-header-name" className="text-sm">Header name</Label>
+                  <Input
+                    id="status-check-header-name"
+                    className="frosted"
+                    placeholder="X-API-Key"
+                    value={customHeaderName}
+                    onChange={(e) => setCustomHeaderName(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="status-check-header-value" className="text-sm">Header value</Label>
+                  <Input
+                    id="status-check-header-value"
+                    className="frosted"
+                    placeholder="value"
+                    value={customHeaderValue}
+                    onChange={(e) => setCustomHeaderValue(e.target.value)}
+                  />
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-1">
+              <Label htmlFor="status-check-up-codes" className="text-sm">Show as up (status codes)</Label>
+              <Input
+                id="status-check-up-codes"
+                className="frosted"
+                placeholder="200,201,202,204,301,302,304"
+                value={statusCheckShowAsUpRaw}
+                onChange={(e) => setStatusCheckShowAsUpRaw(e.target.value)}
+              />
+            </div>
+          </div>
+        )}
       </section>
 
       <Separator orientation="vertical" className="frosted" />
@@ -414,7 +625,6 @@ async function getIcon(
   name?: string,
   linkUrl?: string
 ): Promise<IconResult | null> {
-  console.log("TEST")
   const testImage = (src: string): Promise<boolean> =>
     new Promise((resolve) => {
       if (!src) return resolve(false);
@@ -503,4 +713,48 @@ export function Icon({
 
 function generateRandomId(length = 8) {
   return Math.random().toString(36).substr(2, length);
+}
+
+function parseStatusCodeList(raw: string): number[] {
+  return raw
+    .split(",")
+    .map((entry) => Number(entry.trim()))
+    .filter((code) => Number.isInteger(code) && code >= 100 && code <= 599);
+}
+
+function parseStatusCheckAuth(raw: unknown): StatusCheckAuth | undefined {
+  if (!raw) return undefined;
+
+  let parsed: any = raw;
+  if (typeof raw === "string") {
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      return undefined;
+    }
+  }
+
+  if (!parsed || typeof parsed !== "object") return undefined;
+
+  if (parsed.type === "bearer" && typeof parsed.token === "string") {
+    return { type: "bearer", token: parsed.token };
+  }
+
+  if (parsed.type === "basic" && typeof parsed.username === "string") {
+    return {
+      type: "basic",
+      username: parsed.username,
+      password: typeof parsed.password === "string" ? parsed.password : "",
+    };
+  }
+
+  if (parsed.type === "header" && typeof parsed.name === "string") {
+    return {
+      type: "header",
+      name: parsed.name,
+      value: typeof parsed.value === "string" ? parsed.value : "",
+    };
+  }
+
+  return undefined;
 }
