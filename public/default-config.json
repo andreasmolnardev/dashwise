@@ -7,7 +7,8 @@
         "wallpaperFilters": {
             "blur": 10,
             "brightness": 61
-        }
+        },
+        "themeMode": "light"
     },
     "pages": [
         "home"
