@@ -50,6 +50,8 @@ The jobs container can be configured with the following environment variables:
 | PB_ADMIN_EMAIL | Yes | `default@dashwise.local` | Email of the PocketBase admin user for authentication |
 | PB_ADMIN_PASSWORD | Yes | `DashwiseIsAwesome` | Password of the PocketBase admin user for authentication |
 | SEARCHITEMS_SCHEDULE | No | `*/10 * * * *` | Cron expression defining the interval for the search item indexing job |
+| ENABLE_ICONS_REFRESH | No | `false` | Enable automatic icon refresh job |
+| PULL_ICONS_SCHEDULE | No | `0 */6 * * *` | Cron expression defining how often the icons refresh job runs |
 | MONITORING_INDEXER_SCHEDULE | No | `*/10 * * * *` | Cron expression defining how often the monitoring indexer runs |
 | MONITORING_RUNNER_SCHEDULE | No | `*/1 * * * *` | Cron expression defining how often the monitoring runner executes |
 | ALLOW_SSL | No | `false` | Enables SSL support for internal service communication |

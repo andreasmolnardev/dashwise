@@ -23,7 +23,7 @@ export async function postAuthChangepassword<T = any>(body?: any, opts?: { qs?: 
 
 export async function deleteAuthDeleteaccount<T = any>(opts?: { qs?: Record<string, any>; token?: string | null; signal?: AbortSignal }): Promise<T> {
   let path = `/auth/delete-account`;
-  return delete<T>(path, opts);
+  return del<T>(path, opts);
 }
 
 export async function postAuthLogin<T = any>(body?: any, opts?: { qs?: Record<string, any>; token?: string | null; signal?: AbortSignal }): Promise<T> {
@@ -183,7 +183,7 @@ export async function putNotificationsForwarders<T = any>(body?: any, opts?: { q
 
 export async function deleteNotificationsForwarders<T = any>(opts?: { qs?: Record<string, any>; token?: string | null; signal?: AbortSignal }): Promise<T> {
   let path = `/notifications/forwarders`;
-  return delete<T>(path, opts);
+  return del<T>(path, opts);
 }
 
 export async function postNotificationsMarkAsRead<T = any>(body?: any, opts?: { qs?: Record<string, any>; token?: string | null; signal?: AbortSignal }): Promise<T> {
@@ -220,7 +220,7 @@ export async function getNotificationsTopicTokens<T = any>(opts?: { qs?: Record<
 
 export async function deleteNotificationsTopicTokens<T = any>(opts?: { qs?: Record<string, any>; token?: string | null; signal?: AbortSignal }): Promise<T> {
   let path = `/notifications/topicTokens`;
-  return delete<T>(path, opts);
+  return del<T>(path, opts);
 }
 
 export async function getSearchItems<T = any>(opts?: { qs?: Record<string, any>; token?: string | null; signal?: AbortSignal }): Promise<T> {

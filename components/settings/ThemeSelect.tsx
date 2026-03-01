@@ -194,13 +194,13 @@ export default function ThemeSelectComponent({ className }: { className?: string
           onValueChange={(v) => updateThemeMode(v as ThemeMode)}
           className="flex items-center gap-2"
         >
-          <div>
-            <RadioGroupItem id="theme-system" value="system" className="peer sr-only" />
+           <div>
+            <RadioGroupItem id="theme-light" value="light" className="peer sr-only" />
             <Label
-              htmlFor="theme-system"
+              htmlFor="theme-light"
               className="cursor-pointer rounded-md px-3 py-1.5 frosted peer-data-[state=checked]:outline peer-data-[state=checked]:outline-(--primary)"
             >
-              System
+              Light
             </Label>
           </div>
           <div>
@@ -212,13 +212,13 @@ export default function ThemeSelectComponent({ className }: { className?: string
               Dark
             </Label>
           </div>
-          <div>
-            <RadioGroupItem id="theme-light" value="light" className="peer sr-only" />
+           <div>
+            <RadioGroupItem id="theme-system" value="system" className="peer sr-only" />
             <Label
-              htmlFor="theme-light"
+              htmlFor="theme-system"
               className="cursor-pointer rounded-md px-3 py-1.5 frosted peer-data-[state=checked]:outline peer-data-[state=checked]:outline-(--primary)"
             >
-              Light
+              System
             </Label>
           </div>
         </RadioGroup>

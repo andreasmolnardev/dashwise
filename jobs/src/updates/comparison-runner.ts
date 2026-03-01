@@ -13,7 +13,7 @@ async function fetchLatestGithubTag(repo: string): Promise<string | null> {
   return null;
 }
 
-export async function runComparisonRunner() {
+export async function runVersionComparisonRunner() {
   const details: any[] = [];
   const { DASHWISE_VERSION: localVersion, GITHUB_REPO: repo } = config;
   const instanceName = "dashwise";
