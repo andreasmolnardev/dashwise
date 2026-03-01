@@ -8,7 +8,7 @@ import { getSuperuserPB } from "./lib/pb";
 import { runJob } from "./lib/job-logger";
 
 import indexStatusMonitoringJobs from "./monitoring/indexer";
-import { runStatusMonitoringJobs } from "./monitoring/runner";
+import { runStatusMonitoringJobs, runStatusMonitoringJobsWithOptions } from "./monitoring/runner";
 import { runVersionComparisonRunner } from "./updates/comparison-runner";
 import { newsFeedBuilder } from "./news/feed-builder";
 import { processQueuedNotifications } from "./notifications/forwarder";
@@ -137,9 +137,14 @@ fastify.get("/webhook/statusMonitoringIndexer", async (request, reply) => {
 });
 
 //link monitoring: runner
-const runMonitoringRunnerJob = (triggerSource: string) =>
-  runJob("statusMonitoringRunner", runStatusMonitoringJobs, {
-    startMessage: `Triggered by ${triggerSource}`,
+const runMonitoringRunnerJob = (triggerSource: string, options?: { source?: string; linkId?: string }) =>
+  runJob("statusMonitoringRunner", () => {
+    if (options?.source || options?.linkId) {
+      return runStatusMonitoringJobsWithOptions(options);
+    }
+    return runStatusMonitoringJobs();
+  }, {
+    startMessage: `Triggered by ${triggerSource}${options?.linkId ? ` for link ${options.linkId}` : options?.source ? ` for source ${options.source}` : ""}`,
     successMessage: "Status monitoring runner completed",
     errorMessage: "Status monitoring runner failed",
   });
@@ -153,7 +158,16 @@ cron.schedule(config.MONITORING_RUNNER_SCHEDULE, () => {
 fastify.get("/webhook/statusMonitoringRunner", async (request, reply) => {
   console.log("Webhook received");
   try {
-    const result = await runMonitoringRunnerJob("webhook");
+    const { source, linkId } = request.query as { source?: string; linkId?: string };
+    const options: { source?: string; linkId?: string } = {};
+    if (typeof source === "string" && source.trim()) {
+      options.source = source;
+    }
+    if (typeof linkId === "string" && linkId.trim()) {
+      options.linkId = linkId;
+    }
+
+    const result = await runMonitoringRunnerJob("webhook", options);
     reply.send({ message: "status monitoring runner triggered", result });
   } catch (error) {
     reply.status(500).send({

@@ -21,6 +21,8 @@ export interface LinkType {
   folder?: string;
   linkGroup?: string;
   statusCheck?: boolean;
+  statusCheckEndpoint?: string;
+  statusCheckMethod?: "GET" | "HEAD" | "POST" | "PUT" | "PATCH" | "DELETE" | "OPTIONS";
 }
 
 export default function LinkView() {
@@ -57,6 +59,7 @@ export default function LinkView() {
     status: string;
     dateChanged: string | null;
     durationChanged: number | null;
+    endpoint?: string;
   }> | null>(null);
 
   const [openDialogFor, setOpenDialogFor] = useState<string | null>(null);
@@ -343,6 +346,7 @@ export default function LinkView() {
             if (!val) setOpenDialogFor(null);
           }}
           link={selectedLink}
+          onCheckTriggered={fetchMonitoringStatuses}
           details={
             selectedLink.id && monitoringDetails
               ? (monitoringDetails[selectedLink.id] as JobEntry)

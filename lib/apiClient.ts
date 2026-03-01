@@ -49,6 +49,7 @@ export const getJobsSearchItems = (...args: any[]) => import('./generatedApiClie
 export const getJobsPullIcons = (...args: any[]) => import('./generatedApiClient').then(m => (m as any).getJobsPullIcons(...args));
 export const getLocations = (...args: any[]) => import('./generatedApiClient').then(m => (m as any).getLocations(...args));
 export const getMonitoringStatus = (...args: any[]) => import('./generatedApiClient').then(m => (m as any).getMonitoringStatus(...args));
+export const postMonitoringStatus = (...args: any[]) => import('./generatedApiClient').then(m => (m as any).postMonitoringStatus(...args));
 export const getNews = (...args: any[]) => import('./generatedApiClient').then(m => (m as any).getNews(...args));
 export const postNewsFeedCategoryRename = (...args: any[]) => import('./generatedApiClient').then(m => (m as any).postNewsFeedCategoryRename(...args));
 export const postNewsFeedRefresh = (...args: any[]) => import('./generatedApiClient').then(m => (m as any).postNewsFeedRefresh(...args));
