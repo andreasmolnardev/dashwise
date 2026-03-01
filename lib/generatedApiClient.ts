@@ -121,6 +121,11 @@ export async function getMonitoringStatus<T = any>(opts?: { qs?: Record<string, 
   return get<T>(path, opts);
 }
 
+export async function postMonitoringStatus<T = any>(body?: any, opts?: { qs?: Record<string, any>; token?: string | null; signal?: AbortSignal }): Promise<T> {
+  let path = `/monitoringStatus`;
+  return post<T>(path, body, opts);
+}
+
 export async function getNews<T = any>(opts?: { qs?: Record<string, any>; token?: string | null; signal?: AbortSignal }): Promise<T> {
   let path = `/news`;
   return get<T>(path, opts);

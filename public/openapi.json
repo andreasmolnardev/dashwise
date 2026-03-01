@@ -254,6 +254,30 @@
 				"responses": {
 					"200": { "$ref": "#/components/responses/JsonOk" }
 				}
+			},
+			"post": {
+				"tags": ["monitoring"],
+				"summary": "Trigger monitoring check for one item",
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"linkId": { "type": "string" },
+									"jobId": { "type": "string" }
+								},
+								"additionalProperties": false
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": { "$ref": "#/components/responses/JsonOk" },
+					"400": { "$ref": "#/components/responses/JsonBadRequest" },
+					"401": { "$ref": "#/components/responses/JsonUnauthorized" }
+				}
 			}
 		},
 		"/news": {
