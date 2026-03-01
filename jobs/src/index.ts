@@ -40,6 +40,26 @@ fastify.get("/webhook/searchItemIndexer", async (request, reply) => {
   reply.send({ message: "Search item indexing triggered" });
 });
 
+// refresh icons
+async function triggerPullIconsJob() {
+  try {
+    const response = await axios.get(`${config.DASHWISE_URL}/api/v1/jobs/pullIcons`);
+    console.log("Pull icons job triggered successfully:", response.status);
+  } catch (error) {
+    console.error("Error triggering pull icons job:", error);
+  }
+}
+
+if (config.ENABLE_ICONS_REFRESH === true) {
+  cron.schedule(config.PULL_ICONS_SCHEDULE, () => triggerPullIconsJoþb());
+}
+
+fastify.get("/webhook/pullIcons", async (request, reply) => {
+  console.log("Webhook received");
+  await triggerPullIconsJob();
+  reply.send({ message: "Pull icons job triggered" });
+});
+
 //link monitoring: indexer
 cron.schedule(config.MONITORING_INDEXER_SCHEDULE, () => indexStatusMonitoringJobs());
 
@@ -55,7 +75,7 @@ cron.schedule(config.MONITORING_RUNNER_SCHEDULE, () => runStatusMonitoringJobs()
 fastify.get("/webhook/statusMonitoringRunner", async (request, reply) => {
   console.log("Webhook received");
   await runStatusMonitoringJobs();
-  reply.send({ message: "status monitoring indexer triggered" });
+  reply.send({ message: "status monitoring runner triggered" });
 });
 
 //update checks

@@ -6,6 +6,8 @@ const processAllowSsl = process.env.ALLOW_SSL;
 export const config = {
   PB_URL: process.env.PB_URL!,
   SEARCHITEMS_SCHEDULE: process.env.SEARCHITEMS_SCHEDULE || "*/10 * * * *",
+  ENABLE_ICONS_REFRESH: process.env.ENABLE_ICONS_REFRESH === "true",
+  PULL_ICONS_SCHEDULE: process.env.PULL_ICONS_SCHEDULE || "0 */18 * * *",
   MONITORING_INDEXER_SCHEDULE: process.env.MONITORING_INDEXER_SCHEDULE || "*/10 * * * *",
   MONITORING_RUNNER_SCHEDULE: process.env.MONITORING_RUNNER_SCHEDULE || "*/1 * * * *",
   UPDATE_CHECK_SCHEDULE:  process.env.UPDATE_CHECK_SCHEDULE || "0 2 * * *",
