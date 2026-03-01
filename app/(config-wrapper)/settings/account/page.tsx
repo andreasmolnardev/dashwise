@@ -43,6 +43,10 @@ export default function AccountSettingsPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
+  const [deletePassword, setDeletePassword] = useState("")
+  const [deleteTotp, setDeleteTotp] = useState("")
+  const [deleteLoading, setDeleteLoading] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   const handleChangePasswordSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -99,6 +103,60 @@ export default function AccountSettingsPage() {
   const handleLogoutSubmit = async () => {
     logout();
     router.push('/auth/login');
+  }
+
+  const handleDeleteAccountSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setDeleteError(null);
+    if (!user) {
+      setDeleteError("Unable to determine your account details");
+      return;
+    }
+    if (!deletePassword) {
+      setDeleteError("Password is required to delete your account");
+      return;
+    }
+
+    const payload: { email: string; password: string; totp?: string } = {
+      email: user.email ?? user.username ?? "",
+      password: deletePassword,
+    };
+
+    if (!payload.email) {
+      setDeleteError("Missing email address on your profile");
+      return;
+    }
+
+    if (deleteTotp) {
+      payload.totp = deleteTotp;
+    }
+
+    setDeleteLoading(true);
+
+    try {
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+
+      const response = await fetch("/api/v1/auth/delete-account", {
+        method: "DELETE",
+        headers,
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        throw new Error(body?.error ?? response.statusText ?? "Failed to delete account");
+      }
+
+      logout();
+      router.push('/auth/login');
+    } catch (err: any) {
+      setDeleteError(err?.message ?? "Failed to delete account");
+    } finally {
+      setDeleteLoading(false);
+    }
   }
 
   return (
@@ -252,11 +310,70 @@ export default function AccountSettingsPage() {
         <ExportConfigDialog jsonString={JSON.stringify(config)}/>
 
         <h2 className="text-xl col-span-full">Other</h2>
-        <div className="grid grid-cols-subgrid border border-transparent hover-frosted items-center col-span-full p-1.5 rounded-md">
-          <FontAwesomeIcon icon={faTrash} />
-          <p>Delete account</p>
-          <FontAwesomeIcon icon={faCaretRight} />
-        </div>
+        <Dialog>
+          <DialogTrigger className="grid grid-cols-subgrid border border-transparent hover-frosted items-center col-span-full p-1.5 rounded-md">
+            <FontAwesomeIcon icon={faTrash} />
+            <p className="text-left">Delete account</p>
+            <FontAwesomeIcon icon={faCaretRight} />
+          </DialogTrigger>
+
+          <DialogContent className="frosted text-foreground">
+            <DialogHeader>
+              <DialogTitle>Delete account</DialogTitle>
+              <DialogDescription>
+                This is irreversible. You will need to re-create your account if you proceed.
+              </DialogDescription>
+            </DialogHeader>
+
+            <form onSubmit={handleDeleteAccountSubmit} className="grid gap-4">
+              {deleteError && (
+                <Alert className="mb-2" variant="destructive">
+                  <AlertTitle>Error</AlertTitle>
+                  <AlertDescription>{deleteError}</AlertDescription>
+                </Alert>
+              )}
+
+              <div className="grid gap-3">
+                <Label htmlFor="delete-password">Password</Label>
+                <Input
+                  id="delete-password"
+                  name="deletePassword"
+                  type="password"
+                  placeholder="********"
+                  value={deletePassword}
+                  onChange={(e) => setDeletePassword(e.target.value)}
+                  disabled={deleteLoading}
+                  autoComplete="current-password"
+                />
+              </div>
+
+              <div className="grid gap-3">
+                <Label htmlFor="delete-totp">TOTP code (if enabled)</Label>
+                <Input
+                  id="delete-totp"
+                  name="deleteTotp"
+                  type="text"
+                  placeholder="123456"
+                  value={deleteTotp}
+                  onChange={(e) => setDeleteTotp(e.target.value)}
+                  disabled={deleteLoading}
+                  autoComplete="one-time-code"
+                />
+              </div>
+
+              <DialogFooter>
+                <DialogClose asChild>
+                  <Button variant="outline" type="button" disabled={deleteLoading}>
+                    Cancel
+                  </Button>
+                </DialogClose>
+                <Button variant="destructive" type="submit" disabled={deleteLoading}>
+                  {deleteLoading ? "Deleting..." : "Delete account"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
       </div>
     </>
   )

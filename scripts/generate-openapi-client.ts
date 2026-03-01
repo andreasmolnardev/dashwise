@@ -47,10 +47,11 @@ function render() {
       lines.push('  ' + buildPath.replace(/\n/g,'\n  '));
 
       // call underlying client
+      const helper = method.toLowerCase() === 'delete' ? 'del' : method.toLowerCase();
       if (hasBody) {
-        lines.push(`  return ${method.toLowerCase()}<T>(path, body, opts);`);
+        lines.push(`  return ${helper}<T>(path, body, opts);`);
       } else {
-        lines.push(`  return ${method.toLowerCase()}<T>(path, opts);`);
+        lines.push(`  return ${helper}<T>(path, opts);`);
       }
 
       lines.push('}');
