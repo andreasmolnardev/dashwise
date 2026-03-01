@@ -462,7 +462,31 @@
 			"post": {
 				"tags": ["wallpapers"],
 				"summary": "Upload or update wallpaper",
-				"requestBody": { "$ref": "#/components/requestBodies/JsonBody" },
+				"requestBody": {
+					"required": true,
+					"content": {
+						"multipart/form-data": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"image": {
+										"type": "string",
+										"format": "binary"
+									},
+									"fileName": {
+										"type": "string",
+										"description": "Optional fallback file name"
+									},
+									"convertToWebp": {
+										"type": "boolean",
+										"description": "Convert the uploaded image to WebP before storing"
+									}
+								},
+								"required": ["image"]
+							}
+						}
+					}
+				},
 				"responses": {
 					"200": { "$ref": "#/components/responses/JsonOk" }
 				}

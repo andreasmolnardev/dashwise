@@ -33,6 +33,9 @@ export async function POST(request: Request) {
         // 2) parse form-data
         const formData = await request.formData();
         const incomingFile = formData.get('image') as File | null;
+        const convertToWebpField = formData.get('convertToWebp');
+        const convertToWebp =
+            convertToWebpField === 'true' || convertToWebpField === '1';
         const fileNameField = (formData.get('fileName') as string) || (incomingFile && (incomingFile as any).name);
 
         if (!incomingFile || !fileNameField) {
@@ -41,6 +44,10 @@ export async function POST(request: Request) {
                 { status: 400 }
             );
         }
+
+        const originalFileName = (incomingFile as any).name || fileNameField;
+        const baseName = originalFileName.replace(/\.[^.]+$/, '') || 'wallpaper';
+        const targetFileName = convertToWebp ? `${baseName}.webp` : originalFileName;
 
         // 3) read file into buffer
         const arrayBuffer = await incomingFile.arrayBuffer();
@@ -59,13 +66,18 @@ export async function POST(request: Request) {
             buffer = Buffer.from(resizedBuffer.buffer as ArrayBuffer);
         }
 
+        if (convertToWebp) {
+            const webpBuffer = await sharp(buffer)
+                .webp({ quality: 80 })
+                .toBuffer();
+            buffer = Buffer.from(webpBuffer.buffer as ArrayBuffer);
+        }
+
         // 5) build a FormData for PocketBase create
         // Use Web FormData + Blob (Next.js server runtime supports these)
         const uploadForm = new FormData();
-        uploadForm.append('fileName', fileNameField);
-        // Keep original filename extension if available
-        const originalName = (incomingFile as any).name || fileNameField;
-        uploadForm.append('image', new Blob([buffer]), originalName);
+        uploadForm.append('fileName', targetFileName);
+        uploadForm.append('image', new Blob([buffer]), targetFileName);
 
         //include userId
         uploadForm.append('userId', userId);
@@ -87,7 +99,7 @@ export async function POST(request: Request) {
         }
 
         // 9) build the URL for your own GET endpoint
-        const getUrl = `/api/v1/wallpapers?fileName=${encodeURIComponent(fileNameField)}`;
+        const getUrl = `/api/v1/wallpapers?fileName=${encodeURIComponent(targetFileName)}`;
 
         return NextResponse.json({
             success: true,
