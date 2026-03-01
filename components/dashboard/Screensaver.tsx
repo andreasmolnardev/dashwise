@@ -33,7 +33,6 @@ export default function Screensaver({ active, onExit }: { active: boolean; onExi
   const homePageFont = config.appearance?.clock?.defaultFont ||  "MomoTrustDisplay";
 
   const clockFont = useHomePageStyle ? homePageFont : screensaverConfig?.clockFont || homePageFont;
-    console.log("clock font", clockFont)
   const clockFontWeight = useHomePageStyle ? "font-normal" : screensaverConfig?.clockFontWeight || "font-normal";
   const color = useHomePageStyle ? "rgba(255, 255, 255, 0.8)" : screensaverConfig?.color || "rgba(255, 255, 255, 0.8)";
   const size = useHomePageStyle ? 5 : screensaverConfig?.size || 9;
