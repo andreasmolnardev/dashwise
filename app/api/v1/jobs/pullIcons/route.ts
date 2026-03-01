@@ -2,6 +2,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { join } from "node:path";
 import { NextRequest, NextResponse } from "next/server";
+import { enforceJobsBasicAuth } from "@/lib/jobs/basicAuth";
 
 const execFileAsync = promisify(execFile);
 
@@ -23,7 +24,12 @@ async function runPullIconsScript() {
 	}
 }
 
-export async function GET(_req: NextRequest) {
+export async function GET(req: NextRequest) {
+	const authError = enforceJobsBasicAuth(req);
+	if (authError) {
+		return authError;
+	}
+
 	const start = new Date();
 
 	if (activePull) {

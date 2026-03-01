@@ -1,6 +1,7 @@
 import Fastify from "fastify";
 import axios from "axios";
 import cron from "node-cron";
+import { Buffer } from "buffer";
 
 import { config } from "./config/env";
 import { getSuperuserPB } from "./lib/pb";
@@ -12,6 +13,13 @@ import { newsFeedBuilder } from "./news/feed-builder";
 import { processQueuedNotifications } from "./notifications/forwarder";
 
 const fastify = Fastify({ logger: true });
+
+const jobsAuthHeader = {
+  Authorization: `Basic ${Buffer.from(
+    `${config.PB_ADMIN_EMAIL}:${config.PB_ADMIN_PASSWORD}`,
+    "utf-8"
+  ).toString("base64")}`,
+};
 
 console.log("dashwise job runner is active")
 //connect to pocketbase
@@ -25,7 +33,9 @@ getSuperuserPB().then(pb => {
 // search items
 async function triggerSearchItemIndexing() {
   try {
-    const response = await axios.get(`${config.DASHWISE_URL}/api/v1/jobs/searchItems`);
+    const response = await axios.get(`${config.DASHWISE_URL}/api/v1/jobs/searchItems`, {
+      headers: jobsAuthHeader,
+    });
     console.log("Search items job triggered successfully:", response.status);
   } catch (error) {
     console.error("Error triggering search items indexing:", error);
@@ -43,7 +53,9 @@ fastify.get("/webhook/searchItemIndexer", async (request, reply) => {
 // refresh icons
 async function triggerPullIconsJob() {
   try {
-    const response = await axios.get(`${config.DASHWISE_URL}/api/v1/jobs/pullIcons`);
+    const response = await axios.get(`${config.DASHWISE_URL}/api/v1/jobs/pullIcons`, {
+      headers: jobsAuthHeader,
+    });
     console.log("Pull icons job triggered successfully:", response.status);
   } catch (error) {
     console.error("Error triggering pull icons job:", error);
@@ -51,7 +63,7 @@ async function triggerPullIconsJob() {
 }
 
 if (config.ENABLE_ICONS_REFRESH === true) {
-  cron.schedule(config.PULL_ICONS_SCHEDULE, () => triggerPullIconsJoþb());
+  cron.schedule(config.PULL_ICONS_SCHEDULE, () => triggerPullIconsJob());
 }
 
 fastify.get("/webhook/pullIcons", async (request, reply) => {
