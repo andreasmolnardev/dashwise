@@ -4,7 +4,7 @@ This is my attempt to solving that.
 
 > **Disclaimer:** This project is still under development. Therefore, only the working features of the app are listed in the features section. Integration with additional services is planned. Currently the integration logic is therefore being revamped.
 
-> **Use of AI:** The development of this project is AI-Assisted by using it as a tool - not as a substitute for programming skills.
+> **Use of AI:** The development of this project is AI-Assisted by using it as a tool - not as a substitute for real programming skills.
 
 ## Screenshot
 <img width="1165" height="828" alt="Screenshot 2025-11-18 at 17 24 19" src="https://github.com/user-attachments/assets/e5315f99-4a9f-49f6-8778-0e7cf77d2990" />
