@@ -25,7 +25,7 @@ export default function AppearanceSettingsPage() {
       <h1 className="text-3xl font-semibold mb-4">Appearance</h1>
 
       <div className="content space-y-2">
-        <h2 className="text-xl font-semibold">Wallpaper</h2>
+        <h2 className="text-xl font-bold">Wallpaper</h2>
         <RadioGroup
           value={value}
           onValueChange={(v) => {
@@ -94,7 +94,7 @@ export default function AppearanceSettingsPage() {
           configKey="settings/appearance"
         />
 
-        <h3 className="text-lg font-medium">Filters</h3>
+        <h3 className="text-lg font-medium">Wallpaper Filters</h3>
 
         <WallpaperBrightnessSliderComponent />
         <WallpaperBrightnessDarkModeSliderComponent />
