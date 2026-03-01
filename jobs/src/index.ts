@@ -5,10 +5,11 @@ import { Buffer } from "buffer";
 
 import { config } from "./config/env";
 import { getSuperuserPB } from "./lib/pb";
+import { runJob } from "./lib/job-logger";
 
 import indexStatusMonitoringJobs from "./monitoring/indexer";
 import { runStatusMonitoringJobs } from "./monitoring/runner";
-import { runComparisonRunner } from "./updates/comparison-runner";
+import { runVersionComparisonRunner } from "./updates/comparison-runner";
 import { newsFeedBuilder } from "./news/feed-builder";
 import { processQueuedNotifications } from "./notifications/forwarder";
 
@@ -21,8 +22,8 @@ const jobsAuthHeader = {
   ).toString("base64")}`,
 };
 
-console.log("dashwise job runner is active")
-//connect to pocketbase
+console.log("dashwise job runner is active");
+// connect to pocketbase
 getSuperuserPB().then(pb => {
   console.log("Connected to Pocketbase")
 }).catch((error) => {
@@ -42,12 +43,30 @@ async function triggerSearchItemIndexing() {
   }
 }
 
-cron.schedule(config.SEARCHITEMS_SCHEDULE, () => triggerSearchItemIndexing());
+const runSearchItemsJob = (triggerSource: string) =>
+  runJob("searchItemsIndexer", triggerSearchItemIndexing, {
+    startMessage: `Triggered by ${triggerSource}`,
+    successMessage: "Search items indexing completed",
+    errorMessage: "Search items indexing failed",
+  });
+
+cron.schedule(config.SEARCHITEMS_SCHEDULE, () => {
+  void runSearchItemsJob("cron schedule").catch((error) =>
+    console.error("Search items cron job failed:", error)
+  );
+});
 
 fastify.get("/webhook/searchItemIndexer", async (request, reply) => {
   console.log("Webhook received");
-  await triggerSearchItemIndexing();
-  reply.send({ message: "Search item indexing triggered" });
+  try {
+    await runSearchItemsJob("webhook");
+    reply.send({ message: "Search item indexing triggered" });
+  } catch (error) {
+    reply.status(500).send({
+      message: "Search item indexing failed",
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
 });
 
 // refresh icons
@@ -62,56 +81,167 @@ async function triggerPullIconsJob() {
   }
 }
 
+const runPullIconsJob = (triggerSource: string) =>
+  runJob("pullIcons", triggerPullIconsJob, {
+    startMessage: `Triggered by ${triggerSource}`,
+    successMessage: "Pull icons job completed",
+    errorMessage: "Pull icons job failed",
+  });
+
 if (config.ENABLE_ICONS_REFRESH === true) {
-  cron.schedule(config.PULL_ICONS_SCHEDULE, () => triggerPullIconsJob());
+  cron.schedule(config.PULL_ICONS_SCHEDULE, () => {
+    void runPullIconsJob("cron schedule").catch((error) =>
+      console.error("Pull icons cron job failed:", error)
+    );
+  });
 }
 
 fastify.get("/webhook/pullIcons", async (request, reply) => {
   console.log("Webhook received");
-  await triggerPullIconsJob();
-  reply.send({ message: "Pull icons job triggered" });
+  try {
+    await runPullIconsJob("webhook");
+    reply.send({ message: "Pull icons job triggered" });
+  } catch (error) {
+    reply.status(500).send({
+      message: "Pull icons job failed",
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
 });
 
 //link monitoring: indexer
-cron.schedule(config.MONITORING_INDEXER_SCHEDULE, () => indexStatusMonitoringJobs());
+const runMonitoringIndexerJob = (triggerSource: string) =>
+  runJob("statusMonitoringIndexer", indexStatusMonitoringJobs, {
+    startMessage: `Triggered by ${triggerSource}`,
+    successMessage: "Status monitoring indexer completed",
+    errorMessage: "Status monitoring indexer failed",
+  });
+
+cron.schedule(config.MONITORING_INDEXER_SCHEDULE, () => {
+  void runMonitoringIndexerJob("cron schedule").catch((error) =>
+    console.error("Monitoring indexer cron job failed:", error)
+  );
+});
 
 fastify.get("/webhook/statusMonitoringIndexer", async (request, reply) => {
   console.log("Webhook received");
-  await indexStatusMonitoringJobs();
-  reply.send({ message: "status monitoring indexer triggered" });
+  try {
+    const result = await runMonitoringIndexerJob("webhook");
+    reply.send({ message: "status monitoring indexer triggered", result });
+  } catch (error) {
+    reply.status(500).send({
+      message: "Status monitoring indexer failed",
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
 });
 
 //link monitoring: runner
-cron.schedule(config.MONITORING_RUNNER_SCHEDULE, () => runStatusMonitoringJobs());
+const runMonitoringRunnerJob = (triggerSource: string) =>
+  runJob("statusMonitoringRunner", runStatusMonitoringJobs, {
+    startMessage: `Triggered by ${triggerSource}`,
+    successMessage: "Status monitoring runner completed",
+    errorMessage: "Status monitoring runner failed",
+  });
+
+cron.schedule(config.MONITORING_RUNNER_SCHEDULE, () => {
+  void runMonitoringRunnerJob("cron schedule").catch((error) =>
+    console.error("Monitoring runner cron job failed:", error)
+  );
+});
 
 fastify.get("/webhook/statusMonitoringRunner", async (request, reply) => {
   console.log("Webhook received");
-  await runStatusMonitoringJobs();
-  reply.send({ message: "status monitoring runner triggered" });
+  try {
+    const result = await runMonitoringRunnerJob("webhook");
+    reply.send({ message: "status monitoring runner triggered", result });
+  } catch (error) {
+    reply.status(500).send({
+      message: "Status monitoring runner failed",
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
 });
 
 //update checks
-runComparisonRunner();
-cron.schedule(config.UPDATE_CHECK_SCHEDULE, () => runComparisonRunner());
+const runComparisonJob = (triggerSource: string) =>
+  runJob("comparisonRunner", runVersionComparisonRunner, {
+    startMessage: `Triggered by ${triggerSource}`,
+    successMessage: "Comparison runner completed",
+    errorMessage: "Comparison runner failed",
+  });
 
-newsFeedBuilder();
-cron.schedule(config.FEED_BUILDING_SCHEDULE, () => newsFeedBuilder());
+void runComparisonJob("initial run").catch((error) =>
+  console.error("Comparison runner failed on startup:", error)
+);
+
+cron.schedule(config.UPDATE_CHECK_SCHEDULE, () => {
+  void runComparisonJob("scheduled run").catch((error) =>
+    console.error("Comparison runner cron job failed:", error)
+  );
+});
+
+const runNewsFeedBuilderJob = (triggerSource: string, feedId?: string) =>
+  runJob(
+    "newsFeedBuilder",
+    () => newsFeedBuilder(feedId),
+    {
+      startMessage: `Triggered by ${triggerSource}${feedId ? ` for feed ${feedId}` : ""}`,
+      successMessage: "News feed builder completed",
+      errorMessage: "News feed builder failed",
+    }
+  );
+
+void runNewsFeedBuilderJob("initial run").catch((error) =>
+  console.error("News feed builder failed on startup:", error)
+);
+
+cron.schedule(config.FEED_BUILDING_SCHEDULE, () => {
+  void runNewsFeedBuilderJob("scheduled run").catch((error) =>
+    console.error("News feed builder cron job failed:", error)
+  );
+});
 
 
 fastify.get("/webhook/newsFeedBuilder", async (request, reply) => {
   const { feedId } = request.query as { feedId?: string };
   console.log("Webhook received", feedId ? `for feed ${feedId}` : "for all feeds");
-  const result = await newsFeedBuilder(feedId);
-  reply.send({ message: "news feed builder triggered", result });
+  try {
+    const result = await runNewsFeedBuilderJob("webhook", feedId);
+    reply.send({ message: "news feed builder triggered", result });
+  } catch (error) {
+    reply.status(500).send({
+      message: "News feed builder failed",
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
 });
 
 //notification forwarding
-cron.schedule(config.NOTIFICATION_FORWARDER_SCHEDULE, () => processQueuedNotifications());
+const runNotificationForwarderJob = (triggerSource: string) =>
+  runJob("notificationForwarder", processQueuedNotifications, {
+    startMessage: `Triggered by ${triggerSource}`,
+    successMessage: "Notification forwarder completed",
+    errorMessage: "Notification forwarder failed",
+  });
+
+cron.schedule(config.NOTIFICATION_FORWARDER_SCHEDULE, () => {
+  void runNotificationForwarderJob("cron schedule").catch((error) =>
+    console.error("Notification forwarder cron job failed:", error)
+  );
+});
 
 fastify.post("/api/forward-notifications", async (request, reply) => {
   console.log("Notification forwarding webhook received");
-  await processQueuedNotifications();
-  reply.send({ message: "notification forwarding triggered" });
+  try {
+    await runNotificationForwarderJob("api");
+    reply.send({ message: "notification forwarding triggered" });
+  } catch (error) {
+    reply.status(500).send({
+      message: "Notification forwarding failed",
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
 });
 
 // Start http server
