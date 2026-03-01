@@ -306,9 +306,9 @@ export default function LinkDetailsForm({ link, onClose, preselectOpenedGroup }:
   return (
     <form
       onSubmit={handleSubmit}
-      className="grid grid-cols-[repeat(auto,3)] gap-2 justify-center"
+      className="flex gap-2 justify-center relative"
     >
-      <section>
+      <section className="max-h-100 overflow-scroll">
         <Label htmlFor="link-title">Name</Label>
         <Input
           id="link-title"
@@ -533,7 +533,7 @@ export default function LinkDetailsForm({ link, onClose, preselectOpenedGroup }:
 
       <Separator orientation="vertical" className="frosted" />
 
-      <section className="flex flex-col gap-1.5">
+      <section className="flex flex-col gap-1.5 justify-center pb-10">
         <div className="flex gap-2 justify-between items-center">
           <Label className="font-medium">Link Group</Label>
           <Select
@@ -594,7 +594,7 @@ export default function LinkDetailsForm({ link, onClose, preselectOpenedGroup }:
         </div>
       </section>
 
-      <div className="col-span-3 mt-2 flex gap-2 justify-end">
+      <div className="col-span-3 mt-2 flex gap-2 justify-end absolute bottom-2 right-2">
         {error && <p className="text-red-500">{error}</p>}
         {!isEditing && (
           <Button
