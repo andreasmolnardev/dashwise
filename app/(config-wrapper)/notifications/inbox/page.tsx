@@ -223,8 +223,10 @@ export default function NotificationsInboxPage() {
                       "group-hover:text-(--primary)"
                     )}
                   >
+                    {notif.status !== "read" && <span className="inline-block w-2 h-2 bg-primary rounded-full mr-2"></span>}
                     {contentTitle}
                   </div>
+
                 )}
                 {contentDesc && (
                   <div className="text-sm text-foreground">{contentDesc}</div>
