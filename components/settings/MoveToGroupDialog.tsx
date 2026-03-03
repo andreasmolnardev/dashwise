@@ -48,7 +48,7 @@ export default function MoveToGroupDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="frosted text-(--text-primary) max-w-md">
+      <DialogContent className="frosted text-foreground max-w-md">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>

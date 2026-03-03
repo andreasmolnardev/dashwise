@@ -13,20 +13,8 @@ export type NotificationItem = {
  */
 export async function getNotifications(token?: string): Promise<NotificationItem[]> {
   try {
-    const headers: Record<string, string> = {};
-    if (token) headers.Authorization = `Bearer ${token}`;
-
-    const res = await fetch("/api/v1/notifications", {
-      headers: Object.keys(headers).length ? headers : undefined,
-      cache: "no-store",
-    });
-
-    const json = await res.json();
-
-    if (!res.ok) {
-      throw new Error(json?.error ?? `Failed to fetch notifications (${res.status})`);
-    }
-
+    const { get } = await import("@/lib/apiClient");
+    const json = await get("/notifications", { token, cache: "no-store" });
     if (Array.isArray(json.items)) return json.items;
     if (Array.isArray(json)) return json;
     return json.items ?? [];
@@ -42,17 +30,8 @@ export default getNotifications;
 
 export async function getNotificationTopics(token?: string): Promise<{ id: string; title?: string }[]> {
   try {
-    const headers: Record<string, string> = {};
-    if (token) headers.Authorization = `Bearer ${token}`;
-
-    const res = await fetch("/api/v1/notifications/topics", {
-      headers: Object.keys(headers).length ? headers : undefined,
-      cache: "no-store",
-    });
-
-    const json = await res.json();
-    if (!res.ok) throw new Error(json?.error ?? `Failed to fetch topics (${res.status})`);
-
+    const { get } = await import("@/lib/apiClient");
+    const json = await get("/notifications/topics", { token, cache: "no-store" });
     if (Array.isArray(json.items)) return json.items;
     if (Array.isArray(json)) return json;
     return json.items ?? [];
@@ -65,17 +44,8 @@ export async function getNotificationTopics(token?: string): Promise<{ id: strin
 
 export async function getNotificationForwarders(token?: string): Promise<any[]> {
   try {
-    const headers: Record<string, string> = {};
-    if (token) headers.Authorization = `Bearer ${token}`;
-
-    const res = await fetch("/api/v1/notifications/forwarders", {
-      headers: Object.keys(headers).length ? headers : undefined,
-      cache: "no-store",
-    });
-
-    const json = await res.json();
-    if (!res.ok) throw new Error(json?.error ?? `Failed to fetch forwarders (${res.status})`);
-
+    const { get } = await import("@/lib/apiClient");
+    const json = await get("/notifications/forwarders", { token, cache: "no-store" });
     if (Array.isArray(json.items)) return json.items;
     if (Array.isArray(json)) return json;
     return json.items ?? [];

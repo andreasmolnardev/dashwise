@@ -1,7 +1,12 @@
 import runBackgroundJobs from "@/lib/jobs";
 import { NextRequest, NextResponse } from "next/server";
+import { enforceJobsBasicAuth } from "@/lib/jobs/basicAuth";
 
 export async function GET(req: NextRequest) {
+  const authError = enforceJobsBasicAuth(req);
+  if (authError) {
+    return authError;
+  }
   const start = new Date();
   console.log(`[API] Starting background jobs at ${start.toISOString()}`);
 

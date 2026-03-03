@@ -1,4 +1,5 @@
 import { patch } from "../../apiFetch";
+import { patch as apiPatch } from "@/lib/apiClient";
 
 export type WriteOpts = {
   method?: "PATCH" | "PUT" | "POST" | "DELETE";
@@ -14,9 +15,10 @@ export async function writeToConfig<T = any>(
   opts?: WriteOpts
 ): Promise<T> {
   const method = opts?.method ?? "PATCH";
-  const url = `/api/v1/config?path=${encodeURIComponent(path)}`;
+  const urlPath = `/config?path=${encodeURIComponent(path)}`;
 
-  const json = await patch<T>(url, { updatedItem }, { token: opts?.token ?? null, signal: opts?.signal });
+  // prefer api client wrapper which prefixes `/api/v1`
+  const json = await apiPatch<T>(urlPath, { updatedItem }, { token: opts?.token ?? null, signal: opts?.signal });
 
   // success
   if (opts?.onSuccess) opts.onSuccess(json);

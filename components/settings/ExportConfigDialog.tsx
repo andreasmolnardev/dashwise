@@ -34,7 +34,7 @@ export default function ExportConfigDialog({ jsonString }: { jsonString: string 
         <FontAwesomeIcon icon={faCaretRight} />
       </DialogTrigger>
 
-      <DialogContent className="frosted text-(--text-primary)">
+      <DialogContent className="frosted text-foreground">
         <DialogHeader>
           <DialogTitle>Export Config</DialogTitle>
         </DialogHeader>

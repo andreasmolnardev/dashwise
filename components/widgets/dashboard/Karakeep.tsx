@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { getIntegrationsKarakeep } from "@/lib/apiClient";
 import useAuth from "@/context/useAuth";
 import { WidgetItemProps } from "../Widget";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -33,13 +34,8 @@ export default function latestKarakeepBookmarksWidget({
     }
 
     setLoading(true);
-
-    fetch("/api/v1/integrations/karakeep?latest", {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    })
-      .then((r) => r.json()).then((d) => {
+    getIntegrationsKarakeep({ qs: { latest: true }, token })
+      .then((d) => {
         setData({
           latest: Array.isArray(d?.latest) ? d.latest : [],
           serverDetails: {
@@ -47,7 +43,7 @@ export default function latestKarakeepBookmarksWidget({
           },
         });
       })
-      .catch(() => { })
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, [token]);
 

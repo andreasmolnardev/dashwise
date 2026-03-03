@@ -4,13 +4,39 @@ import { ReactNode, useEffect, useState } from "react";
 import useAuth from "@/context/useAuth";
 import { usePathname, useRouter } from "next/navigation";
 import { ConfigProvider } from "@/context/ConfigContext";
+import { LocalizationProvider } from "@/context/LocalizationContext";
 import { cn } from "@/lib/utils";
+import { getConfig } from "@/lib/apiClient";
+
+type ThemeMode = "system" | "dark" | "light";
+
+function applyThemeClasses(themeMode: ThemeMode, frostedAppearance: ThemeMode = themeMode) {
+  if (typeof document === "undefined" || typeof window === "undefined") return;
+
+  const root = document.documentElement;
+  const media = window.matchMedia("(prefers-color-scheme: dark)");
+
+  const resolvedTheme = themeMode === "system" ? (media.matches ? "dark" : "light") : themeMode;
+  const resolvedFrosted =
+    frostedAppearance === "system"
+      ? media.matches
+        ? "dark"
+        : "light"
+      : frostedAppearance;
+
+  root.classList.toggle("dark", resolvedTheme === "dark");
+  root.style.colorScheme = resolvedTheme;
+
+  root.classList.remove("frosted-theme-dark", "frosted-theme-light");
+  root.classList.add(resolvedFrosted === "dark" ? "frosted-theme-dark" : "frosted-theme-light");
+}
 
 export default function ConfigWrapper({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const [config, setConfig] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isDarkThemeActive, setIsDarkThemeActive] = useState(false);
   const router = useRouter();
 
   // --- Service worker registration ---
@@ -26,38 +52,40 @@ export default function ConfigWrapper({ children }: { children: ReactNode }) {
   const { token } = useAuth();
 
   // --- Fetch config ---
-  const fetchConfig = async () => {
+  const fetchConfig = async (opts?: { showLoading?: boolean }) => {
+    const showLoading = opts?.showLoading ?? false;
     try {
-      setLoading(true);
+      if (showLoading) setLoading(true);
       if (!token) {
         router.push("/auth/login");
         return;
       }
 
-      const res = await fetch("/api/v1/config", {
-        method: "GET",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (res.status === 401) {
-        router.push("/auth/login");
-        throw new Error(`Unauthorized`);
+        try {
+        const data = await getConfig({ token });
+        setConfig(data);
+      } catch (err: any) {
+        if (err?.status === 401) {
+          router.push("/auth/login");
+          throw new Error("Unauthorized");
+        }
+        throw err;
       }
-
-      if (!res.ok) throw new Error(`Failed to fetch config: ${res.status}`);
-      const data = await res.json();
-      setConfig(data);
     } catch (err: any) {
       setError(err.message || "Unknown error");
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
+  };
+
+  const patchConfig = (updater: (prev: any) => any) => {
+    setConfig((prev: any) => updater(prev));
   };
 
   // --- Fetch config on mount or when path changes ---
   useEffect(() => {
     if (!config && pathname && !pathname.includes("auth")) {
-      fetchConfig();
+      fetchConfig({ showLoading: true });
     } else if (!pathname || pathname.includes("auth")) {
       setConfig({});
       setLoading(false);
@@ -69,6 +97,27 @@ export default function ConfigWrapper({ children }: { children: ReactNode }) {
     const accentColor = config?.appearance?.accentColor || "#4f46e5";
     document.documentElement.style.setProperty("--primary", accentColor);
   }, [config]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const themeMode: ThemeMode = config?.appearance?.themeMode ?? "system";
+    const frostedAppearance: ThemeMode = config?.appearance?.frostedAppearance ?? themeMode;
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+
+    const apply = () => {
+      applyThemeClasses(themeMode, frostedAppearance);
+      const resolvedTheme = themeMode === "system" ? (media.matches ? "dark" : "light") : themeMode;
+      setIsDarkThemeActive(resolvedTheme === "dark");
+    };
+    apply();
+
+    const shouldWatchSystem = themeMode === "system" || frostedAppearance === "system";
+    if (!shouldWatchSystem) return;
+
+    media.addEventListener("change", apply);
+    return () => media.removeEventListener("change", apply);
+  }, [config?.appearance?.themeMode, config?.appearance?.frostedAppearance]);
 
   // --- Wallpaper loading ---
   useEffect(() => {
@@ -123,19 +172,25 @@ export default function ConfigWrapper({ children }: { children: ReactNode }) {
   // Wallpaper blur + brightness from config
   const blur = config?.appearance?.wallpaperFilters?.blur ?? 3; // px
   const brightness = config?.appearance?.wallpaperFilters?.brightness ?? 85; // percent
+  const darkModeBrightness = config?.appearance?.wallpaperFilters?.darkModeBrightness ?? 0; // extra darken percent (0-50)
+  const appliedBrightness = isDarkThemeActive
+    ? Math.max(0, brightness - Math.max(0, Math.min(50, darkModeBrightness)))
+    : brightness;
 
 
   return (
-    <ConfigProvider value={{ config, refreshConfig: fetchConfig }}>
-      <div
-        className={cn("min-h-screen")}
-        style={{
-          backdropFilter: `blur(${blur}px) brightness(${brightness}%)`,
-          WebkitBackdropFilter: `blur(${blur}px) brightness(${brightness}%)`,
-        }}
-      >
-        {children}
-      </div>
+    <ConfigProvider value={{ config, refreshConfig: fetchConfig, patchConfig }}>
+      <LocalizationProvider>
+        <div
+          className={cn("min-h-screen overflow-hidden")}
+          style={{
+            backdropFilter: `blur(${blur}px) brightness(${appliedBrightness}%)`,
+            WebkitBackdropFilter: `blur(${blur}px) brightness(${appliedBrightness}%)`,
+          }}
+        >
+          {children}
+        </div>
+      </LocalizationProvider>
     </ConfigProvider>
   );
 }

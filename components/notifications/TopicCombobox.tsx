@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "../ui/button";
+import { post } from "@/lib/apiClient";
 
 export type Topic = { id: string; title: string };
 
@@ -49,16 +50,7 @@ export default function TopicCombobox({ topics, value, onChange }: TopicCombobox
       setCreating(true);
       if (!token) throw new Error("Missing auth token");
 
-      const res = await fetch("/api/v1/notifications/topics", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ title }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "Failed to create topic");
+      const json = await post("/notifications/topics", { title }, { token });
 
       const newTopic: Topic = { id: json.topicId, title };
       setLocalTopics((old) => [...old, newTopic]);

@@ -164,7 +164,7 @@ export default function SearchEngineDetailsForm({
                     <SelectTrigger className="w-[180px] frosted">
                         <SelectValue placeholder="Select status" />
                     </SelectTrigger>
-                    <SelectContent className="frosted text-(--text-primary)">
+                    <SelectContent className="frosted text-foreground">
                         <SelectGroup>
                             <SelectItem value="enabled">Enabled</SelectItem>
                             <SelectItem value="disabled">Disabled</SelectItem>
@@ -219,7 +219,7 @@ export default function SearchEngineDetailsForm({
                             </Label>
                         </PopoverTrigger>
 
-                        <PopoverContent className="frosted p-3 text-(--text-primary) w-[300px]">
+                        <PopoverContent className="frosted p-3 text-foreground w-[300px]">
                             <div className="flex flex-col gap-2">
                                 <Label htmlFor="iconUrl">Icon URL</Label>
                                 <Input
@@ -254,7 +254,7 @@ export default function SearchEngineDetailsForm({
                             </Label>
                         </PopoverTrigger>
 
-                        <PopoverContent className="frosted text-(--text-primary) max-w-[480px]">
+                        <PopoverContent className="frosted text-foreground max-w-[480px]">
                             <IconPickerComponent
                                 initialIcons={icons}
                                 onSelect={(iconObj: any) => {

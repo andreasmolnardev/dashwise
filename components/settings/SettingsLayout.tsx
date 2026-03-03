@@ -4,12 +4,13 @@ import { usePathname } from "next/navigation";
 import { useConfig } from "@/context/ConfigContext";
 import { useEffect, useRef } from "react";
 import { Label } from "@/components/ui/label";
-import { faBrush, faChartLine, faCircleUser, faCircleXmark, faGripLines, faMagnifyingGlass, faPaperclip, faPuzzlePiece, faSliders } from "@fortawesome/free-solid-svg-icons";
+import { faBrush, faChartLine, faCircleUser, faCircleXmark, faDisplay, faGripLines, faMagnifyingGlass, faPaperclip, faPuzzlePiece, faSliders } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 
 const navItems = [
   { href: "/settings/account", label: "Account", icon: faCircleUser },
   { href: "/settings/appearance", label: "Appearance", icon: faBrush },
+  { href: "/settings/screensaver", label: "Screensaver", icon: faDisplay },
   { href: "/settings/glanceables", label: "Glanceables", icon: faGripLines },
   { href: "/settings/links", label: "Links", icon: faPaperclip },
   { href: "/settings/search", label: "Search", icon: faMagnifyingGlass },

@@ -6,7 +6,7 @@
         },
         {
             "name": "News",
-            "description": "Receive alerts via topic-based PUSH requests",
+            "description": "Subscribe to RSS Feeds",
             "page": "news"
         }
     ],

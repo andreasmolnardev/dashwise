@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, useMemo } from "react";
 import useAuth from "@/context/useAuth";
+import { postIntegrationsDashdot } from "@/lib/apiClient";
 import WidgetColumnTemplate from "../templates/WidgetColumn";
 import type { WidgetItemProps } from "../Widget";
 
@@ -31,20 +32,12 @@ export default function DashdotWidget({ params, className = "" }: DashdotWidgetP
             if (!token) {
                 return;
             }
-            const url = "/api/v1/integrations/dashdot";
+            const url = "/integrations/dashdot";
             const useOverride = !!params?.defaultOverride;
             const body = useOverride
                 ? { serverUrl: params?.serverLocation, displayName: params?.serverDisplayname }
                 : undefined;
-
-            const res = await fetch(url, {
-                method: "POST",
-                headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-                ...({ body: JSON.stringify(body) }),
-            });
-
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            const json = await res.json();
+            const json = await postIntegrationsDashdot(body, { token });
             setMetrics(json.metrics);
             setServerDetails(json.serverDetails);
         } catch (err: any) {

@@ -19,7 +19,13 @@ interface NewsFeedRecord {
   id: string;
   userId: string;
   subscriptions?: Subscription[];
-  feed?: Record<string, FeedItem[]>;
+  [key: string]: any;
+}
+
+interface NewsFeedItemsCacheRecord {
+  id: string;
+  url: string;
+  json?: string;
   [key: string]: any;
 }
 
@@ -27,9 +33,20 @@ function escapeFilter(str: string) {
   return str.replace(/"/g, '\\"');
 }
 
+function itemTime(item: FeedItem): number {
+  const value = item?.pubDate;
+  if (value instanceof Date) return value.getTime();
+  if (typeof value === "string") {
+    const time = new Date(value).getTime();
+    return Number.isNaN(time) ? 0 : time;
+  }
+  return 0;
+}
+
 //Get a user's feed
 export async function GET(req: NextRequest) {
   try {
+    const category = req.nextUrl.searchParams.get("category");
     const serverPb = getServerPB();
     const authHeader = req.headers.get("authorization");
 
@@ -56,23 +73,101 @@ export async function GET(req: NextRequest) {
     let record: NewsFeedRecord | null = null;
 
     try {
-      record = await serverPb.collection("newsFeeds").getFirstListItem<NewsFeedRecord>(filter);
+      record = await serverPb.collection("newsFeeds").getFirstListItem<
+        NewsFeedRecord
+      >(filter);
     } catch (e: any) {
       if (e?.status === 404) {
-        return NextResponse.json({ feed: {}, subscriptions: [] }, { status: 200 });
+        return NextResponse.json({ feed: {}, subscriptions: [] }, {
+          status: 200,
+        });
       }
       throw e;
     }
-    
+
+    const subscriptions = record.subscriptions ?? [];
+    let feed: Record<string, FeedItem[]> = {};
+
+    const urls = Array.from(
+      new Set(
+        subscriptions
+          .map((sub) => sub?.feedUrl)
+          .filter((url): url is string =>
+            typeof url === "string" && url.length > 0
+          ),
+      ),
+    );
+
+    // typed cache map
+    const cacheByUrl: Record<string, FeedItem[]> = {};
+
+    if (urls.length > 0) {
+      const filter = urls.map((url) => `url="${escapeFilter(url)}"`).join(
+        " || ",
+      );
+      const cacheRecords = await serverPb
+        .collection("newsFeedItemsCache")
+        .getFullList<NewsFeedItemsCacheRecord>({ filter });
+
+      for (const cacheRecord of cacheRecords) {
+        const raw = cacheRecord.json;
+        if (!raw) {
+          cacheByUrl[cacheRecord.url] = [];
+          continue;
+        }
+
+        // cacheRecord.json may be a JSON string; parse safely
+        try {
+          if (typeof raw === "string") {
+            const parsed = JSON.parse(raw);
+            cacheByUrl[cacheRecord.url] = Array.isArray(parsed) ? parsed : [];
+          } else if (Array.isArray(raw)) {
+            cacheByUrl[cacheRecord.url] = raw;
+          } else {
+            cacheByUrl[cacheRecord.url] = [];
+          }
+        } catch (parseErr) {
+          console.warn(
+            "Failed to parse cached feed JSON for",
+            cacheRecord.url,
+            parseErr,
+          );
+          cacheByUrl[cacheRecord.url] = [];
+        }
+      }
+    }
+
+    for (const sub of subscriptions) {
+      if (!sub?.category || !sub?.feedUrl) continue;
+      if (!feed[sub.category]) {
+        feed[sub.category] = [];
+      }
+
+      const items = Array.isArray(cacheByUrl[sub.feedUrl])
+        ? cacheByUrl[sub.feedUrl]
+        : [];
+      feed[sub.category].push(...items);
+    }
+
+    for (const feedCategory of Object.keys(feed)) {
+      feed[feedCategory] = feed[feedCategory]
+        .sort((a, b) => itemTime(b) - itemTime(a))
+        .slice(0, 10);
+    }
+
+    if (category && category !== "All") {
+      feed = feed[category] ? { [category]: feed[category] } : {};
+    }
+
     return NextResponse.json({
-      feed: record.feed ?? {},
-      subscriptions: record.subscriptions ?? [],
+      feed,
+      subscriptions,
     });
   } catch (err: any) {
     console.error("Error in GET /api/feed:", err);
     return NextResponse.json(
       { error: "Internal Server Error", details: String(err?.message ?? err) },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

@@ -14,7 +14,7 @@ export default function SignupPage() {
 
         (async () => {
             try {
-                const data = await readEndpoint<{ disableUserSignup?: boolean }>("/api/v1/appInfo", {
+                const data = await readEndpoint<{ disableUserSignup?: boolean }>("/appInfo", {
                     signal: ctl.signal,
                 });
                 if (!mounted) return;

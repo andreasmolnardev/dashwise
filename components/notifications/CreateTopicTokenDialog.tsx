@@ -13,6 +13,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
 import { Button } from "../ui/button";
+import { postNotificationsTopicTokens } from "@/lib/apiClient";
 import { TokenItem } from "@/app/(config-wrapper)/notifications/tokens/page";
 import TopicCombobox, { type Topic } from "./TopicCombobox";
 
@@ -69,17 +70,7 @@ export default function CreateTopicTokenDialogComponent({
       const tokenToUse = token;
       if (!tokenToUse) throw new Error("Missing auth token");
 
-      const res = await fetch("/api/v1/notifications/topicTokens", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${tokenToUse}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ topicId: selectedTopic.id, ...(expiresVal ? { expires: expiresVal } : {}) }),
-      });
-
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "Failed to create token");
+      const json = await postNotificationsTopicTokens({ topicId: selectedTopic.id, ...(expiresVal ? { expires: expiresVal } : {}) }, { token: tokenToUse });
 
       // Reset
       setSelectedTopic(null);
@@ -102,7 +93,7 @@ export default function CreateTopicTokenDialogComponent({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="frosted text-(--text-primary)">
+      <DialogContent className="frosted text-foreground">
         <DialogHeader>
           <DialogTitle>New Token</DialogTitle>
         </DialogHeader>
@@ -164,7 +155,7 @@ export default function CreateTopicTokenDialogComponent({
                   onChange={(e) => setInDays(Number(e.target.value || 0))}
                 />
                 <span>day{inDays === 1 ? "" : "s"}</span>
-                <span className="text-xs text-(--text-secondary)">({expiryLabel()})</span>
+                <span className="text-xs text-muted-foreground">({expiryLabel()})</span>
               </div>
             )}
 

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { getLocations } from "@/lib/apiClient";
 
 interface SearchResult {
     display_name: string;
@@ -38,10 +39,7 @@ export default function LocationSelectFormComponent({
         setLoading(true);
 
         try {
-            const res = await fetch(`/api/v1/locations?q=${encodeURIComponent(q)}`);
-            if (!res.ok) throw new Error("API error");
-
-            const json = await res.json();
+            const json = await getLocations({ qs: { q } });
             setSearchResults(json || []);
             setAnimateResults(true);
         } catch (err) {
@@ -110,7 +108,7 @@ export default function LocationSelectFormComponent({
                 )
             ) : null}
 
-            <div className="text-sm text-(--text-primary)">
+            <div className="text-sm text-foreground">
                 Selected: <strong>{value.displayName || "none"}</strong>
                 {value.coordinates ? <span> ({value.coordinates})</span> : null}
             </div>

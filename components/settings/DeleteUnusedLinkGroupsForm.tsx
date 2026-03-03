@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { useConfig } from "@/context/ConfigContext";
 import useAuth from "@/context/useAuth";
 import { Button } from "@/components/ui/button";
+import { postConfigDeleteUnusedLinkgroups } from "@/lib/apiClient";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { DialogClose } from "@/components/ui/dialog";
 
@@ -27,26 +28,13 @@ export default function DeleteUnusedLinkGroupsFormComponent({ onDeleted }: Props
     try {
       if (!token) throw new Error("Not authenticated");
 
-      const res = await fetch("/api/v1/config/delete-unused-linkgroups", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      // attempt to parse json if present
-      let json: any = {};
       try {
-        json = await res.json();
-      } catch {}
-
-      if (!res.ok) {
-        throw new Error(json?.error || `Request failed with status ${res.status}`);
+        const json = await postConfigDeleteUnusedLinkgroups(undefined, { token });
+        setSuccess(json?.message || "Unused link groups deleted.");
+        await refreshConfig();
+      } catch (err: any) {
+        throw err;
       }
-
-      setSuccess("Unused link groups deleted.");
-      await refreshConfig();
 
       if (onDeleted) await onDeleted();
     } catch (err: any) {

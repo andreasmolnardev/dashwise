@@ -35,7 +35,7 @@ export default function RenameGroupDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="frosted text-(--text-primary)">
+      <DialogContent className="frosted text-foreground">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>

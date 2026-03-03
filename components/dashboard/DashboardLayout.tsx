@@ -7,21 +7,19 @@ import LinkView from "../widgets/LinkView";
 import GlanceableComponent from "../glanceables/Glanceable";
 import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import Link from "next/link";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faBell, faGear } from "@fortawesome/free-solid-svg-icons";
-import PagesTabs from "../PagesTabs";
-import UpdateDetailsDialogComponent from "./UpdateDetailsDialog";
-import WidgetComponent from "../widgets/Widget";
+import BottomNavbar from "./BottomNavbar";
 import useAuth from "@/context/useAuth";
+import Screensaver from "./Screensaver";
+import WidgetComponent from "../widgets/Widget";
 
 export default function DashboardLayoutComponent(
   children: React.PropsWithChildren<{}> = {}
 ) {
-  const { config, refreshConfig } = useConfig();
+  const { config } = useConfig();
   const router = useRouter();
   const searchParams = useSearchParams();
   const openFromURL = searchParams.get("search") === "1";
+  const [isScreensaverActive, setScreensaverActive] = useState(false);
 
   const { token } = useAuth();
 
@@ -29,7 +27,62 @@ export default function DashboardLayoutComponent(
     if (!token) router.push("/auth/login");
   }, [router, token]);
 
+  const shouldShowOnboarding = config?.meta?.onboard === true;
+
+  useEffect(() => {
+    if (shouldShowOnboarding) {
+      router.replace("/onboarding");
+    }
+  }, [shouldShowOnboarding, router]);
+
+  const [localScreensaverConfig, setLocalScreensaverConfig] = useState<any>(null);
+
+  useEffect(() => {
+    const checkLocal = () => {
+      const local = localStorage.getItem("dashwise_screensaver_local");
+      if (local) {
+        setLocalScreensaverConfig(JSON.parse(local));
+      } else {
+        setLocalScreensaverConfig(null);
+      }
+    };
+
+    checkLocal();
+    window.addEventListener("dashwise_local_config_updated", checkLocal);
+    return () => window.removeEventListener("dashwise_local_config_updated", checkLocal);
+  }, []);
+
+  useEffect(() => {
+    let inactivityTimer: NodeJS.Timeout;
+
+    const resetTimer = () => {
+      clearTimeout(inactivityTimer);
+      const screensaverConfig = localScreensaverConfig || config.appearance?.screensaver;
+      const timeout = screensaverConfig?.inactivityTimeout;
+      if (timeout && timeout > 0) {
+        inactivityTimer = setTimeout(() => {
+          setScreensaverActive(true);
+        }, timeout * 1000);
+      }
+    };
+
+    const userActivityEvents = ["mousemove", "keydown", "scroll"];
+    userActivityEvents.forEach((event) => {
+      window.addEventListener(event, resetTimer);
+    });
+
+    resetTimer();
+
+    return () => {
+      clearTimeout(inactivityTimer);
+      userActivityEvents.forEach((event) => {
+        window.removeEventListener(event, resetTimer);
+      });
+    };
+  }, [config.appearance?.screensaver?.inactivityTimeout]);
+
   if (!token) return null;
+  if (shouldShowOnboarding) return null;
 
   useEffect(() => {
     router.prefetch("/settings/appearance");
@@ -198,158 +251,81 @@ export default function DashboardLayoutComponent(
 
 
   return (
-    <div className="grid grid-rows-[1fr_36px] h-dvh pt-5 md:p-3.5 p-0 overflow-x-hidden text-(--surface-foreground) bg-(--surface)">
-      <main
-        id="page-content-container"
-        ref={containerRef}
-        className="
+    <>
+      <Screensaver active={isScreensaverActive} onExit={() => setScreensaverActive(false)} />
+      <div className="grid grid-rows-[minmax(0,1fr)_36px] h-dvh pt-5 md:p-3.5 p-0 overflow-x-hidden text-(--surface-foreground) bg-(--surface)">
+        <main
+          id="page-content-container"
+          ref={containerRef}
+          className="
           /* mobile: horizontal swipe panels */
-          flex snap-x snap-mandatory overflow-x-auto touch-pan-x scrollbar-hide md:overflow-hidden
-          md:grid md:grid-cols-[25%_1fr_25%] gap-2
+          flex snap-x snap-mandatory overflow-x-auto touch-pan-x overflow-y-auto scrollbar-hidden md:scrollbar-auto md:overflow-x-hidden
+          md:grid md:grid-cols-[25%_1fr_25%] min-h-0
         "
-      >
-        <div
-          id="left-widget-panel"
-          className="flex-shrink-0 w-screen snap-start md:w-auto md:flex-grow md:basis-auto space-y-3.5 overflow-y-auto min-w-0"
-          style={{ scrollSnapStop: "always", touchAction: "pan-x" }}
         >
-          {renderWidgetColumn(config?.widgets?.[0])}
-        </div>
-
-        <div className="flex-shrink-0 w-screen snap-start md:w-auto md:flex-grow md:basis-auto space-y-3.5 overflow-y-auto overflow-x-hidden min-w-0" style={{ scrollSnapStop: "always", touchAction: "pan-x" }}>
-          <section className="responsive-glance-grid w-full">
-            {/* Clock (grid-area: clock) */}
-            <div
-              style={{ gridArea: "clock" }}
-              className="area-clock w-full flex items-center justify-center text-2xl md:text-4xl leading-tight"
-            >
-              {/* ensure the widget itself is centered, even if it renders full-width elements */}
-              <div style={{ margin: "0 auto", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
-                <ClockWidget format={config?.global?.["time-format"] || "24h"} />
-              </div>
-            </div>
-
-
-            {/* Left glanceable (grid-area: gl1) */}
-            <div style={{ gridArea: "gl1" }} className="area-gl1">
-              <GlanceableComponent
-                type={config?.glanceables?.[0]?.type}
-                params={config?.glanceables?.[0]?.properties}
-                className="font-medium"
-              />
-            </div>
-
-            {/* Right glanceable (grid-area: gl2) */}
-            <div style={{ gridArea: "gl2" }} className="area-gl2">
-              <GlanceableComponent
-                type={config?.glanceables?.[1]?.type}
-                params={config?.glanceables?.[1]?.properties}
-                className="font-medium"
-              />
-            </div>
-          </section>
-
-          <SearchBar useRedirect={true} defaultOpen={openFromURL ?? false}/>
-          <LinkView />
-          {/* Render middle column widgets */}
-          {renderWidgetColumn(config?.widgets?.[1])}
-        </div>
-        <div
-          id="right-widget-panel"
-          className="flex-shrink-0 w-screen snap-start md:w-auto md:flex-grow md:basis-auto space-y-3.5 overflow-y-auto min-w-0"
-          style={{ scrollSnapStop: "always", touchAction: "pan-x" }}
-        >
-          {renderWidgetColumn(config?.widgets?.[2])}
-        </div>
-      </main >
-
-      <div className="grid grid-cols-[1fr_80%_1fr] items-center" id="page-footer">
-        <div id="app-details" className="flex items-center gap-2">
-          <img src="/dashwise-icon.png" alt="" className="h-[36px]" />
-          <span className="font-semibold">dashwise</span>
-
-          <div className="aspect-square rounded-full frosted w-2 h-2"></div>
-
-          <UpdateDetailsDialogComponent />
-        </div>
-
-        <div>
-          <PagesTabs />
-
-          {/* Mobile dot indicator */}
-          <div className="md:hidden fixed left-0 right-0 bottom-6 flex justify-center z-50 pointer-events-none">
-            <div className="pointer-events-auto bg-transparent px-2 py-1 rounded-full">
-              <DotIndicator
-                showThreeDots={Boolean(config?.widgets?.[0]?.length && config?.widgets?.[2]?.length)}
-                active={activePanel}
-              />
-            </div>
+          <div
+            id="left-widget-panel"
+            className="flex-shrink-0 w-screen snap-start md:w-auto md:basis-auto space-y-3.5 overflow-y-visible min-w-0 min-h-0 h-fit p-1"
+            style={{ scrollSnapStop: "always", touchAction: "pan-x" }}
+          >
+            {renderWidgetColumn(config?.widgets?.[0])}
           </div>
-        </div>
 
-        <ul className="flex items-center gap-4 justify-end">
-          {(typeof config?.integrations === "object" &&
-            !Array.isArray(config?.integrations) &&
-            config?.integrations !== null &&
-            Object.keys(config?.integrations)
-              .map((i: string) => i.toLowerCase())
-              .includes("notifications")) && (
-              <li>
-                <Link
-                  href="/notifications"
-                  className="frosted p-2 rounded-full group transition-colors duration-200"
-                >
-                  <FontAwesomeIcon
-                    icon={faBell}
-                    className="text-(--text-primary) group-hover:text-(--primary) transition-colors duration-200"
+          <div className="flex-shrink-0 w-screen snap-start md:w-auto md:basis-auto space-y-3.5 overflow-x-hidden min-w-0 min-h-0 h-fit p-1" style={{ scrollSnapStop: "always", touchAction: "pan-x" }}>
+            <section className="responsive-glance-grid w-full">
+              {/* Clock (grid-area: clock) */}
+              <div
+                style={{ gridArea: "clock" }}
+                className="area-clock w-full flex items-center justify-center text-2xl md:text-4xl leading-tight"
+              >
+                {/* ensure the widget itself is centered, even if it renders full-width elements */}
+                <div style={{ margin: "0 auto", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+                  <ClockWidget 
+                    font={config?.appearance?.clock?.defaultFont}
                   />
-                </Link>
-              </li>
-            )}
+                </div>
+              </div>
 
-          <li>
-            <Link
-              href="/settings/appearance"
-              prefetch={false}
-              className="frosted p-2 rounded-full group transition-colors duration-200"
-            >
-              <FontAwesomeIcon
-                icon={faGear}
-                className="text-(--text-primary) group-hover:text-(--primary) transition-colors duration-200"
-              />
-            </Link>
-          </li>
-        </ul>
-      </div>
-    </div >
+
+              {/* Left glanceable (grid-area: gl1) */}
+              <div style={{ gridArea: "gl1" }} className="area-gl1">
+                <GlanceableComponent
+                  type={config?.glanceables?.[0]?.type}
+                  params={config?.glanceables?.[0]?.properties}
+                  className="font-medium"
+                />
+              </div>
+
+              {/* Right glanceable (grid-area: gl2) */}
+              <div style={{ gridArea: "gl2" }} className="area-gl2">
+                <GlanceableComponent
+                  type={config?.glanceables?.[1]?.type}
+                  params={config?.glanceables?.[1]?.properties}
+                  className="font-medium"
+                />
+              </div>
+            </section>
+
+            <SearchBar useRedirect={true} defaultOpen={openFromURL ?? false}/>
+            <LinkView />
+            {/* Render middle column widgets */}
+            {renderWidgetColumn(config?.widgets?.[1])}
+          </div>
+          <div
+            id="right-widget-panel"
+            className="flex-shrink-0 w-screen snap-start md:w-auto md:basis-auto space-y-3.5 overflow-y-visible min-w-0 min-h-0 h-fit p-1"
+            style={{ scrollSnapStop: "always", touchAction: "pan-x" }}
+          >
+            {renderWidgetColumn(config?.widgets?.[2])}
+          </div>
+        </main >
+
+        <BottomNavbar
+          activePanel={activePanel}
+          setScreensaverActive={setScreensaverActive}
+        />
+      </div >
+    </>
   );
 }
 
-function DotIndicator({ showThreeDots, active }: { showThreeDots: boolean; active: number }) {
-  const dotBase = "inline-block w-2.5 h-2.5 rounded-full transition-transform transition-opacity";
-  const activeClasses = "scale-110 opacity-100";
-  const inactiveClasses = "scale-100 opacity-60";
-
-  if (!showThreeDots) {
-    return (
-      <div className="flex items-center gap-2">
-        <span
-          className={`${dotBase} ${active === 1 ? activeClasses : inactiveClasses} bg-white`}
-          aria-hidden
-        />
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex items-center gap-2">
-      {[0, 1, 2].map((i) => (
-        <span
-          key={i}
-          aria-hidden
-          className={`${dotBase} ${active === i ? activeClasses : inactiveClasses} bg-white`}
-        />
-      ))}
-    </div>
-  );
-}

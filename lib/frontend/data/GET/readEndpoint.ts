@@ -1,4 +1,4 @@
-import { get } from "../apiFetch";
+import { get } from "@/lib/apiClient";
 
 export default async function readEndpoint<T = any>(
   path: string,

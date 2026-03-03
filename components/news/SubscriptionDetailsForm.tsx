@@ -157,7 +157,7 @@ export default function SubscriptionDetailsForm({
           <SelectTrigger className="frosted mt-1">
             <SelectValue placeholder="Select category" />
           </SelectTrigger>
-          <SelectContent className="frosted text-(--text-primary)">
+          <SelectContent className="frosted text-foreground">
             {categories.length === 0 && (
               <SelectItem value="Uncategorized">Uncategorized</SelectItem>
             )}
@@ -183,7 +183,15 @@ export default function SubscriptionDetailsForm({
       </div>
 
       <div className="pt-2">
-        <div className="flex gap-3">
+        <div className="flex gap-3 justify-end">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onClose}
+            disabled={loading}
+          >
+            Cancel
+          </Button>
           <Button type="submit" disabled={loading}>
             {loading
               ? isEditing
@@ -193,14 +201,7 @@ export default function SubscriptionDetailsForm({
                 ? "Save"
                 : "Subscribe"}
           </Button>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={onClose}
-            disabled={loading}
-          >
-            Cancel
-          </Button>
+
         </div>
       </div>
 
