@@ -30,7 +30,7 @@ const config: Config = {
   jobs_webhook_enabled: enableJobsWebhook,
   jobs_url: process.env.NEXT_PUBLIC_JOBS_URL || 'http://127.0.0.1:3001',
   default_bg_url: process.env.NEXT_PUBLIC_DEFAULT_BG_URL || '/dashboard-wallpaper.png',
-  version: '0.4',
+  version: '0.5',
   allowInsecureCertsForIntegrationUrls: allowInsecureCertsForIntegrationUrls || false,
   enableSSO: enableSSOLogin,
   pbAdminEmail: process.env.PB_ADMIN_EMAIL || "",
