@@ -4,10 +4,11 @@ import { useConfig } from "@/context/ConfigContext";
 import { faHome, faInbox, faKey, faShareNodes } from "@fortawesome/free-solid-svg-icons";
 import { usePathname } from "next/navigation";
 import { Label } from "@/components/ui/label";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import useAuth from "@/context/useAuth";
 import { getNotifications } from "@/lib/apiClient";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { NOTIFICATIONS_UPDATED_EVENT } from "@/lib/events";
 
 
 const navItems = [
@@ -17,27 +18,37 @@ const navItems = [
 ];
 
 export default function NotificationsLayoutComponent({ children }: { children: React.ReactNode }) {
-    const { config, refreshConfig } = useConfig();
+    const { config } = useConfig();
     const pathname = usePathname();
     const activeBgRef = useRef<HTMLDivElement | null>(null);
     const [unreadCount, setUnreadCount] = useState<number>(0);
 
     const { token } = useAuth();
 
-    useEffect(() => {
-        const fetchNotifications = async () => {
-            if (!token) return;
+    const fetchUnreadCount = useCallback(async () => {
+        if (!token) return;
 
-            try {
-                const data = await getNotifications({ qs: { count: true }, token });
-                setUnreadCount(data.unread || 0);
-            } catch (err) {
-                console.error(err);
-            }
+        try {
+            const data = await getNotifications({ qs: { count: true }, token });
+            setUnreadCount(data.unread || 0);
+        } catch (err) {
+            console.error(err);
+        }
+    }, [token]);
+
+    useEffect(() => {
+        fetchUnreadCount();
+    }, [config.baseUrl, fetchUnreadCount]);
+
+    useEffect(() => {
+        const handleNotificationsUpdated = () => {
+            fetchUnreadCount();
         };
 
-        fetchNotifications();
-    }, [config.baseUrl, token]);
+        if (typeof window === "undefined") return;
+        window.addEventListener(NOTIFICATIONS_UPDATED_EVENT, handleNotificationsUpdated);
+        return () => window.removeEventListener(NOTIFICATIONS_UPDATED_EVENT, handleNotificationsUpdated);
+    }, [fetchUnreadCount]);
 
     useEffect(() => {
         const activeEl = document.querySelector<HTMLElement>(`.settings-label-div[data-href="${pathname}"]`);

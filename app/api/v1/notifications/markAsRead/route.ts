@@ -29,16 +29,36 @@ export async function POST(req: NextRequest) {
                 ? [body.id]
                 : [];
 
-        if (ids.length === 0) {
-            return NextResponse.json({ error: "Missing notification IDs" }, { status: 400 });
+        let targetIds = ids;
+        if (targetIds.length === 0) {
+            const topics = await pb.collection("notificationTopics").getFullList({
+                filter: `userId="${userId}"`,
+            });
+
+            const topicIds = topics.map(t => t.id);
+
+            if (topicIds.length === 0) {
+                return new NextResponse(null, { status: 204 });
+            }
+
+            const filter = topicIds.map(id => `topicId="${id}"`).join(" || ");
+            const items = await pb.collection("notificationItems").getFullList({
+                filter,
+                sort: "-created",
+            });
+
+            const unreadItems = items.filter(item => item.status !== "read");
+            if (unreadItems.length === 0) {
+                return new NextResponse(null, { status: 204 });
+            }
+
+            const markAllUpdates = unreadItems.map(item => markNotificationAsRead(item.id, pb));
+            await Promise.allSettled(markAllUpdates);
+            return new NextResponse(null, { status: 204 });
         }
 
         // --- 3. Update notifications
-        const updates = ids.map(id => {
-            console.log(id);
-            pb.collection("notificationItems").update(id, { status: "read" });
-        }
-        );
+        const updates = targetIds.map(id => markNotificationAsRead(id, pb));
         await Promise.allSettled(updates);
 
         // --- 4. Return no content
@@ -50,4 +70,12 @@ export async function POST(req: NextRequest) {
             { status: 500 }
         );
     }
+}
+
+async function markNotificationAsRead(
+    notificationId: string,
+    pbClient?: ReturnType<typeof getServerPB>
+) {
+    const client = pbClient ?? getServerPB();
+    return client.collection("notificationItems").update(notificationId, { status: "read" });
 }
