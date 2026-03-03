@@ -13,7 +13,8 @@ import { Button } from "@/components/ui/button";
 import { MoreHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
 import readEndpoint from "@/lib/frontend/data/GET/readEndpoint";
-import { postNotificationsMarkAsRead, postNotificationsMarkAllAsRead } from "@/lib/apiClient";
+import { postNotificationsMarkAsRead } from "@/lib/apiClient";
+import { NOTIFICATIONS_UPDATED_EVENT } from "@/lib/events";
 
 export type NotificationItem = {
   id: string;
@@ -59,6 +60,9 @@ export default function NotificationsInboxPage() {
     try {
       await postNotificationsMarkAsRead({ id: notifId }, { token });
       setNotifications((prev) => prev.map((n) => (n.id === notifId ? { ...n, status: "read" } : n)));
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event(NOTIFICATIONS_UPDATED_EVENT));
+      }
     } catch (err) {
       console.error("Failed to mark notification as read:", err);
     }
@@ -83,8 +87,11 @@ export default function NotificationsInboxPage() {
     const token = localStorage.getItem("pb_token");
     if (!token) return;
     try {
-      await postNotificationsMarkAllAsRead(undefined, { token });
+      await postNotificationsMarkAsRead(undefined, { token });
       setNotifications((prev) => prev.map((n) => ({ ...n, status: "read" })));
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event(NOTIFICATIONS_UPDATED_EVENT));
+      }
     } catch (err) {
       console.error("Failed to mark all notifications as read:", err);
     }
@@ -216,8 +223,10 @@ export default function NotificationsInboxPage() {
                       "group-hover:text-(--primary)"
                     )}
                   >
+                    {notif.status !== "read" && <span className="inline-block w-2 h-2 bg-primary rounded-full mr-2"></span>}
                     {contentTitle}
                   </div>
+
                 )}
                 {contentDesc && (
                   <div className="text-sm text-foreground">{contentDesc}</div>
