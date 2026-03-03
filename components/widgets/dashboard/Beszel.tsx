@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { getIntegrationsBeszelSystemHealthstats } from "@/lib/apiClient";
 import useAuth from "@/context/useAuth";
 import WidgetColumnTemplate from "../templates/WidgetColumn";
 import { WidgetItemProps } from "../Widget";
@@ -138,11 +139,7 @@ export default function BeszelSystemHealthWidget({ className = "" }: WidgetItemP
                 if (!token) {
                     return;
                 }
-                const res = await fetch("/api/v1/integrations/beszel/system-healthstats", {
-                    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-                });
-                if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-                const json = await res.json();
+                const json = await getIntegrationsBeszelSystemHealthstats({ token });
                 if (mounted) setData(json || {});
                 if (mounted) console.log(json);
 

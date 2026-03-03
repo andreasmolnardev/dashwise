@@ -44,7 +44,7 @@ export default function TabSwitcher({
               value={item.value}
               className="data-[state=active]:bg-white/20 rounded-full transition-all duration-300 ease-out"
             >
-              <span className="text-(--text-primary)">{item.label}</span>
+              <span className="text-foreground">{item.label}</span>
             </TabsTrigger>
           ))
         ) : (

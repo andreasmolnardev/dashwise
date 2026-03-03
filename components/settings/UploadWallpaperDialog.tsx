@@ -11,6 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { useConfig } from "@/context/ConfigContext";
 import { writeToConfig } from "@/lib/frontend/data/MUTATE/config/writeToConfig";
 import useAuth from "@/context/useAuth";
@@ -25,13 +26,14 @@ export default function UploadWallpaperDialog({
   open,
   onOpenChange,
 }: UploadWallpaperDialogProps) {
-  const { config, refreshConfig } = useConfig();
+  const { config, patchConfig } = useConfig();
   const { token } = useAuth();
 
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [convertToWebp, setConvertToWebp] = useState(false);
 
   // Build a temporary preview URL when the user selects a file
   useEffect(() => {
@@ -51,6 +53,7 @@ export default function UploadWallpaperDialog({
       setPreview(null);
       setMessage(null);
       setUploading(false);
+      setConvertToWebp(false);
     }
   }, [open]);
 
@@ -65,6 +68,7 @@ export default function UploadWallpaperDialog({
     const formData = new FormData();
     formData.append("image", file, file.name);
     formData.append("fileName", file.name);
+    formData.append("convertToWebp", convertToWebp ? "true" : "false");
     const headers: Record<string, string> = token
       ? { Authorization: `Bearer ${token}` }
       : {};
@@ -86,18 +90,15 @@ export default function UploadWallpaperDialog({
         ...(config.appearance ?? {}),
         backgroundImageUrl: wallpaperPath,
       };
+      patchConfig((prev) => ({
+        ...prev,
+        appearance: updatedAppearance,
+      }));
       await writeToConfig(`appearance`, updatedAppearance, { token });
 
       setMessage("Upload complete — wallpaper updated.");
 
-      // 3) Refresh global config
-      try {
-        await refreshConfig();
-      } catch (refreshError) {
-        console.error("Failed to refresh config", refreshError);
-      }
-
-      // 4) Close dialog
+      // 3) Close dialog
       onOpenChange(false);
     } catch (err: unknown) {
       console.error(err);
@@ -113,7 +114,7 @@ export default function UploadWallpaperDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="frosted text-(--text-primary)">
+      <DialogContent className="frosted text-foreground">
         <DialogHeader>
           <DialogTitle>Upload wallpaper</DialogTitle>
         </DialogHeader>
@@ -128,6 +129,20 @@ export default function UploadWallpaperDialog({
               onChange={(event) =>
                 setFile(event.target.files?.[0] ?? null)
               }
+            />
+          </div>
+
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <Label htmlFor="convert-to-webp">Convert to WebP</Label>
+              <p className="text-xs text-muted-foreground">
+                Smaller file size, faster loading times.
+              </p>
+            </div>
+            <Switch
+              id="convert-to-webp"
+              checked={convertToWebp}
+              onCheckedChange={setConvertToWebp}
             />
           </div>
 

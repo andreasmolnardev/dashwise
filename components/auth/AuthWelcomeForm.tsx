@@ -4,46 +4,36 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Button } from "@/components/ui/button"
 import config from "@/lib/config"
 import { useEffect, useState } from "react"
+import { get, post } from "@/lib/apiClient";
 
 export default function AuthWelcomeFormComponent() {
     const router = useRouter();
      const [enableSSO, setEnableSSO] = useState<boolean | null>(null);
 
     useEffect(() => {
-       // Load runtime config
-       fetch("/api/v1/appConfig")
-         .then(res => res.json())
-         .then(data => setEnableSSO(data.enableSSO ?? false))
-         .catch(() => setEnableSSO(false));
+             // Load runtime config
+             get("/appConfig").then(res => setEnableSSO(res.enableSSO ?? false)).catch(() => setEnableSSO(false));
 
         const validateAuth = async () => {
             const token = localStorage.getItem('pb_token');
             if (!token) return;
 
-            try {
-                const res = await fetch("/api/v1/auth/validate-auth", {
-                    method: "POST",
-                    headers: { Authorization: `Bearer ${token}` },
-                });
-
-                if (res.ok) {
+                try {
+                    await post("/auth/validate-auth", undefined, { token });
                     router.push("/home");
-                } else {
-                    return;
+                } catch (err) {
+                    // ignore
                 }
-            } catch (err) {
-                console.error("Auth validation failed:", err);
-            }
         };
 
         validateAuth();
     }, [router]);
 
     return (
-        <Card className="w-full max-w-sm frosted text-(--text-primary)">
+        <Card className="w-full max-w-sm frosted text-foreground">
             <CardHeader>
                 <CardTitle>Welcome to Dashwise</CardTitle>
-                <CardDescription className="text-(--text-primary/80)">
+                <CardDescription className="text-muted-foreground">
                     Choose how you’d like to sign in.
                 </CardDescription>
             </CardHeader>

@@ -14,6 +14,7 @@ import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Checkbox } from "../ui/checkbox";
 import TopicCombobox, { type Topic } from "./TopicCombobox";
+import { postNotificationsForwarders } from "@/lib/apiClient";
 export type ForwarderItem = { 
   id: string; 
   topic: { id: string }; 
@@ -58,21 +59,7 @@ export default function CreateForwarderDialogComponent({
       const tokenToUse = token;
       if (!tokenToUse) throw new Error("Missing auth token");
 
-      const res = await fetch("/api/v1/notifications/forwarders", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${tokenToUse}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          topic: selectedTopic.id,
-          target,
-          isActive,
-        }),
-      });
-
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "Failed to create forwarder");
+      const json = await postNotificationsForwarders({ topic: selectedTopic.id, target, isActive }, { token: tokenToUse });
 
       // Reset
       setSelectedTopic(null);
@@ -91,7 +78,7 @@ export default function CreateForwarderDialogComponent({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="frosted text-(--text-primary)">
+      <DialogContent className="frosted text-foreground">
         <DialogHeader>
           <DialogTitle>New Forwarder</DialogTitle>
         </DialogHeader>
@@ -113,7 +100,7 @@ export default function CreateForwarderDialogComponent({
               value={target}
               onChange={(e) => setTarget(e.target.value)}
             />
-            <a className="text-xs text-gray-400 mt-1 hover:text-(--text-primary)" href="https://shoutrrr.nickfedor.com/">
+            <a className="text-xs text-gray-400 mt-1 hover:text-foreground" href="https://shoutrrr.nickfedor.com/">
               For more info, visit Shoutrrr's docs
             </a>
           </div>

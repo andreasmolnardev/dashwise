@@ -13,6 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { MoreHorizontal } from "lucide-react";
 import CreateTopicTokenDialogComponent from "@/components/notifications/CreateTopicTokenDialog";
+import { get, del } from "@/lib/apiClient";
 
 export type TokenItem = {
     id: string;
@@ -44,11 +45,8 @@ export default function NotificationTokensPage() {
     const fetchTopics = async () => {
         if (!token) return;
         try {
-            const res = await fetch("/api/v1/notifications/topics", {
-                headers: { Authorization: `Bearer ${token}` },
-            });
-            const json = await res.json();
-            if (res.ok && Array.isArray(json.items)) {
+            const json = await get("/notifications/topics", { token });
+            if (Array.isArray(json.items)) {
                 setTopics(json.items);
                 if (!activeTopic && json.items.length) setActiveTopic(json.items[0].id);
             }
@@ -61,10 +59,7 @@ export default function NotificationTokensPage() {
     const fetchTokens = async () => {
         if (!token) return;
         try {
-            const res = await fetch("/api/v1/notifications/topicTokens", {
-                headers: { Authorization: `Bearer ${token}` },
-            });
-            const json = await res.json();
+            const json = await get("/notifications/topicTokens", { token });
             if (Array.isArray(json.items)) setItems(json.items);
         } catch (err) {
             console.error("Failed to fetch tokens", err);
@@ -103,16 +98,8 @@ export default function NotificationTokensPage() {
         if (!token) return;
         if (!confirm("Are you sure you want to revoke this token?")) return;
         try {
-            const res = await fetch("/api/v1/notifications/topicTokens", {
-                method: "DELETE",
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({ tokenId }),
-            });
-            const json = await res.json();
-            if (!res.ok) throw new Error(json.error ?? "Failed to revoke");
+            const json = await del("/notifications/topicTokens", { token, body: { tokenId } });
+            if (json?.error) throw new Error(json.error ?? "Failed to revoke");
             setItems((old) => old.filter((i) => i.id !== tokenId));
         } catch (err) {
             console.error(err);
@@ -166,7 +153,7 @@ export default function NotificationTokensPage() {
                         className="frosted p-4 rounded-xl border border-white/20 backdrop-blur-md flex justify-between items-start shadow-lg group"
                     >
                         <div className="flex flex-col gap-2 w-full">
-                            <div className="flex justify-between text-xs text-(--text-secondary)">
+                            <div className="flex justify-between text-xs text-muted-foreground">
                                 <span className="font-semibold">{tk.topic?.title ?? tk.topic?.id}</span>
                                 <span>{fmt(tk.created)}</span>
                             </div>
@@ -180,7 +167,7 @@ export default function NotificationTokensPage() {
                                 {visible[tk.id] ? tk.token ?? "—" : mask(tk.token)}
                             </div>
 
-                            <div className="text-xs text-(--text-secondary)">
+                            <div className="text-xs text-muted-foreground">
                                 Expires: {tk.expires ? fmt(tk.expires) : "Never"}
                             </div>
 

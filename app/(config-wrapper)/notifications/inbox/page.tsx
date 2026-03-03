@@ -13,10 +13,12 @@ import { Button } from "@/components/ui/button";
 import { MoreHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
 import readEndpoint from "@/lib/frontend/data/GET/readEndpoint";
+import { postNotificationsMarkAsRead } from "@/lib/apiClient";
+import { NOTIFICATIONS_UPDATED_EVENT } from "@/lib/events";
 
 export type NotificationItem = {
   id: string;
-  content: string;
+  content: any;
   status: string;
   created: string;
   topicId: string;
@@ -37,8 +39,8 @@ export default function NotificationsInboxPage() {
     (async () => {
       try {
         const [notResp, topicResp] = await Promise.all([
-          readEndpoint<{ items: any[] }>("/api/v1/notifications", { signal: ctl.signal }),
-          readEndpoint<{ items: any[] }>("/api/v1/notifications/topics", { signal: ctl.signal }),
+          readEndpoint<{ items: any[] }>("/notifications", { signal: ctl.signal }),
+          readEndpoint<{ items: any[] }>("/notifications/topics", { signal: ctl.signal }),
         ]);
 
         if (!mounted) return;
@@ -56,17 +58,11 @@ export default function NotificationsInboxPage() {
     const token = localStorage.getItem("pb_token");
     if (!token) return;
     try {
-      await fetch("/api/v1/notifications/markAsRead", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ id: notifId }),
-      });
-      setNotifications((prev) =>
-        prev.map((n) => (n.id === notifId ? { ...n, status: "read" } : n))
-      );
+      await postNotificationsMarkAsRead({ id: notifId }, { token });
+      setNotifications((prev) => prev.map((n) => (n.id === notifId ? { ...n, status: "read" } : n)));
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event(NOTIFICATIONS_UPDATED_EVENT));
+      }
     } catch (err) {
       console.error("Failed to mark notification as read:", err);
     }
@@ -85,10 +81,40 @@ export default function NotificationsInboxPage() {
       </div>
     );
   }
+  const hasUnread = notifications.some((n) => n.status !== "read");
+
+  const markAllAsRead = async () => {
+    const token = localStorage.getItem("pb_token");
+    if (!token) return;
+    try {
+      await postNotificationsMarkAsRead(undefined, { token });
+      setNotifications((prev) => prev.map((n) => ({ ...n, status: "read" })));
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event(NOTIFICATIONS_UPDATED_EVENT));
+      }
+    } catch (err) {
+      console.error("Failed to mark all notifications as read:", err);
+    }
+  };
 
   return (
     <>
-      <h1 className="text-3xl font-semibold mb-4">Inbox</h1>
+      <div className="flex items-center justify-between mb-4">
+        <h1 className="text-3xl font-semibold">Inbox</h1>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={(e) => {
+            e.stopPropagation();
+            markAllAsRead();
+          }}
+          disabled={!hasUnread}
+          aria-label="Mark all notifications as read"
+          className="ml-2"
+        >
+          Mark all as read
+        </Button>
+      </div>
       <div className="space-y-4">
         {/* --- Topic Chips (including “All”) --- */}
         <div className="flex gap-2 overflow-x-auto mb-4">
@@ -141,19 +167,39 @@ export default function NotificationsInboxPage() {
               ? String((notif.content as { title?: string }).title || "")
               : String(JSON.stringify(notif.content)));
 
-         const contentDesc =
+          const contentDesc: React.ReactNode =
             notif.description ||
             (() => {
               // try object.description
               if (notif.content && typeof notif.content === "object" && "description" in notif.content) {
                 return String((notif.content as { description?: string }).description);
               }
-              // if content is a plain string, use it as description
-              if (typeof notif.content === "string") {
-                return notif.content;
-              }
-              // fallback to notif.message if present
-              return (notif as any).message as string | undefined;
+
+              // choose string to parse: prefer notif.content (if string) else fallback to notif.message
+              const msg = typeof notif.content === "string" ? notif.content : (notif.content.message as string | undefined);
+              if (!msg) return undefined;
+
+              // split on newlines and render each line. If a line is "Key: Value", render with key styling.
+              const lines = msg.split(/\r?\n/).filter((l) => l.trim().length > 0);
+              if (lines.length === 1) return lines[0];
+
+              return (
+                <div className="flex flex-col gap-1">
+                  {lines.map((line, i) => {
+                    const idx = line.indexOf(":");
+                    if (idx > 0) {
+                      const key = line.slice(0, idx).trim();
+                      const val = line.slice(idx + 1).trim();
+                      return (
+                        <div key={i}>
+                          <span className="font-medium">{key}:</span> {val}
+                        </div>
+                      );
+                    }
+                    return <div key={i}>{line}</div>;
+                  })}
+                </div>
+              );
             })();
 
           return (
@@ -165,7 +211,7 @@ export default function NotificationsInboxPage() {
               <div className="flex flex-col gap-1 w-full">
                 <div className="notification-header flex justify-between w-full">
                   <div className="text-sm font-semibold">{notif.topicName}</div>
-                  <div className="text-xs text-(--text-secondary) mt-1">
+                  <div className="text-xs text-muted-foreground mt-1">
                     {createdDate}
                   </div>
                 </div>
@@ -177,11 +223,13 @@ export default function NotificationsInboxPage() {
                       "group-hover:text-(--primary)"
                     )}
                   >
+                    {notif.status !== "read" && <span className="inline-block w-2 h-2 bg-primary rounded-full mr-2"></span>}
                     {contentTitle}
                   </div>
+
                 )}
                 {contentDesc && (
-                  <div className="text-sm text-(--text-primary)">{contentDesc}</div>
+                  <div className="text-sm text-foreground">{contentDesc}</div>
                 )}
               </div>
 
@@ -191,18 +239,22 @@ export default function NotificationsInboxPage() {
                     <MoreHorizontal />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="frosted">
-                  <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                <DropdownMenuContent align="end" className="frosted text-foreground">
+                  <DropdownMenuLabel className="font-semibold">Actions</DropdownMenuLabel>
                   <DropdownMenuItem
                     onClick={() => navigator.clipboard.writeText(notif.id)}
                   >
-                    Copy notification ID
+                    Copy notification Id
                   </DropdownMenuItem>
-                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={() => alert(`Notification: ${JSON.stringify(notif)}`)}
+                  >
+                    Show notification JSON
+                  </DropdownMenuItem>
                   <DropdownMenuItem
                     onClick={() => alert(`Topic ID: ${notif.topicId}`)}
                   >
-                    Show topic ID
+                    Show topic Id
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>

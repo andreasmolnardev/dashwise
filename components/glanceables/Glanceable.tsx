@@ -1,6 +1,8 @@
 import { useConfig } from "@/context/ConfigContext";
+import { useLocalization } from "@/context/LocalizationContext";
 import { useEffect, useMemo, useState } from "react";
 import { getWeatherIcon } from "../widgets/dashboard/Weather";
+import { getWeather } from "@/lib/apiClient";
 
 export type GlanceableProps = {
   type: string;
@@ -42,39 +44,8 @@ function GlanceableDate({
   params?: Record<string, any>;
   className?: string;
 }) {
-  const { config } = useConfig();
-  const date = new Date();
-
-  const dateFormat =
-    params?.format ||
-    config?.global?.dateFormat ||
-    "DD-MM-YYYY";
-
-  const locale = config?.global?.locale || "en-US";
-
-  // Extract parts
-  const day = date.getDate().toString().padStart(2, "0");
-  const month = (date.getMonth() + 1).toString().padStart(2, "0");
-  const year = date.getFullYear().toString();
-
-  // Optional weekday support
-  const weekday =
-    dateFormat.includes("ddd") || dateFormat.includes("dddd")
-      ? new Intl.DateTimeFormat(locale, {
-        weekday: dateFormat.includes("ddd") ? "short" : "long",
-      }).format(date)
-      : "";
-
-  // Replace tokens in the format
-  let formattedDate = dateFormat
-    .replace("DD", day)
-    .replace("MM", month)
-    .replace("YYYY", year)
-    .replace("ddd", weekday)
-    .replace("dddd", weekday);
-
-  // Clean spacing or punctuation
-  formattedDate = formattedDate.trim();
+  const { formatDate } = useLocalization();
+  const formattedDate = formatDate(new Date(), params?.format);
 
   return <div className={`glanceable-date ${className || ""}`}>{formattedDate}</div>;
 }
@@ -106,6 +77,7 @@ function GlanceableLocalTimezone({ className }: { className?: string }) {
 
 function GlanceableWeather({ params, className }: { params?: Record<string, any>, className?: string }) {
   const { config } = useConfig();
+  const { weatherUnit } = useLocalization();
 
   const weatherLocation: WeatherLocation | null = useMemo(() => {
     if (params?.locationDisplayname && params?.locationCoordinates) {
@@ -169,17 +141,16 @@ function GlanceableWeather({ params, className }: { params?: Record<string, any>
     config.global.weatherLocation,
   ]);
 
-  const weatherUnit = params?.unit || config?.global?.weatherUnit || "c";
+  const unit = String(params?.unit || weatherUnit || "c").toLowerCase();
   const [weather, setWeather] = useState<any>(null);
 
   useEffect(() => {
     if (weatherLocation) {
-      fetch(`/api/v1/weather?lat=${weatherLocation.lat}&lon=${weatherLocation.lon}&unit=${weatherUnit}`)
-        .then((res) => res.json())
+      getWeather({ qs: { lat: weatherLocation.lat, lon: weatherLocation.lon, unit } })
         .then((data) => setWeather({ ...data, name: weatherLocation.name }))
         .catch((err) => console.error("Failed to load weather:", err));
     }
-  }, [weatherLocation, weatherUnit]);
+  }, [weatherLocation, unit]);
 
   if (!weather) {
     return <div className={`glanceable-weather ${className || ""}`}>Loading…</div>;
@@ -206,24 +177,20 @@ function GlanceableWeather({ params, className }: { params?: Record<string, any>
 }
 
 function GlanceableWorldClock({ params, className }: { params?: Record<string, any>, className?: string }) {
+  const { formatTime } = useLocalization();
   const [time, setTime] = useState("");
 
   useEffect(() => {
     function updateTime() {
       const now = new Date();
-      const formatted = new Intl.DateTimeFormat("en-US", {
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: false,
-        timeZone: params?.timezone,
-      }).format(now);
+      const formatted = formatTime(now, { timeZone: params?.timezone });
       setTime(formatted);
     }
 
     updateTime();
     const interval = setInterval(updateTime, 60 * 1000);
     return () => clearInterval(interval);
-  }, [params?.timezone]);
+  }, [params?.timezone, formatTime]);
 
   return (
     <div className={`glanceable-worldclock ${className || ""}`}>

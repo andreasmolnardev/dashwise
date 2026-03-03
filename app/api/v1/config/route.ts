@@ -129,7 +129,11 @@ function setNested(obj: Record<string, any>, path: string, value: any) {
   let current = obj;
   keys.forEach((key, idx) => {
     if (idx === keys.length - 1) {
-      current[key] = value;
+      if (value === undefined) {
+        delete current[key];
+      } else {
+        current[key] = value;
+      }
     } else {
       if (!current[key] || typeof current[key] !== 'object') {
         current[key] = {};

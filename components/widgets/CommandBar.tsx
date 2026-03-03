@@ -186,9 +186,20 @@ export default function CommandBar({ open, setOpen, searchItems }: CommandBarPro
 
   // parse bang: returns {slug, rest} or null
   const parseBang = (q: string) => {
-    const m = q.trim().match(/^!(\w+)\s*(.*)$/s);
-    if (!m) return null;
-    return { slug: m[1].toLowerCase(), rest: (m[2] || '').trim() };
+    const trimmed = q.trim();
+    if (!trimmed) return null;
+
+    const leadingMatch = trimmed.match(/^!(\w+)\s*(.*)$/s);
+    if (leadingMatch) {
+      return { slug: leadingMatch[1].toLowerCase(), rest: (leadingMatch[2] || '').trim() };
+    }
+
+    const trailingMatch = trimmed.match(/^(.*\S)\s*!([A-Za-z0-9_]+)\s*$/s);
+    if (trailingMatch) {
+      return { slug: trailingMatch[2].toLowerCase(), rest: (trailingMatch[1] || '').trim() };
+    }
+
+    return null;
   };
 
   // build actions; if a valid bang is present, add a bang action at the top, or advertise "go to url"
@@ -379,7 +390,7 @@ export default function CommandBar({ open, setOpen, searchItems }: CommandBarPro
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTitle className='hidden'>Search Bar</DialogTitle>
-      <DialogContent className="min-w-[50vw] mx-auto frosted backdrop-blur-md rounded-lg p-0 shadow-lg text-(--text-primary) grid-rows-[auto_35vh_auto] gap-1">
+      <DialogContent className="min-w-[50vw] mx-auto frosted backdrop-blur-md rounded-lg p-0 shadow-lg text-foreground grid-rows-[auto_35vh_auto] gap-1">
         <div>
           <input
             ref={inputRef}
@@ -421,12 +432,12 @@ export default function CommandBar({ open, setOpen, searchItems }: CommandBarPro
                       {item.name}
                     </div>
 
-                    <span className="text-xs text-(--text-secondary) truncate flex-shrink-0 max-w-[30%]">
+                    <span className="text-xs text-muted-foreground truncate flex-shrink-0 max-w-[30%]">
                       {item.linkGroup || ""}
                     </span>
                   </div>
 
-                  <div className="ml-3 text-xs text-(--text-secondary) whitespace-nowrap">
+                  <div className="ml-3 text-xs text-muted-foreground whitespace-nowrap">
                     {isCommand ? <span className="italic">use client</span> : <span>{item.type}</span>}
                   </div>
                 </div>

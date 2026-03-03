@@ -4,6 +4,7 @@ import React, { useEffect, useState, useRef } from "react";
 import { useConfig } from "@/context/ConfigContext";
 import useAuth from "@/context/useAuth";
 import { cn } from "@/lib/utils";
+import { getMonitoringStatus } from "@/lib/apiClient";
 import { PaginatedCarouselViewComponent } from "./PaginatedCarouselView";
 import MonitoringDialog, { JobEntry } from "./MonitoringDialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -20,6 +21,8 @@ export interface LinkType {
   folder?: string;
   linkGroup?: string;
   statusCheck?: boolean;
+  statusCheckEndpoint?: string;
+  statusCheckMethod?: "GET" | "HEAD" | "POST" | "PUT" | "PATCH" | "DELETE" | "OPTIONS";
 }
 
 export default function LinkView() {
@@ -56,6 +59,7 @@ export default function LinkView() {
     status: string;
     dateChanged: string | null;
     durationChanged: number | null;
+    endpoint?: string;
   }> | null>(null);
 
   const [openDialogFor, setOpenDialogFor] = useState<string | null>(null);
@@ -72,7 +76,7 @@ export default function LinkView() {
   }, [token]);
 
   async function fetchMonitoringStatuses() {
-    try {
+      try {
       if (typeof window === "undefined") return;
       const tokenToUse = tokenRef.current;
       if (!tokenToUse) {
@@ -82,16 +86,13 @@ export default function LinkView() {
         return;
       }
 
-      const res = await fetch("/api/v1/monitoringStatus", {
-        headers: { Authorization: `Bearer ${tokenToUse}` },
-      });
-
-      if (!res.ok) {
-        console.warn("/api/v1/monitoringStatus returned:", await res.text());
+      let data: any = null;
+      try {
+        data = await getMonitoringStatus({ token: tokenToUse });
+      } catch (err) {
+        console.warn("/api/v1/monitoringStatus error:", err);
         return;
       }
-
-      const data = await res.json();
 
 
       const normalized: Record<string, any> = {};
@@ -250,7 +251,7 @@ export default function LinkView() {
                 </button>
               </PopoverTrigger>
 
-              <PopoverContent className="w-[350px] frosted text-(--text-primary) space-y-2">
+              <PopoverContent className="w-[350px] frosted text-foreground space-y-2">
                 <header className="flex justify-between items-center">
                 <h4 className="font-semibold mb-2">{folder.name}</h4>
                 <PopoverClose asChild>
@@ -345,6 +346,7 @@ export default function LinkView() {
             if (!val) setOpenDialogFor(null);
           }}
           link={selectedLink}
+          onCheckTriggered={fetchMonitoringStatuses}
           details={
             selectedLink.id && monitoringDetails
               ? (monitoringDetails[selectedLink.id] as JobEntry)

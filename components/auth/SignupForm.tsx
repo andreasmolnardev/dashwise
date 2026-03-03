@@ -2,6 +2,7 @@
 
 import Link from "next/link"
 import { useEffect, useState } from "react"
+import { get, post } from "@/lib/apiClient";
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -26,28 +27,17 @@ export default function SignupCard() {
   //on load: check for existing auth, validate using /api/v1/auth/validate-auth endpoint if returned success to /home
   useEffect(() => {
     // Fetch runtime config (e.g. enableSSO)
-    fetch("/api/v1/appConfig")
-      .then(res => res.json())
-      .then(data => setEnableSSO(data.enableSSO ?? false))
-      .catch(() => setEnableSSO(false));
+    get("/appConfig").then(res => setEnableSSO(res.enableSSO ?? false)).catch(() => setEnableSSO(false));
 
     const validateAuth = async () => {
       const token = localStorage.getItem('pb_token');
       if (!token) return;
 
       try {
-        const res = await fetch("/api/v1/auth/validate-auth", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${token}` },
-        });
-
-        if (res.ok) {
-          router.push("/home");
-        } else {
-          return;
-        }
+        await post("/auth/validate-auth", undefined, { token });
+        router.push("/home");
       } catch (err) {
-        console.error("Auth validation failed:", err);
+        // ignore
       }
     };
 
@@ -75,21 +65,9 @@ export default function SignupCard() {
 
     setLoading(true)
     try {
-      const res = await fetch("/api/v1/auth/signup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          _name: name,
-          email,
-          password,
-          passwordConfirm: confirmPassword,
-        }),
-      })
-
-      const data = await res.json()
-
-      if (!res.ok) {
-        setError(data.error || "Signup failed")
+      const data = await post("/auth/signup", { _name: name, email, password, passwordConfirm: confirmPassword });
+      if (data?.error) {
+        setError(data.error || "Signup failed");
       } else {
         setSuccess("Redirecting to login...")
 
@@ -103,12 +81,9 @@ export default function SignupCard() {
           router.push("/auth/login")
         }, 2000)
       }
-
-
-
     } catch (err) {
       console.error("Signup request failed:", err)
-      setError("Network error")
+      setError((err as any)?.message || "Network error")
     } finally {
       setLoading(false)
     }
@@ -116,7 +91,7 @@ export default function SignupCard() {
 
 
   return (
-    <Card className="w-full max-w-sm frosted text-(--text-primary) backdrop-saturate-90 backdrop-brightness-90">
+    <Card className="w-full max-w-sm frosted text-foreground backdrop-saturate-90 backdrop-brightness-90">
       <CardHeader>
         <CardTitle>Welcome to Dashwise!</CardTitle>
         <CardDescription>

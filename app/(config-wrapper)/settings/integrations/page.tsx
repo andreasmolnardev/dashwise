@@ -15,10 +15,10 @@ type Integration = {
 };
 
 export default function IntegrationsSettingsPage() {
-  const { config } = useConfig();
+  const { config, refreshConfig } = useConfig();
   const [groups, setGroups] = useState<Record<string, Integration[]>>({});
   const [activeIntegrations, setActiveIntegrations] = useState<
-    Record<string, Record<string, string>>
+    Record<string, Record<string, string> | boolean>
   >(config.integrations || {});
 
   // Dialog state
@@ -33,12 +33,23 @@ export default function IntegrationsSettingsPage() {
       .catch((err) => console.error("Failed to load integrations:", err));
   }, []);
 
-  async function updateIntegration(name: string, props: Record<string, string>) {
-    const updated = { ...activeIntegrations, [name]: props };
-    setActiveIntegrations(updated);
+  useEffect(() => {
+    setActiveIntegrations(config.integrations || {});
+  }, [config.integrations]);
+
+  async function updateIntegration(name: string, props?: Record<string, string> | boolean | null) {
+    setActiveIntegrations((prev) => {
+      const next = { ...prev };
+      if (props === undefined || props === null) {
+        delete next[name];
+      } else {
+        next[name] = props;
+      }
+      return next;
+    });
 
     try {
-      await writeToConfig(`integrations.${name}`, props);
+      await writeToConfig(`integrations.${name}`, props ?? undefined);
     } catch (err) {
       console.error("Failed to update integration config:", err);
     }
@@ -52,21 +63,20 @@ export default function IntegrationsSettingsPage() {
     }
   }
 
-  function toggleIntegration(integration: Integration) {
-    const isEnabled = Boolean(activeIntegrations[integration.name]);
+  async function toggleIntegration(integration: Integration) {
+    const isEnabled = activeIntegrations.hasOwnProperty(integration.name);
 
     // DISABLE
     if (isEnabled) {
-      const updated = { ...activeIntegrations };
-      delete updated[integration.name];
-      setActiveIntegrations(updated);
-      updateIntegration(integration.name, {});
+      await updateIntegration(integration.name);
 
       if (integration.page) {
         const currentPages = config.pages || [];
         const newPages = currentPages.filter((p) => p !== integration.page);
-        updatePages(newPages);
+        await updatePages(newPages);
       }
+
+      await refreshConfig();
 
       return;
     }
@@ -79,17 +89,19 @@ export default function IntegrationsSettingsPage() {
       return;
     }
 
-    // ENABLE directly (no props)
-    updateIntegration(integration.name, {});
+    // ENABLE directly (no props) — store a simple falsy sentinel so the key stays present
+    await updateIntegration(integration.name, false);
 
     if (integration.page) {
       const currentPages = config.pages || [];
       const combined = Array.from(new Set([...currentPages, integration.page]));
-      updatePages(combined);
+      await updatePages(combined);
     }
+
+    await refreshConfig();
   }
 
-  function handleDialogConfirm() {
+  async function handleDialogConfirm() {
     if (!pendingIntegration) return;
 
     const encodedProps = Object.fromEntries(
@@ -99,17 +111,19 @@ export default function IntegrationsSettingsPage() {
       ])
     );
 
-    updateIntegration(pendingIntegration.name, encodedProps);
+    await updateIntegration(pendingIntegration.name, encodedProps);
 
     if (pendingIntegration.page) {
       const currentPages = config.pages || [];
       const combined = Array.from(new Set([...currentPages, pendingIntegration.page]));
-      updatePages(combined);
+      await updatePages(combined);
     }
 
     setDialogOpen(false);
     setPendingIntegration(null);
+    await refreshConfig();
   }
+
 
   return (
     <>
@@ -134,7 +148,7 @@ export default function IntegrationsSettingsPage() {
                       <p className="text-sm text-gray-100">{integration.description}</p>
                     </div>
                     <Switch
-                      checked={!!activeIntegrations[integration.name]}
+                      checked={activeIntegrations.hasOwnProperty(integration.name)}
                       onCheckedChange={() => toggleIntegration(integration)}
                       className="[&>span]:bg-white [&>span[data-state=checked]]:bg-white"
                     />
@@ -147,7 +161,7 @@ export default function IntegrationsSettingsPage() {
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="frosted text-(--text-primary)">
+        <DialogContent className="frosted text-foreground">
           <DialogHeader>
             <DialogTitle>Enable {pendingIntegration?.name}</DialogTitle>
           </DialogHeader>

@@ -131,7 +131,7 @@
  * ============================================================================
  */
 
-import React, { useState, useMemo, useEffect, useCallback, createContext, useContext } from "react";
+import React, { useState, useMemo, useEffect, useCallback, createContext, useContext, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
@@ -561,7 +561,132 @@ export function EditItemsForm<T extends Record<string, any>>({
 
 /** Container for header controls (mode select, tabs, etc.) */
 export function ListHeader({ children }: { children: React.ReactNode }) {
-  return <div className="flex items-center gap-4 flex-wrap justify-between">{children}</div>;
+  const containerRef = useRef<HTMLDivElement>(null);
+  const modesRef = useRef<HTMLDivElement>(null);
+  const tabsRef = useRef<HTMLDivElement>(null);
+  const actionsRef = useRef<HTMLDivElement>(null);
+  const [stackTabs, setStackTabs] = useState(false);
+
+  const childArray = useMemo(
+    () => React.Children.toArray(children).filter(React.isValidElement) as React.ReactElement[],
+    [children]
+  );
+
+  const { modesChild, tabsChild, actionsChild, otherChildren } = useMemo(() => {
+    const slots: {
+      modesChild: React.ReactElement | null;
+      tabsChild: React.ReactElement | null;
+      actionsChild: React.ReactElement | null;
+      otherChildren: React.ReactNode[];
+    } = {
+      modesChild: null,
+      tabsChild: null,
+      actionsChild: null,
+      otherChildren: [],
+    };
+
+    childArray.forEach((child) => {
+      if (child.type === Modes && !slots.modesChild) {
+        slots.modesChild = child;
+      } else if (child.type === Tabs && !slots.tabsChild) {
+        slots.tabsChild = child;
+      } else if (child.type === Actions && !slots.actionsChild) {
+        slots.actionsChild = child;
+      } else {
+        slots.otherChildren.push(child);
+      }
+    });
+
+    return slots;
+  }, [childArray]);
+
+  const recomputeLayout = useCallback(() => {
+    if (!containerRef.current || !tabsRef.current) {
+      setStackTabs(false);
+      return;
+    }
+
+    const containerWidth = containerRef.current.clientWidth;
+    const modesWidth = modesRef.current?.offsetWidth ?? 0;
+    const actionsWidth = actionsRef.current?.offsetWidth ?? 0;
+    const tabsWidth = tabsRef.current.scrollWidth || tabsRef.current.offsetWidth;
+
+    const computedStyle = window.getComputedStyle(containerRef.current);
+    const gapValue = computedStyle.columnGap || computedStyle.gap || "0";
+    const gap = Number.parseFloat(gapValue) || 0;
+
+    const requiredWidth = modesWidth + tabsWidth + actionsWidth + gap * 2;
+    setStackTabs(requiredWidth > containerWidth);
+  }, []);
+
+  useEffect(() => {
+    recomputeLayout();
+
+    if (typeof ResizeObserver === "undefined") return;
+
+    const observer = new ResizeObserver(() => {
+      recomputeLayout();
+    });
+
+    if (containerRef.current) observer.observe(containerRef.current);
+    if (modesRef.current) observer.observe(modesRef.current);
+    if (tabsRef.current) observer.observe(tabsRef.current);
+    if (actionsRef.current) observer.observe(actionsRef.current);
+
+    return () => observer.disconnect();
+  }, [recomputeLayout, modesChild, tabsChild, actionsChild, children]);
+
+  if (stackTabs) {
+    return (
+      <div ref={containerRef} className="space-y-3">
+        <div className="flex items-center gap-4 min-w-0">
+          {modesChild && (
+            <div ref={modesRef} className="shrink-0">
+              {modesChild}
+            </div>
+          )}
+
+          {actionsChild && (
+            <div ref={actionsRef} className="ml-auto shrink-0">
+              {actionsChild}
+            </div>
+          )}
+        </div>
+
+        {tabsChild && (
+          <div ref={tabsRef} className="min-w-0 w-full">
+            {tabsChild}
+          </div>
+        )}
+
+        {otherChildren.length > 0 && <>{otherChildren}</>}
+      </div>
+    );
+  }
+
+  return (
+    <div ref={containerRef} className="flex items-center gap-4 min-w-0">
+      {modesChild && (
+        <div ref={modesRef} className="shrink-0">
+          {modesChild}
+        </div>
+      )}
+
+      {tabsChild && (
+        <div ref={tabsRef} className="flex-1 min-w-0">
+          {tabsChild}
+        </div>
+      )}
+
+      {actionsChild && (
+        <div ref={actionsRef} className="ml-auto shrink-0">
+          {actionsChild}
+        </div>
+      )}
+
+      {otherChildren.length > 0 && <>{otherChildren}</>}
+    </div>
+  );
 }
 
 /** Mode toggle dropdown (Edit / Move) */
@@ -615,7 +740,7 @@ export function Tab({
         onClick={() => setCurrentGroup(name)}
         className={`px-3 py-1.5 rounded-full text-sm whitespace-nowrap transition font-medium ${
           isActive
-            ? "bg-white/20 text-(--text-primary)"
+            ? "bg-white/20 text-foreground"
             : "text-white/70 hover:text-white/80"
         }`}
       >
@@ -651,7 +776,7 @@ export function CreateGroupAction({ onCreateGroup }: { onCreateGroup: () => void
       variant="ghost"
       size="sm"
       onClick={onCreateGroup}
-      className="text-(--text-primary) hover:bg-(--surface-2)"
+      className="text-foreground hover:bg-(--surface-2)"
     >
       <FontAwesomeIcon icon={faPlus} className="text-sm" />
     </Button>
@@ -816,7 +941,7 @@ export function Action({
       variant="ghost"
       size="sm"
       onClick={onClick}
-      className="text-(--text-primary) hover:bg-(--surface-2) px-2 h-8 transition-colors"
+      className="text-foreground hover:bg-(--surface-2) px-2 h-8 transition-colors"
       title={label}
     >
       {selectedIcon && <FontAwesomeIcon icon={selectedIcon} className="text-sm" />}
