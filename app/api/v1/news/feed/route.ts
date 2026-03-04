@@ -3,34 +3,31 @@ import {
   authenticateUserId,
   buildFeedFromSubscriptions,
   getUserNewsFeedRecord,
-} from "./_shared";
+} from "../_shared";
 
-//Get a user's feed
 export async function GET(req: NextRequest) {
   try {
-    const category = req.nextUrl.searchParams.get("category");
     const userId = await authenticateUserId(req);
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const category = req.nextUrl.searchParams.get("category");
     const record = await getUserNewsFeedRecord(userId);
+
     if (!record) {
-      return NextResponse.json({ feed: {}, subscriptions: [] }, { status: 200 });
+      return NextResponse.json({ feed: {} }, { status: 200 });
     }
 
     const subscriptions = record.subscriptions ?? [];
     const feed = await buildFeedFromSubscriptions(subscriptions, category);
 
-    return NextResponse.json({
-      feed,
-      subscriptions,
-    });
+    return NextResponse.json({ feed }, { status: 200 });
   } catch (err: any) {
-    console.error("Error in GET /api/feed:", err);
+    console.error("Error in GET /api/v1/news/feed:", err);
     return NextResponse.json(
       { error: "Internal Server Error", details: String(err?.message ?? err) },
-      { status: 500 },
+      { status: 500 }
     );
   }
 }
