@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 const { channelId } = require("@gonetone/get-youtube-id-by-url");
 import { getServerPB, getSuperuserPB } from "@/lib/pb";
 import config from "@/lib/config";
+import { getFaviconFromDOM } from "@/lib/api/tools/faviconFromDom";
 
 interface SubscribeRequestBody {
     feedUrl: string;
@@ -43,7 +44,9 @@ export async function POST(req: NextRequest) {
         // await db call
         await addNewsFeed(superPb, userId, body);
 
-        //await fetch(config.jobs_url + '/webhook/newsFeedBuilder');
+        if (config.jobs_webhook_enabled) {
+            await fetch(config.jobs_url + '/webhook/newsFeedBuilder');
+        }
 
         return NextResponse.json(
             { message: "Feed successfully subscribed." },
@@ -94,21 +97,6 @@ async function addNewsFeed(
 ) {
     const filter = `userId="${escapeFilter(userId)}"`;
 
-    //create json record
-    let record: any = null;
-
-    try {
-        record = await pb.collection("newsFeeds").getFirstListItem(filter);
-    } catch (e: any) {
-        if (e?.status === 404) {
-            // No record → create new one
-            return pb.collection("newsFeeds").create({
-                userId,
-                subscriptions: [sub],
-            });
-        }
-        throw e;
-    }
     // preserve original feed URL (needed to extract handle/name)
     const originalFeedUrl = sub.feedUrl;
 
@@ -128,6 +116,25 @@ async function addNewsFeed(
             sub.name = originalFeedUrl;
         }
     }
+
+    const trimmedIcon = sub.icon?.trim() || "";
+    sub.icon = trimmedIcon || (await getFaviconFromDOM(sub.feedUrl, true)) || "";
+    //create json record
+    let record: any = null;
+
+    try {
+        record = await pb.collection("newsFeeds").getFirstListItem(filter);
+    } catch (e: any) {
+        if (e?.status === 404) {
+            // No record → create new one with computed icon
+            return pb.collection("newsFeeds").create({
+                userId,
+                subscriptions: [sub],
+            });
+        }
+        throw e;
+    }
+
     //check if subscription already exists
     let current = Array.isArray(record.subscriptions)
         ? record.subscriptions.map((x: any) =>

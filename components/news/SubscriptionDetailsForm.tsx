@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@radix-ui/react-label";
 import { Input } from "@/components/ui/input";
-import { Separator } from "@/components/ui/separator";
 import {
   Select,
   SelectContent,
@@ -12,7 +11,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 
 export interface NewsFeed {
   id?: string;
@@ -45,18 +43,6 @@ export default function SubscriptionDetailsForm({
   const [error, setError] = useState<string | null>(null);
 
   const isEditing = Boolean(feed?.feedUrl && feed?.name);
-
-  // Auto-generate icon from feed URL's favicon
-  useEffect(() => {
-    if (!icon && feedUrl && !isEditing) {
-      try {
-        const origin = new URL(feedUrl).origin;
-        setIcon(`${origin}/favicon.ico`);
-      } catch {
-        /* ignore invalid URLs */
-      }
-    }
-  }, [feedUrl, icon, isEditing]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -136,7 +122,7 @@ export default function SubscriptionDetailsForm({
           disabled={loading}
         />
         <p className="text-xs text-white/60 mt-1">
-          Defaults to feed domain favicon if left empty
+          Leave empty to let the backend choose a default icon
         </p>
       </div>
 
