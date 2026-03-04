@@ -1,16 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
 import config from '@/lib/config';
 import axios from 'axios';
+import { authenticateUserId, getUserNewsFeedRecord } from '../_shared';
 
 export async function POST(request: NextRequest) {
-    const { searchParams } = new URL(request.url);
-    const feedId = searchParams.get('feedId');
-
     if (!config.jobs_webhook_enabled) {
         return NextResponse.json({ message: "Jobs webhook is disabled" }, { status: 400 });
     }
 
     try {
+        const userId = await authenticateUserId(request);
+        if (!userId) {
+            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        }
+
+        const userFeedRecord = await getUserNewsFeedRecord(userId);
+        if (!userFeedRecord?.id) {
+            return NextResponse.json({ message: "No subscriptions found for user" }, { status: 200 });
+        }
+
+        const feedId = userFeedRecord.id;
         const url = `${config.jobs_url}/webhook/newsFeedBuilder${feedId ? `?feedId=${feedId}` : ''}`;
         const response = await axios.get(url);
         return NextResponse.json(response.data);

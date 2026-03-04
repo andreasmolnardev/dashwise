@@ -117,7 +117,7 @@ export default function BottomNavbar({
           <li className="relative">
             <Link
               href="/notifications"
-              className="frosted p-2 rounded-full group transition-colors duration-200"
+              className="frosted p-2 rounded-full group transition-colors duration-200 aspect-square flex items-center justify-center"
             >
               <FontAwesomeIcon
                 icon={faBell}
@@ -136,7 +136,7 @@ export default function BottomNavbar({
           <Link
             href="/settings/appearance"
             prefetch={false}
-            className="frosted p-2 rounded-full group transition-colors duration-200"
+            className="frosted p-2 rounded-full group transition-colors duration-200 aspect-square flex items-center justify-center"
           >
             <FontAwesomeIcon
               icon={faGear}

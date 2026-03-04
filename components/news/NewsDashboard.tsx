@@ -39,13 +39,13 @@ export default function NewsDashboardComponent(
 
     const [feed, setFeed] = useState<Record<string, any[]> | null>(null);
     const [subscriptions, setSubscriptions] = useState<Subscription[] | null>(null);
-    const [feedId, setFeedId] = useState<string | null>(null);
     const [currentPage, setCurrentPage] = useState(1);
     const [selectedCategory, setSelectedCategory] = useState("All");
     const [selectedSource, setSelectedSource] = useState<string | null>(null);
     const [addOpen, setAddOpen] = useState(false);
     const [editingFeed, setEditingFeed] = useState<Subscription | null>(null);
     const [isRefreshing, setIsRefreshing] = useState(false);
+    const [refreshStatus, setRefreshStatus] = useState<string | null>(null);
 
     const itemsPerPage = 15;
     const { token } = useAuth();
@@ -72,18 +72,27 @@ export default function NewsDashboardComponent(
         router.prefetch("/manage-feeds");
     }, [router]);
 
-    const loadData = async () => {
+    
+    const loadSubscriptions = async () => {
+        if (!token) return;
+
+        try {
+            const data = await get(`/news/subscriptions`, { token });
+
+            setSubscriptions(data.subscriptions ?? []);
+        } catch (err) {
+            console.error("Failed to load subscriptions:", err);
+        }
+    };
+
+    const loadFeed = async () => {
         if (!token) return;
 
         try {
             const query = selectedCategory !== "All" ? `?category=${encodeURIComponent(selectedCategory)}` : "";
-            const data = await get(`/news${query}`, { token });
+            const data = await get(`/news/feed${query}`, { token });
 
-            setFeed(data.feed);
-            setSubscriptions(data.subscriptions);
-            if (data.id) setFeedId(data.id);
-            setCurrentPage(1); // Reset to first page on category change
-            setSelectedSource(null); // Reset source filter on category change
+            setFeed(data.feed ?? {});
         } catch (err) {
             console.error("Failed to load news:", err);
         }
@@ -91,22 +100,28 @@ export default function NewsDashboardComponent(
 
     // --- Fetch news ---
     useEffect(() => {
-        loadData();
+        loadSubscriptions();
+    }, [token]);
+
+    useEffect(() => {
+        setCurrentPage(1);
+        setSelectedSource(null);
+        loadFeed();
     }, [token, selectedCategory]);
 
-    const refreshFeeds = async (id?: string) => {
+    const refreshFeeds = async (targetLabel: string = "all feeds") => {
         if (!token) return;
-        const targetId = id || feedId;
         setIsRefreshing(true);
+        setRefreshStatus(`Refreshing ${targetLabel}…`);
         try {
-                    const opts: any = { token };
-                    if (targetId) opts.qs = { feedId: targetId };
-                    await post(`/news/feed-refresh`, undefined, opts);
-                    await loadData();
+                    await post(`/news/feed-refresh`, undefined, { token });
+                    setRefreshStatus("Fetching latest articles…");
+                    await loadFeed();
         } catch (err) {
             console.error("Refresh failed:", err);
         } finally {
             setIsRefreshing(false);
+            setRefreshStatus(null);
         }
     };
 
@@ -120,17 +135,17 @@ export default function NewsDashboardComponent(
             category: feed.category || "",
         }, { token });
 
-        await loadData();
-        refreshFeeds();
+        await loadSubscriptions();
+        await refreshFeeds(feed.name || feed.feedUrl || "new feed");
     };
 
-    const unsubscribeFeed = async (feedUrl: string) => {
+    const unsubscribeFeed = async (subscription: Subscription) => {
         if (!token) throw new Error("Not authenticated");
 
-        await post("/news/feed-unsubscribe", { feedUrl }, { token });
+        await post("/news/feed-unsubscribe", { feedUrl: subscription.feedUrl }, { token });
 
-        await loadData();
-        refreshFeeds();
+        await loadSubscriptions();
+        await refreshFeeds(subscription.name || subscription.feedUrl || "feed");
     };
 
     const updateFeed = async (oldFeedUrl: string, updatedFeed: any) => {
@@ -144,8 +159,8 @@ export default function NewsDashboardComponent(
             category: updatedFeed.category || "",
         }, { token });
 
-        await loadData();
-        refreshFeeds();
+        await loadSubscriptions();
+        await refreshFeeds(updatedFeed.name || updatedFeed.feedUrl || "feed");
     };
 
     // --- Scroll to top on page change ---
@@ -192,7 +207,7 @@ export default function NewsDashboardComponent(
                     onClick={() => refreshFeeds()}
                     disabled={isRefreshing}
                     className={`
-                        flex items-center justify-center w-9 h-9 rounded-full frosted 
+                        flex items-center justify-center h-9 rounded-full frosted px-3 gap-2
                         transition-all duration-300 hover:bg-white/10
                         ${isRefreshing ? "opacity-50" : "opacity-80 hover:opacity-100"}
                     `}
@@ -254,7 +269,7 @@ export default function NewsDashboardComponent(
                                     onClick={(e) => {
                                         e.stopPropagation();
                                         if (confirm(`Unsubscribe from "${sub.name}"?`)) {
-                                            unsubscribeFeed(sub.feedUrl);
+                                            unsubscribeFeed(sub);
                                         }
                                     }}
                                     className="absolute -top-1 -right-1 hidden group-hover:flex items-center justify-center w-6 h-6 rounded-full frosted text-white text-[10px] shadow-lg hover:scale-110 transition-transform"
@@ -429,7 +444,6 @@ export default function NewsDashboardComponent(
                                 setEditingFeed(null);
                             } catch (err) {
                                 console.error("Failed to save feed:", err);
-                                alert(err instanceof Error ? err.message : "Failed to save feed");
                             }
                         }}
                     />
