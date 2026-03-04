@@ -50,12 +50,10 @@ export async function getFeedItems({
         const formattedItems = feed.items
             .map((item: ParserItem) => {
                 const dateString = item.isoDate || item.pubDate;
-
-                const thumbnailUrl = getThumbnail(item);
+                const thumbnailUrl = getThumbnail(item, feed?.image?.url);
                 const descriptionText = getDescription(item);
 
                 return {
-                    ...item,
                     title: getTextContent(item.title) || 'No Title',
                     link: item.link || '',
                     description: descriptionText || "",
@@ -106,7 +104,7 @@ function getTextContent(text: string) {
     return new JSDOM(text).window.document.body.textContent ?? "";
 }
 
-export function getThumbnail(item: any): string | undefined {
+export function getThumbnail(item: any, fallbackUrl?: any): string | undefined {
     // helper to extract URL from rss-parser style objects
     const extractUrl = (obj: any): string | undefined => {
         if (!obj) return undefined;
@@ -176,7 +174,7 @@ export function getThumbnail(item: any): string | undefined {
         }
     }
 
-    return undefined;
+    return fallbackUrl;
 }
 
 export function getDescription(item: any): string | undefined {
