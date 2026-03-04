@@ -1,5 +1,6 @@
 FROM node:20-alpine
 
+# Use repository root context to copy shared SDK
 WORKDIR /usr/src/app
 
 # Install runtime deps needed for shoutrrr download
@@ -31,7 +32,7 @@ RUN apk del curl tar gzip
 COPY package*.json ./
 RUN npm ci
 
-# Copy application source
+# Copy job source tree and shared SDK contents
 COPY . .
 
 EXPOSE 3001

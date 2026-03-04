@@ -1,7 +1,7 @@
 "use server";
 
-import { ActionAuth, requireUserAuth } from "@/lib/api/data/auth";
-import { uploadWallpaper } from "@/lib/api/data/wallpapers";
+import { ActionAuth, requireUserAuth } from "@dashwise/sdk/data/auth";
+import { uploadWallpaper } from "@dashwise/sdk/data/wallpapers";
 
 export async function uploadWallpaperAction(auth: ActionAuth, formData: FormData) {
   await requireUserAuth(auth);

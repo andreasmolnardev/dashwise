@@ -1,7 +1,7 @@
 import { ClientResponseError } from "pocketbase";
 import { ensureUserConfig } from "@/lib/api/config/retrieve";
 import { getSuperuserPB } from "@/lib/pb";
-import { ApiActionError } from "@/lib/api/data/auth";
+import { ApiActionError } from "@dashwise/sdk/data/auth";
 
 function setNested(obj: Record<string, any>, path: string, value: any) {
   const keys = path.split(".");

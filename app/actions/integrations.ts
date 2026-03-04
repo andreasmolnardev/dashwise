@@ -1,11 +1,11 @@
 "use server";
 
-import { ActionAuth, requireUserAuth } from "@/lib/api/data/auth";
+import { ActionAuth, requireUserAuth } from "@dashwise/sdk/data/auth";
 import {
   getBeszelSystemHealthstats,
   getDashdotData,
   getKarakeepData,
-} from "@/lib/api/data/integrations";
+} from "@dashwise/sdk/data/integrations";
 
 const WEATHER_DESC: Record<number, string> = {
   0: "Clear sky",

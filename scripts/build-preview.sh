@@ -108,5 +108,5 @@ if should_build "jobs"; then
     -t "${DOCKER_USERNAME}/dashwise-jobs:pre-release${TAG_SUFFIX}" \
     -t "${DOCKER_USERNAME}/dashwise-jobs:preview${TAG_SUFFIX}" \
     -f ./jobs/Dockerfile \
-    --push ./jobs
+    --push .
 fi

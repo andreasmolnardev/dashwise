@@ -1,11 +1,11 @@
 "use server";
 
-import { ActionAuth, requireUserAuth } from "@/lib/api/data/auth";
+import { ActionAuth, requireUserAuth } from "@dashwise/sdk/data/auth";
 import {
   createTopicToken,
   deleteTopicToken,
   listTopicTokens,
-} from "@/lib/api/data/notifications/topicTokens";
+} from "@dashwise/sdk/data/notifications/topicTokens";
 
 export async function listTopicTokensAction(auth: ActionAuth) {
   const { userId } = await requireUserAuth(auth);

@@ -1,6 +1,6 @@
 "use server";
 
-import { ActionAuth, requireUserAuth } from "@/lib/api/data/auth";
+import { ActionAuth, requireUserAuth } from "@dashwise/sdk/data/auth";
 import {
   getNewsFeed,
   getNewsSubscriptions,
@@ -8,7 +8,7 @@ import {
   subscribeNewsFeed,
   unsubscribeNewsFeed,
   updateNewsFeed,
-} from "@/lib/api/data/news";
+} from "@dashwise/sdk/data/news";
 
 export async function getNewsFeedAction(auth: ActionAuth, category?: string | null) {
   const { userId } = await requireUserAuth(auth);

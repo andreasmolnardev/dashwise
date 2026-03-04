@@ -1,12 +1,12 @@
 "use server";
 
-import { ActionAuth, requireUserAuth } from "@/lib/api/data/auth";
+import { ActionAuth, requireUserAuth } from "@dashwise/sdk/data/auth";
 import {
   createNotificationTopic,
   getNotifications,
   getNotificationTopics,
   markNotificationsAsRead,
-} from "@/lib/api/data/notifications/items";
+} from "@dashwise/sdk/data/notifications/items";
 
 export async function getNotificationsAction(
   auth: ActionAuth,

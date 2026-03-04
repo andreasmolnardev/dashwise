@@ -25,6 +25,9 @@
       }
     ],
     "paths": {
+      "@dashwise/sdk/*": [
+        "./dashwise-sdk/*"
+      ],
       "@/*": [
         "./*"
       ]

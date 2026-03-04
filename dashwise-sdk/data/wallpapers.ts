@@ -59,3 +59,32 @@ export async function uploadWallpaper(userToken: string, formData: FormData) {
     path: `/api/v1/wallpapers?fileName=${encodeURIComponent(targetFileName)}`,
   };
 }
+
+export async function getWallpaperByFileName(userToken: string, fileName: string) {
+  const pb = getServerPB();
+  pb.authStore.save(userToken, null);
+
+  let record;
+  try {
+    record = await pb.collection("wallpaperStore").getFirstListItem(`fileName="${fileName}"`);
+  } catch {
+    return null;
+  }
+
+  const fileUrl = pb.files.getURL(record, (record as any).image);
+  const fileResponse = await fetch(fileUrl, {
+    headers: { Authorization: `Bearer ${userToken}` },
+  });
+
+  if (!fileResponse.ok) {
+    throw new Error("Failed to retrieve wallpaper file");
+  }
+
+  const contentType = fileResponse.headers.get("content-type") || "application/octet-stream";
+  const arrayBuffer = await fileResponse.arrayBuffer();
+
+  return {
+    contentType,
+    buffer: Buffer.from(arrayBuffer),
+  };
+}

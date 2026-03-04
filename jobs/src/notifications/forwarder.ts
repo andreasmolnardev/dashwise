@@ -1,8 +1,9 @@
 import { getSuperuserPB } from "../lib/pb";
-import { exec } from "child_process";
-import { promisify } from "util";
-
-const execAsync = promisify(exec);
+import {
+    formatNotificationMessage,
+    groupNotificationsByTopic,
+    sendViaShoutrrr,
+} from "../../../dashwise-sdk/data/notifications/forwarding";
 
 /**
  * Process all notifications with forwardStatus="queued" and forward them
@@ -24,14 +25,9 @@ export async function processQueuedNotifications() {
 
         console.log(`[Forwarder] Processing ${queuedNotifications.length} queued notifications`);
 
-        // Group by topic
-        const byTopic = new Map<string, any[]>();
-        for (const notif of queuedNotifications) {
-            if (!byTopic.has(notif.topicId)) {
-                byTopic.set(notif.topicId, []);
-            }
-            byTopic.get(notif.topicId)!.push(notif);
-        }
+        const byTopic = groupNotificationsByTopic(
+            queuedNotifications as unknown as Array<{ id: string; topicId: string; content: unknown }>
+        );
 
         // For each topic, get active forwarders and send
         for (const [topicId, notifications] of byTopic.entries()) {
@@ -84,73 +80,4 @@ export async function processQueuedNotifications() {
     } catch (error) {
         console.error("[Forwarder] Error in processQueuedNotifications:", error);
     }
-}
-
-/**
- * Send message via Shoutrrr CLI
- * Uses preloaded message to prevent code injection
- * @param target - Shoutrrr target expression (e.g., "discord://webhook-url")
- * @param message - Message to send
- */
-async function sendViaShoutrrr(target: string, message: string): Promise<void> {
-    if (!target || typeof target !== "string" || target.length === 0) {
-        throw new Error("Invalid target");
-    }
-
-    try {
-        const safeTarget = target.replace(/'/g, "'\\''");
-        const safeMessage = message.replace(/'/g, "'\\''");
-
-        const { stdout, stderr } = await execAsync(
-            `shoutrrr send --url '${safeTarget}' --message '${safeMessage}'`,
-            {
-                env: { ...process.env },
-                timeout: 30000,
-            }
-        );
-
-        if (stderr) {
-            console.warn(`[Shoutrrr] Warning: ${stderr}`);
-        }
-    } catch (error: any) {
-        throw new Error(`Shoutrrr send failed: ${error.message}`);
-    }
-}
-
-
-/**
- * Escape string for safe use in shell commands
- */
-function escapeShellArg(arg: string): string {
-    // Remove any existing quotes and escape special characters
-    return arg
-        .replace(/\\/g, "\\\\")
-        .replace(/"/g, '\\"')
-        .replace(/\$/g, "\\$")
-        .replace(/`/g, "\\`");
-}
-
-/**
- * Format notification content for forwarding
- * @param content - The raw notification content
- * @returns Formatted message string
- */
-function formatNotificationMessage(content: any): string {
-    if (typeof content === "string") {
-        return content;
-    }
-
-    if (typeof content === "object" && content !== null) {
-        // If it has a message or title field, use that
-        if (content.message) {
-            return content.message;
-        }
-        if (content.title) {
-            return content.title;
-        }
-        // Otherwise, convert to JSON
-        return JSON.stringify(content);
-    }
-
-    return String(content);
 }

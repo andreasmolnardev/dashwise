@@ -1,7 +1,7 @@
 "use server";
 
-import { ActionAuth, requireUserAuth } from "@/lib/api/data/auth";
-import { getSearchItems } from "@/lib/api/data/searchItems";
+import { ActionAuth, requireUserAuth } from "@dashwise/sdk/data/auth";
+import { getSearchItems } from "@dashwise/sdk/data/searchItems";
 
 export async function getSearchItemsAction(auth: ActionAuth) {
   const { userId } = await requireUserAuth(auth);

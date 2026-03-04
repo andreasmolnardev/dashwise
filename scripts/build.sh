@@ -112,10 +112,15 @@ manual_push_with_retries() {
 }
 
 build_and_push() {
-  local dir=$1
-  local base_name=$2
-  shift 2
+  local context=$1
+  local dockerfile=$2
+  local base_name=$3
+  shift 3
   local tags=("$@")
+
+  if [[ -z "$dockerfile" ]]; then
+    dockerfile="${context}/Dockerfile"
+  fi
 
   echo "🔨 Building ${base_name}..."
   local tag_args=()
@@ -127,9 +132,9 @@ build_and_push() {
   docker buildx build \
     --platform "$PLATFORM" \
     "${tag_args[@]}" \
-    -f "${dir}/Dockerfile" \
+    -f "$dockerfile" \
     --load \
-    "${dir}"
+    "$context"
 
   # Push manually with retries
   for tag in "${tags[@]}"; do
@@ -143,15 +148,15 @@ build_and_push() {
 echo "🚀 Building type: ${BUILD_TYPE} | Containers: ${CONTAINERS}"
 
 if should_build "app"; then
-  build_and_push "." "dashwise" "${TAGS_APP[@]}"
+  build_and_push "." "./Dockerfile" "dashwise" "${TAGS_APP[@]}"
 fi
 
 if should_build "pocketbase"; then
-  build_and_push "./pocketbase" "dashwise-pb" "${TAGS_PB[@]}"
+  build_and_push "./pocketbase" "./pocketbase/Dockerfile" "dashwise-pb" "${TAGS_PB[@]}"
 fi
 
 if should_build "jobs"; then
-  build_and_push "./jobs" "dashwise-jobs" "${TAGS_JOBS[@]}"
+  build_and_push "." "./jobs/Dockerfile" "dashwise-jobs" "${TAGS_JOBS[@]}"
 fi
 
 echo "✅ All builds completed successfully!"

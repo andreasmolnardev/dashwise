@@ -1,7 +1,7 @@
 "use server";
 
-import { ActionAuth, requireUserAuth } from "@/lib/api/data/auth";
-import { getLocations, runPullIcons } from "@/lib/api/data/misc";
+import { ActionAuth, requireUserAuth } from "@dashwise/sdk/data/auth";
+import { getLocations, runPullIcons } from "@dashwise/sdk/data/misc";
 
 export async function getLocationsAction(auth: ActionAuth, q?: string | null) {
   await requireUserAuth(auth);

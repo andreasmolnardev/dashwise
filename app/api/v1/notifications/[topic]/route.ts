@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { v4 as uuidv4 } from "uuid";
 import { getServerPB } from "@/lib/pb";
-import { createNotificationWithTopicToken, resolveTopicToken } from "@/lib/notifications/create";
-import { queueNotificationForForwarding } from "@/lib/notifications/forwarder";
+import {
+    createNotificationForUserTopic,
+    createNotificationWithTopicToken,
+    queueNotificationForForwarding,
+} from "@dashwise/sdk/data/notifications/publish";
 
 export async function POST(
     req: NextRequest,
@@ -11,21 +13,6 @@ export async function POST(
     try {
         const { topic } = await context.params;
         const body = await req.json();
-
-        if (topic) {
-            const topicId = await resolveTopicToken(topic);
-
-            if (!topicId) {
-                return NextResponse.json({ ok: false, }, { status: 400 });
-            }
-
-            const createdNotificationId = await createNotificationWithTopicToken(topic, body);
-
-            // Queue for forwarding (will be processed by jobs container)
-            await queueNotificationForForwarding(String(createdNotificationId), topicId);
-
-            return NextResponse.json({ ok: true, topicId, itemId: createdNotificationId }, { status: 201 });
-        }
 
         if (!topic) {
             return NextResponse.json({ error: "Missing topic" }, { status: 400 });
@@ -46,11 +33,19 @@ export async function POST(
                 }
             }
         }
+
+        // 2. Token-only mode: treat [topic] as topic token
         if (!authHeader) {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+            const created = await createNotificationWithTopicToken(topic, body);
+            if (!created) {
+                return NextResponse.json({ ok: false }, { status: 400 });
+            }
+
+            await queueNotificationForForwarding(created.itemId);
+            return NextResponse.json({ ok: true, topicId: created.topicId, itemId: created.itemId }, { status: 201 });
         }
 
-        // 2. Authenticate with PocketBase
+        // 3. Authenticated mode: treat [topic] as topic title
         const pb = getServerPB();
         let userId: string | null = null;
 
@@ -97,43 +92,15 @@ export async function POST(
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
-        // 3. Lookup notificationTopic
-        const filter = `title="${topic}" && userId="${userId}"`;
-        let existing: Record<string, any> | null = null;
-        try {
-            existing = await pb
-                .collection("notificationTopics")
-                .getFirstListItem(filter);
-        } catch {
-            existing = null;
-        }
-
-        let topicId: string;
-        if (existing) {
-            topicId = existing.id;
-        } else {
-            // Create notificationTopic with uuidv4 + priority 1
-            const created = await pb.collection("notificationTopics").create({
-                title: topic,
-                userId,
-                priority: 1,
-            });
-            topicId = created.id;
-        }
-
-        // 4. Always create a notificationItem under this topic
-        const notificationItem = await pb.collection("notificationItems").create({
-            topicId,
+        const created = await createNotificationForUserTopic({
+            userId,
+            topic,
             content: body,
-            status: "sent",
             source: "web",
-            forwardStatus: "none",
         });
+        await queueNotificationForForwarding(created.itemId);
 
-        // 5. Queue for forwarding (will be processed by jobs container)
-        await queueNotificationForForwarding(notificationItem.id, topicId);
-
-        return NextResponse.json({ ok: true, topicId, itemId: notificationItem.id });
+        return NextResponse.json({ ok: true, topicId: created.topicId, itemId: created.itemId });
     } catch (err: any) {
         console.error("Error in POST /[topic]", err);
         return NextResponse.json(

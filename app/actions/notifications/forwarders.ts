@@ -1,12 +1,12 @@
 "use server";
 
-import { ActionAuth, requireUserAuth } from "@/lib/api/data/auth";
+import { ActionAuth, requireUserAuth } from "@dashwise/sdk/data/auth";
 import {
   createForwarder,
   deleteForwarder,
   getForwarders,
   updateForwarder,
-} from "@/lib/api/data/notifications/forwarders";
+} from "@dashwise/sdk/data/notifications/forwarders";
 
 export async function getForwardersAction(auth: ActionAuth) {
   const { userId } = await requireUserAuth(auth);

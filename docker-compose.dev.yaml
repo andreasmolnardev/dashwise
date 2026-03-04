@@ -20,7 +20,8 @@ services:
     restart: unless-stopped
   jobs:
     build:
-      context: ./jobs
+      context: .
+      dockerfile: jobs/Dockerfile
     ports:
       - "3001:3001"
     environment:
@@ -29,4 +30,5 @@ services:
       - ./jobs/.env
     volumes:
       - ./jobs:/usr/src/app
+      - ./dashwise-sdk:/usr/src/app/dashwise-sdk
     command: npm run dev

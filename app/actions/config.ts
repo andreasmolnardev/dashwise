@@ -1,6 +1,6 @@
 "use server";
 
-import { ActionAuth, requireUserAuth } from "@/lib/api/data/auth";
+import { ActionAuth, requireUserAuth } from "@dashwise/sdk/data/auth";
 import {
   appendConfigArrayItem,
   deleteUnusedLinkgroups,
@@ -8,7 +8,7 @@ import {
   moveConfigArrayItems,
   patchConfigPath,
   replaceUserConfig,
-} from "@/lib/api/data/config";
+} from "@dashwise/sdk/data/config";
 
 export async function getUserConfigAction(auth: ActionAuth) {
   const { userId } = await requireUserAuth(auth);

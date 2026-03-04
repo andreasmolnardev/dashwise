@@ -1,7 +1,7 @@
 "use server";
 
-import { ApiActionError } from "@/lib/api/data/auth";
-import { loginUser, signupUser, validateAuthToken } from "@/lib/api/data/authRoutes";
+import { ApiActionError } from "@dashwise/sdk/data/auth";
+import { loginUser, signupUser, validateAuthToken } from "@dashwise/sdk/data/authRoutes";
 
 type PostOptions = {
   token?: string | null;

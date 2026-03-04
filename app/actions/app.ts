@@ -1,7 +1,7 @@
 "use server";
 
-import { ActionAuth, requireUserAuth } from "@/lib/api/data/auth";
-import { getAppConfig, getAppInfo } from "@/lib/api/data/app";
+import { ActionAuth, requireUserAuth } from "@dashwise/sdk/data/auth";
+import { getAppConfig, getAppInfo } from "@dashwise/sdk/data/app";
 
 export async function getAppConfigAction() {
   return getAppConfig();

@@ -1,7 +1,7 @@
 "use server";
 
-import { ApiActionError, requireUserAuth } from "@/lib/api/data/auth";
-import { getAppConfig, getAppInfo } from "@/lib/api/data/app";
+import { ApiActionError, requireUserAuth } from "@dashwise/sdk/data/auth";
+import { getAppConfig, getAppInfo } from "@dashwise/sdk/data/app";
 
 type GetOptions = {
   token?: string | null;

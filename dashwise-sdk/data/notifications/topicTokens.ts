@@ -95,3 +95,31 @@ export async function deleteTopicToken(userId: string, tokenId: string) {
   await pb.collection("notificationTopicTokens").delete(tokenId);
   return { success: true };
 }
+
+export async function resolveTopicToken(token: string) {
+  const pb = await getSuperuserPB();
+  const records = await pb.collection("notificationTopicTokens").getFullList({
+    filter: `token="${token}"`,
+  });
+  
+  const tokenRecord = records[0];
+  if (!tokenRecord) {
+    return null;
+  }
+  
+  if (tokenRecord.expires && new Date(tokenRecord.expires) <= new Date()) {
+    await pb.collection("notificationTopicTokens").delete(tokenRecord.id);
+    return null;
+  }
+
+  const topicRecord = await pb.collection("notificationTopics").getOne(tokenRecord.topic);
+  if (!topicRecord) {
+    return null;
+  }
+  
+  return {
+    topicId: topicRecord.id,
+    topicName: topicRecord.title,
+    userId: topicRecord.userId,
+  };  
+}

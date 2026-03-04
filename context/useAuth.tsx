@@ -1,6 +1,6 @@
 "use client"
 
-import { ActionAuth, ApiActionError } from "@/lib/api/data/auth";
+import { ActionAuth, ApiActionError } from "@dashwise/sdk/data/auth";
 import { useCallback, useEffect, useState } from "react";
 
 type AuthUser = any | null;

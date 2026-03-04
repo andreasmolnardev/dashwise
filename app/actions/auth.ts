@@ -1,6 +1,6 @@
 "use server";
 
-import { ActionAuth, requireUserAuth } from "@/lib/api/data/auth";
+import { ActionAuth, requireUserAuth } from "@dashwise/sdk/data/auth";
 import {
 	loginUser,
 	signupUser,
@@ -8,7 +8,7 @@ import {
 	changePassword,
 	deleteAccount,
 	type ChangePasswordRequest,
-} from "@/lib/api/data/authRoutes";
+} from "@dashwise/sdk/data/authRoutes";
 
 export type { ChangePasswordRequest };
 

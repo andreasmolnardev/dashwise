@@ -133,4 +133,7 @@ export async function markNotificationsAsRead(userId: string, ids: string[]) {
   return null;
 }
 
+export async function sendNotification({}) {
+
+}
 

@@ -1,7 +1,7 @@
 "use server";
 
-import { ActionAuth, requireUserAuth } from "@/lib/api/data/auth";
-import { getMonitoringStatus, runMonitoringStatus } from "@/lib/api/data/monitoring";
+import { ActionAuth, requireUserAuth } from "@dashwise/sdk/data/auth";
+import { getMonitoringStatus, runMonitoringStatus } from "@dashwise/sdk/data/monitoring";
 
 export async function getMonitoringStatusAction(auth: ActionAuth, jobId?: string | null) {
   const { userId } = await requireUserAuth(auth);
