@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { Label } from "@/components/ui/label";
 import { useCallback, useEffect, useRef, useState } from "react";
 import useAuth from "@/context/useAuth";
-import { getNotifications } from "@/lib/apiClient";
+import { getNotificationsAction } from "@/app/actions/notifications/items";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { NOTIFICATIONS_UPDATED_EVENT } from "@/lib/events";
 
@@ -23,18 +23,18 @@ export default function NotificationsLayoutComponent({ children }: { children: R
     const activeBgRef = useRef<HTMLDivElement | null>(null);
     const [unreadCount, setUnreadCount] = useState<number>(0);
 
-    const { token } = useAuth();
+    const { token, withAuth } = useAuth();
 
     const fetchUnreadCount = useCallback(async () => {
         if (!token) return;
 
         try {
-            const data = await getNotifications({ qs: { count: true }, token });
+            const data = await withAuth((auth) => getNotificationsAction(auth, false, true));
             setUnreadCount(data.unread || 0);
         } catch (err) {
             console.error(err);
         }
-    }, [token]);
+    }, [token, withAuth]);
 
     useEffect(() => {
         fetchUnreadCount();

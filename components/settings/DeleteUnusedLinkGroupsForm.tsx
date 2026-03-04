@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import { useConfig } from "@/context/ConfigContext";
 import useAuth from "@/context/useAuth";
 import { Button } from "@/components/ui/button";
-import { postConfigDeleteUnusedLinkgroups } from "@/lib/apiClient";
+import { deleteUnusedLinkgroupsAction } from "@/app/actions/config";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { DialogClose } from "@/components/ui/dialog";
 
@@ -17,7 +17,7 @@ export default function DeleteUnusedLinkGroupsFormComponent({ onDeleted }: Props
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const { token } = useAuth();
+  const { token, withAuth } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -29,8 +29,8 @@ export default function DeleteUnusedLinkGroupsFormComponent({ onDeleted }: Props
       if (!token) throw new Error("Not authenticated");
 
       try {
-        const json = await postConfigDeleteUnusedLinkgroups(undefined, { token });
-        setSuccess(json?.message || "Unused link groups deleted.");
+        await withAuth((auth) => deleteUnusedLinkgroupsAction(auth));
+        setSuccess("Unused link groups deleted.");
         await refreshConfig();
       } catch (err: any) {
         throw err;

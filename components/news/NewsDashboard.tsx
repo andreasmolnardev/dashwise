@@ -3,8 +3,7 @@
 import { useConfig } from "@/context/ConfigContext";
 import { useEffect, useState } from "react";
 import useAuth from "@/context/useAuth";
-import { useRouter, useSearchParams } from "next/navigation";
-import { get, post } from "@/lib/apiClient";
+import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faArrowLeft, faCaretDown, faEllipsisVertical, faPlus, faEdit, faTrash, faXmark, faArrowsRotate } from "@fortawesome/free-solid-svg-icons";
@@ -22,6 +21,14 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import SubscriptionDetailsForm from "@/components/news/SubscriptionDetailsForm";
 import BottomNavbar from "../dashboard/BottomNavbar";
+import {
+    getNewsFeedAction,
+    getNewsSubscriptionsAction,
+    refreshNewsFeedAction,
+    subscribeNewsFeedAction,
+    unsubscribeNewsFeedAction,
+    updateNewsFeedAction,
+} from "@/app/actions/news";
 
 interface Subscription {
     name: string;
@@ -48,7 +55,7 @@ export default function NewsDashboardComponent(
     const [refreshStatus, setRefreshStatus] = useState<string | null>(null);
 
     const itemsPerPage = 15;
-    const { token } = useAuth();
+    const { token, withAuth } = useAuth();
 
     const categories = Array.from(new Set(subscriptions?.map((s) => s.category) ?? [])).sort();
     const tabItems = [
@@ -77,9 +84,8 @@ export default function NewsDashboardComponent(
         if (!token) return;
 
         try {
-            const data = await get(`/news/subscriptions`, { token });
-
-            setSubscriptions(data.subscriptions ?? []);
+            const data: any = await withAuth((auth) => getNewsSubscriptionsAction(auth));
+            setSubscriptions(data?.subscriptions ?? []);
         } catch (err) {
             console.error("Failed to load subscriptions:", err);
         }
@@ -89,10 +95,10 @@ export default function NewsDashboardComponent(
         if (!token) return;
 
         try {
-            const query = selectedCategory !== "All" ? `?category=${encodeURIComponent(selectedCategory)}` : "";
-            const data = await get(`/news/feed${query}`, { token });
-
-            setFeed(data.feed ?? {});
+            const data: any = await withAuth((auth) =>
+                getNewsFeedAction(auth, selectedCategory)
+            );
+            setFeed(data?.feed ?? {});
         } catch (err) {
             console.error("Failed to load news:", err);
         }
@@ -114,9 +120,9 @@ export default function NewsDashboardComponent(
         setIsRefreshing(true);
         setRefreshStatus(`Refreshing ${targetLabel}…`);
         try {
-                    await post(`/news/feed-refresh`, undefined, { token });
-                    setRefreshStatus("Fetching latest articles…");
-                    await loadFeed();
+            await withAuth((auth) => refreshNewsFeedAction(auth));
+            setRefreshStatus("Fetching latest articles…");
+            await loadFeed();
         } catch (err) {
             console.error("Refresh failed:", err);
         } finally {
@@ -128,12 +134,14 @@ export default function NewsDashboardComponent(
     const subscribeFeed = async (feed: any) => {
         if (!token) throw new Error("Not authenticated");
 
-        await post("/news/feed-subscribe", {
-            feedUrl: feed.feedUrl,
-            name: feed.name || "",
-            icon: feed.icon || "",
-            category: feed.category || "",
-        }, { token });
+        await withAuth((auth) =>
+            subscribeNewsFeedAction(auth, {
+                feedUrl: feed.feedUrl,
+                name: feed.name || "",
+                icon: feed.icon || "",
+                category: feed.category || "",
+            })
+        );
 
         await loadSubscriptions();
         await refreshFeeds(feed.name || feed.feedUrl || "new feed");
@@ -142,7 +150,7 @@ export default function NewsDashboardComponent(
     const unsubscribeFeed = async (subscription: Subscription) => {
         if (!token) throw new Error("Not authenticated");
 
-        await post("/news/feed-unsubscribe", { feedUrl: subscription.feedUrl }, { token });
+        await withAuth((auth) => unsubscribeNewsFeedAction(auth, subscription.feedUrl));
 
         await loadSubscriptions();
         await refreshFeeds(subscription.name || subscription.feedUrl || "feed");
@@ -151,13 +159,15 @@ export default function NewsDashboardComponent(
     const updateFeed = async (oldFeedUrl: string, updatedFeed: any) => {
         if (!token) throw new Error("Not authenticated");
 
-        await post("/news/feed-update", {
-            oldFeedUrl,
-            feedUrl: updatedFeed.feedUrl,
-            name: updatedFeed.name || "",
-            icon: updatedFeed.icon || "",
-            category: updatedFeed.category || "",
-        }, { token });
+        await withAuth((auth) =>
+            updateNewsFeedAction(auth, {
+                oldFeedUrl,
+                feedUrl: updatedFeed.feedUrl,
+                name: updatedFeed.name || "",
+                icon: updatedFeed.icon || "",
+                category: updatedFeed.category || "",
+            })
+        );
 
         await loadSubscriptions();
         await refreshFeeds(updatedFeed.name || updatedFeed.feedUrl || "feed");

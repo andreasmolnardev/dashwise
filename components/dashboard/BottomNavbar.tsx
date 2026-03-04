@@ -9,7 +9,7 @@ import { faBell, faGear, faMoon } from "@fortawesome/free-solid-svg-icons";
 import PagesTabs from "../PagesTabs";
 import UpdateDetailsDialogComponent from "./UpdateDetailsDialog";
 import useAuth from "@/context/useAuth";
-import { getNotifications } from "@/lib/apiClient";
+import { getNotificationsAction } from "@/app/actions/notifications/items";
 
 interface BottomNavbarProps {
   activePanel?: number;
@@ -23,7 +23,7 @@ export default function BottomNavbar({
   showPages = true,
 }: BottomNavbarProps) {
   const { config } = useConfig();
-  const { token } = useAuth();
+  const { token, withAuth } = useAuth();
   const pathname = usePathname();
   const [unreadCount, setUnreadCount] = useState<number>(0);
   const [localScreensaverConfig, setLocalScreensaverConfig] = useState<any>(null);
@@ -35,7 +35,7 @@ export default function BottomNavbar({
       if (!token) return;
 
       try {
-        const data = await getNotifications({ qs: { count: true }, token });
+        const data = await withAuth((auth) => getNotificationsAction(auth, false, true));
         setUnreadCount(data.unread || 0);
       } catch (err) {
         console.error(err);
@@ -43,7 +43,7 @@ export default function BottomNavbar({
     };
 
     fetchNotifications();
-  }, [token]);
+  }, [token, withAuth]);
 
   useEffect(() => {
     const checkLocal = () => {

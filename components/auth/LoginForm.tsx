@@ -2,7 +2,8 @@
 
 import Link from "next/link"
 import { useEffect, useState } from "react"
-import { get, post } from "@/lib/apiClient";
+import { getAppConfigAction } from "@/app/actions/app";
+import { loginUserAction, validateAuthTokenAction } from "@/app/actions/auth";
 import useAuth from "@/context/useAuth"
 import { useRouter } from "next/navigation"
 
@@ -36,7 +37,7 @@ export default function LoginCard() {
   //on load: check for existing auth, validate using /api/v1/auth/validate-auth endpoint if returned success to /home
    useEffect(() => {
     // Fetch runtime config (e.g. enableSSO)
-    get("/appConfig").then(data => setEnableSSO(data.enableSSO ?? false)).catch(() => setEnableSSO(false));
+    getAppConfigAction().then(data => setEnableSSO(data.enableSSO ?? false)).catch(() => setEnableSSO(false));
 
     const validateAuth = async () => {
       const tokenToCheck = token;
@@ -44,7 +45,7 @@ export default function LoginCard() {
 
       try {
         try {
-          await post("/auth/validate-auth", undefined, { token: tokenToCheck });
+          await validateAuthTokenAction({ token: tokenToCheck });
           router.push("/home");
         } catch (e) {
           // ignore
@@ -64,7 +65,7 @@ export default function LoginCard() {
     setLoading(true);
 
     try {
-      const { token: newToken, user } = await post("/auth/login", { email, password });
+      const { token: newToken, user } = await loginUserAction({ email, password });
       setAuth(user, newToken);
 
       setSuccess("Login successful! Redirecting to home...");

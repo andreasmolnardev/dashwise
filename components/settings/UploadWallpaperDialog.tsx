@@ -13,9 +13,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useConfig } from "@/context/ConfigContext";
-import { writeToConfig } from "@/lib/frontend/data/MUTATE/config/writeToConfig";
 import useAuth from "@/context/useAuth";
 import Image from "next/image";
+import { uploadWallpaperAction } from "@/app/actions/wallpapers";
+import { updateConfigPathAction } from "@/app/actions/config";
 
 interface UploadWallpaperDialogProps {
   open: boolean;
@@ -27,7 +28,7 @@ export default function UploadWallpaperDialog({
   onOpenChange,
 }: UploadWallpaperDialogProps) {
   const { config, patchConfig } = useConfig();
-  const { token } = useAuth();
+  const { withAuth } = useAuth();
 
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
@@ -69,19 +70,9 @@ export default function UploadWallpaperDialog({
     formData.append("image", file, file.name);
     formData.append("fileName", file.name);
     formData.append("convertToWebp", convertToWebp ? "true" : "false");
-    const headers: Record<string, string> = token
-      ? { Authorization: `Bearer ${token}` }
-      : {};
-
     try {
       // 1) Upload the image
-      const res = await fetch("/api/v1/wallpapers", {
-        method: "POST",
-        body: formData,
-        headers,
-      });
-      const body = await res.json();
-      if (!res.ok) throw new Error(body?.error || "Upload failed");
+      const body: any = await withAuth((auth) => uploadWallpaperAction(auth, formData));
 
       const wallpaperPath = body.path as string;
 
@@ -94,7 +85,7 @@ export default function UploadWallpaperDialog({
         ...prev,
         appearance: updatedAppearance,
       }));
-      await writeToConfig(`appearance`, updatedAppearance, { token });
+      await withAuth((auth) => updateConfigPathAction(auth, "appearance", updatedAppearance));
 
       setMessage("Upload complete — wallpaper updated.");
 

@@ -1,5 +1,6 @@
 "use client"
 
+import { ActionAuth, ApiActionError } from "@/lib/api/data/auth";
 import { useCallback, useEffect, useState } from "react";
 
 type AuthUser = any | null;
@@ -17,22 +18,20 @@ export function useAuth() {
   const [token, setToken] = useState<string | null>(() => {
     try {
       if (typeof window === "undefined") return null;
-      
-      // First check localStorage
+
       const localToken = localStorage.getItem("pb_token");
       if (localToken) return localToken;
-      
-      // If no localStorage token, check cookies (from SSO callback)
+
       const cookieToken = document.cookie
         .split('; ')
         .find(row => row.startsWith('pb_token='))
         ?.split('=')[1];
-      
+
       if (cookieToken) {
         localStorage.setItem("pb_token", cookieToken);
         return cookieToken;
       }
-      
+
       return null;
     } catch (e) {
       return null;
@@ -106,7 +105,25 @@ export function useAuth() {
     }
   }, [setAuth]);
 
-  return { user, token, setAuth, setToken: setTokenOnly, logout };
+  const withAuth = useCallback(
+    async <T,>(fn: (auth: ActionAuth) => Promise<T>, onUnauthorized?: () => void): Promise<T> => {
+      if (!token) {
+        onUnauthorized?.();
+        throw new ApiActionError("Unauthorized", 401, { error: "Unauthorized" });
+      }
+      try {
+        return await fn({ token });
+      } catch (err: any) {
+        if (err?.status === 401) {
+          onUnauthorized?.();
+        }
+        throw err;
+      }
+    },
+    [token]
+  );
+
+  return { user, token, setAuth, setToken: setTokenOnly, logout, withAuth };
 }
 
 export default useAuth;

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getIntegrationsKarakeep } from "@/lib/apiClient";
+import { getKarakeepDataAction } from "@/app/actions/integrations";
 import useAuth from "@/context/useAuth";
 import { WidgetItemProps } from "../Widget";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -26,7 +26,7 @@ export default function latestKarakeepBookmarksWidget({
 }: WidgetItemProps) {
   const [data, setData] = useState<KarakeepResponse | null>(null);
   const [loading, setLoading] = useState(true);
-  const { token } = useAuth();
+  const { token, withAuth } = useAuth();
 
   useEffect(() => {
     if (!token) {
@@ -34,7 +34,7 @@ export default function latestKarakeepBookmarksWidget({
     }
 
     setLoading(true);
-    getIntegrationsKarakeep({ qs: { latest: true }, token })
+    withAuth((auth) => getKarakeepDataAction(auth, true))
       .then((d) => {
         setData({
           latest: Array.isArray(d?.latest) ? d.latest : [],
@@ -45,7 +45,7 @@ export default function latestKarakeepBookmarksWidget({
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [token]);
+  }, [token, withAuth]);
 
 
   return (

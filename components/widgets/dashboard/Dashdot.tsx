@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useMemo } from "react";
 import useAuth from "@/context/useAuth";
-import { postIntegrationsDashdot } from "@/lib/apiClient";
+import { getDashdotDataAction } from "@/app/actions/integrations";
 import WidgetColumnTemplate from "../templates/WidgetColumn";
 import type { WidgetItemProps } from "../Widget";
 
@@ -23,7 +23,7 @@ export default function DashdotWidget({ params, className = "" }: DashdotWidgetP
     const [error, setError] = useState<string | null>(null);
 
     // fetch logic
-    const { token } = useAuth();
+    const { token, withAuth } = useAuth();
 
     const fetchMetrics = async () => {
         setLoading(true);
@@ -37,7 +37,7 @@ export default function DashdotWidget({ params, className = "" }: DashdotWidgetP
             const body = useOverride
                 ? { serverUrl: params?.serverLocation, displayName: params?.serverDisplayname }
                 : undefined;
-            const json = await postIntegrationsDashdot(body, { token });
+            const json = await withAuth((auth) => getDashdotDataAction(auth, body));
             setMetrics(json.metrics);
             setServerDetails(json.serverDetails);
         } catch (err: any) {

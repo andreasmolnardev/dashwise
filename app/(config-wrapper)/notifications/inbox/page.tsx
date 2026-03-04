@@ -13,8 +13,9 @@ import { Button } from "@/components/ui/button";
 import { MoreHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
 import readEndpoint from "@/lib/frontend/data/GET/readEndpoint";
-import { postNotificationsMarkAsRead } from "@/lib/apiClient";
 import { NOTIFICATIONS_UPDATED_EVENT } from "@/lib/events";
+import { markNotificationsAsReadAction } from "@/app/actions/notifications/items";
+import useAuth from "@/context/useAuth";
 
 export type NotificationItem = {
   id: string;
@@ -28,6 +29,7 @@ export type NotificationItem = {
 };
 
 export default function NotificationsInboxPage() {
+  const { token, withAuth } = useAuth();
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [topics, setTopics] = useState<{ id: string; title: string }[]>([]);
   const [activeTopic, setActiveTopic] = useState<string | null>(null);
@@ -37,10 +39,11 @@ export default function NotificationsInboxPage() {
     const ctl = new AbortController();
 
     (async () => {
+      if (!token) return;
       try {
         const [notResp, topicResp] = await Promise.all([
-          readEndpoint<{ items: any[] }>("/notifications", { signal: ctl.signal }),
-          readEndpoint<{ items: any[] }>("/notifications/topics", { signal: ctl.signal }),
+          readEndpoint<{ items: any[] }>("/notifications", { signal: ctl.signal, token }),
+          readEndpoint<{ items: any[] }>("/notifications/topics", { signal: ctl.signal, token }),
         ]);
 
         if (!mounted) return;
@@ -52,13 +55,12 @@ export default function NotificationsInboxPage() {
     })();
 
     return () => { mounted = false; ctl.abort(); };
-  }, []);
+  }, [token]);
 
   const markAsRead = async (notifId: string) => {
-    const token = localStorage.getItem("pb_token");
     if (!token) return;
     try {
-      await postNotificationsMarkAsRead({ id: notifId }, { token });
+      await withAuth((auth) => markNotificationsAsReadAction(auth, [notifId]));
       setNotifications((prev) => prev.map((n) => (n.id === notifId ? { ...n, status: "read" } : n)));
       if (typeof window !== "undefined") {
         window.dispatchEvent(new Event(NOTIFICATIONS_UPDATED_EVENT));
@@ -84,10 +86,9 @@ export default function NotificationsInboxPage() {
   const hasUnread = notifications.some((n) => n.status !== "read");
 
   const markAllAsRead = async () => {
-    const token = localStorage.getItem("pb_token");
     if (!token) return;
     try {
-      await postNotificationsMarkAsRead(undefined, { token });
+      await withAuth((auth) => markNotificationsAsReadAction(auth, []));
       setNotifications((prev) => prev.map((n) => ({ ...n, status: "read" })));
       if (typeof window !== "undefined") {
         window.dispatchEvent(new Event(NOTIFICATIONS_UPDATED_EVENT));

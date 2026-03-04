@@ -17,11 +17,11 @@ import { Input } from "../ui/input.tsx"
 import { useEffect, useState } from "react"
 import useAuth from "@/context/useAuth"
 import { useConfig } from "@/context/ConfigContext.tsx"
-import { put } from "@/lib/apiClient";
+import { replaceUserConfigAction } from "@/app/actions/config";
 
 export default function ImportConfigDialog() {
     const { config, refreshConfig } = useConfig();
-    const { token } = useAuth();
+    const { withAuth } = useAuth();
     const [raw, setRaw] = useState<string>("");
     const [parsed, setParsed] = useState<{} | null>(null);
     const [isUploading, setIsUploading] = useState<boolean>(false);
@@ -53,13 +53,10 @@ export default function ImportConfigDialog() {
         setIsUploading(true);
         setMessage(null);
 
-        const tokenStr = token ?? "";
-
         try {
-            const res = await put("/config", { config: parsed }, { token: tokenStr });
-            if (res?.error) {
-                setMessage(res.error || `HTTP`);
-            }
+            await withAuth((auth) =>
+                replaceUserConfigAction(auth, parsed as Record<string, any>)
+            );
             setMessage("Upload successful");
             setParsed(null);
             setRaw("");

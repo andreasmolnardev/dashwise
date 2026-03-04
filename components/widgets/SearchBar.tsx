@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import useAuth from "@/context/useAuth";
 import CommandBar from './CommandBar';
-import { get } from '@/lib/apiClient';
+import { getSearchItemsAction } from '@/app/actions/searchItems';
 
 type SearchBarProps = {
   useRedirect: boolean;
@@ -43,7 +43,7 @@ export default function SearchBar({ useRedirect, defaultOpen }: SearchBarProps) 
 
   // Fetch items when the command bar is opened.
   // Uses Authorization: Bearer <pb_token> from localStorage
-  const { token } = useAuth();
+  const { token, withAuth } = useAuth();
 
   useEffect(() => {
     if (!open) return;
@@ -56,8 +56,7 @@ export default function SearchBar({ useRedirect, defaultOpen }: SearchBarProps) 
       setItemsError(null);
 
         try {
-        const tokenToUse = token;
-        const data = await get('/searchItems', { token: tokenToUse, signal });
+        const data = await withAuth((auth) => getSearchItemsAction(auth));
         setSearchItems(Array.isArray(data) ? data : []);
       } catch (err: unknown) {
         const e = err as any;
@@ -78,7 +77,7 @@ export default function SearchBar({ useRedirect, defaultOpen }: SearchBarProps) 
     return () => {
       controller.abort();
     };
-  }, [open]);
+  }, [open, withAuth]);
 
   return (
     <>

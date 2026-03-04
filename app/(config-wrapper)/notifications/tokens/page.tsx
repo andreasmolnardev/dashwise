@@ -13,7 +13,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { MoreHorizontal } from "lucide-react";
 import CreateTopicTokenDialogComponent from "@/components/notifications/CreateTopicTokenDialog";
-import { get, del } from "@/lib/apiClient";
+import useAuth from "@/context/useAuth";
+import { getNotificationTopicsAction } from "@/app/actions/notifications/items";
+import { deleteTopicTokenAction, listTopicTokensAction } from "@/app/actions/notifications/topicTokens";
 
 export type TokenItem = {
     id: string;
@@ -24,6 +26,7 @@ export type TokenItem = {
 };
 
 export default function NotificationTokensPage() {
+    const { token, withAuth } = useAuth();
     const [items, setItems] = useState<TokenItem[]>([]);
     const [topics, setTopics] = useState<{ id: string; title: string }[]>([]);
     const [activeTopic, setActiveTopic] = useState<string | null>(null);
@@ -39,13 +42,11 @@ export default function NotificationTokensPage() {
         return d.toISOString().split("T")[0];
     });
 
-    const token = localStorage.getItem("pb_token");
-
     // Reusable function to fetch topics
     const fetchTopics = async () => {
         if (!token) return;
         try {
-            const json = await get("/notifications/topics", { token });
+            const json = await withAuth((auth) => getNotificationTopicsAction(auth));
             if (Array.isArray(json.items)) {
                 setTopics(json.items);
                 if (!activeTopic && json.items.length) setActiveTopic(json.items[0].id);
@@ -59,7 +60,7 @@ export default function NotificationTokensPage() {
     const fetchTokens = async () => {
         if (!token) return;
         try {
-            const json = await get("/notifications/topicTokens", { token });
+            const json = await withAuth((auth) => listTopicTokensAction(auth));
             if (Array.isArray(json.items)) setItems(json.items);
         } catch (err) {
             console.error("Failed to fetch tokens", err);
@@ -98,8 +99,7 @@ export default function NotificationTokensPage() {
         if (!token) return;
         if (!confirm("Are you sure you want to revoke this token?")) return;
         try {
-            const json = await del("/notifications/topicTokens", { token, body: { tokenId } });
-            if (json?.error) throw new Error(json.error ?? "Failed to revoke");
+            await withAuth((auth) => deleteTopicTokenAction(auth, tokenId));
             setItems((old) => old.filter((i) => i.id !== tokenId));
         } catch (err) {
             console.error(err);

@@ -4,7 +4,8 @@ import { useState } from "react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { getLocations } from "@/lib/apiClient";
+import { getLocationsAction } from "@/app/actions/misc";
+import useAuth from "@/context/useAuth";
 
 interface SearchResult {
     display_name: string;
@@ -21,6 +22,7 @@ export default function LocationSelectFormComponent({
     value,
     onChange,
 }: LocationSelectFormProps) {
+    const { token, withAuth } = useAuth();
     const [searchQuery, setSearchQuery] = useState("");
     const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
     const [hasSearched, setHasSearched] = useState(false);
@@ -39,7 +41,8 @@ export default function LocationSelectFormComponent({
         setLoading(true);
 
         try {
-            const json = await getLocations({ qs: { q } });
+            if (!token) throw new Error("Not authenticated");
+            const json = await withAuth((auth) => getLocationsAction(auth, q));
             setSearchResults(json || []);
             setAnimateResults(true);
         } catch (err) {

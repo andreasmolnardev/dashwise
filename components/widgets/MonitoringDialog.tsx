@@ -9,11 +9,11 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { LinkType } from "./LinkView";
-import { postMonitoringStatus } from "@/lib/apiClient";
 import useAuth from "@/context/useAuth";
 import { useState } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faRefresh } from "@fortawesome/free-solid-svg-icons";
+import { updateMonitoringStatusAction } from "@/app/actions/monitoring";
 
 export type JobEntry = {
     status: "healthy" | "disabled" | "unhealthy";
@@ -37,7 +37,7 @@ export default function MonitoringDialogComponent({
     details,
     onCheckTriggered,
 }: Props) {
-    const { token } = useAuth();
+    const { token, withAuth } = useAuth();
     const [isChecking, setIsChecking] = useState(false);
     const [checkError, setCheckError] = useState<string | null>(null);
     const [lastCheckInfo, setLastCheckInfo] = useState<{
@@ -128,7 +128,9 @@ export default function MonitoringDialogComponent({
         setIsChecking(true);
         setCheckError(null);
         try {
-            const response = await postMonitoringStatus({ linkId: link.id }, { token });
+            const response = await withAuth((auth) =>
+                updateMonitoringStatusAction(auth, { linkId: link.id })
+            );
             setLastCheckInfo({
                 status: response?.status,
                 endpoint: response?.endpoint,

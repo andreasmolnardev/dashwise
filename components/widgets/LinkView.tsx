@@ -1,10 +1,10 @@
 "use client";
 
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState } from "react";
 import { useConfig } from "@/context/ConfigContext";
 import useAuth from "@/context/useAuth";
 import { cn } from "@/lib/utils";
-import { getMonitoringStatus } from "@/lib/apiClient";
+import { getMonitoringStatusAction } from "@/app/actions/monitoring";
 import { PaginatedCarouselViewComponent } from "./PaginatedCarouselView";
 import MonitoringDialog, { JobEntry } from "./MonitoringDialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -27,8 +27,7 @@ export interface LinkType {
 
 export default function LinkView() {
   const { config } = useConfig();
-  const { token } = useAuth();
-  const tokenRef = useRef<string | null | undefined>(token);
+  const { token, withAuth } = useAuth();
   
   const [activeGroup, setActiveGroup] = useState<string>(config.linkGroups[0]);
   const filtered = config.links.filter((link: LinkType) => link.linkGroup === activeGroup);
@@ -71,15 +70,10 @@ export default function LinkView() {
     return false;
   }
 
-  useEffect(() => {
-    tokenRef.current = token;
-  }, [token]);
-
   async function fetchMonitoringStatuses() {
       try {
       if (typeof window === "undefined") return;
-      const tokenToUse = tokenRef.current;
-      if (!tokenToUse) {
+      if (!token) {
         // no token — clear details
         setMonitoringDetails(null);
         setStatusMap({});
@@ -88,7 +82,7 @@ export default function LinkView() {
 
       let data: any = null;
       try {
-        data = await getMonitoringStatus({ token: tokenToUse });
+        data = await withAuth((auth) => getMonitoringStatusAction(auth));
       } catch (err) {
         console.warn("/api/v1/monitoringStatus error:", err);
         return;

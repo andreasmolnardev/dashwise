@@ -6,7 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { ConfigProvider } from "@/context/ConfigContext";
 import { LocalizationProvider } from "@/context/LocalizationContext";
 import { cn } from "@/lib/utils";
-import { getConfig } from "@/lib/apiClient";
+import { getUserConfigAction } from "@/app/actions/config";
 
 type ThemeMode = "system" | "dark" | "light";
 
@@ -18,26 +18,23 @@ function applyThemeClasses(themeMode: ThemeMode, frostedAppearance: ThemeMode = 
 
   const resolvedTheme = themeMode === "system" ? (media.matches ? "dark" : "light") : themeMode;
   const resolvedFrosted =
-    frostedAppearance === "system"
-      ? media.matches
-        ? "dark"
-        : "light"
-      : frostedAppearance;
+    frostedAppearance === "system" ? (media.matches ? "dark" : "light") : frostedAppearance;
 
   root.classList.toggle("dark", resolvedTheme === "dark");
   root.style.colorScheme = resolvedTheme;
-
   root.classList.remove("frosted-theme-dark", "frosted-theme-light");
   root.classList.add(resolvedFrosted === "dark" ? "frosted-theme-dark" : "frosted-theme-light");
 }
 
 export default function ConfigWrapper({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const { token, withAuth } = useAuth();
+
   const [config, setConfig] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isDarkThemeActive, setIsDarkThemeActive] = useState(false);
-  const router = useRouter();
 
   // --- Service worker registration ---
   useEffect(() => {
@@ -49,30 +46,17 @@ export default function ConfigWrapper({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const { token } = useAuth();
-
   // --- Fetch config ---
   const fetchConfig = async (opts?: { showLoading?: boolean }) => {
     const showLoading = opts?.showLoading ?? false;
     try {
       if (showLoading) setLoading(true);
-      if (!token) {
-        router.push("/auth/login");
-        return;
-      }
-
-        try {
-        const data = await getConfig({ token });
-        setConfig(data);
-      } catch (err: any) {
-        if (err?.status === 401) {
-          router.push("/auth/login");
-          throw new Error("Unauthorized");
-        }
-        throw err;
-      }
+      const data = await withAuth(getUserConfigAction, () => router.push("/auth/login"));
+      setConfig(data);
     } catch (err: any) {
-      setError(err.message || "Unknown error");
+      if (err?.status !== 401) {
+        setError(err.message || "Unknown error");
+      }
     } finally {
       if (showLoading) setLoading(false);
     }
@@ -98,6 +82,7 @@ export default function ConfigWrapper({ children }: { children: ReactNode }) {
     document.documentElement.style.setProperty("--primary", accentColor);
   }, [config]);
 
+  // --- Theme ---
   useEffect(() => {
     if (typeof window === "undefined") return;
 
@@ -124,7 +109,6 @@ export default function ConfigWrapper({ children }: { children: ReactNode }) {
     if (!config) return;
 
     const imgUrl = config?.appearance?.backgroundImageUrl || "/default-background.png";
-    const tokenToUse = token;
     let revokeUrl: string | null = null;
 
     const loadBackground = async () => {
@@ -132,10 +116,9 @@ export default function ConfigWrapper({ children }: { children: ReactNode }) {
         let finalUrl = imgUrl;
 
         if (imgUrl.startsWith("/api/v1/wallpapers") || imgUrl.includes(window.location.host)) {
-          if (!tokenToUse) return;
-          const res = await fetch(imgUrl, { headers: { Authorization: `Bearer ${tokenToUse}` } });
+          if (!token) return;
+          const res = await fetch(imgUrl, { headers: { Authorization: `Bearer ${token}` } });
           if (!res.ok) throw new Error("Failed to fetch wallpaper with auth");
-
           const blob = await res.blob();
           finalUrl = URL.createObjectURL(blob);
           revokeUrl = finalUrl;
@@ -161,7 +144,6 @@ export default function ConfigWrapper({ children }: { children: ReactNode }) {
       document.body.style.backgroundSize = "";
       document.body.style.backgroundRepeat = "";
       document.body.style.backgroundPosition = "";
-
       if (revokeUrl) URL.revokeObjectURL(revokeUrl);
     };
   }, [config]);
@@ -169,14 +151,12 @@ export default function ConfigWrapper({ children }: { children: ReactNode }) {
   if (loading) return <div></div>;
   if (error) return <div>Error loading config: {error}</div>;
 
-  // Wallpaper blur + brightness from config
-  const blur = config?.appearance?.wallpaperFilters?.blur ?? 3; // px
-  const brightness = config?.appearance?.wallpaperFilters?.brightness ?? 85; // percent
-  const darkModeBrightness = config?.appearance?.wallpaperFilters?.darkModeBrightness ?? 0; // extra darken percent (0-50)
+  const blur = config?.appearance?.wallpaperFilters?.blur ?? 3;
+  const brightness = config?.appearance?.wallpaperFilters?.brightness ?? 85;
+  const darkModeBrightness = config?.appearance?.wallpaperFilters?.darkModeBrightness ?? 0;
   const appliedBrightness = isDarkThemeActive
     ? Math.max(0, brightness - Math.max(0, Math.min(50, darkModeBrightness)))
     : brightness;
-
 
   return (
     <ConfigProvider value={{ config, refreshConfig: fetchConfig, patchConfig }}>

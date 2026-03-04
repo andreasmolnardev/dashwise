@@ -1,5 +1,4 @@
-import { patch } from "../../apiFetch";
-import { patch as apiPatch } from "@/lib/apiClient";
+import { updateConfigPathAction } from "@/app/actions/config";
 
 export type WriteOpts = {
   method?: "PATCH" | "PUT" | "POST" | "DELETE";
@@ -14,11 +13,11 @@ export async function writeToConfig<T = any>(
   updatedItem: any,
   opts?: WriteOpts
 ): Promise<T> {
-  const method = opts?.method ?? "PATCH";
-  const urlPath = `/config?path=${encodeURIComponent(path)}`;
+  const token =
+    opts?.token ??
+    (typeof window !== "undefined" ? localStorage.getItem("pb_token") : null);
 
-  // prefer api client wrapper which prefixes `/api/v1`
-  const json = await apiPatch<T>(urlPath, { updatedItem }, { token: opts?.token ?? null, signal: opts?.signal });
+  const json = await updateConfigPathAction({ token }, path, updatedItem);
 
   // success
   if (opts?.onSuccess) opts.onSuccess(json);

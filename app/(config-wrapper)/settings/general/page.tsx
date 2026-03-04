@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogT
 import LocationSelectFormComponent from "@/components/settings/LocationSelectForm";
 import { writeToConfig } from "@/lib/frontend/data/MUTATE/config/writeToConfig";
 import useAuth from "@/context/useAuth";
-import { getJobsPullIcons } from "@/lib/apiClient";
+import { runPullIconsAction } from "@/app/actions/misc";
 
 type TimeFormatValue = "24-hour" | "12-hour";
 
@@ -30,13 +30,14 @@ const DATE_FORMAT_OPTIONS = [
 
 export default function GeneralSettingsPage() {
   const [isRefreshingIcons, setIsRefreshingIcons] = useState(false);
+  const { token } = useAuth();
 
   async function handleRefreshIcons() {
     if (isRefreshingIcons) return;
 
     try {
       setIsRefreshingIcons(true);
-      await getJobsPullIcons();
+      await runPullIconsAction({ token });
     } catch (error) {
       console.error("Failed to refresh icons", error);
     } finally {

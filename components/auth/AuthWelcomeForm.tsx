@@ -4,7 +4,8 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Button } from "@/components/ui/button"
 import config from "@/lib/config"
 import { useEffect, useState } from "react"
-import { get, post } from "@/lib/apiClient";
+import { getAppConfigAction } from "@/app/actions/app";
+import { validateAuthTokenAction } from "@/app/actions/auth";
 
 export default function AuthWelcomeFormComponent() {
     const router = useRouter();
@@ -12,14 +13,14 @@ export default function AuthWelcomeFormComponent() {
 
     useEffect(() => {
              // Load runtime config
-             get("/appConfig").then(res => setEnableSSO(res.enableSSO ?? false)).catch(() => setEnableSSO(false));
+             getAppConfigAction().then(res => setEnableSSO(res.enableSSO ?? false)).catch(() => setEnableSSO(false));
 
         const validateAuth = async () => {
             const token = localStorage.getItem('pb_token');
             if (!token) return;
 
                 try {
-                    await post("/auth/validate-auth", undefined, { token });
+                    await validateAuthTokenAction({ token });
                     router.push("/home");
                 } catch (err) {
                     // ignore

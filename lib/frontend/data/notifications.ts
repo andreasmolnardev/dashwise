@@ -1,3 +1,6 @@
+import { getForwardersAction } from "@/app/actions/notifications/forwarders";
+import { getNotificationsAction, getNotificationTopicsAction } from "@/app/actions/notifications/items";
+
 export type NotificationItem = {
   id: string;
   title?: string;
@@ -13,8 +16,7 @@ export type NotificationItem = {
  */
 export async function getNotifications(token?: string): Promise<NotificationItem[]> {
   try {
-    const { get } = await import("@/lib/apiClient");
-    const json = await get("/notifications", { token, cache: "no-store" });
+    const json = await getNotificationsAction({ token }, false, false);
     if (Array.isArray(json.items)) return json.items;
     if (Array.isArray(json)) return json;
     return json.items ?? [];
@@ -30,8 +32,7 @@ export default getNotifications;
 
 export async function getNotificationTopics(token?: string): Promise<{ id: string; title?: string }[]> {
   try {
-    const { get } = await import("@/lib/apiClient");
-    const json = await get("/notifications/topics", { token, cache: "no-store" });
+    const json = await getNotificationTopicsAction({ token });
     if (Array.isArray(json.items)) return json.items;
     if (Array.isArray(json)) return json;
     return json.items ?? [];
@@ -44,8 +45,7 @@ export async function getNotificationTopics(token?: string): Promise<{ id: strin
 
 export async function getNotificationForwarders(token?: string): Promise<any[]> {
   try {
-    const { get } = await import("@/lib/apiClient");
-    const json = await get("/notifications/forwarders", { token, cache: "no-store" });
+    const json = await getForwardersAction({ token });
     if (Array.isArray(json.items)) return json.items;
     if (Array.isArray(json)) return json;
     return json.items ?? [];

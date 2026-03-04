@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { useConfig } from "@/context/ConfigContext";
 import useAuth from "@/context/useAuth";
-import { postConfig } from "@/lib/apiClient";
+import { appendConfigArrayItemAction } from "@/app/actions/config";
 
 type Props = {
   open: boolean;
@@ -26,6 +26,7 @@ export default function CreateLinkGroupDialog({
   onCreated,
 }: Props) {
   const { config, refreshConfig } = useConfig();
+  const { withAuth } = useAuth();
 
   const [alert, setAlert] = useState<{
     open: boolean;
@@ -36,13 +37,9 @@ export default function CreateLinkGroupDialog({
 
   const onCreateNewLinkGroupSubmit = async (newGroup: string) => {
     try {
-      const { token } = useAuth();
-      if (!token) throw new Error("Not authenticated");
-
-      const json = await postConfig({ newItem: newGroup }, { qs: { path: "linkGroups" }, token });
-      if (json?.error) {
-        throw new Error(json?.error || json?.message || "Failed to create link group");
-      }
+      await withAuth((auth) =>
+        appendConfigArrayItemAction(auth, "linkGroups", newGroup)
+      );
 
       await refreshConfig();
 

@@ -24,9 +24,9 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome"
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert"
-import { ChangePasswordError, ChangePasswordRequest, ChangePasswordSuccess } from "@/app/api/v1/auth/change-password/route"
+import { ChangePasswordRequest } from "@/app/actions/auth"
 import { useRouter } from "next/navigation"
-import { postAuthChangePassword } from "@/lib/apiClient";
+import { changePasswordAction, deleteAccountAction } from "@/app/actions/auth";
 import { DialogDescription } from "@radix-ui/react-dialog"
 import ExportConfigDialog from "@/components/settings/ExportConfigDialog"
 import { useConfig } from "@/context/ConfigContext"
@@ -77,7 +77,7 @@ export default function AccountSettingsPage() {
       } satisfies ChangePasswordRequest;
 
       try {
-        const body: any = await postAuthChangePassword(payload, { token });
+        const body: any = await changePasswordAction({ token }, payload);
         setSuccess(body.message || "Password changed successfully");
         setOldPassword("");
         setNewPassword("");
@@ -134,21 +134,7 @@ export default function AccountSettingsPage() {
     setDeleteLoading(true);
 
     try {
-      const headers: Record<string, string> = { "Content-Type": "application/json" };
-      if (token) {
-        headers["Authorization"] = `Bearer ${token}`;
-      }
-
-      const response = await fetch("/api/v1/auth/delete-account", {
-        method: "DELETE",
-        headers,
-        body: JSON.stringify(payload),
-      });
-
-      if (!response.ok) {
-        const body = await response.json().catch(() => null);
-        throw new Error(body?.error ?? response.statusText ?? "Failed to delete account");
-      }
+      await deleteAccountAction({ token }, payload);
 
       logout();
       router.push('/auth/login');

@@ -14,7 +14,7 @@ import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Checkbox } from "../ui/checkbox";
 import TopicCombobox, { type Topic } from "./TopicCombobox";
-import { postNotificationsForwarders } from "@/lib/apiClient";
+import { createForwarderAction } from "@/app/actions/notifications/forwarders";
 export type ForwarderItem = { 
   id: string; 
   topic: { id: string }; 
@@ -42,7 +42,7 @@ export default function CreateForwarderDialogComponent({
   const [isActive, setIsActive] = useState(true);
   const [creating, setCreating] = useState(false);
 
-  const { token } = useAuth();
+  const { token, withAuth } = useAuth();
 
   const handleTopicChange = (topic: Topic) => {
     setSelectedTopic(topic);
@@ -56,10 +56,9 @@ export default function CreateForwarderDialogComponent({
     setCreating(true);
 
     try {
-      const tokenToUse = token;
-      if (!tokenToUse) throw new Error("Missing auth token");
-
-      const json = await postNotificationsForwarders({ topic: selectedTopic.id, target, isActive }, { token: tokenToUse });
+      const json = await withAuth((auth) =>
+        createForwarderAction(auth, { topic: selectedTopic.id, target, isActive })
+      );
 
       // Reset
       setSelectedTopic(null);
@@ -67,7 +66,12 @@ export default function CreateForwarderDialogComponent({
       setIsActive(true);
       onOpenChange(false);
 
-      onForwarderCreated?.(json.item);
+      onForwarderCreated?.({
+        id: json?.item?.id,
+        topic: { id: selectedTopic.id },
+        target,
+        isActive,
+      });
     } catch (err) {
       console.error(err);
       alert("Failed to create forwarder");

@@ -6,8 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@radix-ui/react-label";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
-import { writeToConfig } from "@/lib/frontend/data/MUTATE/config/writeToConfig";
-import { postConfig } from "@/lib/apiClient";
+import { appendConfigArrayItemAction, updateConfigPathAction } from "@/app/actions/config";
 import {
   Select,
   SelectContent,
@@ -66,7 +65,7 @@ interface LinkDetailsFormProps {
 
 export default function LinkDetailsForm({ link, onClose, preselectOpenedGroup }: LinkDetailsFormProps) {
   const { config } = useConfig();
-  const { token } = useAuth();
+  const { token, withAuth } = useAuth();
 
   const linkGroups = useMemo(() => config?.linkGroups || [], [config?.linkGroups]);
   const links = config?.links || [];
@@ -247,10 +246,11 @@ export default function LinkDetailsForm({ link, onClose, preselectOpenedGroup }:
       const updatedLinks = links.map((l) =>
         l.url === link?.url ? payload : l
       );
-      await writeToConfig("links", updatedLinks, { token });
+      await withAuth((auth) => updateConfigPathAction(auth, "links", updatedLinks));
     } else {
-      const json = await postConfig({ newItem: payload }, { qs: { path: "links" }, token });
-      if (json?.error) throw new Error(json.error || "Failed to save link");
+      await withAuth((auth) =>
+        appendConfigArrayItemAction(auth, "links", payload)
+      );
     }
   };
 

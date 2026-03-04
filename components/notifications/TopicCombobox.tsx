@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "../ui/button";
-import { post } from "@/lib/apiClient";
+import { createNotificationTopicAction } from "@/app/actions/notifications/items";
 
 export type Topic = { id: string; title: string };
 
@@ -36,7 +36,7 @@ export default function TopicCombobox({ topics, value, onChange }: TopicCombobox
     ? localTopics.filter((t) => t.title.toLowerCase().includes(inputValue.toLowerCase()))
     : localTopics;
 
-  const { token } = useAuth();
+  const { token, withAuth } = useAuth();
 
   const handleSelect = async (title: string) => {
     const existing = localTopics.find((t) => t.title === title);
@@ -50,7 +50,7 @@ export default function TopicCombobox({ topics, value, onChange }: TopicCombobox
       setCreating(true);
       if (!token) throw new Error("Missing auth token");
 
-      const json = await post("/notifications/topics", { title }, { token });
+      const json = await withAuth((auth) => createNotificationTopicAction(auth, title));
 
       const newTopic: Topic = { id: json.topicId, title };
       setLocalTopics((old) => [...old, newTopic]);

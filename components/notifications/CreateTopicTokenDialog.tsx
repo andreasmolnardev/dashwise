@@ -13,7 +13,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
 import { Button } from "../ui/button";
-import { postNotificationsTopicTokens } from "@/lib/apiClient";
+import { createTopicTokenAction } from "@/app/actions/notifications/topicTokens";
 import { TokenItem } from "@/app/(config-wrapper)/notifications/tokens/page";
 import TopicCombobox, { type Topic } from "./TopicCombobox";
 
@@ -51,7 +51,7 @@ export default function CreateTopicTokenDialogComponent({
     return "—";
   };
 
-  const { token } = useAuth();
+  const { token, withAuth } = useAuth();
 
   const handleCreate = async () => {
     if (!selectedTopic) return;
@@ -67,10 +67,12 @@ export default function CreateTopicTokenDialogComponent({
         expiresVal = new Date(onDate).toISOString();
       }
 
-      const tokenToUse = token;
-      if (!tokenToUse) throw new Error("Missing auth token");
-
-      const json = await postNotificationsTopicTokens({ topicId: selectedTopic.id, ...(expiresVal ? { expires: expiresVal } : {}) }, { token: tokenToUse });
+      const json = await withAuth((auth) =>
+        createTopicTokenAction(auth, {
+          topicId: selectedTopic.id,
+          ...(expiresVal ? { expires: expiresVal } : {}),
+        })
+      );
 
       // Reset
       setSelectedTopic(null);

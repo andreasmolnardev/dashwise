@@ -2,7 +2,7 @@ import { useConfig } from "@/context/ConfigContext";
 import { useLocalization } from "@/context/LocalizationContext";
 import { useEffect, useMemo, useState } from "react";
 import { getWeatherIcon } from "../widgets/dashboard/Weather";
-import { getWeather } from "@/lib/apiClient";
+import { getWeatherAction } from "@/app/actions/integrations";
 
 export type GlanceableProps = {
   type: string;
@@ -146,7 +146,7 @@ function GlanceableWeather({ params, className }: { params?: Record<string, any>
 
   useEffect(() => {
     if (weatherLocation) {
-      getWeather({ qs: { lat: weatherLocation.lat, lon: weatherLocation.lon, unit } })
+      getWeatherAction({ lat: String(weatherLocation.lat), lon: String(weatherLocation.lon), unit })
         .then((data) => setWeather({ ...data, name: weatherLocation.name }))
         .catch((err) => console.error("Failed to load weather:", err));
     }

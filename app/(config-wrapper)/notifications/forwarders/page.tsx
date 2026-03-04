@@ -22,11 +22,12 @@ import {
 import { MoreHorizontal, Copy, Trash2, Edit2 } from "lucide-react";
 import CreateForwarderDialogComponent, { ForwarderItem } from "@/components/notifications/CreateForwarderDialog";
 import useAuth from "@/context/useAuth";
-import { post, put, del } from "@/lib/apiClient";
+import { getNotificationTopicsAction } from "@/app/actions/notifications/items";
 import {
-    getNotificationTopics,
-    getNotificationForwarders,
-} from "@/lib/frontend/data/notifications";
+    deleteForwarderAction,
+    getForwardersAction,
+    updateForwarderAction,
+} from "@/app/actions/notifications/forwarders";
 
 export default function NotificationForwardersPage() {
     const [items, setItems] = useState<ForwarderItem[]>([]);
@@ -38,22 +39,23 @@ export default function NotificationForwardersPage() {
     const [editIsActive, setEditIsActive] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
 
-    const { token } = useAuth();
+    const { token, withAuth } = useAuth();
 
     useEffect(() => {
         if (!token) return;
 
         const load = async () => {
-            const topics = await getNotificationTopics(token);
-            setTopics(topics);
-            if (!activeTopic && topics.length) setActiveTopic(topics[0].id);
+            const topicsJson = await withAuth((auth) => getNotificationTopicsAction(auth));
+            const nextTopics = topicsJson?.items ?? [];
+            setTopics(nextTopics);
+            if (!activeTopic && nextTopics.length) setActiveTopic(nextTopics[0].id);
 
-            const forwarders = await getNotificationForwarders(token);
-            setItems(forwarders);
+            const forwardersJson = await withAuth((auth) => getForwardersAction(auth));
+            setItems(forwardersJson?.items ?? []);
         };
 
         load();
-    }, [token]);
+    }, [token, withAuth]);
 
     const filtered = activeTopic
         ? items.filter((i) => i.topic?.id === activeTopic)
@@ -82,8 +84,7 @@ export default function NotificationForwardersPage() {
         if (!token) return;
         if (!confirm("Are you sure you want to delete this forwarder?")) return;
         try {
-            const json = await del("/notifications/forwarders", { token, body: { forwarderId } });
-            if (json?.error) throw new Error(json.error ?? "Failed to delete");
+            await withAuth((auth) => deleteForwarderAction(auth, forwarderId));
             setItems((old) => old.filter((i) => i.id !== forwarderId));
         } catch (err) {
             console.error(err);
@@ -102,13 +103,11 @@ export default function NotificationForwardersPage() {
         setIsSaving(true);
 
         try {
-            const json = await put("/notifications/forwarders", {
+            await withAuth((auth) => updateForwarderAction(auth, {
                 forwarderId: editingForwarder.id,
                 target: editTarget,
                 isActive: editIsActive,
-            }, { token });
-
-            if (json?.error) throw new Error(json.error ?? "Failed to update");
+            }));
 
             setItems((old) => old.map((i) => i.id === editingForwarder.id ? { ...i, target: editTarget, isActive: editIsActive } : i));
 

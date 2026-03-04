@@ -1,8 +1,8 @@
-import React, { useEffect, useState } from "react";
-import { getWeather } from "@/lib/apiClient";
+import React, { useEffect, useState } from "react"
 import type { WidgetItemProps } from "../Widget";
 import { useConfig } from "@/context/ConfigContext";
 import { useLocalization } from "@/context/LocalizationContext";
+import { getWeatherAction } from "@/app/actions/integrations";
 
 interface WeatherWidgetParams {
   locationCoordinates?: string;
@@ -341,7 +341,7 @@ async function fetchWeather({
 
   let raw: any;
   try {
-    raw = await getWeather({ qs: { lat: String(lat), lon: String(lon), unit: String(unit) } });
+    raw = await getWeatherAction({ lat: String(lat), lon: String(lon), unit: String(unit) });
   } catch (e: any) {
     return { error: e?.message ?? "Upstream error" };
   }

@@ -4,7 +4,7 @@ import React, { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import useAuth from "@/context/useAuth";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
-import { postConfigMoveArrayitems } from "@/lib/apiClient";
+import { moveConfigArrayItemsAction } from "@/app/actions/config";
 import { DialogClose } from "@/components/ui/dialog";
 import { useConfig } from "@/context/ConfigContext";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -31,7 +31,7 @@ export default function MoveLinkGroupsFormComponent({ linkGroups = [], onReorder
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  const { token } = useAuth();
+  const { token, withAuth } = useAuth();
 
   // -- Drag handlers --
   const handleDragStart = (e: React.DragEvent<HTMLLIElement>, idx: number) => {
@@ -112,8 +112,9 @@ export default function MoveLinkGroupsFormComponent({ linkGroups = [], onReorder
         }
         if (src === i) continue; // already in place
 
-        const json = await postConfigMoveArrayitems({ src, dst: i }, { qs: { path: "linkGroups" }, token });
-        if (json?.error) throw new Error(json?.error || `Move failed (src=${src}, dst=${i})`);
+        await withAuth((auth) =>
+          moveConfigArrayItemsAction(auth, "linkGroups", src, i)
+        );
 
         // update our local representation of the server array
         const [moved] = current.splice(src, 1);

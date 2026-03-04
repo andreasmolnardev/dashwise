@@ -5,8 +5,11 @@ import { Dialog, DialogTrigger, DialogContent, DialogTitle } from "@/components/
 import { Button } from "@/components/ui/button";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faArrowRotateRight } from "@fortawesome/free-solid-svg-icons";
+import { getAppInfoAction } from "@/app/actions/app";
+import useAuth from "@/context/useAuth";
 
 export default function UpdateDetailsDialogComponent() {
+  const { withAuth } = useAuth();
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const [currentVersion, setCurrentVersion] = useState("");
   const [newVersion, setNewVersion] = useState("");
@@ -14,8 +17,7 @@ export default function UpdateDetailsDialogComponent() {
   useEffect(() => {
     async function fetchUpdateInfo() {
       try {
-        const { get } = await import("@/lib/apiClient");
-        const data = await get("/appInfo");
+        const data = await withAuth((auth) => getAppInfoAction(auth));
 
         if (data.updateAvailable != "0") {
           setUpdateAvailable(true);
@@ -28,7 +30,7 @@ export default function UpdateDetailsDialogComponent() {
     }
 
     fetchUpdateInfo();
-  }, []);
+  }, [withAuth]);
 
   if (!updateAvailable) return null; // only show if update exists
 

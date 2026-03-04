@@ -2,7 +2,8 @@
 
 import Link from "next/link"
 import { useEffect, useState } from "react"
-import { get, post } from "@/lib/apiClient";
+import { getAppConfigAction } from "@/app/actions/app";
+import { signupUserAction, validateAuthTokenAction } from "@/app/actions/auth";
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -11,7 +12,6 @@ import { Input } from "@/components/ui/input"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome"
 import { faCircleCheck, faExclamationTriangle } from "@fortawesome/free-solid-svg-icons"
-import { setTimeout } from "timers"
 
 export default function SignupCard() {
   const [name, setName] = useState("");
@@ -27,14 +27,14 @@ export default function SignupCard() {
   //on load: check for existing auth, validate using /api/v1/auth/validate-auth endpoint if returned success to /home
   useEffect(() => {
     // Fetch runtime config (e.g. enableSSO)
-    get("/appConfig").then(res => setEnableSSO(res.enableSSO ?? false)).catch(() => setEnableSSO(false));
+    getAppConfigAction().then(res => setEnableSSO(res.enableSSO ?? false)).catch(() => setEnableSSO(false));
 
     const validateAuth = async () => {
       const token = localStorage.getItem('pb_token');
       if (!token) return;
 
       try {
-        await post("/auth/validate-auth", undefined, { token });
+        await validateAuthTokenAction({ token });
         router.push("/home");
       } catch (err) {
         // ignore
@@ -65,22 +65,18 @@ export default function SignupCard() {
 
     setLoading(true)
     try {
-      const data = await post("/auth/signup", { _name: name, email, password, passwordConfirm: confirmPassword });
-      if (data?.error) {
-        setError(data.error || "Signup failed");
-      } else {
-        setSuccess("Redirecting to login...")
+      await signupUserAction({ _name: name, email, password, passwordConfirm: confirmPassword });
+      setSuccess("Redirecting to login...")
 
-        setTimeout(() => {
-          // Clear the form fields
-          setName("")
-          setEmail("")
-          setPassword("")
-          setConfirmPassword("")
+      setTimeout(() => {
+        // Clear the form fields
+        setName("")
+        setEmail("")
+        setPassword("")
+        setConfirmPassword("")
 
-          router.push("/auth/login")
-        }, 2000)
-      }
+        router.push("/auth/login")
+      }, 2000)
     } catch (err) {
       console.error("Signup request failed:", err)
       setError((err as any)?.message || "Network error")

@@ -2,6 +2,8 @@ interface AddSearchEngineOptions {
   token: string;
 }
 
+import { appendConfigArrayItemAction } from "@/app/actions/config";
+
 /**
  * Adds a new search engine to the user configuration.
  */
@@ -9,8 +11,6 @@ export async function addSearchEngine(
   newItem: SearchEngine,
   { token }: AddSearchEngineOptions
 ) {
-  const { post } = await import("@/lib/apiClient");
-  const json = await post(`/config?path=searchEngines`, { newItem }, { token });
-  if (json?.error) throw new Error(json.error || "Request failed");
+  const json = await appendConfigArrayItemAction({ token }, "searchEngines", newItem);
   return json;
 }
