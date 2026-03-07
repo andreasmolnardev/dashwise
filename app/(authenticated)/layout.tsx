@@ -1,9 +1,5 @@
-import ConfigWrapper from "@/components/ConfigWrapper";
+import AuthWrapper from "@/components/AuthWrapper";
 
 export default function SettingsRootLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <ConfigWrapper>
-      {children}
-    </ConfigWrapper>
-  );
+  return <AuthWrapper>{children}</AuthWrapper>;
 }

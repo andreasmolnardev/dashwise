@@ -2,11 +2,12 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { usePageConfig } from "@/hooks/usePageConfig";
-import { writeToConfig } from "@/lib/frontend/data/MUTATE/config/writeToConfig";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { updatePageConfigAction } from "@/app/actions/pageConfigs";
+import useAuth from "@/context/useAuth";
 import rawGlanceablesData from "@/public/glanceables.json";
 import rawWidgetsData from "@/public/widgets.json";
 
@@ -48,6 +49,7 @@ export default function SettingsPagesPage() {
 
 	const [selectedPage, setSelectedPage] = useState("home");
 	const { config: selectedConfig, refreshConfig: refreshSelectedConfig } = usePageConfig({ pageName: selectedPage });
+	const { withAuth } = useAuth();
 
 	const [newPageName, setNewPageName] = useState("");
 	const [selectedGlanceables, setSelectedGlanceables] = useState<string[]>([]);
@@ -108,7 +110,7 @@ export default function SettingsPagesPage() {
 		}
 
 		const nextPages = Array.from(new Set([...(pages ?? []), normalized]));
-		await writeToConfig("pages", nextPages, { pageName: "home" });
+		await withAuth((auth) => updatePageConfigAction(auth, "home", { pages: nextPages }));
 		await refreshHomeConfig();
 		setSelectedPage(normalized);
 		setNewPageName("");
@@ -132,8 +134,12 @@ export default function SettingsPagesPage() {
 				});
 			});
 
-			await writeToConfig("glanceables", nextGlanceables, { pageName: selectedPage });
-			await writeToConfig("widgets", nextWidgetsColumns, { pageName: selectedPage });
+			await withAuth((auth) =>
+				updatePageConfigAction(auth, selectedPage, {
+					glanceables: nextGlanceables,
+					widgets: nextWidgetsColumns,
+				})
+			);
 			await refreshSelectedConfig();
 		} finally {
 			setIsSaving(false);
