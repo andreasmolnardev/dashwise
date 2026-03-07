@@ -20,11 +20,14 @@ services:
     restart: unless-stopped
 
   jobs:
-    image: andreasmolnardev/dashwise-jobs-pre
-    #build:
-     # context: ./jobs
+    build:
+     context: .
+     dockerfile: jobs/Dockerfile
     ports:
         - "3001:3001"
+    volumes:
+      - ./jobs:/usr/src/app
+      - ./dashwise-sdk:/usr/src/app/dashwise-sdk
     environment:
       PB_URL: http://pocketbase:8090
       DASHWISE_URL: http://dashwise:3000
