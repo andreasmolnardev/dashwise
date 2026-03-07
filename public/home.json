@@ -1,0 +1,12 @@
+{
+    "template": "main",
+    "columns": {
+        "left": {"placeholder": {"height": "$main-clock"}},
+        "middle": {
+            "main-clock": {"glanceables": {"date": null, "weather": null}},
+            "search-bar": {},
+            "link-view": {}
+        },
+        "right": {"placeholder": {"height": "$main-clock"}}
+    }
+}
