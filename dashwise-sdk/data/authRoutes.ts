@@ -2,7 +2,7 @@ import path from "path";
 import { promises as fs } from "fs";
 import speakeasy from "speakeasy";
 import config from "@/lib/config";
-import { getServerPB } from "@/lib/pb";
+import { getServerPB } from "@dashwise/sdk/lib/pocketbase";
 import { ApiActionError } from "@dashwise/sdk/data/auth";
 
 export async function loginUser(payload: { email: string; password: string; totp?: string }) {

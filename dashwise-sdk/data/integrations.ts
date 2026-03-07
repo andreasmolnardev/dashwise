@@ -2,7 +2,7 @@ import config from "@/lib/config";
 import getDashdotMetrics from "@/lib/clients/dashdot/client";
 import { getBookmarks } from "@/lib/clients/karakeep/client";
 import { getBeszelSystemHealth } from "@/lib/clients/beszel/client";
-import { getSuperuserPB } from "@/lib/pb";
+import { getSuperuserPB } from "@dashwise/sdk/lib/pocketbase";
 
 async function getUserConfigRecord(userId: string) {
   const pb = await getSuperuserPB();

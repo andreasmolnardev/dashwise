@@ -1,22 +1,21 @@
-import { getSuperuserPB } from "../lib/pb";
 import {
     formatNotificationMessage,
     groupNotificationsByTopic,
     sendViaShoutrrr,
-} from "../../../dashwise-sdk/data/notifications/forwarding";
+} from "@dashwise/sdk/data/notifications/forwarding";
+import {
+    getActiveNotificationForwardersByTopic,
+    getQueuedNotificationItems,
+    markNotificationAsDone,
+} from "@dashwise/sdk/data/superuser";
 
 /**
  * Process all notifications with forwardStatus="queued" and forward them
  */
 export async function processQueuedNotifications() {
     try {
-        const pb = await getSuperuserPB();
-
         // Find all notifications with forwardStatus="queued"
-        const queuedNotifications = await pb.collection("notificationItems").getFullList({
-            filter: `forwardStatus="queued"`,
-            batch: 100,
-        });
+        const queuedNotifications = await getQueuedNotificationItems(100);
 
         if (queuedNotifications.length === 0) {
             console.log("[Forwarder] No queued notifications to process");
@@ -32,16 +31,12 @@ export async function processQueuedNotifications() {
         // For each topic, get active forwarders and send
         for (const [topicId, notifications] of byTopic.entries()) {
             try {
-                const forwarders = await pb.collection("notificationForwarders").getFullList({
-                    filter: `topic="${topicId}" && isActive=true`,
-                });
+                const forwarders = await getActiveNotificationForwardersByTopic(topicId);
 
                 if (forwarders.length === 0) {
                     // No forwarders for this topic, mark as done
                     for (const notif of notifications) {
-                        await pb.collection("notificationItems").update(notif.id, {
-                            forwardStatus: "done",
-                        });
+                        await markNotificationAsDone(notif.id);
                     }
                     continue;
                 }
@@ -68,9 +63,7 @@ export async function processQueuedNotifications() {
 
                     // Mark as done if at least one forwarder succeeded
                     if (successCount > 0) {
-                        await pb.collection("notificationItems").update(notif.id, {
-                            forwardStatus: "done",
-                        });
+                        await markNotificationAsDone(notif.id);
                     }
                 }
             } catch (error) {

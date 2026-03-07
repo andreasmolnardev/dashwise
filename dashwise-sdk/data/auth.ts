@@ -1,5 +1,4 @@
-import { ClientResponseError } from "pocketbase";
-import { getServerPB } from "@/lib/pb";
+import { ClientResponseError, getServerPB } from "@dashwise/sdk/lib/pocketbase";
 
 export class ApiActionError extends Error {
   status: number;

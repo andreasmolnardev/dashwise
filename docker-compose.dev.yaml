@@ -6,7 +6,7 @@ services:
     volumes:
       - ./:/app
     working_dir: /app
-    command: sh -c "npm install && npm run dev"
+    command: sh -c "cd dashwise-sdk && npm install && cd .. && npm install && npm run dev"
   pocketbase:
     build: ./pocketbase
     environment:

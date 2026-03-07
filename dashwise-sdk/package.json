@@ -1,0 +1,14 @@
+{
+  "name": "@dashwise/sdk",
+  "version": "0.5.1",
+  "description": "The sdk seamlessly connecting dashwise clients to the pocketbase backend",
+  "main": "index.ts",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "pocketbase": "^0.26.8"
+  }
+}

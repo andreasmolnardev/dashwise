@@ -2,7 +2,7 @@ import axios from "axios";
 import { channelId } from "@gonetone/get-youtube-id-by-url";
 import config from "@/lib/config";
 import { getFaviconFromDOM } from "@/lib/api/tools/faviconFromDom";
-import { getSuperuserPB } from "@/lib/pb";
+import { getSuperuserPB } from "@dashwise/sdk/lib/pocketbase";
 
 type FeedItem = {
   title: string;

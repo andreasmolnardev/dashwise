@@ -1,6 +1,12 @@
 import { config } from "../config/env";
-import { getSuperuserPB } from "../lib/pb";
+
 import { monitorHelper, MonitoringRequestAuth } from "./helper";
+import {
+    createMonitoringJobStatusLog,
+    getMonitoringJobs,
+    getUserConfigsByAssociatedUserId,
+    updateMonitoringJob,
+} from "@dashwise/sdk/data/superuser";
 
 type StatusCheckMethod = "GET" | "HEAD" | "POST" | "PUT" | "PATCH" | "DELETE" | "OPTIONS";
 
@@ -36,7 +42,6 @@ export async function runStatusMonitoringJobsWithOptions(options?: {
     errors: number;
     details: Array<any>;
 }> {
-    const adminPb = await getSuperuserPB();
     const result = { processed: 0, skipped: 0, updated: 0, logsCreated: 0, errors: 0, details: [] as any[] };
     const userLinkConfigCache = new Map<string, Map<string, LinkCheckConfig>>();
 
@@ -44,15 +49,13 @@ export async function runStatusMonitoringJobsWithOptions(options?: {
 
     // fetch all monitoring jobs (increase limit if you expect >2000)
     const requestedSource = options?.source || (options?.linkId ? `link ${options.linkId}` : undefined);
-    const jobs = await adminPb.collection('monitoringJobs').getFullList(2000, requestedSource
-        ? { filter: `source = "${requestedSource}"` }
-        : undefined);
+    const jobs = await getMonitoringJobs(2000, requestedSource ? `source = "${requestedSource}"` : undefined);
 
     for (const job of jobs) {
         const source = String(job.source || '');
         const linkId = source.startsWith('link ') ? source.slice(5) : undefined;
         const linkConfig = (job.userId && linkId)
-            ? await getLinkConfigById(adminPb, userLinkConfigCache, job.userId, linkId)
+            ? await getLinkConfigById(userLinkConfigCache, job.userId, linkId)
             : undefined;
 
         const endpoint = String(job.endpoint || linkConfig?.statusCheckEndpoint || linkConfig?.url || '').trim();
@@ -92,10 +95,10 @@ export async function runStatusMonitoringJobsWithOptions(options?: {
 
             if (newStatus !== currentStatus) {
                 // update job
-                await adminPb.collection('monitoringJobs').update(job.id, { status: newStatus });
+                await updateMonitoringJob(job.id, { status: newStatus });
 
                 // create log — relation field expects array of related ids in PocketBase
-                await adminPb.collection('monitoringJobStatusLogs').create({
+                await createMonitoringJobStatusLog({
                     job: [job.id],
                     status: newStatus,
                 });
@@ -127,8 +130,8 @@ export async function runStatusMonitoringJobsWithOptions(options?: {
 
             try {
                 if (currentStatus !== 'unhealthy') {
-                    await adminPb.collection('monitoringJobs').update(job.id, { status: 'unhealthy' });
-                    await adminPb.collection('monitoringJobStatusLogs').create({
+                    await updateMonitoringJob(job.id, { status: 'unhealthy' });
+                    await createMonitoringJobStatusLog({
                         job: [job.id],
                         status: 'unhealthy',
                     });
@@ -146,15 +149,12 @@ export async function runStatusMonitoringJobsWithOptions(options?: {
 }
 
 async function getLinkConfigById(
-    adminPb: any,
     cache: Map<string, Map<string, LinkCheckConfig>>,
     userId: string,
     linkId: string,
 ): Promise<LinkCheckConfig | undefined> {
     if (!cache.has(userId)) {
-        const userConfigs = await adminPb.collection('userConfig').getFullList(1000, {
-            filter: `associatedUserId = "${userId}"`,
-        });
+        const userConfigs = await getUserConfigsByAssociatedUserId(userId, 1000);
 
         const mapById = new Map<string, LinkCheckConfig>();
         for (const userConfig of userConfigs) {

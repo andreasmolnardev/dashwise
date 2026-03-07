@@ -4,7 +4,7 @@ dotenv.config();
 const processAllowSsl = process.env.ALLOW_SSL;
 
 export const config = {
-  PB_URL: process.env.PB_URL!,
+  PB_URL: process.env.PB_URL || "http://pocketbase:8090",
   SEARCHITEMS_SCHEDULE: process.env.SEARCHITEMS_SCHEDULE || "*/10 * * * *",
   ENABLE_ICONS_REFRESH: process.env.ENABLE_ICONS_REFRESH === "true",
   PULL_ICONS_SCHEDULE: process.env.PULL_ICONS_SCHEDULE || "0 */18 * * *",
@@ -15,8 +15,8 @@ export const config = {
   NOTIFICATION_FORWARDER_SCHEDULE: process.env.NOTIFICATION_FORWARDER_SCHEDULE || "* * * * *",
   ALLOW_SSL: processAllowSsl == "true" || processAllowSsl == "1",
   PB_ADMIN_EMAIL: process.env.PB_ADMIN_EMAIL!,
-  PB_ADMIN_PASSWORD: process.env.PB_ADMIN_PASSWORD!,
-  DASHWISE_URL: process.env.DASHWISE_URL || undefined,
+  PB_ADMIN_PASSWORD: process.env.PB_ADMIN_PASSWORD,
+  DASHWISE_URL: process.env.DASHWISE_URL || "http://localhost:3000",
   DASHWISE_VERSION: '0.5',
   GITHUB_REPO: 'andreasmolnardev/dashwise-next'
 } as const;

@@ -29,8 +29,10 @@ ENV PATH="/usr/src/app/bin:${PATH}"
 RUN apk del curl tar gzip
 
 # Install Node.js dependencies
+COPY dashwise-sdk/package*.json ./dashwise-sdk/
+RUN cd dashwise-sdk && npm install
 COPY package*.json ./
-RUN npm ci
+RUN npm install
 
 # Copy job source tree and shared SDK contents
 COPY . .

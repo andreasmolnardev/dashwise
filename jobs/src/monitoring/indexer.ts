@@ -1,4 +1,14 @@
-import { getSuperuserPB } from "../lib/pb";
+
+
+import {
+    createMonitoringJob,
+    getAllUserConfigs,
+    getMonitoringJobsByUserId,
+    getUserConfigById,
+    getUserConfigsByAssociatedUserId,
+    updateMonitoringJob,
+    updateUserConfigRecord,
+} from "@dashwise/sdk/data/superuser";
 
 type StatusCheckMethod = "GET" | "HEAD" | "POST" | "PUT" | "PATCH" | "DELETE" | "OPTIONS";
 
@@ -25,14 +35,13 @@ export default async function indexStatusMonitoringJobs(): Promise<{
     errors: number;
     details: Array<{ linkId?: string; endpoint?: string; userId?: string; action: string; error?: string }>;
 }> {
-    const adminPb = await getSuperuserPB();
     const result = { created: 0, skipped: 0, updated: 0, disabled: 0, errors: 0, details: [] as any[] };
 
     console.log("indexing monitoring jobs");
 
     try {
         // fetch all user configs
-        const userConfigs = await adminPb.collection('userConfig').getFullList(1000);
+        const userConfigs = await getAllUserConfigs(1000);
 
         for (const userConfig of userConfigs) {
             const userId = userConfig.associatedUserId;
@@ -45,7 +54,7 @@ export default async function indexStatusMonitoringJobs(): Promise<{
 
             await generateMissingLinkIds(userId);
 
-            const refreshedUserConfig = await adminPb.collection('userConfig').getOne(userConfig.id);
+            const refreshedUserConfig = await getUserConfigById(userConfig.id);
 
             let configLinks: ConfigLink[] = [];
             try {
@@ -85,9 +94,7 @@ export default async function indexStatusMonitoringJobs(): Promise<{
                 });
             }
 
-            const existingJobs = await adminPb.collection('monitoringJobs').getFullList(2000, {
-                filter: `userId = "${userId}"`,
-            });
+            const existingJobs = await getMonitoringJobsByUserId(userId, 2000);
 
             const existingBySource = new Map<string, any>();
             for (const job of existingJobs) {
@@ -102,7 +109,7 @@ export default async function indexStatusMonitoringJobs(): Promise<{
 
                 try {
                     if (!existing) {
-                        await adminPb.collection('monitoringJobs').create({
+                        await createMonitoringJob({
                             userId,
                             endpoint: desired.endpoint,
                             source,
@@ -133,7 +140,7 @@ export default async function indexStatusMonitoringJobs(): Promise<{
                             updatePayload.status = 'initiated';
                         }
 
-                        await adminPb.collection('monitoringJobs').update(existing.id, updatePayload);
+                        await updateMonitoringJob(existing.id, updatePayload);
 
                         result.updated++;
                         result.details.push({ linkId, endpoint: desired.endpoint, userId, action: 'updated' });
@@ -158,7 +165,7 @@ export default async function indexStatusMonitoringJobs(): Promise<{
                 }
 
                 try {
-                    await adminPb.collection('monitoringJobs').update(job.id, { status: 'disabled' });
+                    await updateMonitoringJob(job.id, { status: 'disabled' });
                     result.disabled++;
                     result.details.push({ userId, linkId: source.slice(5), endpoint: job.endpoint, action: 'disabled' });
                 } catch (disableErr: any) {
@@ -182,14 +189,11 @@ export async function generateMissingLinkIds(userId: string): Promise<{
     updatedLinks: number;
     details: Array<{ linkIndex: number; oldId?: string; newId: string }>;
 }> {
-    const adminPb = await getSuperuserPB();
     const result = { updatedLinks: 0, details: [] as any[] };
 
     try {
         // fetch userConfig for this user
-        const userConfigs = await adminPb.collection('userConfig').getFullList(1000, {
-            filter: `associatedUserId = "${userId}"`,
-        });
+        const userConfigs = await getUserConfigsByAssociatedUserId(userId, 1000);
 
         if (!userConfigs.length) {
             return result; // no config found
@@ -219,7 +223,7 @@ export async function generateMissingLinkIds(userId: string): Promise<{
 
             // save updated config back to PocketBase
             if (updated) {
-                await adminPb.collection('userConfig').update(userConfig.id, {
+                await updateUserConfigRecord(userConfig.id, {
                     config,
                 });
             }

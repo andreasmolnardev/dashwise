@@ -1,4 +1,4 @@
-import { getSuperuserPB } from "@/lib/pb";
+import { getSuperuserPB } from "@dashwise/sdk/lib/pocketbase";
 
 export async function getNotifications(userId: string, unread = false, count = false) {
   const pb = await getSuperuserPB();

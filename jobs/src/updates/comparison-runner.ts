@@ -1,6 +1,10 @@
 import { config } from "../config/env";
-import { getSuperuserPB } from "../lib/pb";
 import semver from "semver";
+import {
+  createAppInfoRecord,
+  getAppInfoRecords,
+  updateAppInfoRecord,
+} from "@dashwise/sdk/data/superuser";
 
 async function fetchLatestGithubTag(repo: string): Promise<string | null> {
   if (!repo) return null;
@@ -35,13 +39,12 @@ export async function runVersionComparisonRunner() {
 
   details.push({ latestTag, compareResult: cmp, newUpdate });
 
-  const pb = await getSuperuserPB();
   let updatedRecord = false;
 
   try {
-    const records = await pb.collection("appInfo").getFullList(200);
+    const records = await getAppInfoRecords(200);
     const record = records.find(
-      (r) => r.instanceName?.toLowerCase() === instanceName.toLowerCase()
+      (r: any) => r.instanceName?.toLowerCase() === instanceName.toLowerCase()
     );
 
     // updateAvailable is set to latestTag string if newUpdate is true, otherwise 0
@@ -66,7 +69,7 @@ export async function runVersionComparisonRunner() {
         record.updateAvailable !== payload.updateAvailable;
 
       if (changed) {
-        await pb.collection("appInfo").update(record.id, payload);
+        await updateAppInfoRecord(record.id, payload);
         updatedRecord = true;
         details.push({
           action: "updated",
@@ -76,7 +79,7 @@ export async function runVersionComparisonRunner() {
         });
       }
     } else {
-      const created = await pb.collection("appInfo").create(payload);
+      const created = await createAppInfoRecord(payload);
       updatedRecord = true;
       details.push({ action: "created", id: created.id, payload });
     }

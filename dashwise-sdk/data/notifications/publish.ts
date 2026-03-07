@@ -1,4 +1,4 @@
-import { getServerPB, getSuperuserPB } from "@/lib/pb";
+import { getServerPB, getSuperuserPB } from "@dashwise/sdk/lib/pocketbase";
 import { resolveTopicToken } from "@dashwise/sdk/data/notifications/topicTokens";
 
 type PublishToUserTopicInput = {

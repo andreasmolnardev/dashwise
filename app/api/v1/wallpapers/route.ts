@@ -1,4 +1,4 @@
-import { getServerPB } from '@/lib/pb';
+import { getServerPB } from '@dashwise/sdk/lib/pocketbase';
 import { getWallpaperByFileName, uploadWallpaper } from '@dashwise/sdk/data/wallpapers';
 import { NextResponse } from 'next/server';
 

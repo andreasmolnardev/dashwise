@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerPB } from "@/lib/pb";
+import { getServerPB } from "@dashwise/sdk/lib/pocketbase";
 import {
     createNotificationForUserTopic,
     createNotificationWithTopicToken,

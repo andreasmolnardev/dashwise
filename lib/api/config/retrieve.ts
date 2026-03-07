@@ -1,6 +1,6 @@
 import path from 'path';
 import { promises as fs } from 'fs';
-import { ClientResponseError } from 'pocketbase';
+import { ClientResponseError } from '@dashwise/sdk/lib/pocketbase';
 
 // cache default config in memory to avoid repeated FS reads
 let _cachedDefaultConfig: any = null;

@@ -1,4 +1,4 @@
-import { getServerPB } from '@/lib/pb';
+import { getServerPB } from '@dashwise/sdk/lib/pocketbase';
 import { NextResponse } from 'next/server';
 import path from 'path';
 import { promises as fs } from 'fs';

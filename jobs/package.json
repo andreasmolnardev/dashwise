@@ -26,7 +26,7 @@
     "fastify": "^5.6.1",
     "jsdom": "^27.0.1",
     "node-cron": "^4.2.1",
-    "pocketbase": "^0.26.2",
+    "@dashwise/sdk": "file:./dashwise-sdk",
     "rss-parser": "^3.13.0",
     "semver": "^7.7.3"
   }

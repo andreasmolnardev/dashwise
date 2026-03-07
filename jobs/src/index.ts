@@ -4,7 +4,7 @@ import cron from "node-cron";
 import { Buffer } from "buffer";
 
 import { config } from "./config/env";
-import { getSuperuserPB } from "./lib/pb";
+import { _d } from "./lib/sdk";
 import { runJob } from "./lib/job-logger";
 
 import indexStatusMonitoringJobs from "./monitoring/indexer";
@@ -23,12 +23,8 @@ const jobsAuthHeader = {
 };
 
 console.log("dashwise job runner is active");
-// connect to pocketbase
-getSuperuserPB().then(pb => {
-  console.log("Connected to Pocketbase")
-}).catch((error) => {
-  console.error(error)
-});
+const sdkAppConfig = _d.getAppConfig();
+console.log("Dashwise SDK app config:", sdkAppConfig);
 
 
 // search items

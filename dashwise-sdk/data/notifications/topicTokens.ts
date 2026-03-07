@@ -1,4 +1,4 @@
-import { getSuperuserPB } from "@/lib/pb";
+import { getSuperuserPB } from "@dashwise/sdk/lib/pocketbase";
 import crypto from "crypto";
 
 export async function listTopicTokens(userId: string) {

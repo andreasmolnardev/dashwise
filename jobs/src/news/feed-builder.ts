@@ -1,6 +1,11 @@
-import { getSuperuserPB } from "../lib/pb";
 import { FeedItem, getFeedItems } from "./helper";
-import PocketBase from "pocketbase";
+import {
+  createNewsFeedItemsCache,
+  getAllNewsFeeds,
+  getNewsFeedById,
+  getNewsFeedItemsCacheByUrl,
+  updateNewsFeedItemsCache,
+} from "@dashwise/sdk/data/superuser";
 
 interface Subscription {
   category: string;
@@ -33,7 +38,6 @@ export async function newsFeedBuilder(feedId?: string): Promise<{
   errors: number;
   details: Array<any>;
 }> {
-  const adminPb = await getSuperuserPB() as PocketBase;
   const result = { processed: 0, skipped: 0, updated: 0, errors: 0, details: [] as any[] };
 
   const maxItemsPerFeed = 10;
@@ -43,10 +47,10 @@ export async function newsFeedBuilder(feedId?: string): Promise<{
   let newsFeeds: NewsFeedRecord[] = [];
   try {
     if (feedId) {
-      const singleFeed = await adminPb.collection('newsFeeds').getOne<NewsFeedRecord>(feedId);
-      newsFeeds = [singleFeed];
+      const singleFeed = await getNewsFeedById(feedId);
+      newsFeeds = [singleFeed as NewsFeedRecord];
     } else {
-      newsFeeds = await adminPb.collection('newsFeeds').getFullList<NewsFeedRecord>(2000);
+      newsFeeds = (await getAllNewsFeeds(2000)) as NewsFeedRecord[];
     }
   } catch (err: any) {
     console.error("Failed to fetch 'newsFeeds':", err);
@@ -102,22 +106,18 @@ export async function newsFeedBuilder(feedId?: string): Promise<{
     for (const res of subResults) {
       if (res.action === 'success') {
         const items = (res.items ?? []).slice(0, maxItemsPerFeed);
-        const filter = `url="${escapeFilter(res.feedUrl!)}"`;
-
         try {
-          const existing = await adminPb
-            .collection('newsFeedItemsCache')
-            .getList<NewsFeedItemsCacheRecord>(1, 1, { filter });
+          const existing = await getNewsFeedItemsCacheByUrl(res.feedUrl!);
 
           const existingItem = existing.items.length > 0 ? existing.items[0] : undefined;
 
           if (existingItem) {
-            await adminPb.collection('newsFeedItemsCache').update(existingItem.id, {
+            await updateNewsFeedItemsCache(existingItem.id, {
               url: res.feedUrl,
               json: JSON.stringify(items),
             });
           } else {
-            await adminPb.collection('newsFeedItemsCache').create({
+            await createNewsFeedItemsCache({
               url: res.feedUrl,
               json: JSON.stringify(items),
             });

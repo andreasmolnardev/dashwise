@@ -45,7 +45,7 @@
     "next": "^16.0.7",
     "node-cron": "^4.2.1",
     "node-fetch": "^3.3.2",
-    "pocketbase": "^0.26.2",
+    "@dashwise/sdk": "file:./dashwise-sdk",
     "qrcode": "^1.5.4",
     "radix-ui": "^1.4.3",
     "react": "^19.2.1",

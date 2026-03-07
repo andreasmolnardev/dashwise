@@ -23,6 +23,7 @@
 
 #jobs runner's node modules
 /jobs/node_modules
+dashwise-sdk/node_modules
 
 # next.js
 /.next/

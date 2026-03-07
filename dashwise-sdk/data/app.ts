@@ -1,12 +1,8 @@
 import config from "@/lib/config";
-import { getServerPB } from "@/lib/pb";
+import { getDashwiseSDKConnector, getServerPB } from "@dashwise/sdk/lib/pocketbase";
 
 export async function getAppConfig() {
-  return {
-    enableSSO:
-      process.env.NEXT_PUBLIC_ENABLE_SSO === "1" ||
-      process.env.NEXT_PUBLIC_ENABLE_SSO === "true",
-  };
+  return getDashwiseSDKConnector().getAppConfig();
 }
 
 export async function getAppInfo() {

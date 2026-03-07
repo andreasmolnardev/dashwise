@@ -2,7 +2,7 @@ import { beszelSearchItems } from "./clients/beszel/client.ts";
 import { JellyfinSearchItems } from "./clients/jellyfin/client.ts";
 import { KarakeepSearchItems } from "./clients/karakeep/client.ts";
 import config from "./config.ts";
-import pb, { getSuperuserPB } from "./pb.ts";
+import { getServerPB, getSuperuserPB } from "@dashwise/sdk/lib/pocketbase";
 
 type UserConfig = {
     id: string;

@@ -1,6 +1,6 @@
 import axios from "axios";
 import config from "@/lib/config";
-import { getSuperuserPB } from "@/lib/pb";
+import { getSuperuserPB } from "@dashwise/sdk/lib/pocketbase";
 
 type JobStatusSummary = {
   status: string;

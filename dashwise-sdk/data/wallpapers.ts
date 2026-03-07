@@ -1,5 +1,5 @@
 import sharp from "sharp";
-import { getServerPB } from "@/lib/pb";
+import { getServerPB } from "@dashwise/sdk/lib/pocketbase";
 
 const MAX_WIDTH = 3840;
 const MAX_HEIGHT = 2160;

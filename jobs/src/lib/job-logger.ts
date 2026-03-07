@@ -1,8 +1,6 @@
 import { randomUUID } from "crypto";
 
-import { getSuperuserPB } from "./pb";
-
-const JOB_LOG_COLLECTION = "jobLogs";
+import { createJobLog } from "@dashwise/sdk/data/superuser";
 
 type JobStatus = "started" | "success" | "error";
 
@@ -27,8 +25,7 @@ function formatTimestamp(date: Date): string {
 
 async function writeLog(entry: JobLogEntry) {
   try {
-    const pb = await getSuperuserPB();
-    await pb.collection(JOB_LOG_COLLECTION).create({
+    await createJobLog({
       job: entry.job,
       runId: entry.runId,
       status: entry.status,
