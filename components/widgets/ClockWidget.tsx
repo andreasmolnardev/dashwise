@@ -1,5 +1,5 @@
 "use client";
-import { useConfig } from "@/context/ConfigContext";
+import { usePageConfig } from "@/hooks/usePageConfig";
 import { useLocalization } from "@/context/LocalizationContext";
 import { loadFont } from "@/lib/loadFont";
 import { cn } from "@/lib/utils";
@@ -21,7 +21,7 @@ type FontEntry = {
 
 export default function ClockWidget({ format, font: propFont, weight, color, className, style }: ClockWidgetProps) {
   const [time, setTime] = useState("");
-  const { config } = useConfig();
+  const { config } = usePageConfig();
   const { formatTime, timeFormat } = useLocalization();
 
   const [fonts, setFonts] = useState<FontEntry[]>([]);

@@ -1,12 +1,12 @@
 "use client";
 
-import { useConfig } from "@/context/ConfigContext";
+import { usePageConfig } from "@/hooks/usePageConfig";
 import { useEffect, useState } from "react";
 import { loadFont } from "@/lib/loadFont";
 import ClockWidget from "../widgets/ClockWidget";
 
 export default function Screensaver({ active, onExit }: { active: boolean; onExit: () => void }) {
-  const { config } = useConfig();
+  const { config } = usePageConfig();
   const [fonts, setFonts] = useState<{ name: string; path: string }[]>([]);
   const [screensaverConfig, setScreensaverConfig] = useState<any>(config.appearance?.screensaver);
 

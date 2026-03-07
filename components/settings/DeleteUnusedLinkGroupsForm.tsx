@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { useConfig } from "@/context/ConfigContext";
+import { usePageConfig } from "@/hooks/usePageConfig";
 import useAuth from "@/context/useAuth";
 import { Button } from "@/components/ui/button";
 import { deleteUnusedLinkgroupsAction } from "@/app/actions/config";
@@ -13,7 +13,7 @@ type Props = {
 };
 
 export default function DeleteUnusedLinkGroupsFormComponent({ onDeleted }: Props) {
-  const { refreshConfig } = useConfig();
+  const { refreshConfig } = usePageConfig();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);

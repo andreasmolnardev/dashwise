@@ -16,11 +16,11 @@ import { Label } from "../ui/label.tsx"
 import { Input } from "../ui/input.tsx"
 import { useEffect, useState } from "react"
 import useAuth from "@/context/useAuth"
-import { useConfig } from "@/context/ConfigContext.tsx"
+import { usePageConfig } from "@/hooks/usePageConfig"
 import { replaceUserConfigAction } from "@/app/actions/config";
 
 export default function ImportConfigDialog() {
-    const { config, refreshConfig } = useConfig();
+    const { config, refreshConfig } = usePageConfig();
     const { withAuth } = useAuth();
     const [raw, setRaw] = useState<string>("");
     const [parsed, setParsed] = useState<{} | null>(null);

@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useConfig } from "@/context/ConfigContext";
+import { usePageConfig } from "@/hooks/usePageConfig";
 import { faHome, faInbox, faKey, faShareNodes } from "@fortawesome/free-solid-svg-icons";
 import { usePathname } from "next/navigation";
 import { Label } from "@/components/ui/label";
@@ -18,7 +18,7 @@ const navItems = [
 ];
 
 export default function NotificationsLayoutComponent({ children }: { children: React.ReactNode }) {
-    const { config } = useConfig();
+    const { config } = usePageConfig();
     const pathname = usePathname();
     const activeBgRef = useRef<HTMLDivElement | null>(null);
     const [unreadCount, setUnreadCount] = useState<number>(0);

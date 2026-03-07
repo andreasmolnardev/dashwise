@@ -61,9 +61,8 @@ Frontend, API Layer: Next.js
 Backend: Pocketbase
 
 ## How it works
-On signup, a json config is created for each user.
-It's available to the frontend via a GET request to /api/v1/config.
-Accessing it is handled by the ConfigContext.
+Each user has page-based config records in `pageConfig` (for example `home`, `news`, `lab`) plus user-level preferences.
+The frontend reads and refreshes page config through the `usePageConfig` hook.
 
 ## Open Source Projects that make dashwise possible
 

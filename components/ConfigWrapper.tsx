@@ -3,10 +3,19 @@
 import { ReactNode, useEffect, useState } from "react";
 import useAuth from "@/context/useAuth";
 import { usePathname, useRouter } from "next/navigation";
-import { ConfigProvider } from "@/context/ConfigContext";
 import { LocalizationProvider } from "@/context/LocalizationContext";
+import { resolveRequestedPageName } from "@/hooks/usePageConfig";
 import { cn } from "@/lib/utils";
-import { getUserConfigAction } from "@/app/actions/config";
+import { getUserConfigAction, migrateLegacyPageConfigAction } from "@/app/actions/config";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 
 type ThemeMode = "system" | "dark" | "light";
 
@@ -26,15 +35,26 @@ function applyThemeClasses(themeMode: ThemeMode, frostedAppearance: ThemeMode = 
   root.classList.add(resolvedFrosted === "dark" ? "frosted-theme-dark" : "frosted-theme-light");
 }
 
+function isPageVisitPath(pathname: string | null): boolean {
+  const firstSegment = pathname?.split("/").filter(Boolean)[0] ?? "home";
+  const nonPageSegments = new Set(["settings", "notifications", "onboarding", "screensaver", "auth"]);
+  return !nonPageSegments.has(firstSegment);
+}
+
 export default function ConfigWrapper({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { token, withAuth } = useAuth();
+  const requestedPageName = resolveRequestedPageName(pathname);
+  const isPageVisit = isPageVisitPath(pathname);
 
   const [config, setConfig] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isDarkThemeActive, setIsDarkThemeActive] = useState(false);
+  const [migrationOpen, setMigrationOpen] = useState(false);
+  const [isMigrating, setIsMigrating] = useState(false);
+  const [migrationError, setMigrationError] = useState<string | null>(null);
 
   // --- Service worker registration ---
   useEffect(() => {
@@ -51,8 +71,13 @@ export default function ConfigWrapper({ children }: { children: ReactNode }) {
     const showLoading = opts?.showLoading ?? false;
     try {
       if (showLoading) setLoading(true);
-      const data = await withAuth(getUserConfigAction, () => router.push("/auth/login"));
+      const data = await withAuth(
+        (auth) => getUserConfigAction(auth, requestedPageName),
+        () => router.push("/auth/login")
+      );
       setConfig(data);
+      setMigrationOpen(isPageVisit && Boolean(data?.__migrationRequired));
+      setMigrationError(null);
     } catch (err: any) {
       if (err?.status !== 401) {
         setError(err.message || "Unknown error");
@@ -60,10 +85,6 @@ export default function ConfigWrapper({ children }: { children: ReactNode }) {
     } finally {
       if (showLoading) setLoading(false);
     }
-  };
-
-  const patchConfig = (updater: (prev: any) => any) => {
-    setConfig((prev: any) => updater(prev));
   };
 
   // --- Fetch config on mount or when path changes ---
@@ -74,7 +95,22 @@ export default function ConfigWrapper({ children }: { children: ReactNode }) {
       setConfig({});
       setLoading(false);
     }
-  }, [pathname]);
+  }, [pathname, requestedPageName]);
+
+  const runMigration = async () => {
+    setMigrationError(null);
+    setIsMigrating(true);
+    try {
+      await withAuth((auth) => migrateLegacyPageConfigAction(auth), () => router.push("/auth/login"));
+      await fetchConfig({ showLoading: true });
+      setMigrationOpen(false);
+      router.replace("/home");
+    } catch (err: any) {
+      setMigrationError(err?.message || "Migration failed");
+    } finally {
+      setIsMigrating(false);
+    }
+  };
 
   // --- Accent color ---
   useEffect(() => {
@@ -159,18 +195,37 @@ export default function ConfigWrapper({ children }: { children: ReactNode }) {
     : brightness;
 
   return (
-    <ConfigProvider value={{ config, refreshConfig: fetchConfig, patchConfig }}>
-      <LocalizationProvider>
-        <div
-          className={cn("min-h-screen overflow-hidden")}
-          style={{
-            backdropFilter: `blur(${blur}px) brightness(${appliedBrightness}%)`,
-            WebkitBackdropFilter: `blur(${blur}px) brightness(${appliedBrightness}%)`,
-          }}
-        >
-          {children}
-        </div>
-      </LocalizationProvider>
-    </ConfigProvider>
+    <LocalizationProvider>
+      <div
+        className={cn("min-h-screen overflow-hidden")}
+        style={{
+          backdropFilter: `blur(${blur}px) brightness(${appliedBrightness}%)`,
+          WebkitBackdropFilter: `blur(${blur}px) brightness(${appliedBrightness}%)`,
+        }}
+      >
+        {children}
+      </div>
+
+      <Dialog open={migrationOpen} onOpenChange={() => {}}>
+        <DialogContent className="frosted text-foreground" showCloseButton={false}>
+          <DialogHeader>
+            <DialogTitle>Migrate legacy page config</DialogTitle>
+            <DialogDescription>
+              Your config needs migration to page-based records. This will move appearance/localization/search
+              preferences to your user profile, migrate links into Home links tables, and set this page as
+              home.
+            </DialogDescription>
+          </DialogHeader>
+
+          {migrationError ? <p className="text-sm text-red-400">{migrationError}</p> : null}
+
+          <DialogFooter>
+            <Button onClick={runMigration} disabled={isMigrating}>
+              {isMigrating ? "Migrating..." : "Migrate now"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </LocalizationProvider>
   );
 }

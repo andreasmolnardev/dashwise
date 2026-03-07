@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { useConfig } from "@/context/ConfigContext";
+import { usePageConfig } from "@/hooks/usePageConfig";
 import useAuth from "@/context/useAuth";
 import Image from "next/image";
 import { uploadWallpaperAction } from "@/app/actions/wallpapers";
@@ -27,7 +27,7 @@ export default function UploadWallpaperDialog({
   open,
   onOpenChange,
 }: UploadWallpaperDialogProps) {
-  const { config, patchConfig } = useConfig();
+  const { config, patchConfig } = usePageConfig();
   const { withAuth } = useAuth();
 
   const [file, setFile] = useState<File | null>(null);

@@ -10,10 +10,12 @@ type SearchBarProps = {
 };
 
 type SearchItem = {
+  id?: string;
+  parentId?: string;
   name: string;
   icon: string;
   secondaryInfo: string;
-  type: 'link';
+  type: 'link' | 'app' | 'karakeepBookmark' | 'jellyfinItem' | 'beszelItem' | 'dashdotItem';
   action: string;
   tags?: string[];
 };

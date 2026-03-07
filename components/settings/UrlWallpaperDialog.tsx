@@ -11,7 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useConfig } from "@/context/ConfigContext";
+import { usePageConfig } from "@/hooks/usePageConfig";
 import { writeToConfig } from "@/lib/frontend/data/MUTATE/config/writeToConfig";
 import useAuth from "@/context/useAuth";
 
@@ -30,7 +30,7 @@ export default function UrlWallpaperDialogComponent({
   open,
   onOpenChange,
 }: UrlWallpaperDialogProps) {
-  const { config, patchConfig } = useConfig();
+  const { config, patchConfig } = usePageConfig();
   const { token } = useAuth();
   
   const [url, setUrl] = useState("");

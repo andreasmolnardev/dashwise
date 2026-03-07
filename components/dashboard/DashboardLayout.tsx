@@ -1,6 +1,6 @@
 "use client";
 
-import { useConfig } from "@/context/ConfigContext";
+import { usePageConfig } from "@/hooks/usePageConfig";
 import ClockWidget from "../widgets/ClockWidget";
 import SearchBar from "../widgets/SearchBar";
 import LinkView from "../widgets/LinkView";
@@ -15,7 +15,7 @@ import WidgetComponent from "../widgets/Widget";
 export default function DashboardLayoutComponent(
   children: React.PropsWithChildren<{}> = {}
 ) {
-  const { config } = useConfig();
+  const { config } = usePageConfig();
   const router = useRouter();
   const searchParams = useSearchParams();
   const openFromURL = searchParams.get("search") === "1";

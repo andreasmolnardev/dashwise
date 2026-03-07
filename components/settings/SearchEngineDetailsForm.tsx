@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import IconPickerComponent from "@/components/settings/IconPicker";
-import { useConfig } from "@/context/ConfigContext";
+import { usePageConfig } from "@/hooks/usePageConfig";
 import { writeToConfig } from "@/lib/frontend/data/MUTATE/config/writeToConfig";
 import useAuth from "@/context/useAuth";
 
@@ -35,7 +35,7 @@ export default function SearchEngineDetailsForm({
     formId?: string;
     hideActions?: boolean;
 }) {
-    const { config, refreshConfig } = useConfig();
+    const { config, refreshConfig } = usePageConfig();
     const { token } = useAuth();
 
     const [name, setName] = useState(engine?.name ?? "");

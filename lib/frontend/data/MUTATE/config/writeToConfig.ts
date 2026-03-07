@@ -3,6 +3,7 @@ import { updateConfigPathAction } from "@/app/actions/config";
 export type WriteOpts = {
   method?: "PATCH" | "PUT" | "POST" | "DELETE";
   token?: string | null;
+  pageName?: string;
   signal?: AbortSignal;
   onSuccess?: (resp: any) => void; // callback 
   dispatchEvent?: boolean; // dispatch window custom event "config:updated"
@@ -17,7 +18,7 @@ export async function writeToConfig<T = any>(
     opts?.token ??
     (typeof window !== "undefined" ? localStorage.getItem("pb_token") : null);
 
-  const json = await updateConfigPathAction({ token }, path, updatedItem);
+  const json = await updateConfigPathAction({ token }, path, updatedItem, opts?.pageName);
 
   // success
   if (opts?.onSuccess) opts.onSuccess(json);

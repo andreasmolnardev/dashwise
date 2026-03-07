@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react"
 import type { WidgetItemProps } from "../Widget";
-import { useConfig } from "@/context/ConfigContext";
+import { usePageConfig } from "@/hooks/usePageConfig";
 import { useLocalization } from "@/context/LocalizationContext";
 import { getWeatherAction } from "@/app/actions/integrations";
 
@@ -181,7 +181,7 @@ export default function WeatherWidget({ className = "", params }: WeatherWidgetP
   const [weather, setWeather] = useState<WeatherData | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const { config } = useConfig();
+  const { config } = usePageConfig();
   const { weatherUnit, formatTemperature } = useLocalization();
 
   useEffect(() => {
@@ -239,7 +239,7 @@ export function WeatherOverviewWidget({ className = "", params }: WeatherWidgetP
   const [weather, setWeather] = useState<WeatherData | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const { config } = useConfig();
+  const { config } = usePageConfig();
   const { weatherUnit, formatTemperature } = useLocalization();
 
   useEffect(() => {

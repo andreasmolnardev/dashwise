@@ -1,8 +1,6 @@
-import { beszelSearchItems } from "./clients/beszel/client.ts";
-import { JellyfinSearchItems } from "./clients/jellyfin/client.ts";
-import { KarakeepSearchItems } from "./clients/karakeep/client.ts";
+
 import config from "./config.ts";
-import { getServerPB, getSuperuserPB } from "@dashwise/sdk/lib/pocketbase";
+import { getSuperuserPB } from "@dashwise/sdk/lib/pocketbase";
 
 type UserConfig = {
     id: string;
@@ -28,6 +26,10 @@ type UserConfig = {
                 pb_email: string;
                 pb_password: string;
             }
+            Dashdot?: {
+                server_location: string;
+                server_displayname?: string;
+            };
             News?: Record<string, never>;
             Notifications?: Record<string, never>;
         };
@@ -40,14 +42,23 @@ type UserSearchItem = {
     searchItems: string; // JSON string of all search items
 };
 
+type IntegrationRecord = {
+    id: string;
+    name?: string | null;
+    source?: string | null;
+    config?: unknown;
+    environment?: unknown;
+};
+
 export type SearchItem = {
     id?: string;
     name: string;
     icon: string;
     secondaryInfo: string;
-    type: "link" | "karakeepBookmark" | "jellyfinItem" | "beszelItem";
+    type: "link" | "app" | "karakeepBookmark" | "jellyfinItem" | "beszelItem" | "dashdotItem";
     action: string;
     tags?: string[];
+    parentId?: string;
 };
 
 function mapSearchItemsToJSON(items: SearchItem[]) {
@@ -59,11 +70,110 @@ function mapSearchItemsToJSON(items: SearchItem[]) {
                 secondaryInfo: i.secondaryInfo,
                 type: i.type,
                 action: i.action,
-                tags: i.tags
+                tags: i.tags,
+                parentId: i.parentId
             }))
             .sort((a, b) => a.name.localeCompare(b.name))
     );
 }
+
+function createIntegrationRootItem({
+    id,
+    name,
+    icon,
+}: {
+    id: string;
+    name: string;
+    icon: string;
+}): SearchItem {
+    return {
+        id,
+        name,
+        icon,
+        secondaryInfo: "Integration",
+        type: "app",
+        action: `app:${id}`,
+        tags: [name, "integration"],
+    };
+}
+
+function normalizeObject(raw: unknown) {
+    if (!raw) return {} as Record<string, any>;
+    if (typeof raw === "object" && !Array.isArray(raw)) return raw as Record<string, any>;
+    if (typeof raw !== "string") return {} as Record<string, any>;
+
+    try {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+            return parsed as Record<string, any>;
+        }
+    } catch {
+    }
+
+    try {
+        const decoded = Buffer.from(raw, "base64").toString("utf8");
+        const parsed = JSON.parse(decoded);
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+            return parsed as Record<string, any>;
+        }
+    } catch {
+    }
+
+    return {} as Record<string, any>;
+}
+
+function decodeMaybeBase64(value: string | undefined | null) {
+    if (!value) return "";
+    try {
+        const decoded = Buffer.from(value, "base64").toString("utf8");
+        if (decoded && /[\x20-\x7E]/.test(decoded)) {
+            return decoded;
+        }
+        return value;
+    } catch {
+        return value;
+    }
+}
+
+function normalizeEnvironment(raw: unknown) {
+    const parsed = normalizeObject(raw);
+    const result: Record<string, string> = {};
+
+    for (const [key, value] of Object.entries(parsed)) {
+        if (value === undefined || value === null) continue;
+        result[key] = typeof value === "string" ? value : JSON.stringify(value);
+    }
+
+    return result;
+}
+
+function resolveIntegrationName(integration: {
+    name?: string | null;
+    source?: string | null;
+    config?: Record<string, any>;
+}) {
+    return (
+        integration.name ||
+        integration.config?.details?.name ||
+        integration.source ||
+        ""
+    );
+}
+
+function getEnv(environment: Record<string, string>, keys: string[]) {
+    for (const key of keys) {
+        const value = environment[key];
+        if (value !== undefined && value !== null && String(value).trim() !== "") {
+            return decodeMaybeBase64(String(value));
+        }
+    }
+    return "";
+}
+
+function toSlug(value: string) {
+    return value.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+}
+
 
 export default async function runBackgroundJobs() {
     try {
@@ -88,39 +198,33 @@ export default async function runBackgroundJobs() {
                 tags: [link.name, link.linkGroup, link.url.match(/^(?:https?:\/\/)?(?:www\.)?(?:[\w-]+\.)*([\w-]+)\.(?:[\w-]{2,}(?:\.[\w-]{2,})?)$/)?.[1]].filter((t): t is string => !!t)
             }));
 
-            //check if user has any integrations configured
-            if (userConfig.config.integrations?.Karakeep && userConfig.config.integrations?.Karakeep?.api_token && userConfig.config.integrations?.Karakeep?.server_location) {
-                const karakeepConfig = userConfig.config.integrations?.Karakeep;
-                const token = Buffer.from(karakeepConfig.api_token, "base64").toString("utf-8");
-                const serverUrl = Buffer.from(karakeepConfig.server_location, "base64").toString("utf-8");
+            const integrationRecords = await pb.collection("integrations").getFullList<IntegrationRecord>({
+                filter: `user="${associatedUserId}"`,
+                sort: "-updated",
+            }).catch(() => [] as IntegrationRecord[]);
 
-                if (!token || !serverUrl) return;
+            for (const integrationRecord of integrationRecords) {
+                const integrationConfig = normalizeObject(integrationRecord.config);
+                const integrationEnvironment = normalizeEnvironment(integrationRecord.environment);
+                const integrationName = resolveIntegrationName({
+                    name: integrationRecord.name,
+                    source: integrationRecord.source,
+                    config: integrationConfig,
+                });
+                if (!integrationName) {
+                    continue;
+                }
 
-                const bookmarks = await KarakeepSearchItems({ serverUrl, token, allowInsecureCerts: config.allowInsecureCertsForIntegrationUrls });
-                searchItems.push(...bookmarks);
-            }
+                const integrationIcon = integrationConfig?.details?.icon || "/icons/faGlobe.svg";
+                const appId = `integration:${integrationRecord.id || toSlug(integrationName)}`;
+                searchItems.push(createIntegrationRootItem({
+                    id: appId,
+                    name: integrationName,
+                    icon: integrationIcon,
+                }));
 
-            if (userConfig.config.integrations?.Jellyfin && userConfig.config.integrations?.Jellyfin.api_token && userConfig.config.integrations?.Jellyfin.server_location) {
+                const lowerName = integrationName.toLowerCase();
 
-                const JellyfinConfig = userConfig.config.integrations?.Jellyfin;
-
-                const token = Buffer.from(JellyfinConfig.api_token, "base64").toString("utf-8");
-                const serverUrl = Buffer.from(JellyfinConfig.server_location, "base64").toString("utf-8");
-
-                const items = await JellyfinSearchItems({ serverUrl, token, allowInsecureCerts: config.allowInsecureCertsForIntegrationUrls });
-                searchItems.push(...items);
-            }
-
-            if (userConfig.config.integrations?.Beszel && userConfig.config.integrations?.Beszel.server_location && userConfig.config.integrations?.Beszel.pb_email) {
-
-                const JellyfinConfig = userConfig.config.integrations?.Beszel;
-
-                const serverUrl = Buffer.from(JellyfinConfig.server_location, "base64").toString("utf-8");
-                const pb_email = Buffer.from(JellyfinConfig.pb_email, "base64").toString("utf-8");
-                const pb_password = Buffer.from(JellyfinConfig.pb_password, "base64").toString("utf-8");
-
-                const items = await beszelSearchItems({ url: serverUrl, pb_email, pb_password, allowInsecureCerts: config.allowInsecureCertsForIntegrationUrls });
-                searchItems.push(...items);
             }
 
             const desiredJson = mapSearchItemsToJSON(searchItems);

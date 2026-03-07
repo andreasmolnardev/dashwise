@@ -48,5 +48,18 @@
                 "pb_password": "as:string"
             }
         }
+    ],
+    "weather": [
+        {
+            "name": "Weather",
+            "description": "Integration for Open-Meteo weather data",
+            "properties": {
+                "lat": "as:string",
+                "lon": "as:string",
+                "display_name": "as:string",
+                "unit": "as:string",
+                "show_location": "as:string"
+            }
+        }
     ]
 }

@@ -6,7 +6,7 @@ import useAuth from "@/context/useAuth";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { moveConfigArrayItemsAction } from "@/app/actions/config";
 import { DialogClose } from "@/components/ui/dialog";
-import { useConfig } from "@/context/ConfigContext";
+import { usePageConfig } from "@/hooks/usePageConfig";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faBars } from "@fortawesome/free-solid-svg-icons";
 
@@ -16,7 +16,7 @@ type Props = {
 };
 
 export default function MoveLinkGroupsFormComponent({ linkGroups = [], onReordered }: Props) {
-  const { refreshConfig } = useConfig();
+  const { refreshConfig } = usePageConfig();
 
   // local order state
   const [order, setOrder] = useState<string[]>(linkGroups ?? []);

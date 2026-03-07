@@ -1,6 +1,6 @@
 "use client";
 
-import { useConfig } from "@/context/ConfigContext";
+import { usePageConfig } from "@/hooks/usePageConfig";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -22,7 +22,7 @@ export default function BottomNavbar({
   setScreensaverActive,
   showPages = true,
 }: BottomNavbarProps) {
-  const { config } = useConfig();
+  const { config } = usePageConfig();
   const { token, withAuth } = useAuth();
   const pathname = usePathname();
   const [unreadCount, setUnreadCount] = useState<number>(0);

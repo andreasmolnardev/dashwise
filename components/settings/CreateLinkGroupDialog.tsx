@@ -10,7 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
-import { useConfig } from "@/context/ConfigContext";
+import { usePageConfig } from "@/hooks/usePageConfig";
 import useAuth from "@/context/useAuth";
 import { appendConfigArrayItemAction } from "@/app/actions/config";
 
@@ -25,7 +25,7 @@ export default function CreateLinkGroupDialog({
   onOpenChange,
   onCreated,
 }: Props) {
-  const { config, refreshConfig } = useConfig();
+  const { config, refreshConfig } = usePageConfig();
   const { withAuth } = useAuth();
 
   const [alert, setAlert] = useState<{

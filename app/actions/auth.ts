@@ -7,10 +7,14 @@ import {
 	validateAuthToken,
 	changePassword,
 	deleteAccount,
-	type ChangePasswordRequest,
 } from "@dashwise/sdk/data/authRoutes";
 
-export type { ChangePasswordRequest };
+export type ChangePasswordRequest = {
+	email?: string;
+	oldPassword: string;
+	newPassword: string;
+	confirmPassword: string;
+};
 
 export type ChangePasswordSuccess = {
 	message: string;

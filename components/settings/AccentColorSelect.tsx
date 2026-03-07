@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { ColorPicker } from "@/components/settings/ColorPicker";
-import { useConfig } from "@/context/ConfigContext";
+import { usePageConfig } from "@/hooks/usePageConfig";
 import { writeToConfig } from "@/lib/frontend/data/MUTATE/config/writeToConfig";
 
 type ThemeMode = "system" | "dark" | "light";
@@ -50,7 +50,7 @@ function applyThemeClasses(themeMode: ThemeMode, frostedAppearance: ThemeMode = 
 }
 
 export default function AccentColorSelectComponent({ className }: { className?: string }) {
-  const { config, refreshConfig } = useConfig();
+  const { config, refreshConfig } = usePageConfig();
   const [accent, setAccent] = useState<string | undefined>(
     config?.appearance?.accentColor
   );

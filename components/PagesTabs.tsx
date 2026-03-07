@@ -1,10 +1,10 @@
 "use client";
 
-import { useConfig } from "@/context/ConfigContext";
+import { usePageConfig } from "@/hooks/usePageConfig";
 import { useRouter, usePathname } from "next/navigation";
 
 export default function PagesTabs() {
-   const { config, refreshConfig } = useConfig();
+   const { config, refreshConfig } = usePageConfig();
   const router = useRouter();
   const pathname = usePathname();
 

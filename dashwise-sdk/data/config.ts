@@ -1,7 +1,299 @@
+import path from "path";
+import { promises as fs } from "fs";
 import { ClientResponseError } from "pocketbase";
-import { ensureUserConfig } from "@/lib/api/config/retrieve";
 import { getSuperuserPB } from "@dashwise/sdk/lib/pocketbase";
 import { ApiActionError } from "@dashwise/sdk/data/auth";
+
+type PBRecord = {
+  id: string;
+  pageName?: string;
+  associatedUserId?: string;
+  config?: Record<string, any>;
+  name?: string;
+  title?: string;
+  url?: string;
+  iconUrl?: string;
+  description?: string;
+  collection?: string;
+  folder?: string;
+  user?: string;
+};
+
+let _cachedDefaultConfig: Record<string, any> | null = null;
+
+const LOCALIZATION_KEYS = [
+  "dateFormat",
+  "language",
+  "locale",
+  "timeFormat",
+  "weatherLocation",
+  "weatherUnit",
+];
+
+const SEARCH_GLOBAL_KEYS = ["searchEngineShortcutFallback", "linkOpenBehaviour"];
+
+async function loadDefaultConfig() {
+  if (_cachedDefaultConfig) return _cachedDefaultConfig;
+  const configPath = path.join(process.cwd(), "public", "default-config.json");
+  const configFile = await fs.readFile(configPath, "utf-8");
+  _cachedDefaultConfig = JSON.parse(configFile);
+  return _cachedDefaultConfig;
+}
+
+function isRecordNotFound(err: any) {
+  return err instanceof ClientResponseError && err.status === 404;
+}
+
+function asObject(input: unknown): Record<string, any> {
+  return input && typeof input === "object" && !Array.isArray(input)
+    ? (input as Record<string, any>)
+    : {};
+}
+
+function normalizePageName(pageName?: string | null): string {
+  const cleaned = String(pageName ?? "home").trim().toLowerCase();
+  return cleaned.length > 0 ? cleaned : "home";
+}
+
+function stripEmptyIntegrations(config: Record<string, any>) {
+  const rawIntegrations = config?.integrations ?? {};
+  const strippedIntegrations = Object.fromEntries(
+    Object.entries(rawIntegrations).map(([key, value]) => [
+      key,
+      !!value &&
+        !Array.isArray(value) &&
+        typeof value === "object" &&
+        Object.keys(value).length > 0,
+    ])
+  );
+  return strippedIntegrations;
+}
+
+async function listPageConfigRecords(pb: any, userId: string): Promise<PBRecord[]> {
+  return pb.collection("pageConfig").getFullList(500, {
+    filter: `associatedUserId=\"${userId}\"`,
+  });
+}
+
+function splitPageConfigRecords(records: PBRecord[]) {
+  const named = records.filter((record) => !!String(record.pageName ?? "").trim());
+  const unnamed = records.filter((record) => !String(record.pageName ?? "").trim());
+  return { named, unnamed };
+}
+
+async function ensurePageConfigRecord(pb: any, userId: string, pageName: string) {
+  const normalizedName = normalizePageName(pageName);
+  const records = await listPageConfigRecords(pb, userId);
+  const { named, unnamed } = splitPageConfigRecords(records);
+
+  const existing = named.find(
+    (record) => normalizePageName(record.pageName) === normalizedName
+  );
+  if (existing) return { record: existing, migrationRequired: unnamed.length > 0, pageNames: named };
+
+  if (normalizedName === "home" && unnamed.length > 0) {
+    return {
+      record: unnamed[0],
+      migrationRequired: true,
+      pageNames: named,
+    };
+  }
+
+  const fallbackConfig =
+    named.find((record) => normalizePageName(record.pageName) === "home")?.config ??
+    unnamed[0]?.config ??
+    (await loadDefaultConfig());
+
+  const created = await pb.collection("pageConfig").create({
+    associatedUserId: userId,
+    pageName: normalizedName,
+    config: fallbackConfig,
+  });
+
+  return {
+    record: created,
+    migrationRequired: unnamed.length > 0,
+    pageNames: [...named, created],
+  };
+}
+
+async function getUserRecord(pb: any, userId: string): Promise<Record<string, any>> {
+  return pb.collection("users").getOne(userId);
+}
+
+async function getOrCreateHomeList(pb: any, userId: string): Promise<PBRecord> {
+  const existing = await pb.collection("linksLists").getFullList(1, {
+    filter: `user=\"${userId}\" && name=\"Home\"`,
+  });
+
+  if (existing[0]) return existing[0];
+
+  return pb.collection("linksLists").create({
+    name: "Home",
+    description: "Migrated from page config",
+    user: userId,
+  });
+}
+
+async function getLinksPayloadFromTables(pb: any, userId: string) {
+  const homeLists = await pb.collection("linksLists").getFullList(1, {
+    filter: `user=\"${userId}\" && name=\"Home\"`,
+  });
+
+  const homeList = homeLists[0];
+  if (!homeList) {
+    return null;
+  }
+
+  const folders = await pb.collection("linksFolders").getFullList(500, {
+    filter: `list=\"${homeList.id}\"`,
+  });
+
+  const folderById = new Map<string, string>();
+  for (const folder of folders) {
+    folderById.set(folder.id, folder.name || "");
+  }
+
+  const items = await pb.collection("linkItems").getFullList(5000, {
+    filter: `collection=\"${homeList.id}\"`,
+  });
+
+  const linkGroups = folders
+    .map((folder) => String(folder.name ?? "").trim())
+    .filter(Boolean);
+
+  const links = items.map((item) => {
+    const group = item.folder ? folderById.get(item.folder) || "" : "";
+    return {
+      id: item.id,
+      name: item.title || "",
+      url: item.url || "",
+      icon: item.iconUrl || "",
+      description: item.description || "",
+      linkGroup: group,
+    };
+  });
+
+  return {
+    linkGroups: Array.from(new Set(linkGroups)),
+    links,
+  };
+}
+
+async function replaceHomeLinksFromLegacyConfig(
+  pb: any,
+  userId: string,
+  links: Array<Record<string, any>>,
+  linkGroups: string[]
+) {
+  const homeList = await getOrCreateHomeList(pb, userId);
+
+  const existingItems = await pb.collection("linkItems").getFullList(5000, {
+    filter: `collection=\"${homeList.id}\"`,
+  });
+  for (const item of existingItems) {
+    await pb.collection("linkItems").delete(item.id);
+  }
+
+  const existingFolders = await pb.collection("linksFolders").getFullList(500, {
+    filter: `list=\"${homeList.id}\"`,
+  });
+  for (const folder of existingFolders) {
+    await pb.collection("linksFolders").delete(folder.id);
+  }
+
+  const groupsFromLinks = links
+    .map((link) => String(link?.linkGroup ?? "").trim())
+    .filter(Boolean);
+
+  const groupNames = Array.from(
+    new Set([
+      ...linkGroups.map((group) => String(group).trim()).filter(Boolean),
+      ...groupsFromLinks,
+    ])
+  );
+
+  const folderIdByGroup = new Map<string, string>();
+  for (const group of groupNames) {
+    const createdFolder = await pb.collection("linksFolders").create({
+      list: homeList.id,
+      name: group,
+    });
+    folderIdByGroup.set(group, createdFolder.id);
+  }
+
+  for (const link of links) {
+    const groupName = String(link?.linkGroup ?? "").trim();
+    const folderId = groupName ? folderIdByGroup.get(groupName) : undefined;
+    await pb.collection("linkItems").create({
+      url: link?.url || "",
+      title: link?.name || link?.title || "",
+      iconUrl: link?.icon || link?.iconUrl || "",
+      description: link?.description || "",
+      collection: homeList.id,
+      folder: folderId,
+    });
+  }
+}
+
+function extractPreferencesFromLegacyConfig(config: Record<string, any>) {
+  const global = asObject(config.global);
+
+  const localizationPreferences: Record<string, any> = {};
+  const searchPreferences: Record<string, any> = {};
+
+  for (const key of LOCALIZATION_KEYS) {
+    if (global[key] !== undefined) localizationPreferences[key] = global[key];
+  }
+
+  for (const key of SEARCH_GLOBAL_KEYS) {
+    if (global[key] !== undefined) searchPreferences[key] = global[key];
+  }
+
+  if (Array.isArray(config.searchEngines)) {
+    searchPreferences.searchEngines = config.searchEngines;
+  }
+
+  return {
+    appearancePreferences: asObject(config.appearance),
+    localizationPreferences,
+    searchPreferences,
+  };
+}
+
+function mergeUserPreferencesIntoConfig(config: Record<string, any>, user: Record<string, any>) {
+  const appearance = asObject(user.appearancePreferences);
+  const localization = asObject(user.localizationPreferences);
+  const search = asObject(user.searchPreferences);
+
+  const nextGlobal = {
+    ...asObject(config.global),
+    ...localization,
+  };
+
+  for (const key of SEARCH_GLOBAL_KEYS) {
+    if (search[key] !== undefined) nextGlobal[key] = search[key];
+  }
+
+  return {
+    ...config,
+    appearance: Object.keys(appearance).length > 0 ? appearance : config.appearance,
+    global: nextGlobal,
+    searchEngines: Array.isArray(search.searchEngines)
+      ? search.searchEngines
+      : config.searchEngines,
+  };
+}
+
+function stripMigratedSectionsFromConfig(config: Record<string, any>) {
+  const next = { ...config };
+  delete next.appearance;
+  delete next.global;
+  delete next.searchEngines;
+  delete next.links;
+  delete next.linkGroups;
+  return next;
+}
 
 function setNested(obj: Record<string, any>, path: string, value: any) {
   const keys = path.split(".");
@@ -24,42 +316,200 @@ function setNested(obj: Record<string, any>, path: string, value: any) {
   });
 }
 
-export async function getUserConfig(userId: string) {
+function getTopPath(path: string) {
+  return path.split(".")[0] || path;
+}
+
+function normalizePathForPreferences(path: string): "appearance" | "global" | "searchEngines" | null {
+  const top = getTopPath(path);
+  if (top === "appearance") return "appearance";
+  if (top === "global") return "global";
+  if (top === "searchEngines") return "searchEngines";
+  return null;
+}
+
+function patchPreferencesByPath(
+  user: Record<string, any>,
+  path: string,
+  updatedItem: any
+): Record<string, any> {
+  const section = normalizePathForPreferences(path);
+  if (!section) return user;
+
+  if (section === "appearance") {
+    const current = asObject(user.appearancePreferences);
+    if (path === "appearance") {
+      user.appearancePreferences = asObject(updatedItem);
+      return user;
+    }
+    const nested = path.replace(/^appearance\./, "");
+    const next = { ...current };
+    setNested(next, nested, updatedItem);
+    user.appearancePreferences = next;
+    return user;
+  }
+
+  if (section === "searchEngines") {
+    const current = asObject(user.searchPreferences);
+    user.searchPreferences = {
+      ...current,
+      searchEngines: Array.isArray(updatedItem) ? updatedItem : [],
+    };
+    return user;
+  }
+
+  const currentLocalization = asObject(user.localizationPreferences);
+  const currentSearch = asObject(user.searchPreferences);
+
+  if (path === "global") {
+    const source = asObject(updatedItem);
+    const localizationUpdates: Record<string, any> = {};
+    const searchUpdates: Record<string, any> = {};
+
+    for (const [key, value] of Object.entries(source)) {
+      if (LOCALIZATION_KEYS.includes(key)) localizationUpdates[key] = value;
+      if (SEARCH_GLOBAL_KEYS.includes(key)) searchUpdates[key] = value;
+    }
+
+    user.localizationPreferences = { ...currentLocalization, ...localizationUpdates };
+    user.searchPreferences = { ...currentSearch, ...searchUpdates };
+    return user;
+  }
+
+  const nested = path.replace(/^global\./, "");
+  const rootKey = nested.split(".")[0];
+
+  if (LOCALIZATION_KEYS.includes(rootKey)) {
+    const next = { ...currentLocalization };
+    setNested(next, nested, updatedItem);
+    user.localizationPreferences = next;
+  }
+
+  if (SEARCH_GLOBAL_KEYS.includes(rootKey)) {
+    const next = { ...currentSearch };
+    setNested(next, nested, updatedItem);
+    user.searchPreferences = next;
+  }
+
+  return user;
+}
+
+function getPagesFromRecords(records: PBRecord[]) {
+  const pages = records
+    .map((record) => normalizePageName(record.pageName))
+    .filter(Boolean);
+  return Array.from(new Set(pages));
+}
+
+async function hydrateRuntimeConfig(pb: any, userId: string, pageName: string) {
+  const ensured = await ensurePageConfigRecord(pb, userId, pageName);
+  const user = await getUserRecord(pb, userId);
+
+  const baseConfig = asObject(ensured.record?.config);
+  let runtimeConfig: any = mergeUserPreferencesIntoConfig(baseConfig, user);
+  runtimeConfig.integrations = stripEmptyIntegrations(runtimeConfig);
+
+  const linksFromTables = await getLinksPayloadFromTables(pb, userId);
+  if (linksFromTables) {
+    runtimeConfig = {
+      ...runtimeConfig,
+      linkGroups: linksFromTables.linkGroups,
+      links: linksFromTables.links,
+    };
+  }
+
+  const namedPages = getPagesFromRecords(ensured.pageNames).filter(Boolean);
+  runtimeConfig.pages = namedPages.length > 0 ? namedPages : ["home"];
+  runtimeConfig.__activePageName = normalizePageName(ensured.record.pageName || pageName);
+  runtimeConfig.__migrationRequired = ensured.migrationRequired;
+
+  return {
+    runtimeConfig,
+    record: ensured.record,
+    user,
+    migrationRequired: ensured.migrationRequired,
+  };
+}
+
+async function getPageConfigRecord(pb: any, userId: string, pageName = "home") {
+  const ensured = await ensurePageConfigRecord(pb, userId, pageName);
+  return ensured.record;
+}
+
+export async function getUserConfig(userId: string, pageName = "home") {
   const pb = await getSuperuserPB();
 
-  let configRecord;
+  let hydrated;
   try {
-    configRecord = await ensureUserConfig(pb, userId);
+    hydrated = await hydrateRuntimeConfig(pb, userId, pageName);
   } catch (err: any) {
     if (err?.status === 403 || err?.message === "Associated user not found") {
-      throw new ApiActionError("Invalid user", 403, { error: "Invalid user" });
+      throw new ApiActionError("Invalid user", 403, { error: err });
     }
     throw err;
   }
 
-  const rawIntegrations = configRecord?.config?.integrations ?? {};
-  const strippedIntegrations = Object.fromEntries(
-    Object.entries(rawIntegrations).map(([key, value]) => [
-      key,
-      !!value &&
-        !Array.isArray(value) &&
-        typeof value === "object" &&
-        Object.keys(value).length > 0,
-    ])
-  );
-
-  configRecord.config.integrations = strippedIntegrations;
-  return configRecord.config;
+  return hydrated.runtimeConfig;
 }
 
-async function getUserConfigRecord(pb: any, userId: string) {
-  return pb.collection("userConfig").getFirstListItem(`associatedUserId="${userId}"`);
-}
-
-export async function appendConfigArrayItem(userId: string, path: string, newItem: any) {
+export async function appendConfigArrayItem(
+  userId: string,
+  path: string,
+  newItem: any,
+  pageName = "home"
+) {
   const pb = await getSuperuserPB();
-  const record = await getUserConfigRecord(pb, userId);
+  const record = await getPageConfigRecord(pb, userId, pageName);
   const config = record.config as Record<string, any>;
+
+  const preferencePath = normalizePathForPreferences(path);
+  if (preferencePath) {
+    const user = await getUserRecord(pb, userId);
+    const currentValue =
+      preferencePath === "appearance"
+        ? asObject(user.appearancePreferences)
+        : preferencePath === "searchEngines"
+          ? asObject(user.searchPreferences)
+          : asObject(user.localizationPreferences);
+
+    const sourcePath =
+      preferencePath === "searchEngines"
+        ? "searchPreferences.searchEngines"
+        : preferencePath === "appearance"
+          ? "appearancePreferences"
+          : "localizationPreferences";
+
+    let targetValue: any;
+    if (path === "searchEngines") {
+      targetValue = Array.isArray(user.searchPreferences?.searchEngines)
+        ? [...user.searchPreferences.searchEngines, newItem]
+        : [newItem];
+      user.searchPreferences = {
+        ...asObject(user.searchPreferences),
+        searchEngines: targetValue,
+      };
+    } else {
+      targetValue = Array.isArray(currentValue[path]) ? currentValue[path] : [];
+      targetValue.push(newItem);
+      if (sourcePath === "appearancePreferences") {
+        user.appearancePreferences = { ...currentValue, [path]: targetValue };
+      } else {
+        user.localizationPreferences = { ...currentValue, [path]: targetValue };
+      }
+    }
+
+    await pb.collection("users").update(userId, {
+      appearancePreferences: user.appearancePreferences,
+      localizationPreferences: user.localizationPreferences,
+      searchPreferences: user.searchPreferences,
+    });
+
+    return {
+      success: true,
+      updatedPath: path,
+      newItem,
+    };
+  }
 
   if (!Array.isArray(config[path])) {
     throw new ApiActionError(`Config key "${path}" is not an array`, 400, {
@@ -68,7 +518,17 @@ export async function appendConfigArrayItem(userId: string, path: string, newIte
   }
 
   config[path].push(newItem);
-  await pb.collection("userConfig").update(record.id, { config });
+
+  if (path === "links" || path === "linkGroups") {
+    await replaceHomeLinksFromLegacyConfig(
+      pb,
+      userId,
+      Array.isArray(config.links) ? config.links : [],
+      Array.isArray(config.linkGroups) ? config.linkGroups : []
+    );
+  }
+
+  await pb.collection("pageConfig").update(record.id, { config });
 
   return {
     success: true,
@@ -77,13 +537,46 @@ export async function appendConfigArrayItem(userId: string, path: string, newIte
   };
 }
 
-export async function patchConfigPath(userId: string, path: string, updatedItem: any) {
+export async function patchConfigPath(
+  userId: string,
+  path: string,
+  updatedItem: any,
+  pageName = "home"
+) {
   const pb = await getSuperuserPB();
-  const record = await getUserConfigRecord(pb, userId);
+  const record = await getPageConfigRecord(pb, userId, pageName);
   const config = record.config as Record<string, any>;
 
+  const preferencePath = normalizePathForPreferences(path);
+  if (preferencePath) {
+    const user = await getUserRecord(pb, userId);
+    const nextUser = patchPreferencesByPath(user, path, updatedItem);
+    await pb.collection("users").update(userId, {
+      appearancePreferences: nextUser.appearancePreferences,
+      localizationPreferences: nextUser.localizationPreferences,
+      searchPreferences: nextUser.searchPreferences,
+    });
+
+    return {
+      success: true,
+      updatedPath: path,
+      newItem: updatedItem,
+    };
+  }
+
   setNested(config, path, updatedItem);
-  await pb.collection("userConfig").update(record.id, { config });
+
+  const topPath = getTopPath(path);
+  if (topPath === "links" || topPath === "linkGroups") {
+    await replaceHomeLinksFromLegacyConfig(
+      pb,
+      userId,
+      Array.isArray(config.links) ? config.links : [],
+      Array.isArray(config.linkGroups) ? config.linkGroups : []
+    );
+  }
+
+  await pb.collection("pageConfig").update(record.id, { config });
 
   return {
     success: true,
@@ -92,22 +585,47 @@ export async function patchConfigPath(userId: string, path: string, updatedItem:
   };
 }
 
-export async function replaceUserConfig(userId: string, nextConfig: Record<string, any>) {
+export async function replaceUserConfig(
+  userId: string,
+  nextConfig: Record<string, any>,
+  pageName = "home"
+) {
   const pb = await getSuperuserPB();
+  const normalizedPageName = normalizePageName(pageName);
 
   let record: any | null = null;
   try {
-    record = await getUserConfigRecord(pb, userId);
+    record = await getPageConfigRecord(pb, userId, normalizedPageName);
   } catch {
     record = null;
   }
 
+  const prefs = extractPreferencesFromLegacyConfig(nextConfig);
+  await pb.collection("users").update(userId, {
+    appearancePreferences: prefs.appearancePreferences,
+    localizationPreferences: prefs.localizationPreferences,
+    searchPreferences: prefs.searchPreferences,
+  });
+
+  await replaceHomeLinksFromLegacyConfig(
+    pb,
+    userId,
+    Array.isArray(nextConfig.links) ? nextConfig.links : [],
+    Array.isArray(nextConfig.linkGroups) ? nextConfig.linkGroups : []
+  );
+
+  const pageOnlyConfig = stripMigratedSectionsFromConfig(nextConfig);
+
   if (record) {
-    await pb.collection("userConfig").update(record.id, { config: nextConfig });
+    await pb.collection("pageConfig").update(record.id, {
+      pageName: normalizedPageName,
+      config: pageOnlyConfig,
+    });
   } else {
-    await pb.collection("userConfig").create({
+    await pb.collection("pageConfig").create({
       associatedUserId: userId,
-      config: nextConfig,
+      pageName: normalizedPageName,
+      config: pageOnlyConfig,
     });
   }
 
@@ -116,7 +634,7 @@ export async function replaceUserConfig(userId: string, nextConfig: Record<strin
 
 export async function deleteUnusedLinkgroups(userId: string) {
   const pb = await getSuperuserPB();
-  const record: any = await getUserConfigRecord(pb, userId);
+  const record: any = await getPageConfigRecord(pb, userId, "home");
 
   const config = (record.config ?? {}) as {
     linkGroups?: string[];
@@ -167,7 +685,8 @@ export async function deleteUnusedLinkgroups(userId: string) {
 
   config.linkGroups = uniquePrunedLinkGroups;
   config.links = prunedLinks;
-  await pb.collection("userConfig").update(record.id, { config });
+  await replaceHomeLinksFromLegacyConfig(pb, userId, config.links, config.linkGroups);
+  await pb.collection("pageConfig").update(record.id, { config });
 
   return {
     success: true,
@@ -186,7 +705,7 @@ export async function deleteUnusedLinkgroups(userId: string) {
 
 export async function moveConfigArrayItems(userId: string, path: string, src: number, dst: number) {
   const pb = await getSuperuserPB();
-  const record = await getUserConfigRecord(pb, userId);
+  const record = await getPageConfigRecord(pb, userId, "home");
   const config = record.config as Record<string, any>;
 
   if (!Array.isArray(config[path])) {
@@ -205,12 +724,61 @@ export async function moveConfigArrayItems(userId: string, path: string, src: nu
   const [movedItem] = arr.splice(src, 1);
   arr.splice(dst, 0, movedItem);
 
-  await pb.collection("userConfig").update(record.id, { config });
+  if (path === "links" || path === "linkGroups") {
+    await replaceHomeLinksFromLegacyConfig(
+      pb,
+      userId,
+      Array.isArray(config.links) ? config.links : [],
+      Array.isArray(config.linkGroups) ? config.linkGroups : []
+    );
+  }
+
+  await pb.collection("pageConfig").update(record.id, { config });
 
   return {
     success: true,
     updatedPath: path,
     movedItem,
     newArray: arr,
+  };
+}
+
+export async function migrateLegacyPageConfig(userId: string) {
+  const pb = await getSuperuserPB();
+
+  const records = await listPageConfigRecords(pb, userId);
+  const legacy = records.find((record) => !String(record.pageName ?? "").trim());
+
+  if (!legacy) {
+    return { success: true, migrated: false, reason: "No legacy pageConfig record found" };
+  }
+
+  const legacyConfig = asObject(legacy.config);
+  const prefs = extractPreferencesFromLegacyConfig(legacyConfig);
+
+  await pb.collection("users").update(userId, {
+    appearancePreferences: prefs.appearancePreferences,
+    localizationPreferences: prefs.localizationPreferences,
+    searchPreferences: prefs.searchPreferences,
+  });
+
+  await replaceHomeLinksFromLegacyConfig(
+    pb,
+    userId,
+    Array.isArray(legacyConfig.links) ? legacyConfig.links : [],
+    Array.isArray(legacyConfig.linkGroups) ? legacyConfig.linkGroups : []
+  );
+
+  const pageOnlyConfig = stripMigratedSectionsFromConfig(legacyConfig);
+
+  await pb.collection("pageConfig").update(legacy.id, {
+    pageName: "home",
+    config: pageOnlyConfig,
+  });
+
+  return {
+    success: true,
+    migrated: true,
+    pageName: "home",
   };
 }

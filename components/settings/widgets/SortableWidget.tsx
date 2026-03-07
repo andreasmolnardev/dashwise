@@ -1,5 +1,5 @@
-import { Widget } from "@/app/(config-wrapper)/settings/widgets/page";
-import WidgetComponent from "@/components/widgets/Widget";
+import { Widget } from "@/app/(authenticated)/settings/widgets/page";
+import { SettingsWidgetPreview } from "@/components/settings/widgets/SettingsWidgetPreview";
 import { CSS } from "@dnd-kit/utilities";
 import {
   useSortable,
@@ -12,11 +12,13 @@ import { Button } from "@/components/ui/button";
 export function SortableWidget({
   widget,
   activeId,
+  isIntegrationWidget,
   onEdit,
   onRemove,
 }: {
   widget: Widget;
   activeId?: string | null;
+  isIntegrationWidget?: boolean;
   onEdit?: () => void;
   onRemove?: () => void;
 }) {
@@ -33,7 +35,12 @@ export function SortableWidget({
 
   return (
     <div ref={setNodeRef} style={style} {...attributes} {...listeners} className="relative">
-      <WidgetComponent type={widget.type} params={widget.properties || {}} className="h-[90px] w-full" />
+      <SettingsWidgetPreview
+        type={widget.type}
+        params={widget.properties || {}}
+        className="h-[90px] w-full"
+        isIntegrationWidget={!!isIntegrationWidget}
+      />
       {onEdit && (
         <Button variant="outline" className="absolute top-2 right-2 p-1 rounded-full hover:bg-white/10" onClick={onEdit}>
           Edit

@@ -1,6 +1,7 @@
 services:
   nextjs:
     image: node:20-alpine
+    container_name: dashwise-next-live
     ports:
       - "3000:3000"
     volumes:

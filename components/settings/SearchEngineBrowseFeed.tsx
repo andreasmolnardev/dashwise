@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input"; // shadcn input
 import { addSearchEngine } from "@/lib/frontend/data/MUTATE/config/searchEngines/add";
-import { useConfig } from "@/context/ConfigContext";
+import { usePageConfig } from "@/hooks/usePageConfig";
 import useAuth from "@/context/useAuth";
 
 // --- Types ---
@@ -46,7 +46,7 @@ const transformToSearchEngine = (bang: DDGBang): SearchEngine => {
 };
 
 export default function SearchEngineBrowseFeedComponent() {
-    const { config, refreshConfig } = useConfig();
+    const { config, refreshConfig } = usePageConfig();
     const { token } = useAuth();
     const [bangs, setBangs] = useState<DDGBang[]>([]);
     const [visibleBangs, setVisibleBangs] = useState<DDGBang[]>([]);

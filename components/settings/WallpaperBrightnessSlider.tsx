@@ -3,12 +3,12 @@
 import React, { useState, useEffect } from "react";
 import { Slider } from "@/components/ui/slider";
 import { cn } from "@/lib/utils";
-import { useConfig } from "@/context/ConfigContext";
+import { usePageConfig } from "@/hooks/usePageConfig";
 import useAuth from "@/context/useAuth";
 import { writeToConfig } from "@/lib/frontend/data/MUTATE/config/writeToConfig";
 
 export default function WallpaperBrightnessSliderComponent({ className }: { className?: string }) {
-  const { config, refreshConfig } = useConfig();
+  const { config, refreshConfig } = usePageConfig();
   const { token } = useAuth();
 
   const [percent, setPercent] = useState(100);
@@ -89,7 +89,7 @@ export default function WallpaperBrightnessSliderComponent({ className }: { clas
 }
 
 export function WallpaperBrightnessDarkModeSliderComponent({ className }: { className?: string }) {
-  const { config, refreshConfig } = useConfig();
+  const { config, refreshConfig } = usePageConfig();
   const { token } = useAuth();
 
   const [percent, setPercent] = useState(0);

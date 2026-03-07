@@ -1,4 +1,4 @@
-import { useConfig } from "@/context/ConfigContext";
+import { usePageConfig } from "@/hooks/usePageConfig";
 import { useLocalization } from "@/context/LocalizationContext";
 import { useEffect, useMemo, useState } from "react";
 import { getWeatherIcon } from "../widgets/dashboard/Weather";
@@ -23,7 +23,7 @@ export default function GlanceableComponent({ type, params, className }: Glancea
     case "greeting":
       return <GlanceableGreeting className={className} />;
     case "local-timezone":
-      return <GlanceableLocalTimezone className={className} />; 
+      return <GlanceableLocalTimezone className={className} />;
     case "weather":
       return <GlanceableWeather params={params} className={className} />;
     case "world-clock":
@@ -76,7 +76,7 @@ function GlanceableLocalTimezone({ className }: { className?: string }) {
 }
 
 function GlanceableWeather({ params, className }: { params?: Record<string, any>, className?: string }) {
-  const { config } = useConfig();
+  const { config } = usePageConfig();
   const { weatherUnit } = useLocalization();
 
   const weatherLocation: WeatherLocation | null = useMemo(() => {
@@ -114,20 +114,20 @@ function GlanceableWeather({ params, className }: { params?: Record<string, any>
     }
 
     if (typeof params?.location?.coordinates === "string") {
-    const match = params.location.coordinates.match(
-      /^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$/
-    );
+      const match = params.location.coordinates.match(
+        /^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$/
+      );
 
-    if (match) {
-      return {
-        name: params.location.displayName,
-        lat: Number(match[1]),
-        lon:  Number(match[2])
-      };
+      if (match) {
+        return {
+          name: params.location.displayName,
+          lat: Number(match[1]),
+          lon: Number(match[2])
+        };
+      }
     }
-  }
 
-    if (config.global.weatherLocation) {
+    if (config?.global?.weatherLocation) {
       return JSON.parse(
         config.global.weatherLocation.replaceAll("'", '"')
       );
@@ -138,7 +138,7 @@ function GlanceableWeather({ params, className }: { params?: Record<string, any>
     params?.locationCoordinates,
     params?.locationDisplayname,
     params?.location,
-    config.global.weatherLocation,
+    config?.global?.weatherLocation ?? "",
   ]);
 
   const unit = String(params?.unit || weatherUnit || "c").toLowerCase();

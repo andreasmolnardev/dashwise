@@ -1,0 +1,321 @@
+# Dashwise Integration YAML
+details:
+  name: Beszel
+  description: ""
+  author: ""
+  version: 1.0.0
+  repository: ""
+  icon: "/icons/png/beszel-light.png"
+  links:
+    website: ""
+    documentation: ""
+    support: ""
+  categories:
+    - Monitoring
+
+configuration:
+  environment_variables:
+    TOKEN:
+      required: false
+      user_hidden: true
+    URL:
+      required: true
+    PB_USER:
+      required: true
+      edit: "overwrite-only"
+    PB_PASS:
+      required: true
+      edit: "overwrite-only"
+    THRESHOLD_CPU_WARN:
+      required: false
+      default: 70
+      description: "CPU usage % that triggers a warning"
+    THRESHOLD_CPU_CRITICAL:
+      required: false
+      default: 90
+      description: "CPU usage % that triggers a critical warning"
+    THRESHOLD_MEM_WARN:
+      required: false
+      default: 70
+      description: "Memory usage % that triggers a warning"
+    THRESHOLD_MEM_CRITICAL:
+      required: false
+      default: 90
+      description: "Memory usage % that triggers a critical warning"
+    THRESHOLD_DISK_WARN:
+      required: false
+      default: 70
+      description: "Disk usage % that triggers a warning"
+    THRESHOLD_DISK_CRITICAL:
+      required: false
+      default: 90
+      description: "Disk usage % that triggers a critical warning"
+    THRESHOLD_LOAD_WARN:
+      required: false
+      default: 1.0
+      description: "Long-term (480min) load multiplier vs CPU cores that triggers a warning (e.g. 1.0 = 1x core count)"
+
+  endpoints:
+    retrieve-token:
+      method: POST
+      url: "${URL}/api/collections/_superusers/auth-with-password"
+      body:
+        identity: "${PB_USER}"
+        password: "${PB_PASS}"
+      response:
+        type: json
+        data_path: "token"
+        data_set_env: "TOKEN"
+
+    fetch-systems:
+      method: GET
+      url: "${URL}/api/collections/systems/records"
+      auth: "Bearer ${TOKEN}"
+      custom_headers: {}
+      insecure_skip_verify: true
+      response:
+        type: json
+        data_path: "items"
+      response_mapping:
+        systems:
+          iterate: "items"
+          mappingProperties:
+            id: "id"
+            name: "name"
+            info:
+              - status: "status"
+              - cpu:
+                  model: "m"
+                  cores: "c"
+              - os:
+                  kernel: "k"
+                  boot_time_seconds: "bb"
+              - memory:
+                  total_mb: "mb"
+              - disk:
+                  total_gb: "dt"
+              - temperature_c: "t"
+              - hostname: "h"
+              - uptime_seconds: "u"
+              - beszel_version: "v"
+            usage:
+              - cpu_usage_percent: "cpu"
+              - memory_usage_percent: "mp"
+              - disk_usage_percent: "dp"
+            load:
+              "1m": "l1"
+              "5m": "l5"
+              "15m": "l15"
+            network:
+              bytes_sent: "b"
+              bytes_received: "bb"
+              interfaces: "efs"
+
+    fetch-system-stats:
+      method: GET
+      url: "${URL}/api/collections/system_stats/records"
+      auth: "Bearer ${TOKEN}"
+      insecure_skip_verify: true
+      iterate_over: "this.endpoints.fetch-systems.mappedResponse.systems"
+      iterate_key: "id"
+      group_by: "system"
+      response:
+        type: json
+        data_path: "items"
+      response_mapping:
+        per_system:
+          aggregate_over: "items"
+          average_total_memory_mb:
+            operation: avg
+            field: "stats.m"
+            transform: "round(value * 1024)"
+          load:
+            "1m":
+              operation: nth_from_end
+              field: "stats.la[0]"
+              offset: 0
+            "10min":
+              operation: nth_from_end
+              field: "stats.la[0]"
+              offset: 10
+            "20min":
+              operation: nth_from_end
+              field: "stats.la[0]"
+              offset: 20
+            "120min":
+              operation: nth_from_end
+              field: "stats.la[0]"
+              offset: 120
+            "480min":
+              operation: nth_from_end
+              field: "stats.la[0]"
+              offset: 480
+
+  computed:
+    system_health:
+      iterate_over: "this.endpoints.fetch-systems.mappedResponse.systems"
+      key: "${name}"
+      fields:
+        system_name: "${name}"
+        health_score:
+          operation: compute_health_score
+          inputs:
+            cpu_usage_percent: "usage.cpu_usage_percent"
+            memory_used_percent: "usage.memory_usage_percent"
+            disk_used_percent: "usage.disk_usage_percent"
+            cpu_cores: "info.cpu.cores"
+            load_480min: "this.endpoints.fetch-system-stats.mappedResponse.per_system[${id}].load.480min"
+            status: "info.status"
+            # Thresholds forwarded so compute_health_score uses user-configured values
+            threshold_cpu_warn: "${THRESHOLD_CPU_WARN}"
+            threshold_cpu_critical: "${THRESHOLD_CPU_CRITICAL}"
+            threshold_mem_warn: "${THRESHOLD_MEM_WARN}"
+            threshold_mem_critical: "${THRESHOLD_MEM_CRITICAL}"
+            threshold_disk_warn: "${THRESHOLD_DISK_WARN}"
+            threshold_disk_critical: "${THRESHOLD_DISK_CRITICAL}"
+            threshold_load_warn: "${THRESHOLD_LOAD_WARN}"
+        biggest_minus:
+          operation: compute_biggest_minus
+          inputs:
+            cpu_usage_percent: "usage.cpu_usage_percent"
+            memory_used_percent: "usage.memory_usage_percent"
+            disk_used_percent: "usage.disk_usage_percent"
+            load_480min: "this.endpoints.fetch-system-stats.mappedResponse.per_system[${id}].load.480min"
+            cpu_cores: "info.cpu.cores"
+            threshold_cpu_warn: "${THRESHOLD_CPU_WARN}"
+            threshold_cpu_critical: "${THRESHOLD_CPU_CRITICAL}"
+            threshold_mem_warn: "${THRESHOLD_MEM_WARN}"
+            threshold_mem_critical: "${THRESHOLD_MEM_CRITICAL}"
+            threshold_disk_warn: "${THRESHOLD_DISK_WARN}"
+            threshold_disk_critical: "${THRESHOLD_DISK_CRITICAL}"
+            threshold_load_warn: "${THRESHOLD_LOAD_WARN}"
+        action: "${URL}/system/${id}"
+        details:
+          status: "info.status"
+          load: "this.endpoints.fetch-system-stats.mappedResponse.per_system[${id}].load"
+
+    system_warnings:
+      iterate_over: "this.endpoints.fetch-systems.mappedResponse.systems"
+      # Only emit an entry when at least one threshold is breached or system is down
+      filter: >
+        info.status contains 'down'
+        or usage.cpu_usage_percent >= ${THRESHOLD_CPU_WARN}
+        or usage.memory_usage_percent >= ${THRESHOLD_MEM_WARN}
+        or usage.disk_usage_percent >= ${THRESHOLD_DISK_WARN}
+        or (this.endpoints.fetch-system-stats.mappedResponse.per_system[${id}].load.480min
+            >= (info.cpu.cores * ${THRESHOLD_LOAD_WARN}))
+      key: "${name}"
+      fields:
+        system_name: "${name}"
+        action: "${URL}/system/${id}"
+        # Severity: "critical" if any critical threshold is breached or system down,
+        # otherwise "warning"
+        severity:
+          operation: compute_severity
+          inputs:
+            status: "info.status"
+            cpu_usage_percent: "usage.cpu_usage_percent"
+            memory_used_percent: "usage.memory_usage_percent"
+            disk_used_percent: "usage.disk_usage_percent"
+            threshold_cpu_critical: "${THRESHOLD_CPU_CRITICAL}"
+            threshold_mem_critical: "${THRESHOLD_MEM_CRITICAL}"
+            threshold_disk_critical: "${THRESHOLD_DISK_CRITICAL}"
+        # Human-readable list of all active warnings for this system
+        active_warnings:
+          operation: collect_warnings
+          inputs:
+            status: "info.status"
+            cpu_usage_percent: "usage.cpu_usage_percent"
+            memory_used_percent: "usage.memory_usage_percent"
+            disk_used_percent: "usage.disk_usage_percent"
+            load_480min: "this.endpoints.fetch-system-stats.mappedResponse.per_system[${id}].load.480min"
+            cpu_cores: "info.cpu.cores"
+            threshold_cpu_warn: "${THRESHOLD_CPU_WARN}"
+            threshold_cpu_critical: "${THRESHOLD_CPU_CRITICAL}"
+            threshold_mem_warn: "${THRESHOLD_MEM_WARN}"
+            threshold_mem_critical: "${THRESHOLD_MEM_CRITICAL}"
+            threshold_disk_warn: "${THRESHOLD_DISK_WARN}"
+            threshold_disk_critical: "${THRESHOLD_DISK_CRITICAL}"
+            threshold_load_warn: "${THRESHOLD_LOAD_WARN}"
+
+  widgets:
+    - name: "Beszel System Health"
+      template: "columns"
+      depends_on:
+        - "computed.system_health"
+      properties:
+        header:
+          title: "System Health"
+          icon: "integrations.beszel.details.icon"
+          titleAction: "url:${URL}"
+        columns:
+          iterate_over: "computed.system_health"
+          prototype:
+            progress:
+              type: "circular"
+              value: "if(details.status contains 'down', 0, health_score)"
+              thresholds:
+                - min: 80
+                  color: "#16a34a"
+                - min: 60
+                  color: "#f59e0b"
+                - min: 40
+                  color: "#f97316"
+                - min: 0
+                  color: "#ef4444"
+              zero_label: "Down"
+            title: "${system_name}"
+            titleAction: "url:${action}"
+            badge:
+              show_if: "biggest_minus not contains 'No'"
+              icon: "faExclamationCircle"
+              tooltip: "${biggest_minus}"
+    - name: "Beszel System Warnings"
+      template: "vertical-list"
+      depends_on:
+        - "computed.system_warnings"
+      # Hide the widget entirely when there are no warnings
+      hide_if_empty: true
+      properties:
+        header:
+          title: "System Warnings"
+          icon: "integrations.beszel.details.icon"
+          titleAction: "url:${URL}"
+        list:
+          iterate_over: "computed.system_warnings"
+          # Critical entries sort to the top
+          sort_by: "severity"
+          sort_order: "desc"
+          prototype:
+            # Left colour bar — red for critical, amber for warning
+            accent:
+              value: "severity"
+              map:
+                critical: "#ef4444"
+                warning: "#f59e0b"
+            icon:
+              value: "severity"
+              map:
+                critical: "faExclamationCircle"
+                warning: "faExclamation"
+            title: "${system_name}"
+            titleAction: "url:${action}"  
+            # Renders each warning string as its own line under the title
+            subtitle:
+              type: "list"
+              value: "${active_warnings}"
+  search_items:
+    - root:
+        iterate_over: "this.endpoints.fetch-systems.mappedResponse.systems"
+        mappingProperties:
+          id: "${id}"
+          name: "${name}"
+          icon: "integrations.beszel.details.icon"
+          secondaryInfo: "System"
+          type: "beszelItem"
+          action: "url:${URL}/system/${id}"
+          tags:
+            - "Beszel"
+            - "Systems"
+            - "Monitoring"
+            - "${name}"

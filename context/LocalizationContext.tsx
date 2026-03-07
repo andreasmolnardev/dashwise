@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, ReactNode, useContext, useMemo } from "react";
-import { useConfig } from "@/context/ConfigContext";
+import { usePageConfig } from "@/hooks/usePageConfig";
 
 type TimeFormatPreference = "12-hour" | "24-hour";
 type TemperatureUnit = "c" | "f";
@@ -44,7 +44,7 @@ function toDate(input?: Date | string | number): Date {
 }
 
 export function LocalizationProvider({ children }: { children: ReactNode }) {
-  const { config } = useConfig();
+  const { config } = usePageConfig();
 
   const locale = config?.global?.locale || "en-US";
   const timeFormat = normalizeTimeFormat(config?.global?.timeFormat ?? config?.global?.["time-format"]);

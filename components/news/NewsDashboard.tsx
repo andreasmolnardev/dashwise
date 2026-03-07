@@ -1,6 +1,5 @@
 "use client";
 
-import { useConfig } from "@/context/ConfigContext";
 import { useEffect, useState } from "react";
 import useAuth from "@/context/useAuth";
 import { useRouter, useSearchParams } from "next/navigation"
@@ -41,7 +40,6 @@ interface Subscription {
 export default function NewsDashboardComponent(
     children: React.PropsWithChildren<{}> = {}
 ) {
-    const { config } = useConfig();
     const router = useRouter();
 
     const [feed, setFeed] = useState<Record<string, any[]> | null>(null);

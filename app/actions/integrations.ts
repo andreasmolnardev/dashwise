@@ -1,11 +1,13 @@
 "use server";
 
-import { ActionAuth, requireUserAuth } from "@dashwise/sdk/data/auth";
+import { ActionAuth, requireUserAuth } from "@/dashwise-sdk/data/auth";
 import {
-  getBeszelSystemHealthstats,
-  getDashdotData,
-  getKarakeepData,
-} from "@dashwise/sdk/data/integrations";
+  createIntegration,
+  getIntegration,
+  getWidgetProperties,
+  listIntegrations,
+  testIntegrationEndpoint,
+} from "@/dashwise-sdk/data/integrations";
 
 const WEATHER_DESC: Record<number, string> = {
   0: "Clear sky",
@@ -40,19 +42,44 @@ function num(v: unknown) {
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
-export async function getKarakeepDataAction(auth: ActionAuth, latestOnly = false) {
+export async function getIntegrationsAction(
+  auth: ActionAuth,
+  options?: { id?: string; resolveEndpoints?: boolean }
+) {
   const { userId } = await requireUserAuth(auth);
-  return getKarakeepData(userId, latestOnly);
+
+  if (options?.id) {
+    return getIntegration(userId, options.id, !!options.resolveEndpoints);
+  }
+
+  return listIntegrations(userId);
 }
 
-export async function getDashdotDataAction(auth: ActionAuth, body: any) {
+export async function createIntegrationAction(
+  auth: ActionAuth,
+  payload: { name?: string; source?: string; config: unknown; environment?: unknown }
+) {
   const { userId } = await requireUserAuth(auth);
-  return getDashdotData(userId, body);
+  return createIntegration(userId, payload);
 }
 
-export async function getBeszelSystemHealthstatsAction(auth: ActionAuth) {
+export async function testIntegrationEndpointAction(auth: ActionAuth, target: string) {
   const { userId } = await requireUserAuth(auth);
-  return getBeszelSystemHealthstats(userId);
+  try {
+    return await testIntegrationEndpoint(userId, target);
+  } catch (error) {
+    console.error("[Integrations Action] testIntegrationEndpointAction failed", {
+      target,
+      error,
+    });
+    throw error;
+  }
+}
+
+export async function getWidgetPropertiesAction(auth: ActionAuth, widgetSlug: string) {
+  const { userId } = await requireUserAuth(auth);
+  console.log(`[Integrations Action] Fetching widget properties for slug: ${widgetSlug}`);
+  return getWidgetProperties(userId, widgetSlug);
 }
 
 export async function getWeatherAction({ lat, lon, unit = "c" }: { lat: string; lon: string; unit?: string }) {

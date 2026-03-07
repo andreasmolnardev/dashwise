@@ -4,7 +4,7 @@ import React, { useEffect, useState } from "react";
 import useAuth from "@/context/useAuth";
 import GlanceableComponent, { GlanceableProps } from "@/components/glanceables/Glanceable";
 import glanceables from '@/public/glanceables.json'
-import { useConfig } from "@/context/ConfigContext";
+import { usePageConfig } from "@/hooks/usePageConfig";
 import { writeToConfig } from "@/lib/frontend/data/MUTATE/config/writeToConfig.ts";
 import { Input } from "../ui/input";
 import { Button } from "../ui/button";
@@ -31,7 +31,7 @@ export default function GlanceablePropertiesSettingsComponent({
     isCurrent: Boolean;
 }) {
     const glanceables_mapped = mapGlanceablesJsonToArray(glanceables);
-    const { config, refreshConfig } = useConfig();
+    const { config, refreshConfig } = usePageConfig();
     const { token } = useAuth();
 
     const [params, setParams] = useState<Record<string, any>>(() => {

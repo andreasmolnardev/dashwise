@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { useConfig } from "@/context/ConfigContext";
+import { usePageConfig } from "@/hooks/usePageConfig";
 import useAuth from "@/context/useAuth";
 import { cn } from "@/lib/utils";
 import { getMonitoringStatusAction } from "@/app/actions/monitoring";
@@ -26,7 +26,7 @@ export interface LinkType {
 }
 
 export default function LinkView() {
-  const { config } = useConfig();
+  const { config } = usePageConfig();
   const { token, withAuth } = useAuth();
   
   const [activeGroup, setActiveGroup] = useState<string>(config.linkGroups[0]);

@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useConfig } from "@/context/ConfigContext";
+import { usePageConfig } from "@/hooks/usePageConfig";
 import { useEffect, useRef } from "react";
 import { Label } from "@/components/ui/label";
 import { faBrush, faChartLine, faCircleUser, faCircleXmark, faDisplay, faGripLines, faMagnifyingGlass, faPaperclip, faPuzzlePiece, faSliders } from "@fortawesome/free-solid-svg-icons";
@@ -20,7 +20,7 @@ const navItems = [
 ];
 
 export default function SettingsLayout({ children }: { children: React.ReactNode }) {
-  const { config, refreshConfig } = useConfig();
+  const { config, refreshConfig } = usePageConfig();
   const pathname = usePathname();
   const activeBgRef = useRef<HTMLDivElement | null>(null);
 

@@ -41,15 +41,6 @@ export default function WidgetComponent({ type, className, params }: WidgetProps
                     case "weather-overview":
                         imported = { default: (await import("./dashboard/Weather"))?.WeatherOverviewWidget };
                         break;
-                    case "latest-karakeep-bookmarks":
-                        imported = await import("./dashboard/Karakeep");
-                        break;
-                    case "dashdot-widget":
-                        imported = await import("./dashboard/Dashdot");
-                        break;
-                    case "beszel-system-health": 
-                        imported = await import("./dashboard/Beszel");
-                        break;
                     case "placeholder":
                         imported = await import("./dashboard/Placeholder");
                         break;

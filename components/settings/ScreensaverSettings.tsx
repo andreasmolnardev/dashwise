@@ -12,7 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useConfig } from "@/context/ConfigContext";
+import { usePageConfig } from "@/hooks/usePageConfig";
 import { useState, useEffect } from "react";
 import fonts from "@/public/fonts/index.json";
 import { writeToConfig } from "@/lib/frontend/data/MUTATE/config/writeToConfig";
@@ -27,7 +27,7 @@ const fontWeights = [
 ];
 
 export default function ScreensaverSettings() {
-  const { config, refreshConfig } = useConfig();
+  const { config, refreshConfig } = usePageConfig();
   const [scope, setScope] = useState<"global" | "local">("global");
   const [screensaverConfig, setScreensaverConfig] = useState(
     config.appearance.screensaver || {}

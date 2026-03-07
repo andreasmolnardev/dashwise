@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { useEffect, useState } from "react";
-import { WidgetInfo } from "@/app/(config-wrapper)/settings/widgets/page";
+import { WidgetInfo } from "@/app/(authenticated)/settings/widgets/page";
 import LocationSelectFormComponent from "../LocationSelectForm";
 
 interface WidgetEditDialogProps {

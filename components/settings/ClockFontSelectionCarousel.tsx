@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { PaginatedCarouselViewComponent } from "../widgets/PaginatedCarouselView";
-import { useConfig } from "@/context/ConfigContext";
+import { usePageConfig } from "@/hooks/usePageConfig";
 import { loadFont } from "@/lib/loadFont";
 import { writeToConfig } from "@/lib/frontend/data/MUTATE/config/writeToConfig";
 
@@ -12,7 +12,7 @@ type FontEntry = {
 };
 
 export default function ClockFontSelectionCarousel() {
-  const { config, refreshConfig } = useConfig();
+  const { config, refreshConfig } = usePageConfig();
 
   const DEFAULT_FONT = "Default";
 

@@ -5,29 +5,44 @@ import {
   appendConfigArrayItem,
   deleteUnusedLinkgroups,
   getUserConfig,
+  migrateLegacyPageConfig,
   moveConfigArrayItems,
   patchConfigPath,
   replaceUserConfig,
 } from "@dashwise/sdk/data/config";
 
-export async function getUserConfigAction(auth: ActionAuth) {
+export async function getUserConfigAction(auth: ActionAuth, pageName?: string) {
   const { userId } = await requireUserAuth(auth);
-  return getUserConfig(userId);
+  return getUserConfig(userId, pageName);
 }
 
-export async function appendConfigArrayItemAction(auth: ActionAuth, path: string, newItem: any) {
+export async function appendConfigArrayItemAction(
+  auth: ActionAuth,
+  path: string,
+  newItem: any,
+  pageName?: string
+) {
   const { userId } = await requireUserAuth(auth);
-  return appendConfigArrayItem(userId, path, newItem);
+  return appendConfigArrayItem(userId, path, newItem, pageName);
 }
 
-export async function updateConfigPathAction(auth: ActionAuth, path: string, updatedItem: any) {
+export async function updateConfigPathAction(
+  auth: ActionAuth,
+  path: string,
+  updatedItem: any,
+  pageName?: string
+) {
   const { userId } = await requireUserAuth(auth);
-  return patchConfigPath(userId, path, updatedItem);
+  return patchConfigPath(userId, path, updatedItem, pageName);
 }
 
-export async function replaceUserConfigAction(auth: ActionAuth, nextConfig: Record<string, any>) {
+export async function replaceUserConfigAction(
+  auth: ActionAuth,
+  nextConfig: Record<string, any>,
+  pageName?: string
+) {
   const { userId } = await requireUserAuth(auth);
-  return replaceUserConfig(userId, nextConfig);
+  return replaceUserConfig(userId, nextConfig, pageName);
 }
 
 export async function deleteUnusedLinkgroupsAction(auth: ActionAuth) {
@@ -43,4 +58,9 @@ export async function moveConfigArrayItemsAction(
 ) {
   const { userId } = await requireUserAuth(auth);
   return moveConfigArrayItems(userId, path, src, dst);
+}
+
+export async function migrateLegacyPageConfigAction(auth: ActionAuth) {
+  const { userId } = await requireUserAuth(auth);
+  return migrateLegacyPageConfig(userId);
 }

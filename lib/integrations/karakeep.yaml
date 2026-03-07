@@ -1,0 +1,173 @@
+# Dashwise Integration YAML
+details:
+  name: Karakeep
+  description: ""
+  author: ""
+  version: 1.0.0
+  repository: ""
+  icon: "/icons/png/karakeep-light.png"
+  links:
+    website: ""
+    documentation: ""
+    support: ""
+  categories:
+    - Bookmarks
+
+configuration:
+  environment_variables:
+    URL:
+      required: true
+      description: "Base URL of your Karakeep instance (e.g. https://karakeep.example.com)"
+    TOKEN:
+      required: false
+      edit: "overwrite-only"
+      description: "Karakeep API bearer token"
+
+  endpoints:
+    fetch-bookmarks:
+      method: GET
+      url: "${URL}/api/v1/bookmarks"
+      custom_headers:
+        Authorization: "Bearer ${TOKEN}"
+        Accept: "application/json"
+        Content-Type: "application/json"
+      insecure_skip_verify: true
+      response:
+        type: json
+        data_path_fallback:
+          - "items"
+          - "bookmarks"
+          - "data"
+          - "root"
+      response_mapping:
+        bookmarks:
+          iterate: "root"
+          # Only keep link-type content entries with a usable URL
+          filter: "content.type == 'link' and (content.url != null or url != null)"
+          mappingProperties:
+            id: "id"
+            title:
+              operation: coalesce
+              fields: ["title", "content.title"]
+              fallback: "Untitled"
+            url:
+              operation: coalesce
+              fields: ["content.url", "url"]
+            # Favicon with well-known icon overrides for youtube/twitter/github
+            icon:
+              operation: map_icon
+              source:
+                operation: coalesce
+                fields: ["content.favicon", "icon"]
+              mappings:
+                - contains: "youtube.com"
+                  value: "/icons/png/youtube-light.png"
+                - contains: "twitter.com"
+                  value: "/icons/png/twitter-light.png"
+                - contains: "github.com"
+                  value: "/icons/png/github-light.png"
+            collection:
+              operation: coalesce
+              fields: ["collection", "collectionName"]
+            created_at: "createdAt"
+            updated_at: "modifiedAt"
+            archived: "archived"
+            favourited: "favourited"
+            tags: "tags"
+
+    # Called once per bookmark to resolve its list name.
+    # The result overwrites `collection` on the parent bookmark entry.
+    fetch-bookmark-lists:
+      method: GET
+      url: "${URL}/api/v1/bookmarks/${bookmarks[*].id}/lists"
+      custom_headers:
+        Authorization: "Bearer ${TOKEN}"
+        Accept: "application/json"
+      insecure_skip_verify: true
+      iterate_over: "this.endpoints.fetch-bookmarks.mappedResponse.bookmarks"
+      iterate_key: "id"
+      # Fire all requests concurrently, matching the original Promise.all()
+      concurrency: "parallel"
+      # Silently ignore 404s or network errors per bookmark
+      on_error: "skip"
+      response:
+        type: json
+        data_path: "lists"
+      response_mapping:
+        # Only the first list name is used, matching original behaviour
+        first_list_name:
+          operation: nth
+          field: "lists[0].name"
+          fallback_field: "lists[0].id"
+          fallback: null
+
+  computed:
+    bookmarks:
+      iterate_over: "this.endpoints.fetch-bookmarks.mappedResponse.bookmarks"
+      key: "${id}"
+      fields:
+        id: "${id}"
+        title: "${title}"
+        url: "${url}"
+        icon: "${icon}"
+        created_at: "${created_at}"
+        archived: "${archived}"
+        favourited: "${favourited}"
+        tags: "${tags}"
+        # Prefer the list name resolved from fetch-bookmark-lists,
+        # fall back to the collection field on the bookmark itself
+        collection:
+          operation: coalesce
+          fields:
+            - "this.endpoints.fetch-bookmark-lists.mappedResponse[${id}].first_list_name"
+            - "collection"
+          fallback: ""
+
+  widgets:
+    - name: "Latest Bookmarks"
+      template: "vertical-list"
+      depends_on:
+        - "computed.bookmarks"
+      properties:
+        header:
+          title: "Latest Bookmarks"
+          icon: "integrations.karakeep.details.icon"
+          titleAction: "url:${URL}"
+        list:
+          iterate_over: "computed.bookmarks"
+          # Newest first, matching the original widget's intent
+          sort_by: "created_at"
+          sort_order: "desc"
+          # Scrollable area capped at ~8 items, matching the h-32 overflow-y-auto
+          max_visible: 8
+          scrollable: true
+          prototype:
+            # Favicon or grey placeholder square when icon is absent
+            thumbnail:
+              value: "${icon}"
+              fallback: "placeholder_square"
+              fallback_style: "grey"
+            title: "${title}"
+            titleAction: "url:${url}"
+            # URL shown beneath the title with a paperclip icon prefix
+            subtitle:
+              value: "${url}"
+              icon: "faPaperclip"
+              icon_color: "var(--primary)"
+
+  search_items:
+    - my_bookmarks:
+        iterate_over: "computed.bookmarks"
+        sort_by: "title"
+        sort_order: "asc"
+        mappingProperties:
+          id: "${id}"
+          name: "${title}"
+          icon: "${icon}"
+          secondaryInfo: "${collection}"
+          type: "karakeepBookmark"
+          action: "url:${url}"
+          tags:
+            - "${title}"
+            - "Karakeep"
+            - "${collection}"

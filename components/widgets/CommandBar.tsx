@@ -2,7 +2,7 @@ import React from 'react';
 import type { SyntheticEvent } from 'react';
 
 import { Dialog, DialogContent } from '../ui/dialog';
-import { useConfig } from '@/context/ConfigContext';
+import { usePageConfig } from "@/hooks/usePageConfig";
 import { Separator } from '../ui/separator';
 import { DialogTitle } from '@radix-ui/react-dialog';
 import { cn } from '@/lib/utils';
@@ -12,6 +12,8 @@ import { faGlobe } from '@fortawesome/free-solid-svg-icons';
 // --- Types ---
 
 type LinkItem = {
+  id?: string;
+  parentId?: string;
   icon?: string;
   linkGroup?: string;
   type?: string;
@@ -36,6 +38,8 @@ type SearchEngine = {
 };
 
 type IncomingSearchItem = {
+  id?: string;
+  parentId?: string;
   name?: string;
   icon?: string;
   secondaryInfo?: string;
@@ -55,7 +59,7 @@ type CommandBarProps = {
 
 function normalizeConfigLinks(input: IncomingSearchItem[] = []): LinkItem[] {
   return input
-    .filter((it) => !it.type || it.type === 'link' || it.type === 'karakeepBookmark' || it.type === 'jellyfinItem')
+    .filter((it) => !it.type || it.type === 'link' || it.type === 'app' || it.type === 'karakeepBookmark' || it.type === 'jellyfinItem' || it.type === 'beszelItem' || it.type === 'dashdotItem')
     .map((it) => {
       const action = (it.action || '').toString().trim();
       let url = '';
@@ -74,11 +78,19 @@ function normalizeConfigLinks(input: IncomingSearchItem[] = []): LinkItem[] {
         type = 'Karakeep';
       } else if (it.type === 'jellyfinItem') {
         type = 'Jellyfin';
+      } else if (it.type === 'app') {
+        type = 'App';
+      } else if (it.type === 'beszelItem') {
+        type = 'Beszel';
+      } else if (it.type === 'dashdotItem') {
+        type = 'Dashdot';
       } else {
         type = "Link"
       }
 
       return {
+        id: it.id,
+        parentId: (it as any).parentId,
         name: it.name || '',
         icon: it.icon || undefined,
         linkGroup: it.secondaryInfo || it.linkGroup || '',
@@ -91,7 +103,7 @@ function normalizeConfigLinks(input: IncomingSearchItem[] = []): LinkItem[] {
 
 
 export default function CommandBar({ open, setOpen, searchItems }: CommandBarProps) {
-  const { config } = useConfig();
+  const { config } = usePageConfig();
   // search engines still read from config (unchanged)
   const searchEngines: SearchEngine[] = (config.searchEngines || []) as SearchEngine[];
 
@@ -104,6 +116,7 @@ export default function CommandBar({ open, setOpen, searchItems }: CommandBarPro
 
   const [query, setQuery] = React.useState('');
   const [filtered, setFiltered] = React.useState<LinkItem[]>(links);
+  const [currentAppId, setCurrentAppId] = React.useState<string | null>(null);
   const [highlightIndex, setHighlightIndex] = React.useState(0);
   const inputRef = React.useRef<HTMLInputElement | null>(null);
 
@@ -120,15 +133,20 @@ export default function CommandBar({ open, setOpen, searchItems }: CommandBarPro
     } else {
       setQuery('');
       setFiltered(links);
+      setCurrentAppId(null);
       setHighlightIndex(0);
     }
   }, [open, links]);
 
   //item filtering 
   React.useEffect(() => {
+    const visibleLinks = currentAppId
+      ? links.filter((item) => item.parentId === currentAppId)
+      : links.filter((item) => !item.parentId);
+
     const q = query.trim().toLowerCase();
     if (!q) {
-      setFiltered(links);
+      setFiltered(visibleLinks);
       setHighlightIndex(0);
       return;
     }
@@ -138,7 +156,7 @@ export default function CommandBar({ open, setOpen, searchItems }: CommandBarPro
 
     const queryWords = q.split(/\s+/).filter(Boolean);
 
-    const results = links
+    const results = visibleLinks
       .map((item) => {
         // turn tags into words: split on non-word chars so "foo-bar" -> ["foo","bar"]
         const tagWords = (item.tags || [])
@@ -170,7 +188,7 @@ export default function CommandBar({ open, setOpen, searchItems }: CommandBarPro
 
     setFiltered(results);
     setHighlightIndex(0);
-  }, [query, links]);
+  }, [query, links, currentAppId]);
 
   // open on cmd/ctrl + k
   React.useEffect(() => {
@@ -208,8 +226,19 @@ export default function CommandBar({ open, setOpen, searchItems }: CommandBarPro
 
     const trimmedQuery = query.trim();
 
+    if (currentAppId) {
+      items.unshift({
+        id: "__app_back__",
+        name: "Back to root",
+        url: '__app_back__',
+        icon: '/icons/faGlobe.svg',
+        linkGroup: 'Dashwise',
+        type: 'App',
+      } as LinkItem);
+    }
+
     // --- 1. Go to URL (only if valid URL) ---
-    if (isValidUrl(trimmedQuery)) {
+    if (!currentAppId && isValidUrl(trimmedQuery)) {
       items.unshift({
         name: `Go to ${trimmedQuery}`,
         url: trimmedQuery.startsWith('http') ? trimmedQuery : `https://${trimmedQuery}`,
@@ -221,7 +250,7 @@ export default function CommandBar({ open, setOpen, searchItems }: CommandBarPro
 
     // --- 2. Bang search ---
     const parsed = parseBang(trimmedQuery);
-    if (parsed) {
+    if (!currentAppId && parsed) {
       const engine = searchEngines.find((se) => (se.slug || '').toLowerCase() === parsed.slug);
       const fallbackEngine = searchEngines.find((se) => (se.slug || '').toLowerCase() === config.global.searchEngineShortcutFallback)
       if (engine) {
@@ -248,7 +277,7 @@ export default function CommandBar({ open, setOpen, searchItems }: CommandBarPro
     }
 
     // --- 3. Default search engine (only once) ---
-    if (!parsed || !searchEngines.find((se) => (se.slug || '').toLowerCase() === parsed.slug)) {
+    if (!currentAppId && (!parsed || !searchEngines.find((se) => (se.slug || '').toLowerCase() === parsed.slug))) {
       items.push({
         name: `Search ${defaultEngine?.name || 'web'}`,
         url: '__search_action__',
@@ -259,7 +288,7 @@ export default function CommandBar({ open, setOpen, searchItems }: CommandBarPro
     }
 
     // --- 4. All other engines except default ---
-    (searchEngines || [])
+    (!currentAppId ? (searchEngines || []) : [])
       .filter((se) => (se.status || '').toLowerCase() !== 'disabled' && se.slug !== defaultEngine?.slug)
       .forEach((se) => {
         items.push({
@@ -313,7 +342,15 @@ export default function CommandBar({ open, setOpen, searchItems }: CommandBarPro
   function triggerAction(index: number) {
     const a = actions[index];
     if (!a) return;
-    if (a.url === '__bang_search__') {
+    if (a.url === '__app_back__') {
+      setCurrentAppId(null);
+      setQuery('');
+    } else if (a.url?.startsWith('app:')) {
+      const appId = a.url.slice(4);
+      setCurrentAppId(appId || null);
+      setQuery('');
+      setHighlightIndex(0);
+    } else if (a.url === '__bang_search__') {
       openBangSearch(query, a.bangEngineSlug);
     } else if (a.url === '__forward_search__') {
       openBangSearch(`!${a.bangEngineSlug + '' + query}`, a.bangEngineSlug);

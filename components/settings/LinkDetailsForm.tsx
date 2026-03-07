@@ -19,7 +19,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { useConfig } from "@/context/ConfigContext";
+import { usePageConfig } from "@/hooks/usePageConfig";
 import IconPickerComponent, { IconResult } from "@/components/settings/IconPicker";
 import { RadioGroup, RadioGroupItem } from "../ui/radio-group";
 import { Switch } from "@/components/ui/switch";
@@ -64,7 +64,7 @@ interface LinkDetailsFormProps {
 }
 
 export default function LinkDetailsForm({ link, onClose, preselectOpenedGroup }: LinkDetailsFormProps) {
-  const { config } = useConfig();
+  const { config } = usePageConfig();
   const { token, withAuth } = useAuth();
 
   const linkGroups = useMemo(() => config?.linkGroups || [], [config?.linkGroups]);
@@ -246,10 +246,10 @@ export default function LinkDetailsForm({ link, onClose, preselectOpenedGroup }:
       const updatedLinks = links.map((l) =>
         l.url === link?.url ? payload : l
       );
-      await withAuth((auth) => updateConfigPathAction(auth, "links", updatedLinks));
+      await withAuth((auth) => updateConfigPathAction(auth, "links", updatedLinks, "home"));
     } else {
       await withAuth((auth) =>
-        appendConfigArrayItemAction(auth, "links", payload)
+        appendConfigArrayItemAction(auth, "links", payload, "home")
       );
     }
   };

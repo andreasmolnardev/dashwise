@@ -54,32 +54,8 @@
             }
         }
     ],
-    "int:Karakeep": [
-        {
-            "slug": "latest-karakeep-bookmarks",
-            "name": "Latest Bookmarks"
-        }
-    ],
-    "int:Dashdot": [
-        {
-            "slug": "dashdot-widget",
-            "name": "System Overview",
-            "properties": {
-                "defaultOverride": "as:bool", 
-                "serverLocation": "as:string",
-                "serverDisplayname": "as:string"
-            },
-            "exampleProps": {
-                "defaultOverride": false, 
-                "serverLocation": null,
-                "serverDisplayname": null
-            }
-        }
-    ],
-    "int:Beszel": [
-        {
-            "slug": "beszel-system-health",
-            "name": "Beszel System Health"
-        }
-    ]
+    "int:Karakeep": [],
+    "int:Dashdot": [],
+    "int:Beszel": [],
+    "int:Jellyfin": []
 }
