@@ -1,7 +1,7 @@
 "use client";
 import SignupCard from "@/components/auth/SignupForm";
 import config from "@/lib/config";
-import readEndpoint from "@/lib/frontend/data/GET/readEndpoint";
+import { getAppInfo } from "@dashwise/sdk/data/app";
 import { useEffect, useState } from "react";
 
 export default function SignupPage() {
@@ -14,11 +14,8 @@ export default function SignupPage() {
 
         (async () => {
             try {
-                const data = await readEndpoint<{ disableUserSignup?: boolean }>("/appInfo", {
-                    signal: ctl.signal,
-                });
-                if (!mounted) return;
-                if (data?.disableUserSignup) setDisableUserSignup(true);
+                const data = await getAppInfo()
+                if (data?.userSignupDisabled) setDisableUserSignup(true);
             } catch (err) {
                 console.error("Update check failed:", err);
             }
