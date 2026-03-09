@@ -7,6 +7,7 @@ import {
 	validateAuthToken,
 	changePassword,
 	deleteAccount,
+	updateUserProperty,
 } from "@dashwise/sdk/data/auth";
 
 export type ChangePasswordRequest = {
@@ -58,5 +59,13 @@ export async function deleteAccountAction(
 ) {
 	await requireUserAuth(auth);
 	return deleteAccount(payload);
+}
+
+export async function updateUserPropertyAction(
+	auth: ActionAuth,
+	propertyName: string,
+	propertyValue: any
+) {
+	return updateUserProperty(auth, propertyName, propertyValue);
 }
 

@@ -1,6 +1,8 @@
 "use client"
 
-import type { ActionAuth, ApiActionError } from "@dashwise/sdk/data/auth";
+import { updateUserPropertyAction } from "@/app/actions/auth";
+import type { ActionAuth } from "@dashwise/sdk/data/auth";
+import { ApiActionError } from "@dashwise/sdk/data/auth";
 import { useCallback, useEffect, useState } from "react";
 
 type AuthUser = any | null;
@@ -123,7 +125,20 @@ export function useAuth() {
     [token]
   );
 
-  return { user, token, setAuth, setToken: setTokenOnly, logout, withAuth };
+  const updateUserProperty = useCallback(
+    async (propertyName: string, propertyValue: any) => {
+      const updatedUser = await withAuth((auth) =>
+        updateUserPropertyAction(auth, propertyName, propertyValue)
+      );
+
+      setAuth(updatedUser, token);
+      return updatedUser;
+    },
+    [token, withAuth, setAuth]
+  );
+
+  return { user, token, setAuth, setToken: setTokenOnly, logout, withAuth, updateUserProperty };
 }
+
 
 export default useAuth;
