@@ -3,9 +3,8 @@
 import { useState, useEffect } from "react";
 import { PaginatedCarouselViewComponent } from "../widgets/PaginatedCarouselView";
 import { usePageConfig } from "@/hooks/usePageConfig";
+import { useAuth } from "@/context/useAuth";
 import { loadFont } from "@/lib/loadFont";
-import { writeToConfig } from "@/lib/frontend/data/MUTATE/config/writeToConfig";
-
 type FontEntry = {
   name: string;
   path: string;
@@ -13,6 +12,7 @@ type FontEntry = {
 
 export default function ClockFontSelectionCarousel() {
   const { config, refreshConfig } = usePageConfig();
+  const { updateUserProperty } = useAuth();
 
   const DEFAULT_FONT = "Default";
 
@@ -83,7 +83,7 @@ export default function ClockFontSelectionCarousel() {
 
     try {
       // Persist to server
-      await writeToConfig("appearance", updatedAppearance);
+      await updateUserProperty("appearancePreferences", updatedAppearance);
 
       // Refresh app config if a refresh function is available
       if (refreshConfig) {

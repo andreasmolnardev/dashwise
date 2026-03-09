@@ -3,12 +3,11 @@
 import React, { useState, useEffect } from "react";
 import { Slider } from "@/components/ui/slider";
 import { usePageConfig } from "@/hooks/usePageConfig";
-import { writeToConfig } from "@/lib/frontend/data/MUTATE/config/writeToConfig";
 import useAuth from "@/context/useAuth";
 
 export default function WallpaperBlurSliderComponent({ className }: { className?: string }) {
   const { config, refreshConfig } = usePageConfig();
-  const { token } = useAuth();
+  const { user, updateUserProperty } = useAuth();
   
   const [percent, setPercent] = useState(50); // slider percentage
   const [previewBlur, setPreviewBlur] = useState(3); // px
@@ -16,27 +15,28 @@ export default function WallpaperBlurSliderComponent({ className }: { className?
 
   // Load current blur from config on mount
   useEffect(() => {
-    const current = config?.appearance?.wallpaperFilters?.blur;
+    const appearance = user?.appearancePreferences || config?.appearance;
+    const current = appearance?.wallpaperFilters?.blur;
     if (typeof current === "number") {
       const newPercent = ((current - 1) / (25 - 1)) * 100;
       setPercent(Math.round(newPercent));
       setPreviewBlur(current);
     }
-  }, [config]);
+  }, [user, config]);
 
   // Preview on drag
   function handlePreview(pxValue: number) {
     setPreviewBlur(pxValue);
-    document.body.style.backdropFilter = `blur(${pxValue}px) brightness(${config?.appearance?.wallpaperFilters?.brightness ? 0.01 * config?.appearance?.wallpaperFilters?.brightness : 85})`;
+    const appearance = user?.appearancePreferences || config?.appearance;
+    const brightness = appearance?.wallpaperFilters?.brightness;
+    document.body.style.backdropFilter = `blur(${pxValue}px) brightness(${brightness ? 0.01 * brightness : 85})`;
   }
 
   // Save on release
   async function handleSave(pxValue: number) {
-    if (!token) return;
-
     setSaving(true);
     try {
-      const currentAppearance = config?.appearance ?? {};
+      const currentAppearance = user?.appearancePreferences || config?.appearance || {};
       const updatedAppearance = {
         ...currentAppearance,
         wallpaperFilters: {
@@ -45,10 +45,8 @@ export default function WallpaperBlurSliderComponent({ className }: { className?
         },
       };
 
-      await writeToConfig(`appearance`, updatedAppearance, {
-        token,
-        onSuccess: () => refreshConfig(),
-      });
+      await updateUserProperty("appearancePreferences", updatedAppearance);
+      refreshConfig();
     } catch (err) {
       console.error("Error updating blur:", err);
     } finally {
