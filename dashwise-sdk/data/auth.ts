@@ -1,7 +1,5 @@
 import { ClientResponseError, getServerPB } from "@dashwise/sdk/lib/pocketbase";
 
-import path from "path";
-import { promises as fs } from "fs";
 import speakeasy from "speakeasy";
 import config from "@/lib/config";
 
@@ -50,7 +48,9 @@ export async function requireUserAuth(auth?: ActionAuth) {
   }
 }
 
-export async function loginUser(payload: { email: string; password: string; totp?: string }) {
+export async function loginUser(
+  payload: { email: string; password: string; totp?: string },
+) {
   const { email, password, totp } = payload;
 
   if (!email || !password) {
@@ -60,14 +60,21 @@ export async function loginUser(payload: { email: string; password: string; totp
   }
 
   const pb = getServerPB();
-  const authData = await pb.collection("users").authWithPassword(email, password);
+  const authData = await pb.collection("users").authWithPassword(
+    email,
+    password,
+  );
   const user = authData.record as any;
 
   if (user.totpSecret) {
     if (!totp) {
-      throw new ApiActionError("TOTP code required because 2FA is enabled", 401, {
-        error: "TOTP code required because 2FA is enabled",
-      });
+      throw new ApiActionError(
+        "TOTP code required because 2FA is enabled",
+        401,
+        {
+          error: "TOTP code required because 2FA is enabled",
+        },
+      );
     }
 
     const verified = speakeasy.totp.verify({
@@ -78,7 +85,9 @@ export async function loginUser(payload: { email: string; password: string; totp
     });
 
     if (!verified) {
-      throw new ApiActionError("Invalid TOTP code", 401, { error: "Invalid TOTP code" });
+      throw new ApiActionError("Invalid TOTP code", 401, {
+        error: "Invalid TOTP code",
+      });
     }
   }
 
@@ -92,16 +101,22 @@ export async function signupUser(payload: {
   passwordConfirm: string;
 }) {
   if (config.disableUserSignup) {
-    throw new ApiActionError("Signup failed.", 401, { error: "Signup failed." });
+    throw new ApiActionError("Signup failed.", 401, {
+      error: "Signup failed.",
+    });
   }
 
   const { _name, email, password, passwordConfirm } = payload;
   if (!email || !password || !passwordConfirm) {
-    throw new ApiActionError("All fields are required", 400, { error: "All fields are required" });
+    throw new ApiActionError("All fields are required", 400, {
+      error: "All fields are required",
+    });
   }
 
   if (password !== passwordConfirm) {
-    throw new ApiActionError("Passwords do not match", 400, { error: "Passwords do not match" });
+    throw new ApiActionError("Passwords do not match", 400, {
+      error: "Passwords do not match",
+    });
   }
 
   let name: string | undefined = _name;
@@ -114,6 +129,77 @@ export async function signupUser(payload: {
       .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
       .join(" ");
   }
+  //TODO: Load from storage
+
+  const defaultAppearancePreferences = {
+    "backgroundImageUrl": "/dashboard-wallpaper.png",
+    "wallpaperFilters": {
+      "blur": 10,
+      "brightness": 61,
+    },
+    "themeMode": "light"
+  };
+  const defaultSearchPreferences = {
+    "searchEngines": [
+        {
+            "icon": "/icons/svg/google.svg",
+            "name": "Google",
+            "slug": "g",
+            "status": "default",
+            "url_home": "https://www.google.com",
+            "url_params": "https://www.google.com/search?q=%s"
+        },
+        {
+            "icon": "/icons/svg/google-images.svg",
+            "name": "Google Images",
+            "slug": "gi",
+            "status": "enabled",
+            "url_home": "https://images.google.com",
+            "url_params": "https://images.google.com/search?q=%s&tbm=isch"
+        },
+        {
+            "icon": "/icons/svg/youtube.svg",
+            "name": "YouTube",
+            "slug": "yt",
+            "status": "enabled",
+            "url_home": "https://www.youtube.com",
+            "url_params": "https://www.youtube.com/results?search_query=%s"
+        },
+        {
+            "icon": "/icons/svg/bing.svg",
+            "name": "Bing",
+            "slug": "b",
+            "status": "enabled",
+            "url_home": "https://www.bing.com",
+            "url_params": "https://www.bing.com/search?q=%s"
+        },
+        {
+            "icon": "/icons/svg/duckduckgo.svg",
+            "name": "DuckDuckGo",
+            "slug": "ddg",
+            "status": "enabled",
+            "url_home": "https://duckduckgo.com",
+            "url_params": "https://duckduckgo.com/?q=%s"
+        },
+        {
+            "icon": "/icons/svg/startpage.svg",
+            "name": "Startpage",
+            "slug": "sp",
+            "status": "enabled",
+            "url_home": "https://www.startpage.com",
+            "url_params": "https://www.startpage.com/sp/search?query=%s"
+        }
+    ]
+  };
+  const defaultLocalizationPreferences = {
+    "dateFormat": "MM-DD-YYYY",
+    "language": "en",
+    "locale": "en-US",
+    "searchEngineShortcutFallback": "ddg",
+    "timeFormat": "12-hour",
+    "weatherLocation": "{\"name\":\"New York, New York, United States\",\"lat\":\"40.7128\",\"lon\":\"-74.0060\"}",
+    "weatherUnit": "f"
+  };
 
   const pb = getServerPB();
   const user = await pb.collection("users").create({
@@ -121,18 +207,38 @@ export async function signupUser(payload: {
     email,
     password,
     passwordConfirm,
+    localizationPreferences: defaultLocalizationPreferences,
+    appearancePreferences: defaultAppearancePreferences,
+    searchPreferences: defaultSearchPreferences,
   });
 
-  const defaultHomePath = path.join(process.cwd(), "public", "home.json");
-  const defaultHomeFile = await fs.readFile(defaultHomePath, "utf-8");
-  const defaultHomeJson = JSON.parse(defaultHomeFile);
+  // Default home configuration. In client/server environments where fs/path is not supported,
+  // we use a fetch to get the default config from the public folder.
+  let defaultHomeJson = {};
+  try {
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "";
+    const response = await fetch(`${baseUrl}/home.json`);
+    if (response.ok) {
+      defaultHomeJson = await response.json();
+    }
+  } catch (err) {
+    console.error("Failed to load default home.json via fetch, using fallback", err);
+    // Fallback if fetch fails or URL is not set
+    defaultHomeJson = {
+      zones: {
+        top: [],
+        left: [],
+        right: [],
+        bottom: []
+      }
+    };
+  }
 
-  await pb.collection("userConfig").create({
+  await pb.collection("pageConfig").create({
     associatedUserId: user.id,
     config: defaultHomeJson,
     pageName: "home"
   });
-
 
   return { user };
 }
@@ -161,11 +267,17 @@ export type ChangePasswordRequest = {
   confirmPassword: string;
 };
 
-export async function changePassword(token: string, body: ChangePasswordRequest) {
-  const { email: bodyEmail, oldPassword, newPassword, confirmPassword } = body || {};
+export async function changePassword(
+  token: string,
+  body: ChangePasswordRequest,
+) {
+  const { email: bodyEmail, oldPassword, newPassword, confirmPassword } =
+    body || {};
 
   if (!oldPassword || !newPassword || !confirmPassword) {
-    throw new ApiActionError("All fields are required", 400, { error: "All fields are required" });
+    throw new ApiActionError("All fields are required", 400, {
+      error: "All fields are required",
+    });
   }
   if (newPassword !== confirmPassword) {
     throw new ApiActionError("New passwords do not match", 400, {
@@ -173,9 +285,13 @@ export async function changePassword(token: string, body: ChangePasswordRequest)
     });
   }
   if (newPassword.length < 8) {
-    throw new ApiActionError("New password should be at least 8 characters", 400, {
-      error: "New password should be at least 8 characters",
-    });
+    throw new ApiActionError(
+      "New password should be at least 8 characters",
+      400,
+      {
+        error: "New password should be at least 8 characters",
+      },
+    );
   }
 
   const pb = getServerPB();
@@ -188,9 +304,13 @@ export async function changePassword(token: string, body: ChangePasswordRequest)
 
   const email = bodyEmail ?? authModel.record.email;
   if (!email) {
-    throw new ApiActionError("Email is required or you must be authenticated", 401, {
-      error: "Email is required or you must be authenticated",
-    });
+    throw new ApiActionError(
+      "Email is required or you must be authenticated",
+      401,
+      {
+        error: "Email is required or you must be authenticated",
+      },
+    );
   }
 
   const userId = authModel.record.id;
@@ -212,7 +332,9 @@ export async function changePassword(token: string, body: ChangePasswordRequest)
   };
 }
 
-export async function deleteAccount(payload: { email: string; password: string; totp?: string }) {
+export async function deleteAccount(
+  payload: { email: string; password: string; totp?: string },
+) {
   const { email, password, totp } = payload;
   if (!email || !password) {
     throw new ApiActionError("Email and password are required", 400, {
@@ -221,14 +343,21 @@ export async function deleteAccount(payload: { email: string; password: string; 
   }
 
   const pb = getServerPB();
-  const authData = await pb.collection("users").authWithPassword(email, password);
+  const authData = await pb.collection("users").authWithPassword(
+    email,
+    password,
+  );
   const user = authData.record as any;
 
   if (user.totpSecret) {
     if (!totp) {
-      throw new ApiActionError("TOTP code required because 2FA is enabled", 401, {
-        error: "TOTP code required because 2FA is enabled",
-      });
+      throw new ApiActionError(
+        "TOTP code required because 2FA is enabled",
+        401,
+        {
+          error: "TOTP code required because 2FA is enabled",
+        },
+      );
     }
 
     const verified = speakeasy.totp.verify({
@@ -239,7 +368,9 @@ export async function deleteAccount(payload: { email: string; password: string; 
     });
 
     if (!verified) {
-      throw new ApiActionError("Invalid TOTP code", 401, { error: "Invalid TOTP code" });
+      throw new ApiActionError("Invalid TOTP code", 401, {
+        error: "Invalid TOTP code",
+      });
     }
   }
 
@@ -250,4 +381,18 @@ export async function deleteAccount(payload: { email: string; password: string; 
   }
 
   return null;
+}
+
+export async function updateUserProperty(
+  auth: ActionAuth,
+  propertyName: string,
+  propertyValue: any
+) {
+  const { pb, userId } = await requireUserAuth(auth);
+
+  const updatedUser = await pb.collection("users").update(userId, {
+    [propertyName]: propertyValue,
+  });
+
+  return updatedUser;
 }
