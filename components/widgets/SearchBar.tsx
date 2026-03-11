@@ -24,6 +24,7 @@ type SearchItem = {
 export default function SearchBar({ useRedirect, defaultOpen }: SearchBarProps) {
   const [redirecting, setRedirecting] = useState(false);
   const [open, setOpen] = useState(false); // control CommandBar
+  const {user} = useAuth();
 
   // fetched items from /api/v1/searchItems
   const [searchItems, setSearchItems] = useState<SearchItem[]>([]);
@@ -98,7 +99,7 @@ export default function SearchBar({ useRedirect, defaultOpen }: SearchBarProps) 
         />
 
         {/* Pass fetched items into CommandBar */}
-        <CommandBar open={open} setOpen={setOpen} searchItems={searchItems} />
+        <CommandBar open={open} setOpen={setOpen} searchItems={searchItems} config={user.searchPreferences}/>
       </div>
     </>
   );
