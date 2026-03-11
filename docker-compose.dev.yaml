@@ -7,6 +7,8 @@ services:
     volumes:
       - ./:/app
     working_dir: /app
+    networks:
+      - dashwise-default
     command: sh -c "cd dashwise-sdk && npm install && cd .. && npm install && npm run dev"
   pocketbase:
     build: ./pocketbase
@@ -15,6 +17,8 @@ services:
       PB_ADMIN_PASSWORD: dashwiseIsAwesome
     ports:
       - "8090:8090"
+    networks:
+      - dashwise-default
     volumes:
       - ./pocketbase/pb_data:/app/pb_data
       - ./pocketbase/pb_migrations:/app/pb_migrations
@@ -33,3 +37,9 @@ services:
       - ./jobs:/usr/src/app
       - ./dashwise-sdk:/usr/src/app/dashwise-sdk
     command: npm run dev
+    networks:
+      - dashwise-default
+
+networks:
+  dashwise-default:
+    driver: bridge
