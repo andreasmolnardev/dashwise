@@ -7,8 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import IconPickerComponent from "@/components/settings/IconPicker";
-import { usePageConfig } from "@/hooks/usePageConfig";
-import { writeToConfig } from "@/lib/frontend/data/MUTATE/config/writeToConfig";
 import useAuth from "@/context/useAuth";
 
 import {
@@ -22,7 +20,6 @@ import {
 } from "@/components/ui/select";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faEllipsisH, faPaperclip } from "@fortawesome/free-solid-svg-icons";
-import { addSearchEngine } from "@/lib/frontend/data/MUTATE/config/searchEngines/add";
 
 export default function SearchEngineDetailsForm({
     engine,
@@ -35,8 +32,7 @@ export default function SearchEngineDetailsForm({
     formId?: string;
     hideActions?: boolean;
 }) {
-    const { config, refreshConfig } = usePageConfig();
-    const { token } = useAuth();
+    const { withAuth, user, updateUserProperty } = useAuth();
 
     const [name, setName] = useState(engine?.name ?? "");
     const [slug, setSlug] = useState(engine?.slug ?? "");
@@ -112,20 +108,17 @@ export default function SearchEngineDetailsForm({
                 url_params: searchUrl,
             };
 
+            const existingEngines = user?.searchPreferences.searchEngines ?? []
             if (isEditing) {
-                const updated = (config.searchEngines || []).map((s: SearchEngine) =>
+                const updated = existingEngines.map((s: SearchEngine) =>
                     s.slug === engine!.slug ? payloadEngine : s
                 );
-
-                if (!token) throw new Error("Not authenticated");
-
-                await writeToConfig(`searchEngines`, updated, { token });
+                await withAuth((auth) => updateUserProperty("searchPreferences", { ...user?.searchPreferences, searchEngines: updated }));
             } else {
-                const tokenStr = token ?? "";
-                await addSearchEngine(payloadEngine, { token: tokenStr });
+                const updated = [...existingEngines, payloadEngine];
+                await withAuth((auth) => updateUserProperty("searchPreferences", { ...user?.searchPreferences, searchEngines: updated }));
             }
 
-            await refreshConfig();
             if (onSaved) await onSaved();
         } catch (err: any) {
             setError(err?.message || String(err));
