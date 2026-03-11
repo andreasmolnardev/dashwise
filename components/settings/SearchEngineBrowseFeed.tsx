@@ -1,3 +1,4 @@
+// TODO fix search preferences implementation
 "use client";
 
 import React, { useEffect, useState, useRef, useCallback } from "react";
@@ -7,9 +8,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input"; // shadcn input
-import { addSearchEngine } from "@/lib/frontend/data/MUTATE/config/searchEngines/add";
 import { usePageConfig } from "@/hooks/usePageConfig";
 import useAuth from "@/context/useAuth";
+import { updateConfigPathAction } from "@/app/actions/config";
 
 // --- Types ---
 
@@ -47,7 +48,7 @@ const transformToSearchEngine = (bang: DDGBang): SearchEngine => {
 
 export default function SearchEngineBrowseFeedComponent() {
     const { config, refreshConfig } = usePageConfig();
-    const { token } = useAuth();
+    const { withAuth } = useAuth();
     const [bangs, setBangs] = useState<DDGBang[]>([]);
     const [visibleBangs, setVisibleBangs] = useState<DDGBang[]>([]);
     const [loading, setLoading] = useState(true);
@@ -155,9 +156,10 @@ export default function SearchEngineBrowseFeedComponent() {
     // Add Handler (async, then refresh config)
     const handleAddEngine = async (bang: DDGBang) => {
         const engineConfig = transformToSearchEngine(bang);
-        const tokenStr = token ?? "";
+        const current = Array.isArray(config?.searchEngines) ? config.searchEngines : [];
+        const nextEngines = [...current, engineConfig];
         try {
-            await addSearchEngine(engineConfig, { token: tokenStr });
+            await withAuth((auth) => updateConfigPathAction(auth, "searchEngines", nextEngines, "home"));
             console.log(`Added ${engineConfig.name}`);
             // Refresh config so the new engine will be filtered out
             try {

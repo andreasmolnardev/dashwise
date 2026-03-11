@@ -1,3 +1,4 @@
+// TODO: migrate to screensaver preferences
 "use client";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,7 +16,7 @@ import {
 import { usePageConfig } from "@/hooks/usePageConfig";
 import { useState, useEffect } from "react";
 import fonts from "@/public/fonts/index.json";
-import { writeToConfig } from "@/lib/frontend/data/MUTATE/config/writeToConfig";
+import useAuth from "@/context/useAuth";
 import ClockWidget from "../widgets/ClockWidget";
 import { loadFont } from "@/lib/loadFont";
 
@@ -27,10 +28,11 @@ const fontWeights = [
 ];
 
 export default function ScreensaverSettings() {
-  const { config, refreshConfig } = usePageConfig();
+  const { config, patchConfig } = usePageConfig();
+  const { user, updateUserProperty } = useAuth();
   const [scope, setScope] = useState<"global" | "local">("global");
   const [screensaverConfig, setScreensaverConfig] = useState(
-    config.appearance.screensaver || {}
+    user?.appearancePreferences?.screensaver || config.appearance.screensaver || {}
   );
   const [useHomePageStyle, setUseHomePageStyle] = useState(
     screensaverConfig.useHomePageStyle ?? true
@@ -45,10 +47,11 @@ export default function ScreensaverSettings() {
       setUseHomePageStyle(parsed.useHomePageStyle ?? true);
     } else {
       setScope("global");
-      setScreensaverConfig(config.appearance.screensaver || {});
-      setUseHomePageStyle(config.appearance.screensaver?.useHomePageStyle ?? true);
+      const globalScreensaver = user?.appearancePreferences?.screensaver || config.appearance.screensaver || {};
+      setScreensaverConfig(globalScreensaver);
+      setUseHomePageStyle(globalScreensaver?.useHomePageStyle ?? true);
     }
-  }, [config.appearance.screensaver]);
+  }, [user?.appearancePreferences?.screensaver, config.appearance.screensaver]);
 
   const updateScreensaverConfig = async (newPart: any) => {
     const updatedScreensaver = { ...screensaverConfig, ...newPart };
@@ -59,12 +62,18 @@ export default function ScreensaverSettings() {
       // Dispatch event for components to react to local change
       window.dispatchEvent(new Event("dashwise_local_config_updated"));
     } else {
+      const currentAppearance = user?.appearancePreferences || config.appearance || {};
       const updatedAppearance = {
-        ...config.appearance,
+        ...currentAppearance,
         screensaver: updatedScreensaver
       };
-      await writeToConfig("appearance", updatedAppearance);
-      await refreshConfig();
+
+      patchConfig((prev) => ({
+        ...prev,
+        appearance: updatedAppearance,
+      }));
+
+      await updateUserProperty("appearancePreferences", updatedAppearance);
     }
   };
 
@@ -72,8 +81,9 @@ export default function ScreensaverSettings() {
     setScope(newScope);
     if (newScope === "global") {
       localStorage.removeItem("dashwise_screensaver_local");
-      setScreensaverConfig(config.appearance.screensaver || {});
-      setUseHomePageStyle(config.appearance.screensaver?.useHomePageStyle ?? true);
+      const globalScreensaver = user?.appearancePreferences?.screensaver || config.appearance.screensaver || {};
+      setScreensaverConfig(globalScreensaver);
+      setUseHomePageStyle(globalScreensaver?.useHomePageStyle ?? true);
       window.dispatchEvent(new Event("dashwise_local_config_updated"));
     } else {
       // Initialize local with current global
