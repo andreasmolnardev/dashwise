@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef, useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -21,9 +21,12 @@ const COLUMN_ORDER = ["left", "middle", "right"] as const;
 type Column = (typeof COLUMN_ORDER)[number];
 
 const COLUMN_CLASSNAME: Record<Column, string> = {
-    left: "flex-shrink-0 w-screen snap-start md:w-auto md:basis-auto space-y-3.5 overflow-y-visible min-w-0 min-h-0 h-fit p-1",
-    middle: "flex-shrink-0 w-screen snap-start md:w-auto md:basis-auto space-y-3.5 overflow-x-hidden min-w-0 min-h-0 h-fit p-1",
-    right: "flex-shrink-0 w-screen snap-start md:w-auto md:basis-auto space-y-3.5 overflow-y-visible min-w-0 min-h-0 h-fit p-1",
+    left:
+        "flex-shrink-0 w-screen snap-start md:w-auto md:basis-auto space-y-3.5 overflow-y-visible min-w-0 min-h-0 h-fit p-1",
+    middle:
+        "flex-shrink-0 w-screen snap-start md:w-auto md:basis-auto space-y-3.5 overflow-x-hidden min-w-0 min-h-0 h-fit p-1",
+    right:
+        "flex-shrink-0 w-screen snap-start md:w-auto md:basis-auto space-y-3.5 overflow-y-visible min-w-0 min-h-0 h-fit p-1",
 };
 
 const COLUMN_PANEL_IDS: Record<Column, string | undefined> = {
@@ -39,30 +42,59 @@ export default function DashboardLayoutTemplate({
     config: Record<string, any>;
     pageName?: string;
 }) {
-    const router = useRouter();
     const searchParams = useSearchParams();
     const openFromURL = searchParams.get("search") === "1";
+
+
+    const { token, withAuth } = useAuth();
+    const [homeLinks, setHomeLinks] = useState<any[]>([]);
+
+    const LINKS_CACHE_KEY = (userId: string) => `home-links:${userId}`;
+
+    useEffect(() => {
+        if (!token) return;
+
+        try {
+            const userId = /* get from token/auth */ token;
+            const raw = localStorage.getItem(LINKS_CACHE_KEY(userId));
+            if (raw) {
+                const { data, timestamp } = JSON.parse(raw);
+                setHomeLinks(data); // Show stale while revalidating
+            }
+        } catch {}
+
+        // Fetch fresh data in background
+        withAuth((auth) => getHomeLinksAction(auth))
+            .then((fresh) => {
+                console.log("Fetched fresh home links:", fresh);
+                setHomeLinks(fresh);
+                try {
+                    localStorage.setItem(
+                        LINKS_CACHE_KEY(token),
+                        JSON.stringify({ data: fresh, timestamp: Date.now() }),
+                    );
+                } catch {}
+            })
+            .catch((err) => {
+                console.error("Failed to fetch home links:", err);
+            });
+    }, [token, withAuth]);
 
     const containerRef = useRef<HTMLDivElement | null>(null);
     const [activePanel, setActivePanel] = useState<number>(1);
 
     const heightRefs = useRef<Record<string, HTMLElement | null>>({});
-    const heightRefCallbacks = useRef<Record<string, (node: HTMLElement | null) => void>>({});
+    const heightRefCallbacks = useRef<
+        Record<string, (node: HTMLElement | null) => void>
+    >({});
     const [heightRefVersion, setHeightRefVersion] = useState(0);
-    const [measuredHeights, setMeasuredHeights] = useState<Record<string, number>>({});
+    const [measuredHeights, setMeasuredHeights] = useState<
+        Record<string, number>
+    >({});
 
-    const { token, withAuth } = useAuth();
-    const [homeLinks, setHomeLinks] = useState<any[]>([]);
-
-    useEffect(() => {
-        if (!token) return;
-        withAuth((auth) => getHomeLinksAction(auth))
-            .then(setHomeLinks)
-            .catch(console.error);
-    }, [token, withAuth]);
-
-    const columns = config.columns as Record<Column, Record<string, any>> | undefined;
-    console.log("Dashboard config columns:", columns, config);
+    const columns = config.columns as
+        | Record<Column, Record<string, any>>
+        | undefined;
     const hasThreeColumns = !!(columns?.left && columns?.right);
 
     // Scroll to center panel on mobile first render
@@ -75,7 +107,7 @@ export default function DashboardLayoutTemplate({
                 const width = el.clientWidth || window.innerWidth;
                 el.scrollTo({ left: width * 1, behavior: "auto" });
                 setActivePanel(1);
-            } catch { }
+            } catch {}
         });
     }, []);
 
@@ -113,11 +145,16 @@ export default function DashboardLayoutTemplate({
         let childCanScrollLeft = false;
         let childCanScrollRight = false;
 
-        const findHorizontallyScrollable = (node: Element | null): HTMLElement | null => {
+        const findHorizontallyScrollable = (
+            node: Element | null,
+        ): HTMLElement | null => {
             while (node && node !== el) {
                 const n = node as HTMLElement;
                 const style = getComputedStyle(n);
-                if (n.scrollWidth > n.clientWidth + 1 && style.overflowX !== "hidden") return n;
+                if (
+                    n.scrollWidth > n.clientWidth + 1 &&
+                    style.overflowX !== "hidden"
+                ) return n;
                 node = node.parentElement;
             }
             return null;
@@ -129,12 +166,17 @@ export default function DashboardLayoutTemplate({
             childScrollable = findHorizontallyScrollable(e.target as Element);
             if (childScrollable) {
                 childCanScrollLeft = childScrollable.scrollLeft > 0;
-                childCanScrollRight = childScrollable.scrollLeft + childScrollable.clientWidth < childScrollable.scrollWidth - 1;
+                childCanScrollRight =
+                    childScrollable.scrollLeft + childScrollable.clientWidth <
+                        childScrollable.scrollWidth - 1;
             } else {
                 childCanScrollLeft = childCanScrollRight = false;
             }
             if (rafId) cancelAnimationFrame(rafId);
-            if (timeoutId) { clearTimeout(timeoutId); timeoutId = null; }
+            if (timeoutId) {
+                clearTimeout(timeoutId);
+                timeoutId = null;
+            }
         };
 
         const onTouchEnd = (e: TouchEvent) => {
@@ -154,7 +196,10 @@ export default function DashboardLayoutTemplate({
             const distanceIdx = baseIdx + (dx > 0 ? 1 : -1);
             let idx = Math.round(projected / width);
             if (Math.abs(dx) < width * 0.3) idx = distanceIdx;
-            idx = Math.max(0, Math.min(idx, Math.ceil(el.scrollWidth / width) - 1));
+            idx = Math.max(
+                0,
+                Math.min(idx, Math.ceil(el.scrollWidth / width) - 1),
+            );
 
             const abs = Math.abs(dx);
             const delay = abs < 20 ? 120 : abs < 80 ? 220 : 320;
@@ -207,7 +252,9 @@ export default function DashboardLayoutTemplate({
             if (!col || typeof col !== "object") continue;
             for (const entryConfig of Object.values(col)) {
                 const h = (entryConfig as any)?.height;
-                if (typeof h === "string" && h.startsWith("$")) keys.add(h.slice(1));
+                if (typeof h === "string" && h.startsWith("$")) {
+                    keys.add(h.slice(1));
+                }
             }
         }
         return Array.from(keys);
@@ -217,7 +264,9 @@ export default function DashboardLayoutTemplate({
 
     useEffect(() => {
         if (referencedHeightKeys.length === 0) {
-            setMeasuredHeights((prev) => (Object.keys(prev).length === 0 ? prev : {}));
+            setMeasuredHeights((
+                prev,
+            ) => (Object.keys(prev).length === 0 ? prev : {}));
             return;
         }
         if (typeof ResizeObserver === "undefined") return;
@@ -227,7 +276,9 @@ export default function DashboardLayoutTemplate({
             const node = heightRefs.current[key];
             if (!node) return;
             const measure = () => {
-                const nextHeight = Math.round(node.getBoundingClientRect().height);
+                const nextHeight = Math.round(
+                    node.getBoundingClientRect().height,
+                );
                 setMeasuredHeights((prev) => {
                     if (prev[key] === nextHeight) return prev;
                     return { ...prev, [key]: nextHeight };
@@ -246,7 +297,8 @@ export default function DashboardLayoutTemplate({
         if (Object.keys(measuredHeights).length === 0) return undefined;
         const cssVars = {} as CSSProperties;
         for (const [key, value] of Object.entries(measuredHeights)) {
-            (cssVars as Record<string, string>)[`--layout-${key}`] = `${value}px`;
+            (cssVars as Record<string, string>)[`--layout-${key}`] =
+                `${value}px`;
         }
         return cssVars;
     }, [measuredHeights]);
@@ -255,10 +307,12 @@ export default function DashboardLayoutTemplate({
         columnName: Column,
         entryKey: string,
         entryConfig: Record<string, any> | null | undefined,
-        entryIndex: number
+        entryIndex: number,
     ) => {
         const cfg = entryConfig ?? {};
-        const wrapperClass = ["mb-3.5", cfg.className].filter(Boolean).join(" ");
+        const wrapperClass = ["mb-3.5", cfg.className].filter(Boolean).join(
+            " ",
+        );
         const baseKey = `${columnName}-${entryKey}-${entryIndex}`;
 
         switch (entryKey) {
@@ -266,13 +320,25 @@ export default function DashboardLayoutTemplate({
                 const h = cfg.height;
                 let heightStyle: string | undefined;
                 if (typeof h === "string") {
-                    heightStyle = h.startsWith("$") ? `var(--layout-${h.slice(1)})` : h;
+                    heightStyle = h.startsWith("$")
+                        ? `var(--layout-${h.slice(1)})`
+                        : h;
                 } else if (typeof h === "number") {
                     heightStyle = `${h}px`;
                 }
                 return (
-                    <div key={baseKey} className={wrapperClass} style={heightStyle ? { height: heightStyle } : undefined}>
-                        <WidgetComponent type="placeholder" params={cfg.params} className="h-full w-full" />
+                    <div
+                        key={baseKey}
+                        className={wrapperClass}
+                        style={heightStyle
+                            ? { height: heightStyle }
+                            : undefined}
+                    >
+                        <WidgetComponent
+                            type="placeholder"
+                            params={cfg.params}
+                            className="h-full w-full"
+                        />
                     </div>
                 );
             }
@@ -280,14 +346,20 @@ export default function DashboardLayoutTemplate({
                 const ref = getHeightRefCallback("main-clock");
                 return (
                     <div key={baseKey} className={wrapperClass} ref={ref}>
-                        <GlanceableClockWidget params={cfg} className="w-full" />
+                        <GlanceableClockWidget
+                            params={cfg}
+                            className="w-full"
+                        />
                     </div>
                 );
             }
             case "search-bar":
                 return (
                     <div key={baseKey} className={wrapperClass}>
-                        <SearchBar useRedirect={true} defaultOpen={openFromURL ?? false} />
+                        <SearchBar
+                            useRedirect={true}
+                            defaultOpen={openFromURL ?? false}
+                        />
                     </div>
                 );
             case "link-view":
@@ -308,7 +380,6 @@ export default function DashboardLayoutTemplate({
 
     const renderColumn = (columnName: Column) => {
         const entries = columns?.[columnName];
-        console.log("Rendering column", columnName, "with entries", entries);
         return (
             <div
                 key={columnName}
@@ -318,7 +389,12 @@ export default function DashboardLayoutTemplate({
             >
                 {entries && typeof entries === "object"
                     ? Object.entries(entries).map(([key, cfg], i) =>
-                        renderEntry(columnName, key, cfg as Record<string, any>, i)
+                        renderEntry(
+                            columnName,
+                            key,
+                            cfg as Record<string, any>,
+                            i,
+                        )
                     )
                     : null}
             </div>
@@ -379,7 +455,8 @@ export function BottomNavbar({
     }, [token, withAuth]);
 
     const hasLeftColumn = columns?.left && Object.keys(columns.left).length > 0;
-    const hasRightColumn = columns?.right && Object.keys(columns.right).length > 0;
+    const hasRightColumn = columns?.right &&
+        Object.keys(columns.right).length > 0;
     const showThreeDots = !!(hasLeftColumn && hasRightColumn);
 
     return (
@@ -410,7 +487,10 @@ export function BottomNavbar({
                 {showPages && <PagesTabs />}
                 <div className="md:hidden fixed left-0 right-0 bottom-6 flex justify-center z-50 pointer-events-none">
                     <div className="pointer-events-auto bg-transparent px-2 py-1 rounded-full">
-                        <DotIndicator showThreeDots={showThreeDots} active={activePanel} />
+                        <DotIndicator
+                            showThreeDots={showThreeDots}
+                            active={activePanel}
+                        />
                     </div>
                 </div>
             </div>
@@ -449,15 +529,23 @@ export function BottomNavbar({
     );
 }
 
-function DotIndicator({ showThreeDots, active }: { showThreeDots: boolean; active: number }) {
-    const dotBase = "inline-block w-2.5 h-2.5 rounded-full transition-transform transition-opacity";
+function DotIndicator(
+    { showThreeDots, active }: { showThreeDots: boolean; active: number },
+) {
+    const dotBase =
+        "inline-block w-2.5 h-2.5 rounded-full transition-transform transition-opacity";
     const activeClasses = "scale-110 opacity-100";
     const inactiveClasses = "scale-100 opacity-60";
 
     if (!showThreeDots) {
         return (
             <div className="flex items-center gap-2">
-                <span className={`${dotBase} ${active === 1 ? activeClasses : inactiveClasses} bg-white`} aria-hidden />
+                <span
+                    className={`${dotBase} ${
+                        active === 1 ? activeClasses : inactiveClasses
+                    } bg-white`}
+                    aria-hidden
+                />
             </div>
         );
     }
@@ -468,7 +556,9 @@ function DotIndicator({ showThreeDots, active }: { showThreeDots: boolean; activ
                 <span
                     key={i}
                     aria-hidden
-                    className={`${dotBase} ${active === i ? activeClasses : inactiveClasses} bg-white`}
+                    className={`${dotBase} ${
+                        active === i ? activeClasses : inactiveClasses
+                    } bg-white`}
                 />
             ))}
         </div>
