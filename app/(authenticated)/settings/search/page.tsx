@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
-import { writeToConfig } from "@/lib/frontend/data/MUTATE/config/writeToConfig";
+import { updateConfigPathAction } from "@/app/actions/config";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -26,17 +26,17 @@ import SearchEngineBrowseFeedComponent from "@/components/settings/SearchEngineB
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faArrowRight } from "@fortawesome/free-solid-svg-icons";
 import { Select, SelectValue, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
-import { write } from "fs";
+import useAuth from "@/context/useAuth";
 
 export default function SearchSettingsPage() {
-  const { config, refreshConfig } = usePageConfig();
-  const [engines, setEngines] = useState<SearchEngine[]>(config?.searchEngines || []);
+  const { withAuth, user, updateUserProperty } = useAuth();
+  const [engines, setEngines] = useState<SearchEngine[]>(user.searchPreferences?.searchEngines || []);
   const [activeTab, setActiveTab] = useState("manual");
 
   // sync when config changes
   useEffect(() => {
-    setEngines(config?.searchEngines || []);
-  }, [config?.searchEngines]);
+    setEngines(user.searchPreferences?.searchEngines || []);
+  }, [user.searchPreferences?.searchEngines]);
 
   const handleOpenChange = (open: boolean) => {
     setCreateOpen(open);
@@ -51,11 +51,10 @@ export default function SearchSettingsPage() {
     setEngines(updated);
 
     try {
-      const token = localStorage.getItem("pb_token");
-      if (!token) throw new Error("Not authenticated");
-      await writeToConfig(`searchEngines`, updated, { token });
-      // refresh authoritative config on success
-      await refreshConfig();
+      updateUserProperty("searchPreferences", {
+        ...user.searchPreferences,
+        searchEngines: updated,
+      });
     } catch (err) {
       console.error("Failed to persist search engines:", err);
       // NOTE: we don't revert local state here — you can add error recovery if desired
@@ -253,8 +252,7 @@ export default function SearchSettingsPage() {
                   setEditOpen(false);
                   setEditingEngine(null);
                   try {
-                    await refreshConfig();
-                    setEngines(config?.searchEngines || []);
+                    setEngines(user.searchPreferences?.searchEngines || []);
                   } catch (err) {
                     console.warn("Error refreshing config after editing search engine", err);
                   }
@@ -274,23 +272,25 @@ export default function SearchSettingsPage() {
           </DialogContent>
         </Dialog>
           <h2 className="text-xl font-semibold mb-0">Shortcuts</h2>
-        <RedirectBangsSetting />
+        <RedirectBangsSetting user={user} />
       </div>
     </>
   );
 }
 
-function RedirectBangsSetting() {
+function RedirectBangsSetting(user) {
   const { config, refreshConfig } = usePageConfig();
+  const { withAuth } = useAuth();
 
   async function handleChange(newVal: string) {
-    await writeToConfig("global", {
+    await withAuth((auth) => updateConfigPathAction(auth, "global", {
       ...config.global,
       searchEngineShortcutFallback: newVal,
-    });
+    }, "home"));
 
-    refreshConfig();
+    await refreshConfig();
   }
+  // write to user search
 
   return (
     <div className="flex border border-transparent items-center col-span-full p-1.5 rounded-md gap-2">
@@ -298,7 +298,7 @@ function RedirectBangsSetting() {
       <p className="w-full">Redirect Unknown Shortcuts To</p>
 
       <Select
-        value={config.global.searchEngineShortcutFallback}
+        value={user.searchPreferences?.searchEngineShortcutFallback}
         onValueChange={handleChange}
       >
         <SelectTrigger>
@@ -306,7 +306,7 @@ function RedirectBangsSetting() {
         </SelectTrigger>
 
         <SelectContent>
-          {config.searchEngines.map((engine) => (
+          {user.searchPreferences?.searchEngines.map((engine) => (
             <SelectItem key={engine.slug} value={engine.slug}>
               {engine.name}
             </SelectItem>
