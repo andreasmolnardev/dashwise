@@ -9,6 +9,8 @@ type AuthWrapperProps = {
   children: ReactNode;
 };
 
+type ThemeMode = "light" | "dark" | "system";
+
 export default function AuthWrapper({ children }: AuthWrapperProps) {
   const router = useRouter();
   const { token, user } = useAuth();
@@ -23,6 +25,36 @@ export default function AuthWrapper({ children }: AuthWrapperProps) {
       router.replace("/auth/login");
     }
   }, [router, token]);
+
+  useEffect(() => {
+    if (typeof document === "undefined" || typeof window === "undefined") return;
+
+    const root = document.documentElement;
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const themeMode = (user?.appearancePreferences?.themeMode as ThemeMode | undefined) ?? "light";
+
+    const applyTheme = () => {
+      const resolvedTheme = themeMode === "system"
+        ? (media.matches ? "dark" : "light")
+        : themeMode;
+
+      root.classList.toggle("dark", resolvedTheme === "dark");
+      root.style.colorScheme = resolvedTheme;
+
+      root.classList.remove("frosted-theme-dark", "frosted-theme-light");
+      root.classList.add(resolvedTheme === "dark" ? "frosted-theme-dark" : "frosted-theme-light");
+    };
+
+    applyTheme();
+
+    if (themeMode !== "system") return;
+
+    const handleSystemThemeChange = () => applyTheme();
+    media.addEventListener("change", handleSystemThemeChange);
+    return () => {
+      media.removeEventListener("change", handleSystemThemeChange);
+    };
+  }, [user?.appearancePreferences?.themeMode]);
 
   // --- Accent color --- MOVED UP before any conditional returns
   useEffect(() => {

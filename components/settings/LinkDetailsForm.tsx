@@ -1,12 +1,25 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import useAuth from "@/context/useAuth";
 import { Button } from "@/components/ui/button";
 import { Label } from "@radix-ui/react-label";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
-import { appendConfigArrayItemAction, updateConfigPathAction } from "@/app/actions/config";
+import {
+  createHomeLinkGroupAction,
+  createLinkItemAction,
+  getHomeLinkGroupsAction,
+  updateHomeLinkItemAction
+} from "@/app/actions/links";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 import {
   Select,
   SelectContent,
@@ -19,12 +32,13 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { usePageConfig } from "@/hooks/usePageConfig";
 import IconPickerComponent, { IconResult } from "@/components/settings/IconPicker";
 import { RadioGroup, RadioGroupItem } from "../ui/radio-group";
 import { Switch } from "@/components/ui/switch";
 import { faEllipsisV, faPaperclip } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { Check, ChevronsUpDown } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface Icon {
   Name: string;
@@ -61,14 +75,32 @@ interface LinkDetailsFormProps {
   link?: LinkObject;
   onClose?: () => void | Promise<void>;
   preselectOpenedGroup?: string;
+  onOptimisticSave?: (
+    link: {
+      id: string;
+      title: string;
+      url: string;
+      iconUrl: string;
+      collection: string;
+      folder?: string;
+      statusCheck?: boolean;
+    },
+    mode: "create" | "update",
+  ) => void | (() => void);
 }
 
-export default function LinkDetailsForm({ link, onClose, preselectOpenedGroup }: LinkDetailsFormProps) {
-  const { config } = usePageConfig();
+export default function LinkDetailsForm({
+  link,
+  onClose,
+  preselectOpenedGroup,
+  onOptimisticSave,
+}: LinkDetailsFormProps) {
   const { token, withAuth } = useAuth();
 
-  const linkGroups = useMemo(() => config?.linkGroups || [], [config?.linkGroups]);
-  const links = config?.links || [];
+  const [linkGroups, setLinkGroups] = useState<string[]>([]);
+  const [linkGroupOpen, setLinkGroupOpen] = useState(false);
+  const [linkGroupInput, setLinkGroupInput] = useState("");
+  const [creatingLinkGroup, setCreatingLinkGroup] = useState(false);
 
   const [name, setName] = useState("");
   const [linkId, setLinkId] = useState(() => link?.id || generateRandomId());
@@ -93,7 +125,14 @@ export default function LinkDetailsForm({ link, onClose, preselectOpenedGroup }:
   const [icons, setIcons] = useState<Icon[]>([]);
   const [open, setOpen] = useState(false);
 
-  const isEditing = Boolean(link?.url && link?.name && link?.icon);
+  const isEditing = Boolean(link?.id);
+
+  // Load link groups (top-level folders in the user's home list)
+  useEffect(() => {
+    withAuth((auth) => getHomeLinkGroupsAction(auth))
+      .then((data) => setLinkGroups(Array.isArray(data) ? data : []))
+      .catch(console.error);
+  }, [withAuth]);
 
   // Load icons
   useEffect(() => {
@@ -190,67 +229,67 @@ export default function LinkDetailsForm({ link, onClose, preselectOpenedGroup }:
   };
 
   useEffect(() => {
-    if (linkGroups.length === 0) return;
     if (link?.name && link?.url && link?.icon) {
       setName(link.name);
       setUrl(link.url);
       setIcon({ url: link.icon, iconSet: link.icon.includes("-light") ? "mono" : "custom" });
       setIconEdited(true);
     }
-  }, [link, linkGroups]);
+  }, [link]);
 
   const saveLink = async () => {
     if (!token) throw new Error("Not authenticated");
 
-    const payload: LinkObject = {
-      id: linkId,
-      name,
+    const payload: any = {
+      title: name,
       url,
-      icon: icon?.url ?? "",
+      iconUrl: icon?.url ?? "",
       linkGroup,
+      folder,
     };
 
-    if (folder) payload.folder = folder;
-    if (statusCheck) payload.statusCheck = true;
-    if (statusCheck) {
-      const endpoint = statusCheckEndpoint.trim();
-      if (endpoint) payload.statusCheckEndpoint = endpoint;
+    // Note: statusCheck fields are not currently handled by the direct link CRUD actions
+    // but we'll focus on the core link functionality as requested.
 
-      payload.statusCheckMethod = statusCheckMethod;
+    if (isEditing && link?.id) {
+      return withAuth((auth) => updateHomeLinkItemAction(auth, link.id!, payload));
+    } else {
+      return withAuth((auth) => createLinkItemAction(auth, payload));
+    }
+  };
 
-      const parsedCodes = parseStatusCodeList(statusCheckShowAsUpRaw);
-      payload.statusCheckShowAsUp = parsedCodes.length > 0 ? parsedCodes : [200, 201, 202, 204, 301, 302, 304];
+  const filteredLinkGroups = linkGroupInput
+    ? linkGroups.filter((group) =>
+      group.toLowerCase().includes(linkGroupInput.toLowerCase())
+    )
+    : linkGroups;
 
-      if (statusCheckAuthType === "bearer" && bearerToken.trim()) {
-        payload.statusCheckAuth = { type: "bearer", token: bearerToken.trim() };
-      }
-
-      if (statusCheckAuthType === "basic" && basicUsername.trim()) {
-        payload.statusCheckAuth = {
-          type: "basic",
-          username: basicUsername.trim(),
-          password: basicPassword,
-        };
-      }
-
-      if (statusCheckAuthType === "header" && customHeaderName.trim()) {
-        payload.statusCheckAuth = {
-          type: "header",
-          name: customHeaderName.trim(),
-          value: customHeaderValue,
-        };
-      }
+  const handleSelectLinkGroup = async (value: string) => {
+    const existing = linkGroups.find(
+      (group) => group.toLowerCase() === value.toLowerCase()
+    );
+    if (existing) {
+      setLinkGroup(existing);
+      setLinkGroupOpen(false);
+      return;
     }
 
-    if (isEditing) {
-      const updatedLinks = links.map((l) =>
-        l.url === link?.url ? payload : l
-      );
-      await withAuth((auth) => updateConfigPathAction(auth, "links", updatedLinks, "home"));
-    } else {
-      await withAuth((auth) =>
-        appendConfigArrayItemAction(auth, "links", payload, "home")
-      );
+    const nextName = value.trim();
+    if (!nextName) return;
+
+    try {
+      setCreatingLinkGroup(true);
+      const created = await withAuth((auth) => createHomeLinkGroupAction(auth, nextName));
+      const nextGroup = created.name;
+      setLinkGroups((prev) => Array.from(new Set([...prev, nextGroup])));
+      setLinkGroup(nextGroup);
+      setLinkGroupOpen(false);
+      setLinkGroupInput("");
+    } catch (err) {
+      console.error(err);
+      setError("Failed to create link group");
+    } finally {
+      setCreatingLinkGroup(false);
     }
   };
 
@@ -279,10 +318,27 @@ export default function LinkDetailsForm({ link, onClose, preselectOpenedGroup }:
     setLoading(true);
     setError(null);
 
+    const optimisticId = isEditing ? link?.id : linkId;
+    const rollback = onOptimisticSave && optimisticId
+      ? onOptimisticSave(
+        {
+          id: optimisticId,
+          title: name,
+          url,
+          iconUrl: icon?.url ?? "",
+          collection: linkGroup,
+          folder: folder || undefined,
+          statusCheck,
+        },
+        isEditing ? "update" : "create",
+      )
+      : undefined;
+
     try {
       await saveLink();
       if (onClose) await onClose();
     } catch (err) {
+      if (typeof rollback === "function") rollback();
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
@@ -293,10 +349,27 @@ export default function LinkDetailsForm({ link, onClose, preselectOpenedGroup }:
     setLoading(true);
     setError(null);
 
+    const optimisticId = isEditing ? link?.id : linkId;
+    const rollback = onOptimisticSave && optimisticId
+      ? onOptimisticSave(
+        {
+          id: optimisticId,
+          title: name,
+          url,
+          iconUrl: icon?.url ?? "",
+          collection: linkGroup,
+          folder: folder || undefined,
+          statusCheck,
+        },
+        isEditing ? "update" : "create",
+      )
+      : undefined;
+
     try {
       await saveLink();
       resetForm();
     } catch (err) {
+      if (typeof rollback === "function") rollback();
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
@@ -536,21 +609,65 @@ export default function LinkDetailsForm({ link, onClose, preselectOpenedGroup }:
       <section className="flex flex-col gap-1.5 justify-center pb-10">
         <div className="flex gap-2 justify-between items-center">
           <Label className="font-medium">Link Group</Label>
-          <Select
-            defaultValue={link?.linkGroup}
-            onValueChange={(v) => setLinkGroup(v)}
-          >
-            <SelectTrigger className="rounded-full bg-white border-0 frosted">
-              <SelectValue placeholder="Link Group" />
-            </SelectTrigger>
-            <SelectContent className="frosted text-white">
-              {linkGroups.map((grp) => (
-                <SelectItem key={grp} value={grp}>
-                  {grp}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Popover open={linkGroupOpen} onOpenChange={setLinkGroupOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                role="combobox"
+                aria-expanded={linkGroupOpen}
+                className="rounded-full bg-white border-0 frosted w-[170px] justify-between"
+              >
+                {linkGroup || "Select or create"}
+                <ChevronsUpDown className="opacity-50" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[230px] p-0">
+              <Command className="text-black">
+                <CommandInput
+                  placeholder="Search or create group..."
+                  value={linkGroupInput}
+                  onValueChange={setLinkGroupInput}
+                  className="h-9"
+                />
+                <CommandList>
+                  <CommandEmpty>
+                    {linkGroupInput ? `Create \"${linkGroupInput}\"` : "No groups found."}
+                  </CommandEmpty>
+                  <CommandGroup className="text-black">
+                    {filteredLinkGroups.map((group) => (
+                      <CommandItem
+                        key={group}
+                        value={group}
+                        onSelect={() => handleSelectLinkGroup(group)}
+                      >
+                        {group}
+                        <Check
+                          className={cn(
+                            "ml-auto",
+                            linkGroup === group ? "opacity-100" : "opacity-0"
+                          )}
+                        />
+                      </CommandItem>
+                    ))}
+                    {linkGroupInput &&
+                      !linkGroups.some(
+                        (group) => group.toLowerCase() === linkGroupInput.toLowerCase()
+                      ) && (
+                        <CommandItem
+                          value={linkGroupInput}
+                          disabled={creatingLinkGroup}
+                          onSelect={() => handleSelectLinkGroup(linkGroupInput)}
+                        >
+                          {creatingLinkGroup
+                            ? "Creating..."
+                            : `Create \"${linkGroupInput}\"`}
+                        </CommandItem>
+                      )}
+                  </CommandGroup>
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
         </div>
         <div className="flex gap-4 justify-between items-center">
           <Label className="font-medium">Folder</Label>

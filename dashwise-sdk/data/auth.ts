@@ -18,13 +18,92 @@ export type ActionAuth = {
   token?: string | null;
 };
 
+const AUTH_CACHE_TTL_MS = 5000;
+const AUTH_REFRESH_LEEWAY_MS = 30_000;
+const tokenAuthCache = new Map<string, { userId: string; expiresAt: number }>();
+
+function decodeJwtPayload(token: string): Record<string, any> | null {
+  const parts = token.split(".");
+  if (parts.length < 2) {
+    return null;
+  }
+
+  try {
+    const base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, "=");
+    const decoded = Buffer.from(padded, "base64").toString("utf8");
+    return JSON.parse(decoded);
+  } catch {
+    return null;
+  }
+}
+
+function readTokenClaims(token: string) {
+  const payload = decodeJwtPayload(token);
+  if (!payload) {
+    return { userId: null, expMs: null };
+  }
+
+  const userIdCandidates = [payload.id, payload.sub, payload.userId, payload.recordId];
+  const userId = userIdCandidates.find((value) => typeof value === "string") ?? null;
+  const expMs = typeof payload.exp === "number" ? payload.exp * 1000 : null;
+
+  return { userId, expMs };
+}
+
+function readCachedUserId(token: string): string | null {
+  const cached = tokenAuthCache.get(token);
+  if (!cached) {
+    return null;
+  }
+
+  if (cached.expiresAt <= Date.now()) {
+    tokenAuthCache.delete(token);
+    return null;
+  }
+
+  return cached.userId;
+}
+
+function cacheTokenUserId(token: string, userId: string, expMs: number | null) {
+  const now = Date.now();
+  const baseExpiresAt = now + AUTH_CACHE_TTL_MS;
+  const tokenSafeUntil = expMs ? expMs - AUTH_REFRESH_LEEWAY_MS : null;
+  const expiresAt = tokenSafeUntil ? Math.min(baseExpiresAt, tokenSafeUntil) : baseExpiresAt;
+
+  if (expiresAt <= now) {
+    return;
+  }
+
+  tokenAuthCache.set(token, { userId, expiresAt });
+}
+
 export async function requireUserAuth(auth?: ActionAuth) {
   if (!auth?.token) {
     throw new ApiActionError("Unauthorized", 401, { error: "Unauthorized" });
   }
 
+  const token = auth.token;
   const pb = getServerPB();
-  pb.authStore.save(auth.token, null);
+  pb.authStore.save(token, null);
+
+  const cachedUserId = readCachedUserId(token);
+  if (cachedUserId) {
+    return { pb, userId: cachedUserId, authModel: null };
+  }
+
+  const now = Date.now();
+  const { userId: claimedUserId, expMs } = readTokenClaims(token);
+  const shouldRefresh =
+    !pb.authStore.isValid ||
+    !claimedUserId ||
+    !expMs ||
+    expMs - now <= AUTH_REFRESH_LEEWAY_MS;
+
+  if (!shouldRefresh) {
+    cacheTokenUserId(token, claimedUserId, expMs);
+    return { pb, userId: claimedUserId, authModel: null };
+  }
 
   try {
     const authModel = await pb.collection("users").authRefresh();
@@ -33,6 +112,8 @@ export async function requireUserAuth(auth?: ActionAuth) {
     if (!userId) {
       throw new ApiActionError("Unauthorized", 401, { error: "Unauthorized" });
     }
+
+    cacheTokenUserId(pb.authStore.token || token, userId, readTokenClaims(pb.authStore.token || token).expMs);
 
     return { pb, userId, authModel };
   } catch (error) {
@@ -99,6 +180,7 @@ export async function signupUser(payload: {
   email: string;
   password: string;
   passwordConfirm: string;
+  userConfig?: Record<string, any>;
 }) {
   if (config.disableUserSignup) {
     throw new ApiActionError("Signup failed.", 401, {
@@ -106,7 +188,7 @@ export async function signupUser(payload: {
     });
   }
 
-  const { _name, email, password, passwordConfirm } = payload;
+  const { _name, email, password, passwordConfirm, userConfig } = payload;
   if (!email || !password || !passwordConfirm) {
     throw new ApiActionError("All fields are required", 400, {
       error: "All fields are required",
@@ -129,77 +211,6 @@ export async function signupUser(payload: {
       .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
       .join(" ");
   }
-  //TODO: Load from storage
-
-  const defaultAppearancePreferences = {
-    "backgroundImageUrl": "/dashboard-wallpaper.png",
-    "wallpaperFilters": {
-      "blur": 10,
-      "brightness": 61,
-    },
-    "themeMode": "light"
-  };
-  const defaultSearchPreferences = {
-    "searchEngines": [
-        {
-            "icon": "/icons/svg/google.svg",
-            "name": "Google",
-            "slug": "g",
-            "status": "default",
-            "url_home": "https://www.google.com",
-            "url_params": "https://www.google.com/search?q=%s"
-        },
-        {
-            "icon": "/icons/svg/google-images.svg",
-            "name": "Google Images",
-            "slug": "gi",
-            "status": "enabled",
-            "url_home": "https://images.google.com",
-            "url_params": "https://images.google.com/search?q=%s&tbm=isch"
-        },
-        {
-            "icon": "/icons/svg/youtube.svg",
-            "name": "YouTube",
-            "slug": "yt",
-            "status": "enabled",
-            "url_home": "https://www.youtube.com",
-            "url_params": "https://www.youtube.com/results?search_query=%s"
-        },
-        {
-            "icon": "/icons/svg/bing.svg",
-            "name": "Bing",
-            "slug": "b",
-            "status": "enabled",
-            "url_home": "https://www.bing.com",
-            "url_params": "https://www.bing.com/search?q=%s"
-        },
-        {
-            "icon": "/icons/svg/duckduckgo.svg",
-            "name": "DuckDuckGo",
-            "slug": "ddg",
-            "status": "enabled",
-            "url_home": "https://duckduckgo.com",
-            "url_params": "https://duckduckgo.com/?q=%s"
-        },
-        {
-            "icon": "/icons/svg/startpage.svg",
-            "name": "Startpage",
-            "slug": "sp",
-            "status": "enabled",
-            "url_home": "https://www.startpage.com",
-            "url_params": "https://www.startpage.com/sp/search?query=%s"
-        }
-    ]
-  };
-  const defaultLocalizationPreferences = {
-    "dateFormat": "MM-DD-YYYY",
-    "language": "en",
-    "locale": "en-US",
-    "searchEngineShortcutFallback": "ddg",
-    "timeFormat": "12-hour",
-    "weatherLocation": "{\"name\":\"New York, New York, United States\",\"lat\":\"40.7128\",\"lon\":\"-74.0060\"}",
-    "weatherUnit": "f"
-  };
 
   const pb = getServerPB();
   const user = await pb.collection("users").create({
@@ -207,17 +218,17 @@ export async function signupUser(payload: {
     email,
     password,
     passwordConfirm,
-    localizationPreferences: defaultLocalizationPreferences,
-    appearancePreferences: defaultAppearancePreferences,
-    searchPreferences: defaultSearchPreferences,
+    localizationPreferences: userConfig?.preferences?.localization || {},
+    appearancePreferences: userConfig?.preferences?.appearance || {},
+    searchPreferences: userConfig?.preferences?.search || {},
   });
 
-  // Default home configuration. In client/server environments where fs/path is not supported,
-  // we use a fetch to get the default config from the public folder.
+  //TODO: REplace with real storage
+  
   let defaultHomeJson = {};
   try {
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "";
-    const response = await fetch(`${baseUrl}/home.json`);
+    const response = await fetch(`${baseUrl}/defaults/home.json`);
     if (response.ok) {
       defaultHomeJson = await response.json();
     }

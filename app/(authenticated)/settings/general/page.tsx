@@ -8,11 +8,20 @@ import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
 import LocationSelectFormComponent from "@/components/settings/LocationSelectForm";
-import { writeToConfig } from "@/lib/frontend/data/MUTATE/config/writeToConfig";
 import useAuth from "@/context/useAuth";
 import { runPullIconsAction } from "@/app/actions/misc";
+import { updateConfigPathAction } from "@/app/actions/config";
 
 type TimeFormatValue = "24-hour" | "12-hour";
+
+const LOCALIZATION_PREFERENCE_KEYS = new Set([
+  "dateFormat",
+  "language",
+  "locale",
+  "timeFormat",
+  "weatherLocation",
+  "weatherUnit",
+]);
 
 function normalizeTimeFormat(value: unknown): TimeFormatValue {
   if (value === "12-hour" || value === "12h" || value === 12 || value === "12") {
@@ -112,7 +121,7 @@ export default function GeneralSettingsPage() {
 
 function LocalizationSettings() {
   const { config, patchConfig } = usePageConfig();
-  const { token } = useAuth();
+  const { withAuth, user, updateUserProperty } = useAuth();
 
   const globalConfig = config?.global ?? {};
   const timeFormat = normalizeTimeFormat(globalConfig?.timeFormat ?? globalConfig?.["time-format"]);
@@ -124,7 +133,16 @@ function LocalizationSettings() {
       ...prev,
       global: nextGlobal,
     }));
-    await writeToConfig("global", nextGlobal, { token });
+
+    const nextLocalizationPreferences = {
+      ...(user?.localizationPreferences || {}),
+      ...Object.fromEntries(
+        Object.entries(patch).filter(([key]) => LOCALIZATION_PREFERENCE_KEYS.has(key))
+      ),
+    };
+
+    await withAuth((auth) => updateConfigPathAction(auth, "global", nextGlobal, "home"));
+    await updateUserProperty("localizationPreferences", nextLocalizationPreferences);
   }
 
   return (
@@ -177,7 +195,7 @@ function LocalizationSettings() {
 
 function WeatherUnitSelector() {
   const { config, patchConfig } = usePageConfig();
-  const { token } = useAuth();
+  const { withAuth, user, updateUserProperty } = useAuth();
   const value = config?.global?.weatherUnit ?? "c";
 
   async function handleChange(unit: "c" | "f") {
@@ -187,9 +205,10 @@ function WeatherUnitSelector() {
       global: nextGlobal,
     }));
 
-    await writeToConfig("global", nextGlobal, {
-      token,
-      dispatchEvent: true
+    await withAuth((auth) => updateConfigPathAction(auth, "global", nextGlobal, "home"));
+    await updateUserProperty("localizationPreferences", {
+      ...(user?.localizationPreferences || {}),
+      weatherUnit: unit,
     });
   }
 
@@ -221,7 +240,7 @@ function WeatherUnitSelector() {
 
 function WeatherLocationSelector() {
   const { config, patchConfig } = usePageConfig();
-  const { token } = useAuth();
+  const { withAuth, user, updateUserProperty } = useAuth();
   const [open, setOpen] = useState(false);
 
   // derive current global location (if any)
@@ -259,12 +278,18 @@ function WeatherLocationSelector() {
       weatherLocation: JSON.stringify({ name: value.displayName || "", lat, lon }),
     };
 
+    const nextWeatherLocation = JSON.stringify({ name: value.displayName || "", lat, lon });
+
     try {
       patchConfig((prev) => ({
         ...prev,
         global: updatedGlobal,
       }));
-      await writeToConfig("global", updatedGlobal, { token });
+      await withAuth((auth) => updateConfigPathAction(auth, "global", updatedGlobal, "home"));
+      await updateUserProperty("localizationPreferences", {
+        ...(user?.localizationPreferences || {}),
+        weatherLocation: nextWeatherLocation,
+      });
       setOpen(false);
     } catch (err) {
       console.error("Failed to update weatherLocation", err);
@@ -301,7 +326,7 @@ function WeatherLocationSelector() {
 
 function LinkOpeningBehaviourSelect() {
   const { config, patchConfig } = usePageConfig();
-  const { token } = useAuth();
+  const { withAuth } = useAuth();
   const value = config?.global?.linkOpenBehaviour ?? "sametab";
 
   async function handleChange(setting: "newtab" | "sametab") {
@@ -315,7 +340,7 @@ function LinkOpeningBehaviourSelect() {
       global: nextGlobal,
     }));
 
-    await writeToConfig("global", nextGlobal, { token })
+    await withAuth((auth) => updateConfigPathAction(auth, "global", nextGlobal, "home"));
   }
 
   return (

@@ -9,13 +9,16 @@ export async function getAppInfo() {
   const pb = getServerPB();
   const instanceName = "dashwise";
 
-  const record = await pb
-    .collection("appInfo")
-    .getFirstListItem(`instanceName = "${instanceName.toLowerCase()}"`);
+  const result = await pb.collection("appInfo").getList(1, 1, {
+    filter: `instanceName = "${instanceName.toLowerCase()}"`,
+    skipTotal: true,
+  }).catch(() => ({ items: [] }));
+
+  const record = result.items[0];
 
   return {
-    updateAvailable: record.updateAvailable,
-    currentAppVersion: config.version,
-    userSignupDisabled: config.disableUserSignup,
+    updateAvailable: record?.updateAvailable || false,
+    currentAppVersion: config.version || "unknown",
+    userSignupDisabled: config.disableUserSignup || false,
   };
 }

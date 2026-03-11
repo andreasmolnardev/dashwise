@@ -16,7 +16,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { ColorPicker } from "@/components/settings/ColorPicker";
 import { usePageConfig } from "@/hooks/usePageConfig";
-import { writeToConfig } from "@/lib/frontend/data/MUTATE/config/writeToConfig";
+import useAuth from "@/context/useAuth";
 
 type ThemeMode = "system" | "dark" | "light";
 
@@ -50,7 +50,8 @@ function applyThemeClasses(themeMode: ThemeMode, frostedAppearance: ThemeMode = 
 }
 
 export default function AccentColorSelectComponent({ className }: { className?: string }) {
-  const { config, refreshConfig } = usePageConfig();
+  const { config, patchConfig } = usePageConfig();
+  const { user, updateUserProperty } = useAuth();
   const [accent, setAccent] = useState<string | undefined>(
     config?.appearance?.accentColor
   );
@@ -59,14 +60,16 @@ export default function AccentColorSelectComponent({ className }: { className?: 
   );
 
   useEffect(() => {
-    setAccent(config?.appearance?.accentColor ?? "#6b21a8");
-  }, [config?.appearance?.accentColor]);
+    const currentAppearance = user?.appearancePreferences || config?.appearance;
+    setAccent(currentAppearance?.accentColor ?? "#6b21a8");
+  }, [user?.appearancePreferences, config?.appearance]);
 
   useEffect(() => {
-    const nextMode = config?.appearance?.themeMode ?? config?.appearance?.frostedAppearance ?? "system";
+    const currentAppearance = user?.appearancePreferences || config?.appearance;
+    const nextMode = currentAppearance?.themeMode ?? currentAppearance?.frostedAppearance ?? "system";
     setThemeMode(nextMode);
-    applyThemeClasses(nextMode, config?.appearance?.frostedAppearance ?? nextMode);
-  }, [config?.appearance?.themeMode, config?.appearance?.frostedAppearance]);
+    applyThemeClasses(nextMode, currentAppearance?.frostedAppearance ?? nextMode);
+  }, [user?.appearancePreferences, config?.appearance]);
 
   const PRESET_COLORS = [
     "#0066FF",
@@ -98,9 +101,15 @@ export default function AccentColorSelectComponent({ className }: { className?: 
 
     // persist to server
     try {
-      const appearanceConfig: AppearanceConfig = { ...(config?.appearance || {}), accentColor: color_hex };
-      await writeToConfig("appearance", appearanceConfig);
-      await refreshConfig();
+      const currentAppearance = user?.appearancePreferences || config?.appearance || {};
+      const appearanceConfig: AppearanceConfig = { ...currentAppearance, accentColor: color_hex };
+
+      patchConfig((prev) => ({
+        ...prev,
+        appearance: appearanceConfig,
+      }));
+
+      await updateUserProperty("appearancePreferences", appearanceConfig);
     } catch (err: unknown) {
       if (err instanceof Error) {
         console.error("Failed to update accent color:", err.message);
@@ -115,13 +124,19 @@ export default function AccentColorSelectComponent({ className }: { className?: 
     applyThemeClasses(newMode, newMode);
 
     try {
+      const currentAppearance = user?.appearancePreferences || config?.appearance || {};
       const appearanceConfig: AppearanceConfig = {
-        ...(config?.appearance || {}),
+        ...currentAppearance,
         themeMode: newMode,
         frostedAppearance: newMode,
       };
-      await writeToConfig("appearance", appearanceConfig);
-      await refreshConfig();
+
+      patchConfig((prev) => ({
+        ...prev,
+        appearance: appearanceConfig,
+      }));
+
+      await updateUserProperty("appearancePreferences", appearanceConfig);
     } catch (err: unknown) {
       if (err instanceof Error) {
         console.error("Failed to update theme mode:", err.message);

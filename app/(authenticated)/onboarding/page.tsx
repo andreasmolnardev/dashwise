@@ -4,12 +4,12 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { usePageConfig } from "@/hooks/usePageConfig";
 import useAuth from "@/context/useAuth";
-import { writeToConfig } from "@/lib/frontend/data/MUTATE/config/writeToConfig";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import ThemeSelectComponent from "@/components/settings/ThemeSelect";
 import UploadWallpaperDialogComponent from "@/components/settings/UploadWallpaperDialog";
 import UrlWallpaperDialogComponent from "@/components/settings/UrlWallpaperDialog";
+import { updateConfigPathAction } from "@/app/actions/config";
 
 type TimeFormatValue = "24-hour" | "12-hour";
 
@@ -30,7 +30,7 @@ const DATE_FORMAT_OPTIONS = [
 export default function OnboardingPage() {
   const router = useRouter();
   const { config, patchConfig } = usePageConfig();
-  const { token } = useAuth();
+  const { withAuth } = useAuth();
 
   const [step, setStep] = useState(0);
   const [busy, setBusy] = useState(false);
@@ -62,11 +62,7 @@ export default function OnboardingPage() {
       global: nextGlobal,
     }));
 
-    await writeToConfig(
-      "global",
-      nextGlobal,
-      { token }
-    );
+    await withAuth((auth) => updateConfigPathAction(auth, "global", nextGlobal, "home"));
   }
 
   async function finishOnboarding() {
@@ -82,11 +78,7 @@ export default function OnboardingPage() {
         meta: nextMeta,
       }));
 
-      await writeToConfig(
-        "meta",
-        nextMeta,
-        { token }
-      );
+      await withAuth((auth) => updateConfigPathAction(auth, "meta", nextMeta, "home"));
       router.replace("/home");
     } finally {
       setBusy(false);

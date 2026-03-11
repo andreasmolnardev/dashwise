@@ -12,7 +12,6 @@ const navItems = [
   { href: "/settings/appearance", label: "Appearance", icon: faBrush },
   { href: "/settings/screensaver", label: "Screensaver", icon: faDisplay },
   { href: "/settings/glanceables", label: "Glanceables", icon: faGripLines },
-  { href: "/settings/links", label: "Links", icon: faPaperclip },
   { href: "/settings/search", label: "Search", icon: faMagnifyingGlass },
   { href: "/settings/integrations", label: "Integrations", icon: faPuzzlePiece },
   { href: "/settings/widgets", label: "Widgets", icon: faChartLine },

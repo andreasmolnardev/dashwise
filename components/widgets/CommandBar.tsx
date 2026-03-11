@@ -54,6 +54,7 @@ type CommandBarProps = {
   open: boolean;
   setOpen: React.Dispatch<React.SetStateAction<boolean>>;
   searchItems: IncomingSearchItem[];
+  config: Record<string, any>,
 };
 
 
@@ -102,8 +103,7 @@ function normalizeConfigLinks(input: IncomingSearchItem[] = []): LinkItem[] {
 }
 
 
-export default function CommandBar({ open, setOpen, searchItems }: CommandBarProps) {
-  const { config } = usePageConfig();
+export default function CommandBar({ open, setOpen, searchItems, config }: CommandBarProps) {
   // search engines still read from config (unchanged)
   const searchEngines: SearchEngine[] = (config.searchEngines || []) as SearchEngine[];
 
@@ -252,7 +252,7 @@ export default function CommandBar({ open, setOpen, searchItems }: CommandBarPro
     const parsed = parseBang(trimmedQuery);
     if (!currentAppId && parsed) {
       const engine = searchEngines.find((se) => (se.slug || '').toLowerCase() === parsed.slug);
-      const fallbackEngine = searchEngines.find((se) => (se.slug || '').toLowerCase() === config.global.searchEngineShortcutFallback)
+      const fallbackEngine = searchEngines.find((se) => (se.slug || '').toLowerCase() == config.searchEngineShortcutFallback)
       if (engine) {
         items.unshift({
           name: `Search with ${engine.name} (${engine.slug ? '!' + engine.slug : ''})`,

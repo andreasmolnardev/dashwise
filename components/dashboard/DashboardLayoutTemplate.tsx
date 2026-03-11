@@ -10,7 +10,6 @@ import PagesTabs from "../PagesTabs";
 import UpdateDetailsDialogComponent from "./UpdateDetailsDialog";
 import useAuth from "@/context/useAuth";
 import { getNotificationsAction } from "@/app/actions/notifications/items";
-import { getHomeLinksAction } from "@/app/actions/links";
 import WidgetComponent from "../widgets/Widget";
 import GlanceableClockWidget from "../widgets/dashboard/GlanceableClock";
 import SearchBar from "../widgets/SearchBar";
@@ -45,40 +44,7 @@ export default function DashboardLayoutTemplate({
     const searchParams = useSearchParams();
     const openFromURL = searchParams.get("search") === "1";
 
-
-    const { token, withAuth } = useAuth();
-    const [homeLinks, setHomeLinks] = useState<any[]>([]);
-
-    const LINKS_CACHE_KEY = (userId: string) => `home-links:${userId}`;
-
-    useEffect(() => {
-        if (!token) return;
-
-        try {
-            const userId = /* get from token/auth */ token;
-            const raw = localStorage.getItem(LINKS_CACHE_KEY(userId));
-            if (raw) {
-                const { data, timestamp } = JSON.parse(raw);
-                setHomeLinks(data); // Show stale while revalidating
-            }
-        } catch {}
-
-        // Fetch fresh data in background
-        withAuth((auth) => getHomeLinksAction(auth))
-            .then((fresh) => {
-                console.log("Fetched fresh home links:", fresh);
-                setHomeLinks(fresh);
-                try {
-                    localStorage.setItem(
-                        LINKS_CACHE_KEY(token),
-                        JSON.stringify({ data: fresh, timestamp: Date.now() }),
-                    );
-                } catch {}
-            })
-            .catch((err) => {
-                console.error("Failed to fetch home links:", err);
-            });
-    }, [token, withAuth]);
+    console.log(config)
 
     const containerRef = useRef<HTMLDivElement | null>(null);
     const [activePanel, setActivePanel] = useState<number>(1);
@@ -365,7 +331,7 @@ export default function DashboardLayoutTemplate({
             case "link-view":
                 return (
                     <div key={baseKey} className={wrapperClass}>
-                        <LinkView links={homeLinks} />
+                        <LinkView links={cfg.data ?? cfg.links ?? []} />
                     </div>
                 );
             default:

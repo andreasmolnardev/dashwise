@@ -78,6 +78,7 @@ function GlanceableLocalTimezone({ className }: { className?: string }) {
 function GlanceableWeather({ params, className }: { params?: Record<string, any>, className?: string }) {
   const { config } = usePageConfig();
   const { weatherUnit } = useLocalization();
+  const preloadedWeather = params?.data;
 
   const weatherLocation: WeatherLocation | null = useMemo(() => {
     if (params?.locationDisplayname && params?.locationCoordinates) {
@@ -142,15 +143,22 @@ function GlanceableWeather({ params, className }: { params?: Record<string, any>
   ]);
 
   const unit = String(params?.unit || weatherUnit || "c").toLowerCase();
-  const [weather, setWeather] = useState<any>(null);
+  const [weather, setWeather] = useState<any>(preloadedWeather ?? null);
 
   useEffect(() => {
+    if (preloadedWeather) {
+      setWeather(preloadedWeather);
+    }
+  }, [preloadedWeather]);
+
+  useEffect(() => {
+    if (preloadedWeather) return;
     if (weatherLocation) {
       getWeatherAction({ lat: String(weatherLocation.lat), lon: String(weatherLocation.lon), unit })
         .then((data) => setWeather({ ...data, name: weatherLocation.name }))
         .catch((err) => console.error("Failed to load weather:", err));
     }
-  }, [weatherLocation, unit]);
+  }, [preloadedWeather, weatherLocation, unit]);
 
   if (!weather) {
     return <div className={`glanceable-weather ${className || ""}`}>Loading…</div>;

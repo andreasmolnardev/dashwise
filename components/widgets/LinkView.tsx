@@ -1,36 +1,79 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { usePageConfig } from "@/hooks/usePageConfig";
 import useAuth from "@/context/useAuth";
-import { cn } from "@/lib/utils";
 import { getMonitoringStatusAction } from "@/app/actions/monitoring";
+import { getHomeLinksAction } from "@/app/actions/links";
 import { PaginatedCarouselViewComponent } from "./PaginatedCarouselView";
 import MonitoringDialog, { JobEntry } from "./MonitoringDialog";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faFolder, faXmark } from "@fortawesome/free-solid-svg-icons";
+import { faEdit, faFolder, faLink, faPlus, faXmark } from "@fortawesome/free-solid-svg-icons";
 import { PopoverClose } from "@radix-ui/react-popover";
 import { Button } from "../ui/button";
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
+
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import LinkDetailsForm from "@/components/settings/LinkDetailsForm";
 
 export interface LinkType {
   id?: string;
-  name?: string;
+  title?: string;
   url?: string;
-  icon?: string;
+  iconUrl?: string;
+  collection?: string;
   folder?: string;
-  linkGroup?: string;
   statusCheck?: boolean;
-  statusCheckEndpoint?: string;
-  statusCheckMethod?: "GET" | "HEAD" | "POST" | "PUT" | "PATCH" | "DELETE" | "OPTIONS";
 }
 
-export default function LinkView() {
+export default function LinkView({ links = [] }: { links?: LinkType[] }) {
   const { config } = usePageConfig();
   const { token, withAuth } = useAuth();
-  
-  const [activeGroup, setActiveGroup] = useState<string>(config.linkGroups[0]);
-  const filtered = config.links.filter((link: LinkType) => link.linkGroup === activeGroup);
+  const [localLinks, setLocalLinks] = useState<LinkType[]>(links);
+
+  useEffect(() => {
+    setLocalLinks(links);
+  }, [links]);
+
+  const [activeCollection, setActiveCollection] = useState<string | null>(null);
+
+  const collections = useMemo(
+    () => [...new Set(localLinks.map((l) => l.collection).filter(Boolean))] as string[],
+    [localLinks]
+  );
+
+  const visibleLinks = useMemo(
+    () => (activeCollection ? localLinks.filter((l) => l.collection === activeCollection) : localLinks),
+    [localLinks, activeCollection]
+  );
+
+  useEffect(() => {
+    if (!collections.length) {
+      setActiveCollection(null);
+      return;
+    }
+
+    if (!activeCollection || !collections.includes(activeCollection)) {
+      setActiveCollection(collections[0]);
+    }
+  }, [collections, activeCollection]);
 
   const emittedFolders = new Set<string>();
   type Item =
@@ -39,10 +82,10 @@ export default function LinkView() {
 
   const items: Item[] = [];
 
-  for (const l of filtered) {
+  for (const l of visibleLinks) {
     if (l.folder) {
       if (!emittedFolders.has(l.folder)) {
-        const children = filtered.filter((x) => x.folder === l.folder);
+        const children = visibleLinks.filter((x) => x.folder === l.folder);
         items.push({ type: "folder", name: l.folder, links: children });
         emittedFolders.add(l.folder);
       }
@@ -51,17 +94,20 @@ export default function LinkView() {
     }
   }
 
-
   const [statusMap, setStatusMap] = useState<Record<string, boolean>>({});
 
-  const [monitoringDetails, setMonitoringDetails] = useState<Record<string, {
-    status: string;
-    dateChanged: string | null;
-    durationChanged: number | null;
-    endpoint?: string;
-  }> | null>(null);
+  const [monitoringDetails, setMonitoringDetails] = useState<
+    Record<string, {
+      status: string;
+      dateChanged: string | null;
+      durationChanged: number | null;
+      endpoint?: string;
+    }> | null
+  >(null);
 
   const [openDialogFor, setOpenDialogFor] = useState<string | null>(null);
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [editingLink, setEditingLink] = useState<LinkType | null>(null);
 
   function serverStatusToBool(status?: string | null): boolean | undefined {
     if (status === undefined || status === null) return undefined;
@@ -70,11 +116,10 @@ export default function LinkView() {
     return false;
   }
 
-  async function fetchMonitoringStatuses() {
-      try {
+  const fetchMonitoringStatuses = React.useCallback(async () => {
+    try {
       if (typeof window === "undefined") return;
       if (!token) {
-        // no token — clear details
         setMonitoringDetails(null);
         setStatusMap({});
         return;
@@ -88,12 +133,11 @@ export default function LinkView() {
         return;
       }
 
-
       const normalized: Record<string, any> = {};
       for (const [rawKey, entry] of Object.entries(data || {})) {
         const keyStr = String(rawKey);
         if (keyStr.startsWith("link ")) {
-          const id = keyStr.slice(5); // remove "link " prefix
+          const id = keyStr.slice(5);
           normalized[id] = entry;
         } else {
           normalized[rawKey] = entry;
@@ -102,7 +146,6 @@ export default function LinkView() {
 
       setMonitoringDetails(normalized);
 
-      // map to simple boolean status map keyed by linkId
       const next: Record<string, boolean> = {};
       for (const [linkId, entry] of Object.entries(normalized)) {
         next[linkId] = serverStatusToBool((entry as any).status) as boolean;
@@ -111,9 +154,8 @@ export default function LinkView() {
     } catch (err) {
       console.error("Failed to fetch monitoring statuses:", err);
     }
-  }
+  }, [token, withAuth]);
 
-  // Initial fetch + periodic polling (30s). No client favicon probes anywhere.
   useEffect(() => {
     let mounted = true;
     fetchMonitoringStatuses();
@@ -127,97 +169,196 @@ export default function LinkView() {
       mounted = false;
       clearInterval(id);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [fetchMonitoringStatuses]);
 
-  // Find the full link object based on the ID in state
   const selectedLink = openDialogFor
-    ? config.links.find((l: LinkType) => l.id === openDialogFor)
+    ? localLinks.find((l: LinkType) => l.id === openDialogFor)
     : undefined;
+
+  const refreshHomeLinks = React.useCallback(async () => {
+    try {
+      const data = await withAuth((auth) => getHomeLinksAction(auth));
+      if (Array.isArray(data)) {
+        setLocalLinks(data as LinkType[]);
+      }
+    } catch (err) {
+      console.error("Failed to refresh home links:", err);
+    }
+  }, [withAuth]);
+
+  const handleOptimisticSave = React.useCallback(
+    (
+      draft: {
+        id: string;
+        title: string;
+        url: string;
+        iconUrl: string;
+        collection: string;
+        folder?: string;
+        statusCheck?: boolean;
+      },
+      mode: "create" | "update",
+    ) => {
+      let rollback: () => void = () => undefined;
+
+      setLocalLinks((prev) => {
+        if (mode === "update") {
+          const previous = prev.find((l) => l.id === draft.id);
+          if (previous) {
+            rollback = () => {
+              setLocalLinks((current) =>
+                current.map((l) => (l.id === previous.id ? previous : l)),
+              );
+            };
+
+            return prev.map((l) =>
+              l.id === draft.id
+                ? {
+                    ...l,
+                    title: draft.title,
+                    url: draft.url,
+                    iconUrl: draft.iconUrl,
+                    collection: draft.collection,
+                    folder: draft.folder,
+                    statusCheck: draft.statusCheck,
+                  }
+                : l,
+            );
+          }
+        }
+
+        rollback = () => {
+          setLocalLinks((current) => current.filter((l) => l.id !== draft.id));
+        };
+
+        return [
+          ...prev,
+          {
+            id: draft.id,
+            title: draft.title,
+            url: draft.url,
+            iconUrl: draft.iconUrl,
+            collection: draft.collection,
+            folder: draft.folder,
+            statusCheck: draft.statusCheck,
+          },
+        ];
+      });
+
+      return rollback;
+    },
+    [],
+  );
 
   return (
     <div className="space-y-2">
-      {/* GROUP BUTTONS */}
-      <div className="flex gap-2">
-        {config.linkGroups.map((g) => (
-          <button
-            key={g}
-            onClick={() => setActiveGroup(g)}
-            className={cn(
-              "px-4 py-2 rounded-xl text-sm font-medium transition",
-              activeGroup === g
-                ? "bg-white/20 backdrop-blur-md text-white border border-(--primary)"
-                : "bg-white/10 text-gray-100 hover:bg-white/20"
-            )}
-          >
-            {g}
-          </button>
-        ))}
-      </div>
+      {/* Collection filter chips */}
+      {collections.length > 0 && (
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex gap-2 flex-wrap">
+            {collections.map((col) => (
+              <button
+                key={col}
+                onClick={() => setActiveCollection(col)}
+                className={`px-3 py-1 rounded-lg font-medium text-sm transition-colors frosted hover:text-primary ${
+                  activeCollection === col
+                    ? " text-white outline-1 outline-primary"
+                    : " text-white/70 hover:text-white"
+                }`}
+              >
+                {col}
+              </button>
+            ))}
+          </div>
 
-      {/* PAGINATED LINKS */}
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="frosted rounded-full"
+            onClick={() => setIsAddDialogOpen(true)}
+            title="Add link"
+            aria-label="Add link"
+          >
+            <FontAwesomeIcon icon={faPlus} />
+          </Button>
+        </div>
+      )}
+
       <PaginatedCarouselViewComponent minColWidth={140}>
-        {items.map((item) => {
+        {items.map((item, itemIdx) => {
           if (item.type === "link") {
             const link = item.link;
-            const serverEntry = link.id && monitoringDetails ? monitoringDetails[link.id] : undefined;
+            const serverEntry = link.id && monitoringDetails
+              ? monitoringDetails[link.id]
+              : undefined;
             const serverStatus = serverEntry?.status;
             const isHealthy = serverStatus === "healthy";
             const isDisabled = serverStatus === "disabled";
             const showDot = Boolean(link.statusCheck);
-            const isMono = link.icon?.includes("-light");
 
             return (
               <a
-                key={link.id || link.url}
+                key={link.id || link.url || itemIdx}
                 href={link.url}
                 target={config?.global?.linkOpenBehaviour === "newtab" ? "_blank" : "_self"}
                 rel={config?.global?.linkOpenBehaviour === "newtab" ? "noopener noreferrer" : undefined}
                 className="group flex flex-col items-center justify-between space-y-2 frosted rounded-2xl p-2 hover:text-(primary) transition-colors min-h-18 w-full"
               >
-                {isMono ? (
-                  <div
-                    className="h-[35px] w-[35px] bg-white group-hover:bg-(--primary) transition"
-                    style={{
-                      maskImage: `url(${link.icon})`,
-                      WebkitMaskImage: `url(${link.icon})`,
-                      maskRepeat: "no-repeat",
-                      WebkitMaskRepeat: "no-repeat",
-                      maskPosition: "center",
-                      WebkitMaskPosition: "center",
-                      maskSize: "contain",
-                      WebkitMaskSize: "contain",
-                    }}
+                {link.iconUrl ? (
+                  <img
+                    src={link.iconUrl}
+                    alt={link.title ?? "Icon"}
+                    className="h-[35px] w-[35px] object-contain rounded-lg bg-white/5"
                   />
-                ) : link.icon ? (
-                  <img src={link.icon} alt={link.name ?? "Icon"} className="h-[35px] w-[35px] object-contain" />
-                ) : null}
+                ) : (
+                  <div className="h-[35px] w-[35px] flex items-center justify-center">
+                    <FontAwesomeIcon icon={faFolder} className="h-6 w-6 opacity-20" />
+                  </div>
+                )}
 
-                <div className="flex items-center w-full justify-center">
-                  <span className="text-sm text-white">{link.name}</span>
+                <div className="flex items-center w-full justify-between relative">
+                  <div className="flex items-center justify-center flex-1">
+                    <span className="text-sm text-white truncate px-1">{link.title}</span>
 
-                  {showDot && (
-                    <button
-                      aria-label={`Show monitoring details for ${link.name}`}
-                      title={`Show monitoring details for ${link.name}`}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        if (link.id && monitoringDetails && monitoringDetails[link.id]) {
-                          setOpenDialogFor(link.id);
-                        }
-                      }}
-                      className="ml-2 flex items-center justify-center"
-                    >
-                      <span
-                        className="h-2 w-2 rounded-full inline-block hover:cursor-pointer hover:ring-2"
-                        style={{
-                          backgroundColor: isHealthy ? "var(--primary)" : isDisabled ? "#9CA3AF" : "#6B7280",
+                    {showDot && (
+                      <button
+                        aria-label={`Show monitoring details for ${link.title}`}
+                        title={`Show monitoring details for ${link.title}`}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          if (link.id && monitoringDetails && monitoringDetails[link.id]) {
+                            setOpenDialogFor(link.id);
+                          }
                         }}
-                        aria-hidden
-                      />
-                    </button>
-                  )}
+                        className="ml-2 flex items-center justify-center"
+                      >
+                        <span
+                          className="h-2 w-2 rounded-full inline-block hover:cursor-pointer hover:ring-2"
+                          style={{
+                            backgroundColor: isHealthy
+                              ? "var(--primary)"
+                              : isDisabled
+                              ? "#9CA3AF"
+                              : "#6B7280",
+                          }}
+                          aria-hidden
+                        />
+                      </button>
+                    )}
+                  </div>
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setEditingLink(link);
+                    }}
+                    className="p-1.5 hidden group-hover:flex frosted rounded-full text-white/50 hover:text-white transition-colors absolute right-0 bottom-0"
+                    title="Edit link"
+                  >
+                    <FontAwesomeIcon icon={faEdit} className="h-3 w-3" />
+                  </button>
                 </div>
               </a>
             );
@@ -226,7 +367,7 @@ export default function LinkView() {
           // folder tile (Popover)
           const folder = item;
           return (
-            <Popover key={folder.name}>
+            <Popover key={folder.name + itemIdx}>
               <PopoverTrigger asChild>
                 <button
                   type="button"
@@ -234,93 +375,85 @@ export default function LinkView() {
                   aria-label={`Open folder ${folder.name}`}
                   title={folder.name}
                 >
-                  <div className="h-[35px] w-[35px] flex items-center justify-center">
-
+                  <div className="h-[35px] w-[35px] flex items-center justify-center text-white/80 group-hover:text-white transition-colors">
                     <FontAwesomeIcon icon={faFolder} className="h-6 w-6" />
                   </div>
 
                   <div className="flex items-center w-full justify-center">
-                    <span className="text-sm text-white">{folder.name}</span>
+                    <span className="text-sm text-white truncate px-1">{folder.name}</span>
                   </div>
                 </button>
               </PopoverTrigger>
 
               <PopoverContent className="w-[350px] frosted text-foreground space-y-2">
                 <header className="flex justify-between items-center">
-                <h4 className="font-semibold mb-2">{folder.name}</h4>
-                <PopoverClose asChild>
-                  <Button variant="ghost" className="">
-                    <FontAwesomeIcon icon={faXmark}/>
-                  </Button>
-                </PopoverClose>
+                  <h4 className="font-semibold mb-2">{folder.name}</h4>
+                  <PopoverClose asChild>
+                    <Button variant="ghost" className="h-8 w-8 p-0">
+                      <FontAwesomeIcon icon={faXmark} />
+                    </Button>
+                  </PopoverClose>
                 </header>
                 <div
                   className="grid gap-3"
-                  style={{
-                    gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))",
-                  }}
+                  style={{ gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))" }}
                 >
-                  {folder.links.map((child) => {
-                    const serverEntry =
-                      child.id && monitoringDetails ? monitoringDetails[child.id] : undefined;
+                  {folder.links.map((child, childIdx) => {
+                    const serverEntry = child.id && monitoringDetails
+                      ? monitoringDetails[child.id]
+                      : undefined;
                     const serverStatus = serverEntry?.status;
                     const isHealthy = serverStatus === "healthy";
                     const isDisabled = serverStatus === "disabled";
                     const showDot = Boolean(child.statusCheck);
-                    const isMono = child.icon?.includes("-light");
 
                     return (
                       <a
-                        key={child.id || child.url}
+                        key={child.id || child.url || childIdx}
                         href={child.url}
-                        target={
-                          config?.global?.linkOpenBehaviour === "newtab" ? "_blank" : "_self"
-                        }
-                        rel={
-                          config?.global?.linkOpenBehaviour === "newtab"
-                            ? "noopener noreferrer"
-                            : undefined
-                        }
-                        className="group frosted rounded-2xl p-2 hover:text-(primary) transition-colors min-h-18 flex flex-col items-center justify-between space-y-2"
+                        target={config?.global?.linkOpenBehaviour === "newtab" ? "_blank" : "_self"}
+                        rel={config?.global?.linkOpenBehaviour === "newtab" ? "noopener noreferrer" : undefined}
+                        className="flex flex-col items-center justify-between space-y-2 frosted rounded-2xl p-2 hover:text-(primary) transition-colors min-h-18 w-full"
                       >
-                        {isMono ? (
-                          <div
-                            className="h-[30px] w-[30px] bg-white group-hover:bg-(--primary) transition"
-                            style={{
-                              maskImage: `url(${child.icon})`,
-                              WebkitMaskImage: `url(${child.icon})`,
-                              maskRepeat: "no-repeat",
-                              WebkitMaskRepeat: "no-repeat",
-                              maskPosition: "center",
-                              WebkitMaskPosition: "center",
-                              maskSize: "contain",
-                              WebkitMaskSize: "contain",
-                            }}
-                          />
-                        ) : child.icon ? (
+                        {child.iconUrl ? (
                           <img
-                            src={child.icon}
-                            alt={child.name ?? "Icon"}
-                            className="h-[30px] w-[30px] object-contain"
+                            src={child.iconUrl}
+                            alt={child.title ?? "Icon"}
+                            className="h-[30px] w-[30px] object-contain rounded-lg bg-white/5"
                           />
                         ) : (
-                          <FontAwesomeIcon icon={faFolder} className="h-5 w-5" />
+                          <div className="h-[30px] w-[30px] flex items-center justify-center">
+                            <FontAwesomeIcon icon={faFolder} className="h-5 w-5 opacity-20" />
+                          </div>
                         )}
 
-                        <div className="flex items-center justify-center w-full">
-                          <span className="text-xs text-white">{child.name}</span>
-                          {showDot && (
-                            <span
-                              className="ml-1 h-2 w-2 rounded-full inline-block"
-                              style={{
-                                backgroundColor: isHealthy
-                                  ? "var(--primary)"
-                                  : isDisabled
+                        <div className="flex items-center justify-between w-full">
+                          <div className="flex items-center justify-center flex-1">
+                            <span className="text-xs text-white truncate px-1">{child.title}</span>
+                            {showDot && (
+                              <span
+                                className="ml-1 h-2 w-2 rounded-full inline-block"
+                                style={{
+                                  backgroundColor: isHealthy
+                                    ? "var(--primary)"
+                                    : isDisabled
                                     ? "#9CA3AF"
                                     : "#6B7280",
-                              }}
-                            />
-                          )}
+                                }}
+                              />
+                            )}
+                          </div>
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setEditingLink(child);
+                            }}
+                            className="p-1 frosted rounded-full text-white/50 hover:text-white transition-colors"
+                            title="Edit link"
+                          >
+                            <FontAwesomeIcon icon={faEdit} className="h-2.5 w-2.5" />
+                          </button>
                         </div>
                       </a>
                     );
@@ -332,7 +465,61 @@ export default function LinkView() {
         })}
       </PaginatedCarouselViewComponent>
 
-      {/* Monitoring dialog (opens when clicking a monitored link's dot) */}
+      {items.length === 0 && (
+        <Empty className="frosted w-full">
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <FontAwesomeIcon icon={faLink} />
+            </EmptyMedia>
+            <EmptyTitle>No links</EmptyTitle>
+            <EmptyDescription>No data found</EmptyDescription>
+          </EmptyHeader>
+          <EmptyContent>
+            <Button onClick={() => setIsAddDialogOpen(true)}>Add a link</Button>
+          </EmptyContent>
+        </Empty>
+      )}
+
+      <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+        <DialogContent className="frosted text-foreground max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Add Link</DialogTitle>
+          </DialogHeader>
+          <LinkDetailsForm
+            onClose={async () => {
+              setIsAddDialogOpen(false);
+              await refreshHomeLinks();
+            }}
+            preselectOpenedGroup={activeCollection ?? collections[0]}
+            onOptimisticSave={handleOptimisticSave}
+          />
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!editingLink} onOpenChange={(open) => !open && setEditingLink(null)}>
+        <DialogContent className="frosted text-foreground max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Edit Link</DialogTitle>
+          </DialogHeader>
+          <LinkDetailsForm
+            link={editingLink ? {
+              id: editingLink.id,
+              name: editingLink.title,
+              url: editingLink.url,
+              icon: editingLink.iconUrl,
+              linkGroup: editingLink.collection,
+              folder: editingLink.folder,
+              statusCheck: editingLink.statusCheck
+            } : undefined}
+            onClose={async () => {
+              setEditingLink(null);
+              await refreshHomeLinks();
+            }}
+            onOptimisticSave={handleOptimisticSave}
+          />
+        </DialogContent>
+      </Dialog>
+
       {selectedLink && (
         <MonitoringDialog
           open={!!selectedLink}

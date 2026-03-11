@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useEffect, useCallback } from "react";
 import { usePageConfig } from "@/hooks/usePageConfig";
-import { writeToConfig } from "@/lib/frontend/data/MUTATE/config/writeToConfig";
+import { updateConfigPathAction } from "@/app/actions/config";
 import WidgetCategoryFilters from "@/components/settings/widgets/WidgetCategoryFilters";
 import rawWidgetsData from "@/public/widgets.json";
 import useAuth from "@/context/useAuth";
@@ -86,16 +86,13 @@ export default function WidgetsSettingsPage() {
   const updateWidgetsConfig = useCallback(
     async (zones: Widget[][]) => {
       try {
-        const token = localStorage.getItem("pb_token");
-        if (!token) throw new Error("Not authenticated");
-
-        await writeToConfig("widgets", zones, { token });
+        await withAuth((auth) => updateConfigPathAction(auth, "widgets", zones, "home"));
         await refreshConfig();
       } catch (err) {
         console.error(err);
       }
     },
-    [refreshConfig]
+    [refreshConfig, withAuth]
   );
 
   const widgetsData = rawWidgetsData as unknown as WidgetsData;

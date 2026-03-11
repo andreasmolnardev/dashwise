@@ -5,7 +5,7 @@ import useAuth from "@/context/useAuth";
 import GlanceableComponent, { GlanceableProps } from "@/components/glanceables/Glanceable";
 import glanceables from '@/public/glanceables.json'
 import { usePageConfig } from "@/hooks/usePageConfig";
-import { writeToConfig } from "@/lib/frontend/data/MUTATE/config/writeToConfig.ts";
+import { updateConfigPathAction } from "@/app/actions/config";
 import { Input } from "../ui/input";
 import { Button } from "../ui/button";
 import { Checkbox } from "../ui/checkbox";
@@ -32,7 +32,7 @@ export default function GlanceablePropertiesSettingsComponent({
 }) {
     const glanceables_mapped = mapGlanceablesJsonToArray(glanceables);
     const { config, refreshConfig } = usePageConfig();
-    const { token } = useAuth();
+    const { withAuth } = useAuth();
 
     const [params, setParams] = useState<Record<string, any>>(() => {
         const def = isCurrent == true ? selected.properties : selected.exampleProps;
@@ -51,10 +51,6 @@ export default function GlanceablePropertiesSettingsComponent({
     async function handleSave() {
         setSaveError(null);
         setSaveSuccess(null);
-            if (!token) {
-                setSaveError('No auth token found (pb token)');
-                return;
-            }
 
         setSaving(true);
         try {
@@ -77,13 +73,9 @@ export default function GlanceablePropertiesSettingsComponent({
             };
 
             // 2) send PATCH to overwrite the glanceables path with our updated item
-            await writeToConfig('glanceables', updatedGlanceables, {
-                token,
-                onSuccess: () => {
-                    setSaveSuccess('Saved glanceables successfully');
-                    refreshConfig();
-                },
-            });
+            await withAuth((auth) => updateConfigPathAction(auth, "glanceables", updatedGlanceables, "home"));
+            setSaveSuccess('Saved glanceables successfully');
+            await refreshConfig();
         } catch (err: any) {
             console.error('Error saving glanceables:', err);
             setSaveError(err?.message ?? 'Failed to save glanceables');
