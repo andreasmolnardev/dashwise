@@ -8,7 +8,6 @@ import PageNotFound from "@/components/errorPages/PageNotFound";
 import DashboardLayoutTemplate from "@/components/dashboard/DashboardLayoutTemplate";
 
 export default function DashboardPageFromConfig() {
-    const router = useRouter();
     const params = useParams();
     const { withAuth } = useAuth();
     const pageName = (params?.page as string) || "";
