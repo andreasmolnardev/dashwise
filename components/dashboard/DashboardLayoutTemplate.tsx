@@ -374,7 +374,7 @@ export default function DashboardLayoutTemplate({
                 ref={containerRef}
                 className="
                     flex snap-x snap-mandatory overflow-x-auto touch-pan-x overflow-y-auto scrollbar-hidden md:scrollbar-auto md:overflow-x-hidden
-                    md:grid md:grid-cols-[25%_1fr_25%] min-h-0
+                    md:grid md:grid-cols-[25%_1fr_25%] min-h-0 overscroll-none
                 "
                 style={layoutStyleVars}
             >
