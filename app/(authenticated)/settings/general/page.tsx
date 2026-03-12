@@ -11,6 +11,7 @@ import LocationSelectFormComponent from "@/components/settings/LocationSelectFor
 import useAuth from "@/context/useAuth";
 import { runPullIconsAction } from "@/app/actions/misc";
 import { updateConfigPathAction } from "@/app/actions/config";
+import { useLocalization } from "@/context/LocalizationContext";
 
 type TimeFormatValue = "24-hour" | "12-hour";
 
@@ -32,6 +33,7 @@ function normalizeTimeFormat(value: unknown): TimeFormatValue {
 
 const DATE_FORMAT_OPTIONS = [
   "DD-MM-YYYY",
+  "DD.MM.YYYY",
   "MM-DD-YYYY",
   "YYYY-MM-DD",
   "ddd DD-MM-YYYY",
@@ -122,6 +124,7 @@ export default function GeneralSettingsPage() {
 function LocalizationSettings() {
   const { config, patchConfig } = usePageConfig();
   const { withAuth, user, updateUserProperty } = useAuth();
+  const { refresh } = useLocalization();
 
   const globalConfig = config?.global ?? {};
   const timeFormat = normalizeTimeFormat(globalConfig?.timeFormat ?? globalConfig?.["time-format"]);
@@ -143,6 +146,7 @@ function LocalizationSettings() {
 
     await withAuth((auth) => updateConfigPathAction(auth, "global", nextGlobal, "home"));
     await updateUserProperty("localizationPreferences", nextLocalizationPreferences);
+    refresh();
   }
 
   return (
@@ -195,6 +199,7 @@ function LocalizationSettings() {
 
 function WeatherUnitSelector() {
   const { config, patchConfig } = usePageConfig();
+  const { refresh } = useLocalization();
   const { withAuth, user, updateUserProperty } = useAuth();
   const value = config?.global?.weatherUnit ?? "c";
 
@@ -210,6 +215,7 @@ function WeatherUnitSelector() {
       ...(user?.localizationPreferences || {}),
       weatherUnit: unit,
     });
+    refresh();
   }
 
   return (
@@ -241,6 +247,7 @@ function WeatherUnitSelector() {
 function WeatherLocationSelector() {
   const { config, patchConfig } = usePageConfig();
   const { withAuth, user, updateUserProperty } = useAuth();
+  const { refresh } = useLocalization();
   const [open, setOpen] = useState(false);
 
   // derive current global location (if any)
@@ -290,6 +297,7 @@ function WeatherLocationSelector() {
         ...(user?.localizationPreferences || {}),
         weatherLocation: nextWeatherLocation,
       });
+      refresh();
       setOpen(false);
     } catch (err) {
       console.error("Failed to update weatherLocation", err);

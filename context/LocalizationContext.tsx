@@ -21,6 +21,7 @@ type LocalizationContextType = {
   formatTemperature: (value: number | null | undefined, inputUnit?: string, opts?: FormatTemperatureOptions) => string;
   formatTime: (date?: Date | string | number, opts?: Intl.DateTimeFormatOptions) => string;
   formatDate: (date?: Date | string | number, overrideFormat?: string) => string;
+  refresh: () => void;
 };
 
 const LocalizationContext = createContext<LocalizationContextType | undefined>(undefined);
@@ -44,7 +45,7 @@ function toDate(input?: Date | string | number): Date {
 }
 
 export function LocalizationProvider({ children }: { children: ReactNode }) {
-  const { config } = usePageConfig();
+  const { config, refreshConfig } = usePageConfig();
 
   const locale = config?.global?.locale || "en-US";
   const timeFormat = normalizeTimeFormat(config?.global?.timeFormat ?? config?.global?.["time-format"]);
@@ -117,8 +118,9 @@ export function LocalizationProvider({ children }: { children: ReactNode }) {
       formatTemperature,
       formatTime,
       formatDate,
+      refresh: refreshConfig,
     };
-  }, [dateFormat, locale, timeFormat, weatherUnit]);
+  }, [dateFormat, locale, timeFormat, weatherUnit, refreshConfig]);
 
   return <LocalizationContext.Provider value={value}>{children}</LocalizationContext.Provider>;
 }
