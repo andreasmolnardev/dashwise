@@ -42,7 +42,6 @@ export interface LinkType {
   folder?: string;
   statusCheck?: boolean;
 }
-
 export default function LinkView({ links = [] }: { links?: LinkType[] }) {
   const { config } = usePageConfig();
   const { token, withAuth } = useAuth();
@@ -288,79 +287,16 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
       <PaginatedCarouselViewComponent minColWidth={140}>
         {items.map((item, itemIdx) => {
           if (item.type === "link") {
-            const link = item.link;
-            const serverEntry = link.id && monitoringDetails
-              ? monitoringDetails[link.id]
-              : undefined;
-            const serverStatus = serverEntry?.status;
-            const isHealthy = serverStatus === "healthy";
-            const isDisabled = serverStatus === "disabled";
-            const showDot = Boolean(link.statusCheck);
-
             return (
-              <a
-                key={link.id || link.url || itemIdx}
-                href={link.url}
-                target={config?.global?.linkOpenBehaviour === "newtab" ? "_blank" : "_self"}
-                rel={config?.global?.linkOpenBehaviour === "newtab" ? "noopener noreferrer" : undefined}
-                className="group flex flex-col items-center justify-between space-y-2 frosted rounded-2xl p-2 hover:text-(primary) transition-colors min-h-18 w-full"
-              >
-                {link.iconUrl ? (
-                  <img
-                    src={link.iconUrl}
-                    alt={link.title ?? "Icon"}
-                    className="h-[35px] w-[35px] object-contain rounded-lg bg-white/5"
-                  />
-                ) : (
-                  <div className="h-[35px] w-[35px] flex items-center justify-center">
-                    <FontAwesomeIcon icon={faFolder} className="h-6 w-6 opacity-20" />
-                  </div>
-                )}
-
-                <div className="flex items-center w-full justify-between relative">
-                  <div className="flex items-center justify-center flex-1">
-                    <span className="text-sm text-white truncate px-1">{link.title}</span>
-
-                    {showDot && (
-                      <button
-                        aria-label={`Show monitoring details for ${link.title}`}
-                        title={`Show monitoring details for ${link.title}`}
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          if (link.id && monitoringDetails && monitoringDetails[link.id]) {
-                            setOpenDialogFor(link.id);
-                          }
-                        }}
-                        className="ml-2 flex items-center justify-center"
-                      >
-                        <span
-                          className="h-2 w-2 rounded-full inline-block hover:cursor-pointer hover:ring-2"
-                          style={{
-                            backgroundColor: isHealthy
-                              ? "var(--primary)"
-                              : isDisabled
-                              ? "#9CA3AF"
-                              : "#6B7280",
-                          }}
-                          aria-hidden
-                        />
-                      </button>
-                    )}
-                  </div>
-                  <button
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setEditingLink(link);
-                    }}
-                    className="p-1.5 aspect-square hidden group-hover:flex frosted items-center rounded-full text-white/50 hover:text-white transition-colors absolute right-0 bottom-0"
-                    title="Edit link"
-                  >
-                    <FontAwesomeIcon icon={faEdit} className="h-3 w-3" />
-                  </button>
-                </div>
-              </a>
+              <LinkTile
+                key={item.link.id || item.link.url || itemIdx}
+                link={item.link}
+                config={config}
+                monitoringDetails={monitoringDetails}
+                setOpenDialogFor={setOpenDialogFor}
+                setEditingLink={setEditingLink}
+                itemIdx={itemIdx}
+              />
             );
           }
 
@@ -408,54 +344,14 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
                     const showDot = Boolean(child.statusCheck);
 
                     return (
-                      <a
+                      <LinkTile
                         key={child.id || child.url || childIdx}
-                        href={child.url}
-                        target={config?.global?.linkOpenBehaviour === "newtab" ? "_blank" : "_self"}
-                        rel={config?.global?.linkOpenBehaviour === "newtab" ? "noopener noreferrer" : undefined}
-                        className="flex flex-col items-center justify-between space-y-2 frosted rounded-2xl p-2 hover:text-(primary) transition-colors min-h-18 w-full"
-                      >
-                        {child.iconUrl ? (
-                          <img
-                            src={child.iconUrl}
-                            alt={child.title ?? "Icon"}
-                            className="h-[30px] w-[30px] object-contain rounded-lg bg-white/5"
-                          />
-                        ) : (
-                          <div className="h-[30px] w-[30px] flex items-center justify-center">
-                            <FontAwesomeIcon icon={faFolder} className="h-5 w-5 opacity-20" />
-                          </div>
-                        )}
-
-                        <div className="flex items-center justify-between w-full">
-                          <div className="flex items-center justify-center flex-1">
-                            <span className="text-xs text-white truncate px-1">{child.title}</span>
-                            {showDot && (
-                              <span
-                                className="ml-1 h-2 w-2 rounded-full inline-block"
-                                style={{
-                                  backgroundColor: isHealthy
-                                    ? "var(--primary)"
-                                    : isDisabled
-                                    ? "#9CA3AF"
-                                    : "#6B7280",
-                                }}
-                              />
-                            )}
-                          </div>
-                          <button
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              setEditingLink(child);
-                            }}
-                            className="p-1 frosted rounded-full text-white/50 hover:text-white transition-colors"
-                            title="Edit link"
-                          >
-                            <FontAwesomeIcon icon={faEdit} className="h-2.5 w-2.5" />
-                          </button>
-                        </div>
-                      </a>
+                        link={child}
+                        config={config}
+                        monitoringDetails={monitoringDetails}
+                        setOpenDialogFor={setOpenDialogFor}
+                        setEditingLink={setEditingLink}
+                      />
                     );
                   })}
                 </div>
@@ -536,5 +432,92 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
         />
       )}
     </div>
+  );
+}
+
+
+interface LinkTileProps {
+  link: LinkType;
+  config: any;
+  monitoringDetails: any;
+  setOpenDialogFor: (id: string) => void;
+  setEditingLink: (link: LinkType) => void;
+  itemIdx?: number;
+}
+
+function LinkTile({
+  link,
+  config,
+  monitoringDetails,
+  setOpenDialogFor,
+  setEditingLink,
+  itemIdx,
+}: LinkTileProps) {
+  const serverEntry = link.id && monitoringDetails ? monitoringDetails[link.id] : undefined;
+  const serverStatus = serverEntry?.status;
+  const isHealthy = serverStatus === "healthy";
+  const isDisabled = serverStatus === "disabled";
+  const showDot = Boolean(link.statusCheck);
+
+  return (
+    <a
+      key={link.id || link.url || itemIdx}
+      href={link.url}
+      target={config?.global?.linkOpenBehaviour === "newtab" ? "_blank" : "_self"}
+      rel={config?.global?.linkOpenBehaviour === "newtab" ? "noopener noreferrer" : undefined}
+      className="group flex flex-col items-center justify-between space-y-2 frosted rounded-2xl p-2 hover:text-(primary) transition-colors min-h-18 w-full"
+    >
+      {link.iconUrl ? (
+        <img
+          src={link.iconUrl}
+          alt={link.title ?? "Icon"}
+          className="h-[35px] w-[35px] object-contain rounded-lg bg-white/5"
+        />
+      ) : (
+        <div className="h-[35px] w-[35px] flex items-center justify-center">
+          <FontAwesomeIcon icon={faFolder} className="h-6 w-6 opacity-20" />
+        </div>
+      )}
+
+      <div className="flex items-center w-full justify-between relative">
+        <div className="flex items-center justify-center flex-1">
+          <span className="text-sm text-white truncate px-1">{link.title}</span>
+
+          {showDot && (
+            <button
+              aria-label={`Show monitoring details for ${link.title}`}
+              title={`Show monitoring details for ${link.title}`}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (link.id && monitoringDetails && monitoringDetails[link.id]) {
+                  setOpenDialogFor(link.id);
+                }
+              }}
+              className="ml-2 flex items-center justify-center"
+            >
+              <span
+                className="h-2 w-2 rounded-full inline-block hover:cursor-pointer hover:ring-2"
+                style={{
+                  backgroundColor: isHealthy ? "var(--primary)" : isDisabled ? "#9CA3AF" : "#6B7280",
+                }}
+                aria-hidden
+              />
+            </button>
+          )}
+        </div>
+        <button
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setEditingLink(link);
+          }}
+          className="p-1.5 aspect-square hidden group-hover:flex frosted items-center rounded-full text-white/50 hover:text-white transition-colors absolute right-0 bottom-0"
+          title="Edit link"
+        >
+          <FontAwesomeIcon icon={faEdit} className="h-3 w-3" />
+        </button>
+      </div>
+    </a>
   );
 }
