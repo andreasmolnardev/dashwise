@@ -46,13 +46,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
 
-  return (
-    <html lang="en">
+    return (
+      <html lang="en" className="overscroll-none">
       <head>
          <link rel="shortcut icon" href="/favicons/favicon.ico" />
       </head>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased h-dvh`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased h-dvh overscroll-none`}
       >
         
           {children}
