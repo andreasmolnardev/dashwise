@@ -4,6 +4,7 @@ import { ActionAuth, requireUserAuth } from "@dashwise/sdk/data/auth";
 import { 
   createHomeLinkGroup,
   createHomeLinkItem,
+  deleteLinkItem,
   getHomeLinkGroups,
   getLinksCollections,
   getLinksFolders, 
@@ -65,4 +66,9 @@ export async function updateHomeLinkItemAction(
   const { userId } = await requireUserAuth(auth);
   // Assuming there's an update function in the SDK similar to createHomeLinkItem
   return updateHomeLinkItem(userId, linkId, data);
+}
+
+export async function deleteLinkItemAction(auth: ActionAuth, linkId: string) {
+  const { userId } = await requireUserAuth(auth);
+  return deleteLinkItem(userId, linkId);
 }
