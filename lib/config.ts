@@ -25,7 +25,7 @@ const enableJobsWebhook =
   process.env.NEXT_PUBLIC_JOBS_WEBHOOK_ENABLE  === 'true' || process.env.NEXT_PUBLIC_JOBS_WEBHOOK_ENABLE === '1' || !!process.env.NEXT_PUBLIC_JOBS_URL || false;
 
 const config: Config = {
-  app_base_url: process.env.NEXT_PUBLIC_APP_URL || 'http://dashwise:3000',
+  app_base_url: process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
   pb_url: process.env.NEXT_PUBLIC_PB_URL || 'http://127.0.0.1:8090',
   jobs_webhook_enabled: enableJobsWebhook,
   jobs_url: process.env.NEXT_PUBLIC_JOBS_URL || 'http://127.0.0.1:3001',
