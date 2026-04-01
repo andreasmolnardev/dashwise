@@ -6,6 +6,7 @@ type ComputedPropertyInput = {
     source: string;
     input?: Record<string, any>;
 };
+const COMPUTED_WEATHER_SOURCE = "computed.weather";
 
 type WeatherData = {
     temperature?: number;
@@ -260,14 +261,14 @@ export async function getComputedPropertyData({
     source,
     input,
 }: ComputedPropertyInput): Promise<Record<string, any> | null> {
-    if (source.trim().toLowerCase() !== "computed.weather") {
+    if (source.trim().toLowerCase() !== COMPUTED_WEATHER_SOURCE) {
         return null;
     }
 
     const payload = input && typeof input === "object" ? input : {};
     const lat = payload.lat ?? payload.latitude;
     const lon = payload.lon ?? payload.longitude;
-    if (lat === undefined || lon === undefined || lat === null || lon === null) {
+    if (lat == null || lon == null) {
         return null;
     }
 
