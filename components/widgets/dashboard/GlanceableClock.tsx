@@ -8,6 +8,7 @@ import type { WidgetItemProps } from "../Widget";
 
 export default function GlanceableClockWidget({ className, params }: WidgetItemProps) {
   const { config } = usePageConfig();
+  const clockStyle = params?.["clock-style"] as Record<string, any> | undefined;
 
   // params.glanceables overrides config-level glanceables
   const glanceableOverrides: Record<string, any> | undefined = params?.glanceables;
@@ -30,7 +31,16 @@ export default function GlanceableClockWidget({ className, params }: WidgetItemP
     <section className={`responsive-glance-grid w-full ${className ?? ""}`}>
       <div style={{ gridArea: "clock" }} className="area-clock w-full flex items-center justify-center text-2xl md:text-4xl leading-tight">
         <div style={{ margin: "0 auto", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
-          <ClockWidget font={config?.appearance?.clock?.defaultFont} />
+          <ClockWidget
+            font={clockStyle?.defaultFont ?? config?.appearance?.clock?.defaultFont}
+            weight={clockStyle?.fontWeight}
+            color={clockStyle?.color}
+            letterSpacing={clockStyle?.letterSpacing}
+            opacity={clockStyle?.opacity}
+            outlineEnabled={clockStyle?.outlineEnabled}
+            outlineColor={clockStyle?.outlineColor}
+            outlineWidth={clockStyle?.outlineWidth}
+          />
         </div>
       </div>
       <div style={{ gridArea: "gl1" }} className="area-gl1">
