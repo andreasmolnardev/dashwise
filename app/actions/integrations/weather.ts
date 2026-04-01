@@ -1,6 +1,6 @@
 "use server";
 
-import { getWeather as getWeatherData } from "@dashwise/sdk/data/weather";
+import { getWeather as getWeatherLookup } from "@dashwise/sdk/data/weather";
 
 type GetWeatherInput = {
   lat: string;
@@ -13,5 +13,5 @@ export async function getWeather({ lat, lon, unit = "c" }: GetWeatherInput) {
     throw new Error("Missing lat/lon");
   }
 
-  return getWeatherData({ lat: String(lat), lon: String(lon), unit });
+  return getWeatherLookup({ lat: String(lat), lon: String(lon), unit });
 }
