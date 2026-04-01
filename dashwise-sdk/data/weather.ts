@@ -2,10 +2,9 @@ import { readFile } from "fs/promises";
 import path from "path";
 import YAML from "yaml";
 
-type WeatherInput = {
-    lat: string;
-    lon: string;
-    unit?: string;
+type ComputedPropertyInput = {
+    source: string;
+    input?: Record<string, any>;
 };
 
 type WeatherData = {
@@ -133,7 +132,15 @@ async function loadWeatherDefinition() {
     return (await loadIntegrationYaml("lib/integrations/weather.yaml")) as WeatherIntegrationDefinition | null;
 }
 
-export async function getWeather({ lat, lon, unit = "c" }: WeatherInput): Promise<WeatherData> {
+async function resolveComputedWeatherData({
+    lat,
+    lon,
+    unit = "c",
+}: {
+    lat: string;
+    lon: string;
+    unit?: string;
+}): Promise<WeatherData> {
     const definition = await loadWeatherDefinition();
     const useFahrenheit = String(unit).toLowerCase() === "f";
 
@@ -247,4 +254,26 @@ export async function getWeather({ lat, lon, unit = "c" }: WeatherInput): Promis
             num(daily.temperature_2m_max?.[1]),
         ),
     };
+}
+
+export async function getComputedPropertyData({
+    source,
+    input,
+}: ComputedPropertyInput): Promise<Record<string, any> | null> {
+    if (String(source || "").trim().toLowerCase() !== "computed.weather") {
+        return null;
+    }
+
+    const payload = input && typeof input === "object" ? input : {};
+    const lat = payload.lat ?? payload.latitude;
+    const lon = payload.lon ?? payload.longitude;
+    if (lat === undefined || lon === undefined || lat === null || lon === null) {
+        return null;
+    }
+
+    return resolveComputedWeatherData({
+        lat: String(lat),
+        lon: String(lon),
+        unit: payload.unit ? String(payload.unit) : "c",
+    });
 }

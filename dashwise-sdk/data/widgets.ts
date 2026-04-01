@@ -1,6 +1,6 @@
 import { getHomeLinks } from "./links";
 import { resolveWidgetDefinition } from "./integrations";
-import { getWeather } from "./weather";
+import { getComputedPropertyData } from "./weather";
 import { getSuperuserPB } from "@dashwise/sdk/lib/pocketbase";
 import { readFile } from "fs/promises";
 import path from "path";
@@ -442,11 +442,15 @@ export async function getWidgetData(userId: string, widgetType: string, widget: 
         }
 
         try {
-            const weather = await getWeather({
-                lat: String(location.lat),
-                lon: String(location.lon),
-                unit,
+            const weather = await getComputedPropertyData({
+                source: "computed.weather",
+                input: {
+                    lat: String(location.lat),
+                    lon: String(location.lon),
+                    unit,
+                },
             });
+            if (!weather) return widget?.data;
 
             return {
                 ...widget?.data,
@@ -483,11 +487,15 @@ export async function getGlanceableData(
     if (!location) return base;
 
     try {
-        const weather = await getWeather({
-            lat: String(location.lat),
-            lon: String(location.lon),
-            unit,
+        const weather = await getComputedPropertyData({
+            source: "computed.weather",
+            input: {
+                lat: String(location.lat),
+                lon: String(location.lon),
+                unit,
+            },
         });
+        if (!weather) return base;
         return {
             ...base,
             data: {
