@@ -9,6 +9,7 @@ import { Separator } from "@/components/ui/separator";
 import {
   createHomeLinkGroupAction,
   createLinkItemAction,
+  deleteLinkItemAction,
   getHomeLinkGroupsAction,
   updateHomeLinkItemAction
 } from "@/app/actions/links";
@@ -119,6 +120,7 @@ export default function LinkDetailsForm({
   const [customHeaderValue, setCustomHeaderValue] = useState("");
   const [statusCheckShowAsUpRaw, setStatusCheckShowAsUpRaw] = useState("200,201,202,204,301,302,304");
   const [loading, setLoading] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [iconEdited, setIconEdited] = useState(false);
@@ -373,6 +375,23 @@ export default function LinkDetailsForm({
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!isEditing || !link?.id) return;
+    if (!confirm("Are you sure you want to delete this link?")) return;
+
+    setDeleting(true);
+    setError(null);
+
+    try {
+      await withAuth((auth) => deleteLinkItemAction(auth, link.id!));
+      if (onClose) await onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -713,6 +732,17 @@ export default function LinkDetailsForm({
 
       <div className="col-span-3 mt-2 flex gap-2 justify-end absolute bottom-2 right-2">
         {error && <p className="text-red-500">{error}</p>}
+        {isEditing && (
+          <Button
+            type="button"
+            variant="destructive"
+            disabled={loading || deleting}
+            onClick={handleDelete}
+            className="mr-auto"
+          >
+            {deleting ? "Deleting..." : "Delete"}
+          </Button>
+        )}
         {!isEditing && (
           <Button
             type="button"
@@ -724,7 +754,7 @@ export default function LinkDetailsForm({
           </Button>
         )}
 
-        <Button type="submit" disabled={loading}>
+        <Button type="submit" disabled={loading || deleting}>
           {loading
             ? isEditing
               ? "Saving..."
