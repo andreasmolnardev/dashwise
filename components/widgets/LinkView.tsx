@@ -512,7 +512,7 @@ function LinkTile({
             e.stopPropagation();
             setEditingLink(link);
           }}
-          className="p-1.5 aspect-square hidden group-hover:flex frosted items-center rounded-full text-white/50 hover:text-white transition-colors absolute right-0 bottom-0"
+          className="p-1.5 aspect-square hidden group-hover:flex transition-all items-center rounded-full text-white/50 hover:text-white absolute right-0 bottom-0"
           title="Edit link"
         >
           <FontAwesomeIcon icon={faEdit} className="h-3 w-3" />
