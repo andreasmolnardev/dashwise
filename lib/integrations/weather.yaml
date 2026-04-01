@@ -270,4 +270,18 @@ configuration:
         primary: "${computed.weather.temperature}${computed.weather.unit} ${computed.weather.description} ??? 18°C Clear sky"
         secondary: "${computed.weather.insight} ??? Sunny day ahead"
 
+  glanceables:
+    - name: "Local Weather"
+      properties:
+        lat: "${LAT}"
+        lon: "${LON}"
+        unit: "${UNIT}"
+        displayName: "${DISPLAY_NAME}"
+        showLocation: "${SHOW_LOCATION}"
+      icon:
+        file: "${computed.weather.icon_file} ??? sun-clear.svg"
+        size: 16
+        description: "${computed.weather.description} ??? Clear sky"
+      text: "${computed.weather.temperature}${computed.weather.unit} ??? 18°C"
+
   # Weather has no meaningful search items — the section is omitted intentionally.

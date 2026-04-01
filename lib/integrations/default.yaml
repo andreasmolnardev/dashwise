@@ -14,7 +14,7 @@ configuration:
       template: "glanceable-clock"
       category: "Clock"
     - name: "Search Bar"
-      template: "search-bar"#
+      template: "search-bar"
       category: "Search"
     - name: "Link View"
       template: "link-view"
@@ -22,3 +22,19 @@ configuration:
     - name: "Placehholder"
       template: "placeholder"
       category: "Placeholder"
+  glanceables:
+    - name: "Date"
+      icon: none
+      text: "${lib.date.now}:" 
+    - name: "Greeting"
+      icon: none
+      text: "Hello"
+    - name: "Local Timezone"
+      icon: none
+      text: "${lib.date.current_timezone}"
+    - name: "World Clock"
+      properties:
+        timezone: "tz"
+        location: "String"
+      icon: none
+      text: "${lib.date.time(${properties.timezone})} in ${properties.location}"
