@@ -58,8 +58,8 @@ export function LocalizationProvider({ children }: { children: ReactNode }) {
     const toPreferredTemperature = (input: number, inputUnit: string = "c") => {
       if (!Number.isFinite(input)) return input;
       const from = normalizeUnit(inputUnit);
-      if (from === weatherUnit) return input;
-      return weatherUnit === "f" ? (input * 9) / 5 + 32 : ((input - 32) * 5) / 9;
+      const converted = from === weatherUnit ? input : (weatherUnit === "f" ? (input * 9) / 5 + 32 : ((input - 32) * 5) / 9);
+      return Math.round(converted);
     };
 
     const formatTemperature = (
