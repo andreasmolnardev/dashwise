@@ -1,6 +1,5 @@
 "use client";
 import Link from "next/link";
-import { usePageConfig } from "@/hooks/usePageConfig";
 import { faHome, faInbox, faKey, faShareNodes } from "@fortawesome/free-solid-svg-icons";
 import { usePathname } from "next/navigation";
 import { Label } from "@/components/ui/label";
@@ -9,7 +8,7 @@ import useAuth from "@/context/useAuth";
 import { getNotificationsAction } from "@/app/actions/notifications/items";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { NOTIFICATIONS_UPDATED_EVENT } from "@/lib/events";
-
+import config from "@/lib/config";
 
 const navItems = [
     { href: "/notifications/inbox", label: "Inbox", icon: faInbox },
@@ -18,7 +17,6 @@ const navItems = [
 ];
 
 export default function NotificationsLayoutComponent({ children }: { children: React.ReactNode }) {
-    const { config } = usePageConfig();
     const pathname = usePathname();
     const activeBgRef = useRef<HTMLDivElement | null>(null);
     const [unreadCount, setUnreadCount] = useState<number>(0);
@@ -38,7 +36,7 @@ export default function NotificationsLayoutComponent({ children }: { children: R
 
     useEffect(() => {
         fetchUnreadCount();
-    }, [config.baseUrl, fetchUnreadCount]);
+    }, [config.app_base_url, fetchUnreadCount]);
 
     useEffect(() => {
         const handleNotificationsUpdated = () => {
