@@ -379,7 +379,7 @@ function resolveTimeout(timeout: unknown) {
     return 20_000;
 }
 
-function resolveWidgetDefinition(
+export function resolveWidgetDefinition(
     widget: Record<string, unknown>,
     config: Record<string, unknown>,
     environment: Record<string, string>

@@ -1,6 +1,6 @@
 "use server";
 
-import { getWeatherData } from "@dashwise/sdk/data/widgets";
+import { getWeather as getWeatherData } from "@dashwise/sdk/data/weather";
 
 type GetWeatherInput = {
   lat: string;
@@ -15,4 +15,3 @@ export async function getWeather({ lat, lon, unit = "c" }: GetWeatherInput) {
 
   return getWeatherData({ lat: String(lat), lon: String(lon), unit });
 }
-

@@ -8,7 +8,7 @@ import {
   listIntegrations,
   testIntegrationEndpoint,
 } from "@/dashwise-sdk/data/integrations";
-import { getWeatherData } from "@dashwise/sdk/data/widgets";
+import { getWeather } from "@dashwise/sdk/data/weather";
 
 export async function getIntegrationsAction(
   auth: ActionAuth,
@@ -55,5 +55,5 @@ export async function getWeatherAction({ lat, lon, unit = "c" }: { lat: string; 
     throw new Error("Missing lat/lon");
   }
 
-  return getWeatherData({ lat: String(lat), lon: String(lon), unit });
+  return getWeather({ lat: String(lat), lon: String(lon), unit });
 }
