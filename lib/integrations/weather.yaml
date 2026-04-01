@@ -202,55 +202,72 @@ configuration:
             sunset: "this.endpoints.fetch-weather.mappedResponse.daily.sunset_today"
             night_swap: true
         hourly: "this.endpoints.fetch-weather.mappedResponse.hourly"
+      useEnv:
 
   widgets:
     # --- Compact 3-column forecast (Now / Tonight / Tomorrow) ---
-    - name: "Weather"
+    - name: "Weather Otherview"
       template: "columns"
       depends_on:
         - "computed.weather"
+      data:
+        source: "computed.weather"
+        input:
+          lat: "${LAT}"
+          lon: "${LON}"
+          unit: "${UNIT}"
+          displayName: "${DISPLAY_NAME}"
+          showLocation: "${SHOW_LOCATION}"
       properties:
         header:
           show_if: "${SHOW_LOCATION}"
-          title: "${computed.weather.display_name}"
-          icon: "/weather-icons/${computed.weather.icon_file}"
+          title: "${computed.weather.display_name} ??? Seattle"
+          icon: "/weather-icons/${computed.weather.icon_file} ??? /weather-icons/sun-clear.svg"
         columns:
           - label: "Now"
             icon:
               type: "weather"
-              file: "${computed.weather.icon_file}"
+              file: "${computed.weather.icon_file} ??? sun-clear.svg"
               size: 32
-              description: "${computed.weather.description}"
-            primary: "${computed.weather.temperature}${computed.weather.unit} — ${computed.weather.precipitation_probability}%"
+              description: "${computed.weather.description} ??? Clear sky"
+            primary: "${computed.weather.temperature}${computed.weather.unit} — ${computed.weather.precipitation_probability}% ??? 18°C — 20%"
 
           - label: "Tonight"
             icon:
               type: "weather"
-              file: "${computed.weather.tonight.icon_file}"
+              file: "${computed.weather.tonight.icon_file} ??? moon-stars-night.svg"
               size: 32
-              description: "${computed.weather.tonight.description}"
-            primary: "${computed.weather.tonight.temperature}${computed.weather.unit} — ${computed.weather.tonight.precipitation_probability}%"
+              description: "${computed.weather.tonight.description} ??? Clear night"
+            primary: "${computed.weather.tonight.temperature}${computed.weather.unit} — ${computed.weather.tonight.precipitation_probability}% ??? 11°C — 60%"
 
           - label: "Tomorrow"
             icon:
               type: "weather"
-              file: "${computed.weather.tomorrow.icon_file}"
+              file: "${computed.weather.tomorrow.icon_file} ??? sun-clear.svg"
               size: 32
-              description: "${computed.weather.tomorrow.description}"
-            primary: "${computed.weather.tomorrow.temperature}${computed.weather.unit} — ${computed.weather.tomorrow.precipitation_probability}%"
+              description: "${computed.weather.tomorrow.description} ??? Sunny"
+            primary: "${computed.weather.tomorrow.temperature}${computed.weather.unit} — ${computed.weather.tomorrow.precipitation_probability}% ??? 21°C — 30%"
 
     # --- Overview: large icon + current temp + insight string ---
-    - name: "Weather Overview"
-      template: "overview"
+    - name: "Current Weather Conditions"
+      template: "icon-details-card"
       depends_on:
         - "computed.weather"
+      data:
+        source: "computed.weather"
+        input:
+          lat: "${LAT}"
+          lon: "${LON}"
+          unit: "${UNIT}"
+          displayName: "${DISPLAY_NAME}"
+          showLocation: "${SHOW_LOCATION}"
       properties:
         icon:
           type: "weather"
-          file: "${computed.weather.icon_file}"
+          file: "${computed.weather.icon_file} ??? sun-clear.svg"
           size: 48
-          description: "${computed.weather.description}"
-        primary: "${computed.weather.temperature}${computed.weather.unit} ${computed.weather.description}"
-        secondary: "${computed.weather.insight}"
+          description: "${computed.weather.description} ??? Clear sky"
+        primary: "${computed.weather.temperature}${computed.weather.unit} ${computed.weather.description} ??? 18°C Clear sky"
+        secondary: "${computed.weather.insight} ??? Sunny day ahead"
 
   # Weather has no meaningful search items — the section is omitted intentionally.

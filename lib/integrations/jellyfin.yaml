@@ -85,9 +85,16 @@ configuration:
       template: "vertical-list"
       depends_on:
         - "computed.search_display"
+      data:
+        source: "computed.search_display"
+        input:
+          URL: "${URL}"
+          TOKEN: "${TOKEN}"
+          INCLUDE_ITEM_TYPES: "${INCLUDE_ITEM_TYPES}"
+          LIMIT: "${LIMIT}"
       properties:
         header:
-          title: "Recently Added"
+          title: "${URL} ??? Recently Added"
           icon: "integrations.jellyfin.details.icon"
           titleAction: "url:${URL}"
         list:
@@ -96,10 +103,10 @@ configuration:
           iterate_over: "computed.search_display"
           max_items: 10
           prototype:
-            thumbnail: "${thumbnail}"
-            title: "${name}"
+            thumbnail: "${thumbnail} ??? /icons/png/jellyfin-light.png"
+            title: "${name} ??? Dune"
             titleAction: "url:${action}"
-            subtitle: "${secondary}"
+            subtitle: "${secondary} ??? Movie"
 
   search_items:
     - my_collection:

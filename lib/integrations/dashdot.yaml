@@ -172,22 +172,28 @@ configuration:
         - "computed.metrics"
       # Refresh every 8 seconds to match original polling interval
       refresh_interval: 8
+      data:
+        source: "computed.metrics"
+        input:
+          URL: "${URL}"
+          DISPLAY_NAME: "${DISPLAY_NAME}"
       properties:
         header:
-          title: "${computed.metrics.display_name}"
+          title: "${computed.metrics.display_name} ??? Server Alpha"
           icon: "integrations.dashdot.details.icon"
           titleAction: "url:${URL}"
         columns:
           # CPU column — always shown
           - label: "CPU"
-            primary: "${computed.metrics.cpu.avg_load}%"
-            secondary: "${computed.metrics.cpu.cores} cores"
+            primary: "${computed.metrics.cpu.avg_load}% ??? 42%"
+            secondary: "${computed.metrics.cpu.cores} cores ??? 8 cores"
 
           # Memory column — always shown
           - label: "Memory"
             primary:
               operation: human_bytes
               value: "computed.metrics.memory.load"
+              fallback: "12.3 GB"
             secondary:
               operation: expr
               # "of X used (Y%)"
@@ -195,24 +201,27 @@ configuration:
               inputs:
                 total: "computed.metrics.memory.total"
                 used_percent: "computed.metrics.memory.used_percent"
+              fallback: "of 32 GB used (38%)"
 
           # GPU column shown when has_gpu, otherwise Storage
           - show_if: "computed.metrics.gpu.has_gpu"
             label: "GPU"
-            primary: "${computed.metrics.gpu.load}%"
+            primary: "${computed.metrics.gpu.load}% ??? 42%"
             secondary:
               operation: join
               value: "computed.metrics.gpu.layout[*].name"
               separator: ", "
+              fallback: "8 cores"
 
           - show_if: "not computed.metrics.gpu.has_gpu"
             label: "Storage"
-            primary: "${computed.metrics.storage[0].used_percent}%"
+            primary: "${computed.metrics.storage[0].used_percent}% ??? 65%"
             secondary:
               operation: join
               value: "computed.metrics.storage[*].total"
               separator: " / "
               transform: "human_bytes(value)"
+              fallback: "1.2 TB / 2 TB"
 
   search_items:
     - root:

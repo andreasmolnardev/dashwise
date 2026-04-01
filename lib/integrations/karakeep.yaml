@@ -128,9 +128,14 @@ configuration:
       template: "vertical-list"
       depends_on:
         - "computed.bookmarks"
+      data:
+        source: "computed.bookmarks"
+        input:
+          URL: "${URL}"
+          TOKEN: "${TOKEN}"
       properties:
         header:
-          title: "Latest Bookmarks"
+          title: "${URL} ??? Latest Bookmarks"
           icon: "integrations.karakeep.details.icon"
           titleAction: "url:${URL}"
         list:
@@ -144,10 +149,10 @@ configuration:
           prototype:
             # Favicon or grey placeholder square when icon is absent
             thumbnail:
-              value: "${icon}"
+              value: "${icon} ??? placeholder_square"
               fallback: "placeholder_square"
               fallback_style: "grey"
-            title: "${title}"
+            title: "${title} ??? Dashwise"
             titleAction: "url:${url}"
             # URL shown beneath the title with a paperclip icon prefix
             subtitle:

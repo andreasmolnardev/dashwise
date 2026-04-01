@@ -243,14 +243,30 @@ configuration:
       template: "columns"
       depends_on:
         - "computed.system_health"
+      data:
+        source: "computed.system_health"
+        input:
+          URL: "${URL}"
+          TOKEN: "${TOKEN}"
+          PB_USER: "${PB_USER}"
+          PB_PASS: "${PB_PASS}"
+          THRESHOLD_CPU_WARN: "${THRESHOLD_CPU_WARN}"
+          THRESHOLD_CPU_CRITICAL: "${THRESHOLD_CPU_CRITICAL}"
+          THRESHOLD_MEM_WARN: "${THRESHOLD_MEM_WARN}"
+          THRESHOLD_MEM_CRITICAL: "${THRESHOLD_MEM_CRITICAL}"
+          THRESHOLD_DISK_WARN: "${THRESHOLD_DISK_WARN}"
+          THRESHOLD_DISK_CRITICAL: "${THRESHOLD_DISK_CRITICAL}"
       properties:
         header:
-          title: "System Health"
+          title: "${URL} ??? System Health"
           icon: "integrations.beszel.details.icon"
           titleAction: "url:${URL}"
         columns:
           iterate_over: "computed.system_health"
           prototype:
+            label: "${system_name} ??? alpha"
+            primary: "if(details.status contains 'down', 0, health_score) ??? 92%"
+            secondary: "${biggest_minus} ??? Healthy"
             progress:
               type: "circular"
               value: "if(details.status contains 'down', 0, health_score)"
@@ -276,9 +292,22 @@ configuration:
         - "computed.system_warnings"
       # Hide the widget entirely when there are no warnings
       hide_if_empty: true
+      data:
+        source: "computed.system_warnings"
+        input:
+          URL: "${URL}"
+          TOKEN: "${TOKEN}"
+          PB_USER: "${PB_USER}"
+          PB_PASS: "${PB_PASS}"
+          THRESHOLD_CPU_WARN: "${THRESHOLD_CPU_WARN}"
+          THRESHOLD_CPU_CRITICAL: "${THRESHOLD_CPU_CRITICAL}"
+          THRESHOLD_MEM_WARN: "${THRESHOLD_MEM_WARN}"
+          THRESHOLD_MEM_CRITICAL: "${THRESHOLD_MEM_CRITICAL}"
+          THRESHOLD_DISK_WARN: "${THRESHOLD_DISK_WARN}"
+          THRESHOLD_DISK_CRITICAL: "${THRESHOLD_DISK_CRITICAL}"
       properties:
         header:
-          title: "System Warnings"
+          title: "${URL} ??? System Warnings"
           icon: "integrations.beszel.details.icon"
           titleAction: "url:${URL}"
         list:
@@ -298,12 +327,12 @@ configuration:
               map:
                 critical: "faExclamationCircle"
                 warning: "faExclamation"
-            title: "${system_name}"
+            title: "${system_name} ??? alpha"
             titleAction: "url:${action}"  
             # Renders each warning string as its own line under the title
             subtitle:
+              value: "${active_warnings} ??? CPU usage high"
               type: "list"
-              value: "${active_warnings}"
   search_items:
     - root:
         iterate_over: "this.endpoints.fetch-systems.mappedResponse.systems"
