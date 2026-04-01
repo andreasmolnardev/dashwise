@@ -7,14 +7,16 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
-  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { MoreHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
-import readEndpoint from "@/lib/frontend/data/GET/readEndpoint";
 import { NOTIFICATIONS_UPDATED_EVENT } from "@/lib/events";
-import { markNotificationsAsReadAction } from "@/app/actions/notifications/items";
+import {
+  getNotificationsAction,
+  getNotificationTopicsAction,
+  markNotificationsAsReadAction,
+} from "@/app/actions/notifications/items";
 import useAuth from "@/context/useAuth";
 
 export type NotificationItem = {
@@ -36,15 +38,16 @@ export default function NotificationsInboxPage() {
 
   useEffect(() => {
     let mounted = true;
-    const ctl = new AbortController();
 
     (async () => {
       if (!token) return;
       try {
-        const [notResp, topicResp] = await Promise.all([
-          readEndpoint<{ items: any[] }>("/notifications", { signal: ctl.signal, token }),
-          readEndpoint<{ items: any[] }>("/notifications/topics", { signal: ctl.signal, token }),
-        ]);
+        const [notResp, topicResp] = await withAuth((auth) =>
+          Promise.all([
+            getNotificationsAction(auth),
+            getNotificationTopicsAction(auth),
+          ])
+        );
 
         if (!mounted) return;
         setNotifications(notResp?.items || []);
@@ -54,8 +57,8 @@ export default function NotificationsInboxPage() {
       }
     })();
 
-    return () => { mounted = false; ctl.abort(); };
-  }, [token]);
+    return () => { mounted = false; };
+  }, [token, withAuth]);
 
   const markAsRead = async (notifId: string) => {
     if (!token) return;
