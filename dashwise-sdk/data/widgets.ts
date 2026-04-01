@@ -1,5 +1,148 @@
 import { getHomeLinks } from "./links";
 import { getSuperuserPB } from "@dashwise/sdk/lib/pocketbase";
+import { readFile } from "fs/promises";
+import path from "path";
+import YAML from "yaml";
+
+type WidgetPreviewData = {
+    template?: string;
+    properties?: Record<string, any>;
+};
+
+type WidgetCatalogItem = {
+    slug: string;
+    name?: string;
+    description?: string;
+    template?: string;
+    properties?: Record<string, any>;
+    data?: {
+        source?: string;
+        input?: Record<string, any>;
+    };
+    exampleProps?: Record<string, any>;
+    preview?: WidgetPreviewData;
+};
+
+type WidgetCatalog = Record<string, WidgetCatalogItem[]>;
+
+function normalizeWidgetSlug(value: string) {
+    return value
+        .toLowerCase()
+        .replace(/\s+/g, "-")
+        .replace(/[^a-z0-9-]/g, "");
+}
+
+function normalizeWidgetList(rawWidgets: unknown): WidgetCatalogItem[] {
+    if (!Array.isArray(rawWidgets)) return [];
+
+    return rawWidgets
+        .filter((entry): entry is Record<string, any> => !!entry && typeof entry === "object")
+        .map((widget) => {
+            const label =
+                typeof widget.name === "string" && widget.name.trim()
+                    ? widget.name.trim()
+                    : "Integration Widget";
+            const explicitSlug = typeof widget.slug === "string" ? widget.slug.trim() : "";
+            const slug = explicitSlug || normalizeWidgetSlug(label);
+
+            const data = widget.data && typeof widget.data === "object"
+                ? {
+                    source:
+                        typeof widget.data.source === "string" && widget.data.source.trim()
+                            ? widget.data.source.trim()
+                            : undefined,
+                    input:
+                        widget.data.input && typeof widget.data.input === "object"
+                            ? (widget.data.input as Record<string, any>)
+                            : {},
+                }
+                : undefined;
+
+            return {
+                slug,
+                name: label,
+                description:
+                    typeof widget.description === "string" ? widget.description : undefined,
+                template:
+                    typeof widget.template === "string" ? widget.template : "columns",
+                properties:
+                    widget.properties && typeof widget.properties === "object"
+                        ? (widget.properties as Record<string, any>)
+                        : {},
+                data,
+                preview:
+                    widget.preview && typeof widget.preview === "object"
+                        ? {
+                            template:
+                                typeof widget.preview.template === "string"
+                                    ? widget.preview.template
+                                    : undefined,
+                            properties:
+                                widget.preview.properties &&
+                                    typeof widget.preview.properties === "object"
+                                    ? (widget.preview.properties as Record<string, any>)
+                                    : {},
+                        }
+                        : {
+                            template:
+                                typeof widget.template === "string" ? widget.template : "columns",
+                            properties:
+                                widget.properties && typeof widget.properties === "object"
+                                    ? (widget.properties as Record<string, any>)
+                                    : {},
+                        },
+            } as WidgetCatalogItem;
+        })
+        .filter((entry) => !!entry.slug);
+}
+
+async function getDefaultWeatherWidgets(): Promise<WidgetCatalogItem[]> {
+    const candidatePaths = [
+        path.resolve(process.cwd(), "lib/integrations/weather.yaml"),
+        path.resolve(process.cwd(), "../lib/integrations/weather.yaml"),
+    ];
+
+    for (const candidatePath of candidatePaths) {
+        try {
+            const content = await readFile(candidatePath, "utf-8");
+            const parsed = YAML.parse(content) as Record<string, any>;
+            const weatherWidgets = parsed?.configuration?.widgets;
+            return normalizeWidgetList(weatherWidgets);
+        } catch {
+            continue;
+        }
+    }
+
+    return [];
+}
+
+async function getDefaultWidgets(): Promise<WidgetCatalog> {
+    const candidatePaths = [
+        path.resolve(process.cwd(), "lib/integrations/default.yaml"),
+        path.resolve(process.cwd(), "../lib/integrations/default.yaml"),
+    ];
+
+    for (const candidatePath of candidatePaths) {
+        try {
+            const content = await readFile(candidatePath, "utf-8");
+            const parsed = YAML.parse(content) as Record<string, any>;
+            const widgets = parsed?.configuration?.widgets;
+            const normalized = normalizeWidgetList(widgets);
+
+            if (normalized.length === 0) {
+                return {};
+            }
+
+            return {
+                "integration-default": normalized,
+            };
+        } catch {
+            continue;
+        }
+    }
+
+    return {};
+}
 
 type WeatherInput = {
     lat: string;
@@ -208,12 +351,62 @@ async function fetchWeather({ lat, lon, unit = "c" }: WeatherInput) {
     };
 }
 
+export async function getUserWidgets(userId: string) {
+    const merged: WidgetCatalog = JSON.parse(JSON.stringify(await getDefaultWidgets()));
+    const pb = await getSuperuserPB();
+
+    const defaultWeatherWidgets = await getDefaultWeatherWidgets();
+    if (defaultWeatherWidgets.length > 0) {
+        merged["integration-weather"] = defaultWeatherWidgets;
+    }
+
+    const list = await pb.collection("integrations").getFullList({
+        filter: `user=\"${userId}\"`,
+        sort: "-updated",
+    });
+
+    for (const record of list) {
+        const config = record?.config;
+        if (!config || typeof config !== "object") continue;
+
+        const details = (config as Record<string, any>).details;
+        const integrationName =
+            typeof details?.name === "string" && details.name.trim()
+                ? details.name.trim().toLowerCase().replace(/\s+/g, "-")
+                : "integrations";
+
+        const rawWidgets = (config as Record<string, any>)?.configuration?.widgets;
+        const normalizedWidgets = normalizeWidgetList(rawWidgets);
+        if (normalizedWidgets.length === 0) continue;
+
+        const category = `integration-${integrationName}`;
+        if (!Array.isArray(merged[category])) {
+            merged[category] = [];
+        }
+
+        for (const normalized of normalizedWidgets) {
+            const exists = merged[category].some((entry) => entry.slug === normalized.slug);
+            if (!exists) {
+                merged[category].push(normalized);
+            }
+        }
+    }
+
+    return merged;
+}
+
 export async function getWidgetData(userId: string, widgetType: string, widget: Record<string, any>) {
     if (widgetType === "link-view") {
         return getHomeLinks(userId);
     }
 
     return widget?.data;
+}
+
+
+
+export async function getUserGlanceables(userId: string) {
+    
 }
 
 export async function getGlanceableData(
