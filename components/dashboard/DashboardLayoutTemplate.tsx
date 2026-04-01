@@ -10,10 +10,7 @@ import PagesTabs from "../PagesTabs";
 import UpdateDetailsDialogComponent from "./UpdateDetailsDialog";
 import useAuth from "@/context/useAuth";
 import { getNotificationsAction } from "@/app/actions/notifications/items";
-import WidgetComponent from "../widgets/Widget";
-import GlanceableClockWidget from "../widgets/dashboard/GlanceableClock";
-import SearchBar from "../widgets/SearchBar";
-import LinkView from "../widgets/LinkView";
+import { renderWidget } from "../widgets/Widget";
 import { rangeContainsDayOfWeek } from "react-day-picker";
 
 const COLUMN_ORDER = ["left", "middle", "right"] as const;
@@ -43,8 +40,6 @@ export default function DashboardLayoutTemplate({
 }) {
     const searchParams = useSearchParams();
     const openFromURL = searchParams.get("search") === "1";
-
-    console.log(config)
 
     const containerRef = useRef<HTMLDivElement | null>(null);
     const [activePanel, setActivePanel] = useState<number>(1);
@@ -269,7 +264,7 @@ export default function DashboardLayoutTemplate({
         return cssVars;
     }, [measuredHeights]);
 
-    const renderEntry = (
+    const renderWidgetEntry = (
         columnName: Column,
         entryKey: string,
         entryConfig: Record<string, any> | null | undefined,
@@ -300,11 +295,11 @@ export default function DashboardLayoutTemplate({
                             ? { height: heightStyle }
                             : undefined}
                     >
-                        <WidgetComponent
-                            type="placeholder"
-                            params={cfg.params}
-                            className="h-full w-full"
-                        />
+                        {renderWidget({
+                            type: "placeholder",
+                            params: cfg.params,
+                            className: "h-full w-full",
+                        })}
                     </div>
                 );
             }
@@ -312,33 +307,40 @@ export default function DashboardLayoutTemplate({
                 const ref = getHeightRefCallback("main-clock");
                 return (
                     <div key={baseKey} className={wrapperClass} ref={ref}>
-                        <GlanceableClockWidget
-                            params={cfg}
-                            className="w-full"
-                        />
+                        {renderWidget({
+                            type: "main-clock",
+                            params: cfg,
+                            className: "w-full",
+                        })}
                     </div>
                 );
             }
             case "search-bar":
                 return (
                     <div key={baseKey} className={wrapperClass}>
-                        <SearchBar
-                            useRedirect={true}
-                            defaultOpen={openFromURL ?? false}
-                        />
+                        {renderWidget({
+                            type: "search-bar",
+                            defaultOpen: openFromURL ?? false,
+                        })}
                     </div>
                 );
             case "link-view":
                 return (
                     <div key={baseKey} className={wrapperClass}>
-                        <LinkView links={cfg.data ?? cfg.links ?? []} />
+                        {renderWidget({
+                            type: "link-view",
+                            params: cfg,
+                        })}
                     </div>
                 );
             default:
                 // Fall back to generic widget for any unknown entry key
                 return (
                     <div key={baseKey} className={wrapperClass}>
-                        <WidgetComponent type={entryKey} params={cfg} />
+                        {renderWidget({
+                            type: entryKey,
+                            params: cfg,
+                        })}
                     </div>
                 );
         }
@@ -355,7 +357,7 @@ export default function DashboardLayoutTemplate({
             >
                 {entries && typeof entries === "object"
                     ? Object.entries(entries).map(([key, cfg], i) =>
-                        renderEntry(
+                        renderWidgetEntry(
                             columnName,
                             key,
                             cfg as Record<string, any>,
