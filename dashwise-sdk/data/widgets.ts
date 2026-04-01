@@ -370,7 +370,7 @@ export async function getUserWidgets(userId: string) {
                 : "integrations";
 
         const rawWidgets = (config as Record<string, any>)?.configuration?.widgets;
-        if (!Array.isArray(rawWidgets) || rawWidgets.length === 0) continue;
+        if (!Array.isArray(rawWidgets)) continue;
 
         const resolvedWidgets: WidgetCatalogItem[] = rawWidgets
             .filter((entry): entry is Record<string, any> => !!entry && typeof entry === "object")

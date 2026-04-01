@@ -260,7 +260,7 @@ export async function getComputedPropertyData({
     source,
     input,
 }: ComputedPropertyInput): Promise<Record<string, any> | null> {
-    if (String(source || "").trim().toLowerCase() !== "computed.weather") {
+    if (source.trim().toLowerCase() !== "computed.weather") {
         return null;
     }
 
