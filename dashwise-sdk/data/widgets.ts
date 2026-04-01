@@ -355,7 +355,7 @@ export async function getUserWidgets(userId: string) {
         const config = record?.config;
         if (!config || typeof config !== "object") continue;
         const environment = record?.environment;
-        const normalizedEnvironment = environment && typeof environment === "object"
+        const stringifiedEnvironment = environment && typeof environment === "object"
             ? Object.fromEntries(
                 Object.entries(environment as Record<string, any>)
                     .filter(([, value]) => value !== undefined && value !== null)
@@ -378,7 +378,7 @@ export async function getUserWidgets(userId: string) {
                 const resolved = resolveWidgetDefinition(
                     entry as Record<string, unknown>,
                     config as Record<string, unknown>,
-                    normalizedEnvironment,
+                    stringifiedEnvironment,
                 );
                 if (!resolved) return null;
 

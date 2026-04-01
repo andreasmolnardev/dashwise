@@ -54,6 +54,10 @@ type WeatherIntegrationDefinition = {
     };
 };
 
+/**
+ * Loads and parses integration YAML from the current working directory,
+ * falling back to one level up for server/runtime path differences.
+ */
 async function loadIntegrationYaml(relativePath: string) {
     const candidatePaths = [
         path.resolve(process.cwd(), relativePath),
