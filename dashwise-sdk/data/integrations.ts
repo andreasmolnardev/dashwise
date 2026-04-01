@@ -400,16 +400,39 @@ function resolveWidgetDefinition(
     const properties = isPlainObject(widget.properties)
         ? (resolveValue(widget.properties, envMap) as Record<string, unknown>)
         : {};
+    const data = isPlainObject(widget.data)
+        ? {
+            source: typeof widget.data.source === "string" && widget.data.source.trim()
+                ? widget.data.source.trim()
+                : undefined,
+            input: isPlainObject(widget.data.input)
+                ? (resolveValue(widget.data.input, envMap) as Record<string, unknown>)
+                : {},
+        }
+        : undefined;
     const exampleProps = isPlainObject(widget.exampleProps)
         ? (resolveValue(widget.exampleProps, envMap) as Record<string, unknown>)
         : {};
+    const preview = isPlainObject(widget.preview)
+        ? {
+            template:
+                typeof widget.preview.template === "string" && widget.preview.template.trim()
+                    ? widget.preview.template.trim()
+                    : undefined,
+            properties: isPlainObject(widget.preview.properties)
+                ? (resolveValue(widget.preview.properties, envMap) as Record<string, unknown>)
+                : {},
+        }
+        : undefined;
 
     return {
         slug,
         name: name ?? slug,
         template,
         properties,
+        data,
         exampleProps,
+        preview,
     };
 }
 
@@ -762,7 +785,7 @@ function resolveValue(value: unknown, envMap: Record<string, string>): unknown {
         return value;
     }
     if (typeof value === "string") {
-        return interpolateString(value, envMap);
+        return resolveStringValue(value, envMap);
     }
     if (Array.isArray(value)) {
         return value.map((item) => resolveValue(item, envMap));
@@ -775,6 +798,38 @@ function resolveValue(value: unknown, envMap: Record<string, string>): unknown {
         return resolved;
     }
     return value;
+}
+
+function resolveStringValue(template: string, envMap: Record<string, string>) {
+    const fallbackSeparator = template.indexOf("???");
+    if (fallbackSeparator === -1) {
+        return parseMaybeJson(interpolateString(template, envMap));
+    }
+
+    const primaryTemplate = template.slice(0, fallbackSeparator).trim();
+    const fallbackTemplate = template.slice(fallbackSeparator + 3).trim();
+    const primaryValue = interpolateString(primaryTemplate, envMap).trim();
+
+    if (primaryValue && !primaryValue.includes("${")) {
+        return parseMaybeJson(primaryValue);
+    }
+
+    const fallbackValue = interpolateString(fallbackTemplate, envMap).trim();
+    return parseMaybeJson(fallbackValue);
+}
+
+function parseMaybeJson(value: string) {
+    const trimmed = value.trim();
+    if (!trimmed) return value;
+    if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) {
+        return value;
+    }
+
+    try {
+        return JSON.parse(trimmed);
+    } catch {
+        return value;
+    }
 }
 
 function interpolateString(template: string, envMap: Record<string, string>) {
