@@ -10,8 +10,8 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 const navItems = [
   { href: "/settings/account", label: "Account", icon: faCircleUser },
   { href: "/settings/appearance", label: "Appearance", icon: faBrush },
+  { href: "/settings/pages", label: "Pages", icon: faGripLines },
   { href: "/settings/screensaver", label: "Screensaver", icon: faDisplay },
-  { href: "/settings/glanceables", label: "Glanceables", icon: faGripLines },
   { href: "/settings/search", label: "Search", icon: faMagnifyingGlass },
   { href: "/settings/integrations", label: "Integrations", icon: faPuzzlePiece },
   { href: "/settings/widgets", label: "Widgets", icon: faChartLine },
@@ -19,7 +19,6 @@ const navItems = [
 ];
 
 export default function SettingsLayout({ children }: { children: React.ReactNode }) {
-  const { config, refreshConfig } = usePageConfig();
   const pathname = usePathname();
   const activeBgRef = useRef<HTMLDivElement | null>(null);
 

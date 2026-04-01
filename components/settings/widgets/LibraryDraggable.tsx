@@ -18,6 +18,8 @@ export function LibraryDraggable({
 }) {
   const id = useMemo(() => `new-${info.slug}-${index}`, [info.slug, index]);
   const { attributes, listeners, setNodeRef } = useDraggable({ id, data: { slug: info.slug } });
+  const previewParams = (info as WidgetInfo & { preview?: { properties?: Record<string, any> } })
+    .preview?.properties ?? info.exampleProps ?? {};
 
   return (
     <li
@@ -31,7 +33,7 @@ export function LibraryDraggable({
       <SettingsWidgetPreview
         type={info.slug}
         className="h-[90px] w-full"
-        params={info.exampleProps || {}}
+        params={previewParams}
         isIntegrationWidget={!!isIntegrationWidget}
       />
       <span className="text-sm font-medium">{info.name}</span>

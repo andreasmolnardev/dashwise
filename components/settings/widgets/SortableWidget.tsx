@@ -25,6 +25,10 @@ export function SortableWidget({
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({
     id: widget.id,
   });
+  const previewParams = (widget as Widget & {
+    preview?: { properties?: Record<string, any> };
+    exampleProps?: Record<string, any>;
+  }).preview?.properties ?? widget.exampleProps ?? widget.properties ?? {};
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -37,7 +41,7 @@ export function SortableWidget({
     <div ref={setNodeRef} style={style} {...attributes} {...listeners} className="relative">
       <SettingsWidgetPreview
         type={widget.type}
-        params={widget.properties || {}}
+        params={previewParams}
         className="h-[90px] w-full"
         isIntegrationWidget={!!isIntegrationWidget}
       />

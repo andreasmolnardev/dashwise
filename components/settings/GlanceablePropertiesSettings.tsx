@@ -3,9 +3,9 @@
 import React, { useEffect, useState } from "react";
 import useAuth from "@/context/useAuth";
 import GlanceableComponent, { GlanceableProps } from "@/components/glanceables/Glanceable";
-import glanceables from '@/public/glanceables.json'
 import { usePageConfig } from "@/hooks/usePageConfig";
 import { updateConfigPathAction } from "@/app/actions/config";
+import { getUserGlanceablesAction } from "@/app/actions/widgets";
 import { Input } from "../ui/input";
 import { Button } from "../ui/button";
 import { Checkbox } from "../ui/checkbox";
@@ -30,9 +30,9 @@ export default function GlanceablePropertiesSettingsComponent({
     currentTab: "left" | "right";
     isCurrent: Boolean;
 }) {
-    const glanceables_mapped = mapGlanceablesJsonToArray(glanceables);
     const { config, refreshConfig } = usePageConfig();
     const { withAuth } = useAuth();
+    const [glanceables_mapped, setGlanceablesMapped] = useState<Glanceable[]>([]);
 
     const [params, setParams] = useState<Record<string, any>>(() => {
         const def = isCurrent == true ? selected.properties : selected.exampleProps;
@@ -47,6 +47,21 @@ export default function GlanceablePropertiesSettingsComponent({
         const def = isCurrent === true ? selected.properties : selected.exampleProps;
         setParams(def ?? {});
     }, [selected]);
+
+    useEffect(() => {
+        void withAuth((auth) => getUserGlanceablesAction(auth))
+            .then((data) => {
+                const mapped = Array.isArray(data) ? data.map((entry: any) => ({
+                    type: String(entry?.type ?? "weather"),
+                    displayName: entry?.displayName ?? entry?.name ?? entry?.type,
+                    description: entry?.description,
+                    exampleProps: entry?.exampleProps ?? {},
+                    properties: entry?.properties ?? {},
+                })) : [];
+                setGlanceablesMapped(mapped);
+            })
+            .catch(() => setGlanceablesMapped([]));
+    }, [withAuth]);
 
     async function handleSave() {
         setSaveError(null);
@@ -161,13 +176,6 @@ function EditProperties({
     );
 }
 
-
-function mapGlanceablesJsonToArray(defs: Record<string, any>): Glanceable[] {
-    return Object.entries(defs).map(([type, definition]) => ({
-        type,
-        ...definition,
-    }));
-}
 
 function PropertyInput({
     name,

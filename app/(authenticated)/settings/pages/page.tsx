@@ -1,220 +1,297 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePageConfig } from "@/hooks/usePageConfig";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
 import { updatePageConfigAction } from "@/app/actions/pageConfigs";
+import { getUserGlanceablesAction, getUserWidgetsAction } from "@/app/actions/widgets";
 import useAuth from "@/context/useAuth";
-import rawGlanceablesData from "@/public/glanceables.json";
-import rawWidgetsData from "@/public/widgets.json";
+import { PageSelectTabs } from "@/components/settings/pages/PageSelectTabs";
+import { TemplateOptions } from "@/components/settings/pages/TemplateOptions";
+import { EditGlanceablesView } from "@/components/settings/pages/EditGlanceablesView";
+import { DashboardWidgetPreview } from "@/components/settings/pages/DashboardWidgetPreview";
+import {
+  buildPageConfigPatch,
+  enabledColumnsFromTemplate,
+  findMainClock,
+  flattenWidgetCatalog,
+  inferTemplateFromColumns,
+  normalizeColumns,
+  readClockGlanceables,
+  type ColumnName,
+  type ColumnWidget,
+  type GlanceableSide,
+  type TemplateId,
+  type WidgetDefinition,
+} from "@/components/settings/pages/utils";
 
-type GlanceableDefinition = {
-	displayName?: string;
+const DEFAULT_CLOCK_STYLE: Record<string, any> = {
+  color: "#ffffff",
+  defaultFont: "Bitcount Grid Single",
+  fontWeight: 400,
+  frosted: false,
+  letterSpacing: 2,
+  opacity: 1,
+  outlineColor: "#3b3232",
+  outlineEnabled: false,
+  outlineWidth: 2,
+  roundness: 0,
 };
 
-type WidgetDefinition = {
-	slug: string;
-	name?: string;
+type GlanceableCatalogItem = {
+  type: string;
+  name: string;
+  exampleProps: Record<string, any>;
 };
-
-type WidgetObject = {
-	id: string;
-	type: string;
-	properties: Record<string, any>;
-};
-
-function createWidgetId() {
-	return Math.random().toString(36).slice(2, 12);
-}
-
-function flattenWidgetCatalog(widgetsData: Record<string, WidgetDefinition[]>) {
-	return Object.entries(widgetsData).flatMap(([category, widgets]) =>
-		widgets.map((widget) => ({
-			category,
-			slug: widget.slug,
-			name: widget.name ?? widget.slug,
-		}))
-	);
-}
 
 export default function SettingsPagesPage() {
-	const { config: homeConfig, refreshConfig: refreshHomeConfig } = usePageConfig({ pageName: "home" });
-	const pages = useMemo<string[]>(() => {
-		const configuredPages = Array.isArray(homeConfig?.pages) ? homeConfig.pages : [];
-		return configuredPages.length > 0 ? configuredPages : ["home"];
-	}, [homeConfig?.pages]);
+  const { config: homeConfig, refreshConfig: refreshHomeConfig } = usePageConfig({
+    pageName: "home",
+  });
 
-	const [selectedPage, setSelectedPage] = useState("home");
-	const { config: selectedConfig, refreshConfig: refreshSelectedConfig } = usePageConfig({ pageName: selectedPage });
-	const { withAuth } = useAuth();
+  const pages = useMemo<string[]>(() => {
+    const configuredPages = Array.isArray(homeConfig?.pages) ? homeConfig.pages : [];
+    return configuredPages.length > 0 ? configuredPages : ["home"];
+  }, [homeConfig?.pages]);
 
-	const [newPageName, setNewPageName] = useState("");
-	const [selectedGlanceables, setSelectedGlanceables] = useState<string[]>([]);
-	const [selectedWidgetTypes, setSelectedWidgetTypes] = useState<string[]>([]);
-	const [isSaving, setIsSaving] = useState(false);
+  const [selectedPage, setSelectedPage] = useState("home");
+  const { config: selectedConfig, refreshConfig: refreshSelectedConfig } = usePageConfig({
+    pageName: selectedPage,
+  });
+  const { withAuth } = useAuth();
 
-	const glanceablesCatalog = useMemo(() => {
-		const defs = rawGlanceablesData as Record<string, GlanceableDefinition>;
-		return Object.entries(defs).map(([type, def]) => ({
-			type,
-			name: def.displayName ?? type,
-		}));
-	}, []);
+  const [template, setTemplate] = useState<TemplateId>("main");
+  const [columns, setColumns] = useState<Record<ColumnName, ColumnWidget[]>>({
+    left: [],
+    middle: [],
+    right: [],
+  });
+  const [allWidgets, setAllWidgets] = useState<Record<string, WidgetDefinition[]>>({});
+  const [selectedWidgetCategory, setSelectedWidgetCategory] = useState<string>("clock");
+  const [selectedClockPart, setSelectedClockPart] = useState<GlanceableSide | "clock">("left");
+  const [clockGlanceables, setClockGlanceables] = useState<Record<string, any>>({});
+  const [clockSelection, setClockSelection] = useState<Record<GlanceableSide, string>>({
+    left: "date",
+    right: "weather",
+  });
+  const [clockStyle, setClockStyle] = useState<Record<string, any>>(DEFAULT_CLOCK_STYLE);
+  const [fonts, setFonts] = useState<Array<{ name: string; path: string }>>([]);
+  const [glanceablesCatalog, setGlanceablesCatalog] = useState<GlanceableCatalogItem[]>([]);
 
-	const widgetCatalog = useMemo(() => {
-		return flattenWidgetCatalog(rawWidgetsData as Record<string, WidgetDefinition[]>);
-	}, []);
+  const hasLoadedConfigRef = useRef(false);
+  const lastSavedSignatureRef = useRef("");
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-	useEffect(() => {
-		const currentGlanceables = Array.isArray(selectedConfig?.glanceables) ? selectedConfig.glanceables : [];
-		setSelectedGlanceables(
-			currentGlanceables
-				.map((item: any) => item?.type)
-				.filter((item: unknown): item is string => typeof item === "string")
-		);
+  const widgetCatalog = useMemo(() => flattenWidgetCatalog(allWidgets), [allWidgets]);
+  const widgetCategories = useMemo(() => Object.keys(allWidgets), [allWidgets]);
+  const enabledColumns = useMemo(() => enabledColumnsFromTemplate(template), [template]);
+  const hasMainClock = useMemo(() => !!findMainClock(columns), [columns]);
 
-		const currentWidgets = Array.isArray(selectedConfig?.widgets)
-			? selectedConfig.widgets.flatMap((column: any) => (Array.isArray(column) ? column : []))
-			: [];
-		setSelectedWidgetTypes(
-			currentWidgets
-				.map((item: any) => item?.type)
-				.filter((item: unknown): item is string => typeof item === "string")
-		);
-	}, [selectedConfig?.glanceables, selectedConfig?.widgets]);
+  useEffect(() => {
+    fetch("/fonts/index.json")
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data)) {
+          setFonts([{ name: "Default", path: "" }, ...data]);
+        }
+      })
+      .catch(() => setFonts([{ name: "Default", path: "" }]));
+  }, []);
 
-	const toggleGlanceable = (type: string, checked: boolean) => {
-		setSelectedGlanceables((prev) => {
-			if (checked) return Array.from(new Set([...prev, type]));
-			return prev.filter((item) => item !== type);
-		});
-	};
+  useEffect(() => {
+    void withAuth((auth) => getUserWidgetsAction(auth))
+      .then((data) => {
+        const casted = (data ?? {}) as Record<string, WidgetDefinition[]>;
+        setAllWidgets(casted);
+        const categories = Object.keys(casted);
+        if (categories.length > 0) {
+          setSelectedWidgetCategory((prev) => (categories.includes(prev) ? prev : categories[0]));
+        }
+      })
+      .catch(() => setAllWidgets({}));
+  }, [withAuth]);
 
-	const toggleWidget = (type: string, checked: boolean) => {
-		setSelectedWidgetTypes((prev) => {
-			if (checked) return Array.from(new Set([...prev, type]));
-			return prev.filter((item) => item !== type);
-		});
-	};
+  useEffect(() => {
+    void withAuth((auth) => getUserGlanceablesAction(auth))
+      .then((data) => {
+        const catalog = Array.isArray(data)
+          ? data.map((entry: any) => ({
+              type: String(entry?.type ?? "weather"),
+              name: String(entry?.displayName ?? entry?.name ?? entry?.type ?? "Glanceable"),
+              exampleProps: (entry?.exampleProps && typeof entry.exampleProps === "object")
+                ? entry.exampleProps
+                : {},
+            }))
+          : [];
+        setGlanceablesCatalog(catalog);
+      })
+      .catch(() => setGlanceablesCatalog([]));
+  }, [withAuth]);
 
-	const handleCreatePage = async () => {
-		const normalized = newPageName.trim().toLowerCase();
-		if (!normalized) return;
-		if (pages.includes(normalized)) {
-			setSelectedPage(normalized);
-			setNewPageName("");
-			return;
-		}
+  useEffect(() => {
+    const normalizedColumns = normalizeColumns(selectedConfig);
+    const inferredTemplate =
+      selectedConfig?.template === "main" ||
+      selectedConfig?.template === "left-middle" ||
+      selectedConfig?.template === "right-middle"
+        ? (selectedConfig.template as TemplateId)
+        : inferTemplateFromColumns(selectedConfig?.columns);
 
-		const nextPages = Array.from(new Set([...(pages ?? []), normalized]));
-		await withAuth((auth) => updatePageConfigAction(auth, "home", { pages: nextPages }));
-		await refreshHomeConfig();
-		setSelectedPage(normalized);
-		setNewPageName("");
-	};
+    setColumns(normalizedColumns);
+    setTemplate(inferredTemplate === "right-middle" ? "main" : inferredTemplate);
 
-	const handleSave = async () => {
-		setIsSaving(true);
-		try {
-			const currentGlanceables = Array.isArray(selectedConfig?.glanceables) ? selectedConfig.glanceables : [];
-			const nextGlanceables = selectedGlanceables.map((type) => {
-				const existing = currentGlanceables.find((entry: any) => entry?.type === type);
-				return existing ?? { type };
-			});
+    const fallbackGlanceables = Array.isArray(selectedConfig?.glanceables) ? selectedConfig.glanceables : [];
+    const nextClock = readClockGlanceables(normalizedColumns, fallbackGlanceables);
+    setClockGlanceables(nextClock.map);
+    setClockSelection(nextClock.selected);
 
-			const nextWidgetsColumns: WidgetObject[][] = [[], [], []];
-			selectedWidgetTypes.forEach((type, index) => {
-				nextWidgetsColumns[index % 3].push({
-					id: createWidgetId(),
-					type,
-					properties: {},
-				});
-			});
+    const mainClock = findMainClock(normalizedColumns);
+    const configClockStyle = mainClock?.properties?.["clock-style"];
+    const appearanceClock = selectedConfig?.appearance?.clock;
+    const nextClockStyle = {
+      ...DEFAULT_CLOCK_STYLE,
+      ...(appearanceClock && typeof appearanceClock === "object" ? appearanceClock : {}),
+      ...(configClockStyle && typeof configClockStyle === "object" ? configClockStyle : {}),
+    };
+    setClockStyle(nextClockStyle);
 
-			await withAuth((auth) =>
-				updatePageConfigAction(auth, selectedPage, {
-					glanceables: nextGlanceables,
-					widgets: nextWidgetsColumns,
-				})
-			);
-			await refreshSelectedConfig();
-		} finally {
-			setIsSaving(false);
-		}
-	};
+    lastSavedSignatureRef.current = JSON.stringify(
+      buildPageConfigPatch(
+        inferredTemplate === "right-middle" ? "main" : inferredTemplate,
+        normalizedColumns,
+        nextClock.selected,
+        nextClock.map,
+        nextClockStyle,
+      ),
+    );
+    hasLoadedConfigRef.current = true;
+  }, [selectedConfig]);
 
-	return (
-		<div className="space-y-6">
-			<div className="space-y-2">
-				<h1 className="text-2xl font-semibold">Pages</h1>
-				<p className="text-sm text-muted-foreground">Choose a page, then select its glanceables and widgets.</p>
-			</div>
+  useEffect(() => {
+    hasLoadedConfigRef.current = false;
+    lastSavedSignatureRef.current = "";
 
-			<div className="grid gap-3 md:grid-cols-[1fr_auto] md:items-end">
-				<div className="space-y-2">
-					<Label htmlFor="new-page">New page name</Label>
-					<Input
-						id="new-page"
-						value={newPageName}
-						onChange={(event) => setNewPageName(event.target.value)}
-						placeholder="lab"
-					/>
-				</div>
-				<Button type="button" onClick={handleCreatePage}>Add page</Button>
-			</div>
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+    }
+  }, [selectedPage]);
 
-			<div className="space-y-2">
-				<Label>Page to edit</Label>
-				<div className="flex flex-wrap gap-2">
-					{pages.map((page) => (
-						<Button
-							key={page}
-							type="button"
-							variant={selectedPage === page ? "default" : "outline"}
-							onClick={() => setSelectedPage(page)}
-						>
-							{page}
-						</Button>
-					))}
-				</div>
-			</div>
+  const handleCreatePage = async (pageName: string) => {
+    const normalized = pageName.trim().toLowerCase();
+    if (!normalized) return;
+    if (pages.includes(normalized)) {
+      setSelectedPage(normalized);
+      return;
+    }
 
-			<div className="space-y-3">
-				<h2 className="text-lg font-medium">Glanceables</h2>
-				<div className="grid gap-2 sm:grid-cols-2">
-					{glanceablesCatalog.map((item) => (
-						<Label key={item.type} className="flex items-center gap-2 rounded-md border p-3">
-							<Checkbox
-								checked={selectedGlanceables.includes(item.type)}
-								onCheckedChange={(checked) => toggleGlanceable(item.type, checked === true)}
-							/>
-							<span>{item.name}</span>
-						</Label>
-					))}
-				</div>
-			</div>
+    const nextPages = Array.from(new Set([...(pages ?? []), normalized]));
+    await withAuth((auth) => updatePageConfigAction(auth, "home", { pages: nextPages }));
+    await withAuth((auth) =>
+      updatePageConfigAction(auth, normalized, {
+        template: "main",
+        columns: {
+          left: { placeholder: { height: "$main-clock" } },
+          middle: {
+            "main-clock": { glanceables: { date: null, weather: null } },
+            "search-bar": {},
+            "link-view": {},
+          },
+          right: { placeholder: { height: "$main-clock" } },
+        },
+      }),
+    );
 
-			<div className="space-y-3">
-				<h2 className="text-lg font-medium">Widgets</h2>
-				<div className="grid gap-2 sm:grid-cols-2">
-					{widgetCatalog.map((item) => (
-						<Label key={`${item.category}:${item.slug}`} className="flex items-center gap-2 rounded-md border p-3">
-							<Checkbox
-								checked={selectedWidgetTypes.includes(item.slug)}
-								onCheckedChange={(checked) => toggleWidget(item.slug, checked === true)}
-							/>
-							<span>{item.name}</span>
-						</Label>
-					))}
-				</div>
-			</div>
+    await refreshHomeConfig();
+    setSelectedPage(normalized);
+  };
 
-			<Button type="button" onClick={handleSave} disabled={isSaving}>
-				{isSaving ? "Saving..." : `Save ${selectedPage}`}
-			</Button>
-		</div>
-	);
+  const pageConfigPatch = useMemo(
+    () => buildPageConfigPatch(template, columns, clockSelection, clockGlanceables, clockStyle),
+    [clockGlanceables, clockSelection, clockStyle, columns, template],
+  );
+
+  const pageConfigSignature = useMemo(() => JSON.stringify(pageConfigPatch), [pageConfigPatch]);
+
+  const handleSave = useCallback(async () => {
+    const signature = JSON.stringify(pageConfigPatch);
+
+    await withAuth((auth) =>
+      updatePageConfigAction(auth, selectedPage, {
+        ...pageConfigPatch,
+      }),
+    );
+    lastSavedSignatureRef.current = signature;
+    await refreshSelectedConfig();
+    return signature;
+  }, [pageConfigPatch, refreshSelectedConfig, selectedPage, withAuth]);
+
+  useEffect(() => {
+    if (!hasLoadedConfigRef.current) {
+      return;
+    }
+
+    if (pageConfigSignature === lastSavedSignatureRef.current) {
+      return;
+    }
+
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+    }
+
+    saveTimerRef.current = setTimeout(() => {
+      saveTimerRef.current = null;
+      void handleSave();
+    }, 350);
+
+    return () => {
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = null;
+      }
+    };
+  }, [handleSave, pageConfigSignature]);
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between gap-4">
+        <h1 className="text-2xl font-semibold">Pages</h1>
+      </div>
+
+      <PageSelectTabs
+        pages={pages}
+        selectedPage={selectedPage}
+        onSelectPage={setSelectedPage}
+        onCreatePage={handleCreatePage}
+      />
+
+      <h2 className="text-lg font-semibold">Template</h2>
+      <TemplateOptions template={template} onTemplateChange={setTemplate} />
+
+      {hasMainClock ? (
+        <EditGlanceablesView
+          hasMainClock={hasMainClock}
+          glanceablesCatalog={glanceablesCatalog}
+          selectedClockPart={selectedClockPart}
+          setSelectedClockPart={setSelectedClockPart}
+          clockSelection={clockSelection}
+          clockGlanceables={clockGlanceables}
+          setClockGlanceables={setClockGlanceables}
+          clockStyle={clockStyle}
+          setClockStyle={setClockStyle}
+          fonts={fonts}
+        />
+      ) : null}
+
+      <DashboardWidgetPreview
+        template={template}
+        columns={columns}
+        setColumns={setColumns}
+        enabledColumns={enabledColumns}
+        widgetCatalog={widgetCatalog}
+        widgetCategories={widgetCategories}
+        selectedWidgetCategory={selectedWidgetCategory}
+        setSelectedWidgetCategory={setSelectedWidgetCategory}
+      />
+    </div>
+  );
 }

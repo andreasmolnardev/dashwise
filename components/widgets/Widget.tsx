@@ -3,12 +3,8 @@
 import { useEffect, useState } from "react";
 import type { ComponentType, ReactNode } from "react";
 import GlanceableClockWidget from "./dashboard/GlanceableClock";
-import { getWeatherIcon } from "./dashboard/Weather";
 import LinkView from "./LinkView";
 import SearchBar from "./SearchBar";
-import { getWeatherAction } from "@/app/actions/integrations";
-import { usePageConfig } from "@/hooks/usePageConfig";
-import { useLocalization } from "@/context/LocalizationContext";
 import IconDetailsCard from "./templates/IconDetailsCard";
 
 export type WidgetProps = {
@@ -24,25 +20,6 @@ export type WidgetItemProps = {
   className?: string;
   params?: Record<string, any>;
   isPreview?: boolean;
-};
-
-type WeatherWidgetInput = {
-  lat?: string;
-  lon?: string;
-  unit?: string;
-  showLocation?: boolean;
-  displayName?: string;
-};
-
-type WeatherWidgetCardData = {
-  temperature?: number;
-  weatherCode?: number;
-  description?: string;
-  unit?: string;
-  sunrise?: string;
-  sunset?: string;
-  locationName?: string;
-  insight?: string;
 };
 
 function toText(value: unknown) {
@@ -103,32 +80,6 @@ function getImageUrl(value: unknown) {
   }
 
   return "";
-}
-
-function parseWeatherLocation(raw: unknown): { lat?: string; lon?: string; name?: string } {
-  if (typeof raw !== "string" || raw.trim().length === 0) {
-    return {};
-  }
-
-  try {
-    const parsed = JSON.parse(raw);
-    return {
-      lat: parsed?.lat ? String(parsed.lat) : undefined,
-      lon: parsed?.lon ? String(parsed.lon) : undefined,
-      name: parsed?.name ? String(parsed.name) : undefined,
-    };
-  } catch {
-    try {
-      const parsed = JSON.parse(raw.replaceAll("'", '"'));
-      return {
-        lat: parsed?.lat ? String(parsed.lat) : undefined,
-        lon: parsed?.lon ? String(parsed.lon) : undefined,
-        name: parsed?.name ? String(parsed.name) : undefined,
-      };
-    } catch {
-      return {};
-    }
-  }
 }
 
 function getIconFromProperties(properties: Record<string, unknown>) {
@@ -271,127 +222,78 @@ function renderPreviewTemplate(
 }
 
 
-function formatWeatherInsight(weather: WeatherWidgetCardData) {
-  const desc = (weather.description || "").toLowerCase();
-
-  if (desc.includes("rain")) return "Rain likely later — keep an umbrella handy.";
-  if (desc.includes("sun") || desc.includes("clear")) return "Sunny day ahead";
-  if (desc.includes("cloud")) return "Cloudy but stable weather.";
-  if (desc.includes("snow")) return "Cold with possible snowfall.";
-  return "Mild and stable weather ahead.";
+function getWeatherCardData(params?: Record<string, any>) {
+  const data = params?.data && typeof params.data === "object" ? (params.data as Record<string, any>) : params ?? {};
+  return data;
 }
 
-function WeatherTemplateWidget({
-  params,
-  className,
-}: {
-  params?: Record<string, any>;
-  className?: string;
-}) {
-  const { config } = usePageConfig();
-  const { weatherUnit, formatTemperature } = useLocalization();
-  const [weather, setWeather] = useState<WeatherWidgetCardData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const widgetInput = params?.data?.input && typeof params.data.input === "object"
-    ? (params.data.input as WeatherWidgetInput)
-    : (params ?? {});
-  const showLocation = widgetInput.showLocation === true || String(widgetInput.showLocation).toLowerCase() === "true";
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadWeather() {
-      setLoading(true);
-
-      let lat = widgetInput.lat;
-      let lon = widgetInput.lon;
-      let locationName = widgetInput.displayName;
-
-      if ((!lat || !lon) && config?.global?.weatherLocation) {
-        const fallback = parseWeatherLocation(config.global.weatherLocation);
-        lat = lat ?? fallback.lat;
-        lon = lon ?? fallback.lon;
-        locationName = locationName ?? fallback.name;
-      }
-
-      if (!lat || !lon) {
-        if (!cancelled) {
-          setWeather({ description: "Missing lat/lon" });
-          setLoading(false);
-        }
-        return;
-      }
-
-      const unit = String(widgetInput.unit || weatherUnit || config?.global?.weatherUnit || "c").toLowerCase();
-
-      try {
-        const raw = await getWeatherAction({ lat: String(lat), lon: String(lon), unit });
-        const nextWeather: WeatherWidgetCardData = {
-          temperature: raw.temperature,
-          weatherCode: raw.weatherCode,
-          description: raw.description,
-          unit: raw.unit,
-          sunrise: raw.sunrise,
-          sunset: raw.sunset,
-          locationName,
-          insight: raw.rainMessage ? raw.rainMessage : formatWeatherInsight(raw),
-        };
-
-        if (!cancelled) {
-          setWeather(nextWeather);
-          setLoading(false);
-        }
-      } catch (error) {
-        if (!cancelled) {
-          setWeather({ description: error instanceof Error ? error.message : "Upstream error" });
-          setLoading(false);
-        }
-      }
-    }
-
-    void loadWeather();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [config, params, weatherUnit]);
-
-  if (loading) {
-    return <div className={`frosted rounded-lg p-3 ${className || ""}`}>Loading weather...</div>;
+function getWeatherIconPath(file: unknown) {
+  if (typeof file !== "string" || !file.trim()) {
+    return null;
   }
 
-  if (!weather) {
-    return <div className={`frosted rounded-lg p-3 ${className || ""}`}>Weather unavailable</div>;
-  }
+  return file.startsWith("/") ? file : `/weather-icons/${file}`;
+}
 
-  const temperatureText = formatTemperature(weather.temperature, weather.unit);
-  const details = weather.description ?? "Unknown";
+function buildWeatherOverviewCard(params?: Record<string, any>, className?: string) {
+  const data = getWeatherCardData(params);
+  const iconPath = getWeatherIconPath(data.iconFile ?? data.icon_file ?? data.icon?.file);
+  const temperature = data.temperature ?? data.primary ?? "";
+  const unit = data.unit ?? "";
+  const description = data.description ?? data.title ?? "Weather";
+  const primary = typeof data.primary === "string"
+    ? data.primary
+    : `${temperature !== "" ? `${temperature}${unit}` : "Weather"}${description ? ` ${description}` : ""}`.trim();
+  const secondary = typeof data.secondary === "string"
+    ? data.secondary
+    : data.insight ?? data.rainMessage ?? data.description ?? "";
 
-  return (
-    <div className={`frosted rounded-lg p-3 ${className || ""}`}>
-      <div className="grid grid-cols-[auto_minmax(0,1fr)] grid-rows-2 items-center gap-x-3 gap-y-1">
-        <div className="row-span-2 flex h-12 w-12 items-center justify-center rounded-lg bg-black/10">
-          {getWeatherIcon({
-            description: details,
-            weatherCode: weather.weatherCode,
-            sunrise: weather.sunrise,
-            sunset: weather.sunset,
-            size: 48,
-          })}
-        </div>
-        <div className="min-w-0">
-          <p className="truncate text-lg font-semibold leading-tight">
-            {temperatureText} {details}
-          </p>
-        </div>
-        <div className="min-w-0">
-          <p className="truncate text-sm text-white/75 leading-tight">
-            {weather.insight || details}
-            {showLocation ? ` in ${weather.locationName ?? widgetInput.displayName ?? ""}` : ""}
-          </p>
-        </div>
-      </div>
-    </div>
+  return IconDetailsCard(
+    {
+      icon: iconPath,
+      primary,
+      secondary,
+    },
+    className,
+  );
+}
+
+function buildWeatherColumnsCard(params?: Record<string, any>, className?: string) {
+  const data = getWeatherCardData(params);
+  const iconPath = getWeatherIconPath(data.iconFile ?? data.icon_file ?? data.icon?.file);
+  const tonightIconPath = getWeatherIconPath(data.tonight?.iconFile ?? data.tonight?.icon_file);
+  const tomorrowIconPath = getWeatherIconPath(data.tomorrow?.iconFile ?? data.tomorrow?.icon_file);
+
+  const columns = [
+    {
+      label: "Now",
+      icon: iconPath ? { file: iconPath } : undefined,
+      primary: typeof data.primary === "string"
+        ? data.primary
+        : `${data.temperature ?? "—"}${data.unit ?? ""} ${data.precipitationProbability ?? data.precipitation_probability ?? ""}`.trim(),
+    },
+    {
+      label: "Tonight",
+      icon: tonightIconPath ? { file: tonightIconPath } : undefined,
+      primary: `${data.tonight?.temperature ?? "—"}${data.unit ?? ""} ${data.tonight?.precipitationProbability ?? data.tonight?.precipitation_probability ?? ""}`.trim(),
+    },
+    {
+      label: "Tomorrow",
+      icon: tomorrowIconPath ? { file: tomorrowIconPath } : undefined,
+      primary: `${data.tomorrow?.temperature ?? "—"}${data.unit ?? ""} ${data.tomorrow?.precipitationProbability ?? data.tomorrow?.precipitation_probability ?? ""}`.trim(),
+    },
+  ];
+
+  return renderPreviewTemplate(
+    "columns",
+    {
+      header: {
+        title: data.locationName ?? data.name ?? "Weather",
+        icon: iconPath ? { file: iconPath } : undefined,
+      },
+      columns,
+    },
+    className,
   );
 }
 
@@ -402,12 +304,11 @@ function renderWeatherWidget(
 ) {
   const normalizedType = type.toLowerCase();
 
-  if (normalizedType.includes("overview") || normalizedType.includes("weather")) {
-    return <WeatherTemplateWidget params={params} className={className} />;
+  if (normalizedType.includes("overview") || normalizedType.includes("card")) {
+    return buildWeatherOverviewCard(params, className);
   }
 
-  const properties = params && typeof params === "object" ? params : {};
-  return renderPreviewTemplate("columns", properties, className);
+  return buildWeatherColumnsCard(params, className);
 }
 
 function renderFallbackWidget(
