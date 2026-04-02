@@ -4,7 +4,6 @@ import axios from "axios";
 import YAML from "yaml";
 import fs from "fs/promises";
 import path from "path";
-import config from "@/lib/config";
 import { ApiActionError } from "@dashwise/sdk/data/auth";
 import { getSuperuserPB } from "@dashwise/sdk/lib/pocketbase";
 
@@ -186,7 +185,7 @@ export async function testIntegrationEndpoint(
         integration.config,
         integration.environment,
     );
-    console.log("Resolved endpoints for testing:", resolvedEndpoints);
+   
     const endpoint = resolvedEndpoints.find(
         (candidate) =>
             candidate.id === endpointKey || candidate.name === endpointKey,
@@ -267,7 +266,7 @@ export async function testIntegrationEndpoint(
         endpoint.allow_insecure_ssl === "true" ||
         (endpoint as any).insecure_skip_verify === true ||
         (endpoint as any).insecure_skip_verify === "true";
-    const allowInsecure = !!config.allowInsecureCertsForIntegrationUrls ||
+    const allowInsecure = 
         insecureRequested;
 
     const curlCommand = buildCurlCommand({
