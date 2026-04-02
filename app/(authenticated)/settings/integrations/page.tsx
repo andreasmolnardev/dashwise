@@ -418,7 +418,7 @@ export default function IntegrationsModularSettingsPage() {
       </div>
 
       <Sheet open={Boolean(selectedIntegration && detailsSheetOpen)} onOpenChange={setDetailsSheetOpen}>
-        <SheetContent className="max-w-3xl frosted text-(--text-primary)">
+        <SheetContent className="max-w-3xl frosted text-(--text-primary) overflow-y-scroll">
           {selectedIntegration ? (
             <>
               <SheetHeader>
