@@ -2,6 +2,8 @@ import { Buffer } from "buffer";
 import https from "https";
 import axios from "axios";
 import YAML from "yaml";
+import fs from "fs/promises";
+import path from "path";
 import config from "@/lib/config";
 import { ApiActionError } from "@dashwise/sdk/data/auth";
 import { getSuperuserPB } from "@dashwise/sdk/lib/pocketbase";
@@ -54,10 +56,63 @@ export async function listIntegrations(userId: string) {
         sort: "-updated",
     });
 
-    return { integrations: list.map(mapIntegration) };
+    // add default.yaml and weather.yaml (built-in templates) to the list
+    const builtinFiles = [
+        {
+            id: "builtin:default",
+            file: path.join(
+                process.cwd(),
+                "lib",
+                "integrations",
+                "default.yaml",
+            ),
+        },
+        {
+            id: "builtin:weather",
+            file: path.join(
+                process.cwd(),
+                "lib",
+                "integrations",
+                "weather.yaml",
+            ),
+        },
+    ];
+
+    const builtinRecords = (
+        await Promise.all(
+            builtinFiles.map(async (b) => {
+                try {
+                    const raw = await fs.readFile(b.file, "utf-8");
+                    const parsed = YAML.parse(raw) || {};
+                    return {
+                        id: b.id,
+                        name: typeof parsed?.details?.name === "string"
+                            ? parsed.details.name
+                            : null,
+                        source: "builtin",
+                        user: null,
+                        config: parsed,
+                        environment: {},
+                        created: null,
+                        updated: null,
+                    };
+                } catch (e) {
+                    return null;
+                }
+            }),
+        )
+    ).filter(Boolean as any) as any[];
+
+    const combined = [...list, ...builtinRecords];
+
+    return { integrations: combined.map(mapIntegration) };
 }
 
-export async function getIntegration(userId: string, integrationId: string, resolveEndpoints = false) {
+export async function getIntegration(
+    userId: string,
+    integrationId: string,
+    resolveEndpoints = false,
+) {
     const pb = await getSuperuserPB();
     const record = await pb.collection("integrations").getOne(integrationId);
 
@@ -72,15 +127,23 @@ export async function getIntegration(userId: string, integrationId: string, reso
 
     return {
         integration,
-        resolvedEndpoints: buildResolvedEndpoints(integration.config, integration.environment),
+        resolvedEndpoints: buildResolvedEndpoints(
+            integration.config,
+            integration.environment,
+        ),
     };
 }
 
-export async function createIntegration(userId: string, payload: CreateIntegrationPayload) {
+export async function createIntegration(
+    userId: string,
+    payload: CreateIntegrationPayload,
+) {
     const pb = await getSuperuserPB();
 
     const record = await pb.collection("integrations").create({
-        name: typeof payload.name === "string" ? payload.name.trim() || null : null,
+        name: typeof payload.name === "string"
+            ? payload.name.trim() || null
+            : null,
         source: typeof payload.source === "string" ? payload.source : "manual",
         config: normalizeConfig(payload.config),
         environment: encodeEnvironment(payload.environment),
@@ -90,15 +153,22 @@ export async function createIntegration(userId: string, payload: CreateIntegrati
     return { integration: mapIntegration(record) };
 }
 
-export async function testIntegrationEndpoint(userId: string, rawTarget: string) {
-    console.log("Test23")
+export async function testIntegrationEndpoint(
+    userId: string,
+    rawTarget: string,
+) {
+    console.log("Test23");
     if (!rawTarget) {
-        throw new ApiActionError("Missing target", 400, { error: "Missing target" });
+        throw new ApiActionError("Missing target", 400, {
+            error: "Missing target",
+        });
     }
 
     const dotIndex = rawTarget.indexOf(".");
     if (dotIndex <= 0 || dotIndex === rawTarget.length - 1) {
-        throw new ApiActionError("Invalid target format", 400, { error: "Invalid target format" });
+        throw new ApiActionError("Invalid target format", 400, {
+            error: "Invalid target format",
+        });
     }
 
     const integrationId = rawTarget.slice(0, dotIndex);
@@ -112,35 +182,53 @@ export async function testIntegrationEndpoint(userId: string, rawTarget: string)
     }
 
     const integration = mapIntegration(record);
-    const resolvedEndpoints = buildResolvedEndpoints(integration.config, integration.environment);
+    const resolvedEndpoints = buildResolvedEndpoints(
+        integration.config,
+        integration.environment,
+    );
     console.log("Resolved endpoints for testing:", resolvedEndpoints);
     const endpoint = resolvedEndpoints.find(
-        (candidate) => candidate.id === endpointKey || candidate.name === endpointKey
+        (candidate) =>
+            candidate.id === endpointKey || candidate.name === endpointKey,
     );
 
     if (!endpoint) {
-        throw new ApiActionError("Endpoint not found", 404, { error: "Endpoint not found" });
+        throw new ApiActionError("Endpoint not found", 404, {
+            error: "Endpoint not found",
+        });
     }
 
-    console.log("TEST")
+    console.log("TEST");
 
     const resolvedUrl = endpoint.resolvedUrl || endpoint.url;
     if (!resolvedUrl) {
-        throw new ApiActionError("Endpoint URL is empty", 400, { error: "Endpoint URL is empty" });
+        throw new ApiActionError("Endpoint URL is empty", 400, {
+            error: "Endpoint URL is empty",
+        });
     }
 
-    const method = (typeof endpoint.method === "string" ? endpoint.method : "GET").toUpperCase();
+    const method =
+        (typeof endpoint.method === "string" ? endpoint.method : "GET")
+            .toUpperCase();
     const allowBody = !METHOD_WITHOUT_BODY.has(method);
-    const envMap = buildEnvValueMap(integration.config, integration.environment);
+    const envMap = buildEnvValueMap(
+        integration.config,
+        integration.environment,
+    );
 
-    const requestHeaders: Record<string, string> = { ...(endpoint.resolvedHeaders ?? {}) };
+    const requestHeaders: Record<string, string> = {
+        ...(endpoint.resolvedHeaders ?? {}),
+    };
     for (const [key, value] of Object.entries(requestHeaders)) {
         requestHeaders[key] = interpolateString(String(value ?? ""), envMap);
     }
 
-    const resolvedAuth = interpolateString(endpoint.resolvedAuth || endpoint.auth || "", envMap);
+    const resolvedAuth = interpolateString(
+        endpoint.resolvedAuth || endpoint.auth || "",
+        envMap,
+    );
     const hasAuthorizationHeader = Object.keys(requestHeaders).some(
-        (key) => key.toLowerCase() === "authorization"
+        (key) => key.toLowerCase() === "authorization",
     );
     if (!hasAuthorizationHeader && resolvedAuth) {
         requestHeaders.Authorization = resolvedAuth;
@@ -148,7 +236,7 @@ export async function testIntegrationEndpoint(userId: string, rawTarget: string)
 
     if (hasAuthorizationHeader) {
         const authHeaderKey = Object.keys(requestHeaders).find(
-            (key) => key.toLowerCase() === "authorization"
+            (key) => key.toLowerCase() === "authorization",
         );
         if (authHeaderKey) {
             const existing = requestHeaders[authHeaderKey];
@@ -159,27 +247,28 @@ export async function testIntegrationEndpoint(userId: string, rawTarget: string)
     }
     let requestBody: string | null = null;
 
-    if (allowBody && endpoint.resolvedBody !== null && endpoint.resolvedBody !== undefined) {
-        requestBody =
-            typeof endpoint.resolvedBody === "string"
-                ? endpoint.resolvedBody
-                : JSON.stringify(endpoint.resolvedBody);
+    if (
+        allowBody && endpoint.resolvedBody !== null &&
+        endpoint.resolvedBody !== undefined
+    ) {
+        requestBody = typeof endpoint.resolvedBody === "string"
+            ? endpoint.resolvedBody
+            : JSON.stringify(endpoint.resolvedBody);
 
         const hasContentType = Object.keys(requestHeaders).some(
-            (key) => key.toLowerCase() === "content-type"
+            (key) => key.toLowerCase() === "content-type",
         );
         if (!hasContentType) {
             requestHeaders["content-type"] = "application/json";
         }
     }
 
-    const insecureRequested =
-        endpoint.allow_insecure_ssl === true ||
+    const insecureRequested = endpoint.allow_insecure_ssl === true ||
         endpoint.allow_insecure_ssl === "true" ||
         (endpoint as any).insecure_skip_verify === true ||
         (endpoint as any).insecure_skip_verify === "true";
-    const allowInsecure =
-        !!config.allowInsecureCertsForIntegrationUrls || insecureRequested;
+    const allowInsecure = !!config.allowInsecureCertsForIntegrationUrls ||
+        insecureRequested;
 
     const curlCommand = buildCurlCommand({
         url: resolvedUrl,
@@ -187,7 +276,9 @@ export async function testIntegrationEndpoint(userId: string, rawTarget: string)
         headers: requestHeaders,
         body: requestBody,
     });
-    console.log(`[Integrations] Endpoint test cURL (${integrationId}.${endpointKey}): ${curlCommand}`);
+    console.log(
+        `[Integrations] Endpoint test cURL (${integrationId}.${endpointKey}): ${curlCommand}`,
+    );
 
     const response = await axios.request({
         url: resolvedUrl,
@@ -201,23 +292,39 @@ export async function testIntegrationEndpoint(userId: string, rawTarget: string)
             : {}),
     });
 
-    const rawResponseBody =
-        typeof response.data === "string" ? response.data : JSON.stringify(response.data ?? "");
-    const parsedResponseBody =
-        typeof response.data === "string" ? tryParseJson(response.data) : response.data;
+    const rawResponseBody = typeof response.data === "string"
+        ? response.data
+        : JSON.stringify(response.data ?? "");
+    const parsedResponseBody = typeof response.data === "string"
+        ? tryParseJson(response.data)
+        : response.data;
 
     const endpointConfig = findEndpointConfig(integration.config, endpointKey);
-    const responseDirective = endpointConfig?.response as Record<string, unknown> | undefined;
-    const dataSetEnv =
-        typeof responseDirective?.data_set_env === "string" ? responseDirective.data_set_env : null;
-    const dataPath = typeof responseDirective?.data_path === "string" ? responseDirective.data_path : undefined;
+    const responseDirective = endpointConfig?.response as
+        | Record<string, unknown>
+        | undefined;
+    const dataSetEnv = typeof responseDirective?.data_set_env === "string"
+        ? responseDirective.data_set_env
+        : null;
+    const dataPath = typeof responseDirective?.data_path === "string"
+        ? responseDirective.data_path
+        : undefined;
 
-    if (dataSetEnv && parsedResponseBody !== null && parsedResponseBody !== undefined) {
-        const resolvedValue = extractValueFromPath(parsedResponseBody, dataPath);
+    if (
+        dataSetEnv && parsedResponseBody !== null &&
+        parsedResponseBody !== undefined
+    ) {
+        const resolvedValue = extractValueFromPath(
+            parsedResponseBody,
+            dataPath,
+        );
         if (resolvedValue !== undefined && resolvedValue !== null) {
             const formattedValue = formatEnvValue(resolvedValue);
             if (integration.environment[dataSetEnv] !== formattedValue) {
-                const updatedEnvironment = { ...integration.environment, [dataSetEnv]: formattedValue };
+                const updatedEnvironment = {
+                    ...integration.environment,
+                    [dataSetEnv]: formattedValue,
+                };
                 await pb.collection("integrations").update(integrationId, {
                     environment: encodeEnvironment(updatedEnvironment),
                 });
@@ -252,7 +359,9 @@ export async function testIntegrationEndpoint(userId: string, rawTarget: string)
 
 export async function getWidgetProperties(userId: string, widgetSlug: string) {
     if (!widgetSlug || !widgetSlug.trim()) {
-        throw new ApiActionError("Missing widget slug", 400, { error: "Missing widget slug" });
+        throw new ApiActionError("Missing widget slug", 400, {
+            error: "Missing widget slug",
+        });
     }
 
     const normalizedSlug = widgetSlug.trim().toLowerCase();
@@ -268,7 +377,10 @@ export async function getWidgetProperties(userId: string, widgetSlug: string) {
         }
 
         const integration = mapIntegration(record);
-        const rawWidgets = (integration.config?.configuration as Record<string, unknown> | undefined)?.widgets;
+        const rawWidgets =
+            (integration.config?.configuration as
+                | Record<string, unknown>
+                | undefined)?.widgets;
         if (!Array.isArray(rawWidgets) || rawWidgets.length === 0) {
             continue;
         }
@@ -278,21 +390,20 @@ export async function getWidgetProperties(userId: string, widgetSlug: string) {
                 continue;
             }
 
-            const resolvedWidget = resolveWidgetDefinition(
-                rawWidget,
-                integration.config,
-                integration.environment
-            );
-            if (!resolvedWidget) {
-                continue;
-            }
+            const widgetSlugValue = resolveWidgetIdentifier(rawWidget);
 
-            if (resolvedWidget.slug.toLowerCase() !== normalizedSlug) {
+            if (
+                !widgetSlugValue ||
+                widgetSlugValue.toLowerCase() !== normalizedSlug
+            ) {
                 continue;
             }
 
             return {
-                widget: resolvedWidget,
+                widget: {
+                    ...rawWidget,
+                    slug: widgetSlugValue,
+                },
                 integration: {
                     id: integration.id,
                     name: integration.name,
@@ -304,7 +415,57 @@ export async function getWidgetProperties(userId: string, widgetSlug: string) {
     return { widget: null, integration: null };
 }
 
+export async function getIntegrationWithWidget(
+    userId: string,
+    widgetKey: string,
+) {
+    if (!widgetKey || !widgetKey.trim()) {
+        throw new ApiActionError("Missing widget key", 400, {
+            error: "Missing widget key",
+        });
+    }
 
+    const integrations = await listIntegrations(userId);
+
+    for (const record of integrations.integrations) {
+        const integration = mapIntegration(record);
+        console.log(
+            "Checking integration:",
+            integration.name,
+            "for widget key:",
+            widgetKey,
+        );
+        const rawWidgets =
+            (integration.config?.configuration as
+                | Record<string, unknown>
+                | undefined)?.widgets;
+        if (!Array.isArray(rawWidgets) || rawWidgets.length === 0) {
+            continue;
+        }
+
+        for (const rawWidget of rawWidgets) {
+            if (!isPlainObject(rawWidget)) {
+                continue;
+            }
+
+            if (!(rawWidget.key == widgetKey)) {
+                continue;
+            }
+
+            const resolvedKey = resolveWidgetIdentifier(rawWidget);
+
+            return {
+                integration: integration.config,
+                widgetJSON: {
+                    ...rawWidget,
+                    key: resolvedKey,
+                },
+            };
+        }
+    }
+
+    return { integration: null, widgetJSON: null };
+}
 
 function toResponseHeaders(headers: Record<string, unknown>) {
     const result: Record<string, string> = {};
@@ -331,7 +492,10 @@ function buildCurlCommand(request: {
     headers: Record<string, string>;
     body: string | null;
 }) {
-    const tokens: { text: string; quoted: boolean }[] = [{ text: "curl", quoted: false }];
+    const tokens: { text: string; quoted: boolean }[] = [{
+        text: "curl",
+        quoted: false,
+    }];
 
     const method = (request.method || "GET").toUpperCase();
     if (method && method !== "GET") {
@@ -379,63 +543,6 @@ function resolveTimeout(timeout: unknown) {
     return 20_000;
 }
 
-function resolveWidgetDefinition(
-    widget: Record<string, unknown>,
-    config: Record<string, unknown>,
-    environment: Record<string, string>
-) {
-    const name = typeof widget.name === "string" && widget.name.trim() ? widget.name.trim() : null;
-    const slugFromConfig = typeof widget.slug === "string" && widget.slug.trim() ? widget.slug.trim() : null;
-    const slug = slugFromConfig ?? normalizeWidgetSlug(name);
-    if (!slug) {
-        return null;
-    }
-
-    const envMap = buildEnvValueMap(config, environment);
-    const template =
-        typeof widget.template === "string" && widget.template.trim()
-            ? widget.template.trim()
-            : "columns";
-
-    const properties = isPlainObject(widget.properties)
-        ? (resolveValue(widget.properties, envMap) as Record<string, unknown>)
-        : {};
-    const data = isPlainObject(widget.data)
-        ? {
-            source: typeof widget.data.source === "string" && widget.data.source.trim()
-                ? widget.data.source.trim()
-                : undefined,
-            input: isPlainObject(widget.data.input)
-                ? (resolveValue(widget.data.input, envMap) as Record<string, unknown>)
-                : {},
-        }
-        : undefined;
-    const exampleProps = isPlainObject(widget.exampleProps)
-        ? (resolveValue(widget.exampleProps, envMap) as Record<string, unknown>)
-        : {};
-    const preview = isPlainObject(widget.preview)
-        ? {
-            template:
-                typeof widget.preview.template === "string" && widget.preview.template.trim()
-                    ? widget.preview.template.trim()
-                    : undefined,
-            properties: isPlainObject(widget.preview.properties)
-                ? (resolveValue(widget.preview.properties, envMap) as Record<string, unknown>)
-                : {},
-        }
-        : undefined;
-
-    return {
-        slug,
-        name: name ?? slug,
-        template,
-        properties,
-        data,
-        exampleProps,
-        preview,
-    };
-}
-
 function normalizeWidgetSlug(value: string | null) {
     if (!value) {
         return null;
@@ -448,12 +555,26 @@ function normalizeWidgetSlug(value: string | null) {
     return normalized || null;
 }
 
+function resolveWidgetIdentifier(rawWidget: Record<string, unknown>) {
+    if (typeof rawWidget.key === "string" && rawWidget.key.trim()) {
+        return rawWidget.key.trim();
+    }
+    if (typeof rawWidget.slug === "string" && rawWidget.slug.trim()) {
+        return rawWidget.slug.trim();
+    }
+    return normalizeWidgetSlug(
+        typeof rawWidget.name === "string" ? rawWidget.name : null,
+    );
+}
+
 function findEndpointConfig(config: Record<string, unknown>, key: string) {
     if (!key) {
         return null;
     }
 
-    const rawEndpoints = (config?.configuration as Record<string, unknown> | undefined)?.endpoints;
+    const rawEndpoints =
+        (config?.configuration as Record<string, unknown> | undefined)
+            ?.endpoints;
     if (!rawEndpoints) {
         return null;
     }
@@ -464,7 +585,9 @@ function findEndpointConfig(config: Record<string, unknown>, key: string) {
 
     for (const candidate of candidates) {
         const id = typeof candidate?.id === "string" ? candidate.id : null;
-        const name = typeof candidate?.name === "string" ? candidate.name : null;
+        const name = typeof candidate?.name === "string"
+            ? candidate.name
+            : null;
         if (id === key || name === key) {
             return candidate;
         }
@@ -479,7 +602,10 @@ function objectToEndpointList(raw: unknown) {
     }
 
     return Object.entries(raw).map(([entryKey, entryValue]) => {
-        if (entryValue && typeof entryValue === "object" && !Array.isArray(entryValue)) {
+        if (
+            entryValue && typeof entryValue === "object" &&
+            !Array.isArray(entryValue)
+        ) {
             return { id: entryKey, ...(entryValue as Record<string, unknown>) };
         }
         return { id: entryKey };
@@ -655,7 +781,9 @@ function mapIntegration(record: any): IntegrationRecord {
         id: record.id,
         name: typeof record.name === "string" ? record.name : null,
         source: typeof record.source === "string" ? record.source : null,
-        userId: typeof record.user === "string" ? record.user : record.user?.id ?? null,
+        userId: typeof record.user === "string"
+            ? record.user
+            : record.user?.id ?? null,
         config,
         environment,
         created: record.created,
@@ -674,16 +802,22 @@ function ownsIntegration(record: any, userId: string) {
 
 export function buildResolvedEndpoints(
     config: Record<string, unknown>,
-    environment: Record<string, string>
+    environment: Record<string, string>,
 ): ResolvedEndpoint[] {
     const envMap = buildEnvValueMap(config, environment);
     const endpoints = normalizeEndpoints(config);
 
     return endpoints.map((endpoint) => {
-        const method = typeof endpoint.method === "string" ? endpoint.method : "GET";
+        const method = typeof endpoint.method === "string"
+            ? endpoint.method
+            : "GET";
         const headerSources: Record<string, unknown> = {
-            ...(isPlainObject(endpoint.headers) ? (endpoint.headers as Record<string, unknown>) : {}),
-            ...(isPlainObject(endpoint.custom_headers) ? endpoint.custom_headers : {}),
+            ...(isPlainObject(endpoint.headers)
+                ? (endpoint.headers as Record<string, unknown>)
+                : {}),
+            ...(isPlainObject(endpoint.custom_headers)
+                ? endpoint.custom_headers
+                : {}),
         };
 
         const resolvedHeadersRaw = resolveValue(headerSources, envMap);
@@ -692,35 +826,48 @@ export function buildResolvedEndpoints(
                 Object.entries(resolvedHeadersRaw).map(([key, value]) => [
                     key,
                     value === undefined || value === null ? "" : String(value),
-                ])
+                ]),
             )
             : {};
 
-        const resolvedAuthFromHeaders = extractAuthorizationHeader(resolvedHeaders);
-        const interpolatedAuth = interpolateString(typeof endpoint.auth === "string" ? endpoint.auth : "", envMap);
-        const finalResolvedAuth = interpolatedAuth || resolvedAuthFromHeaders || "";
+        const resolvedAuthFromHeaders = extractAuthorizationHeader(
+            resolvedHeaders,
+        );
+        const interpolatedAuth = interpolateString(
+            typeof endpoint.auth === "string" ? endpoint.auth : "",
+            envMap,
+        );
+        const finalResolvedAuth = interpolatedAuth || resolvedAuthFromHeaders ||
+            "";
 
         return {
-            id: typeof endpoint.id === "string" ? endpoint.id : endpoint.name ?? null,
+            id: typeof endpoint.id === "string"
+                ? endpoint.id
+                : endpoint.name ?? null,
             name: typeof endpoint.name === "string" ? endpoint.name : null,
-            description: typeof endpoint.description === "string" ? endpoint.description : null,
+            description: typeof endpoint.description === "string"
+                ? endpoint.description
+                : null,
             method,
             url: typeof endpoint.url === "string" ? endpoint.url : "",
             auth: typeof endpoint.auth === "string" ? endpoint.auth : "",
-            allow_insecure_ssl:
-                endpoint.allow_insecure_ssl ??
+            allow_insecure_ssl: endpoint.allow_insecure_ssl ??
                 (endpoint as any).insecure_skip_verify ??
                 (endpoint as any).allowInsecureSSL,
             timeout: endpoint.timeout,
             body: endpoint.body ?? null,
             custom_headers: endpoint.custom_headers ?? {},
             response_body_types: endpoint.response_body_types ?? {},
-            response_mappings: Array.isArray((endpoint as any).response_mappings)
-                ? (endpoint as any).response_mappings
-                : isPlainObject((endpoint as any).response_mapping)
+            response_mappings:
+                Array.isArray((endpoint as any).response_mappings)
+                    ? (endpoint as any).response_mappings
+                    : isPlainObject((endpoint as any).response_mapping)
                     ? [(endpoint as any).response_mapping]
                     : [],
-            resolvedUrl: interpolateString(typeof endpoint.url === "string" ? endpoint.url : "", envMap),
+            resolvedUrl: interpolateString(
+                typeof endpoint.url === "string" ? endpoint.url : "",
+                envMap,
+            ),
             resolvedAuth: finalResolvedAuth,
             resolvedHeaders,
             resolvedBody: resolveValue(endpoint.body ?? null, envMap),
@@ -748,22 +895,29 @@ function normalizeEndpoints(config: Record<string, unknown>) {
     return [];
 }
 
-function buildEnvValueMap(config: Record<string, unknown>, storedEnv: Record<string, string>) {
+function buildEnvValueMap(
+    config: Record<string, unknown>,
+    storedEnv: Record<string, string>,
+) {
     const defaults = getConfigEnvDefaults(config);
     return { ...defaults, ...storedEnv };
 }
 
 function getConfigEnvDefaults(config: Record<string, unknown>) {
-    const envDefinition = (config.configuration as Record<string, unknown>)?.environment_variables;
+    const envDefinition = (config.configuration as Record<string, unknown>)
+        ?.environment_variables;
     const defaults: Record<string, string> = {};
 
     if (Array.isArray(envDefinition)) {
         for (const item of envDefinition) {
             const key = typeof item?.key === "string" ? item.key : null;
             if (!key) continue;
-            const fallback = item?.testValue ?? item?.test_value ?? item?.default;
+            const fallback = item?.testValue ?? item?.test_value ??
+                item?.default;
             if (fallback === undefined || fallback === null) continue;
-            defaults[key] = typeof fallback === "string" ? fallback : JSON.stringify(fallback);
+            defaults[key] = typeof fallback === "string"
+                ? fallback
+                : JSON.stringify(fallback);
         }
         return defaults;
     }
@@ -771,9 +925,12 @@ function getConfigEnvDefaults(config: Record<string, unknown>) {
     if (isPlainObject(envDefinition)) {
         for (const [key, value] of Object.entries(envDefinition)) {
             const definition = value as Record<string, unknown>;
-            const fallback = definition.test_value ?? definition.testValue ?? definition.default;
+            const fallback = definition.test_value ?? definition.testValue ??
+                definition.default;
             if (fallback === undefined || fallback === null) continue;
-            defaults[key] = typeof fallback === "string" ? fallback : JSON.stringify(fallback);
+            defaults[key] = typeof fallback === "string"
+                ? fallback
+                : JSON.stringify(fallback);
         }
     }
 
