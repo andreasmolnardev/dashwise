@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePageConfig } from "@/hooks/usePageConfig";
 import { updatePageConfigAction } from "@/app/actions/pageConfigs";
-import { getUserGlanceablesAction, getUserWidgetsAction } from "@/app/actions/widgets";
+import { getUserGlanceableAction, getUserWidgetsAction } from "@/app/actions/widgets";
 import useAuth from "@/context/useAuth";
 import { PageSelectTabs } from "@/components/settings/pages/PageSelectTabs";
 import { TemplateOptions } from "@/components/settings/pages/TemplateOptions";
@@ -14,6 +14,7 @@ import {
   enabledColumnsFromTemplate,
   findMainClock,
   flattenWidgetCatalog,
+  getDefaultGlanceableSelection,
   inferTemplateFromColumns,
   normalizeColumns,
   readClockGlanceables,
@@ -70,8 +71,8 @@ export default function SettingsPagesPage() {
   const [selectedClockPart, setSelectedClockPart] = useState<GlanceableSide | "clock">("left");
   const [clockGlanceables, setClockGlanceables] = useState<Record<string, any>>({});
   const [clockSelection, setClockSelection] = useState<Record<GlanceableSide, string>>({
-    left: "date",
-    right: "weather",
+    left: "",
+    right: "",
   });
   const [clockStyle, setClockStyle] = useState<Record<string, any>>(DEFAULT_CLOCK_STYLE);
   const [fonts, setFonts] = useState<Array<{ name: string; path: string }>>([]);
@@ -111,7 +112,7 @@ export default function SettingsPagesPage() {
   }, [withAuth]);
 
   useEffect(() => {
-    void withAuth((auth) => getUserGlanceablesAction(auth))
+    void withAuth((auth) => getUserGlanceableAction(auth))
       .then((data) => {
         const catalog = Array.isArray(data)
           ? data.map((entry: any) => ({
@@ -140,9 +141,14 @@ export default function SettingsPagesPage() {
     setTemplate(inferredTemplate === "right-middle" ? "main" : inferredTemplate);
 
     const fallbackGlanceables = Array.isArray(selectedConfig?.glanceables) ? selectedConfig.glanceables : [];
-    const nextClock = readClockGlanceables(normalizedColumns, fallbackGlanceables);
+    const nextClock = readClockGlanceables(normalizedColumns, fallbackGlanceables, glanceablesCatalog);
     setClockGlanceables(nextClock.map);
-    setClockSelection(nextClock.selected);
+    const defaultSelection = getDefaultGlanceableSelection(glanceablesCatalog);
+    const resolvedSelection =
+      nextClock.selected.left || nextClock.selected.right
+        ? nextClock.selected
+        : defaultSelection;
+    setClockSelection(resolvedSelection);
 
     const mainClock = findMainClock(normalizedColumns);
     const configClockStyle = mainClock?.properties?.["clock-style"];
@@ -158,13 +164,13 @@ export default function SettingsPagesPage() {
       buildPageConfigPatch(
         inferredTemplate === "right-middle" ? "main" : inferredTemplate,
         normalizedColumns,
-        nextClock.selected,
+        resolvedSelection,
         nextClock.map,
         nextClockStyle,
       ),
     );
-    hasLoadedConfigRef.current = true;
-  }, [selectedConfig]);
+    hasLoadedConfigRef.current = !!(resolvedSelection.left || resolvedSelection.right);
+  }, [glanceablesCatalog, selectedConfig]);
 
   useEffect(() => {
     hasLoadedConfigRef.current = false;
@@ -186,13 +192,19 @@ export default function SettingsPagesPage() {
 
     const nextPages = Array.from(new Set([...(pages ?? []), normalized]));
     await withAuth((auth) => updatePageConfigAction(auth, "home", { pages: nextPages }));
+    const defaultSelection = getDefaultGlanceableSelection(glanceablesCatalog);
+    const defaultGlanceables = [defaultSelection.left, defaultSelection.right].filter(
+      (type): type is string => !!type,
+    );
     await withAuth((auth) =>
       updatePageConfigAction(auth, normalized, {
         template: "main",
         columns: {
           left: { placeholder: { height: "$main-clock" } },
           middle: {
-            "main-clock": { glanceables: { date: null, weather: null } },
+            "main-clock": {
+              glanceables: Object.fromEntries(defaultGlanceables.map((type) => [type, null])),
+            },
             "search-bar": {},
             "link-view": {},
           },
