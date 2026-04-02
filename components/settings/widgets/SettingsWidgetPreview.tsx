@@ -2,29 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { renderWidget } from "@/components/widgets/Widget";
-import { getWidgetPropertiesAction } from "@/app/actions/integrations";
+import { getIntegrationWithWidgetAction } from "@/app/actions/integrations";
+import IntegrationWidget from "@/dashwise-integrationskit/Widget";
 import useAuth from "@/context/useAuth";
 
 type WidgetPropertiesResult = {
-  widget: {
-    slug: string;
-    name: string;
-    template: string;
-    properties: Record<string, unknown>;
-    data?: {
-      source?: string;
-      input?: Record<string, unknown>;
-    };
-    exampleProps?: Record<string, unknown>;
-    preview?: {
-      template?: string;
-      properties?: Record<string, unknown>;
-    };
-  } | null;
-  integration: {
-    id: string;
-    name: string | null;
-  } | null;
+  widgetJSON: Record<string, unknown> | null;
+  integration: Record<string, unknown> | null;
 };
 
 type SettingsWidgetPreviewProps = {
@@ -34,7 +18,7 @@ type SettingsWidgetPreviewProps = {
   isIntegrationWidget?: boolean;
 };
 
-const widgetPropertiesCache = new Map<string, WidgetPropertiesResult["widget"]>();
+const widgetPropertiesCache = new Map<string, WidgetPropertiesResult | null>();
 
 export function SettingsWidgetPreview({
   type,
@@ -43,7 +27,7 @@ export function SettingsWidgetPreview({
   isIntegrationWidget = false,
 }: SettingsWidgetPreviewProps) {
   const { token, withAuth } = useAuth();
-  const [integrationWidget, setIntegrationWidget] = useState<WidgetPropertiesResult["widget"] | null>(
+  const [integrationWidget, setIntegrationWidget] = useState<WidgetPropertiesResult | null>(
     widgetPropertiesCache.get(type) ?? null
   );
 
@@ -75,9 +59,9 @@ export function SettingsWidgetPreview({
 
       try {
         const response = (await withAuth((auth) =>
-          getWidgetPropertiesAction(auth, type)
+          getIntegrationWithWidgetAction(auth, type)
         )) as WidgetPropertiesResult;
-        const widget = response?.widget ?? null;
+        const widget = response?.integration && response?.widgetJSON ? response : null;
         widgetPropertiesCache.set(type, widget);
         if (!cancelled) {
           setIntegrationWidget(widget);
@@ -97,19 +81,19 @@ export function SettingsWidgetPreview({
     };
   }, [isIntegrationWidget, token, type, withAuth]);
 
-  if (isIntegrationWidget && integrationWidget) {
-    const mergedParams = {
-      ...(integrationWidget.properties && typeof integrationWidget.properties === "object"
-        ? (integrationWidget.properties as Record<string, unknown>)
-        : (params && typeof params === "object" ? params : {})),
-      ...(integrationWidget.data ? { data: integrationWidget.data } : {}),
-    };
+  if (isIntegrationWidget && integrationWidget?.integration && integrationWidget?.widgetJSON) {
+    const previewWidget = integrationWidget.widgetJSON;
 
-    return renderWidget({
-      type,
-      params: mergedParams,
-      className,
-    });
+    return (
+      <IntegrationWidget
+        widgetKey={type}
+        widgetJSON={previewWidget as Record<string, any>}
+        integrationJSON={integrationWidget.integration as Record<string, any>}
+        input={params ?? {}}
+        preview={true}
+        className={className}
+      />
+    );
   }
 
   if (isIntegrationWidget) {

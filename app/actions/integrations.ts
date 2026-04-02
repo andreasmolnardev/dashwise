@@ -3,12 +3,12 @@
 import { ActionAuth, requireUserAuth } from "@/dashwise-sdk/data/auth";
 import {
   createIntegration,
+  getIntegrationWithWidget,
   getIntegration,
   getWidgetProperties,
   listIntegrations,
   testIntegrationEndpoint,
 } from "@/dashwise-sdk/data/integrations";
-import { getWeatherData } from "@dashwise/sdk/data/widgets";
 
 export async function getIntegrationsAction(
   auth: ActionAuth,
@@ -50,10 +50,7 @@ export async function getWidgetPropertiesAction(auth: ActionAuth, widgetSlug: st
   return getWidgetProperties(userId, widgetSlug);
 }
 
-export async function getWeatherAction({ lat, lon, unit = "c" }: { lat: string; lon: string; unit?: string }) {
-  if (!lat || !lon) {
-    throw new Error("Missing lat/lon");
-  }
-
-  return getWeatherData({ lat: String(lat), lon: String(lon), unit });
+export async function getIntegrationWithWidgetAction(auth: ActionAuth, widgetKey: string) {
+  const { userId } = await requireUserAuth(auth);
+  return getIntegrationWithWidget(userId, widgetKey);
 }

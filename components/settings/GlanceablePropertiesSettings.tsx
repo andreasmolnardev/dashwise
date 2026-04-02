@@ -5,7 +5,7 @@ import useAuth from "@/context/useAuth";
 import GlanceableComponent, { GlanceableProps } from "@/components/glanceables/Glanceable";
 import { usePageConfig } from "@/hooks/usePageConfig";
 import { updateConfigPathAction } from "@/app/actions/config";
-import { getUserGlanceablesAction } from "@/app/actions/widgets";
+import { getUserGlanceableAction } from "@/app/actions/widgets";
 import { Input } from "../ui/input";
 import { Button } from "../ui/button";
 import { Checkbox } from "../ui/checkbox";
@@ -49,7 +49,7 @@ export default function GlanceablePropertiesSettingsComponent({
     }, [selected]);
 
     useEffect(() => {
-        void withAuth((auth) => getUserGlanceablesAction(auth))
+        void withAuth((auth) => getUserGlanceableAction(auth))
             .then((data) => {
                 const mapped = Array.isArray(data) ? data.map((entry: any) => ({
                     type: String(entry?.type ?? "weather"),

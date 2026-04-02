@@ -20,7 +20,6 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { Edit3, GripVertical, PanelLeftDashed, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Dialog,
@@ -56,18 +55,17 @@ type DashboardWidgetPreviewProps = {
 function WidgetTile({
   widget,
   onRemove,
-  onUpdateData,
+  onUpdateInput,
 }: {
   widget: ColumnWidget;
   onRemove: () => void;
-  onUpdateData: (widgetId: string, data?: ColumnWidget["data"]) => void;
+  onUpdateInput: (widgetId: string, input?: ColumnWidget["input"]) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: widget.id,
   });
   const [isDataDialogOpen, setIsDataDialogOpen] = useState(false);
-  const [sourceValue, setSourceValue] = useState(widget.data?.source ?? "");
-  const [inputValue, setInputValue] = useState(JSON.stringify(widget.data?.input ?? {}, null, 2));
+  const [inputValue, setInputValue] = useState(JSON.stringify(widget.input ?? {}, null, 2));
   const [dataError, setDataError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -75,10 +73,9 @@ function WidgetTile({
       return;
     }
 
-    setSourceValue(widget.data?.source ?? "");
-    setInputValue(JSON.stringify(widget.data?.input ?? {}, null, 2));
+    setInputValue(JSON.stringify(widget.input ?? {}, null, 2));
     setDataError(null);
-  }, [isDataDialogOpen, widget.data?.input, widget.data?.source]);
+  }, [isDataDialogOpen, widget.input]);
 
   const handleSaveData = () => {
     setDataError(null);
@@ -99,12 +96,7 @@ function WidgetTile({
       }
     }
 
-    const nextData = {
-      source: sourceValue.trim() || undefined,
-      input: parsedInput,
-    };
-
-    onUpdateData(widget.id, nextData.source || Object.keys(nextData.input).length > 0 ? nextData : undefined);
+    onUpdateInput(widget.id, Object.keys(parsedInput).length > 0 ? parsedInput : undefined);
     setIsDataDialogOpen(false);
   };
 
@@ -126,7 +118,7 @@ function WidgetTile({
               <DialogTrigger asChild>
                 <button
                   type="button"
-                  aria-label={`Edit data for ${widget.type}`}
+                  aria-label={`Edit input for ${widget.type}`}
                   className="rounded p-1 hover:bg-white/10"
                 >
                   <Edit3 className="h-4 w-4" />
@@ -134,23 +126,13 @@ function WidgetTile({
               </DialogTrigger>
               <DialogContent className="frosted">
                 <DialogHeader>
-                  <DialogTitle>Edit Widget Data</DialogTitle>
+                  <DialogTitle>Edit Widget Input</DialogTitle>
                   <DialogDescription>
-                    Customize the per-widget source and input payload used by the preview and saved page config.
+                    Customize the per-widget input payload used by the preview and saved page config.
                   </DialogDescription>
                 </DialogHeader>
 
                 <div className="space-y-4 py-4">
-                  <div className="space-y-2">
-                    <Label htmlFor={`widget-data-source-${widget.id}`}>Source</Label>
-                    <Input
-                      id={`widget-data-source-${widget.id}`}
-                      value={sourceValue}
-                      onChange={(event) => setSourceValue(event.target.value)}
-                      placeholder="computed.weather"
-                    />
-                  </div>
-
                   <div className="space-y-2">
                     <Label htmlFor={`widget-data-input-${widget.id}`}>Input JSON</Label>
                     <textarea
@@ -170,7 +152,7 @@ function WidgetTile({
                     Cancel
                   </Button>
                   <Button type="button" onClick={handleSaveData}>
-                    Save data
+                    Save input
                   </Button>
                 </DialogFooter>
               </DialogContent>
@@ -234,10 +216,10 @@ function LibraryItem({ item }: { item: WidgetCatalogItem }) {
   });
 
   const previewParams = item.preview.properties ?? item.properties ?? {};
-  const mergedPreviewParams = item.data
+  const mergedPreviewParams = item.input
     ? {
         ...previewParams,
-        data: item.data,
+        input: item.input,
       }
     : previewParams;
   const isIntegrationPreview = item.category.startsWith("integration-");
@@ -254,7 +236,7 @@ function LibraryItem({ item }: { item: WidgetCatalogItem }) {
         type: item.slug,
         params: mergedPreviewParams,
         className: "h-[110px] w-full",
-        isPreview: isIntegrationPreview,
+        isPreview: true,
         previewTemplate,
       })}
     </div>
@@ -373,7 +355,7 @@ export function DashboardWidgetPreview({
         id: createWidgetId(),
         type: slug,
         properties: source.properties ?? {},
-        data: source.data ?? undefined,
+        input: source.input ?? undefined,
       };
 
       setColumns((prev) => {
@@ -444,11 +426,11 @@ export function DashboardWidgetPreview({
                               key={widget.id}
                               widget={widget}
                               onRemove={() => removeWidget(column, widget.id)}
-                              onUpdateData={(widgetId, data) => {
+                              onUpdateInput={(widgetId, input) => {
                                 setColumns((prev) => ({
                                   ...prev,
                                   [column]: prev[column].map((item) =>
-                                    item.id === widgetId ? { ...item, data } : item,
+                                    item.id === widgetId ? { ...item, input } : item,
                                   ),
                                 }));
                               }}

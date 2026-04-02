@@ -1,5 +1,4 @@
 import { getSuperuserPB } from "@dashwise/sdk/lib/pocketbase";
-import { hydratePageConfigWidgets } from "@dashwise/sdk/data/widgets";
 /*
 PAGE CONFIG
 format:
@@ -33,8 +32,7 @@ function escapeFilter(value: string) {
 // get page config
 export async function getPageConfigJSON(
     userId: string,
-    pageName: string,
-    fillProperties = false
+    pageName: string
 ): Promise<Record<string, any> | null> {
     const pb = await getSuperuserPB();
     try {
@@ -46,10 +44,7 @@ export async function getPageConfigJSON(
 
         if (!record) return null;
 
-        const config = (record?.config ?? {}) as Record<string, any>;
-        if (fillProperties) {
-            return await hydratePageConfigWidgets(userId, config);
-        }
+        const config = (record?.config ?? {}) as Record<string, any>
         return config;
     } catch (error: any) {
         if (error?.status === 404) return null;

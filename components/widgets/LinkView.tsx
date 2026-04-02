@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { usePageConfig } from "@/hooks/usePageConfig";
 import useAuth from "@/context/useAuth";
 import { getMonitoringStatusAction } from "@/app/actions/monitoring";
@@ -13,7 +13,13 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faEdit, faFolder, faLink, faPlus, faXmark } from "@fortawesome/free-solid-svg-icons";
+import {
+  faEdit,
+  faFolder,
+  faLink,
+  faPlus,
+  faXmark,
+} from "@fortawesome/free-solid-svg-icons";
 import { PopoverClose } from "@radix-ui/react-popover";
 import { Button } from "../ui/button";
 import {
@@ -32,6 +38,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import LinkDetailsForm from "@/components/settings/LinkDetailsForm";
+import { set } from "date-fns";
 
 export interface LinkType {
   id?: string;
@@ -48,19 +55,35 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
   const [localLinks, setLocalLinks] = useState<LinkType[]>(links);
 
   useEffect(() => {
-    setLocalLinks(links);
-  }, [links]);
+    const fetchLinks = async () => {
+      try {
+        const data = await withAuth((auth) => getHomeLinksAction(auth));
+        if (Array.isArray(data)) {
+          setLocalLinks(data as LinkType[]);
+        }
+      } catch (err) {
+        console.error("Failed to fetch home links:", err);
+      }
+    };
+
+    fetchLinks();
+  }, [withAuth]);
 
   const [activeCollection, setActiveCollection] = useState<string | null>(null);
 
   const collections = useMemo(
-    () => [...new Set(localLinks.map((l) => l.collection).filter(Boolean))] as string[],
-    [localLinks]
+    () =>
+      [
+        ...new Set(localLinks.map((l) => l.collection).filter(Boolean)),
+      ] as string[],
+    [localLinks],
   );
 
   const visibleLinks = useMemo(
-    () => (activeCollection ? localLinks.filter((l) => l.collection === activeCollection) : localLinks),
-    [localLinks, activeCollection]
+    () => (activeCollection
+      ? localLinks.filter((l) => l.collection === activeCollection)
+      : localLinks),
+    [localLinks, activeCollection],
   );
 
   useEffect(() => {
@@ -206,22 +229,22 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
           if (previous) {
             rollback = () => {
               setLocalLinks((current) =>
-                current.map((l) => (l.id === previous.id ? previous : l)),
+                current.map((l) => (l.id === previous.id ? previous : l))
               );
             };
 
             return prev.map((l) =>
               l.id === draft.id
                 ? {
-                    ...l,
-                    title: draft.title,
-                    url: draft.url,
-                    iconUrl: draft.iconUrl,
-                    collection: draft.collection,
-                    folder: draft.folder,
-                    statusCheck: draft.statusCheck,
-                  }
-                : l,
+                  ...l,
+                  title: draft.title,
+                  url: draft.url,
+                  iconUrl: draft.iconUrl,
+                  collection: draft.collection,
+                  folder: draft.folder,
+                  statusCheck: draft.statusCheck,
+                }
+                : l
             );
           }
         }
@@ -316,7 +339,9 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
                   </div>
 
                   <div className="flex items-center w-full justify-center">
-                    <span className="text-sm text-white truncate px-1">{folder.name}</span>
+                    <span className="text-sm text-white truncate px-1">
+                      {folder.name}
+                    </span>
                   </div>
                 </button>
               </PopoverTrigger>
@@ -332,7 +357,10 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
                 </header>
                 <div
                   className="grid gap-3"
-                  style={{ gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))" }}
+                  style={{
+                    gridTemplateColumns:
+                      "repeat(auto-fill, minmax(120px, 1fr))",
+                  }}
                 >
                   {folder.links.map((child, childIdx) => {
                     const serverEntry = child.id && monitoringDetails
@@ -392,21 +420,26 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!editingLink} onOpenChange={(open) => !open && setEditingLink(null)}>
+      <Dialog
+        open={!!editingLink}
+        onOpenChange={(open) => !open && setEditingLink(null)}
+      >
         <DialogContent className="frosted text-foreground max-w-2xl">
           <DialogHeader>
             <DialogTitle>Edit Link</DialogTitle>
           </DialogHeader>
           <LinkDetailsForm
-            link={editingLink ? {
-              id: editingLink.id,
-              name: editingLink.title,
-              url: editingLink.url,
-              icon: editingLink.iconUrl,
-              linkGroup: editingLink.collection,
-              folder: editingLink.folder,
-              statusCheck: editingLink.statusCheck
-            } : undefined}
+            link={editingLink
+              ? {
+                id: editingLink.id,
+                name: editingLink.title,
+                url: editingLink.url,
+                icon: editingLink.iconUrl,
+                linkGroup: editingLink.collection,
+                folder: editingLink.folder,
+                statusCheck: editingLink.statusCheck,
+              }
+              : undefined}
             onClose={async () => {
               setEditingLink(null);
               await refreshHomeLinks();
@@ -424,17 +457,14 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
           }}
           link={selectedLink}
           onCheckTriggered={fetchMonitoringStatuses}
-          details={
-            selectedLink.id && monitoringDetails
-              ? (monitoringDetails[selectedLink.id] as JobEntry)
-              : undefined
-          }
+          details={selectedLink.id && monitoringDetails
+            ? (monitoringDetails[selectedLink.id] as JobEntry)
+            : undefined}
         />
       )}
     </div>
   );
 }
-
 
 interface LinkTileProps {
   link: LinkType;
@@ -453,7 +483,9 @@ function LinkTile({
   setEditingLink,
   itemIdx,
 }: LinkTileProps) {
-  const serverEntry = link.id && monitoringDetails ? monitoringDetails[link.id] : undefined;
+  const serverEntry = link.id && monitoringDetails
+    ? monitoringDetails[link.id]
+    : undefined;
   const serverStatus = serverEntry?.status;
   const isHealthy = serverStatus === "healthy";
   const isDisabled = serverStatus === "disabled";
@@ -463,21 +495,27 @@ function LinkTile({
     <a
       key={link.id || link.url || itemIdx}
       href={link.url}
-      target={config?.global?.linkOpenBehaviour === "newtab" ? "_blank" : "_self"}
-      rel={config?.global?.linkOpenBehaviour === "newtab" ? "noopener noreferrer" : undefined}
+      target={config?.global?.linkOpenBehaviour === "newtab"
+        ? "_blank"
+        : "_self"}
+      rel={config?.global?.linkOpenBehaviour === "newtab"
+        ? "noopener noreferrer"
+        : undefined}
       className="group flex flex-col items-center justify-between space-y-2 frosted rounded-2xl p-2 hover:text-(primary) transition-colors min-h-18 w-full"
     >
-      {link.iconUrl ? (
-        <img
-          src={link.iconUrl}
-          alt={link.title ?? "Icon"}
-          className="h-[35px] w-[35px] object-contain rounded-lg bg-white/5"
-        />
-      ) : (
-        <div className="h-[35px] w-[35px] flex items-center justify-center">
-          <FontAwesomeIcon icon={faFolder} className="h-6 w-6 opacity-20" />
-        </div>
-      )}
+      {link.iconUrl
+        ? (
+          <img
+            src={link.iconUrl}
+            alt={link.title ?? "Icon"}
+            className="h-[35px] w-[35px] object-contain rounded-lg bg-white/5"
+          />
+        )
+        : (
+          <div className="h-[35px] w-[35px] flex items-center justify-center">
+            <FontAwesomeIcon icon={faFolder} className="h-6 w-6 opacity-20" />
+          </div>
+        )}
 
       <div className="flex items-center w-full justify-between relative">
         <div className="flex items-center justify-center flex-1">
@@ -490,7 +528,9 @@ function LinkTile({
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                if (link.id && monitoringDetails && monitoringDetails[link.id]) {
+                if (
+                  link.id && monitoringDetails && monitoringDetails[link.id]
+                ) {
                   setOpenDialogFor(link.id);
                 }
               }}
@@ -499,7 +539,11 @@ function LinkTile({
               <span
                 className="h-2 w-2 rounded-full inline-block hover:cursor-pointer hover:ring-2"
                 style={{
-                  backgroundColor: isHealthy ? "var(--primary)" : isDisabled ? "#9CA3AF" : "#6B7280",
+                  backgroundColor: isHealthy
+                    ? "var(--primary)"
+                    : isDisabled
+                    ? "#9CA3AF"
+                    : "#6B7280",
                 }}
                 aria-hidden
               />

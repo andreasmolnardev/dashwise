@@ -10,8 +10,9 @@ import PagesTabs from "../PagesTabs";
 import UpdateDetailsDialogComponent from "./UpdateDetailsDialog";
 import useAuth from "@/context/useAuth";
 import { getNotificationsAction } from "@/app/actions/notifications/items";
+import { getIntegrationWithWidgetAction } from "@/app/actions/integrations";
 import { renderWidget } from "../widgets/Widget";
-import { rangeContainsDayOfWeek } from "react-day-picker";
+import Widget from "@/dashwise-integrationskit/Widget";
 
 const COLUMN_ORDER = ["left", "middle", "right"] as const;
 type Column = (typeof COLUMN_ORDER)[number];
@@ -38,6 +39,7 @@ export default function DashboardLayoutTemplate({
     config: Record<string, any>;
     pageName?: string;
 }) {
+    const { token, withAuth } = useAuth();
     const searchParams = useSearchParams();
     const openFromURL = searchParams.get("search") === "1";
 
@@ -269,7 +271,7 @@ export default function DashboardLayoutTemplate({
         entryKey: string,
         entryConfig: Record<string, any> | null | undefined,
         entryIndex: number,
-    ) => {
+    ) => {  
         const cfg = entryConfig ?? {};
         const wrapperClass = ["mb-3.5", cfg.className].filter(Boolean).join(
             " ",
@@ -328,19 +330,22 @@ export default function DashboardLayoutTemplate({
                 return (
                     <div key={baseKey} className={wrapperClass}>
                         {renderWidget({
-                            type: "link-view",
-                            params: cfg,
+                            type: "link-view"
                         })}
                     </div>
+                    
                 );
             default:
-                // Fall back to generic widget for any unknown entry key
+                // Fall back to integration widget-by-key renderer, then to generic widget.
                 return (
                     <div key={baseKey} className={wrapperClass}>
-                        {renderWidget({
-                            type: entryKey,
-                            params: cfg,
-                        })}
+                        <IntegrationColumnWidget
+                            widgetKey={entryKey}
+                            input={cfg}
+                            className="w-full"
+                            token={token}
+                            withAuth={withAuth}
+                        />
                     </div>
                 );
         }
@@ -357,12 +362,7 @@ export default function DashboardLayoutTemplate({
             >
                 {entries && typeof entries === "object"
                     ? Object.entries(entries).map(([key, cfg], i) =>
-                        renderWidgetEntry(
-                            columnName,
-                            key,
-                            cfg as Record<string, any>,
-                            i,
-                        )
+                        renderWidgetEntry(columnName, key, cfg as Record<string, any>, i)
                     )
                     : null}
             </div>
@@ -389,6 +389,95 @@ export default function DashboardLayoutTemplate({
             />
         </div>
     );
+}
+
+type IntegrationWidgetPayload = {
+    integration: Record<string, any> | null;
+    widgetJSON: Record<string, any> | null;
+};
+
+const integrationWidgetCache = new Map<string, IntegrationWidgetPayload | null>();
+
+function IntegrationColumnWidget({
+    widgetKey,
+    input,
+    className,
+    token,
+    withAuth,
+}: {
+    widgetKey: string;
+    input: Record<string, any>;
+    className?: string;
+    token?: string | null;
+    withAuth: ReturnType<typeof useAuth>["withAuth"];
+}) {
+    const [payload, setPayload] = useState<IntegrationWidgetPayload | null>(
+        integrationWidgetCache.get(widgetKey) ?? null,
+    );
+
+    useEffect(() => {
+        let cancelled = false;
+
+        async function load() {
+            const cached = integrationWidgetCache.get(widgetKey);
+            if (cached !== undefined) {
+                if (!cancelled) {
+                    setPayload(cached);
+                }
+                return;
+            }
+
+            if (!token) {
+                integrationWidgetCache.set(widgetKey, null);
+                if (!cancelled) {
+                    setPayload(null);
+                }
+                return;
+            }
+
+            try {
+                const response = await withAuth((auth) =>
+                    getIntegrationWithWidgetAction(auth, widgetKey)
+                ) as IntegrationWidgetPayload;
+                const resolved = response?.integration && response?.widgetJSON
+                    ? response
+                    : null;
+                integrationWidgetCache.set(widgetKey, resolved);
+                if (!cancelled) {
+                    setPayload(resolved);
+                }
+            } catch {
+                integrationWidgetCache.set(widgetKey, null);
+                if (!cancelled) {
+                    setPayload(null);
+                }
+            }
+        }
+
+        void load();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [token, widgetKey, withAuth]);
+
+    if (payload?.integration && payload.widgetJSON) {
+        return (
+            <Widget
+                widgetKey={widgetKey}
+                integrationJSON={payload.integration}
+                widgetJSON={payload.widgetJSON}
+                input={input}
+                className={className}
+            />
+        );
+    }
+
+    return renderWidget({
+        type: widgetKey,
+        params: input,
+        className,
+    });
 }
 
 interface BottomNavbarProps {

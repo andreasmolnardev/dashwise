@@ -12,10 +12,7 @@ export type WidgetDefinition = {
   description?: string;
   template?: string;
   properties?: Record<string, any>;
-  data?: {
-    source?: string;
-    input?: Record<string, any>;
-  };
+  input?: Record<string, any>;
   preview?: {
     template?: string;
     properties?: Record<string, any>;
@@ -26,14 +23,17 @@ export type TemplateId = "main" | "left-middle" | "right-middle";
 export type ColumnName = "left" | "middle" | "right";
 export type GlanceableSide = "left" | "right";
 
+export type GlanceableCatalogItem = {
+  type: string;
+  name: string;
+  exampleProps: Record<string, any>;
+};
+
 export type ColumnWidget = {
   id: string;
   type: string;
   properties: Record<string, any>;
-  data?: {
-    source?: string;
-    input?: Record<string, any>;
-  };
+  input?: Record<string, any>;
 };
 
 export type WidgetCatalogItem = {
@@ -46,10 +46,7 @@ export type WidgetCatalogItem = {
     properties?: Record<string, any>;
   };
   properties: Record<string, any>;
-  data?: {
-    source?: string;
-    input?: Record<string, any>;
-  };
+  input?: Record<string, any>;
 };
 
 export const TEMPLATE_OPTIONS: Array<{ id: TemplateId; label: string }> = [
@@ -82,7 +79,12 @@ export function flattenWidgetCatalog(widgetsData: Record<string, WidgetDefinitio
       description: widget.description ?? "",
       preview: widget.preview ?? {},
       properties: widget.properties ?? {},
-      data: widget.data ?? undefined,
+      input:
+        widget.input && typeof widget.input === "object"
+          ? (widget.input as Record<string, any>)
+          : widget.data?.input && typeof widget.data.input === "object"
+            ? (widget.data.input as Record<string, any>)
+            : undefined,
     }))
   );
 }
@@ -106,14 +108,12 @@ export function enabledColumnsFromTemplate(template: TemplateId): ColumnName[] {
 }
 
 export function hasEditableWidgetData(widget: ColumnWidget) {
-  const data = widget.data;
-  if (!data || typeof data !== "object") {
+  const input = widget.input;
+  if (!input || typeof input !== "object") {
     return false;
   }
 
-  const hasSource = typeof data.source === "string" && data.source.trim().length > 0;
-  const hasInput = !!data.input && typeof data.input === "object" && Object.keys(data.input).length > 0;
-  return hasSource || hasInput;
+  return Object.keys(input).length > 0;
 }
 
 export function normalizeColumns(config: any): Record<ColumnName, ColumnWidget[]> {
@@ -127,7 +127,14 @@ export function normalizeColumns(config: any): Record<ColumnName, ColumnWidget[]
           (cfg as Record<string, any>) && typeof cfg === "object"
             ? { ...((cfg as Record<string, any>).properties ?? cfg) }
             : {},
-        data: (cfg as Record<string, any>)?.data,
+        input:
+          (cfg as Record<string, any>)?.input && typeof (cfg as Record<string, any>).input === "object"
+            ? ((cfg as Record<string, any>).input as Record<string, any>)
+            : ((cfg as Record<string, any>)?.data?.input && typeof (cfg as Record<string, any>).data.input === "object")
+              ? ((cfg as Record<string, any>).data.input as Record<string, any>)
+              : (cfg && typeof cfg === "object" && !(cfg as Record<string, any>).properties)
+                ? { ...(cfg as Record<string, any>) }
+                : undefined,
       })),
       middle: Object.entries(columns.middle ?? {}).map(([type, cfg]) => ({
         id: createWidgetId(),
@@ -136,7 +143,14 @@ export function normalizeColumns(config: any): Record<ColumnName, ColumnWidget[]
           (cfg as Record<string, any>) && typeof cfg === "object"
             ? { ...((cfg as Record<string, any>).properties ?? cfg) }
             : {},
-        data: (cfg as Record<string, any>)?.data,
+        input:
+          (cfg as Record<string, any>)?.input && typeof (cfg as Record<string, any>).input === "object"
+            ? ((cfg as Record<string, any>).input as Record<string, any>)
+            : ((cfg as Record<string, any>)?.data?.input && typeof (cfg as Record<string, any>).data.input === "object")
+              ? ((cfg as Record<string, any>).data.input as Record<string, any>)
+              : (cfg && typeof cfg === "object" && !(cfg as Record<string, any>).properties)
+                ? { ...(cfg as Record<string, any>) }
+                : undefined,
       })),
       right: Object.entries(columns.right ?? {}).map(([type, cfg]) => ({
         id: createWidgetId(),
@@ -145,7 +159,14 @@ export function normalizeColumns(config: any): Record<ColumnName, ColumnWidget[]
           (cfg as Record<string, any>) && typeof cfg === "object"
             ? { ...((cfg as Record<string, any>).properties ?? cfg) }
             : {},
-        data: (cfg as Record<string, any>)?.data,
+        input:
+          (cfg as Record<string, any>)?.input && typeof (cfg as Record<string, any>).input === "object"
+            ? ((cfg as Record<string, any>).input as Record<string, any>)
+            : ((cfg as Record<string, any>)?.data?.input && typeof (cfg as Record<string, any>).data.input === "object")
+              ? ((cfg as Record<string, any>).data.input as Record<string, any>)
+              : (cfg && typeof cfg === "object" && !(cfg as Record<string, any>).properties)
+                ? { ...(cfg as Record<string, any>) }
+                : undefined,
       })),
     };
   }
@@ -156,19 +177,19 @@ export function normalizeColumns(config: any): Record<ColumnName, ColumnWidget[]
       id: widget?.id ?? createWidgetId(),
       type: widget?.type ?? "placeholder",
       properties: widget?.properties ?? {},
-      data: widget?.data,
+      input: widget?.input ?? widget?.data?.input,
     })),
     middle: (widgetsColumns[1] ?? []).map((widget: any) => ({
       id: widget?.id ?? createWidgetId(),
       type: widget?.type ?? "placeholder",
       properties: widget?.properties ?? {},
-      data: widget?.data,
+      input: widget?.input ?? widget?.data?.input,
     })),
     right: (widgetsColumns[2] ?? []).map((widget: any) => ({
       id: widget?.id ?? createWidgetId(),
       type: widget?.type ?? "placeholder",
       properties: widget?.properties ?? {},
-      data: widget?.data,
+      input: widget?.input ?? widget?.data?.input,
     })),
   };
 }
@@ -180,6 +201,7 @@ export function findMainClock(columns: Record<ColumnName, ColumnWidget[]>) {
 export function readClockGlanceables(
   columns: Record<ColumnName, ColumnWidget[]>,
   fallbackGlanceables: any[],
+  catalogGlanceables: GlanceableCatalogItem[] = [],
 ) {
   const mainClock = findMainClock(columns);
   const overrides = mainClock?.properties?.glanceables &&
@@ -187,13 +209,16 @@ export function readClockGlanceables(
     ? (mainClock.properties.glanceables as Record<string, any>)
     : undefined;
 
-  const fallbackTypes = fallbackGlanceables
+  const fallbackTypes = [
+    ...fallbackGlanceables,
+    ...catalogGlanceables,
+  ]
     .map((entry) => entry?.type)
     .filter((entry: unknown): entry is string => typeof entry === "string");
 
   const selectedFromOverrides = overrides ? Object.keys(overrides) : [];
-  const left = selectedFromOverrides[0] ?? fallbackTypes[0] ?? "date";
-  const right = selectedFromOverrides[1] ?? fallbackTypes[1] ?? "weather";
+  const left = selectedFromOverrides[0] ?? fallbackTypes[0] ?? "";
+  const right = selectedFromOverrides[1] ?? fallbackTypes[1] ?? fallbackTypes[0] ?? "";
 
   const map: Record<string, any> = {};
   if (overrides && Object.keys(overrides).length > 0) {
@@ -207,6 +232,17 @@ export function readClockGlanceables(
   return {
     selected: { left, right } as Record<GlanceableSide, string>,
     map,
+  };
+}
+
+export function getDefaultGlanceableSelection(catalogGlanceables: GlanceableCatalogItem[]) {
+  const fallbackTypes = catalogGlanceables
+    .map((entry) => entry?.type)
+    .filter((entry): entry is string => typeof entry === "string");
+
+  return {
+    left: fallbackTypes[0] ?? "",
+    right: fallbackTypes[1] ?? fallbackTypes[0] ?? "",
   };
 }
 
@@ -288,11 +324,10 @@ export function buildPageConfigPatch(
         widgetProps["clock-style"] = { ...clockStyle };
       }
 
-      if (widget.data) {
-        widgetProps.data = widget.data;
-      }
-
-      nextColumnsObject[column][widget.type] = widgetProps;
+      nextColumnsObject[column][widget.type] =
+        widget.input && Object.keys(widget.input).length > 0
+          ? { ...widget.input }
+          : widgetProps;
     });
   });
 
@@ -302,7 +337,7 @@ export function buildPageConfigPatch(
         id: item.id,
         type: item.type,
         properties: item.properties ?? {},
-        data: item.data ?? undefined,
+        input: item.input ?? undefined,
       })),
   );
 
