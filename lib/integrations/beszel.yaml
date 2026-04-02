@@ -265,7 +265,7 @@ configuration:
         columns:
           iterate_over: "computed.system_health"
           prototype:
-            primary: "if(details.status contains 'down', 0, health_score) ??? 92%"
+            primary: "${system_name}"
             secondary: "${biggest_minus} ??? Healthy"
             progress:
               type: "circular"
@@ -280,7 +280,6 @@ configuration:
                 - min: 0
                   color: "#ef4444"
               zero_label: "Down"
-            title: "${system_name}"
             titleAction: "url:${action}"
             badge:
               show_if: "biggest_minus not contains 'No'"
