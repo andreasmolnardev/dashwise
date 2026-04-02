@@ -33,18 +33,7 @@ configuration:
     fetch-weather:
       method: GET
       # Open-Meteo requires no auth — public API
-      url: >
-        https://api.open-meteo.com/v1/forecast
-        ?latitude=${WEATHER_LOCATION.lat}
-        &longitude=${WEATHER_LOCATION.lon}
-        &current=temperature_2m,weather_code,wind_speed_10m,wind_direction_10m,relative_humidity_2m,precipitation
-        &hourly=temperature_2m,precipitation,precipitation_probability,weather_code
-        &daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,sunrise,sunset
-        &forecast_days=3
-        &timezone=auto
-        &temperature_unit=${if(UNIT == 'f', 'fahrenheit', 'celsius')}
-        &wind_speed_unit=${if(UNIT == 'f', 'mph', 'kmh')}
-      # Cache for 10 minutes — matches next: { revalidate: 600 }
+      url: "https://api.open-meteo.com/v1/forecast?latitude=${WEATHER_LOCATION.lat}&longitude=${WEATHER_LOCATION.lon}&current=temperature_2m,weather_code,wind_speed_10m,wind_direction_10m,relative_humidity_2m,precipitation&hourly=temperature_2m,precipitation,precipitation_probability,weather_code&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,sunrise,sunset&forecast_days=3&timezone=auto"
       cache_ttl: 600
       response:
         type: json
@@ -218,32 +207,32 @@ configuration:
       properties:
         header:
           show_if: "${SHOW_LOCATION}"
-          title: "${computed.weather.display_name} ??? Seattle"
-          icon: "/weather-icons/${computed.weather.icon_file} ??? /weather-icons/sun-clear.svg"
+          title: "${computed.weather.fields.display_name} ??? Seattle"
+          icon: "/weather-icons/${computed.weather.fields.icon_file} ??? /weather-icons/sun-clear.svg"
         columns:
           - label: "Now"
             icon:
               type: "weather"
-              file: "${computed.weather.icon_file} ??? sun-clear.svg"
+              file: "${computed.weather.fields.icon_file} ??? sun-clear.svg"
               size: 32
-              description: "${computed.weather.description} ??? Clear sky"
-            primary: "${computed.weather.temperature}${computed.weather.unit} — ${computed.weather.precipitation_probability}% ??? 18°C — 20%"
+              description: "${computed.weather.fields.description} ??? Clear sky"
+            primary: "${computed.weather.fields.temperature}${computed.weather.fields.unit} — ${computed.weather.fields.precipitation_probability}% ??? 18°C — 20%"
 
           - label: "Tonight"
             icon:
               type: "weather"
-              file: "${computed.weather.tonight.icon_file} ??? moon-stars-night.svg"
+              file: "${computed.weather.fields.tonight.icon_file} ??? moon-stars-night.svg"
               size: 32
-              description: "${computed.weather.tonight.description} ??? Clear night"
-            primary: "${computed.weather.tonight.temperature}${computed.weather.unit} — ${computed.weather.tonight.precipitation_probability}% ??? 11°C — 60%"
+              description: "${computed.weather.fields.tonight.description} ??? Clear night"
+            primary: "${computed.weather.fields.tonight.temperature}${computed.weather.fields.unit} — ${computed.weather.fields.tonight.precipitation_probability}% ??? 11°C — 60%"
 
           - label: "Tomorrow"
             icon:
               type: "weather"
-              file: "${computed.weather.tomorrow.icon_file} ??? sun-clear.svg"
+              file: "${computed.weather.fields.tomorrow.icon_file} ??? sun-clear.svg"
               size: 32
-              description: "${computed.weather.tomorrow.description} ??? Sunny"
-            primary: "${computed.weather.tomorrow.temperature}${computed.weather.unit} — ${computed.weather.tomorrow.precipitation_probability}% ??? 21°C — 30%"
+              description: "${computed.weather.fields.tomorrow.description} ??? Sunny"
+            primary: "${computed.weather.fields.tomorrow.temperature}${computed.weather.fields.unit} — ${computed.weather.fields.tomorrow.precipitation_probability}% ??? 21°C — 30%"
 
     # --- Overview: large icon + current temp + insight string ---
     - name: "Current Weather Conditions"
@@ -262,11 +251,11 @@ configuration:
       properties:
         icon:
           type: "weather"
-          file: "${computed.weather.icon_file} ??? sun-clear.svg"
+          file: "${computed.weather.fields.icon_file} ??? sun-clear.svg"
           size: 48
-          description: "${computed.weather.description} ??? Clear sky"
-        primary: "${computed.weather.temperature}${computed.weather.unit} ${computed.weather.description} ??? 18°C Clear sky"
-        secondary: "${computed.weather.insight} ??? Sunny day ahead"
+          description: "${computed.weather.fields.description} ??? Clear sky"
+        primary: "${computed.weather.fields.temperature}° ${computed.weather.fields.description} ??? 18°C Clear sky"
+        secondary: "${computed.weather.fields.insight} ??? Sunny day ahead"
 
   glanceables:
     - name: "Local Weather"
