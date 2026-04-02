@@ -15,15 +15,11 @@ details:
 
 configuration:
   environment_variables:
-    LAT:
+    WEATHER_LOCATION:
+      type: location
       required: true
-      description: "Latitude of the location to show weather for (e.g. 51.5074)"
-    LON:
-      required: true
-      description: "Longitude of the location to show weather for (e.g. -0.1278)"
-    DISPLAY_NAME:
-      required: false
-      description: "Human-readable location name shown in the widget header"
+      default: "${user.localizationPreferences.weatherLocation}"
+      description: "Location JSON with name, lat and lon. Example: '{\"name\":\"New York, New York, United States\",\"lat\":\"40.7128\",\"lon\":\"-74.0060\"}'"
     UNIT:
       required: false
       default: "c"
@@ -39,8 +35,8 @@ configuration:
       # Open-Meteo requires no auth — public API
       url: >
         https://api.open-meteo.com/v1/forecast
-        ?latitude=${LAT}
-        &longitude=${LON}
+        ?latitude=${WEATHER_LOCATION.lat}
+        &longitude=${WEATHER_LOCATION.lon}
         &current=temperature_2m,weather_code,wind_speed_10m,wind_direction_10m,relative_humidity_2m,precipitation
         &hourly=temperature_2m,precipitation,precipitation_probability,weather_code
         &daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,sunrise,sunset
@@ -117,7 +113,7 @@ configuration:
   computed:
     weather:
       fields:
-        display_name: "${DISPLAY_NAME}"
+        display_name: "${WEATHER_LOCATION.name}"
         show_location: "${SHOW_LOCATION}"
         unit: "${if(UNIT == 'f', '°F', '°C')}"
         temperature: "this.endpoints.fetch-weather.mappedResponse.current.temperature"
@@ -214,10 +210,10 @@ configuration:
       data:
         source: "computed.weather"
         input:
-          lat: "${LAT}"
-          lon: "${LON}"
+          lat: "${WEATHER_LOCATION.lat}"
+          lon: "${WEATHER_LOCATION.lon}"
           unit: "${UNIT}"
-          displayName: "${DISPLAY_NAME}"
+          displayName: "${WEATHER_LOCATION.name}"
           showLocation: "${SHOW_LOCATION}"
       properties:
         header:
@@ -258,10 +254,10 @@ configuration:
       data:
         source: "computed.weather"
         input:
-          lat: "${LAT}"
-          lon: "${LON}"
+          lat: "${WEATHER_LOCATION.lat}"
+          lon: "${WEATHER_LOCATION.lon}"
           unit: "${UNIT}"
-          displayName: "${DISPLAY_NAME}"
+          displayName: "${WEATHER_LOCATION.name}"
           showLocation: "${SHOW_LOCATION}"
       properties:
         icon:
@@ -275,10 +271,10 @@ configuration:
   glanceables:
     - name: "Local Weather"
       properties:
-        lat: "${LAT}"
-        lon: "${LON}"
+        lat: "${WEATHER_LOCATION.lat}"
+        lon: "${WEATHER_LOCATION.lon}"
         unit: "${UNIT}"
-        displayName: "${DISPLAY_NAME}"
+        displayName: "${WEATHER_LOCATION.name}"
         showLocation: "${SHOW_LOCATION}"
       icon:
         file: "${computed.weather.icon_file} ??? sun-clear.svg"
