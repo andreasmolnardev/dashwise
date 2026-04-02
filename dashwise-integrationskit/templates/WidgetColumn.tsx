@@ -1,7 +1,6 @@
 "use client";
 
-import { faUpRightFromSquare } from "@fortawesome/free-solid-svg-icons";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { Icon } from "@iconify-icon/react";
 import React from "react";
 
 interface WidgetColumnTemplateProps {
@@ -35,8 +34,8 @@ export default function WidgetColumnTemplate({
           )}
           <p className="font-semibold">{title}</p>
           {url && url !== "#" && (
-            <FontAwesomeIcon
-              icon={faUpRightFromSquare}
+            <Icon
+              icon="fa6-solid:up-right-from-square"
               className="text-xs hover:text-(--primary)"
             />
           )}

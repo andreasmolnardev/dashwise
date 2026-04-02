@@ -148,17 +148,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import {
-  faPlus,
-  faEdit,
-  faArrowRight,
-  faTrash,
-  faCaretDown,
-  faArrowsUpDown,
-  faFolderPlus,
-} from "@fortawesome/free-solid-svg-icons";
-import type { IconDefinition } from "@fortawesome/fontawesome-svg-core";
+import { Icon } from "@iconify-icon/react";
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -750,11 +740,11 @@ export function Tab({
       {/* Dropdown trigger for actions - only if actions available */}
       {(onRename || onDelete) && (
         <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button className="px-1 opacity-70 hover:opacity-100 transition">
-              <FontAwesomeIcon icon={faCaretDown} className="text-xs" />
-            </button>
-          </DropdownMenuTrigger>
+            <DropdownMenuTrigger asChild>
+              <button className="px-1 opacity-70 hover:opacity-100 transition">
+                <Icon icon="fa6-solid:caret-down" className="text-xs" />
+              </button>
+            </DropdownMenuTrigger>
           <DropdownMenuContent align="start">
             {onRename && <DropdownMenuItem onClick={onRename}>Rename</DropdownMenuItem>}
             {onDelete && (
@@ -778,7 +768,7 @@ export function CreateGroupAction({ onCreateGroup }: { onCreateGroup: () => void
       onClick={onCreateGroup}
       className="text-foreground hover:bg-(--surface-2)"
     >
-      <FontAwesomeIcon icon={faPlus} className="text-sm" />
+      <Icon icon="fa6-solid:plus" className="text-sm" />
     </Button>
   );
 }
@@ -873,7 +863,7 @@ export function ListItemPrototype({
         {/* Move or Select Icon - Left side */}
         {mode === "move" && (
           <div className="flex-shrink-0 cursor-grab active:cursor-grabbing opacity-50 group-hover:opacity-100 transition">
-            <FontAwesomeIcon icon={faArrowsUpDown} className="text-white/40" />
+            <Icon icon="fa6-solid:arrows-up-down" className="text-white/40" />
           </div>
         )}
 
@@ -924,14 +914,14 @@ export function Action({
   type: "edit" | "move" | "delete" | "create" | "clean" | "add" | "create-folder";
   label?: string;
   onClick: () => void;
-  icon?: IconDefinition;
+  icon?: string;
 }) {
-  const iconMap: Record<string, IconDefinition> = {
-    edit: faEdit,
-    move: faArrowRight,
-    delete: faTrash,
-    create: faPlus,
-    'create-folder': faFolderPlus
+  const iconMap: Record<string, string> = {
+    edit: "fa6-solid:edit",
+    move: "fa6-solid:arrow-right",
+    delete: "fa6-solid:trash",
+    create: "fa6-solid:plus",
+    'create-folder': "fa6-solid:folder-plus",
   };
 
   const selectedIcon = icon || iconMap[type];
@@ -944,7 +934,7 @@ export function Action({
       className="text-foreground hover:bg-(--surface-2) px-2 h-8 transition-colors"
       title={label}
     >
-      {selectedIcon && <FontAwesomeIcon icon={selectedIcon} className="text-sm" />}
+      {selectedIcon && <Icon icon={selectedIcon} className="text-sm" />}
     </Button>
   );
 }

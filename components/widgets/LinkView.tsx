@@ -12,14 +12,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import {
-  faEdit,
-  faFolder,
-  faLink,
-  faPlus,
-  faXmark,
-} from "@fortawesome/free-solid-svg-icons";
+import { Icon } from "@iconify-icon/react";
 import { PopoverClose } from "@radix-ui/react-popover";
 import { Button } from "../ui/button";
 import {
@@ -293,7 +286,7 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
             ))}
           </div>
 
-          <Button
+            <Button
             type="button"
             variant="ghost"
             size="icon"
@@ -302,7 +295,7 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
             title="Add link"
             aria-label="Add link"
           >
-            <FontAwesomeIcon icon={faPlus} />
+            <Icon icon="fa6-solid:plus" />
           </Button>
         </div>
       )}
@@ -334,8 +327,8 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
                   aria-label={`Open folder ${folder.name}`}
                   title={folder.name}
                 >
-                  <div className="h-[35px] w-[35px] flex items-center justify-center text-white/80 group-hover:text-white transition-colors">
-                    <FontAwesomeIcon icon={faFolder} className="h-6 w-6" />
+                    <div className="h-[35px] w-[35px] flex items-center justify-center text-white/80 group-hover:text-white transition-colors">
+                    <Icon icon="fa6-solid:folder" className="h-6 w-6" />
                   </div>
 
                   <div className="flex items-center w-full justify-center">
@@ -351,7 +344,7 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
                   <h4 className="font-semibold mb-2">{folder.name}</h4>
                   <PopoverClose asChild>
                     <Button variant="ghost" className="h-8 w-8 p-0">
-                      <FontAwesomeIcon icon={faXmark} />
+                      <Icon icon="fa6-solid:xmark" />
                     </Button>
                   </PopoverClose>
                 </header>
@@ -393,7 +386,7 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
         <Empty className="frosted w-full">
           <EmptyHeader>
             <EmptyMedia variant="icon">
-              <FontAwesomeIcon icon={faLink} />
+              <Icon icon="fa6-solid:link" />
             </EmptyMedia>
             <EmptyTitle>No links</EmptyTitle>
             <EmptyDescription>No data found</EmptyDescription>
@@ -513,7 +506,7 @@ function LinkTile({
         )
         : (
           <div className="h-[35px] w-[35px] flex items-center justify-center">
-            <FontAwesomeIcon icon={faFolder} className="h-6 w-6 opacity-20" />
+            <Icon icon="fa6-solid:folder" className="h-6 w-6 opacity-20" />
           </div>
         )}
 
@@ -550,7 +543,7 @@ function LinkTile({
             </button>
           )}
         </div>
-        <button
+            <button
           onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();
@@ -559,7 +552,7 @@ function LinkTile({
           className="p-1.5 aspect-square hidden group-hover:flex transition-all items-center rounded-full text-white/50 hover:text-white absolute right-0 bottom-0"
           title="Edit link"
         >
-          <FontAwesomeIcon icon={faEdit} className="h-3 w-3" />
+          <Icon icon="fa6-solid:edit" className="h-3 w-3" />
         </button>
       </div>
     </a>

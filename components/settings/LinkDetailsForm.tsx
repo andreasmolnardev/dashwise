@@ -37,7 +37,7 @@ import IconPickerComponent, { IconResult } from "@/components/settings/IconPicke
 import { RadioGroup, RadioGroupItem } from "../ui/radio-group";
 import { Switch } from "@/components/ui/switch";
 import { faEllipsisV, faPaperclip } from "@fortawesome/free-solid-svg-icons";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { Icon as Iconify } from "@iconify-icon/react";
 import { Check, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -437,11 +437,11 @@ export default function LinkDetailsForm({
           </Label>
           <Popover modal={true}>
             <PopoverTrigger>
-              <Label
+                <Label
                 className="h-[35px] frosted rounded-md flex items-center justify-center px-2 gap-2 outline-2 outline-transparent cursor-pointer"
                 title="Set icon by link"
               >
-                <FontAwesomeIcon icon={faPaperclip} />
+                <Iconify icon="fa6-solid:paperclip" />
                 <span>Link</span>
               </Label>
             </PopoverTrigger>
@@ -474,7 +474,7 @@ export default function LinkDetailsForm({
                 key={name}
                 className="h-[35px] frosted rounded-md flex items-center justify-center px-2 gap-2 outline-2 outline-transparent has-checked:outline-(--primary)"
               >
-                <FontAwesomeIcon icon={faEllipsisV} />
+                <Iconify icon="fa6-solid:ellipsis-vertical" />
                 <span>Icon Picker</span>
               </Label>
             </PopoverTrigger>

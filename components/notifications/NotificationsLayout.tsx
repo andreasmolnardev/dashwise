@@ -1,19 +1,20 @@
 "use client";
 import Link from "next/link";
-import { faHome, faInbox, faKey, faShareNodes } from "@fortawesome/free-solid-svg-icons";
+// icon constants replaced with Iconify slugs
+// import { faHome, faInbox, faKey, faShareNodes } from "@fortawesome/free-solid-svg-icons";
 import { usePathname } from "next/navigation";
 import { Label } from "@/components/ui/label";
 import { useCallback, useEffect, useRef, useState } from "react";
 import useAuth from "@/context/useAuth";
 import { getNotificationsAction } from "@/app/actions/notifications/items";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { Icon } from "@iconify-icon/react";
 import { NOTIFICATIONS_UPDATED_EVENT } from "@/lib/events";
 import config from "@/lib/config";
 
 const navItems = [
-    { href: "/notifications/inbox", label: "Inbox", icon: faInbox },
-    { href: "/notifications/forwarders", label: "Forwarders", icon: faShareNodes },
-    { href: "/notifications/tokens", label: "Tokens", icon: faKey },
+    { href: "/notifications/inbox", label: "Inbox", icon: "fa6-solid:inbox" },
+    { href: "/notifications/forwarders", label: "Forwarders", icon: "fa6-solid:share-nodes" },
+    { href: "/notifications/tokens", label: "Tokens", icon: "fa6-solid:key" },
 ];
 
 export default function NotificationsLayoutComponent({ children }: { children: React.ReactNode }) {
@@ -77,7 +78,7 @@ export default function NotificationsLayoutComponent({ children }: { children: R
                                     data-href={item.href}
                                 >
                                     <div className="flex items-center space-x-2">
-                                        <FontAwesomeIcon icon={item.icon} className="text-lg group-hover:text-(--primary)" />
+                                        <Icon icon={item.icon} className="text-lg group-hover:text-(--primary)" />
                                         <Label>{item.label}</Label>
                                     </div>
 
@@ -97,7 +98,7 @@ export default function NotificationsLayoutComponent({ children }: { children: R
                             className={`flex items-center space-x-2 p-2 settings-label-div round-md relative`}
                             data-href="/home"
                         >
-                            <FontAwesomeIcon icon={faHome} className=" group-hover:text-(--primary)" />
+                            <Icon icon="fa6-solid:house" className=" group-hover:text-(--primary)" />
                             <Label>Back Home</Label>
                         </div>
                     </Link>

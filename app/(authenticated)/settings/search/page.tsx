@@ -23,8 +23,7 @@ import { usePageConfig } from "@/hooks/usePageConfig";
 import SearchEngineDetailsForm from "@/components/settings/SearchEngineDetailsForm";
 import TabSwitcher from "@/components/common/TabSwitcher";
 import SearchEngineBrowseFeedComponent from "@/components/settings/SearchEngineBrowseFeed";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faArrowRight } from "@fortawesome/free-solid-svg-icons";
+import { Icon } from "@iconify-icon/react";
 import { Select, SelectValue, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import useAuth from "@/context/useAuth";
 
@@ -294,7 +293,7 @@ function RedirectBangsSetting(user) {
 
   return (
     <div className="flex border border-transparent items-center col-span-full p-1.5 rounded-md gap-2">
-      <FontAwesomeIcon icon={faArrowRight} />
+      <Icon icon="fa6-solid:arrow-right" />
       <p className="w-full">Redirect Unknown Shortcuts To</p>
 
       <Select

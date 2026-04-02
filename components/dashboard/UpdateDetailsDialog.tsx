@@ -3,8 +3,7 @@
 import { useEffect, useState } from "react";
 import { Dialog, DialogTrigger, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faArrowRotateRight } from "@fortawesome/free-solid-svg-icons";
+import { Icon } from "@iconify-icon/react";
 import { getAppInfoAction } from "@/app/actions/app";
 import useAuth from "@/context/useAuth";
 
@@ -38,8 +37,8 @@ export default function UpdateDetailsDialogComponent() {
     <Dialog>
       <DialogTrigger asChild>
         <div className="frosted aspect-square rounded-full p-1 group flex items-center justify-center cursor-pointer">
-          <FontAwesomeIcon
-            icon={faArrowRotateRight}
+          <Icon
+            icon="fa6-solid:arrows-rotate"
             className="text-sm group-hover:text-(--primary) transition-colors duration-200"
           />
         </div>

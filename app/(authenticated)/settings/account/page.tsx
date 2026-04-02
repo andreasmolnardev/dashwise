@@ -1,75 +1,66 @@
-"use client"
+"use client";
 
-import React, { useState } from "react"
+import React, { useState } from "react";
 import {
   Dialog,
-  DialogContent,
   DialogClose,
+  DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog"
-import { Button } from "@/components/ui/button"
-import {
-  faCaretRight,
-  faCircleUser,
-  faKey,
-  faVault,
-  faRightToBracket,
-  faUpload,
-  faTrash,
-} from "@fortawesome/free-solid-svg-icons"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome"
-import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert"
-import { ChangePasswordRequest } from "@/app/actions/auth"
-import { useRouter } from "next/navigation"
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Icon } from "@iconify-icon/react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { ChangePasswordRequest } from "@/app/actions/auth";
+import { useRouter } from "next/navigation";
 import { changePasswordAction, deleteAccountAction } from "@/app/actions/auth";
-import { DialogDescription } from "@radix-ui/react-dialog"
-import ExportConfigDialog from "@/components/settings/ExportConfigDialog"
-import { usePageConfig } from "@/hooks/usePageConfig"
-import useAuth from "@/context/useAuth"
-import ImportConfigDialog from "@/components/settings/ImportConfigDialog.tsx"
+import { DialogDescription } from "@radix-ui/react-dialog";
+import ExportConfigDialog from "@/components/settings/ExportConfigDialog";
+import { usePageConfig } from "@/hooks/usePageConfig";
+import useAuth from "@/context/useAuth";
+import ImportConfigDialog from "@/components/settings/ImportConfigDialog";
 
 export default function AccountSettingsPage() {
- const { config } = usePageConfig();
+  const { config } = usePageConfig();
   const router = useRouter();
   const { user, token, setAuth, logout } = useAuth();
-  const [oldPassword, setOldPassword] = useState("")
-  const [newPassword, setNewPassword] = useState("")
-  const [confirmPassword, setConfirmPassword] = useState("")
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState<string | null>(null)
-  const [deletePassword, setDeletePassword] = useState("")
-  const [deleteTotp, setDeleteTotp] = useState("")
-  const [deleteLoading, setDeleteLoading] = useState(false)
-  const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [oldPassword, setOldPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [deletePassword, setDeletePassword] = useState("");
+  const [deleteTotp, setDeleteTotp] = useState("");
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
-  const handleChangePasswordSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault()
-    setError(null)
-    setSuccess(null)
+  const handleChangePasswordSubmit = async (
+    e: React.FormEvent<HTMLFormElement>,
+  ) => {
+    e.preventDefault();
+    setError(null);
+    setSuccess(null);
 
     if (!oldPassword || !newPassword || !confirmPassword) {
-      setError("All fields are required")
-      return
+      setError("All fields are required");
+      return;
     }
     if (newPassword !== confirmPassword) {
-      setError("New passwords do not match")
-      return
+      setError("New passwords do not match");
+      return;
     }
     if (newPassword.length < 8) {
-      setError("New password should be at least 8 characters")
-      return
+      setError("New password should be at least 8 characters");
+      return;
     }
 
-    setLoading(true)
+    setLoading(true);
     try {
-      // token from auth hook
-
       const payload = {
         oldPassword,
         newPassword,
@@ -87,25 +78,29 @@ export default function AccountSettingsPage() {
           setSuccess(null);
         }, 900);
       } catch (err: any) {
-        setError(err?.body?.error ?? err?.message ?? "Failed to change password");
+        setError(
+          err?.body?.error ?? err?.message ?? "Failed to change password",
+        );
       }
     } catch (err) {
       if (err instanceof Error) {
-        setError(err.message || "Network error")
+        setError(err.message || "Network error");
       } else {
-        setError("Network error")
+        setError("Network error");
       }
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const handleLogoutSubmit = async () => {
     logout();
-    router.push('/auth/login');
-  }
+    router.push("/auth/login");
+  };
 
-  const handleDeleteAccountSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleDeleteAccountSubmit = async (
+    e: React.FormEvent<HTMLFormElement>,
+  ) => {
     e.preventDefault();
     setDeleteError(null);
     if (!user) {
@@ -127,23 +122,20 @@ export default function AccountSettingsPage() {
       return;
     }
 
-    if (deleteTotp) {
-      payload.totp = deleteTotp;
-    }
+    if (deleteTotp) payload.totp = deleteTotp;
 
     setDeleteLoading(true);
 
     try {
       await deleteAccountAction({ token }, payload);
-
       logout();
-      router.push('/auth/login');
+      router.push("/auth/login");
     } catch (err: any) {
       setDeleteError(err?.message ?? "Failed to delete account");
     } finally {
       setDeleteLoading(false);
     }
-  }
+  };
 
   return (
     <>
@@ -151,17 +143,17 @@ export default function AccountSettingsPage() {
 
       <div className="content grid grid-cols-[auto_1fr_auto] font-medium gap-2 items-center">
         <section className="frosted flex rounded-lg justify-center col-span-full p-2 items-center gap-6">
-          <FontAwesomeIcon icon={faCircleUser} className="text-4xl" />
-          <span>{user?.name ?? 'Lorem ipsum'}</span>
+          <Icon icon="fa6-solid:circle-user" className="text-4xl" />
+          <span>{user?.name ?? "Lorem ipsum"}</span>
         </section>
 
         <h2 className="text-xl col-span-full">Authentication</h2>
 
         <Dialog>
           <DialogTrigger className="grid grid-cols-subgrid border border-transparent hover-frosted items-center col-span-full p-1.5 rounded-md">
-            <FontAwesomeIcon icon={faKey} />
+            <Icon icon="fa6-solid:key" />
             <p className="text-left">Change password</p>
-            <FontAwesomeIcon icon={faCaretRight} />
+            <Icon icon="fa6-solid:caret-right" />
           </DialogTrigger>
 
           <DialogContent className="frosted text-foreground">
@@ -213,7 +205,9 @@ export default function AccountSettingsPage() {
               </div>
 
               <div className="grid gap-3">
-                <Label htmlFor="confirm-new-password">Repeat new password</Label>
+                <Label htmlFor="confirm-new-password">
+                  Repeat new password
+                </Label>
                 <Input
                   id="confirm-new-password"
                   name="confirmPassword"
@@ -241,16 +235,16 @@ export default function AccountSettingsPage() {
         </Dialog>
 
         <div className="grid grid-cols-subgrid border border-transparent hover-frosted items-center col-span-full p-1.5 rounded-md">
-          <FontAwesomeIcon icon={faVault} />
+          <Icon icon="fa6-solid:vault" />
           <p>Multi-factor Authentication</p>
-          <FontAwesomeIcon icon={faCaretRight} />
+          <Icon icon="fa6-solid:caret-right" />
         </div>
 
         <Dialog>
           <DialogTrigger className="grid grid-cols-subgrid border border-transparent hover-frosted items-center col-span-full p-1.5 rounded-md">
-            <FontAwesomeIcon icon={faRightToBracket} />
+            <Icon icon="fa6-solid:right-to-bracket" />
             <p className="text-left">Log out</p>
-            <FontAwesomeIcon icon={faCaretRight} />
+            <Icon icon="fa6-solid:caret-right" />
           </DialogTrigger>
 
           <DialogContent className="frosted text-foreground">
@@ -276,7 +270,6 @@ export default function AccountSettingsPage() {
                 </Alert>
               )}
 
-
               <DialogFooter>
                 <DialogClose asChild>
                   <Button variant="outline" type="button" disabled={loading}>
@@ -293,21 +286,22 @@ export default function AccountSettingsPage() {
 
         <h2 className="text-xl col-span-full">Config</h2>
         <ImportConfigDialog />
-        <ExportConfigDialog jsonString={JSON.stringify(config)}/>
+        <ExportConfigDialog jsonString={JSON.stringify(config)} />
 
         <h2 className="text-xl col-span-full">Other</h2>
         <Dialog>
           <DialogTrigger className="grid grid-cols-subgrid border border-transparent hover-frosted items-center col-span-full p-1.5 rounded-md">
-            <FontAwesomeIcon icon={faTrash} />
+            <Icon icon="fa6-solid:trash" />
             <p className="text-left">Delete account</p>
-            <FontAwesomeIcon icon={faCaretRight} />
+            <Icon icon="fa6-solid:caret-right" />
           </DialogTrigger>
 
           <DialogContent className="frosted text-foreground">
             <DialogHeader>
               <DialogTitle>Delete account</DialogTitle>
               <DialogDescription>
-                This is irreversible. You will need to re-create your account if you proceed.
+                This is irreversible. You will need to re-create your account if
+                you proceed.
               </DialogDescription>
             </DialogHeader>
 
@@ -349,11 +343,19 @@ export default function AccountSettingsPage() {
 
               <DialogFooter>
                 <DialogClose asChild>
-                  <Button variant="outline" type="button" disabled={deleteLoading}>
+                  <Button
+                    variant="outline"
+                    type="button"
+                    disabled={deleteLoading}
+                  >
                     Cancel
                   </Button>
                 </DialogClose>
-                <Button variant="destructive" type="submit" disabled={deleteLoading}>
+                <Button
+                  variant="destructive"
+                  type="submit"
+                  disabled={deleteLoading}
+                >
                   {deleteLoading ? "Deleting..." : "Delete account"}
                 </Button>
               </DialogFooter>
@@ -362,5 +364,5 @@ export default function AccountSettingsPage() {
         </Dialog>
       </div>
     </>
-  )
+  );
 }

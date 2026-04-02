@@ -6,8 +6,7 @@ import {
   RadioGroup,
   RadioGroupItem,
 } from "@/components/ui/radio-group";
-import { faImage, faPaperclip, faUpload } from "@fortawesome/free-solid-svg-icons";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { Icon } from "@iconify-icon/react";
 import UploadWallpaperDialogComponent from "@/components/settings/UploadWallpaperDialog";
 import UrlWallpaperDialogComponent from "@/components/settings/UrlWallpaperDialog";
 import ThemeSelectComponent from "@/components/settings/ThemeSelect";
@@ -43,7 +42,7 @@ export default function AppearanceSettingsPage() {
                  peer-data-[state=checked]:outline-(--primary)
                  peer-focus-visible:outline peer-focus-visible:outline-(--primary) h-22"
             >
-              <FontAwesomeIcon className="group-hover:text-(--primary) transition-colors" icon={faImage} />
+              <Icon className="group-hover:text-(--primary) transition-colors" icon="fa6-solid:image" />
               <span className="text-lg">Current</span>
             </Label>
           </div>
@@ -56,7 +55,7 @@ export default function AppearanceSettingsPage() {
                  peer-data-[state=checked]:outline-(--primary)
                  peer-focus-visible:outline peer-focus-visible:outline-(--primary) h-22"
             >
-              <FontAwesomeIcon className="group-hover:text-(--primary) transition-colors" icon={faUpload} />
+              <Icon className="group-hover:text-(--primary) transition-colors" icon="fa6-solid:upload" />
               <span className="text-lg">Upload</span>
             </Label>
           </div>
@@ -69,7 +68,7 @@ export default function AppearanceSettingsPage() {
                  peer-data-[state=checked]:outline-(--primary)
                  peer-focus-visible:outline peer-focus-visible:outline-(--primary) h-22"
             >
-              <FontAwesomeIcon className="group-hover:text-(--primary) transition-colors" icon={faPaperclip} />
+              <Icon className="group-hover:text-(--primary) transition-colors" icon="fa6-solid:paperclip" />
               <span className="text-lg">Add from URL</span>
             </Label>
           </div>

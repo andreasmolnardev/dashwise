@@ -7,8 +7,7 @@ import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { moveConfigArrayItemsAction } from "@/app/actions/config";
 import { DialogClose } from "@/components/ui/dialog";
 import { usePageConfig } from "@/hooks/usePageConfig";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faBars } from "@fortawesome/free-solid-svg-icons";
+import { Icon } from "@iconify-icon/react";
 
 type Props = {
   linkGroups?: string[] | null;
@@ -201,7 +200,7 @@ export default function MoveLinkGroupsFormComponent({ linkGroups = [], onReorder
                   style={{ transitionProperty: "transform, opacity, box-shadow" }}
                 >
                   <div className="w-6 h-6 flex items-center justify-center">
-                    <FontAwesomeIcon icon={faBars} />
+                    <Icon icon="fa6-solid:bars" />
                   </div>
                   <div className="flex-1 text-sm font-medium">{name}</div>
                 </li>

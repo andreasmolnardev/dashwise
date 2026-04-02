@@ -1,7 +1,6 @@
 "use client";
 
-import { faUpRightFromSquare } from "@fortawesome/free-solid-svg-icons";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { Icon } from "@iconify-icon/react";
 import React from "react";
 import type { ResolvedWidget } from "../data/resolveProperties";
 
@@ -26,8 +25,8 @@ export default function VerticalList({ resolved, className }: VerticalListProps)
           )}
           <p className="font-semibold truncate">{header.title}</p>
           {header.titleAction && (
-            <FontAwesomeIcon
-              icon={faUpRightFromSquare}
+            <Icon
+              icon="fa6-solid:up-right-from-square"
               className="text-xs hover:text-(--primary)"
             />
           )}
@@ -111,8 +110,8 @@ function ListRow({
 
       {/* External link indicator */}
       {item.titleAction && (
-        <FontAwesomeIcon
-          icon={faUpRightFromSquare}
+        <Icon
+          icon="fa6-solid:up-right-from-square"
           className="text-[10px] opacity-40 hover:opacity-80 shrink-0 transition-opacity"
         />
       )}

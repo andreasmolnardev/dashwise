@@ -9,9 +9,8 @@ import {
     DialogTitle,
     DialogTrigger,
 } from "@/components/ui/dialog"
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome"
+import { Icon } from "@iconify-icon/react"
 import { Button } from "@/components/ui/button"
-import { faCaretRight, faUpload } from "@fortawesome/free-solid-svg-icons"
 import { Label } from "../ui/label.tsx"
 import { Input } from "../ui/input.tsx"
 import { useEffect, useState } from "react"
@@ -79,9 +78,9 @@ export default function ImportConfigDialog() {
     return (
         <Dialog>
             <DialogTrigger className="grid grid-cols-subgrid border border-transparent hover-frosted items-center col-span-full p-1.5 rounded-md">
-                <FontAwesomeIcon icon={faUpload} />
+                <Icon icon="fa6-solid:upload" />
                 <p className="text-left">Import Another Config</p>
-                <FontAwesomeIcon icon={faCaretRight} />
+                <Icon icon="fa6-solid:caret-right" />
             </DialogTrigger>
 
             <DialogContent className="frosted text-foreground">

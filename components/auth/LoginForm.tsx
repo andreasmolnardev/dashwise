@@ -20,8 +20,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome"
-import { faCircleCheck, faExclamationTriangle } from "@fortawesome/free-solid-svg-icons"
+import { Icon } from "@iconify-icon/react"
 
 export default function LoginCard() {
   const router = useRouter()
@@ -95,7 +94,7 @@ export default function LoginCard() {
         <form onSubmit={handleLogin} className="flex flex-col gap-6">
           {error && (
             <Alert variant="destructive">
-              <FontAwesomeIcon icon={faExclamationTriangle} className="h-4 w-4" />
+              <Icon icon="fa6-solid:triangle-exclamation" className="h-4 w-4" />
               <AlertTitle>Error</AlertTitle>
               <AlertDescription>{error}</AlertDescription>
             </Alert>
@@ -103,7 +102,7 @@ export default function LoginCard() {
 
           {success && (
             <Alert>
-              <FontAwesomeIcon icon={faCircleCheck} className="h-4 w-4" />
+              <Icon icon="fa6-solid:circle-check" className="h-4 w-4" />
               <AlertTitle>Success!</AlertTitle>
               <AlertDescription>{success}</AlertDescription>
             </Alert>

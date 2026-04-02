@@ -2,8 +2,7 @@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { usePageConfig } from "@/hooks/usePageConfig";
 import config from "@/lib/config";
-import { faCalendar, faClock, faLocationDot, faRefresh, faTemperature0, faThermometer, faWindowRestore } from "@fortawesome/free-solid-svg-icons";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { Icon } from "@iconify-icon/react";
 import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
@@ -72,7 +71,7 @@ export default function GeneralSettingsPage() {
         className="content space-y-2 rounded-md p-2 flex items-center gap-2 group cursor-pointer"
         onClick={handleRefreshIcons}
       >
-        <FontAwesomeIcon icon={faRefresh} className="p-0 m-0 group-hover:text-(--primary)"/>
+        <Icon icon="fa6-solid:arrows-rotate" className="p-0 m-0 group-hover:text-(--primary)" />
         {isRefreshingIcons ? "Refreshing icons..." : "Refresh icons"}
       </div>
       <h2 className="text-xl font-semibold">Defaults</h2>
@@ -82,7 +81,7 @@ export default function GeneralSettingsPage() {
           "flex border border-transparent items-center col-span-full p-1.5 rounded-md gap-2"
         }
       >
-        <FontAwesomeIcon icon={faWindowRestore} />
+        <Icon icon="fa6-solid:window-restore" />
         <p className="w-full font-medium">Open Behaviour</p>
 
         <div className="flex items-center gap-2">
@@ -95,7 +94,7 @@ export default function GeneralSettingsPage() {
           "flex border border-transparent items-center col-span-full p-1.5 rounded-md gap-2"
         }
       >
-        <FontAwesomeIcon icon={faTemperature0} />
+        <Icon icon="fa6-solid:temperature-empty" />
         <p className="w-full font-medium">Temperature Unit</p>
 
         <div className="flex items-center gap-2 px-12">
@@ -107,7 +106,7 @@ export default function GeneralSettingsPage() {
           "flex border border-transparent items-center col-span-full p-1.5 rounded-md gap-2"
         }
       >
-        <FontAwesomeIcon icon={faLocationDot} />
+        <Icon icon="fa6-solid:location-dot" />
         <p className="w-full font-medium">Location</p>
 
         <div className="flex items-center gap-2 px-2">
@@ -152,7 +151,7 @@ function LocalizationSettings() {
   return (
     <>
       <div className="flex border border-transparent items-center col-span-full p-1.5 rounded-md gap-2">
-        <FontAwesomeIcon icon={faClock} />
+        <Icon icon="fa6-solid:clock" />
         <p className="w-full font-medium">Time format</p>
 
         <Select
@@ -174,7 +173,7 @@ function LocalizationSettings() {
       </div>
 
       <div className="flex border border-transparent items-center col-span-full p-1.5 rounded-md gap-2">
-        <FontAwesomeIcon icon={faCalendar} />
+        <Icon icon="fa6-solid:calendar" />
         <p className="w-full font-medium">Date format</p>
 
         <Select

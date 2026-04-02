@@ -6,8 +6,7 @@ import { usePageConfig } from "@/hooks/usePageConfig";
 import { Separator } from '../ui/separator';
 import { DialogTitle } from '@radix-ui/react-dialog';
 import { cn } from '@/lib/utils';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faGlobe } from '@fortawesome/free-solid-svg-icons';
+import { Icon as Iconify } from '@iconify-icon/react';
 
 // --- Types ---
 
@@ -458,7 +457,7 @@ export default function CommandBar({ open, setOpen, searchItems, config }: Comma
                   {item.icon ? (
                     <Icon src={item.icon} size={4} />
                   ) : isValidUrl(item.url) ? (
-                    <FontAwesomeIcon icon={faGlobe} className='text-xs' />
+                    <Iconify icon="fa6-solid:globe" className="text-xs" />
                   ) : (
                     <div className="w-4 h-4 bg-gray-300 rounded-sm" />
                   )}

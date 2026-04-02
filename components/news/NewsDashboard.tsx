@@ -4,8 +4,7 @@ import { useEffect, useState } from "react";
 import useAuth from "@/context/useAuth";
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faArrowLeft, faCaretDown, faEllipsisVertical, faPlus, faEdit, faTrash, faXmark, faArrowsRotate } from "@fortawesome/free-solid-svg-icons";
+import { Icon } from "@iconify-icon/react";
 import { Button } from "../ui/button";
 import TabSwitcher from "../common/TabSwitcher";
 import {
@@ -19,7 +18,7 @@ import {
 } from "@/components/ui/pagination";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import SubscriptionDetailsForm from "@/components/news/SubscriptionDetailsForm";
-import BottomNavbar from "../dashboard/BottomNavbar";
+import BottomNavbar from "../dashboard/DashboardLayoutTemplate";
 import {
     getNewsFeedAction,
     getNewsSubscriptionsAction,
@@ -221,8 +220,8 @@ export default function NewsDashboardComponent(
                     `}
                     title="Refresh all feeds"
                 >
-                    <FontAwesomeIcon
-                        icon={faArrowsRotate}
+                    <Icon
+                        icon="fa6-solid:arrows-rotate"
                         className={`${isRefreshing ? "animate-spin" : ""}`}
                     />
                 </button>
@@ -283,7 +282,7 @@ export default function NewsDashboardComponent(
                                     className="absolute -top-1 -right-1 hidden group-hover:flex items-center justify-center w-6 h-6 rounded-full frosted text-white text-[10px] shadow-lg hover:scale-110 transition-transform"
                                     title="Unsubscribe"
                                 >
-                                    <FontAwesomeIcon icon={faXmark} />
+                                    <Icon icon="fa6-solid:xmark" />
                                 </button>
                                 <button
                                     onClick={(e) => {
@@ -294,7 +293,7 @@ export default function NewsDashboardComponent(
                                     className="absolute -top-1 -left-1 hidden group-hover:flex items-center justify-center w-6 h-6 rounded-full frosted text-white text-[10px] shadow-lg hover:scale-110 transition-transform"
                                     title="Edit feed"
                                 >
-                                    <FontAwesomeIcon icon={faEdit} />
+                                    <Icon icon="fa6-solid:edit" />
                                 </button>
                             </div>
                         ))}
@@ -308,7 +307,7 @@ export default function NewsDashboardComponent(
                             className="flex justify-center items-center rounded-full min-h-12 aspect-square border-2 border-dashed border-white/30 text-white/50 hover:text-white hover:border-white/60 transition-all duration-200"
                             title="Add feed"
                         >
-                            <FontAwesomeIcon icon={faPlus} />
+                            <Icon icon="fa6-solid:plus" />
                         </button>
                     </aside>
                 )}

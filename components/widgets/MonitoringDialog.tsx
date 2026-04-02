@@ -11,8 +11,7 @@ import { Button } from "@/components/ui/button";
 import { LinkType } from "./LinkView";
 import useAuth from "@/context/useAuth";
 import { useState } from "react";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faRefresh } from "@fortawesome/free-solid-svg-icons";
+import { Icon } from "@iconify-icon/react";
 import { updateMonitoringStatusAction } from "@/app/actions/monitoring";
 
 export type JobEntry = {
@@ -161,7 +160,7 @@ export default function MonitoringDialogComponent({
                             </span>
                         )}
                         <Button variant="secondary" size="sm" onClick={triggerCheck} disabled={isChecking}>
-                            <FontAwesomeIcon icon={faRefresh} className={`w-3 h-3 ${isChecking ? 'animate-spin' : ''}`} />
+                            <Icon icon="fa6-solid:arrows-rotate" className={`w-3 h-3 ${isChecking ? 'animate-spin' : ''}`} />
                         </Button>
                     </div>
                     </DialogTitle>
