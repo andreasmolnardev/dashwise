@@ -337,17 +337,11 @@ export default function DashboardLayoutTemplate({
                 );
             default:
                 // Fall back to integration widget-by-key renderer, then to generic widget.
-                return (
-                    <div key={baseKey} className={wrapperClass}>
-                        <IntegrationColumnWidget
-                            widgetKey={entryKey}
-                            input={cfg}
-                            className="w-full"
-                            token={token}
-                            withAuth={withAuth}
-                        />
-                    </div>
-                );
+                return renderWidget({
+                    type: entryKey,
+                    params: cfg,
+                    className: wrapperClass,
+                });
         }
     };
 
@@ -397,88 +391,6 @@ type IntegrationWidgetPayload = {
 };
 
 const integrationWidgetCache = new Map<string, IntegrationWidgetPayload | null>();
-
-function IntegrationColumnWidget({
-    widgetKey,
-    input,
-    className,
-    token,
-    withAuth,
-}: {
-    widgetKey: string;
-    input: Record<string, any>;
-    className?: string;
-    token?: string | null;
-    withAuth: ReturnType<typeof useAuth>["withAuth"];
-}) {
-    const [payload, setPayload] = useState<IntegrationWidgetPayload | null>(
-        integrationWidgetCache.get(widgetKey) ?? null,
-    );
-
-    useEffect(() => {
-        let cancelled = false;
-
-        async function load() {
-            const cached = integrationWidgetCache.get(widgetKey);
-            if (cached !== undefined) {
-                if (!cancelled) {
-                    setPayload(cached);
-                }
-                return;
-            }
-
-            if (!token) {
-                integrationWidgetCache.set(widgetKey, null);
-                if (!cancelled) {
-                    setPayload(null);
-                }
-                return;
-            }
-
-            try {
-                const response = await withAuth((auth) =>
-                    getIntegrationWithWidgetAction(auth, widgetKey)
-                ) as IntegrationWidgetPayload;
-                const resolved = response?.integration && response?.widgetJSON
-                    ? response
-                    : null;
-                integrationWidgetCache.set(widgetKey, resolved);
-                if (!cancelled) {
-                    setPayload(resolved);
-                }
-            } catch {
-                integrationWidgetCache.set(widgetKey, null);
-                if (!cancelled) {
-                    setPayload(null);
-                }
-            }
-        }
-
-        void load();
-
-        return () => {
-            cancelled = true;
-        };
-    }, [token, widgetKey, withAuth]);
-
-    if (payload?.integration && payload.widgetJSON) {
-        return (
-            <Widget
-                widgetKey={widgetKey}
-                integrationJSON={payload.integration}
-                widgetJSON={payload.widgetJSON}
-                input={input}
-                className={className}
-            />
-        );
-    }
-
-    return renderWidget({
-        type: widgetKey,
-        params: input,
-        className,
-    });
-}
 
 interface BottomNavbarProps {
     activePanel?: number;
