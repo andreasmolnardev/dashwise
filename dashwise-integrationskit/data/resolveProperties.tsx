@@ -77,23 +77,24 @@ export type RuntimeDataResolution = {
 // ── Main entry ────────────────────────────────────────────────────────────────
 
 export function resolveWidgetProperties(opts: ResolveOptions): ResolvedWidget {
-  const { widgetJSON, data, isPreview } = opts;
+  const { widgetJSON, data, isPreview, integrationJSON } = opts;
   const props: Record<string, any> = widgetJSON.properties ?? {};
   const env = buildEnv(opts);
   const template: string = widgetJSON.template ?? "columns";
 
   const header = props.header ? resolveHeader(props.header, env) : undefined;
-
   if (template === "columns") {
-    return { header, columns: resolveColumns(props.columns, env, data, isPreview), raw: props };
+    const result: ResolvedWidget = { header, columns: resolveColumns(props.columns, env, data, isPreview), raw: props };
+    return patchIntegrationIcons(result, integrationJSON);
   }
 
   if (template === "vertical-list") {
-    return { header, list: resolveList(props.list, env, data, isPreview), raw: props };
+    const result: ResolvedWidget = { header, list: resolveList(props.list, env, data, isPreview), raw: props };
+    return patchIntegrationIcons(result, integrationJSON);
   }
 
   if (template === "icon-details-card") {
-    return {
+    const result: ResolvedWidget = {
       header,
       card: {
         icon: resolveValue(props.icon, env),
@@ -102,15 +103,56 @@ export function resolveWidgetProperties(opts: ResolveOptions): ResolvedWidget {
       },
       raw: props,
     };
+    return patchIntegrationIcons(result, integrationJSON);
   }
 
-  return { header, raw: props };
+  const result: ResolvedWidget = { header, raw: props };
+  return patchIntegrationIcons(result, integrationJSON);
+}
+
+function patchIntegrationIcons(res: ResolvedWidget, integrationJSON?: Record<string, any> | null) {
+  if (!integrationJSON) return res;
+
+  // Helper to replace values like "integrations.someId.details.icon" -> lookup tail on integrationJSON
+  const resolveIfIntegrationRef = (val?: string) => {
+    if (!val || typeof val !== "string") return val;
+    if (!val.startsWith("integrations.")) return val;
+    const parts = val.split(".");
+    // keep everything after the first two segments (integrations.<id>.<rest>...)
+    if (parts.length <= 2) return val;
+    const tail = parts.slice(2).join(".");
+    const mapped = getNestedValue(integrationJSON, tail);
+    return typeof mapped === "string" ? mapped : val;
+  };
+
+  if (res.header && res.header.icon) {
+    res.header.icon = resolveIfIntegrationRef(res.header.icon);
+  }
+
+  if (res.card && res.card.icon) {
+    res.card.icon = resolveIfIntegrationRef(res.card.icon);
+  }
+
+  if (res.columns) {
+    res.columns = res.columns.map((c) => ({
+      ...c,
+      // column.icon.file might be an integration ref stored in the file property
+      icon: c.icon ? { ...c.icon, file: resolveIfIntegrationRef(c.icon.file) } : c.icon,
+    }));
+  }
+
+  if (res.list) {
+    res.list = res.list.map((item) => ({ ...item, icon: resolveIfIntegrationRef(item.icon) }));
+  }
+
+  return res;
 }
 
 export async function resolveWidgetRuntimeData(
   opts: ResolveOptions,
 ): Promise<RuntimeDataResolution> {
   const { widgetJSON, integrationJSON, data, isPreview } = opts;
+  console.log("Resolving widget runtime data with options:", { widgetJSON, integrationJSON, data, isPreview });
 
   if (isPreview) {
     return { data: null, env: buildEnv(opts) };
@@ -138,6 +180,8 @@ export async function resolveWidgetRuntimeData(
     endpoints: endpointResult.endpoints,
     computed,
   };
+
+  console.log("Resolved widget runtime data:", { endpointResult, computed });
 
   return {
     data: runtimeScope,
@@ -276,7 +320,14 @@ export function resolveValue(val: any, env: Record<string, string>): string | un
 function resolveStringWithFallback(template: string, env: Record<string, string>): string {
   const segments = template.split("???");
   for (const seg of segments) {
-    const result = interpolateString(seg.trim(), env);
+    const trimmed = seg.trim();
+    const ifResult = resolveInlineIfExpression(trimmed, env);
+    if (ifResult !== undefined) {
+      if (ifResult.trim()) return ifResult;
+      continue;
+    }
+
+    const result = interpolateString(trimmed, env);
     if (result.trim()) return result;
   }
   // All segments empty — return the last one as-is (it's the final fallback)
@@ -297,8 +348,76 @@ function resolveNumber(val: any, env: Record<string, string>): number | undefine
 
 function resolveAction(raw: string | undefined, env: Record<string, string>): string | undefined {
   if (!raw) return undefined;
-  const resolved = interpolateString(raw, env);
+  const resolved = resolveStringWithFallback(raw, env);
   return resolved.startsWith("url:") ? resolved.slice(4) : resolved || undefined;
+}
+
+function resolveInlineIfExpression(template: string, env: Record<string, string>): string | undefined {
+  const trimmed = template.trim();
+  const match = trimmed.match(/^if\s*\((.*)\)$/is);
+  if (!match) return undefined;
+
+  const parts = splitTopLevelArguments(match[1]);
+  if (parts.length < 3) return undefined;
+
+  const condition = interpolateString(parts[0].trim(), env).trim();
+  const whenTrue = parts[1].trim();
+  const whenFalse = parts.slice(2).join(",").trim();
+
+  return evaluateCondition(condition, env)
+    ? resolveValue(whenTrue, env)
+    : resolveValue(whenFalse, env);
+}
+
+function splitTopLevelArguments(value: string): string[] {
+  const parts: string[] = [];
+  let current = "";
+  let depth = 0;
+  let quote: string | null = null;
+
+  for (let index = 0; index < value.length; index += 1) {
+    const char = value[index];
+
+    if (quote) {
+      current += char;
+      if (char === "\\" && index + 1 < value.length) {
+        current += value[index + 1];
+        index += 1;
+        continue;
+      }
+      if (char === quote) quote = null;
+      continue;
+    }
+
+    if (char === '"' || char === "'") {
+      quote = char;
+      current += char;
+      continue;
+    }
+
+    if (char === "(") {
+      depth += 1;
+      current += char;
+      continue;
+    }
+
+    if (char === ")") {
+      depth = Math.max(0, depth - 1);
+      current += char;
+      continue;
+    }
+
+    if (char === "," && depth === 0) {
+      parts.push(current.trim());
+      current = "";
+      continue;
+    }
+
+    current += char;
+  }
+
+  if (current.trim()) parts.push(current.trim());
+  return parts;
 }
 
 /**
@@ -417,26 +536,28 @@ function buildEnv(opts: ResolveOptions): Record<string, string> {
   const { widgetJSON, integrationJSON, data, isPreview } = opts;
   const env: Record<string, string> = {};
 
-  // 1. Integration-level env var defaults
   const envVarDefs: Record<string, any> =
     integrationJSON?.configuration?.environment_variables ?? {};
   for (const [k, def] of Object.entries(envVarDefs)) {
-    if ((def as any)?.default !== undefined) {
-      env[k] = String((def as any).default);
+    if (def?.default !== undefined) {
+      env[k] = String(def.default);
     }
   }
 
-  // 2. Widget input values (resolved env vars baked in by SDK at hydration time)
   const input: Record<string, any> = widgetJSON?.data?.input ?? {};
   for (const [k, v] of Object.entries(input)) {
-    env[k] = String(v ?? "");
+    const raw = String(v ?? "");
+    const resolved = interpolateString(raw, env).trim();
+
+    // keep existing env value if input is just an unresolved placeholder
+    if (resolved && !/^\$\{[^}]+\}$/.test(raw)) {
+      env[k] = resolved;
+    }
   }
 
-  // 3. Flatten live data — skipped in preview mode
   if (data && !isPreview) {
     Object.assign(env, flattenToEnv(data));
   }
-
   return env;
 }
 

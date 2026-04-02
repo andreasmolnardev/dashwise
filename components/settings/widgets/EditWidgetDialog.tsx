@@ -6,7 +6,6 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { useEffect, useState } from "react";
-import { WidgetInfo } from "@/app/(authenticated)/settings/widgets/page";
 import LocationSelectFormComponent from "../LocationSelectForm";
 
 interface WidgetEditDialogProps {
@@ -24,8 +23,6 @@ export default function WidgetEditDialog({ open, widget, onClose, onSave }: Widg
     }, [widget]);
 
     if (!editedWidget) return null;
-
-    console.log(editedWidget)
 
     return (
         <Dialog open={open} onOpenChange={onClose}>
@@ -105,7 +102,7 @@ interface PropertyEditInputProps {
 function PropertyEditInput({ propKey, value, placeholder, onChange }: PropertyEditInputProps) {
     const propertyType =
         typeof value === "string" && value.startsWith("as:") ? value.replace("as:", "") : typeof value;
-console.log(propKey, propertyType)
+
     const inputPlaceholder = propertyType === "string" ? placeholder ?? undefined : undefined;
 
 

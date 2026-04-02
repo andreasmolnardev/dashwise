@@ -90,7 +90,7 @@ export function SettingsWidgetPreview({
         widgetJSON={previewWidget as Record<string, any>}
         integrationJSON={integrationWidget.integration as Record<string, any>}
         input={params ?? {}}
-        preview={true}
+        isPreview={true}
         className={className}
       />
     );

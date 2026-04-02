@@ -46,19 +46,21 @@ export function renderWidget({
 
     default:  
       return (
-        <IntegrationWidget type={type} isPreview={isPreview} />
+        <IntegrationWidget type={type} isPreview={isPreview} properties={params} />
       );
   }
 }
 
 function IntegrationWidget({
   type,
+  properties,
   isPreview,
 }: {
   type: string;
+  properties?: Record<string, any>;
   isPreview?: boolean;
 }) {
-  const { withAuth } = useAuth();
+  const { withAuth, user } = useAuth();
   const [integrationJSON, setIntegrationJSON] = useState<any>(null);
 
   useEffect(() => {
@@ -66,7 +68,6 @@ function IntegrationWidget({
       const data = await withAuth((auth) =>
         getIntegrationWithWidgetAction(auth, type)
       );
-      console.log(`Fetched integration data for widget "${type}":`, data);
       setIntegrationJSON(data);
     };
 
@@ -75,12 +76,50 @@ function IntegrationWidget({
 
   if (!integrationJSON) return null; // or loading UI
 
+  const resolvedInput = resolveUserInjectedEnv(
+    integrationJSON.integration?.configuration.environment_variables,
+    user
+  );
+
   return (
     <Widget
       isPreview={isPreview ?? false}
       widgetKey={type}
       widgetJSON={integrationJSON.widgetJSON}
       integrationJSON={integrationJSON.integration}
+      input={resolvedInput}
     />
   );
+}
+function resolveUserInjectedEnv(envVars: any, user: any): any {
+  if (envVars == null) return envVars;
+
+  const resolveString = (str: string) => {
+    if (typeof str !== "string" || str.indexOf("${") === -1) return str;
+    return str.replace(/\$\{([^}]+)\}/g, (_m, expr: string) => {
+      const trimmed = expr.trim();
+      if (!trimmed.startsWith("user.")) return "";
+      const path = trimmed.slice(5).split(".");
+      let val: any = user;
+      for (const seg of path) {
+        if (val == null) return "";
+        val = val[seg];
+      }
+      if (val == null) return "";
+      if (typeof val === "object") return JSON.stringify(val);
+      return String(val);
+    });
+  };
+
+  if (typeof envVars === "string") return resolveString(envVars);
+  if (Array.isArray(envVars)) return envVars.map((v) => resolveUserInjectedEnv(v, user));
+  if (typeof envVars === "object") {
+    const out: Record<string, any> = {};
+    for (const [k, v] of Object.entries(envVars)) {
+      out[k] = resolveUserInjectedEnv(v, user);
+    }
+    return out;
+  }
+
+  return envVars;
 }

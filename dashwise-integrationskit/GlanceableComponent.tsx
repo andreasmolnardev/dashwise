@@ -100,6 +100,7 @@ function GlanceableLocalTimezone({ className }: GlanceableRendererProps) {
   );
 }
 
+//TODO: Build from Glanceable in yaml
 function GlanceableWeather({ params, className }: GlanceableRendererProps) {
   const { config } = usePageConfig();
   const { weatherUnit } = useLocalization();
@@ -175,36 +176,7 @@ function GlanceableWeather({ params, className }: GlanceableRendererProps) {
     }
   }, [preloadedWeather]);
 
-  useEffect(() => {
-    if (preloadedWeather) return;
-    if (weatherLocation) {
-      const query = new URLSearchParams({
-        latitude: String(weatherLocation.lat),
-        longitude: String(weatherLocation.lon),
-        current: "temperature_2m,weather_code",
-        timezone: "auto",
-        temperature_unit: unit === "f" ? "fahrenheit" : "celsius",
-      });
-
-      fetch(`https://api.open-meteo.com/v1/forecast?${query.toString()}`)
-        .then((response) => response.json())
-        .then((data) => {
-          const current = data?.current ?? {};
-          const temperature = current?.temperature_2m;
-          const weatherCode = current?.weather_code;
-
-          setWeather({
-            name: weatherLocation.name,
-            temperature: typeof temperature === "number" ? temperature : temperature ?? "",
-            unit: unit === "f" ? "°F" : "°C",
-            weatherCode,
-            description: getWeatherDescription(weatherCode),
-          });
-        })
-        .catch((err) => console.error("Failed to load weather:", err));
-    }
-  }, [preloadedWeather, weatherLocation, unit]);
-
+  
   if (!weather) {
     return <div className={`glanceable-weather ${className || ""}`}>Loading…</div>;
   }

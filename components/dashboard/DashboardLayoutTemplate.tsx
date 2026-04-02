@@ -4,8 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faBell, faGear } from "@fortawesome/free-solid-svg-icons";
+import { Icon } from "@iconify-icon/react";
 import PagesTabs from "../PagesTabs";
 import UpdateDetailsDialogComponent from "./UpdateDetailsDialog";
 import useAuth from "@/context/useAuth";
@@ -337,11 +336,15 @@ export default function DashboardLayoutTemplate({
                 );
             default:
                 // Fall back to integration widget-by-key renderer, then to generic widget.
-                return renderWidget({
-                    type: entryKey,
-                    params: cfg,
-                    className: wrapperClass,
-                });
+                return (
+                    <div key={baseKey} className={wrapperClass}>
+                        {renderWidget({
+                            type: entryKey,
+                            params: cfg,
+                            className: wrapperClass,
+                        })}
+                    </div>
+                );
         }
     };
 
@@ -470,8 +473,8 @@ export function BottomNavbar({
                         href="/notifications"
                         className="frosted p-2 rounded-full group transition-colors duration-200 aspect-square flex items-center justify-center"
                     >
-                        <FontAwesomeIcon
-                            icon={faBell}
+                        <Icon
+                            icon="fa6-solid:bell"
                             className="text-foreground group-hover:text-(--primary) transition-colors duration-200"
                         />
                     </Link>
@@ -487,8 +490,8 @@ export function BottomNavbar({
                         prefetch={false}
                         className="frosted p-2 rounded-full group transition-colors duration-200 aspect-square flex items-center justify-center"
                     >
-                        <FontAwesomeIcon
-                            icon={faGear}
+                        <Icon
+                            icon="fa6-solid:gear"
                             className="text-foreground group-hover:text-(--primary) transition-colors duration-200"
                         />
                     </Link>

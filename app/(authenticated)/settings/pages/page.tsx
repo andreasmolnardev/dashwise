@@ -167,6 +167,7 @@ export default function SettingsPagesPage() {
         resolvedSelection,
         nextClock.map,
         nextClockStyle,
+        widgetCatalog,
       ),
     );
     hasLoadedConfigRef.current = !!(resolvedSelection.left || resolvedSelection.right);
@@ -218,8 +219,8 @@ export default function SettingsPagesPage() {
   };
 
   const pageConfigPatch = useMemo(
-    () => buildPageConfigPatch(template, columns, clockSelection, clockGlanceables, clockStyle),
-    [clockGlanceables, clockSelection, clockStyle, columns, template],
+    () => buildPageConfigPatch(template, columns, clockSelection, clockGlanceables, clockStyle, widgetCatalog),
+    [clockGlanceables, clockSelection, clockStyle, columns, template, widgetCatalog],
   );
 
   const pageConfigSignature = useMemo(() => JSON.stringify(pageConfigPatch), [pageConfigPatch]);
