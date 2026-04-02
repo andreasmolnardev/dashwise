@@ -173,6 +173,7 @@ export async function resolveWidgetRuntimeData(
     env: endpointResult.env,
     scope: {
       endpoints: endpointResult.endpoints,
+      lookup_tables: integrationConfig.lookup_tables,
     },
   });
 
