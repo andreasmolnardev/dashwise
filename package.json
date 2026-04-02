@@ -42,6 +42,7 @@
     "date-fns": "^4.1.0",
     "framer-motion": "^12.23.12",
     "fuse.js": "^7.1.0",
+    "iconify-picker": "^0.7.2",
     "lucide-react": "^0.471.2",
     "next": "^16.0.7",
     "node-cron": "^4.2.1",
@@ -64,6 +65,7 @@
   "devDependencies": {
     "@eslint/eslintrc": "^3",
     "@eslint/js": "^9.36.0",
+    "@iconify-icon/react": "^3.0.3",
     "@tailwindcss/postcss": "^4",
     "@types/color": "^4.2.0",
     "@types/node": "^24.10.1",
