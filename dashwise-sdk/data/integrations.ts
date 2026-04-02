@@ -415,6 +415,35 @@ export async function getWidgetProperties(userId: string, widgetSlug: string) {
     return { widget: null, integration: null };
 }
 
+function resolveEnvironmentVariables(
+    envDefinitions:
+        | Record<string, { default?: string }>
+        | undefined
+        | null,
+    encodedValue: unknown,
+) {
+    if (!envDefinitions) return null;
+
+    const decoded =
+        typeof encodedValue === "string" && encodedValue.trim()
+            ? decodeBase64Json<Record<string, string>>(encodedValue) ?? {}
+            : isPlainObject(encodedValue)
+              ? (encodedValue as Record<string, string>)
+              : {};
+
+    const resolved: Record<string, string> = {};
+
+    for (const [name, definition] of Object.entries(envDefinitions)) {
+        const currentValue = decoded[name];
+        resolved[name] =
+            typeof currentValue === "string" && currentValue.length > 0
+                ? currentValue
+                : definition.default ?? "";
+    }
+
+    return resolved;
+}
+
 export async function getIntegrationWithWidget(
     userId: string,
     widgetKey: string,
@@ -429,16 +458,11 @@ export async function getIntegrationWithWidget(
 
     for (const record of integrations.integrations) {
         const integration = mapIntegration(record);
-        console.log(
-            "Checking integration:",
-            integration.name,
-            "for widget key:",
-            widgetKey,
-        );
         const rawWidgets =
             (integration.config?.configuration as
                 | Record<string, unknown>
                 | undefined)?.widgets;
+
         if (!Array.isArray(rawWidgets) || rawWidgets.length === 0) {
             continue;
         }
@@ -448,14 +472,32 @@ export async function getIntegrationWithWidget(
                 continue;
             }
 
-            if (!(rawWidget.key == widgetKey)) {
+            if (rawWidget.key !== widgetKey) {
                 continue;
             }
 
             const resolvedKey = resolveWidgetIdentifier(rawWidget);
 
+            const config = integration.config;
+            const configuration = config?.configuration as
+                | Record<string, unknown>
+                | undefined;
+
+            const environmentVariables = resolveEnvironmentVariables(
+                configuration?.environment_variables as
+                    | Record<string, { default?: string }>
+                    | undefined,
+                integration?.environment,
+            );
+
             return {
-                integration: integration.config,
+                integration: {
+                    ...config,
+                    configuration: {
+                        ...configuration,
+                        environment_variables: environmentVariables,
+                    },
+                },
                 widgetJSON: {
                     ...rawWidget,
                     key: resolvedKey,
@@ -1012,4 +1054,12 @@ function extractAuthorizationHeader(headers: Record<string, string>) {
 
 function isPlainObject(value: unknown): value is Record<string, any> {
     return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function decodeBase64Json<T = Record<string, unknown>>(value: string): T | null {
+    try {
+        return JSON.parse(Buffer.from(value, "base64").toString("utf8")) as T;
+    } catch {
+        return null;
+    }
 }
