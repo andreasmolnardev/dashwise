@@ -7,7 +7,10 @@ export type GlanceableDefinition = {
 };
 
 export type WidgetDefinition = {
-  slug: string;
+  key: string;
+  data?: {
+    input?: Record<string, any>;
+  };
   name?: string;
   description?: string;
   template?: string;
@@ -38,7 +41,7 @@ export type ColumnWidget = {
 
 export type WidgetCatalogItem = {
   category: string;
-  slug: string;
+  key: string;
   name: string;
   description: string;
   preview: {
@@ -74,8 +77,8 @@ export function flattenWidgetCatalog(widgetsData: Record<string, WidgetDefinitio
   return Object.entries(widgetsData).flatMap(([category, widgets]) =>
     widgets.map((widget) => ({
       category,
-      slug: widget.slug,
-      name: widget.name ?? widget.slug,
+      key: widget.key,
+      name: widget.name ?? widget.key,
       description: widget.description ?? "",
       preview: widget.preview ?? {},
       properties: widget.properties ?? {},
@@ -107,7 +110,20 @@ export function enabledColumnsFromTemplate(template: TemplateId): ColumnName[] {
   return ["left", "middle", "right"];
 }
 
-export function hasEditableWidgetData(widget: ColumnWidget) {
+export function hasEditableWidgetData(widget: ColumnWidget, catalogItem?: WidgetCatalogItem) {
+  // Prefer checking the widget definition from the catalog for editable input fields.
+  if (catalogItem?.key == "main-clock") return false
+  else if (catalogItem) {
+    const defInput = (catalogItem.input ?? (catalogItem as any).data?.input) as
+      | Record<string, any>
+      | undefined;
+
+    if (defInput && typeof defInput === "object") {
+      return Object.keys(defInput).length > 0;
+    }
+  }
+
+  // Fallback to the instance's input if no catalog definition is present.
   const input = widget.input;
   if (!input || typeof input !== "object") {
     return false;
@@ -305,6 +321,7 @@ export function buildPageConfigPatch(
   clockSelection: Record<GlanceableSide, string>,
   clockGlanceables: Record<string, any>,
   clockStyle: Record<string, any>,
+  widgetCatalog?: WidgetCatalogItem[],
 ) {
   const nextColumnsObject: Record<string, Record<string, any>> = {};
   const templateColumns = enabledColumnsFromTemplate(template);
@@ -331,14 +348,30 @@ export function buildPageConfigPatch(
     });
   });
 
-  const nextWidgets = [columns.left, columns.middle, columns.right].map(
-    (column) =>
-      column.map((item) => ({
+  const nextWidgets = [columns.left, columns.middle, columns.right].map((column) =>
+    column.map((item) => {
+      const source = widgetCatalog?.find((w) => w.key === item.type);
+
+      const hasProperties = item.properties && Object.keys(item.properties).length > 0;
+      const propertiesDiffer = hasProperties
+        ? JSON.stringify(item.properties) !== JSON.stringify(source?.properties ?? {})
+        : false;
+
+      const hasInput = item.input && Object.keys(item.input).length > 0;
+      const inputDiffer = hasInput
+        ? JSON.stringify(item.input) !== JSON.stringify(source?.input ?? {})
+        : false;
+
+      const out: Record<string, any> = {
         id: item.id,
         type: item.type,
-        properties: item.properties ?? {},
-        input: item.input ?? undefined,
-      })),
+      };
+
+      if (propertiesDiffer) out.properties = item.properties ?? {};
+      if (inputDiffer) out.input = item.input ?? undefined;
+
+      return out;
+    }),
   );
 
   return {
