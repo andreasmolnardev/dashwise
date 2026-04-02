@@ -33,17 +33,19 @@ export default function Widget({
 }: WidgetProps) {
     const [resolved, setResolved] = useState<ResolvedWidget | null>(null);
     const [resolutionError, setResolutionError] = useState<string | null>(null);
-    const effectiveWidgetJSON =
-        widgetJSON ??
+    const effectiveWidgetJSON = widgetJSON ??
         integrationJSON?.widgets?.find(
             (w: Record<string, any>) => w.key === widgetKey,
         ) ??
         null;
+        
     const widgetWithInput = useMemo(
-        () => effectiveWidgetJSON ? applyWidgetInput(effectiveWidgetJSON, input) : null,
+        () =>
+            effectiveWidgetJSON
+                ? applyWidgetInput(effectiveWidgetJSON, input)
+                : null,
         [effectiveWidgetJSON, input],
     );
-
 
     useEffect(() => {
         let cancelled = false;
@@ -96,7 +98,9 @@ export default function Widget({
             } catch (error) {
                 if (!cancelled) {
                     setResolved(null);
-                    setResolutionError(error instanceof Error ? error.message : String(error));
+                    setResolutionError(
+                        error instanceof Error ? error.message : String(error),
+                    );
                 }
             }
         }
@@ -138,10 +142,12 @@ export default function Widget({
             return <VerticalList resolved={resolved} className={className} />;
 
         case "icon-details-card":
-            return <IconDetailsCard
-                resolved={resolved}
-                className={className}
-            />;
+            return (
+                <IconDetailsCard
+                    resolved={resolved}
+                    className={className}
+                />
+            );
 
         default:
             return null;
@@ -156,9 +162,15 @@ function WidgetErrorState({
     message: string;
 }) {
     return (
-        <div className={`frosted rounded-xl border border-red-500/30 bg-red-500/10 p-3 ${className ?? ""}`}>
-            <p className="text-sm font-semibold text-red-200">Widget failed to load</p>
-            <p className="mt-1 text-xs leading-snug text-red-100/80 break-words">
+        <div
+            className={`frosted rounded-xl border border-red-500/30 bg-red-500/10 p-3 ${
+                className ?? ""
+            }`}
+        >
+            <p className="text-sm font-semibold text-red-200">
+                Widget failed to load
+            </p>
+            <p className="mt-1 text-xs leading-snug text-red-100/80 break-words max-h-10 overflow-x-scroll">
                 {message}
             </p>
         </div>
