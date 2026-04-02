@@ -53,19 +53,21 @@ type DashboardWidgetPreviewProps = {
 };
 
 function WidgetTile({
-  widget,
+  columnWidget,
+  widgetConfig,
   onRemove,
   onUpdateInput,
 }: {
-  widget: ColumnWidget;
+  columnWidget: ColumnWidget;
+  widgetConfig?: WidgetCatalogItem;
   onRemove: () => void;
   onUpdateInput: (widgetId: string, input?: ColumnWidget["input"]) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: widget.id,
+    id: columnWidget.id,
   });
   const [isDataDialogOpen, setIsDataDialogOpen] = useState(false);
-  const [inputValue, setInputValue] = useState(JSON.stringify(widget.input ?? {}, null, 2));
+  const [inputValue, setInputValue] = useState(JSON.stringify(columnWidget.input ?? {}, null, 2));
   const [dataError, setDataError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -73,9 +75,9 @@ function WidgetTile({
       return;
     }
 
-    setInputValue(JSON.stringify(widget.input ?? {}, null, 2));
+    setInputValue(JSON.stringify(columnWidget.input ?? {}, null, 2));
     setDataError(null);
-  }, [isDataDialogOpen, widget.input]);
+  }, [isDataDialogOpen, columnWidget.input]);
 
   const handleSaveData = () => {
     setDataError(null);
@@ -96,11 +98,11 @@ function WidgetTile({
       }
     }
 
-    onUpdateInput(widget.id, Object.keys(parsedInput).length > 0 ? parsedInput : undefined);
+    onUpdateInput(columnWidget.id, Object.keys(parsedInput).length > 0 ? parsedInput : undefined);
     setIsDataDialogOpen(false);
   };
 
-  const canEditData = hasEditableWidgetData(widget);
+  const canEditData = hasEditableWidgetData(columnWidget, widgetConfig);
 
   return (
     <div
@@ -110,7 +112,7 @@ function WidgetTile({
     >
       <div className="flex items-center justify-between gap-2">
         <div className="min-w-0">
-          <p className="truncate text-sm font-medium">{widget.type}</p>
+          <p className="truncate text-sm font-medium">{columnWidget.type}</p>
         </div>
         <div className="flex items-center gap-1">
           {canEditData ? (
@@ -118,7 +120,7 @@ function WidgetTile({
               <DialogTrigger asChild>
                 <button
                   type="button"
-                  aria-label={`Edit input for ${widget.type}`}
+                  aria-label={`Edit input for ${columnWidget.type}`}
                   className="rounded p-1 hover:bg-white/10"
                 >
                   <Edit3 className="h-4 w-4" />
@@ -134,9 +136,9 @@ function WidgetTile({
 
                 <div className="space-y-4 py-4">
                   <div className="space-y-2">
-                    <Label htmlFor={`widget-data-input-${widget.id}`}>Input JSON</Label>
+                    <Label htmlFor={`widget-data-input-${columnWidget.id}`}>Input JSON</Label>
                     <textarea
-                      id={`widget-data-input-${widget.id}`}
+                      id={`widget-data-input-${columnWidget.id}`}
                       value={inputValue}
                       onChange={(event) => setInputValue(event.target.value)}
                       className="min-h-40 w-full rounded-md border border-white/15 bg-black/20 p-3 text-sm outline-none"
@@ -160,7 +162,7 @@ function WidgetTile({
           ) : null}
           <button
             type="button"
-            aria-label={`Drag ${widget.type}`}
+            aria-label={`Drag ${columnWidget.type}`}
             className="rounded p-1 hover:bg-white/10"
             {...attributes}
             {...listeners}
@@ -170,7 +172,7 @@ function WidgetTile({
           <button
             type="button"
             onClick={onRemove}
-            aria-label={`Remove ${widget.type}`}
+            aria-label={`Remove ${columnWidget.type}`}
             className="rounded p-1 hover:bg-white/10"
           >
             <Trash2 className="h-4 w-4" />
@@ -210,7 +212,7 @@ function ColumnDropZone({
 }
 
 function LibraryItem({ item }: { item: WidgetCatalogItem }) {
-  const draggableId = `library:${item.category}:${item.slug}`;
+  const draggableId = `library:${item.category}:${item.key}`;
   const { setNodeRef, listeners, attributes, isDragging } = useSortable({
     id: draggableId,
   });
@@ -233,7 +235,7 @@ function LibraryItem({ item }: { item: WidgetCatalogItem }) {
       {...attributes}
     >
       {renderWidget({
-        type: item.slug,
+        type: item.key,
         params: mergedPreviewParams,
         className: "h-[110px] w-full",
         isPreview: true,
@@ -345,17 +347,17 @@ export function DashboardWidgetPreview({
 
     if (activeId.startsWith("library:")) {
       const [, category, ...rest] = activeId.split(":");
-      const slug = rest.join(":");
-      if (!slug || !category) return;
+      const key = rest.join(":");
+      if (!key || !category) return;
 
-      const source = widgetCatalog.find((item) => item.category === category && item.slug === slug);
+      const source = widgetCatalog.find((item) => item.category === category && item.key === key);
       if (!source) return;
 
       const nextWidget: ColumnWidget = {
         id: createWidgetId(),
-        type: slug,
-        properties: source.properties ?? {},
-        input: source.input ?? undefined,
+        type: key,
+        properties: {},
+        input: undefined,
       };
 
       setColumns((prev) => {
@@ -424,16 +426,28 @@ export function DashboardWidgetPreview({
                           {columns[column].map((widget) => (
                             <WidgetTile
                               key={widget.id}
-                              widget={widget}
+                              columnWidget={widget}
+                              widgetConfig={widgetCatalog.find((item) => item.key === widget.type)}
                               onRemove={() => removeWidget(column, widget.id)}
-                              onUpdateInput={(widgetId, input) => {
-                                setColumns((prev) => ({
-                                  ...prev,
-                                  [column]: prev[column].map((item) =>
-                                    item.id === widgetId ? { ...item, input } : item,
-                                  ),
-                                }));
-                              }}
+                                onUpdateInput={(widgetId, input) => {
+                                  setColumns((prev) => ({
+                                    ...prev,
+                                    [column]: prev[column].map((item) => {
+                                      if (item.id !== widgetId) return item;
+
+                                      const source = widgetCatalog.find((w) => w.key === item.type);
+
+                                      const hasInput = input && Object.keys(input).length > 0;
+                                      const inputMatchesDefault = hasInput
+                                        ? JSON.stringify(input) === JSON.stringify(source?.input ?? {})
+                                        : false;
+
+                                      const nextInput = hasInput && !inputMatchesDefault ? input : undefined;
+
+                                      return { ...item, input: nextInput };
+                                    }),
+                                  }));
+                                }}
                             />
                           ))}
                         </SortableContext>
@@ -472,12 +486,12 @@ export function DashboardWidgetPreview({
             </div>
 
             <SortableContext
-              items={filteredWidgetCatalog.map((item) => `library:${item.category}:${item.slug}`)}
+              items={filteredWidgetCatalog.map((item) => `library:${item.category}:${item.key}`)}
               strategy={verticalListSortingStrategy}
             >
               <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                 {filteredWidgetCatalog.map((item) => (
-                  <div key={`${item.category}:${item.slug}`} className="space-y-2 border-transparent">
+                  <div key={`${item.category}:${item.key}`} className="space-y-2 border-transparent">
                     <LibraryItem item={item} />
                     <p className="text-center text-xs text-white/70">{item.name}</p>
                   </div>
