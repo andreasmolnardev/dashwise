@@ -10,7 +10,7 @@ type WidgetPreviewData = {
 };
 
 type WidgetCatalogItem = {
-    slug: string;
+    key: string;
     name?: string;
     description?: string;
     template?: string;
@@ -103,7 +103,7 @@ function normalizeWidgetList(rawWidgets: unknown): WidgetCatalogItem[] {
                         },
             } as WidgetCatalogItem;
         })
-        .filter((entry) => !!entry.slug);
+        .filter((entry) => !!entry.key);
 }
 
 async function getDefaultWidgets(): Promise<WidgetCatalog> {
@@ -192,22 +192,26 @@ function normalizeGlanceables(
                     ? entry.type.trim()
                     : fallbackTypes[displayName.toLowerCase()] ?? normalizeWidgetSlug(displayName);
 
-            return {
+            const result: GlanceableCatalogItem = {
                 type: normalizedType,
                 displayName,
-                description:
-                    typeof entry.description === "string" ? entry.description : undefined,
                 exampleProps:
                     entry.exampleProps && typeof entry.exampleProps === "object"
                         ? (entry.exampleProps as Record<string, any>)
                         : entry.properties && typeof entry.properties === "object"
                             ? (entry.properties as Record<string, any>)
                             : {},
-                properties:
-                    entry.properties && typeof entry.properties === "object"
-                        ? (entry.properties as Record<string, any>)
-                        : undefined,
             };
+
+            if (typeof entry.description === "string") {
+                (result as any).description = entry.description;
+            }
+
+            if (entry.properties && typeof entry.properties === "object") {
+                (result as any).properties = entry.properties as Record<string, any>;
+            }
+
+            return result;
         });
 }
 
@@ -301,7 +305,7 @@ export async function getUserWidgets(userId: string) {
         }
 
         for (const normalized of normalizedWidgets) {
-            const exists = merged[category].some((entry) => entry.slug === normalized.slug);
+            const exists = merged[category].some((entry) => entry.key === normalized.key);
             if (!exists) {
                 merged[category].push(normalized);
             }
