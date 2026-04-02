@@ -71,19 +71,59 @@ function IntegrationWidget({
 }) {
   const { withAuth, user } = useAuth();
   const [integrationJSON, setIntegrationJSON] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
+
     const load = async () => {
-      const data = await withAuth((auth) =>
-        getIntegrationWithWidgetAction(auth, type)
-      );
-      setIntegrationJSON(data);
+      if (!cancelled) {
+        setIsLoading(true);
+        setLoadError(null);
+        setIntegrationJSON(null);
+      }
+
+      try {
+        const data = await withAuth((auth) =>
+          getIntegrationWithWidgetAction(auth, type)
+        );
+
+        if (cancelled) return;
+
+        if (!data?.integration || !data?.widgetJSON) {
+          throw new Error(`Widget "${type}" could not be loaded.`);
+        }
+
+        setIntegrationJSON(data);
+      } catch (error) {
+        if (cancelled) return;
+        setLoadError(error instanceof Error ? error.message : String(error));
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
     };
 
     load();
+    return () => {
+      cancelled = true;
+    };
   }, [type, withAuth]);
 
-  if (!integrationJSON) return null; // or loading UI
+  if (isLoading) {
+    return <WidgetLoadingState className="w-full" />;
+  }
+
+  if (loadError || !integrationJSON) {
+    return (
+      <WidgetErrorState
+        className="w-full"
+        message={loadError ?? `Widget "${type}" could not be loaded.`}
+      />
+    );
+  }
 
   const resolvedInput = resolveUserInjectedEnv(
     integrationJSON.integration?.configuration.environment_variables,
@@ -131,4 +171,46 @@ function resolveUserInjectedEnv(envVars: any, user: any): any {
   }
 
   return envVars;
+}
+
+function WidgetLoadingState({ className }: { className?: string }) {
+  return (
+    <div
+      className={`frosted rounded-xl border border-white/10 bg-white/5 p-3 ${className ?? ""}`}
+      aria-busy="true"
+      aria-live="polite"
+    >
+      <div className="flex items-center gap-2">
+        <div className="h-4 w-4 animate-pulse rounded-full bg-white/20" />
+        <div className="h-3 w-24 animate-pulse rounded-full bg-white/15" />
+      </div>
+
+      <div className="mt-3 space-y-2">
+        <div className="h-3 w-3/4 animate-pulse rounded-full bg-white/15" />
+        <div className="h-3 w-1/2 animate-pulse rounded-full bg-white/10" />
+        <div className="h-3 w-5/6 animate-pulse rounded-full bg-white/10" />
+      </div>
+    </div>
+  );
+}
+
+function WidgetErrorState({
+  className,
+  message,
+}: {
+  className?: string;
+  message: string;
+}) {
+  return (
+    <div
+      className={`frosted rounded-xl border border-red-500/30 bg-red-500/10 p-3 ${className ?? ""}`}
+    >
+      <p className="text-sm font-semibold text-red-200">
+        Widget failed to load
+      </p>
+      <p className="mt-1 text-xs leading-snug text-red-100/80 break-words max-h-10 overflow-x-scroll">
+        {message}
+      </p>
+    </div>
+  );
 }

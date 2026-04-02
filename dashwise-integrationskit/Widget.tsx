@@ -33,6 +33,7 @@ export default function Widget({
 }: WidgetProps) {
     const [resolved, setResolved] = useState<ResolvedWidget | null>(null);
     const [resolutionError, setResolutionError] = useState<string | null>(null);
+    const [isResolving, setIsResolving] = useState(true);
     const effectiveWidgetJSON = widgetJSON ??
         integrationJSON?.widgets?.find(
             (w: Record<string, any>) => w.key === widgetKey,
@@ -50,27 +51,29 @@ export default function Widget({
     useEffect(() => {
         let cancelled = false;
         async function runResolution() {
-            if (!cancelled) {
-                setResolutionError(null);
-            }
-
             if (!effectiveWidgetJSON || !widgetWithInput) {
                 if (!cancelled) {
                     setResolved(null);
+                    setResolutionError(null);
+                    setIsResolving(false);
                 }
                 return;
             }
 
-            if (isPreview) {
-                const nextResolved = resolveWidgetProperties({
-                    widgetJSON: widgetWithInput,
-                    integrationJSON: integrationJSON ?? null,
-                    data: null,
-                    isPreview: isPreview,
-                });
+            if (!cancelled) {
+                setResolutionError(null);
+                setIsResolving(true);
+            }
 
+            if (isPreview) {
                 if (!cancelled) {
-                    setResolved(nextResolved);
+                    setResolved(resolveWidgetProperties({
+                        widgetJSON: widgetWithInput,
+                        integrationJSON: integrationJSON ?? null,
+                        data: null,
+                        isPreview: isPreview,
+                    }));
+                    setIsResolving(false);
                 }
                 return;
             }
@@ -94,6 +97,7 @@ export default function Widget({
                             isPreview: isPreview,
                         }),
                     );
+                    setIsResolving(false);
                 }
             } catch (error) {
                 if (!cancelled) {
@@ -101,6 +105,7 @@ export default function Widget({
                     setResolutionError(
                         error instanceof Error ? error.message : String(error),
                     );
+                    setIsResolving(false);
                 }
             }
         }
@@ -119,17 +124,21 @@ export default function Widget({
         return <div className={`frosted rounded-xl ${className ?? ""}`} />;
     }
 
-    if (!resolved) {
-        if (resolutionError && !isPreview) {
-            return (
-                <WidgetErrorState
-                    className={className}
-                    message={resolutionError}
-                />
-            );
-        }
+    if (isResolving) {
+        return <WidgetLoadingState className={className} />;
+    }
 
-        return null;
+    if (resolutionError && !isPreview) {
+        return (
+            <WidgetErrorState
+                className={className}
+                message={resolutionError}
+            />
+        );
+    }
+
+    if (!resolved) {
+        return <WidgetLoadingState className={className} />;
     }
 
     const template = effectiveWidgetJSON.template ?? "columns";
@@ -173,6 +182,27 @@ function WidgetErrorState({
             <p className="mt-1 text-xs leading-snug text-red-100/80 break-words max-h-10 overflow-x-scroll">
                 {message}
             </p>
+        </div>
+    );
+}
+
+function WidgetLoadingState({ className }: { className?: string }) {
+    return (
+        <div
+            className={`frosted rounded-xl border border-white/10 bg-white/5 p-3 ${className ?? ""}`}
+            aria-busy="true"
+            aria-live="polite"
+        >
+            <div className="flex items-center gap-2">
+                <div className="h-4 w-4 animate-pulse rounded-full bg-white/20" />
+                <div className="h-3 w-24 animate-pulse rounded-full bg-white/15" />
+            </div>
+
+            <div className="mt-3 space-y-2">
+                <div className="h-3 w-3/4 animate-pulse rounded-full bg-white/15" />
+                <div className="h-3 w-1/2 animate-pulse rounded-full bg-white/10" />
+                <div className="h-3 w-5/6 animate-pulse rounded-full bg-white/10" />
+            </div>
         </div>
     );
 }
