@@ -5,3 +5,4 @@ CONTRIBUTING.md
 README.md
 LICENSE
 docker-compose.yaml
+node_modules/
