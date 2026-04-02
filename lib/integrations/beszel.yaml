@@ -259,7 +259,7 @@ configuration:
           THRESHOLD_DISK_CRITICAL: "${THRESHOLD_DISK_CRITICAL}"
       properties:
         header:
-          title: "${URL} ??? System Health"
+          title: "Beszel System Health"
           icon: "integrations.beszel.details.icon"
           titleAction: "url:${URL}"
         columns:
@@ -309,7 +309,7 @@ configuration:
           THRESHOLD_DISK_CRITICAL: "${THRESHOLD_DISK_CRITICAL}"
       properties:
         header:
-          title: "${URL} ??? System Warnings"
+          title: "Beszel System Warnings"
           icon: "integrations.beszel.details.icon"
           titleAction: "url:${URL}"
         list:
