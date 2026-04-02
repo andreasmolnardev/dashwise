@@ -436,13 +436,11 @@ function resolveOperationValue(def: Record<string, any>, context: ComputedResolu
 		let table: any = undefined;
 		if (typeof tableName === "string") {
 			table = getNestedValue(context.scope ?? {}, `lookup_tables.${tableName}`) ?? (context.scope ?? {})[tableName];
-			console.log("Lookup table resolution:", { tableName, resolvedTable: table });
 		} else {
 			table = tableName;
 		}
 
 		const result = getLookupTableValue(table, keyValue, fieldName);
-		console.log("Lookup operation:", { tableName, keyValue, fieldName, result });
 		return result === undefined ? fallback : result;
 	}
 

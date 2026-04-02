@@ -55,7 +55,7 @@ export default function SettingsPagesPage() {
   }, [homeConfig?.pages]);
 
   const [selectedPage, setSelectedPage] = useState("home");
-  const { config: selectedConfig, refreshConfig: refreshSelectedConfig } = usePageConfig({
+  const { config: selectedConfig } = usePageConfig({
     pageName: selectedPage,
   });
   const { withAuth } = useAuth();
@@ -201,15 +201,16 @@ export default function SettingsPagesPage() {
       updatePageConfigAction(auth, normalized, {
         template: "main",
         columns: {
-          left: { placeholder: { height: "$main-clock" } },
+          left: { placeholder: { index: 0, height: "$main-clock" } },
           middle: {
             "main-clock": {
+              index: 0,
               glanceables: Object.fromEntries(defaultGlanceables.map((type) => [type, null])),
             },
-            "search-bar": {},
-            "link-view": {},
+            "search-bar": { index: 1 },
+            "link-view": { index: 2 },
           },
-          right: { placeholder: { height: "$main-clock" } },
+          right: { placeholder: { index: 0, height: "$main-clock" } },
         },
       }),
     );
@@ -225,18 +226,52 @@ export default function SettingsPagesPage() {
 
   const pageConfigSignature = useMemo(() => JSON.stringify(pageConfigPatch), [pageConfigPatch]);
 
-  const handleSave = useCallback(async () => {
-    const signature = JSON.stringify(pageConfigPatch);
+  const persistPageConfigPatch = useCallback(
+    async (patch: ReturnType<typeof buildPageConfigPatch>) => {
+      const signature = JSON.stringify(patch);
 
-    await withAuth((auth) =>
-      updatePageConfigAction(auth, selectedPage, {
-        ...pageConfigPatch,
-      }),
-    );
-    lastSavedSignatureRef.current = signature;
-    await refreshSelectedConfig();
-    return signature;
-  }, [pageConfigPatch, refreshSelectedConfig, selectedPage, withAuth]);
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = null;
+      }
+
+      console.log("[SettingsPagesPage] Persisting page config patch", {
+        page: selectedPage,
+        patch,
+      });
+
+      await withAuth((auth) =>
+        updatePageConfigAction(auth, selectedPage, {
+          ...patch,
+        }),
+      );
+
+      lastSavedSignatureRef.current = signature;
+
+      return signature;
+    },
+    [selectedPage, withAuth],
+  );
+
+  const handleSave = useCallback(async () => {
+    return persistPageConfigPatch(pageConfigPatch);
+  }, [pageConfigPatch, persistPageConfigPatch]);
+
+  const handlePersistReorderedColumns = useCallback(
+    (nextColumns: Record<ColumnName, ColumnWidget[]>) => {
+      return persistPageConfigPatch(
+        buildPageConfigPatch(
+          template,
+          nextColumns,
+          clockSelection,
+          clockGlanceables,
+          clockStyle,
+          widgetCatalog,
+        ),
+      ).then(() => undefined);
+    },
+    [clockGlanceables, clockSelection, clockStyle, template, widgetCatalog, persistPageConfigPatch],
+  );
 
   useEffect(() => {
     if (!hasLoadedConfigRef.current) {
@@ -299,6 +334,7 @@ export default function SettingsPagesPage() {
         template={template}
         columns={columns}
         setColumns={setColumns}
+        onPersistColumns={handlePersistReorderedColumns}
         enabledColumns={enabledColumns}
         widgetCatalog={widgetCatalog}
         widgetCategories={widgetCategories}

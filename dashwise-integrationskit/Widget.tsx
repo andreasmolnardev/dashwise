@@ -132,8 +132,6 @@ export default function Widget({
         return null;
     }
 
-    console.log("resolved data for " + widgetKey, resolved);
-
     const template = effectiveWidgetJSON.template ?? "columns";
 
     switch (template) {

@@ -20,6 +20,13 @@ export type WidgetProps = {
 // Kept for compatibility with existing widget item components.
 export type WidgetItemProps = Pick<WidgetProps, "params" | "className">;
 
+function stripWidgetIndex(params?: Record<string, any>) {
+  if (!params || typeof params !== "object") return params;
+
+  const { index: _index, ...rest } = params;
+  return rest;
+}
+
 export function renderWidget({
   type,
   params,
@@ -27,10 +34,12 @@ export function renderWidget({
   isPreview,
   defaultOpen,
 }: WidgetProps): ReactNode {
+  const renderParams = stripWidgetIndex(params);
+
   switch (type) {
     case "main-clock":
     case "glanceable-clock":
-      return <GlanceableClockWidget className={className} params={params} />;
+      return <GlanceableClockWidget className={className} params={renderParams} />;
 
     case "search-bar":
       return (
@@ -44,9 +53,9 @@ export function renderWidget({
     case "placeholder":
       return <div className={`frosted rounded-xl ${className ?? ""}`} />;
 
-    default:  
+    default:
       return (
-        <IntegrationWidget type={type} isPreview={isPreview} properties={params} />
+        <IntegrationWidget type={type} isPreview={isPreview} properties={renderParams} />
       );
   }
 }

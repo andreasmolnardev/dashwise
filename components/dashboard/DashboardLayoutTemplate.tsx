@@ -31,6 +31,20 @@ const COLUMN_PANEL_IDS: Record<Column, string | undefined> = {
     right: "right-widget-panel",
 };
 
+function sortWidgetEntries(entries: Record<string, any>) {
+    return Object.entries(entries).sort(([leftKey, leftValue], [rightKey, rightValue]) => {
+        const leftIndex = typeof leftValue?.index === "number" && Number.isFinite(leftValue.index)
+            ? leftValue.index
+            : Number.MAX_SAFE_INTEGER;
+        const rightIndex = typeof rightValue?.index === "number" && Number.isFinite(rightValue.index)
+            ? rightValue.index
+            : Number.MAX_SAFE_INTEGER;
+
+        if (leftIndex !== rightIndex) return leftIndex - rightIndex;
+        return leftKey.localeCompare(rightKey);
+    });
+}
+
 export default function DashboardLayoutTemplate({
     config,
     pageName,
@@ -358,7 +372,7 @@ export default function DashboardLayoutTemplate({
                 style={{ scrollSnapStop: "always", touchAction: "pan-x" }}
             >
                 {entries && typeof entries === "object"
-                    ? Object.entries(entries).map(([key, cfg], i) =>
+                    ? sortWidgetEntries(entries).map(([key, cfg], i) =>
                         renderWidgetEntry(columnName, key, cfg as Record<string, any>, i)
                     )
                     : null}

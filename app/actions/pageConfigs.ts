@@ -3,7 +3,7 @@
 import { ActionAuth, requireUserAuth } from "@dashwise/sdk/data/auth";
 import { getPageConfigJSON, getUserPages, updatePageConfig } from "@dashwise/sdk/data/pageConfig";
 
-type PageConfigPatch = Record<string, any>;
+type PageConfigConfig = Record<string, any>;
 
 function normalizePageName(pageName?: string | null) {
   const cleaned = String(pageName ?? "home").trim().toLowerCase();
@@ -13,7 +13,7 @@ function normalizePageName(pageName?: string | null) {
 export async function getPageConfigAction(auth: ActionAuth, pageName: string | undefined) {
   const { userId } = await requireUserAuth(auth);
   const normalizedPageName = normalizePageName(pageName);
-  return getPageConfigJSON(userId, normalizedPageName, true);
+  return getPageConfigJSON(userId, normalizedPageName);
 }
 
 export async function getUserPagesAction(auth: ActionAuth) {
@@ -24,13 +24,10 @@ export async function getUserPagesAction(auth: ActionAuth) {
 export async function updatePageConfigAction(
   auth: ActionAuth,
   pageName: string | undefined,
-  patch: PageConfigPatch
+  config: PageConfigConfig
 ) {
   const { userId } = await requireUserAuth(auth);
   const normalizedPageName = normalizePageName(pageName);
 
-  const existingConfig = (await getPageConfigJSON(userId, normalizedPageName)) ?? {};
-  const nextConfig = { ...existingConfig, ...patch };
-
-  return updatePageConfig(userId, normalizedPageName, nextConfig);
+  return updatePageConfig(userId, normalizedPageName, config);
 }

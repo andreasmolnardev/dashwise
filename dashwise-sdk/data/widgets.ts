@@ -11,6 +11,7 @@ type WidgetPreviewData = {
 
 type WidgetCatalogItem = {
     key: string;
+    index?: number;
     name?: string;
     description?: string;
     template?: string;
@@ -33,6 +34,23 @@ type GlanceableCatalogItem = {
     properties?: Record<string, any>;
 };
 
+function sortWidgetsByIndex<T extends { index?: number }>(widgets: T[]) {
+    return [...widgets]
+        .map((widget, position) => ({ widget, position }))
+        .sort((left, right) => {
+            const leftIndex = typeof left.widget.index === "number" && Number.isFinite(left.widget.index)
+                ? left.widget.index
+                : Number.MAX_SAFE_INTEGER;
+            const rightIndex = typeof right.widget.index === "number" && Number.isFinite(right.widget.index)
+                ? right.widget.index
+                : Number.MAX_SAFE_INTEGER;
+
+            if (leftIndex !== rightIndex) return leftIndex - rightIndex;
+            return left.position - right.position;
+        })
+        .map(({ widget }) => widget);
+}
+
 function normalizeWidgetSlug(value: string) {
     return value
         .toLowerCase()
@@ -43,7 +61,7 @@ function normalizeWidgetSlug(value: string) {
 function normalizeWidgetList(rawWidgets: unknown): WidgetCatalogItem[] {
     if (!Array.isArray(rawWidgets)) return [];
 
-    return rawWidgets
+    const list = rawWidgets
         .filter((entry): entry is Record<string, any> => !!entry && typeof entry === "object")
         .map((widget) => {
             const label =
@@ -69,6 +87,9 @@ function normalizeWidgetList(rawWidgets: unknown): WidgetCatalogItem[] {
 
             return {
                 key: slug,
+                index: typeof widget.index === "number" && Number.isFinite(widget.index)
+                    ? widget.index
+                    : undefined,
                 slug,
                 name: label,
                 description:
@@ -104,6 +125,8 @@ function normalizeWidgetList(rawWidgets: unknown): WidgetCatalogItem[] {
             } as WidgetCatalogItem;
         })
         .filter((entry) => !!entry.key);
+
+            return sortWidgetsByIndex(list);
 }
 
 async function getDefaultWidgets(): Promise<WidgetCatalog> {
@@ -310,6 +333,10 @@ export async function getUserWidgets(userId: string) {
                 merged[category].push(normalized);
             }
         }
+    }
+
+    for (const [category, widgets] of Object.entries(merged)) {
+        merged[category] = sortWidgetsByIndex(widgets);
     }
 
     return merged;

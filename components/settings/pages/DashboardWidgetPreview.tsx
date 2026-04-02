@@ -47,6 +47,7 @@ type DashboardWidgetPreviewProps = {
   template: TemplateId;
   columns: Record<ColumnName, ColumnWidget[]>;
   setColumns: Dispatch<SetStateAction<Record<ColumnName, ColumnWidget[]>>>;
+  onPersistColumns?: (nextColumns: Record<ColumnName, ColumnWidget[]>) => void | Promise<void>;
   enabledColumns: ColumnName[];
   widgetCatalog: WidgetCatalogItem[];
   widgetCategories: string[];
@@ -244,6 +245,7 @@ export function DashboardWidgetPreview({
   template,
   columns,
   setColumns,
+  onPersistColumns,
   enabledColumns,
   widgetCatalog,
   widgetCategories,
@@ -328,7 +330,7 @@ export function DashboardWidgetPreview({
     setDragOver(null);
   };
 
-  const handleDragEnd = (event: DragEndEvent) => {
+  const handleDragEnd = async (event: DragEndEvent) => {
     const activeIdStr = String(event.active.id);
     setActiveId(null);
 
@@ -362,11 +364,10 @@ export function DashboardWidgetPreview({
       if (!source) return;
 
       const nextWidget: ColumnWidget = { id: createWidgetId(), type: key, properties: {}, input: undefined };
-      setColumns((prev) => {
-        const copy = { left: [...prev.left], middle: [...prev.middle], right: [...prev.right] };
-        copy[target.zone].splice(target.index, 0, nextWidget);
-        return copy;
-      });
+      const nextColumns = { left: [...columns.left], middle: [...columns.middle], right: [...columns.right] };
+      nextColumns[target.zone].splice(target.index, 0, nextWidget);
+      setColumns(nextColumns);
+      await onPersistColumns?.(nextColumns);
       return;
     }
 
@@ -374,18 +375,9 @@ export function DashboardWidgetPreview({
     const activeColumn = findColumn(activeIdStr);
     if (!activeColumn) return;
 
-    setColumns((prev) => {
-      const copy = { left: [...prev.left], middle: [...prev.middle], right: [...prev.right] };
-      const fromIndex = copy[activeColumn].findIndex((w) => w.id === activeIdStr);
-      
-      if (activeColumn === target.zone) {
-        copy[activeColumn] = arrayMove(copy[activeColumn], fromIndex, target.index);
-      } else {
-        const [moved] = copy[activeColumn].splice(fromIndex, 1);
-        copy[target.zone].splice(target.index, 0, moved);
-      }
-      return copy;
-    });
+    const nextColumns = moveItem(columns, activeIdStr, event.over ? String(event.over.id) : `column:${target.zone}`, target.zone);
+    setColumns(nextColumns);
+    await onPersistColumns?.(nextColumns);
   };
 
   return (
