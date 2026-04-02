@@ -265,7 +265,6 @@ configuration:
         columns:
           iterate_over: "computed.system_health"
           prototype:
-            label: "${system_name} ??? alpha"
             primary: "if(details.status contains 'down', 0, health_score) ??? 92%"
             secondary: "${biggest_minus} ??? Healthy"
             progress:
