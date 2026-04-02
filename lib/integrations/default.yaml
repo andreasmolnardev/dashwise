@@ -4,22 +4,20 @@ details:
 
 configuration:
   widgets:
-    - name: "Weekly view"
-      template: "calendar-week"
-      category: "Calendar"
-    - name: "Daily view"
-      template: "calendar-today"
-      category: "Calendar"
     - name: "Glanceable Clock"
+      key: "main-clock"
       template: "glanceable-clock"
       category: "Clock"
     - name: "Search Bar"
+      key: "search-bar"
       template: "search-bar"
       category: "Search"
     - name: "Link View"
+      key: "link-view"
       template: "link-view"
       category: "Links"
-    - name: "Placehholder"
+    - name: "Placeholder"
+      key: "placeholder"
       template: "placeholder"
       category: "Placeholder"
   glanceables:
@@ -34,7 +32,7 @@ configuration:
       text: "${lib.date.current_timezone}"
     - name: "World Clock"
       properties:
-        timezone: "tz"
-        location: "String"
+        timezone: "type:tz ??? 'Europe/London'"
+        location: "type:String ??? 'London'"
       icon: none
       text: "${lib.date.time(${properties.timezone})} in ${properties.location}"

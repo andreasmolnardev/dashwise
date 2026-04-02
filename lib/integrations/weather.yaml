@@ -206,7 +206,8 @@ configuration:
 
   widgets:
     # --- Compact 3-column forecast (Now / Tonight / Tomorrow) ---
-    - name: "Weather Otherview"
+    - name: "Weather Forecast"
+      key: "weather-forecast"
       template: "columns"
       depends_on:
         - "computed.weather"
@@ -250,6 +251,7 @@ configuration:
 
     # --- Overview: large icon + current temp + insight string ---
     - name: "Current Weather Conditions"
+      key: "current-weather"
       template: "icon-details-card"
       depends_on:
         - "computed.weather"

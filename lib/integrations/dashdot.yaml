@@ -167,6 +167,7 @@ configuration:
 
   widgets:
     - name: "Dashdot"
+      key: "dashdot-overview"
       template: "columns"
       depends_on:
         - "computed.metrics"

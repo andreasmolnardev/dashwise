@@ -125,6 +125,7 @@ configuration:
 
   widgets:
     - name: "Latest Bookmarks"
+      key: "karakeep-latest-bookmarks"
       template: "vertical-list"
       depends_on:
         - "computed.bookmarks"

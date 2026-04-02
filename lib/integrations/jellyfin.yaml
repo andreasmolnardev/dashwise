@@ -82,6 +82,7 @@ configuration:
   # A "Recently Added" widget is included as a useful default.
   widgets:
     - name: "Jellyfin Recently Added"
+      key: "jellyfin-recently-added"
       template: "vertical-list"
       depends_on:
         - "computed.search_display"

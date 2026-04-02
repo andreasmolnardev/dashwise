@@ -94,6 +94,7 @@ configuration:
   # Defines how data is presented on the dashboard.
   widgets:
     - name: "Status Overview"
+      key: "status-overview"       # Unique identifier for the widget
       template: "columns"           # UI template (e.g., columns, vertical-list)
       depends_on:
         - "computed.status_summary"

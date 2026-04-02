@@ -240,6 +240,7 @@ configuration:
 
   widgets:
     - name: "Beszel System Health"
+      key: "beszel-system-health"
       template: "columns"
       depends_on:
         - "computed.system_health"
@@ -287,6 +288,7 @@ configuration:
               icon: "faExclamationCircle"
               tooltip: "${biggest_minus}"
     - name: "Beszel System Warnings"
+      key: "beszel-system-warnings"
       template: "vertical-list"
       depends_on:
         - "computed.system_warnings"
