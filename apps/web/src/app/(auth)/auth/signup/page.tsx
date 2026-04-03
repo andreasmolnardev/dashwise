@@ -1,6 +1,6 @@
 import SignupCard from "@/components/auth/SignupForm";
+import { getAppInfoAction } from "@/app/actions/app";
 import config from "@/src/lib/config";
-import { callAction } from "@/src/lib/action-client";
 import { useEffect, useState } from "react";
 
 export default function SignupPage() {
@@ -10,7 +10,7 @@ export default function SignupPage() {
     useEffect(() => {
         (async () => {
             try {
-                const data = await callAction<{ userSignupDisabled?: boolean }>("app", "getAppInfoAction")
+                const data = await getAppInfoAction();
                 if (data?.userSignupDisabled) setDisableUserSignup(true);
             } catch (err) {
                 console.error("Update check failed:", err);

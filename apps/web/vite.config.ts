@@ -12,10 +12,7 @@ export default defineConfig({
       '@/src': path.resolve(__dirname, './src'),
       '@': path.resolve(__dirname, './src'),
     },
-    preserveSymlinks: true,
-  },
-  optimizeDeps: {
-    include: ["@trpc/client"],
+    dedupe: ["react", "react-dom", "react-router-dom"],
   },
   server: {
     port: 5173,

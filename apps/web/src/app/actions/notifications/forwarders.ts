@@ -1,18 +1,19 @@
 import type { ActionAuth } from "@dashwise/sdk/data/auth";
-import { callAction } from "@/src/lib/action-client";
+import { trpc } from "@/lib/apiClient";
+const api = trpc as any;
 
 export async function getForwardersAction(auth: ActionAuth) {
-  return callAction("notifications/forwarders", "getForwardersAction", [auth]);
+  return api.notifications.forwarders.getForwardersAction.query(auth);
 }
 
 export async function createForwarderAction(auth: ActionAuth, body: any) {
-  return callAction("notifications/forwarders", "createForwarderAction", [auth, body]);
+  return api.notifications.forwarders.createForwarderAction.mutate({ auth, body });
 }
 
 export async function updateForwarderAction(auth: ActionAuth, body: any) {
-  return callAction("notifications/forwarders", "updateForwarderAction", [auth, body]);
+  return api.notifications.forwarders.updateForwarderAction.mutate({ auth, body });
 }
 
 export async function deleteForwarderAction(auth: ActionAuth, forwarderId: string) {
-  return callAction("notifications/forwarders", "deleteForwarderAction", [auth, forwarderId]);
+  return api.notifications.forwarders.deleteForwarderAction.mutate({ auth, forwarderId });
 }

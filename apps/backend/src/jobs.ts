@@ -3,15 +3,15 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
 import cron from "node-cron";
-import { runJob } from "./lib/job-logger";
+import { runJob } from "./jobs/job-logger";
 import { config } from "./config/env";
 import { _d } from "./lib/sdk";
-import { runSearchItemsIndexing } from "./search-indexer";
-import indexStatusMonitoringJobs from "./monitoring/indexer";
-import { runStatusMonitoringJobs, runStatusMonitoringJobsWithOptions } from "./monitoring/runner";
-import { runVersionComparisonRunner } from "./updates/comparison-runner";
-import { newsFeedBuilder } from "./news/feed-builder";
-import { processQueuedNotifications } from "./notifications/forwarder";
+import { runSearchItemsIndexing } from "./jobs/search-indexer";
+import indexStatusMonitoringJobs from "./jobs/monitoring/indexer";
+import { runStatusMonitoringJobs, runStatusMonitoringJobsWithOptions } from "./jobs/monitoring/runner";
+import { runVersionComparisonRunner } from "./jobs/updates/comparison-runner";
+import { newsFeedBuilder } from "./jobs/news/feed-builder";
+import { processQueuedNotifications } from "./jobs/notifications/forwarder";
 
 const execFileAsync = promisify(execFile);
 

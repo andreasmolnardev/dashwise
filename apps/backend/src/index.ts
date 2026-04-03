@@ -1,14 +1,12 @@
 import { join, resolve } from "node:path";
 
-import { trpcServer } from "@hono/trpc-server";
 import { Hono } from "hono";
+import { cors } from "hono/cors";
 
 import { config } from "./config/env";
-import { dispatchAction } from "./action-dispatcher";
-import { uploadWallpaperAction } from "./actions/wallpapers";
-import { jobsApi, registerJobsCron, validateJobsBasicAuth } from "./jobs/index";
+import { jobsApi, registerJobsCron } from "./jobs/index";
 import { startPocketbase } from "./pocketbase";
-import { appRouter } from "./router";
+import { registerRestRoutes } from "./restRoutes";
 
 const app = new Hono();
 
@@ -24,52 +22,11 @@ process.on("SIGINT", shutdown);
 
 registerJobsCron();
 
-app.use("/api/trpc/*", trpcServer({ router: appRouter }));
+app.use("*", cors({ origin: "*" }));
 
-app.post("/api/actions/call", async (c) => {
-  const body = await c.req.json();
-  const modulePath = body?.modulePath;
-  const actionName = body?.actionName;
-  const args = Array.isArray(body?.args) ? body.args : [];
-
-  if (typeof modulePath !== "string" || typeof actionName !== "string") {
-    return c.json({ error: "modulePath and actionName are required" }, 400);
-  }
-
-  try {
-    const result = await dispatchAction(modulePath, actionName, args);
-    return c.json({ result });
-  } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Action call failed";
-    return c.json({ error: message }, 500);
-  }
-});
-
-app.post("/api/actions/wallpapers/upload", async (c) => {
-  const formData = await c.req.formData();
-  const token = c.req.header("x-auth-token") ?? null;
-  const result = await uploadWallpaperAction({ token }, formData);
-  return c.json(result);
-});
+registerRestRoutes(app);
 
 app.get("/health", (c) => c.json({ status: "ok" }));
-
-app.get("/api/v1/jobs/searchItems", async (c) => {
-  if (!validateJobsBasicAuth(c.req.header("authorization"))) {
-    return c.json({ status: "error", message: "Unauthorized" }, 401);
-  }
-  await jobsApi.runSearchItemsJob("api");
-  return c.json({ status: "success" });
-});
-
-app.get("/api/v1/jobs/pullIcons", async (c) => {
-  if (!validateJobsBasicAuth(c.req.header("authorization"))) {
-    return c.json({ status: "error", message: "Unauthorized" }, 401);
-  }
-  await jobsApi.runPullIconsJob("api");
-  return c.json({ status: "success" });
-});
 
 app.get("/webhook/statusMonitoringIndexer", async (c) => {
   await jobsApi.runMonitoringIndexerJob("webhook");

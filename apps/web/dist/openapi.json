@@ -16,13 +16,16 @@
 		{ "name": "config" },
 		{ "name": "integrations" },
 		{ "name": "jobs" },
+		{ "name": "links" },
 		{ "name": "locations" },
 		{ "name": "monitoring" },
 		{ "name": "news" },
 		{ "name": "notifications" },
+		{ "name": "pageConfig" },
 		{ "name": "search" },
 		{ "name": "test" },
 		{ "name": "wallpapers" },
+		{ "name": "widgets" },
 		{ "name": "weather" }
 	],
 	"paths": {
@@ -129,6 +132,17 @@
 				}
 			}
 		},
+		"/auth/update-user-property": {
+			"patch": {
+				"tags": ["auth"],
+				"summary": "Update user property",
+				"requestBody": { "$ref": "#/components/requestBodies/JsonBody" },
+				"responses": {
+					"200": { "$ref": "#/components/responses/JsonOk" },
+					"401": { "$ref": "#/components/responses/JsonUnauthorized" }
+				}
+			}
+		},
 		"/config": {
 			"get": {
 				"tags": ["config"],
@@ -219,6 +233,155 @@
 				}
 			}
 		},
+		"/integrations": {
+			"get": {
+				"tags": ["integrations"],
+				"summary": "List integrations",
+				"responses": {
+					"200": { "$ref": "#/components/responses/JsonOk" }
+				}
+			},
+			"post": {
+				"tags": ["integrations"],
+				"summary": "Create integration",
+				"requestBody": { "$ref": "#/components/requestBodies/JsonBody" },
+				"responses": {
+					"200": { "$ref": "#/components/responses/JsonOk" }
+				}
+			}
+		},
+		"/integrations/test-endpoint": {
+			"post": {
+				"tags": ["integrations"],
+				"summary": "Test integration endpoint",
+				"requestBody": { "$ref": "#/components/requestBodies/JsonBody" },
+				"responses": {
+					"200": { "$ref": "#/components/responses/JsonOk" }
+				}
+			}
+		},
+		"/integrations/widget-properties": {
+			"get": {
+				"tags": ["integrations"],
+				"summary": "Get widget properties",
+				"responses": {
+					"200": { "$ref": "#/components/responses/JsonOk" }
+				}
+			}
+		},
+		"/integrations/with-widget": {
+			"get": {
+				"tags": ["integrations"],
+				"summary": "Get integration with widget",
+				"responses": {
+					"200": { "$ref": "#/components/responses/JsonOk" }
+				}
+			}
+		},
+		"/links/collections": {
+			"get": {
+				"tags": ["links"],
+				"summary": "Get link collections",
+				"responses": {
+					"200": { "$ref": "#/components/responses/JsonOk" }
+				}
+			}
+		},
+		"/links/home/groups": {
+			"get": {
+				"tags": ["links"],
+				"summary": "Get home link groups",
+				"responses": {
+					"200": { "$ref": "#/components/responses/JsonOk" }
+				}
+			},
+			"post": {
+				"tags": ["links"],
+				"summary": "Create home link group",
+				"requestBody": { "$ref": "#/components/requestBodies/JsonBody" },
+				"responses": {
+					"200": { "$ref": "#/components/responses/JsonOk" }
+				}
+			}
+		},
+		"/links/home": {
+			"get": {
+				"tags": ["links"],
+				"summary": "Get home links",
+				"responses": {
+					"200": { "$ref": "#/components/responses/JsonOk" }
+				}
+			}
+		},
+		"/links/folders": {
+			"get": {
+				"tags": ["links"],
+				"summary": "Get link folders",
+				"responses": {
+					"200": { "$ref": "#/components/responses/JsonOk" }
+				}
+			}
+		},
+		"/links/items": {
+			"get": {
+				"tags": ["links"],
+				"summary": "Get link items",
+				"responses": {
+					"200": { "$ref": "#/components/responses/JsonOk" }
+				}
+			},
+			"post": {
+				"tags": ["links"],
+				"summary": "Create link item",
+				"requestBody": { "$ref": "#/components/requestBodies/JsonBody" },
+				"responses": {
+					"200": { "$ref": "#/components/responses/JsonOk" }
+				}
+			}
+		},
+		"/links/items/{linkId}": {
+			"put": {
+				"tags": ["links"],
+				"summary": "Update link item",
+				"parameters": [
+					{
+						"name": "linkId",
+						"in": "path",
+						"required": true,
+						"schema": { "type": "string" }
+					}
+				],
+				"requestBody": { "$ref": "#/components/requestBodies/JsonBody" },
+				"responses": {
+					"200": { "$ref": "#/components/responses/JsonOk" }
+				}
+			},
+			"delete": {
+				"tags": ["links"],
+				"summary": "Delete link item",
+				"parameters": [
+					{
+						"name": "linkId",
+						"in": "path",
+						"required": true,
+						"schema": { "type": "string" }
+					}
+				],
+				"requestBody": { "$ref": "#/components/requestBodies/JsonBody" },
+				"responses": {
+					"200": { "$ref": "#/components/responses/JsonOk" }
+				}
+			}
+		},
+		"/links/tags": {
+			"get": {
+				"tags": ["links"],
+				"summary": "Get link tags",
+				"responses": {
+					"200": { "$ref": "#/components/responses/JsonOk" }
+				}
+			}
+		},
 		"/jobs/searchItems": {
 			"get": {
 				"tags": ["jobs"],
@@ -284,6 +447,15 @@
 			"get": {
 				"tags": ["news"],
 				"summary": "Get news subscriptions",
+				"responses": {
+					"200": { "$ref": "#/components/responses/JsonOk" }
+				}
+			}
+		},
+		"/news/feed": {
+			"get": {
+				"tags": ["news"],
+				"summary": "Get news feed",
 				"responses": {
 					"200": { "$ref": "#/components/responses/JsonOk" }
 				}
@@ -473,6 +645,32 @@
 				}
 			}
 		},
+		"/pageConfig": {
+			"get": {
+				"tags": ["pageConfig"],
+				"summary": "Get page config",
+				"responses": {
+					"200": { "$ref": "#/components/responses/JsonOk" }
+				}
+			},
+			"put": {
+				"tags": ["pageConfig"],
+				"summary": "Update page config",
+				"requestBody": { "$ref": "#/components/requestBodies/JsonBody" },
+				"responses": {
+					"200": { "$ref": "#/components/responses/JsonOk" }
+				}
+			}
+		},
+		"/pageConfig/user-pages": {
+			"get": {
+				"tags": ["pageConfig"],
+				"summary": "Get user pages",
+				"responses": {
+					"200": { "$ref": "#/components/responses/JsonOk" }
+				}
+			}
+		},
 		"/test/bookmarks": {
 			"get": {
 				"tags": ["test"],
@@ -518,6 +716,33 @@
 			"get": {
 				"tags": ["wallpapers"],
 				"summary": "Get wallpaper",
+				"responses": {
+					"200": { "$ref": "#/components/responses/JsonOk" }
+				}
+			}
+		},
+		"/widgets": {
+			"get": {
+				"tags": ["widgets"],
+				"summary": "Get user widgets",
+				"responses": {
+					"200": { "$ref": "#/components/responses/JsonOk" }
+				}
+			}
+		},
+		"/widgets/glanceable": {
+			"get": {
+				"tags": ["widgets"],
+				"summary": "Get user glanceable",
+				"responses": {
+					"200": { "$ref": "#/components/responses/JsonOk" }
+				}
+			}
+		},
+		"/widgets/glanceables": {
+			"get": {
+				"tags": ["widgets"],
+				"summary": "Get user glanceables",
 				"responses": {
 					"200": { "$ref": "#/components/responses/JsonOk" }
 				}

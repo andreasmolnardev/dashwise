@@ -1,10 +1,11 @@
 import type { ActionAuth } from "@dashwise/sdk/data/auth";
-import { callAction } from "@/src/lib/action-client";
+import { trpc } from "@/lib/apiClient";
+const api = trpc as any;
 
 export async function getLocationsAction(auth: ActionAuth, q?: string | null) {
-  return callAction("misc", "getLocationsAction", [auth, q]);
+  return api.misc.getLocationsAction.query({ auth, q });
 }
 
 export async function runPullIconsAction(auth: ActionAuth) {
-  return callAction("misc", "runPullIconsAction", [auth]);
+  return api.jobs.runPullIconsAction.mutate(auth);
 }

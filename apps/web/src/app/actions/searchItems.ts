@@ -1,6 +1,7 @@
 import type { ActionAuth } from "@dashwise/sdk/data/auth";
-import { callAction } from "@/src/lib/action-client";
+import { trpc } from "@/lib/apiClient";
+const api = trpc as any;
 
 export async function getSearchItemsAction(auth: ActionAuth) {
-  return callAction("searchItems", "getSearchItemsAction", [auth]);
+  return api.searchItems.getSearchItemsAction.query(auth);
 }

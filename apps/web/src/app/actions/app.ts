@@ -1,10 +1,10 @@
-import type { ActionAuth } from "@dashwise/sdk/data/auth";
-import { callAction } from "@/src/lib/action-client";
+import { trpc } from "@/lib/apiClient";
+const api = trpc as any;
 
 export async function getAppConfigAction() {
-  return callAction("app", "getAppConfigAction");
+  return api.app.getAppConfigAction.query();
 }
 
-export async function getAppInfoAction(auth: ActionAuth) {
-  return callAction("app", "getAppInfoAction", [auth]);
+export async function getAppInfoAction(_auth?: { token?: string | null }) {
+  return api.app.getAppInfoAction.query();
 }

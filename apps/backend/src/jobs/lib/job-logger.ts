@@ -1,1 +1,1 @@
-export * from "../../lib/job-logger";
+export * from "../job-logger";
