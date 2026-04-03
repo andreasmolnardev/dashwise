@@ -1,5 +1,5 @@
-import { usePageConfig } from "@/hooks/usePageConfig";
-import { useLocalization } from "@/context/LocalizationContext";
+import { usePageConfig } from "@/src/hooks/usePageConfig";
+import { useLocalization } from "@/src/context/LocalizationContext";
 import { useEffect, useMemo, useState } from "react";
 import type { ReactElement } from "react";
 

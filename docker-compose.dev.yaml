@@ -1,46 +1,43 @@
 services:
-  nextjs:
-    image: node:20-alpine
-    container_name: dashwise-next-live
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: dashwise-app-live
+    command: sh -lc "bun install --frozen-lockfile && bun --cwd apps/backend --hot src/index.ts & cd apps/web && exec bunx vite --host 0.0.0.0 --port 5173"
     ports:
       - "3000:3000"
-    volumes:
-      - ./:/app
-    working_dir: /app
-    networks:
-      - dashwise-default
-    command: sh -c "corepack enable && pnpm install --frozen-lockfile && pnpm build && pnpm --filter apps/web run dev"
-
-  pocketbase:
-    build: ./pocketbase
+      - "5173:5173"
     environment:
       PB_ADMIN_EMAIL: default@dashwise.local
       PB_ADMIN_PASSWORD: dashwiseIsAwesome
-    ports:
-      - "8090:8090"
+      PB_URL: http://127.0.0.1:8090
+      NODE_ENV: development
     volumes:
-      - ./pocketbase/pb_data:/app/pb_data
-      - ./pocketbase/pb_migrations:/app/pb_migrations
+      - .:/app
+      - app-node-modules:/app/node_modules
+      - backend-node-modules:/app/apps/backend/node_modules
+      - web-node-modules:/app/apps/web/node_modules
+      - integrationskit-node-modules:/app/packages/integrationskit/node_modules
+      - sdk-node-modules:/app/packages/sdk/node_modules
+      - ./pocketbase/pb_data:/app/pocketbase/pb_data
+      - ./pocketbase/pb_migrations:/app/pocketbase/pb_migrations
     networks:
       - dashwise-default
     restart: unless-stopped
-
-  jobs:
-    build:
-      context: .
-      dockerfile: apps/jobs/Dockerfile
-    ports:
-      - "3001:3001"
-    environment:
-      NODE_ENV: development
-    env_file:
-      - ./apps/jobs/.env
-    volumes:
-      - ./:/app
-    working_dir: /app/apps/jobs
-    command: sh -c "corepack enable && pnpm install && pnpm run dev"
-    networks:
-      - dashwise-default
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
 
 networks:
   dashwise-default:
+
+volumes:
+  app-node-modules:
+  backend-node-modules:
+  web-node-modules:
+  jobs-node-modules:
+  integrationskit-node-modules:
+  sdk-node-modules:

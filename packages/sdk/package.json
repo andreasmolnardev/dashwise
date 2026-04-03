@@ -9,10 +9,17 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "pocketbase": "^0.26.8"
+    "axios": "^1.12.2",
+    "pocketbase": "^0.26.8",
+    "sharp": "^0.34.3",
+    "speakeasy": "^2.0.0",
+    "yaml": "^2.8.2"
   },
   "exports": {
-    "./*": "./*"
+    ".": "./index.ts",
+    "./index": "./index.ts",
+    "./lib/*": "./lib/*.ts",
+    "./data/*": "./src/data/*.ts"
   },
   "types": "index.ts"
 }

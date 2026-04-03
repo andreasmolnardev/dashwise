@@ -1,0 +1,21 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "lib": ["esnext"],
+    "types": [
+      "bun"
+    ],
+    "paths": {
+      "@dashwise/sdk": ["../../packages/sdk/index.ts"],
+      "@dashwise/sdk/index": ["../../packages/sdk/index.ts"],
+      "@dashwise/sdk/lib/*": ["../../packages/sdk/lib/*"],
+      "@dashwise/sdk/data/*": ["../../packages/sdk/src/data/*"]
+    },
+    "outDir": "./dist"
+  },
+  "include": ["src/**/*"]
+}

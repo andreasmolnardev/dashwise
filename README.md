@@ -24,7 +24,14 @@ This is my attempt to solving that.
 - Integrations: directly integrates with your favourite self hosted apps. Supported services are Karakeep, Dashdot, Beszel and Jellyfin. More integrations are planned
 
 ## Installation
-Grab the docker compose file (docker-compose.yaml), edit env vars, pull, deploy. That's it.
+For local development, install dependencies and start the workspace scripts:
+
+```sh
+bun install
+bun run dev
+```
+
+The backend expects a PocketBase binary at `pocketbase/pocketbase` or via `PB_BINARY_PATH`. The Docker setup still exists for deployment, but it is no longer required for local development.
 
 ## Configuration
 You can use the following environment variables for the main container:

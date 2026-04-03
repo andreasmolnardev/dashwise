@@ -1,0 +1,141 @@
+{
+    "meta": {
+        "onboard": true
+    },
+    "appearance": {
+        "backgroundImageUrl": "/dashboard-wallpaper.png",
+        "wallpaperFilters": {
+            "blur": 10,
+            "brightness": 61
+        },
+        "themeMode": "light"
+    },
+    "pages": [
+        "home"
+    ],
+    "glanceables": [
+        {
+            "type": "weather",
+            "displayLocation": "true"
+        },
+        {
+            "type": "date",
+            "format": "ddd DD-MM-YYYY"
+        }
+    ],
+    "links": [
+        {
+            "name": "Google",
+            "url": "https://google.com",
+            "icon": "/icons/svg/google-light.svg",
+            "linkGroup": "internet"
+        },
+        {
+            "name": "GitHub",
+            "url": "https://github.com",
+            "icon": "/icons/svg/github-light.svg",
+            "linkGroup": "internet"
+        },
+        {
+            "name": "Twitter",
+            "url": "https://twitter.com",
+            "icon": "/icons/svg/twitter-light.svg",
+            "linkGroup": "internet"
+        },
+        {
+            "name": "Reddit",
+            "url": "https://reddit.com",
+            "icon": "/icons/svg/reddit-light.svg",
+            "linkGroup": "internet"
+        },
+        {
+            "name": "Dashwise",
+            "url": "https://github.com/andreasmolnardev/dashwise-next",
+            "icon": "/icons/svg/dashwise.svg",
+            "linkGroup": "dashwise"
+        }
+    ],
+    "linkGroups": [
+        "internet",
+        "dashwise"
+    ],
+    "searchEngines": [
+        {
+            "icon": "/icons/svg/google.svg",
+            "name": "Google",
+            "slug": "g",
+            "status": "default",
+            "url_home": "https://www.google.com",
+            "url_params": "https://www.google.com/search?q=%s"
+        },
+        {
+            "icon": "/icons/svg/google-images.svg",
+            "name": "Google Images",
+            "slug": "gi",
+            "status": "enabled",
+            "url_home": "https://images.google.com",
+            "url_params": "https://images.google.com/search?q=%s&tbm=isch"
+        },
+        {
+            "icon": "/icons/svg/youtube.svg",
+            "name": "YouTube",
+            "slug": "yt",
+            "status": "enabled",
+            "url_home": "https://www.youtube.com",
+            "url_params": "https://www.youtube.com/results?search_query=%s"
+        },
+        {
+            "icon": "/icons/svg/bing.svg",
+            "name": "Bing",
+            "slug": "b",
+            "status": "enabled",
+            "url_home": "https://www.bing.com",
+            "url_params": "https://www.bing.com/search?q=%s"
+        },
+        {
+            "icon": "/icons/svg/duckduckgo.svg",
+            "name": "DuckDuckGo",
+            "slug": "ddg",
+            "status": "enabled",
+            "url_home": "https://duckduckgo.com",
+            "url_params": "https://duckduckgo.com/?q=%s"
+        },
+        {
+            "icon": "/icons/svg/startpage.svg",
+            "name": "Startpage",
+            "slug": "sp",
+            "status": "enabled",
+            "url_home": "https://www.startpage.com",
+            "url_params": "https://www.startpage.com/sp/search?query=%s"
+        }
+    ],
+    "integrations": {},
+    "widgets": [
+        [
+            {
+                "id": "7owye41qz5t",
+                "properties": {},
+                "type": "placeholder"
+            }
+        ],
+        [
+            {
+                "id": "5n9j2lqz5t6",
+                "properties": {},
+                "type": "placeholder"
+            }
+        ],
+        [
+            {
+                "id": "86jpdoqyqz4",
+                "properties": {},
+                "type": "placeholder"
+            },
+            {
+                "id": "fb2nfo62oc",
+                "properties": {},
+                "type": "beszel-system-health"
+            }
+        ]
+    ]
+}

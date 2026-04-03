@@ -159,10 +159,10 @@ async function getLinksPayloadFromTables(pb: any, userId: string) {
   });
 
   const linkGroups = folders
-    .map((folder) => String(folder.name ?? "").trim())
+    .map((folder: PBRecord) => String(folder.name ?? "").trim())
     .filter(Boolean);
 
-  const links = items.map((item) => {
+  const links = items.map((item: PBRecord) => {
     const group = item.folder ? folderById.get(item.folder) || "" : "";
     return {
       id: item.id,

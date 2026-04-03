@@ -1,7 +1,7 @@
 import { ClientResponseError, getServerPB } from "@dashwise/sdk/lib/pocketbase";
 
 import speakeasy from "speakeasy";
-import config from "@/lib/config";
+import config from "../lib/config";
 
 export class ApiActionError extends Error {
   status: number;

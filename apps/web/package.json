@@ -3,12 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "next lint"
+    "dev": "vite",
+    "build": "vite build",
+    "start": "vite preview",
+    "lint": "eslint ."
   },
   "dependencies": {
+    "@dashwise/integrationskit": "workspace:*",
     "@dashwise/sdk": "workspace:*",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/modifiers": "^9.0.0",
@@ -34,6 +35,7 @@
     "@radix-ui/react-tooltip": "^1.2.8",
     "@tanstack/react-table": "^8.21.3",
     "@tanstack/react-virtual": "^3.13.12",
+    "@trpc/client": "^11.16.0",
     "axios": "^1.12.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -44,7 +46,6 @@
     "fuse.js": "^7.1.0",
     "iconify-picker": "^0.7.2",
     "lucide-react": "^0.471.2",
-    "next": "^16.0.7",
     "node-cron": "^4.2.1",
     "node-fetch": "^3.3.2",
     "qrcode": "^1.5.4",
@@ -61,7 +62,7 @@
     "usehooks-ts": "^3.1.1",
     "uuid": "^11.1.0",
     "yaml": "^2.8.2",
-    "@dashwise/integrationskit": "workspace:*"
+    "@dashwise/api-types": "workspace:*"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
@@ -76,18 +77,20 @@
     "@types/speakeasy": "^2.0.10",
     "@typescript-eslint/eslint-plugin": "^8.44.1",
     "@typescript-eslint/parser": "^8.44.1",
+    "@vitejs/plugin-react-swc": "^4.3.0",
     "autoprefixer": "^10.4.21",
     "eslint": "^9.36.0",
-    "eslint-config-next": "15.4.5",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-unused-imports": "^4.2.0",
     "globals": "^16.4.0",
     "postcss": "^8.5.6",
+    "react-router-dom": "^7.14.0",
     "tailwindcss": "^4.1.11",
     "ts-node": "^10.9.2",
     "tw-animate-css": "^1.3.6",
     "typescript": "^5.9.3",
-    "typescript-eslint": "^8.44.1"
+    "typescript-eslint": "^8.44.1",
+    "vite": "^8.0.3"
   }
 }
