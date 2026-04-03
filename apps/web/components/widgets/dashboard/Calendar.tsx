@@ -1,6 +1,6 @@
 import React from "react";
 import { WidgetItemProps } from "../Widget";
-import WidgetColumnTemplate from "../../../dashwise-integrationskit/templates/WidgetColumn";
+import WidgetColumnTemplate from "@dashwise/integrationskit/templates/WidgetColumn";
 
 
 interface CalendarWidgetProps extends WidgetItemProps {

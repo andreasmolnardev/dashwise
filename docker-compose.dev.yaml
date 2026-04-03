@@ -9,7 +9,8 @@ services:
     working_dir: /app
     networks:
       - dashwise-default
-    command: sh -c "cd dashwise-sdk && npm install && cd .. && npm install && npm run dev"
+    command: sh -c "corepack enable && pnpm install --frozen-lockfile && pnpm build && pnpm --filter apps/web run dev"
+
   pocketbase:
     build: ./pocketbase
     environment:
@@ -17,29 +18,29 @@ services:
       PB_ADMIN_PASSWORD: dashwiseIsAwesome
     ports:
       - "8090:8090"
-    networks:
-      - dashwise-default
     volumes:
       - ./pocketbase/pb_data:/app/pb_data
       - ./pocketbase/pb_migrations:/app/pb_migrations
+    networks:
+      - dashwise-default
     restart: unless-stopped
+
   jobs:
     build:
       context: .
-      dockerfile: jobs/Dockerfile
+      dockerfile: apps/jobs/Dockerfile
     ports:
       - "3001:3001"
     environment:
-      NODE_ENV: development 
+      NODE_ENV: development
     env_file:
-      - ./jobs/.env
+      - ./apps/jobs/.env
     volumes:
-      - ./jobs:/usr/src/app
-      - ./dashwise-sdk:/usr/src/app/dashwise-sdk
-    command: npm run dev
+      - ./:/app
+    working_dir: /app/apps/jobs
+    command: sh -c "corepack enable && pnpm install && pnpm run dev"
     networks:
       - dashwise-default
 
 networks:
   dashwise-default:
-    driver: bridge

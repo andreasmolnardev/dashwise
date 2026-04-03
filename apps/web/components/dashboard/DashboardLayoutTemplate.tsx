@@ -11,7 +11,7 @@ import useAuth from "@/context/useAuth";
 import { getNotificationsAction } from "@/app/actions/notifications/items";
 import { getIntegrationWithWidgetAction } from "@/app/actions/integrations";
 import { renderWidget } from "../widgets/Widget";
-import Widget from "@/dashwise-integrationskit/Widget";
+import Widget from "@dashwise/integrationskit/Widget";
 
 const COLUMN_ORDER = ["left", "middle", "right"] as const;
 type Column = (typeof COLUMN_ORDER)[number];

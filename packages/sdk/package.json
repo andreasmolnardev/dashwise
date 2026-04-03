@@ -10,5 +10,9 @@
   "license": "ISC",
   "dependencies": {
     "pocketbase": "^0.26.8"
-  }
+  },
+  "exports": {
+    "./*": "./*"
+  },
+  "types": "index.ts"
 }

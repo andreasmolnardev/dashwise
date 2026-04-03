@@ -4,7 +4,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import GlanceableClockWidget from "./dashboard/GlanceableClock";
 import LinkView from "./LinkView";
 import SearchBar from "./SearchBar";
-import Widget from "@/dashwise-integrationskit/Widget";
+import Widget from "@dashwise/integrationskit/Widget";
 import useAuth from "@/context/useAuth";
 import { getIntegrationWithWidgetAction } from "@/app/actions/integrations";
 
