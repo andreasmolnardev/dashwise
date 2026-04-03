@@ -18,10 +18,6 @@ type RouteConfig = {
 };
 
 function getBaseUrl() {
-  if (import.meta.env.DEV) {
-    return "http://localhost:3000";
-  }
-
   return config.app_base_url;
 }
 
@@ -414,25 +410,34 @@ function invokeAction(modulePath: string, actionName: string, method: "query" | 
   return requestRoute(route, input);
 }
 
+function createActionProxy(pathSegments: string[] = []): any {
+  return new Proxy(
+    {},
+    {
+      get(_target, key) {
+        if (key === "query" || key === "mutate") {
+          return (input: unknown) => {
+            if (pathSegments.length < 2) {
+              throw new Error(`Unsupported OpenAPI action: ${pathSegments.join(".")}`);
+            }
+
+            const actionName = pathSegments[pathSegments.length - 1];
+            const modulePath = pathSegments.slice(0, -1).join(".");
+            return invokeAction(modulePath, actionName, key, input);
+          };
+        }
+
+        return createActionProxy([...pathSegments, String(key)]);
+      },
+    },
+  );
+}
+
 export const trpc = new Proxy(
   {},
   {
     get(_target, modulePath) {
-      return new Proxy(
-        {},
-        {
-          get(_moduleTarget, actionName) {
-            return {
-              query(input: unknown) {
-                return invokeAction(String(modulePath), String(actionName), "query", input);
-              },
-              mutate(input: unknown) {
-                return invokeAction(String(modulePath), String(actionName), "mutate", input);
-              },
-            };
-          },
-        },
-      );
+      return createActionProxy([String(modulePath)]);
     },
   },
 );

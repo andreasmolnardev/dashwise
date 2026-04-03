@@ -39,7 +39,7 @@ export default function ScreensaverSettings() {
   );
 
   useEffect(() => {
-    fetch("/fonts/index.json")
+    fetch("/assets/fonts/index.json")
       .then((response) => response.json())
       .then((data) => setFonts(Array.isArray(data) ? data : []))
       .catch((error) => console.error("Failed to load fonts", error));

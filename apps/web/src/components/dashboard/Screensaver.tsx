@@ -11,7 +11,7 @@ export default function Screensaver({ active, onExit }: { active: boolean; onExi
   const [screensaverConfig, setScreensaverConfig] = useState<any>(config.appearance?.screensaver);
 
   useEffect(() => {
-    fetch("/fonts/index.json")
+    fetch("/assets/fonts/index.json")
       .then((res) => res.json())
       .then(setFonts);
     
@@ -50,7 +50,7 @@ export default function Screensaver({ active, onExit }: { active: boolean; onExi
 
   return (
     <div
-      className="fixed inset-0 bg-black backdrop-blur-xl z-[100] flex items-center justify-center"
+      className="fixed inset-0 bg-black backdrop-blur-xl z-100 flex items-center justify-center"
       onClick={onExit}
     >
       <ClockWidget 

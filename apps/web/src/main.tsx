@@ -2,7 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { RouterProvider } from 'react-router-dom';
 import { appRouter } from './router';
-import './app/globals.css';
+import './app/tailwind.generated.css';
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>

@@ -64,7 +64,7 @@ The jobs container can be configured with the following environment variables:
 | ALLOW_SSL | No | `false` | Enables SSL support for internal service communication |
 
 ## Tech Stack
-Frontend, API Layer: Next.js
+Frontend: React SPA bundled with Bun
 Backend: Pocketbase
 
 ## How it works
@@ -75,7 +75,7 @@ The frontend reads and refreshes page config through the `usePageConfig` hook.
 
 [Selfh.st icons](https://github.com/selfhst/icons),
 [Font Awesome](https://fontawesome.com),
-[Nextjs](https://github.com/vercel/next.js), [Shadcn](https://github.com/shadcn-ui/ui)
+[Bun](https://bun.sh), [React](https://react.dev), [Shadcn](https://github.com/shadcn-ui/ui)
 
 ## Contributions
 

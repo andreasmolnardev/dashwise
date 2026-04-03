@@ -56,7 +56,7 @@ export default function ClockSelectionCarousel() {
   // Fetch font list and add "Default" option
   useEffect(() => {
     let mounted = true;
-    fetch("/fonts/index.json")
+    fetch("/assets/fonts/index.json")
       .then((r) => r.json())
       .then((data: FontEntry[]) => {
         if (!mounted) return;
@@ -131,7 +131,7 @@ export default function ClockSelectionCarousel() {
   if (!fonts.length) {
     return (
       <div className="text-sm text-muted-foreground">
-        No fonts found in <code>/public/fonts/index.json</code>
+        No fonts found in <code>/assets/fonts/index.json</code>
       </div>
     );
   }

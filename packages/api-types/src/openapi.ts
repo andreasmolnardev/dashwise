@@ -1324,6 +1324,9 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
+            security?: {
+                bearerAuth: never[];
+            }[];
             requestBody?: components["requestBodies"]["JsonBody"];
             responses: {
                 200: components["responses"]["JsonOk"];
@@ -1886,6 +1889,12 @@ export interface components {
     };
     headers: never;
     pathItems: never;
+    securitySchemes: {
+        bearerAuth: {
+            type: "http";
+            scheme: "bearer";
+        };
+    };
 }
 export type $defs = Record<string, never>;
 export type operations = Record<string, never>;

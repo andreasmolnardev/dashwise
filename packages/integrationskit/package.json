@@ -3,14 +3,15 @@
   "version": "1.0.0",
   "private": true,
   "main": "index.ts",
-  "exports": {
-    "./*": "./*"
-  },
   "peerDependencies": {
     "react": ">=19",
     "react-dom": ">=19"
   },
   "dependencies": {
     "@dashwise/sdk": "workspace:*"
+  },
+  "exports": {
+    "./GlanceableComponent": "./GlanceableComponent.tsx",
+    "./Widget": "./Widget.tsx"
   }
 }

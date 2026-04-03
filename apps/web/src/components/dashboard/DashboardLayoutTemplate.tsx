@@ -52,7 +52,7 @@ export default function DashboardLayoutTemplate({
     pageName?: string;
 }) {
     const { token, withAuth } = useAuth();
-    const searchParams = useSearchParams();
+    const [searchParams] = useSearchParams();
     const openFromURL = searchParams.get("search") === "1";
 
     const containerRef = useRef<HTMLDivElement | null>(null);

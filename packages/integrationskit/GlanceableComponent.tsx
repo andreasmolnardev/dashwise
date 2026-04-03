@@ -1,5 +1,3 @@
-import { usePageConfig } from "@/src/hooks/usePageConfig";
-import { useLocalization } from "@/src/context/LocalizationContext";
 import { useEffect, useMemo, useState } from "react";
 import type { ReactElement } from "react";
 
@@ -71,7 +69,6 @@ function GlanceableDate({
   params,
   className,
 }: GlanceableRendererProps) {
-  const { formatDate } = useLocalization();
   const formattedDate = formatDate(new Date(), params?.format);
 
   return <div className={`glanceable-date ${className || ""}`}>{formattedDate}</div>;
@@ -102,8 +99,6 @@ function GlanceableLocalTimezone({ className }: GlanceableRendererProps) {
 
 //TODO: Build from Glanceable in yaml
 function GlanceableWeather({ params, className }: GlanceableRendererProps) {
-  const { config } = usePageConfig();
-  const { weatherUnit } = useLocalization();
   const preloadedWeather = params?.data;
 
   const weatherLocation: WeatherLocation | null = useMemo(() => {
@@ -153,21 +148,12 @@ function GlanceableWeather({ params, className }: GlanceableRendererProps) {
       }
     }
 
-    if (config?.global?.weatherLocation) {
-      return JSON.parse(
-        config.global.weatherLocation.replaceAll("'", '"')
-      );
-    }
-
     return null;
   }, [
     params?.locationCoordinates,
     params?.locationDisplayname,
     params?.location,
-    config?.global?.weatherLocation ?? "",
   ]);
-
-  const unit = String(params?.unit || weatherUnit || "c").toLowerCase();
   const [weather, setWeather] = useState<any>(preloadedWeather ?? null);
 
   useEffect(() => {
@@ -245,7 +231,6 @@ function getWeatherDescription(weatherCode: unknown) {
 }
 
 function GlanceableWorldClock({ params, className }: GlanceableRendererProps) {
-  const { formatTime } = useLocalization();
   const [time, setTime] = useState("");
   const timezone = useMemo(() => normalizeTimezone(params?.timezone), [params?.timezone]);
   const location = useMemo(() => parseTemplateLikeString(params?.location) || "", [params?.location]);
@@ -267,4 +252,38 @@ function GlanceableWorldClock({ params, className }: GlanceableRendererProps) {
       {time}{location ? ` in ${location}` : ""}
     </div>
   );
+}
+
+function formatDate(input?: Date | string | number, overrideFormat?: string) {
+  const date = toDate(input);
+  const pattern = overrideFormat || "DD-MM-YYYY";
+
+  const day = String(date.getDate()).padStart(2, "0");
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const year = String(date.getFullYear());
+
+  const weekdayShort = new Intl.DateTimeFormat(undefined, { weekday: "short" }).format(date);
+  const weekdayLong = new Intl.DateTimeFormat(undefined, { weekday: "long" }).format(date);
+
+  return pattern
+    .replace("dddd", weekdayLong)
+    .replace("ddd", weekdayShort)
+    .replace("DD", day)
+    .replace("MM", month)
+    .replace("YYYY", year)
+    .trim();
+}
+
+function formatTime(input?: Date | string | number, opts?: Intl.DateTimeFormatOptions) {
+  const date = toDate(input);
+  return new Intl.DateTimeFormat(undefined, {
+    hour: "2-digit",
+    minute: "2-digit",
+    ...opts,
+  }).format(date);
+}
+
+function toDate(input?: Date | string | number): Date {
+  if (!input) return new Date();
+  return input instanceof Date ? input : new Date(input);
 }

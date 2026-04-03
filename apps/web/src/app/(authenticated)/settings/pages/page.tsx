@@ -87,7 +87,7 @@ export default function SettingsPagesPage() {
   const hasMainClock = useMemo(() => !!findMainClock(columns), [columns]);
 
   useEffect(() => {
-    fetch("/fonts/index.json")
+    fetch("/assets/fonts/index.json")
       .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data)) {

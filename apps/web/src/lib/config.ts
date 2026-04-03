@@ -8,12 +8,16 @@ interface Config {
   version: string;
   allowInsecureCertsForIntegrationUrls: boolean;
   enableSSO: boolean;
-  pbAdminEmail: string;
-  pbAdminPassword: string;
   disableUserSignup: boolean;
 }
 
-const env = import.meta.env;
+const env = ((typeof import.meta !== "undefined" && import.meta.env) ? import.meta.env : {}) as Record<
+  string,
+  string | undefined
+>;
+declare const __DEV__: boolean;
+
+const isDev = typeof __DEV__ !== "undefined" && __DEV__;
 
 const allowInsecureCertsForIntegrationUrls =
   env.NEXT_PUBLIC_INTEGRATIONS_ENABLE_SSL === "true" ||
@@ -31,11 +35,9 @@ const enableJobsWebhook =
   !!env.NEXT_PUBLIC_JOBS_URL ||
   false;
 
-  const backendUrl =
+const backendUrl =
   env.NEXT_PUBLIC_BACKEND_URL ||
-  (env.NODE_ENV === "development"
-    ? "http://localhost:3000"
-    : env.NEXT_PUBLIC_APP_URL || "http://localhost:3000");
+  (isDev ? "http://localhost:3000" : env.NEXT_PUBLIC_APP_URL || "http://localhost:3000");
 
 const config: Config = {
   app_base_url: env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
@@ -52,8 +54,6 @@ const config: Config = {
 
   allowInsecureCertsForIntegrationUrls: allowInsecureCertsForIntegrationUrls || false,
   enableSSO: enableSSOLogin,
-  pbAdminEmail: env.PB_ADMIN_EMAIL || "",
-  pbAdminPassword: env.PB_ADMIN_PASSWORD || "",
   disableUserSignup: disableUserSignup
 };
 

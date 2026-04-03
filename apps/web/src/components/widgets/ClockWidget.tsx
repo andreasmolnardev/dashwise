@@ -50,7 +50,7 @@ export default function ClockWidget({
   // Fetch font list and add "Default" option
   useEffect(() => {
     let mounted = true;
-    fetch("/fonts/index.json")
+    fetch("/assets/fonts/index.json")
       .then((r) => r.json())
       .then((data: FontEntry[]) => {
         if (!mounted) return;

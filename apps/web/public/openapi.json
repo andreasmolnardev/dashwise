@@ -539,6 +539,9 @@
 			"post": {
 				"tags": ["notifications"],
 				"summary": "Create notification",
+				"security": [
+					{ "bearerAuth": [] }
+				],
 				"requestBody": { "$ref": "#/components/requestBodies/JsonBody" },
 				"responses": {
 					"200": { "$ref": "#/components/responses/JsonOk" }
@@ -813,6 +816,12 @@
 						"schema": { "$ref": "#/components/schemas/Error" }
 					}
 				}
+			}
+		},
+		"securitySchemes": {
+			"bearerAuth": {
+				"type": "http",
+				"scheme": "bearer"
 			}
 		}
 	}

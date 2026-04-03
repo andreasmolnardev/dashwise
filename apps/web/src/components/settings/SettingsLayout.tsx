@@ -13,7 +13,6 @@ const navItems = [
   { href: "/settings/screensaver", label: "Screensaver", icon: faDisplay },
   { href: "/settings/search", label: "Search", icon: faMagnifyingGlass },
   { href: "/settings/integrations", label: "Integrations", icon: faPuzzlePiece },
-  { href: "/settings/widgets", label: "Widgets", icon: faChartLine },
   { href: "/settings/general", label: "General", icon: faSliders },
 ];
 

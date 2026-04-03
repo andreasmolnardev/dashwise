@@ -1,5 +1,5 @@
 import { promises as fs } from "node:fs";
-import { join } from "node:path";
+import { resolve } from "node:path";
 
 import type { Context } from "hono";
 
@@ -18,9 +18,23 @@ export function normalizePageName(pageName?: string | null) {
 }
 
 export async function loadSignupDefaults(filename: string) {
-  const filePath = join(process.cwd(), "apps", "web", "public", "defaults", filename);
-  const fileText = await fs.readFile(filePath, "utf8");
-  return JSON.parse(fileText);
+  const candidatePaths = [
+    resolve(process.cwd(), "apps", "web", "dist", "defaults", filename),
+    resolve(process.cwd(), "apps", "web", "public", "defaults", filename),
+    resolve(process.cwd(), "..", "web", "dist", "defaults", filename),
+    resolve(process.cwd(), "..", "web", "public", "defaults", filename),
+  ];
+
+  for (const filePath of candidatePaths) {
+    try {
+      const fileText = await fs.readFile(filePath, "utf8");
+      return JSON.parse(fileText);
+    } catch {
+      continue;
+    }
+  }
+
+  throw new Error(`Unable to load signup defaults file: ${filename}`);
 }
 
 export async function requireAuth(auth: z.infer<typeof authInput>) {
