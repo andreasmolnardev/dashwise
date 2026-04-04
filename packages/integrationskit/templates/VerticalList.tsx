@@ -2,6 +2,7 @@
 
 import { Icon } from "@iconify-icon/react";
 import React from "react";
+import IntegrationIcon from "./IntegrationIcon";
 import type { ResolvedWidget } from "../data/resolveProperties";
 
 interface VerticalListProps {
@@ -20,14 +21,12 @@ export default function VerticalList({ resolved, className }: VerticalListProps)
           href={header.titleAction ?? "#"}
           className="font-medium mb-1 grid grid-cols-[18px_1fr_16px] w-full text-start items-center gap-2"
         >
-          {header.icon && !header.icon.includes("integrations.") && (
-            <img src={header.icon} className="h-4 mx-0.5" alt="" />
-          )}
+          <IntegrationIcon source={header.icon} className="h-4 mx-0.5" alt="" size={16} />
           <p className="font-semibold truncate">{header.title}</p>
           {header.titleAction && (
             <Icon
               icon="fa6-solid:up-right-from-square"
-              className="text-xs hover:text-(--primary)"
+              className="text-xs hover:text-primary"
             />
           )}
         </a>
@@ -75,14 +74,7 @@ function ListRow({
         />
       ) : item.icon ? (
         <span className="h-8 w-8 flex items-center justify-center shrink-0 text-base">
-          {/* FontAwesome icon names like faExclamationCircle aren't resolved here —
-              the SDK should pass a rendered node or an img src.
-              Fallback: render as text indicator. */}
-          {item.icon.startsWith("/") ? (
-            <img src={item.icon} className="h-5 w-5 object-contain" alt="" />
-          ) : (
-            <span className="opacity-60 text-sm">●</span>
-          )}
+          <IntegrationIcon source={item.icon} className="h-5 w-5 object-contain" alt="" size={20} />
         </span>
       ) : null}
 
@@ -92,7 +84,7 @@ function ListRow({
           item.titleAction ? (
             <a
               href={item.titleAction}
-              className="block text-sm font-medium truncate hover:text-(--primary) transition-colors"
+              className="block text-sm font-medium truncate hover:text-primary transition-colors"
             >
               {item.title}
             </a>

@@ -2,6 +2,7 @@
 
 import { Icon } from "@iconify-icon/react";
 import React from "react";
+import IntegrationIcon from "./IntegrationIcon";
 
 interface WidgetColumnTemplateProps {
   children: React.ReactNode;
@@ -23,22 +24,27 @@ export default function WidgetColumnTemplate({
   iconUrl = "",
 }: WidgetColumnTemplateProps) {
   return (
-    <div className={`rounded-lg p-2 justify-center frosted ${className} flex-col`}>
+    <div
+      className={`rounded-lg p-2 justify-center frosted ${className} flex-col`}
+    >
       {(title || iconUrl) && (
         <a
           href={url || "#"}
-          className="font-medium mb-1 grid grid-cols-[18px_1fr_16px] w-full text-start items-center gap-2"
+          className="font-medium mb-1 flex w-full text-start items-center gap-2"
         >
-          {iconUrl && !iconUrl.includes("integrations.") && (
-            <img src={iconUrl} className="h-4 mx-0.5" alt="" />
-          )}
-          <p className="font-semibold">{title}</p>
-          {url && url !== "#" && (
-            <Icon
-              icon="fa6-solid:up-right-from-square"
-              className="text-xs hover:text-(--primary)"
-            />
-          )}
+          <IntegrationIcon
+            source={iconUrl}
+            className={`h-4 mx-0.5 ${iconUrl ? "" : "invisible"}`}
+            alt=""
+            size={16}
+          />
+          <p className="font-semibold truncate">{title}</p>
+          <Icon
+            icon="fa6-solid:up-right-from-square"
+            className={`text-xs hover:text-primary ${
+              url && url !== "#" ? "" : "hidden"
+            }`}
+          />
         </a>
       )}
 

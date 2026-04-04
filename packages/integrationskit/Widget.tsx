@@ -8,6 +8,7 @@ import {
 import WidgetColumnTemplate from "./templates/WidgetColumn";
 import VerticalList from "./templates/VerticalList";
 import IconDetailsCard from "./templates/IconDetailsCard";
+import IntegrationIcon from "./templates/IntegrationIcon";
 import type { ResolvedWidget } from "./data/resolveProperties";
 
 export type WidgetProps = {
@@ -87,7 +88,6 @@ export default function Widget({
                         isPreview: isPreview,
                     })).data
                     : null;
-
                 if (!cancelled) {
                     setResolved(
                         resolveWidgetProperties({
@@ -179,7 +179,7 @@ function WidgetErrorState({
             <p className="text-sm font-semibold text-red-200">
                 Widget failed to load
             </p>
-            <p className="mt-1 text-xs leading-snug text-red-100/80 break-words max-h-10 overflow-x-scroll">
+            <p className="mt-1 text-xs leading-snug text-red-100/80 wrap-break-word max-h-10 overflow-x-scroll">
                 {message}
             </p>
         </div>
@@ -274,15 +274,14 @@ function ColumnCell(
                 />
             )}
 
+
             {!hasProgress && hasIcon && (
-                <img
-                    src={col.icon!.file!.startsWith("/")
-                        ? col.icon!.file!
-                        : `/weather-icons/${col.icon!.file}`}
+                <IntegrationIcon
+                    source={col.icon!.file}
                     alt={col.icon!.description ?? ""}
-                    width={col.icon!.size ?? 32}
-                    height={col.icon!.size ?? 32}
+                    size={col.icon!.size ?? 32}
                     className="object-contain"
+                    useFrostedGradient={col.icon!.useFrostedGradient}
                 />
             )}
 
@@ -303,7 +302,7 @@ function ColumnCell(
                     ? (
                         <a
                             href={col.titleAction}
-                            className="text-xs font-medium hover:text-(--primary) transition-colors truncate max-w-full"
+                            className="text-xs font-medium hover:text-primary transition-colors truncate max-w-full"
                         >
                             {col.title}
                         </a>

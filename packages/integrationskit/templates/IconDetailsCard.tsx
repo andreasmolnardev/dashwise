@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import IntegrationIcon from "./IntegrationIcon";
 import type { ResolvedWidget } from "../data/resolveProperties";
 
 interface IconDetailsCardProps {
@@ -11,10 +12,7 @@ interface IconDetailsCardProps {
 export default function IconDetailsCard({ resolved, className }: IconDetailsCardProps) {
   const header = resolved.header;
   const card = resolved.card;
-
-  const iconSrc = card?.icon
-    ? card.icon.startsWith("/") ? card.icon : `/weather-icons/${card.icon}`
-    : null;
+  const iconSrc = card?.icon?.source ?? null;
 
   const primary = card?.primary ?? "";
   const secondary = card?.secondary ?? "";
@@ -26,18 +24,20 @@ export default function IconDetailsCard({ resolved, className }: IconDetailsCard
           href={header.titleAction ?? "#"}
           className="font-medium mb-2 grid grid-cols-[18px_1fr_16px] w-full text-start items-center gap-2"
         >
-          {header.icon && !header.icon.includes("integrations.") && (
-            <img src={header.icon} className="h-4 mx-0.5" alt="" />
-          )}
+          <IntegrationIcon source={header.icon} className="h-4 mx-0.5" alt="" size={16} />
           <p className="font-semibold truncate">{header.title}</p>
         </a>
       )}
 
       <div className="grid grid-cols-[auto_minmax(0,1fr)] grid-rows-2 items-center gap-x-3 gap-y-1">
         <div className="row-span-2 flex h-12 w-12 items-center justify-center rounded-lg bg-black/10 shrink-0">
-          {iconSrc ? (
-            <img src={iconSrc} className="h-9 w-9 object-contain" alt="" />
-          ) : null}
+          <IntegrationIcon
+            source={iconSrc ?? undefined}
+            className="h-9 w-9 object-contain"
+            alt=""
+            size={36}
+            useFrostedGradient={card?.icon?.useFrostedGradient}
+          />
         </div>
 
         <div className="min-w-0">

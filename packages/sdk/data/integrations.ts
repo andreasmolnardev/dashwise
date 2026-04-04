@@ -4,6 +4,7 @@ import axios from "axios";
 import YAML from "yaml";
 import fs from "fs/promises";
 import path from "path";
+import { defaultIntegrationsBlueprint, weatherIntegrationBlueprint } from "@dashwise/assets";
 import { ApiActionError } from "@dashwise/sdk/data/auth";
 import { getSuperuserPB } from "@dashwise/sdk/lib/pocketbase";
 
@@ -56,49 +57,31 @@ export async function listIntegrations(userId: string) {
     });
 
     // add default.yaml and weather.yaml (built-in templates) to the list
-    const builtinFiles = [
+    const builtinConfigs = [
         {
             id: "builtin:default",
-            file: path.join(
-                process.cwd(),
-                "lib",
-                "integrations",
-                "default.yaml",
-            ),
+            config: defaultIntegrationsBlueprint,
         },
         {
             id: "builtin:weather",
-            file: path.join(
-                process.cwd(),
-                "lib",
-                "integrations",
-                "weather.yaml",
-            ),
+            config: weatherIntegrationBlueprint,
         },
     ];
 
     const builtinRecords = (
         await Promise.all(
-            builtinFiles.map(async (b) => {
-                try {
-                    const raw = await fs.readFile(b.file, "utf-8");
-                    const parsed = YAML.parse(raw) || {};
-                    return {
-                        id: b.id,
-                        name: typeof parsed?.details?.name === "string"
-                            ? parsed.details.name
-                            : null,
-                        source: "builtin",
-                        user: null,
-                        config: parsed,
-                        environment: {},
-                        created: null,
-                        updated: null,
-                    };
-                } catch (e) {
-                    return null;
-                }
-            }),
+            builtinConfigs.map(async (b) => ({
+                id: b.id,
+                name: typeof b.config?.details?.name === "string"
+                    ? b.config.details.name
+                    : null,
+                source: "builtin",
+                user: null,
+                config: b.config,
+                environment: {},
+                created: null,
+                updated: null,
+            })),
         )
     ).filter(Boolean as any) as any[];
 

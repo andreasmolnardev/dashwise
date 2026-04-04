@@ -5,7 +5,7 @@ details:
   author: ""
   version: 1.0.0
   repository: ""
-  icon: "/weather-icons/sun-clear.svg"
+  icon: "mdi:weather-sunny"
   links:
     website: "https://open-meteo.com"
     documentation: "https://open-meteo.com/en/docs"
@@ -69,36 +69,110 @@ configuration:
             precipitation_probability: "hourly.precipitation_probability[${_index}]"
             weather_code: "hourly.weather_code[${_index}]"
 
-  # Weather code → icon file + description lookup table.
+  # Weather code → iconify tag + description lookup table.
   # Declared here so both widgets and computed fields share the same source of truth.
   lookup_tables:
     weather_code_map:
-      0:  { file: "sun-clear.svg",         desc: "Clear sky" }
-      1:  { file: "sun-clear.svg",         desc: "Mainly clear" }
-      2:  { file: "cloudy-sun.svg",        desc: "Partly cloudy" }
-      3:  { file: "clouds-overcast.svg",   desc: "Overcast" }
-      45: { file: "cloud-fog.svg",         desc: "Fog" }
-      48: { file: "cloud-fog.svg",         desc: "Rime fog" }
-      51: { file: "cloud-drizzle.svg",     desc: "Light drizzle" }
-      53: { file: "cloud-drizzle.svg",     desc: "Moderate drizzle" }
-      55: { file: "cloud-rain-heavy.svg",  desc: "Dense drizzle" }
-      56: { file: "glass-sleet-96.png",    desc: "Freezing drizzle" }
-      57: { file: "cloud-sleet.svg",       desc: "Freezing drizzle (heavy)" }
-      61: { file: "cloud-rain.svg",        desc: "Slight rain" }
-      63: { file: "cloud-rain.svg",        desc: "Moderate rain" }
-      65: { file: "glass-rain-cloud-96.png", desc: "Heavy rain" }
-      66: { file: "cloud-sleet.svg",       desc: "Freezing rain" }
-      67: { file: "cloud-sleet.svg",       desc: "Freezing rain (heavy)" }
-      71: { file: "cloud-snow.svg",        desc: "Slight snow" }
-      73: { file: "cloud-snow.svg",        desc: "Moderate snow" }
-      75: { file: "cloud-snow.svg",        desc: "Heavy snow" }
-      80: { file: "cloud-rain.svg",        desc: "Slight showers" }
-      81: { file: "cloud-rain.svg",        desc: "Moderate showers" }
-      82: { file: "cloud-rain-heavy.svg",  desc: "Violent showers" }
-      95: { file: "thunderstorm.svg",      desc: "Thunderstorm" }
-      96: { file: "thunderstorm.svg",      desc: "Thunderstorm with slight hail" }
-      99: { file: "thunderstorm.svg",      desc: "Thunderstorm with heavy hail" }
-
+      0:
+        iconDay: "fa6-solid:sun"
+        iconNight: "fa6-solid:moon"
+        desc: "Clear sky"
+      1: 
+        iconDay: "fa6-solid:sun"
+        iconNight: "fa6-solid:moon"
+        desc: "Mainly clear"
+      2:
+        iconDay: "fa6-solid:cloud-sun"
+        iconNight: "fa6-solid:cloud-moon"
+        desc: "Partly cloudy"
+      3:
+        iconDay: "fa6-solid:cloud"
+        iconNight: "fa6-solid:cloud"
+        desc: "Overcast"
+      45:
+        iconDay: "fa6-solid:smog"
+        iconNight: "fa6-solid:smog"
+        desc: "Fog"
+      48:
+        iconDay: "fa6-solid:smog"
+        iconNight: "fa6-solid:smog"
+        desc: "Rime fog"
+      51:
+        iconDay: "fa6-solid:cloud-rain"
+        iconNight: "fa6-solid:cloud-rain"
+        desc: "Light drizzle"
+      53:
+        iconDay: "fa6-solid:cloud-rain"
+        iconNight: "fa6-solid:cloud-rain"
+        desc: "Moderate drizzle"
+      55:
+        iconDay: "fa6-solid:cloud-showers-heavy"
+        iconNight: "fa6-solid:cloud-showers-heavy"
+        desc: "Dense drizzle"
+      56:
+        iconDay: "fa6-solid:cloud-sleet"
+        iconNight: "fa6-solid:cloud-sleet"
+        desc: "Freezing drizzle"
+      57:
+        iconDay: "fa6-solid:cloud-sleet"
+        iconNight: "fa6-solid:cloud-sleet"
+        desc: "Freezing drizzle (heavy)"
+      61:
+        iconDay: "fa6-solid:cloud-rain"
+        iconNight: "fa6-solid:cloud-rain"
+        desc: "Slight rain"
+      63:
+        iconDay: "fa6-solid:cloud-rain"
+        iconNight: "fa6-solid:cloud-rain"
+        desc: "Moderate rain"
+      65:
+        iconDay: "fa6-solid:cloud-showers-heavy"
+        iconNight: "fa6-solid:cloud-showers-heavy"
+        desc: "Heavy rain"
+      66:
+        iconDay: "fa6-solid:cloud-sleet"
+        iconNight: "fa6-solid:cloud-sleet"
+        desc: "Freezing rain"
+      67:
+        iconDay: "fa6-solid:cloud-sleet"
+        iconNight: "fa6-solid:cloud-sleet"
+        desc: "Freezing rain (heavy)"
+      71:
+        iconDay: "fa6-solid:snowflake"
+        iconNight: "fa6-solid:snowflake"
+        desc: "Slight snow"
+      73:
+        iconDay: "fa6-solid:snowflake"
+        iconNight: "fa6-solid:snowflake"
+        desc: "Moderate snow"
+      75:
+        iconDay: "fa6-solid:cloud-snowflake"
+        iconNight: "fa6-solid:cloud-snowflake"
+        desc: "Heavy snow"
+      80:
+        iconDay: "fa6-solid:cloud-sun-rain"
+        iconNight: "fa6-solid:cloud-moon-rain"
+        desc: "Slight showers"
+      81:
+        iconDay: "fa6-solid:cloud-sun-rain"
+        iconNight: "fa6-solid:cloud-moon-rain"
+        desc: "Moderate showers"
+      82:
+        iconDay: "fa6-solid:cloud-showers-heavy"
+        iconNight: "fa6-solid:cloud-showers-heavy"
+        desc: "Violent showers"
+      95:
+        iconDay: "fa6-solid:cloud-bolt"
+        iconNight: "fa6-solid:cloud-bolt"
+        desc: "Thunderstorm"
+      96:
+        iconDay: "fa6-solid:cloud-bolt"
+        iconNight: "fa6-solid:cloud-bolt"
+        desc: "Thunderstorm with slight hail"
+      99:
+        iconDay: "fa6-solid:cloud-bolt"
+        iconNight: "fa6-solid:cloud-bolt"
+        desc: "Thunderstorm with heavy hail"
   computed:
     weather:
       fields:
@@ -114,12 +188,20 @@ configuration:
           field: "desc"
           fallback: "Unknown"
         icon_file:
-          operation: weather_icon
-          weather_code: "this.endpoints.fetch-weather.mappedResponse.current.weather_code"
-          sunrise: "this.endpoints.fetch-weather.mappedResponse.daily.sunrise_today"
-          sunset: "this.endpoints.fetch-weather.mappedResponse.daily.sunset_today"
-          # Applies sun→moon and cloudy-sun→cloud substitutions when after sunset
-          night_swap: true
+          operation: if #if sun has already set -> use night versions of icons else day
+          condition: "this.endpoints.fetch-weather.mappedResponse.daily.sunset_today < now()"
+          and: "this.lookup_tables.weather_code_map[this.endpoints.fetch-weather.mappedResponse.current.weather_code].iconNight"
+          then:
+            operation: lookup_table
+            table: "weather_code_map"
+            key: "this.endpoints.fetch-weather.mappedResponse.current.weather_code"
+            field: "iconNight"
+          else:
+            operation: lookup_table
+            table: "weather_code_map"
+            key: "this.endpoints.fetch-weather.mappedResponse.current.weather_code"
+            field: "iconDay"
+
         wind_speed: "this.endpoints.fetch-weather.mappedResponse.current.wind_speed"
         wind_direction: "this.endpoints.fetch-weather.mappedResponse.current.wind_direction"
         humidity: "this.endpoints.fetch-weather.mappedResponse.current.humidity"
@@ -164,11 +246,19 @@ configuration:
             field: "desc"
             fallback: "Unknown"
           icon_file:
-            operation: weather_icon
-            weather_code: "this.endpoints.fetch-weather.mappedResponse.daily.tonight.weather_code"
-            # Tonight column always uses the night icon variant
-            night_swap: true
-            force_night: true
+            operation: if #if sun has already set -> use night versions of icons else day
+            condition: "this.endpoints.fetch-weather.mappedResponse.daily.sunset_today < now()"
+            and: "this.lookup_tables.weather_code_map[this.endpoints.fetch-weather.mappedResponse.current.weather_code].iconNight"
+            then:
+              operation: lookup_table
+              table: "weather_code_map"
+              key: "this.endpoints.fetch-weather.mappedResponse.current.weather_code"
+              field: "iconNight"
+            else:
+              operation: lookup_table
+              table: "weather_code_map"
+              key: "this.endpoints.fetch-weather.mappedResponse.current.weather_code"
+              field: "iconDay"
         tomorrow:
           temperature: "this.endpoints.fetch-weather.mappedResponse.daily.tomorrow.temperature"
           precipitation: "this.endpoints.fetch-weather.mappedResponse.daily.tomorrow.precipitation"
@@ -181,11 +271,19 @@ configuration:
             field: "desc"
             fallback: "Unknown"
           icon_file:
-            operation: weather_icon
-            weather_code: "this.endpoints.fetch-weather.mappedResponse.daily.tomorrow.weather_code"
-            sunrise: "this.endpoints.fetch-weather.mappedResponse.daily.sunrise_today"
-            sunset: "this.endpoints.fetch-weather.mappedResponse.daily.sunset_today"
-            night_swap: true
+            operation: if #if sun has already set -> use night versions of icons else day
+            condition: "this.endpoints.fetch-weather.mappedResponse.daily.sunset_today < now()"
+            and: "this.lookup_tables.weather_code_map[this.endpoints.fetch-weather.mappedResponse.current.weather_code].iconNight"
+            then:
+              operation: lookup_table
+              table: "weather_code_map"
+              key: "this.endpoints.fetch-weather.mappedResponse.current.weather_code"
+              field: "iconNight"
+            else:
+              operation: lookup_table
+              table: "weather_code_map"
+              key: "this.endpoints.fetch-weather.mappedResponse.current.weather_code"
+              field: "iconDay"
         hourly: "this.endpoints.fetch-weather.mappedResponse.hourly"
       useEnv:
 
@@ -207,32 +305,35 @@ configuration:
       properties:
         header:
           show_if: "${SHOW_LOCATION}"
-          title: "${computed.weather.fields.display_name} ??? Seattle"
-          icon: "/weather-icons/${computed.weather.fields.icon_file} ??? /weather-icons/sun-clear.svg"
+          title: "Forecast for ${WEATHER_LOCATION.name}"
+          icon: "${computed.weather.fields.icon_file} ??? fa6-solid:sun"
         columns:
           - label: "Now"
             icon:
               type: "weather"
-              file: "${computed.weather.fields.icon_file} ??? sun-clear.svg"
+              file: "${computed.weather.fields.icon_file} ??? fa6-solid:sun"
               size: 32
-              description: "${computed.weather.fields.description} ??? Clear sky"
-            primary: "${computed.weather.fields.temperature}${computed.weather.fields.unit} — ${computed.weather.fields.precipitation_probability}% ??? 18°C — 20%"
+              description: "${computed.weather.fields.description}"
+              useFrostedGradient: true
+            primary: "${computed.weather.fields.temperature}${computed.weather.fields.unit} - ${computed.weather.fields.precipitation_probability}%"
 
           - label: "Tonight"
             icon:
               type: "weather"
-              file: "${computed.weather.fields.tonight.icon_file} ??? moon-stars-night.svg"
+              file: "${computed.weather.fields.tonight.icon_file} ??? fa6-solid:moon"
               size: 32
-              description: "${computed.weather.fields.tonight.description} ??? Clear night"
-            primary: "${computed.weather.fields.tonight.temperature}${computed.weather.fields.unit} — ${computed.weather.fields.tonight.precipitation_probability}% ??? 11°C — 60%"
+              description: "${computed.weather.fields.tonight.description}"
+              useFrostedGradient: true
+            primary: "${computed.weather.fields.tonight.temperature}${computed.weather.fields.unit} - ${computed.weather.fields.tonight.precipitation_probability}%"
 
           - label: "Tomorrow"
             icon:
               type: "weather"
-              file: "${computed.weather.fields.tomorrow.icon_file} ??? sun-clear.svg"
+              file: "${computed.weather.fields.tomorrow.icon_file} ??? fa6-solid:sun"
               size: 32
-              description: "${computed.weather.fields.tomorrow.description} ??? Sunny"
-            primary: "${computed.weather.fields.tomorrow.temperature}${computed.weather.fields.unit} — ${computed.weather.fields.tomorrow.precipitation_probability}% ??? 21°C — 30%"
+              description: "${computed.weather.fields.tomorrow.description}"
+              useFrostedGradient: true
+            primary: "${computed.weather.fields.tomorrow.temperature}${computed.weather.fields.unit} - ${computed.weather.fields.tomorrow.precipitation_probability}%"
 
     # --- Overview: large icon + current temp + insight string ---
     - name: "Current Weather Conditions"
@@ -251,11 +352,12 @@ configuration:
       properties:
         icon:
           type: "weather"
-          file: "${computed.weather.fields.icon_file} ??? sun-clear.svg"
+          file: "${computed.weather.fields.icon_file} ??? fa6-solid:sun"
           size: 48
-          description: "${computed.weather.fields.description} ??? Clear sky"
-        primary: "${computed.weather.fields.temperature}° ${computed.weather.fields.description} ??? 18°C Clear sky"
-        secondary: "${computed.weather.fields.insight} ??? Sunny day ahead"
+          description: "${computed.weather.fields.description}"
+          useFrostedGradient: true
+        primary: "${computed.weather.fields.temperature}° ${computed.weather.fields.description}"
+        secondary: "${computed.weather.fields.insight}"
 
   glanceables:
     - name: "Local Weather"
@@ -266,9 +368,7 @@ configuration:
         displayName: "${WEATHER_LOCATION.name}"
         showLocation: "${SHOW_LOCATION}"
       icon:
-        file: "${computed.weather.icon_file} ??? sun-clear.svg"
+        file: "${computed.weather.icon_file} ??? fa6-solid:sun"
         size: 16
-        description: "${computed.weather.description} ??? Clear sky"
-      text: "${computed.weather.temperature}${computed.weather.unit} ??? 18°C"
-
-  # Weather has no meaningful search items — the section is omitted intentionally.
+        description: "${computed.weather.description}"
+      text: "${computed.weather.temperature}${computed.weather.unit}"

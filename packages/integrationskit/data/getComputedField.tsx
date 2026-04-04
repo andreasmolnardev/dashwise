@@ -165,11 +165,8 @@ function evaluateInlineCondition(condition: string, context: ComputedResolutionC
 }
 
 function compareConditionValues(left: any, right: any, operator: string) {
-	const leftNumber = Number(left);
-	const rightNumber = Number(right);
-	const numeric = Number.isFinite(leftNumber) && Number.isFinite(rightNumber);
-	const a = numeric ? leftNumber : left;
-	const b = numeric ? rightNumber : right;
+	const a = coerceComparableValue(left);
+	const b = coerceComparableValue(right);
 
 	switch (operator) {
 		case ">":
@@ -373,7 +370,7 @@ function evaluateComputedFilter(value: any, context: ComputedResolutionContext):
 		return Boolean(resolved);
 	}
 
-	const expression = interpolateString(value, context.env).trim();
+	const expression = normalizeComputedExpression(interpolateString(value, context.env)).trim();
 	if (!expression) return false;
 
 	try {
@@ -388,7 +385,21 @@ function evaluateComputedFilter(value: any, context: ComputedResolutionContext):
 function resolveOperationValue(def: Record<string, any>, context: ComputedResolutionContext): any {
 	const operation = String(def.operation ?? "").trim().toLowerCase();
 	const resolvedInputs = resolveComputedFieldValue(def.inputs ?? {}, context) as Record<string, any>;
-	const fallback = def.fallback;
+	const fallback = resolveComputedFieldValue(def.fallback, context);
+
+	if (operation === "if") {
+		const conditionSource = def.condition ?? def.test ?? def.value;
+		const condition =
+			typeof conditionSource === "string"
+				? evaluateComputedFilter(conditionSource, context)
+				: Boolean(resolveComputedFieldValue(conditionSource, context));
+		const trueBranch = def.then ?? def.whenTrue ?? def.true ?? def.valueIfTrue;
+		const falseBranch = def.else ?? def.whenFalse ?? def.false ?? def.valueIfFalse;
+		const selectedBranch = condition ? trueBranch : falseBranch;
+		const result = resolveComputedFieldValue(selectedBranch, context);
+		console.log("Resolved if operation with condition", { condition, selectedBranch, result });
+		return result !== undefined && result !== null ? result : fallback;
+	}
 
 	if (operation === "join") {
 		const raw = resolveComputedFieldValue(def.value, context);
@@ -428,7 +439,7 @@ function resolveOperationValue(def: Record<string, any>, context: ComputedResolu
 		return humanBytes(raw) || fallback;
 	}
 
-	if (operation === "lookup") {
+	if (operation === "lookup" || operation === "lookup_table") {
 		const tableName = resolveComputedFieldValue(def.table, context);
 		const keyValue = resolveComputedFieldValue(def.key, context);
 		const fieldName = typeof def.field === "string" ? def.field : undefined;
@@ -442,6 +453,32 @@ function resolveOperationValue(def: Record<string, any>, context: ComputedResolu
 
 		const result = getLookupTableValue(table, keyValue, fieldName);
 		return result === undefined ? fallback : result;
+	}
+
+	if (operation === "weather_icon") {
+		const weatherCode = resolveComputedFieldValue(def.weather_code ?? def.code ?? def.value, context);
+		const tableName = resolveComputedFieldValue(def.table ?? "weather_code_map", context);
+		let table: any = undefined;
+		if (typeof tableName === "string") {
+			table = getNestedValue(context.scope ?? {}, `lookup_tables.${tableName}`) ?? (context.scope ?? {})[tableName];
+		} else {
+			table = tableName;
+		}
+
+		const entry = getLookupTableValue(table, weatherCode);
+		if (!entry) return fallback;
+
+		const forceNight = Boolean(resolveComputedFieldValue(def.force_night ?? def.forceNight, context));
+		const nightSwap = def.night_swap === undefined ? true : Boolean(resolveComputedFieldValue(def.night_swap, context));
+		const sunrise = resolveComputedFieldValue(def.sunrise, context);
+		const sunset = resolveComputedFieldValue(def.sunset, context);
+		const useNight = forceNight || (nightSwap && isNightTime(sunrise, sunset));
+		const iconDay = entry.iconDay ?? entry.fileDay;
+		const iconNight = entry.iconNight ?? entry.fileNight;
+
+		if (useNight && iconNight !== undefined) return iconNight;
+		if (!useNight && iconDay !== undefined) return iconDay;
+		return iconDay ?? iconNight ?? fallback;
 	}
 
 
@@ -466,7 +503,7 @@ function resolveOperationValue(def: Record<string, any>, context: ComputedResolu
 		if (!expression) return fallback;
 
 		try {
-			const normalizedExpression = expression
+			const normalizedExpression = normalizeComputedExpression(expression)
 				.replace(/\bor\b/g, "||")
 				.replace(/\band\b/g, "&&")
 				.replace(/\bnot\b/g, "!");
@@ -477,6 +514,7 @@ function resolveOperationValue(def: Record<string, any>, context: ComputedResolu
 				"humanBytes",
 				"length",
 				"isNaN",
+				"now",
 				`return (${normalizedExpression});`,
 			);
 			return evaluator(
@@ -486,6 +524,7 @@ function resolveOperationValue(def: Record<string, any>, context: ComputedResolu
 				humanBytes,
 				(value: any) => (Array.isArray(value) || typeof value === "string" ? value.length : 0),
 				Number.isNaN,
+				() => Date.now(),
 			);
 		} catch {
 			return fallback;
@@ -511,6 +550,31 @@ function parseMaybeJson(value: string) {
 	} catch {
 		return value;
 	}
+}
+
+function normalizeComputedExpression(expression: string) {
+	return expression.replace(/\bnow\(\)/g, String(Date.now()));
+}
+
+function isNightTime(sunrise: any, sunset: any) {
+	const sunriseTime = parseComparableTime(sunrise);
+	const sunsetTime = parseComparableTime(sunset);
+	if (sunriseTime === undefined && sunsetTime === undefined) return false;
+
+	const currentTime = Date.now();
+	if (sunriseTime !== undefined && currentTime < sunriseTime) return true;
+	if (sunsetTime !== undefined && currentTime >= sunsetTime) return true;
+	return false;
+}
+
+function parseComparableTime(value: any) {
+	if (value === undefined || value === null || value === "") return undefined;
+	if (typeof value === "number" && Number.isFinite(value)) {
+		return value > 1e12 ? value : value * 1000;
+	}
+
+	const parsed = Date.parse(String(value));
+	return Number.isFinite(parsed) ? parsed : undefined;
 }
 
 function humanBytes(value: any) {
@@ -557,6 +621,45 @@ function tokenizeExpression(expression: string): ExpressionToken[] {
 			continue;
 		}
 
+		if (char === "-" && /\d/.test(expression[index + 1] ?? "")) {
+			let end = index + 1;
+			while (end < expression.length && /[\d.]/.test(expression[end])) {
+				end += 1;
+			}
+			const raw = expression.slice(index, end);
+			tokens.push({ type: "number", value: Number(raw) });
+			index = end;
+			continue;
+		}
+
+		if (/[A-Za-z_$]/.test(char)) {
+			let end = index + 1;
+			let allowHyphen = false;
+			while (end < expression.length) {
+				const current = expression[end];
+				if (/\s/.test(current) || ["(", ")", ">", "<", "=", "!", "&", "|", "+", "*", "/", ","].includes(current)) {
+					break;
+				}
+				if (current === "-") {
+					if (!allowHyphen) break;
+				}
+				if (current === "." || current === "[" || current === "]") {
+					allowHyphen = true;
+				}
+				end += 1;
+			}
+
+			const raw = expression.slice(index, end);
+			const lower = raw.toLowerCase();
+			if (["and", "or", "not", "contains"].includes(lower)) {
+				tokens.push({ type: "operator", value: lower });
+			} else {
+				tokens.push({ type: "identifier", value: raw });
+			}
+			index = end;
+			continue;
+		}
+
 		if (char === "(" || char === ")") {
 			tokens.push({ type: "paren", value: char });
 			index += 1;
@@ -570,7 +673,7 @@ function tokenizeExpression(expression: string): ExpressionToken[] {
 			continue;
 		}
 
-		if ([">", "<", "+", "-", "*", "/", "!"].includes(char)) {
+		if ([">", "<", "+", "*", "/", "!"].includes(char)) {
 			tokens.push({ type: "operator", value: char });
 			index += 1;
 			continue;
@@ -599,7 +702,7 @@ function tokenizeExpression(expression: string): ExpressionToken[] {
 		let end = index;
 		while (end < expression.length) {
 			const current = expression[end];
-			if (/\s/.test(current) || ["(", ")", ">", "<", "=", "!", "&", "|", "+", "*", "/"].includes(current)) {
+			if (/\s/.test(current) || ["(", ")", ">", "<", "=", "!", "&", "|", "+", "*", "/", ","].includes(current)) {
 				break;
 			}
 			end += 1;
@@ -757,11 +860,8 @@ function resolveOperand(value: string, context: ComputedResolutionContext): any 
 }
 
 function compareValues(left: any, right: any, operator: string) {
-	const leftNumber = Number(left);
-	const rightNumber = Number(right);
-	const numeric = Number.isFinite(leftNumber) && Number.isFinite(rightNumber);
-	const a = numeric ? leftNumber : left;
-	const b = numeric ? rightNumber : right;
+	const a = coerceComparableValue(left);
+	const b = coerceComparableValue(right);
 
 	switch (operator) {
 		case ">":
@@ -777,6 +877,20 @@ function compareValues(left: any, right: any, operator: string) {
 		default:
 			return a === b;
 	}
+}
+
+function coerceComparableValue(value: any) {
+	if (typeof value === "number") return value;
+	if (typeof value === "boolean") return value ? 1 : 0;
+	if (value === undefined || value === null) return value;
+
+	const numeric = Number(value);
+	if (Number.isFinite(numeric)) return numeric;
+
+	const parsed = Date.parse(String(value));
+	if (Number.isFinite(parsed)) return parsed;
+
+	return value;
 }
 
 function tokenizePath(path: string) {
