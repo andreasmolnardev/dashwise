@@ -13,7 +13,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faCopy } from "@fortawesome/free-solid-svg-icons";
-import { EndpointTestResult } from "@/src/lib/integrations/types";
+import { EndpointTestResult } from "@/lib/integrations/types";
 
 type Props = {
   open: boolean;

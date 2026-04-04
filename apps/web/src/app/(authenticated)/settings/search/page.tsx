@@ -18,13 +18,13 @@ import {
   DialogClose,
 } from "@/components/ui/dialog";
 import { Plus, MoreHorizontal } from "lucide-react";
-import { usePageConfig } from "@/src/hooks/usePageConfig";
+import { usePageConfig } from "@/hooks/usePageConfig";
 import SearchEngineDetailsForm from "@/components/settings/SearchEngineDetailsForm";
 import TabSwitcher from "@/components/common/TabSwitcher";
 import SearchEngineBrowseFeedComponent from "@/components/settings/SearchEngineBrowseFeed";
 import { Icon } from "@iconify-icon/react";
 import { Select, SelectValue, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
-import useAuth from "@/src/context/useAuth";
+import useAuth from "@/context/useAuth";
 
 export default function SearchSettingsPage() {
   const { withAuth, user, updateUserProperty } = useAuth();

@@ -1,15 +1,15 @@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { usePageConfig } from "@/src/hooks/usePageConfig";
-import config from "@/src/lib/config";
+import { usePageConfig } from "@/hooks/usePageConfig";
+import config from "@/lib/config";
 import { Icon } from "@iconify-icon/react";
 import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
 import LocationSelectFormComponent from "@/components/settings/LocationSelectForm";
-import useAuth from "@/src/context/useAuth";
+import useAuth from "@/context/useAuth";
 import { runPullIconsAction } from "@/app/actions/misc";
 import { updateConfigPathAction } from "@/app/actions/config";
-import { useLocalization } from "@/src/context/LocalizationContext";
+import { useLocalization } from "@/context/LocalizationContext";
 
 type TimeFormatValue = "24-hour" | "12-hour";
 

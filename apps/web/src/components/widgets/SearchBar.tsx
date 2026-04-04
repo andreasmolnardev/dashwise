@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
-import useAuth from "@/src/context/useAuth";
+import useAuth from "@/context/useAuth";
 import CommandBar from './CommandBar';
 import { getSearchItemsAction } from '@/app/actions/searchItems';
 

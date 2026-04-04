@@ -1,8 +1,8 @@
 "use client";
 
-import { usePageConfig } from "@/src/hooks/usePageConfig";
+import { usePageConfig } from "@/hooks/usePageConfig";
 import { useEffect, useState } from "react";
-import { loadFont } from "@/src/lib/loadFont";
+import { loadFont } from "@/lib/loadFont";
 import ClockWidget from "../widgets/ClockWidget";
 
 export default function Screensaver({ active, onExit }: { active: boolean; onExit: () => void }) {

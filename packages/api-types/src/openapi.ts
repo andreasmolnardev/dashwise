@@ -1620,6 +1620,33 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/pageConfig/home": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: components["requestBodies"]["JsonBody"];
+            responses: {
+                200: components["responses"]["JsonOk"];
+            };
+        };
+        get?: never;
+        put?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/pageConfig/user-pages": {
         parameters: {
             query?: never;

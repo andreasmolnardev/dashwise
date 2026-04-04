@@ -3,7 +3,7 @@
 
 import ClockWidget from "../ClockWidget";
 import GlanceableComponent from "../../glanceables/Glanceable";
-import { usePageConfig } from "@/src/hooks/usePageConfig";
+import { usePageConfig } from "@/hooks/usePageConfig";
 import type { WidgetItemProps } from "../Widget";
 
 export default function GlanceableClockWidget({ className, params }: WidgetItemProps) {

@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import useAuth from "@/context/useAuth";
 import GlanceableComponent, { GlanceableProps } from "@/components/glanceables/Glanceable";
-import { usePageConfig } from "@/src/hooks/usePageConfig.ts";
+import { usePageConfig } from "@/hooks/usePageConfig.ts";
 import { updateConfigPathAction } from "@/app/actions/config";
 import { getUserGlanceableAction } from "@/app/actions/widgets";
 import { Input } from "../ui/input";

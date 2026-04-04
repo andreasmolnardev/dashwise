@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import IconPickerComponent from "@/components/settings/IconPicker";
-import useAuth from "@/src/context/useAuth";
+import useAuth from "@/context/useAuth";
 
 import {
     Select,

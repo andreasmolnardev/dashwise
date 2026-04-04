@@ -1,4 +1,5 @@
 import { ClientResponseError, getServerPB } from "@dashwise/sdk/lib/pocketbase";
+import { defaultHomeConfig } from "@dashwise/assets";
 
 import speakeasy from "speakeasy";
 import config from "../lib/config";
@@ -223,32 +224,10 @@ export async function signupUser(payload: {
     searchPreferences: userConfig?.preferences?.search || {},
   });
 
-  //TODO: REplace with real storage
-  
-  let defaultHomeJson = {};
-  try {
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "";
-    const response = await fetch(`${baseUrl}/defaults/home.json`);
-    if (response.ok) {
-      defaultHomeJson = await response.json();
-    }
-  } catch (err) {
-    console.error("Failed to load default home.json via fetch, using fallback", err);
-    // Fallback if fetch fails or URL is not set
-    defaultHomeJson = {
-      zones: {
-        top: [],
-        left: [],
-        right: [],
-        bottom: []
-      }
-    };
-  }
-
   await pb.collection("pageConfig").create({
     associatedUserId: user.id,
-    config: defaultHomeJson,
-    pageName: "home"
+    config: defaultHomeConfig,
+    pageName: "home",
   });
 
   return { user };

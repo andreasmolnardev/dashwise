@@ -12,7 +12,7 @@ import { getPageConfigJSON, getUserPages, updatePageConfig } from "@dashwise/sdk
 import { getMonitoringStatus, runMonitoringStatus } from "@dashwise/sdk/data/monitoring";
 import { uploadWallpaper } from "@dashwise/sdk/data/wallpapers";
 
-import { readAuthToken, readBool, readJsonBody, requireAuth, normalizePageName, withJson } from "./shared";
+import { loadSignupDefaults, readAuthToken, readBool, readJsonBody, requireAuth, normalizePageName, withJson } from "./shared";
 
 export function registerDataControllers(app: Hono) {
   app.get("/api/v1/config", withJson(async (c) => {
@@ -65,6 +65,20 @@ export function registerDataControllers(app: Hono) {
     const body = await readJsonBody<any>(c);
     const { userId } = await requireAuth(body?.auth);
     return updatePageConfig(userId, normalizePageName(body?.pageName), body?.config ?? {});
+  }));
+  app.post("/api/v1/pageConfig/home", withJson(async (c) => {
+    const body = await readJsonBody<any>(c);
+    const { userId } = await requireAuth(body?.auth);
+    const existingHomeConfig = await getPageConfigJSON(userId, "home");
+
+    if (existingHomeConfig) {
+      return { success: true, created: false, config: existingHomeConfig };
+    }
+
+    const defaultHomeConfig = await loadSignupDefaults("home.json");
+    await updatePageConfig(userId, "home", defaultHomeConfig);
+
+    return { success: true, created: true, config: defaultHomeConfig };
   }));
 
   app.get("/api/v1/links/collections", withJson(async (c) => {

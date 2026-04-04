@@ -3,17 +3,35 @@
 
 import React from "react";
 import { Link, useNavigate } from "react-router-dom";
-import useAuth from "@/src/context/useAuth";
+import { createHomePageAction } from "@/app/actions/pageConfigs";
+import useAuth from "@/context/useAuth";
 
-export default function PageNotFound() {
-	const { logout } = useAuth();
+
+type PageNotFoundProps = {
+	pageName?: string;
+};
+
+export default function PageNotFound({ pageName }: PageNotFoundProps) {
+	const { logout, withAuth } = useAuth();
 	const navigate = useNavigate();
+	const isHomePage = String(pageName ?? "").trim().toLowerCase() === "home";
+	const [creatingHomePage, setCreatingHomePage] = React.useState(false);
 
 	const handleLogout = () => {
 		try {
 			logout();
 		} finally {
 			navigate("/");
+		}
+	};
+
+	const handleCreateHomePage = async () => {
+		setCreatingHomePage(true);
+		try {
+			await withAuth((auth) => createHomePageAction(auth));
+			window.location.reload();
+		} finally {
+			setCreatingHomePage(false);
 		}
 	};
 
@@ -24,19 +42,37 @@ export default function PageNotFound() {
 				<p style={{ color: "#666", marginBottom: 20 }}>We couldn't find the page you're looking for.</p>
 
 				<div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
-					<Link
-						to="/"
-						style={{
-							display: "inline-block",
-							padding: "10px 16px",
-							background: "#0b5fff",
-							color: "#fff",
-							borderRadius: 6,
-							textDecoration: "none"
-						}}
-					>
-						Go to Home
-					</Link>
+					{isHomePage ? (
+						<button
+							onClick={handleCreateHomePage}
+							disabled={creatingHomePage}
+							style={{
+								padding: "10px 16px",
+								background: "#0b5fff",
+								color: "#fff",
+								border: "1px solid #0b5fff",
+								borderRadius: 6,
+								cursor: creatingHomePage ? "wait" : "pointer",
+								opacity: creatingHomePage ? 0.8 : 1
+							}}
+						>
+							{creatingHomePage ? "Creating..." : "Create Home Page"}
+						</button>
+					) : (
+						<Link
+							to="/"
+							style={{
+								display: "inline-block",
+								padding: "10px 16px",
+								background: "#0b5fff",
+								color: "#fff",
+								borderRadius: 6,
+								textDecoration: "none"
+							}}
+						>
+							Go to Home
+						</Link>
+					)}
 
 					<button onClick={handleLogout} style={{
 						padding: "10px 16px",

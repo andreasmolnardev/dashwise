@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from "react";
-import { cn } from "@/src/lib/utils";
+import { cn } from "@/lib/utils";
 import {
     DropdownMenu,
     DropdownMenuTrigger,
@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/table";
 import { MoreHorizontal, Copy, Trash2, Edit2 } from "lucide-react";
 import CreateForwarderDialogComponent, { ForwarderItem } from "@/components/notifications/CreateForwarderDialog";
-import useAuth from "@/src/context/useAuth";
+import useAuth from "@/context/useAuth";
 import { getNotificationTopicsAction } from "@/app/actions/notifications/items";
 import {
     deleteForwarderAction,

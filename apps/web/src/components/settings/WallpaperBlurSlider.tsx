@@ -2,8 +2,8 @@
 
 import React, { useState, useEffect } from "react";
 import { Slider } from "@/components/ui/slider";
-import { usePageConfig } from "@/src/hooks/usePageConfig";
-import useAuth from "@/src/context/useAuth";
+import { usePageConfig } from "@/hooks/usePageConfig";
+import useAuth from "@/context/useAuth";
 
 export default function WallpaperBlurSliderComponent({ className }: { className?: string }) {
   const { config, refreshConfig } = usePageConfig();

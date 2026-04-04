@@ -2,9 +2,9 @@
 
 import React, { useState, useEffect } from "react";
 import { Slider } from "@/components/ui/slider";
-import { cn } from "@/src/lib/utils";
-import { usePageConfig } from "@/src/hooks/usePageConfig";
-import useAuth from "@/src/context/useAuth";
+import { cn } from "@/lib/utils";
+import { usePageConfig } from "@/hooks/usePageConfig";
+import useAuth from "@/context/useAuth";
 
 export default function WallpaperBrightnessSliderComponent({ className }: { className?: string }) {
   const { config, refreshConfig } = usePageConfig();

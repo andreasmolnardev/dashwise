@@ -1,8 +1,8 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { usePageConfig } from "@/src/hooks/usePageConfig";
-import useAuth from "@/src/context/useAuth";
+import { usePageConfig } from "@/hooks/usePageConfig";
+import useAuth from "@/context/useAuth";
 import { getMonitoringStatusAction } from "@/app/actions/monitoring";
 import { getHomeLinksAction } from "@/app/actions/links";
 import { PaginatedCarouselViewComponent } from "./PaginatedCarouselView";

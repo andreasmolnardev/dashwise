@@ -10,7 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
-import { usePageConfig } from "@/src/hooks/usePageConfig";
+import { usePageConfig } from "@/hooks/usePageConfig";
 import useAuth from "@/context/useAuth";
 import { appendConfigArrayItemAction } from "@/app/actions/config";
 

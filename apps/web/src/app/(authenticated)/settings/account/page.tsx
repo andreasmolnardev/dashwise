@@ -19,8 +19,8 @@ import { useNavigate } from "react-router-dom";
 import { changePasswordAction, deleteAccountAction } from "@/app/actions/auth";
 import { DialogDescription } from "@radix-ui/react-dialog";
 import ExportConfigDialog from "@/components/settings/ExportConfigDialog";
-import { usePageConfig } from "@/src/hooks/usePageConfig";
-import useAuth from "@/src/context/useAuth";
+import { usePageConfig } from "@/hooks/usePageConfig";
+import useAuth from "@/context/useAuth";
 import ImportConfigDialog from "@/components/settings/ImportConfigDialog";
 
 export default function AccountSettingsPage() {

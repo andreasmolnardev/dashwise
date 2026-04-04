@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { ColorPicker } from "@/components/settings/ColorPicker";
-import { usePageConfig } from "@/src/hooks/usePageConfig";
+import { usePageConfig } from "@/hooks/usePageConfig";
 import useAuth from "@/context/useAuth";
 
 type ThemeMode = "system" | "dark" | "light";

@@ -5,7 +5,7 @@ import GlanceableClockWidget from "./dashboard/GlanceableClock";
 import LinkView from "./LinkView";
 import SearchBar from "./SearchBar";
 import Widget from "@dashwise/integrationskit/Widget";
-import useAuth from "@/src/context/useAuth";
+import useAuth from "@/context/useAuth";
 import { getIntegrationWithWidgetAction } from "@/app/actions/integrations";
 
 export type WidgetProps = {

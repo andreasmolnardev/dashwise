@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { getLocationsAction } from "@/app/actions/misc";
-import useAuth from "@/src/context/useAuth";
+import useAuth from "@/context/useAuth";
 
 interface SearchResult {
     display_name: string;

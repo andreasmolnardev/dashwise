@@ -2,7 +2,7 @@
 import { useNavigate } from "react-router-dom"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import config from "@/src/lib/config"
+import config from "@/lib/config"
 import { useEffect, useState } from "react"
 import { getAppConfigAction } from "@/app/actions/app";
 import { validateAuthTokenAction } from "@/app/actions/auth";

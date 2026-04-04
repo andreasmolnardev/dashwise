@@ -1,7 +1,7 @@
 "use client";
 
 import { getUserConfigAction } from "@/app/actions/config";
-import useAuth from "@/src/context/useAuth";
+import useAuth from "@/context/useAuth";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useCallback, useEffect, useMemo, useState } from "react";
 

@@ -4,11 +4,11 @@ import { Link, useLocation } from "react-router-dom";
 // import { faHome, faInbox, faKey, faShareNodes } from "@fortawesome/free-solid-svg-icons";
 import { Label } from "@/components/ui/label";
 import { useCallback, useEffect, useRef, useState } from "react";
-import useAuth from "@/src/context/useAuth";
+import useAuth from "@/context/useAuth";
 import { getNotificationsAction } from "@/app/actions/notifications/items";
 import { Icon } from "@iconify-icon/react";
-import { NOTIFICATIONS_UPDATED_EVENT } from "@/src/lib/events";
-import config from "@/src/lib/config";
+import { NOTIFICATIONS_UPDATED_EVENT } from "@/lib/events";
+import config from "@/lib/config";
 
 const navItems = [
     { href: "/notifications/inbox", label: "Inbox", icon: "fa6-solid:inbox" },

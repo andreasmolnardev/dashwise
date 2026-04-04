@@ -3,9 +3,9 @@
     "columns": {
         "left": {"placeholder": {"height": "$main-clock"}},
         "middle": {
-            "main-clock": {"glanceables": {"date": null, "weather": null}},
-            "search-bar": {},
-            "link-view": {}
+            "main-clock": {"index": 0,"glanceables": {"date": null, "weather": null}},
+            "search-bar": {"index": 1},
+            "link-view": {"index": 2}
         },
         "right": {"placeholder": {"height": "$main-clock"}}
     }

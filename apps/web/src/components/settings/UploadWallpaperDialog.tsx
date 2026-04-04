@@ -12,8 +12,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { usePageConfig } from "@/src/hooks/usePageConfig";
-import useAuth from "@/src/context/useAuth";
+import { usePageConfig } from "@/hooks/usePageConfig";
+import useAuth from "@/context/useAuth";
 import { uploadWallpaperAction } from "@/app/actions/wallpapers";
 import { updateConfigPathAction } from "@/app/actions/config";
 

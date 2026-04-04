@@ -14,8 +14,8 @@ import { Button } from "@/components/ui/button"
 import { Label } from "../ui/label.tsx"
 import { Input } from "../ui/input.tsx"
 import { useEffect, useState } from "react"
-import useAuth from "@/src/context/useAuth.tsx"
-import { usePageConfig } from "@/src/hooks/usePageConfig.ts"
+import useAuth from "@/context/useAuth.tsx"
+import { usePageConfig } from "@/hooks/usePageConfig.ts"
 import { replaceUserConfigAction } from "@/app/actions/config";
 
 export default function ImportConfigDialog() {

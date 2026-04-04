@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from "react";
-import { cn } from "@/src/lib/utils";
+import { cn } from "@/lib/utils";
 import {
     DropdownMenu,
     DropdownMenuTrigger,
@@ -12,7 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { MoreHorizontal } from "lucide-react";
 import CreateTopicTokenDialogComponent from "@/components/notifications/CreateTopicTokenDialog";
-import useAuth from "@/src/context/useAuth";
+import useAuth from "@/context/useAuth";
 import { getNotificationTopicsAction } from "@/app/actions/notifications/items";
 import { deleteTopicTokenAction, listTopicTokensAction } from "@/app/actions/notifications/topicTokens";
 

@@ -1,4 +1,10 @@
 {
   "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@dashwise/assets": ["../assets/index.ts"]
+    }
+  },
   "include": ["**/*.ts"]
 }

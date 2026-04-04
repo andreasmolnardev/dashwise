@@ -1,5 +1,5 @@
 import AuthWelcomeFormComponent from "@/components/auth/AuthWelcomeForm";
-import config from "@/src/lib/config";
+import config from "@/lib/config";
 
 export default function AuthWelcomePage() {
     return (

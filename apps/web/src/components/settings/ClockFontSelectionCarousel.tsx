@@ -2,9 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { PaginatedCarouselViewComponent } from "../widgets/PaginatedCarouselView";
-import { usePageConfig } from "@/src/hooks/usePageConfig";
-import { useAuth } from "@/src/context/useAuth";
-import { loadFont } from "@/src/lib/loadFont";
+import { usePageConfig } from "@/hooks/usePageConfig";
+import { useAuth } from "@/context/useAuth";
+import { loadFont } from "@/lib/loadFont";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";

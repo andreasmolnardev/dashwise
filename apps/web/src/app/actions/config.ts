@@ -1,31 +1,30 @@
 import type { ActionAuth } from "@dashwise/sdk/data/auth";
-import { trpc } from "@/lib/apiClient";
-const api = trpc as any;
+import { api } from "@/lib/apiClient";
 
 export async function getUserConfigAction(auth: ActionAuth, pageName?: string) {
-  return api.config.getUserConfigAction.query({ auth, pageName });
+  return api.config.getUserConfigAction({ auth, pageName });
 }
 
 export async function appendConfigArrayItemAction(auth: ActionAuth, path: string, newItem: any, pageName?: string) {
-  return api.config.appendConfigArrayItemAction.mutate({ auth, path, newItem, pageName });
+  return api.config.appendConfigArrayItemAction({ auth, path, newItem, pageName });
 }
 
 export async function updateConfigPathAction(auth: ActionAuth, path: string, updatedItem: any, pageName?: string) {
-  return api.config.updateConfigPathAction.mutate({ auth, path, updatedItem, pageName });
+  return api.config.updateConfigPathAction({ auth, path, updatedItem, pageName });
 }
 
 export async function replaceUserConfigAction(auth: ActionAuth, nextConfig: Record<string, any>, pageName?: string) {
-  return api.config.replaceUserConfigAction.mutate({ auth, nextConfig, pageName });
+  return api.config.replaceUserConfigAction({ auth, nextConfig, pageName });
 }
 
 export async function deleteUnusedLinkgroupsAction(auth: ActionAuth) {
-  return api.config.deleteUnusedLinkgroupsAction.mutate(auth);
+  return api.config.deleteUnusedLinkgroupsAction(auth);
 }
 
 export async function moveConfigArrayItemsAction(auth: ActionAuth, path: string, src: number, dst: number) {
-  return api.config.moveConfigArrayItemsAction.mutate({ auth, path, src, dst });
+  return api.config.moveConfigArrayItemsAction({ auth, path, src, dst });
 }
 
 export async function migrateLegacyPageConfigAction(auth: ActionAuth) {
-  return api.config.migrateLegacyPageConfigAction.mutate(auth);
+  return api.config.migrateLegacyPageConfigAction(auth);
 }

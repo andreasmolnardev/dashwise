@@ -13,7 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import type { EnvDefinition } from "@/src/lib/integrations/types";
+import type { EnvDefinition } from "@/lib/integrations/types";
 import {
   Tooltip,
   TooltipContent,

@@ -1,5 +1,4 @@
 import Parser from 'rss-parser';
-import { JSDOM } from 'jsdom';
 
 export interface FeedItem {
     title: string;
@@ -95,13 +94,49 @@ function getHtmlContent(item: ParserItem, priotizeEncode?: boolean) {
     return String(contentDescription);
 }
 
-function filteredText(text: string) {
-    if (!text) { return "" }
-    return text.replace(/<[^>]*>/g, "");
+function getTextContent(text: string) {
+    if (!text) {
+        return "";
+    }
+
+    return decodeHtmlEntities(
+        text
+            .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, " ")
+            .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, " ")
+            .replace(/<[^>]+>/g, " ")
+            .replace(/\s+/g, " ")
+            .trim()
+    );
 }
 
-function getTextContent(text: string) {
-    return new JSDOM(text).window.document.body.textContent ?? "";
+function decodeHtmlEntities(text: string) {
+    const namedEntities: Record<string, string> = {
+        amp: "&",
+        lt: "<",
+        gt: ">",
+        quot: '"',
+        apos: "'",
+        nbsp: " ",
+    };
+
+    return text.replace(/&(#x?[0-9a-fA-F]+|[a-zA-Z]+);/g, (match, entity: string) => {
+        if (entity.startsWith("#x") || entity.startsWith("#X")) {
+            const codePoint = Number.parseInt(entity.slice(2), 16);
+            return Number.isFinite(codePoint) ? String.fromCodePoint(codePoint) : match;
+        }
+
+        if (entity.startsWith("#")) {
+            const codePoint = Number.parseInt(entity.slice(1), 10);
+            return Number.isFinite(codePoint) ? String.fromCodePoint(codePoint) : match;
+        }
+
+        return namedEntities[entity] ?? match;
+    });
+}
+
+function getFirstImageSource(html: string) {
+    const match = html.match(/<img\b[^>]*\bsrc\s*=\s*(?:"([^"]+)"|'([^']+)'|([^\s>]+))/i);
+    return match?.[1] ?? match?.[2] ?? match?.[3] ?? undefined;
 }
 
 export function getThumbnail(item: any, fallbackUrl?: any): string | undefined {
@@ -163,15 +198,7 @@ export function getThumbnail(item: any, fallbackUrl?: any): string | undefined {
         item.description;
 
     if (typeof html === 'string') {
-        try {
-            const dom = new JSDOM(html);
-            const img = dom.window.document.querySelector('img');
-            if (img?.getAttribute('src')) {
-                return img.getAttribute('src') ?? undefined;
-            }
-        } catch {
-            /* ignore HTML parsing errors */
-        }
+        return getFirstImageSource(html) ?? fallbackUrl;
     }
 
     return fallbackUrl;

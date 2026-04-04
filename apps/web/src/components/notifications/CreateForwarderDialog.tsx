@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import useAuth from "@/src/context/useAuth";
+import useAuth from "@/context/useAuth";
 import {
   Dialog,
   DialogContent,
@@ -9,7 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { cn } from "@/src/lib/utils";
+import { cn } from "@/lib/utils";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Checkbox } from "../ui/checkbox";

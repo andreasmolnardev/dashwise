@@ -6,7 +6,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { Icon } from "@iconify-icon/react";
 import PagesTabs from "../PagesTabs";
 import UpdateDetailsDialogComponent from "./UpdateDetailsDialog";
-import useAuth from "@/src/context/useAuth";
+import useAuth from "@/context/useAuth";
 import { getNotificationsAction } from "@/app/actions/notifications/items";
 import { getIntegrationWithWidgetAction } from "@/app/actions/integrations";
 import { renderWidget } from "../widgets/Widget";

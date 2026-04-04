@@ -1,6 +1,5 @@
 import type { ActionAuth } from "@dashwise/sdk/data/auth";
-import { trpc } from "@/lib/apiClient";
-const api = trpc as any;
+import { api } from "@/lib/apiClient";
 
 function fileToBase64(file: File) {
   return file.arrayBuffer().then((buffer) => {
@@ -25,7 +24,7 @@ export async function uploadWallpaperAction(auth: ActionAuth, formData: FormData
     throw new Error("Missing image file");
   }
 
-  return api.wallpapers.uploadWallpaperAction.mutate({
+  return api.wallpapers.uploadWallpaperAction({
     auth,
     fileName,
     mimeType: image.type || undefined,

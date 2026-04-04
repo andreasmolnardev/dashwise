@@ -1,6 +1,6 @@
 "use client";
 
-import { usePageConfig } from "@/src/hooks/usePageConfig";
+import { usePageConfig } from "@/hooks/usePageConfig";
 import { useLocation, useNavigate } from "react-router-dom";
 
 export default function PagesTabs() {

@@ -9,14 +9,14 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { MoreHorizontal } from "lucide-react";
-import { cn } from "@/src/lib/utils";
-import { NOTIFICATIONS_UPDATED_EVENT } from "@/src/lib/events";
+import { cn } from "@/lib/utils";
+import { NOTIFICATIONS_UPDATED_EVENT } from "@/lib/events";
 import {
   getNotificationsAction,
   getNotificationTopicsAction,
   markNotificationsAsReadAction,
 } from "@/app/actions/notifications/items";
-import useAuth from "@/src/context/useAuth";
+import useAuth from "@/context/useAuth";
 
 export type NotificationItem = {
   id: string;

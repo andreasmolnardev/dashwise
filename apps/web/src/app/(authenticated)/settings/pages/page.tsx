@@ -1,9 +1,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { usePageConfig } from "@/src/hooks/usePageConfig";
+import { usePageConfig } from "@/hooks/usePageConfig";
 import { updatePageConfigAction } from "@/app/actions/pageConfigs";
 import { getUserGlanceableAction, getUserWidgetsAction } from "@/app/actions/widgets";
-import useAuth from "@/src/context/useAuth";
+import useAuth from "@/context/useAuth";
 import { PageSelectTabs } from "@/components/settings/pages/PageSelectTabs";
 import { TemplateOptions } from "@/components/settings/pages/TemplateOptions";
 import { EditGlanceablesView } from "@/components/settings/pages/EditGlanceablesView";

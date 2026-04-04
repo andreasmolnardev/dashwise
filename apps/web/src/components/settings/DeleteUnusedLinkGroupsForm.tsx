@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { usePageConfig } from "@/src/hooks/usePageConfig";
+import { usePageConfig } from "@/hooks/usePageConfig";
 import useAuth from "@/context/useAuth";
 import { Button } from "@/components/ui/button";
 import { deleteUnusedLinkgroupsAction } from "@/app/actions/config";

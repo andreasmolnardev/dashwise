@@ -6,7 +6,7 @@ import useAuth from "@/context/useAuth";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { moveConfigArrayItemsAction } from "@/app/actions/config";
 import { DialogClose } from "@/components/ui/dialog";
-import { usePageConfig } from "@/src/hooks/usePageConfig";
+import { usePageConfig } from "@/hooks/usePageConfig";
 import { Icon } from "@iconify-icon/react";
 
 type Props = {

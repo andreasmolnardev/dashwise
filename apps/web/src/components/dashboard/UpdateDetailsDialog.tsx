@@ -5,7 +5,7 @@ import { Dialog, DialogTrigger, DialogContent, DialogTitle } from "@/components/
 import { Button } from "@/components/ui/button";
 import { Icon } from "@iconify-icon/react";
 import { getAppInfoAction } from "@/app/actions/app";
-import useAuth from "@/src/context/useAuth";
+import useAuth from "@/context/useAuth";
 
 export default function UpdateDetailsDialogComponent() {
   const { withAuth } = useAuth();

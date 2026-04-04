@@ -1,9 +1,9 @@
 "use client";
 import { ReactNode, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import useAuth from "@/src/context/useAuth";
-import { cn } from "@/src/lib/utils";
-import { LocalizationProvider } from "@/src/context/LocalizationContext";
+import useAuth from "@/context/useAuth";
+import { cn } from "@/lib/utils";
+import { LocalizationProvider } from "@/context/LocalizationContext";
 
 type AuthWrapperProps = {
   children: ReactNode;

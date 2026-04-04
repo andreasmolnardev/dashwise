@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import useAuth from "@/src/context/useAuth";
+import useAuth from "@/context/useAuth";
 import { Check, ChevronsUpDown } from "lucide-react";
-import { cn } from "@/src/lib/utils";
+import { cn } from "@/lib/utils";
 import {
   Command,
   CommandEmpty,

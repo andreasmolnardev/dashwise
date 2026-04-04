@@ -13,11 +13,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { usePageConfig } from "@/src/hooks/usePageConfig";
+import { usePageConfig } from "@/hooks/usePageConfig";
 import { useState, useEffect } from "react";
-import useAuth from "@/src/context/useAuth";
+import useAuth from "@/context/useAuth";
 import ClockWidget from "../widgets/ClockWidget";
-import { loadFont } from "@/src/lib/loadFont";
+import { loadFont } from "@/lib/loadFont";
 
 const fontWeights = [
   { name: "Light", value: "font-light" },

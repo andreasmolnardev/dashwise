@@ -1,5 +1,5 @@
 
-import useAuth from "@/src/context/useAuth";
+import useAuth from "@/context/useAuth";
 import { useParams } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { getPageConfigAction } from "../../actions/pageConfigs";
@@ -32,7 +32,7 @@ export default function DashboardPageFromConfig() {
     }, [pageName, withAuth]);
 
     if (loading) return null;
-    if (!config) return <PageNotFound />;
+    if (!config) return <PageNotFound pageName={pageName} />;
 
     return <DashboardLayoutTemplate config={config} pageName={pageName} />;
 }

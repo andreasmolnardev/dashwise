@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { LinkType } from "./LinkView";
-import useAuth from "@/src/context/useAuth";
+import useAuth from "@/context/useAuth";
 import { useState } from "react";
 import { Icon } from "@iconify-icon/react";
 import { updateMonitoringStatusAction } from "@/app/actions/monitoring";

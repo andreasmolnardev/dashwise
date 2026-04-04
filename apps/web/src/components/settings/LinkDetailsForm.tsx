@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import useAuth from "@/src/context/useAuth";
+import useAuth from "@/context/useAuth";
 import { Button } from "@/components/ui/button";
 import { Label } from "@radix-ui/react-label";
 import { Input } from "@/components/ui/input";
@@ -39,7 +39,7 @@ import { Switch } from "@/components/ui/switch";
 import { faEllipsisV, faPaperclip } from "@fortawesome/free-solid-svg-icons";
 import { Icon as Iconify } from "@iconify-icon/react";
 import { Check, ChevronsUpDown } from "lucide-react";
-import { cn } from "@/src/lib/utils";
+import { cn } from "@/lib/utils";
 
 interface Icon {
   Name: string;

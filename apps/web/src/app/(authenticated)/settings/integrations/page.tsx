@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { cn } from "@/src/lib/utils";
+import { cn } from "@/lib/utils";
 import YAML from "yaml";
 import {
   createIntegrationAction,
@@ -14,8 +14,8 @@ import {
 } from "@/app/actions/integrations";
 import { AddIntegrationConfigDialog } from "@/components/settings/integrations/AddIntegrationConfigDialog";
 import { TestEndpointDialog } from "@/components/settings/integrations/TestEndpointDialog";
-import useAuth from "@/src/context/useAuth";
-import { EndpointTestResult, EnvDefinition } from "@/src/lib/integrations/types";
+import useAuth from "@/context/useAuth";
+import { EndpointTestResult, EnvDefinition } from "@/lib/integrations/types";
 
 const dateFormatter = new Intl.DateTimeFormat(undefined, {
   dateStyle: "medium",

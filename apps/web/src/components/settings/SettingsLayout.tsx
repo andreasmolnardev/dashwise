@@ -1,6 +1,6 @@
 "use client";
 import { Link, useLocation } from "react-router-dom";
-import { usePageConfig } from "@/src/hooks/usePageConfig";
+import { usePageConfig } from "@/hooks/usePageConfig";
 import { useEffect, useRef } from "react";
 import { Label } from "@/components/ui/label";
 import { faBrush, faChartLine, faCircleUser, faCircleXmark, faDisplay, faGripLines, faMagnifyingGlass, faPaperclip, faPuzzlePiece, faSliders } from "@fortawesome/free-solid-svg-icons";

@@ -24,7 +24,7 @@
       "node"
     ],
     "paths": {
-      "@/src/*": [
+      "@/*": [
         "./src/*"
       ],
       "@/components/*": [
@@ -32,14 +32,12 @@
       ],
       "@/app/*": [
         "./src/app/*"
-      ],
-      "@/*": [
-        "./src/*"
       ]
     },
     "baseUrl": "."
   },
   "include": [
+    "src/**/*.d.ts",
     "src/**/*.ts",
     "src/**/*.tsx",
     "scripts/**/*.ts"

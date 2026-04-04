@@ -1,5 +1,5 @@
 import LoginCard from "@/components/auth/LoginForm";
-import config from "@/src/lib/config";
+import config from "@/lib/config";
 
 export default function LoginPage() {
     return (

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import useAuth from "@/src/context/useAuth";
+import useAuth from "@/context/useAuth";
 import {
   Dialog,
   DialogContent,

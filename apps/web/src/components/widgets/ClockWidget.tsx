@@ -1,8 +1,8 @@
 "use client";
-import { usePageConfig } from "@/src/hooks/usePageConfig";
-import { useLocalization } from "@/src/context/LocalizationContext";
-import { loadFont } from "@/src/lib/loadFont";
-import { cn } from "@/src/lib/utils";
+import { usePageConfig } from "@/hooks/usePageConfig";
+import { useLocalization } from "@/context/LocalizationContext";
+import { loadFont } from "@/lib/loadFont";
+import { cn } from "@/lib/utils";
 import { useEffect, useState } from "react";
 import { ClockAppearance } from "../settings/ClockFontSelectionCarousel";
 

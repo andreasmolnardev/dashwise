@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, ReactNode, useContext, useMemo } from "react";
-import { usePageConfig } from "@/src/hooks/usePageConfig";
+import { usePageConfig } from "@/hooks/usePageConfig";
 
 type TimeFormatPreference = "12-hour" | "24-hour";
 type TemperatureUnit = "c" | "f";

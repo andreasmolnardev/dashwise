@@ -2,10 +2,10 @@ import React from 'react';
 import type { SyntheticEvent } from 'react';
 
 import { Dialog, DialogContent } from '../ui/dialog';
-import { usePageConfig } from "@/src/hooks/usePageConfig";
+import { usePageConfig } from "@/hooks/usePageConfig";
 import { Separator } from '../ui/separator';
 import { DialogTitle } from '@radix-ui/react-dialog';
-import { cn } from '@/src/lib/utils';
+import { cn } from '@/lib/utils';
 import { Icon as Iconify } from '@iconify-icon/react';
 
 // --- Types ---

@@ -89,6 +89,16 @@ async function requestRoute<T = unknown>(route: RouteConfig, input?: any): Promi
   return response?.data as T;
 }
 
+function getRoute(modulePath: string, actionName: string) {
+  const route = routes[`${modulePath}.${actionName}`];
+
+  if (!route) {
+    throw new Error(`Unsupported API action: ${modulePath}.${actionName}`);
+  }
+
+  return route;
+}
+
 const routes: Record<string, RouteConfig> = {
   "app.getAppConfigAction": { method: "GET", path: "/appConfig" },
   "app.getAppInfoAction": { method: "GET", path: "/appInfo" },
@@ -169,6 +179,11 @@ const routes: Record<string, RouteConfig> = {
     method: "GET",
     path: "/pageConfig/user-pages",
     query: (input) => ({ token: authToken(input) }),
+  },
+  "pageConfig.createHomePageAction": {
+    method: "POST",
+    path: "/pageConfig/home",
+    body: (input) => input,
   },
   "pageConfig.updatePageConfigAction": {
     method: "PUT",
@@ -396,59 +411,28 @@ const routes: Record<string, RouteConfig> = {
   },
 };
 
-function invokeAction(modulePath: string, actionName: string, method: "query" | "mutate", input?: unknown) {
-  const route = routes[`${modulePath}.${actionName}`];
+function createApiProxy(pathSegments: string[] = []): any {
+  const callable = () => undefined;
 
-  if (!route) {
-    throw new Error(`Unsupported OpenAPI action: ${modulePath}.${actionName}`);
-  }
+  return new Proxy(callable, {
+    get(_target, key) {
+      if (key === "then" || key === Symbol.toStringTag) return undefined;
+      return createApiProxy([...pathSegments, String(key)]);
+    },
+    apply(_target, _thisArg, args) {
+      if (pathSegments.length < 2) {
+        throw new Error(`Unsupported API action: ${pathSegments.join(".")}`);
+      }
 
-  if (method === "query" && route.method !== "GET") {
-    throw new Error(`Action is not queryable: ${modulePath}.${actionName}`);
-  }
-
-  return requestRoute(route, input);
+      const actionName = pathSegments[pathSegments.length - 1];
+      const modulePath = pathSegments.slice(0, -1).join(".");
+      return requestRoute(getRoute(modulePath, actionName), args[0]);
+    },
+  });
 }
 
-function createActionProxy(pathSegments: string[] = []): any {
-  return new Proxy(
-    {},
-    {
-      get(_target, key) {
-        if (key === "query" || key === "mutate") {
-          return (input: unknown) => {
-            if (pathSegments.length < 2) {
-              throw new Error(`Unsupported OpenAPI action: ${pathSegments.join(".")}`);
-            }
+export const api = createApiProxy() as Record<string, any>;
 
-            const actionName = pathSegments[pathSegments.length - 1];
-            const modulePath = pathSegments.slice(0, -1).join(".");
-            return invokeAction(modulePath, actionName, key, input);
-          };
-        }
-
-        return createActionProxy([...pathSegments, String(key)]);
-      },
-    },
-  );
-}
-
-export const trpc = new Proxy(
-  {},
-  {
-    get(_target, modulePath) {
-      return createActionProxy([String(modulePath)]);
-    },
-  },
-);
-
-export async function callAction<T = unknown>(modulePath: string, actionName: string, args: unknown[] = []): Promise<T> {
-  const routeKey = `${modulePath}.${actionName}`;
-  const route = routes[routeKey];
-
-  if (!route) {
-    throw new Error(`Unsupported OpenAPI action: ${routeKey}`);
-  }
-
-  return requestRoute<T>(route, args[0]);
+export async function callApiAction<T = unknown>(modulePath: string, actionName: string, args: unknown[] = []): Promise<T> {
+  return requestRoute<T>(getRoute(modulePath, actionName), args[0]);
 }

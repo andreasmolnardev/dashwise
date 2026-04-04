@@ -32,7 +32,7 @@ function escapeFilter(value: string) {
 // get page config
 export async function getPageConfigJSON(
     userId: string,
-    pageName: string
+    pageName: string,
 ): Promise<Record<string, any> | null> {
     const pb = await getSuperuserPB();
     try {
@@ -44,7 +44,7 @@ export async function getPageConfigJSON(
 
         if (!record) return null;
 
-        const config = (record?.config ?? {}) as Record<string, any>
+        const config = (record?.config ?? {}) as Record<string, any>;
         return config;
     } catch (error: any) {
         if (error?.status === 404) return null;
@@ -83,6 +83,36 @@ async function getPageConfig(
         if (error?.status === 404) return null;
         throw error;
     }
+}
+
+export async function createPageFromDefaultConfig(
+    userId: string,
+    pageName: string,
+    defaultHomeConfig: Record<string, any>,
+) {
+    const pb = await getSuperuserPB();
+
+    // check if page already exists for user
+    const existing = await getPageConfig(userId, pageName);
+    if (existing) {
+        throw new Error(
+            `Page with name "${pageName}" already exists for this user`,
+        );
+    }
+
+    const user = await pb.collection("users").getOne(userId);
+
+    if (!user) {
+        throw new Error("User not found");
+    }
+
+    await pb.collection("pageConfig").create({
+        associatedUserId: user.id,
+        config: defaultHomeConfig,
+        pageName: "home",
+    });
+
+    return { pageName, pageConfig: defaultHomeConfig };
 }
 
 // update page config

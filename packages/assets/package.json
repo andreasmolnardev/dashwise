@@ -1,0 +1,13 @@
+{
+  "name": "@dashwise/assets",
+  "version": "1.0.0",
+  "private": true,
+  "main": "index.ts",
+  "exports": {
+    ".": {
+      "types": "./index.ts",
+      "default": "./index.ts"
+    }
+  },
+  "types": "index.ts"
+}
