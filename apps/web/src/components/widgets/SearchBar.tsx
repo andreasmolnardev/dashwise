@@ -20,11 +20,78 @@ type SearchItem = {
   tags?: string[];
 };
 
+type SearchItemsCache = {
+  fetchedAt: number;
+  items: SearchItem[];
+};
+
+const SEARCH_ITEMS_CACHE_PREFIX = "dashwise_search_items_cache";
+const SEARCH_ITEMS_CACHE_TTL_MS = 10 * 60 * 1000;
+
+function getSearchItemsCacheKey(userId: string | null | undefined) {
+  return `${SEARCH_ITEMS_CACHE_PREFIX}:${userId ?? "anonymous"}`;
+}
+
+function normalizeSearchItems(raw: unknown): SearchItem[] {
+  if (Array.isArray(raw)) {
+    return raw.filter((item): item is SearchItem => !!item && typeof item === "object");
+  }
+
+  if (typeof raw !== "string") {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed)
+      ? parsed.filter((item): item is SearchItem => !!item && typeof item === "object")
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function readSearchItemsCache(cacheKey: string): SearchItemsCache | null {
+  try {
+    const raw = localStorage.getItem(cacheKey);
+    if (!raw) return null;
+
+    const parsed = JSON.parse(raw) as Partial<SearchItemsCache>;
+    if (!Array.isArray(parsed.items) || typeof parsed.fetchedAt !== "number") {
+      return null;
+    }
+
+    return {
+      fetchedAt: parsed.fetchedAt,
+      items: normalizeSearchItems(parsed.items),
+    };
+  } catch {
+    return null;
+  }
+}
+
+function writeSearchItemsCache(cacheKey: string, items: SearchItem[]) {
+  try {
+    const payload: SearchItemsCache = {
+      fetchedAt: Date.now(),
+      items,
+    };
+
+    localStorage.setItem(cacheKey, JSON.stringify(payload));
+  } catch {
+    // ignore storage errors
+  }
+}
+
+function isCacheFresh(cache: SearchItemsCache | null) {
+  return !!cache && Date.now() - cache.fetchedAt < SEARCH_ITEMS_CACHE_TTL_MS;
+}
+
 
 export default function SearchBar({ useRedirect, defaultOpen }: SearchBarProps) {
   const [redirecting, setRedirecting] = useState(false);
   const [open, setOpen] = useState(false); // control CommandBar
-  const {user} = useAuth();
+  const { user, withAuth } = useAuth();
 
   // fetched items from /api/v1/searchItems
   const [searchItems, setSearchItems] = useState<SearchItem[]>([]);
@@ -46,22 +113,37 @@ export default function SearchBar({ useRedirect, defaultOpen }: SearchBarProps) 
 
   // Fetch items when the command bar is opened.
   // Uses Authorization: Bearer <pb_token> from localStorage
-  const { token, withAuth } = useAuth();
+  const cacheKey = getSearchItemsCacheKey(user?.id);
 
   useEffect(() => {
     if (!open) return;
 
-    const controller = new AbortController();
-    const signal = controller.signal;
+    let cancelled = false;
+
+    const cached = readSearchItemsCache(cacheKey);
+    setSearchItems(cached?.items ?? []);
+
+    if (isCacheFresh(cached)) {
+      setLoadingItems(false);
+      setItemsError(null);
+      return;
+    }
 
     async function fetchItems() {
       setLoadingItems(true);
       setItemsError(null);
 
-        try {
+      try {
         const data = await withAuth((auth) => getSearchItemsAction(auth));
-        setSearchItems(Array.isArray(data) ? data : []);
+        const normalized = normalizeSearchItems(data);
+
+        if (cancelled) return;
+
+        setSearchItems(normalized);
+        writeSearchItemsCache(cacheKey, normalized);
       } catch (err: unknown) {
+        if (cancelled) return;
+
         const e = err as any;
         console.warn('Failed to load searchItems', err);
         if (e?.status === 401 || e?.status === 403) {
@@ -69,8 +151,13 @@ export default function SearchBar({ useRedirect, defaultOpen }: SearchBarProps) 
         } else {
           setItemsError(e?.message ?? 'Failed to load items');
         }
-        setSearchItems([]);
+
+        if (!cached?.items.length) {
+          setSearchItems([]);
+        }
       } finally {
+        if (cancelled) return;
+
         setLoadingItems(false);
       }
     }
@@ -78,9 +165,9 @@ export default function SearchBar({ useRedirect, defaultOpen }: SearchBarProps) 
     fetchItems();
 
     return () => {
-      controller.abort();
+      cancelled = true;
     };
-  }, [open, withAuth]);
+  }, [open, cacheKey, withAuth]);
 
   return (
     <>
