@@ -489,14 +489,14 @@ function LinkTile({
       rel={user?.global?.linkOpenBehaviour === "newtab"
         ? "noopener noreferrer"
         : undefined}
-      className="group flex flex-col items-center justify-between space-y-2 frosted rounded-2xl p-2 hover:text-(primary) transition-colors min-h-18 w-full"
+      className="group relative flex flex-col items-center justify-between space-y-2 frosted rounded-2xl p-2 hover:text-(primary) transition-colors min-h-18 w-full"
     >
       {link.iconUrl
         ? (
           <img
             src={link.iconUrl}
             alt={link.title ?? "Icon"}
-            className="h-[35px] w-[35px] object-contain rounded-lg bg-white/5"
+            className="h-[35px] w-[35px] object-contain rounded-lg bg-white/5 transition-colors"
           />
         )
         : (
@@ -538,17 +538,19 @@ function LinkTile({
             </button>
           )}
         </div>
-        <button
+        <Button
+          type="button"
           onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();
             setEditingLink(link);
           }}
-          className="p-1.5 aspect-square hidden group-hover:flex transition-all items-center rounded-full text-white/50 hover:text-white absolute right-0 bottom-0"
+          className="frosted absolute right-0 bottom-0 z-10 flex aspect-square items-center justify-center rounded-full p-0.5 text-white/50 opacity-0 transition-opacity hover:text-white group-hover:opacity-100"
           title="Edit link"
+          aria-label={`Edit ${link.title ?? "link"}`}
         >
-          <Icon icon="fa6-solid:edit" className="h-3 w-3" />
-        </button>
+          <Icon icon="fa6-solid:pen-to-square" className="h-3 w-3" />
+        </Button>
       </div>
     </a>
   );
