@@ -21,8 +21,5 @@ export function loadFont(fontName: string, fontPath?: string) {
 }
 
 function resolveFontPath(fontPath?: string) {
-  if (!fontPath) return "";
-  if (/^(https?:|data:|blob:)/.test(fontPath)) return fontPath;
-  if (fontPath.startsWith("/assets/")) return fontPath;
-  return `/assets/${fontPath.replace(/^\/+/, "")}`;
+  return `/${fontPath?.replace(/^\/+/, "")}`;
 }

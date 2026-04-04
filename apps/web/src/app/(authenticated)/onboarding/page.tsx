@@ -8,9 +8,19 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import ThemeSelectComponent from "@/components/settings/ThemeSelect";
 import UploadWallpaperDialogComponent from "@/components/settings/UploadWallpaperDialog";
 import UrlWallpaperDialogComponent from "@/components/settings/UrlWallpaperDialog";
-import { updateConfigPathAction } from "@/app/actions/config";
+import { updatePageConfigAction } from "@/app/actions/pageConfigs";
 
 type TimeFormatValue = "24-hour" | "12-hour";
+
+const LOCALIZATION_PREFERENCE_KEYS = new Set([
+  "dateFormat",
+  "language",
+  "locale",
+  "timeFormat",
+  "time-format",
+  "weatherLocation",
+  "weatherUnit",
+]);
 
 function normalizeTimeFormat(value: unknown): TimeFormatValue {
   if (value === "12-hour" || value === "12h" || value === 12 || value === "12") {
@@ -28,15 +38,15 @@ const DATE_FORMAT_OPTIONS = [
 
 export default function OnboardingPage() {
   const navigate = useNavigate();
-  const { config, patchConfig } = usePageConfig();
-  const { withAuth } = useAuth();
+  const { config, pageConfig, patchConfig } = usePageConfig();
+  const { user, updateUserProperty, withAuth } = useAuth();
 
   const [step, setStep] = useState(0);
   const [busy, setBusy] = useState(false);
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [urlDialogOpen, setUrlDialogOpen] = useState(false);
 
-  const globalConfig = config?.global ?? {};
+  const globalConfig = user?.localizationPreferences ?? {};
   const timeFormat = useMemo(
     () => normalizeTimeFormat(globalConfig?.timeFormat ?? globalConfig?.["time-format"]),
     [globalConfig?.timeFormat, globalConfig?.["time-format"]]
@@ -51,17 +61,12 @@ export default function OnboardingPage() {
   }, [config?.meta?.onboard, navigate]);
 
   async function updateGlobal(patch: Record<string, any>) {
-    const nextGlobal = {
-      ...globalConfig,
-      ...patch,
-    };
-
-    patchConfig((prev) => ({
-      ...prev,
-      global: nextGlobal,
-    }));
-
-    await withAuth((auth) => updateConfigPathAction(auth, "global", nextGlobal, "home"));
+    await updateUserProperty(
+      "localizationPreferences",
+      Object.fromEntries(
+        Object.entries(patch).filter(([key]) => LOCALIZATION_PREFERENCE_KEYS.has(key))
+      )
+    );
   }
 
   async function finishOnboarding() {
@@ -77,7 +82,12 @@ export default function OnboardingPage() {
         meta: nextMeta,
       }));
 
-      await withAuth((auth) => updateConfigPathAction(auth, "meta", nextMeta, "home"));
+      await withAuth((auth) =>
+        updatePageConfigAction(auth, "home", {
+          ...(pageConfig ?? {}),
+          meta: nextMeta,
+        })
+      );
       navigate("/home", { replace: true });
     } finally {
       setBusy(false);
@@ -85,7 +95,7 @@ export default function OnboardingPage() {
   }
 
   return (
-    <div className="min-h-dvh p-4 md:p-8 text-(--surface-foreground) bg-(--surface)">
+    <div className="min-h-dvh p-4 md:p-8 text-surface-foreground bg-surface">
       <div className="max-w-3xl mx-auto space-y-6">
         <div className="frosted rounded-xl p-5 md:p-6 space-y-4">
           <h1 className="text-3xl font-semibold">Welcome to dashwise</h1>
@@ -94,7 +104,7 @@ export default function OnboardingPage() {
             {[0, 1].map((index) => (
               <span
                 key={index}
-                className={`h-2.5 w-2.5 rounded-full ${step === index ? "bg-(--primary)" : "bg-white/30"}`}
+                className={`h-2.5 w-2.5 rounded-full ${step === index ? "bg-primary" : "bg-white/30"}`}
               />
             ))}
           </div>

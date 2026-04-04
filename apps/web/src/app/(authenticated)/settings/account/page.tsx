@@ -18,13 +18,9 @@ import { ChangePasswordRequest } from "@/app/actions/auth";
 import { useNavigate } from "react-router-dom";
 import { changePasswordAction, deleteAccountAction } from "@/app/actions/auth";
 import { DialogDescription } from "@radix-ui/react-dialog";
-import ExportConfigDialog from "@/components/settings/ExportConfigDialog";
-import { usePageConfig } from "@/hooks/usePageConfig";
 import useAuth from "@/context/useAuth";
-import ImportConfigDialog from "@/components/settings/ImportConfigDialog";
 
 export default function AccountSettingsPage() {
-  const { config } = usePageConfig();
   const navigate = useNavigate();
   const { user, token, setAuth, logout } = useAuth();
   const [oldPassword, setOldPassword] = useState("");
@@ -282,10 +278,6 @@ export default function AccountSettingsPage() {
             </form>
           </DialogContent>
         </Dialog>
-
-        <h2 className="text-xl col-span-full">Config</h2>
-        <ImportConfigDialog />
-        <ExportConfigDialog jsonString={JSON.stringify(config)} />
 
         <h2 className="text-xl col-span-full">Other</h2>
         <Dialog>

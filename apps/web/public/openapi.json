@@ -143,69 +143,6 @@
 				}
 			}
 		},
-		"/config": {
-			"get": {
-				"tags": ["config"],
-				"summary": "Get config",
-				"responses": {
-					"200": { "$ref": "#/components/responses/JsonOk" }
-				}
-			},
-			"post": {
-				"tags": ["config"],
-				"summary": "Create config",
-				"requestBody": { "$ref": "#/components/requestBodies/JsonBody" },
-				"responses": {
-					"200": { "$ref": "#/components/responses/JsonOk" }
-				}
-			},
-			"patch": {
-				"tags": ["config"],
-				"summary": "Patch config",
-				"requestBody": { "$ref": "#/components/requestBodies/JsonBody" },
-				"responses": {
-					"200": { "$ref": "#/components/responses/JsonOk" }
-				}
-			},
-			"put": {
-				"tags": ["config"],
-				"summary": "Replace config",
-				"requestBody": { "$ref": "#/components/requestBodies/JsonBody" },
-				"responses": {
-					"200": { "$ref": "#/components/responses/JsonOk" }
-				}
-			}
-		},
-		"/config/delete-unused-linkgroups": {
-			"post": {
-				"tags": ["config"],
-				"summary": "Delete unused link groups",
-				"requestBody": { "$ref": "#/components/requestBodies/JsonBody" },
-				"responses": {
-					"200": { "$ref": "#/components/responses/JsonOk" }
-				}
-			}
-		},
-		"/config/migrate-legacy-page-config": {
-			"post": {
-				"tags": ["config"],
-				"summary": "Migrate legacy page config",
-				"requestBody": { "$ref": "#/components/requestBodies/JsonBody" },
-				"responses": {
-					"200": { "$ref": "#/components/responses/JsonOk" }
-				}
-			}
-		},
-		"/config/move-arrayitems": {
-			"post": {
-				"tags": ["config"],
-				"summary": "Move config array items",
-				"requestBody": { "$ref": "#/components/requestBodies/JsonBody" },
-				"responses": {
-					"200": { "$ref": "#/components/responses/JsonOk" }
-				}
-			}
-		},
 		"/integrations/beszel": {
 			"get": {
 				"tags": ["integrations"],

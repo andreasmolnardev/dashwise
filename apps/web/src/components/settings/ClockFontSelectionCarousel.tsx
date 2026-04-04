@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import { PaginatedCarouselViewComponent } from "../widgets/PaginatedCarouselView";
-import { usePageConfig } from "@/hooks/usePageConfig";
 import { useAuth } from "@/context/useAuth";
 import { loadFont } from "@/lib/loadFont";
 import { Label } from "@/components/ui/label";
@@ -33,8 +32,7 @@ export interface ClockAppearance {
 }
 
 export default function ClockSelectionCarousel() {
-  const { config, refreshConfig } = usePageConfig();
-  const { updateUserProperty } = useAuth();
+  const { user, updateUserProperty } = useAuth();
 
   const DEFAULT_FONT = "Default";
 
@@ -56,7 +54,7 @@ export default function ClockSelectionCarousel() {
   // Fetch font list and add "Default" option
   useEffect(() => {
     let mounted = true;
-    fetch("/assets/fonts/index.json")
+    fetch("/fonts/index.json")
       .then((r) => r.json())
       .then((data: FontEntry[]) => {
         if (!mounted) return;
@@ -72,8 +70,7 @@ export default function ClockSelectionCarousel() {
 
   // When config loads, adopt server's appearance.clock (or fallback)
   useEffect(() => {
-    if (!config) return;
-    const clock = config?.appearance?.clock as ClockAppearance | undefined;
+    const clock = user?.appearancePreferences?.clock as ClockAppearance | undefined;
     setSelected(clock?.defaultFont ?? DEFAULT_FONT);
     setFontWeight(clock?.fontWeight ?? 600);
     setLetterSpacing(clock?.letterSpacing ?? 0);
@@ -82,7 +79,7 @@ export default function ClockSelectionCarousel() {
     setOutlineWidth(clock?.outlineWidth ?? 1);
     setColor(clock?.color ?? "#ffffff");
     setOpacity(clock?.opacity ?? 1);
-  }, [config]);
+  }, [user?.appearancePreferences?.clock]);
 
   // Preload fonts for preview whenever the fonts list is available
   useEffect(() => {
@@ -100,7 +97,7 @@ export default function ClockSelectionCarousel() {
   }, [fonts, selected]);
 
   const updateClockConfig = async (updates: Partial<ClockAppearance>) => {
-    const currentAppearance = config?.appearance ?? {};
+    const currentAppearance = user?.appearancePreferences ?? {};
     const clock = (currentAppearance.clock ?? {}) as ClockAppearance;
     
     const updatedAppearance = {
@@ -113,9 +110,6 @@ export default function ClockSelectionCarousel() {
 
     try {
       await updateUserProperty("appearancePreferences", updatedAppearance);
-      if (refreshConfig) {
-        await refreshConfig();
-      }
     } catch (err) {
       console.error("Failed to update appearance config:", err);
     }
@@ -131,7 +125,7 @@ export default function ClockSelectionCarousel() {
   if (!fonts.length) {
     return (
       <div className="text-sm text-muted-foreground">
-        No fonts found in <code>/assets/fonts/index.json</code>
+        No fonts found in <code>/fonts/index.json</code>
       </div>
     );
   }
@@ -163,8 +157,8 @@ export default function ClockSelectionCarousel() {
               key={font.name}
               onClick={() => handleSelect(font)}
               className={`rounded-xl p-4 text-center transition-all border-2 ${selected === font.name
-                  ? "border-[var(--primary)] shadow-lg"
-                  : "border-transparent hover:border-[var(--primary)]/50 mr-2"
+                  ? "border-primary shadow-lg"
+                  : "border-transparent hover:border-(--primary)/50 mr-2"
                 }`}
             >
               <div
@@ -298,7 +292,7 @@ export default function ClockSelectionCarousel() {
         </div>
       </div>
 
-      <div className="p-8 flex items-center justify-center bg-black/20 rounded-3xl min-h-[160px]">
+      <div className="p-8 flex items-center justify-center bg-black/20 rounded-3xl min-h-40">
         <div style={clockStyle} className="text-7xl">
           {"12:45".split("").map((c, i) => (
             <span key={i} style={c !== ":" ? letterStyle : { margin: "0 4px" }}>

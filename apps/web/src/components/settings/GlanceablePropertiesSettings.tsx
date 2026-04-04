@@ -4,7 +4,7 @@ import React, { useEffect, useState } from "react";
 import useAuth from "@/context/useAuth";
 import GlanceableComponent, { GlanceableProps } from "@/components/glanceables/Glanceable";
 import { usePageConfig } from "@/hooks/usePageConfig.ts";
-import { updateConfigPathAction } from "@/app/actions/config";
+import { updatePageConfigAction } from "@/app/actions/pageConfigs";
 import { getUserGlanceableAction } from "@/app/actions/widgets";
 import { Input } from "../ui/input";
 import { Button } from "../ui/button";
@@ -30,7 +30,7 @@ export default function GlanceablePropertiesSettingsComponent({
     currentTab: "left" | "right";
     isCurrent: Boolean;
 }) {
-    const { config, refreshConfig } = usePageConfig();
+    const { pageConfig, refreshConfig } = usePageConfig();
     const { withAuth } = useAuth();
     const [glanceables_mapped, setGlanceablesMapped] = useState<Glanceable[]>([]);
 
@@ -70,8 +70,8 @@ export default function GlanceablePropertiesSettingsComponent({
         setSaving(true);
         try {
             // Build updated glanceables from local config (preferred) or fall back to glanceables.json
-            const existing = config?.glanceables && Array.isArray(config.glanceables)
-                ? [...config.glanceables]
+            const existing = pageConfig?.glanceables && Array.isArray(pageConfig.glanceables)
+                ? [...pageConfig.glanceables]
                 : glanceables_mapped.slice(0, 2).map(g => ({ type: g.type, displayName: g.displayName, description: g.description, properties: g.exampleProps ?? {} }));
 
             const updatedGlanceables = [...existing];
@@ -87,8 +87,12 @@ export default function GlanceablePropertiesSettingsComponent({
                 properties: params,
             };
 
-            // 2) send PATCH to overwrite the glanceables path with our updated item
-            await withAuth((auth) => updateConfigPathAction(auth, "glanceables", updatedGlanceables, "home"));
+            await withAuth((auth) =>
+                updatePageConfigAction(auth, "home", {
+                    ...(pageConfig ?? {}),
+                    glanceables: updatedGlanceables,
+                })
+            );
             setSaveSuccess('Saved glanceables successfully');
             await refreshConfig();
         } catch (err: any) {

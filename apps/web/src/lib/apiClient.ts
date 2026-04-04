@@ -12,6 +12,7 @@ type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 type RouteConfig = {
   method: HttpMethod;
   path: keyof paths;
+  auth?: (input: any) => string | null;
   query?: (input: any) => Record<string, unknown>;
   body?: (input: any) => unknown;
   params?: (input: any) => { path?: Record<string, string> };
@@ -47,6 +48,14 @@ function stringifyError(error: unknown) {
 
 async function requestRoute<T = unknown>(route: RouteConfig, input?: any): Promise<T> {
   const options: any = {};
+
+  const token = route.auth?.(input);
+  if (token) {
+    options.headers = {
+      ...(options.headers ?? {}),
+      Authorization: `Bearer ${token}`,
+    };
+  }
 
   if (route.params) {
     options.params = route.params(input);
@@ -134,51 +143,16 @@ const routes: Record<string, RouteConfig> = {
     body: (input) => input,
   },
 
-  "config.getUserConfigAction": {
-    method: "GET",
-    path: "/config",
-    query: (input) => ({ token: authToken(input?.auth), pageName: input?.pageName }),
-  },
-  "config.appendConfigArrayItemAction": {
-    method: "POST",
-    path: "/config",
-    body: (input) => input,
-  },
-  "config.updateConfigPathAction": {
-    method: "PATCH",
-    path: "/config",
-    body: (input) => input,
-  },
-  "config.replaceUserConfigAction": {
-    method: "PUT",
-    path: "/config",
-    body: (input) => input,
-  },
-  "config.deleteUnusedLinkgroupsAction": {
-    method: "POST",
-    path: "/config/delete-unused-linkgroups",
-    body: (input) => input,
-  },
-  "config.moveConfigArrayItemsAction": {
-    method: "POST",
-    path: "/config/move-arrayitems",
-    body: (input) => input,
-  },
-  "config.migrateLegacyPageConfigAction": {
-    method: "POST",
-    path: "/config/migrate-legacy-page-config",
-    body: (input) => input,
-  },
-
   "pageConfig.getPageConfigAction": {
     method: "GET",
     path: "/pageConfig",
-    query: (input) => ({ token: authToken(input?.auth), pageName: input?.pageName }),
+    auth: (input) => authToken(input?.auth),
+    query: (input) => ({ pageName: input?.pageName }),
   },
   "pageConfig.getUserPagesAction": {
     method: "GET",
     path: "/pageConfig/user-pages",
-    query: (input) => ({ token: authToken(input) }),
+    auth: (input) => authToken(input),
   },
   "pageConfig.createHomePageAction": {
     method: "POST",
@@ -194,12 +168,12 @@ const routes: Record<string, RouteConfig> = {
   "links.getLinksCollectionsAction": {
     method: "GET",
     path: "/links/collections",
-    query: (input) => ({ token: authToken(input) }),
+    auth: (input) => authToken(input),
   },
   "links.getHomeLinkGroupsAction": {
     method: "GET",
     path: "/links/home/groups",
-    query: (input) => ({ token: authToken(input) }),
+    auth: (input) => authToken(input),
   },
   "links.createHomeLinkGroupAction": {
     method: "POST",
@@ -209,22 +183,24 @@ const routes: Record<string, RouteConfig> = {
   "links.getHomeLinksAction": {
     method: "GET",
     path: "/links/home",
-    query: (input) => ({ token: authToken(input) }),
+    auth: (input) => authToken(input),
   },
   "links.getLinksFoldersAction": {
     method: "GET",
     path: "/links/folders",
-    query: (input) => ({ token: authToken(input?.auth), listId: input?.listId }),
+    auth: (input) => authToken(input?.auth),
+    query: (input) => ({ listId: input?.listId }),
   },
   "links.getLinksItemsAction": {
     method: "GET",
     path: "/links/items",
-    query: (input) => ({ token: authToken(input?.auth), listId: input?.listId, folderId: input?.folderId }),
+    auth: (input) => authToken(input?.auth),
+    query: (input) => ({ listId: input?.listId, folderId: input?.folderId }),
   },
   "links.getLinksTagsAction": {
     method: "GET",
     path: "/links/tags",
-    query: (input) => ({ token: authToken(input) }),
+    auth: (input) => authToken(input),
   },
   "links.createLinkItemAction": {
     method: "POST",
@@ -247,24 +223,30 @@ const routes: Record<string, RouteConfig> = {
   "widgets.getUserWidgetsAction": {
     method: "GET",
     path: "/widgets",
-    query: (input) => ({ token: authToken(input) }),
+    auth: (input) => authToken(input),
   },
   "widgets.getUserGlanceableAction": {
     method: "GET",
     path: "/widgets/glanceable",
-    query: (input) => ({ token: authToken(input) }),
+    auth: (input) => authToken(input),
   },
   "widgets.getUserGlanceablesAction": {
     method: "GET",
     path: "/widgets/glanceables",
-    query: (input) => ({ token: authToken(input) }),
+    auth: (input) => authToken(input),
+  },
+  "widgets.getIntegrationWithWidgetAction": {
+    method: "GET",
+    path: "/widgets/by-integration",
+    auth: (input) => authToken(input?.auth),
+    query: (input) => ({ widgetKey: input?.widgetKey }),
   },
 
   "integrations.getIntegrationsAction": {
     method: "GET",
     path: "/integrations",
+    auth: (input) => authToken(input?.auth),
     query: (input) => ({
-      token: authToken(input?.auth),
       id: input?.options?.id,
       resolveEndpoints: input?.options?.resolveEndpoints,
     }),
@@ -282,29 +264,27 @@ const routes: Record<string, RouteConfig> = {
   "integrations.getWidgetPropertiesAction": {
     method: "GET",
     path: "/integrations/widget-properties",
-    query: (input) => ({ token: authToken(input?.auth), widgetSlug: input?.widgetSlug }),
-  },
-  "integrations.getIntegrationWithWidgetAction": {
-    method: "GET",
-    path: "/integrations/with-widget",
-    query: (input) => ({ token: authToken(input?.auth), widgetKey: input?.widgetKey }),
+    auth: (input) => authToken(input?.auth),
+    query: (input) => ({ widgetSlug: input?.widgetSlug }),
   },
 
   "misc.getLocationsAction": {
     method: "GET",
     path: "/locations",
-    query: (input) => ({ token: authToken(input?.auth), q: input?.q }),
+    auth: (input) => authToken(input?.auth),
+    query: (input) => ({ q: input?.q }),
   },
   "jobs.runPullIconsAction": {
     method: "GET",
     path: "/jobs/pullIcons",
-    query: (input) => ({ token: authToken(input) }),
+    auth: (input) => authToken(input),
   },
 
   "monitoring.getMonitoringStatusAction": {
     method: "GET",
     path: "/monitoringStatus",
-    query: (input) => ({ token: authToken(input?.auth), jobId: input?.jobId }),
+    auth: (input) => authToken(input?.auth),
+    query: (input) => ({ jobId: input?.jobId }),
   },
   "monitoring.updateMonitoringStatusAction": {
     method: "POST",
@@ -315,12 +295,13 @@ const routes: Record<string, RouteConfig> = {
   "news.getNewsFeedAction": {
     method: "GET",
     path: "/news/feed",
-    query: (input) => ({ token: authToken(input?.auth), category: input?.category }),
+    auth: (input) => authToken(input?.auth),
+    query: (input) => ({ category: input?.category }),
   },
   "news.getNewsSubscriptionsAction": {
     method: "GET",
     path: "/news",
-    query: (input) => ({ token: authToken(input) }),
+    auth: (input) => authToken(input),
   },
   "news.refreshNewsFeedAction": {
     method: "POST",
@@ -346,12 +327,13 @@ const routes: Record<string, RouteConfig> = {
   "notifications.items.getNotificationsAction": {
     method: "GET",
     path: "/notifications",
-    query: (input) => ({ token: authToken(input?.auth), unread: input?.unread, count: input?.count }),
+    auth: (input) => authToken(input?.auth),
+    query: (input) => ({ unread: input?.unread, count: input?.count }),
   },
   "notifications.items.getNotificationTopicsAction": {
     method: "GET",
     path: "/notifications/topics",
-    query: (input) => ({ token: authToken(input) }),
+    auth: (input) => authToken(input),
   },
   "notifications.items.createNotificationTopicAction": {
     method: "POST",
@@ -366,7 +348,7 @@ const routes: Record<string, RouteConfig> = {
   "notifications.topicTokens.listTopicTokensAction": {
     method: "GET",
     path: "/notifications/topicTokens",
-    query: (input) => ({ token: authToken(input) }),
+    auth: (input) => authToken(input),
   },
   "notifications.topicTokens.createTopicTokenAction": {
     method: "POST",
@@ -381,7 +363,7 @@ const routes: Record<string, RouteConfig> = {
   "notifications.forwarders.getForwardersAction": {
     method: "GET",
     path: "/notifications/forwarders",
-    query: (input) => ({ token: authToken(input) }),
+    auth: (input) => authToken(input),
   },
   "notifications.forwarders.createForwarderAction": {
     method: "POST",
@@ -402,7 +384,7 @@ const routes: Record<string, RouteConfig> = {
   "searchItems.getSearchItemsAction": {
     method: "GET",
     path: "/searchItems",
-    query: (input) => ({ token: authToken(input) }),
+    auth: (input) => authToken(input),
   },
   "wallpapers.uploadWallpaperAction": {
     method: "POST",

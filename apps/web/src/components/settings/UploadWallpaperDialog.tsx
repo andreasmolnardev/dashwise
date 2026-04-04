@@ -12,10 +12,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { usePageConfig } from "@/hooks/usePageConfig";
 import useAuth from "@/context/useAuth";
 import { uploadWallpaperAction } from "@/app/actions/wallpapers";
-import { updateConfigPathAction } from "@/app/actions/config";
 
 interface UploadWallpaperDialogProps {
   open: boolean;
@@ -26,8 +24,7 @@ export default function UploadWallpaperDialog({
   open,
   onOpenChange,
 }: UploadWallpaperDialogProps) {
-  const { config, patchConfig } = usePageConfig();
-  const { withAuth } = useAuth();
+  const { updateUserProperty, withAuth } = useAuth();
 
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
@@ -77,14 +74,10 @@ export default function UploadWallpaperDialog({
 
       // 2) Patch the appearance config
       const updatedAppearance = {
-        ...(config.appearance ?? {}),
+        ...(user?.appearancePreferences ?? {}),
         backgroundImageUrl: wallpaperPath,
       };
-      patchConfig((prev) => ({
-        ...prev,
-        appearance: updatedAppearance,
-      }));
-      await withAuth((auth) => updateConfigPathAction(auth, "appearance", updatedAppearance));
+      await updateUserProperty("appearancePreferences", updatedAppearance);
 
       setMessage("Upload complete — wallpaper updated.");
 

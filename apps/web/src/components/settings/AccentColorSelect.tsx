@@ -15,7 +15,6 @@ import {
 } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { ColorPicker } from "@/components/settings/ColorPicker";
-import { usePageConfig } from "@/hooks/usePageConfig";
 import useAuth from "@/context/useAuth";
 
 type ThemeMode = "system" | "dark" | "light";
@@ -50,26 +49,25 @@ function applyThemeClasses(themeMode: ThemeMode, frostedAppearance: ThemeMode = 
 }
 
 export default function AccentColorSelectComponent({ className }: { className?: string }) {
-  const { config, patchConfig } = usePageConfig();
   const { user, updateUserProperty } = useAuth();
   const [accent, setAccent] = useState<string | undefined>(
-    config?.appearance?.accentColor
+    user?.appearancePreferences?.accentColor
   );
   const [themeMode, setThemeMode] = useState<ThemeMode>(
-    config?.appearance?.themeMode ?? config?.appearance?.frostedAppearance ?? "system"
+    user?.appearancePreferences?.themeMode ?? user?.appearancePreferences?.frostedAppearance ?? "system"
   );
 
   useEffect(() => {
-    const currentAppearance = user?.appearancePreferences || config?.appearance;
+    const currentAppearance = user?.appearancePreferences;
     setAccent(currentAppearance?.accentColor ?? "#6b21a8");
-  }, [user?.appearancePreferences, config?.appearance]);
+  }, [user?.appearancePreferences]);
 
   useEffect(() => {
-    const currentAppearance = user?.appearancePreferences || config?.appearance;
+    const currentAppearance = user?.appearancePreferences;
     const nextMode = currentAppearance?.themeMode ?? currentAppearance?.frostedAppearance ?? "system";
     setThemeMode(nextMode);
     applyThemeClasses(nextMode, currentAppearance?.frostedAppearance ?? nextMode);
-  }, [user?.appearancePreferences, config?.appearance]);
+  }, [user?.appearancePreferences]);
 
   const PRESET_COLORS = [
     "#0066FF",
@@ -101,13 +99,8 @@ export default function AccentColorSelectComponent({ className }: { className?: 
 
     // persist to server
     try {
-      const currentAppearance = user?.appearancePreferences || config?.appearance || {};
+      const currentAppearance = user?.appearancePreferences || {};
       const appearanceConfig: AppearanceConfig = { ...currentAppearance, accentColor: color_hex };
-
-      patchConfig((prev) => ({
-        ...prev,
-        appearance: appearanceConfig,
-      }));
 
       await updateUserProperty("appearancePreferences", appearanceConfig);
     } catch (err: unknown) {
@@ -124,17 +117,12 @@ export default function AccentColorSelectComponent({ className }: { className?: 
     applyThemeClasses(newMode, newMode);
 
     try {
-      const currentAppearance = user?.appearancePreferences || config?.appearance || {};
+      const currentAppearance = user?.appearancePreferences || {};
       const appearanceConfig: AppearanceConfig = {
         ...currentAppearance,
         themeMode: newMode,
         frostedAppearance: newMode,
       };
-
-      patchConfig((prev) => ({
-        ...prev,
-        appearance: appearanceConfig,
-      }));
 
       await updateUserProperty("appearancePreferences", appearanceConfig);
     } catch (err: unknown) {
@@ -207,7 +195,7 @@ export default function AccentColorSelectComponent({ className }: { className?: 
             <RadioGroupItem id="theme-system" value="system" className="peer sr-only" />
             <Label
               htmlFor="theme-system"
-              className="cursor-pointer rounded-md px-3 py-1.5 frosted peer-data-[state=checked]:outline peer-data-[state=checked]:outline-(--primary)"
+              className="cursor-pointer rounded-md px-3 py-1.5 frosted peer-data-[state=checked]:outline peer-data-[state=checked]:outline-primary"
             >
               System
             </Label>
@@ -216,7 +204,7 @@ export default function AccentColorSelectComponent({ className }: { className?: 
             <RadioGroupItem id="theme-dark" value="dark" className="peer sr-only" />
             <Label
               htmlFor="theme-dark"
-              className="cursor-pointer rounded-md px-3 py-1.5 frosted peer-data-[state=checked]:outline peer-data-[state=checked]:outline-(--primary)"
+              className="cursor-pointer rounded-md px-3 py-1.5 frosted peer-data-[state=checked]:outline peer-data-[state=checked]:outline-primary"
             >
               Dark
             </Label>
@@ -225,7 +213,7 @@ export default function AccentColorSelectComponent({ className }: { className?: 
             <RadioGroupItem id="theme-light" value="light" className="peer sr-only" />
             <Label
               htmlFor="theme-light"
-              className="cursor-pointer rounded-md px-3 py-1.5 frosted peer-data-[state=checked]:outline peer-data-[state=checked]:outline-(--primary)"
+              className="cursor-pointer rounded-md px-3 py-1.5 frosted peer-data-[state=checked]:outline peer-data-[state=checked]:outline-primary"
             >
               Light
             </Label>

@@ -53,17 +53,6 @@ app.post("/api/forward-notifications", async (c) => {
 
 const publicDir = resolve(process.cwd(), "apps/backend/dist/public");
 
-app.get("/assets/*", async (c) => {
-  const assetPath = c.req.path.replace(/^\//, "");
-  const file = Bun.file(join(publicDir, assetPath));
-
-  if (!(await file.exists())) {
-    return c.notFound();
-  }
-
-  return new Response(file);
-});
-
 app.get("*", async () => {
   const indexFile = Bun.file(join(publicDir, "index.html"));
 

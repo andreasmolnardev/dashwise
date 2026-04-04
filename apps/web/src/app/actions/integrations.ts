@@ -18,5 +18,5 @@ export async function getWidgetPropertiesAction(auth: ActionAuth, widgetSlug: st
 }
 
 export async function getIntegrationWithWidgetAction(auth: ActionAuth, widgetKey: string) {
-  return api.integrations.getIntegrationWithWidgetAction({ auth, widgetKey });
+  return api.widgets.getIntegrationWithWidgetAction({ auth, widgetKey });
 }

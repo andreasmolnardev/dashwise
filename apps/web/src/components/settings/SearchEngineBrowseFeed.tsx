@@ -10,7 +10,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input"; // shadcn input
 import { usePageConfig } from "@/hooks/usePageConfig";
 import useAuth from "@/context/useAuth";
-import { updateConfigPathAction } from "@/app/actions/config";
 
 // --- Types ---
 
@@ -47,8 +46,8 @@ const transformToSearchEngine = (bang: DDGBang): SearchEngine => {
 };
 
 export default function SearchEngineBrowseFeedComponent() {
-    const { config, refreshConfig } = usePageConfig();
-    const { withAuth } = useAuth();
+    const { refreshConfig } = usePageConfig();
+    const { user, updateUserProperty } = useAuth();
     const [bangs, setBangs] = useState<DDGBang[]>([]);
     const [visibleBangs, setVisibleBangs] = useState<DDGBang[]>([]);
     const [loading, setLoading] = useState(true);
@@ -156,10 +155,13 @@ export default function SearchEngineBrowseFeedComponent() {
     // Add Handler (async, then refresh config)
     const handleAddEngine = async (bang: DDGBang) => {
         const engineConfig = transformToSearchEngine(bang);
-        const current = Array.isArray(config?.searchEngines) ? config.searchEngines : [];
+        const current = Array.isArray(user?.searchPreferences?.searchEngines) ? user.searchPreferences.searchEngines : [];
         const nextEngines = [...current, engineConfig];
         try {
-            await withAuth((auth) => updateConfigPathAction(auth, "searchEngines", nextEngines, "home"));
+            await updateUserProperty("searchPreferences", {
+                ...(user?.searchPreferences ?? {}),
+                searchEngines: nextEngines,
+            });
             console.log(`Added ${engineConfig.name}`);
             // Refresh config so the new engine will be filtered out
             try {
@@ -242,7 +244,7 @@ function BangRow({ bang, onAdd }: { bang: DDGBang; onAdd: () => void }) {
             "
         >
             <div className="flex items-center gap-4 min-w-0">
-                <div className="relative h-10 w-10 min-w-[2.5rem] overflow-hidden rounded-md border border-white/20 p-1 flex-shrink-0">
+                <div className="relative h-10 w-10 min-w-10 overflow-hidden rounded-md border border-white/20 p-1 shrink-0">
                     <img
                         src={iconUrl}
                         alt={bang.s}

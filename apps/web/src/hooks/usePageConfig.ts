@@ -1,6 +1,6 @@
 "use client";
 
-import { getUserConfigAction } from "@/app/actions/config";
+import { getPageConfigAction } from "@/app/actions/pageConfigs";
 import useAuth from "@/context/useAuth";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -25,13 +25,13 @@ export function usePageConfig(options?: UsePageConfigOptions) {
     [options?.pageName, pathname]
   );
 
-  const [config, setConfig] = useState<any>(null);
+  const [pageConfig, setPageConfig] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const refreshConfig = useCallback(async () => {
     if (!token) {
-      setConfig({});
+      setPageConfig({});
       setLoading(false);
       return;
     }
@@ -39,10 +39,10 @@ export function usePageConfig(options?: UsePageConfigOptions) {
     try {
       setLoading(true);
       const data = await withAuth(
-        (auth) => getUserConfigAction(auth, resolvedPageName),
+        (auth) => getPageConfigAction(auth, resolvedPageName),
         () => navigate("/auth/login")
       );
-      setConfig(data);
+      setPageConfig(data ?? {});
       setError(null);
     } catch (err: any) {
       if (err?.status === 401) {
@@ -54,9 +54,6 @@ export function usePageConfig(options?: UsePageConfigOptions) {
     }
   }, [navigate, resolvedPageName, token, withAuth]);
 
-  const patchConfig = useCallback((updater: (prev: any) => any) => {
-    setConfig((prev: any) => updater(prev));
-  }, []);
 
   useEffect(() => {
     void refreshConfig();
@@ -71,11 +68,10 @@ export function usePageConfig(options?: UsePageConfigOptions) {
   }, [refreshConfig]);
 
   return {
-    config,
+    pageConfig,
     loading,
     error,
     pageName: resolvedPageName,
     refreshConfig,
-    patchConfig,
   };
 }

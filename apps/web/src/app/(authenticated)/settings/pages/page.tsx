@@ -44,7 +44,7 @@ type GlanceableCatalogItem = {
 };
 
 export default function SettingsPagesPage() {
-  const { config: homeConfig, refreshConfig: refreshHomeConfig } = usePageConfig({
+  const { pageConfig: homeConfig, refreshConfig: refreshHomeConfig } = usePageConfig({
     pageName: "home",
   });
 
@@ -54,7 +54,7 @@ export default function SettingsPagesPage() {
   }, [homeConfig?.pages]);
 
   const [selectedPage, setSelectedPage] = useState("home");
-  const { config: selectedConfig } = usePageConfig({
+  const { pageConfig: selectedConfig } = usePageConfig({
     pageName: selectedPage,
   });
   const { withAuth } = useAuth();
@@ -87,7 +87,7 @@ export default function SettingsPagesPage() {
   const hasMainClock = useMemo(() => !!findMainClock(columns), [columns]);
 
   useEffect(() => {
-    fetch("/assets/fonts/index.json")
+    fetch("/fonts/index.json")
       .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data)) {

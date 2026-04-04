@@ -1,5 +1,4 @@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { usePageConfig } from "@/hooks/usePageConfig";
 import config from "@/lib/config";
 import { Icon } from "@iconify-icon/react";
 import { useState, useEffect, useMemo } from "react";
@@ -8,7 +7,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogT
 import LocationSelectFormComponent from "@/components/settings/LocationSelectForm";
 import useAuth from "@/context/useAuth";
 import { runPullIconsAction } from "@/app/actions/misc";
-import { updateConfigPathAction } from "@/app/actions/config";
 import { useLocalization } from "@/context/LocalizationContext";
 
 type TimeFormatValue = "24-hour" | "12-hour";
@@ -61,8 +59,8 @@ export default function GeneralSettingsPage() {
       <div className="content space-y-2 frosted rounded-md p-2 flex flex-col">
         <div className="flex items-center justify-center gap-5"> <img src="/dashwise-icon.png" className="h-14" /> <span><span className="font-semibold text-center text-2xl">dashwise</span> <br /> Version {config.version}</span></div>
         <ul className="col-span-full flex gap-2 justify-center my-2">
-          <li className="frosted rounded-md px-2 py-1 font-medium min-w-40 text-center"><a href="https://github.com/andreasmolnardev/dashwise-next" className="hover:text-(--primary)">GitHub Repo</a></li>
-          <li className="frosted rounded-md px-2 py-1 font-medium min-w-40 text-center"><a href="https://github.com/andreasmolnardev/dashwise-next/issues" className="hover:text-(--primary)">GitHub Issues</a></li>
+          <li className="frosted rounded-md px-2 py-1 font-medium min-w-40 text-center"><a href="https://github.com/andreasmolnardev/dashwise-next" className="hover:text-primary">GitHub Repo</a></li>
+          <li className="frosted rounded-md px-2 py-1 font-medium min-w-40 text-center"><a href="https://github.com/andreasmolnardev/dashwise-next/issues" className="hover:text-primary">GitHub Issues</a></li>
         </ul>
       </div>
       <h2 className="text-xl font-semibold">External data</h2>
@@ -70,7 +68,7 @@ export default function GeneralSettingsPage() {
         className="content space-y-2 rounded-md p-2 flex items-center gap-2 group cursor-pointer"
         onClick={handleRefreshIcons}
       >
-        <Icon icon="fa6-solid:arrows-rotate" className="p-0 m-0 group-hover:text-(--primary)" />
+        <Icon icon="fa6-solid:arrows-rotate" className="p-0 m-0 group-hover:text-primary" />
         {isRefreshingIcons ? "Refreshing icons..." : "Refresh icons"}
       </div>
       <h2 className="text-xl font-semibold">Defaults</h2>
@@ -120,30 +118,23 @@ export default function GeneralSettingsPage() {
 }
 
 function LocalizationSettings() {
-  const { config, patchConfig } = usePageConfig();
-  const { withAuth, user, updateUserProperty } = useAuth();
+  const { user, updateUserProperty } = useAuth();
   const { refresh } = useLocalization();
 
-  const globalConfig = config?.global ?? {};
+  const globalConfig = user?.localizationPreferences ?? {};
   const timeFormat = normalizeTimeFormat(globalConfig?.timeFormat ?? globalConfig?.["time-format"]);
   const dateFormat = globalConfig?.dateFormat ?? "DD-MM-YYYY";
 
   async function updateGlobal(patch: Record<string, any>) {
-    const nextGlobal = { ...globalConfig, ...patch };
-    patchConfig((prev) => ({
-      ...prev,
-      global: nextGlobal,
-    }));
-
-    const nextLocalizationPreferences = {
-      ...(user?.localizationPreferences || {}),
-      ...Object.fromEntries(
-        Object.entries(patch).filter(([key]) => LOCALIZATION_PREFERENCE_KEYS.has(key))
-      ),
-    };
-
-    await withAuth((auth) => updateConfigPathAction(auth, "global", nextGlobal, "home"));
-    await updateUserProperty("localizationPreferences", nextLocalizationPreferences);
+    await updateUserProperty(
+      "localizationPreferences",
+      {
+        ...(user?.localizationPreferences || {}),
+        ...Object.fromEntries(
+          Object.entries(patch).filter(([key]) => LOCALIZATION_PREFERENCE_KEYS.has(key))
+        ),
+      }
+    );
     refresh();
   }
 
@@ -196,19 +187,11 @@ function LocalizationSettings() {
 }
 
 function WeatherUnitSelector() {
-  const { config, patchConfig } = usePageConfig();
   const { refresh } = useLocalization();
-  const { withAuth, user, updateUserProperty } = useAuth();
-  const value = config?.global?.weatherUnit ?? "c";
+  const { user, updateUserProperty } = useAuth();
+  const value = user?.localizationPreferences?.weatherUnit ?? "c";
 
   async function handleChange(unit: "c" | "f") {
-    const nextGlobal = { ...(config?.global || {}), weatherUnit: unit };
-    patchConfig((prev) => ({
-      ...prev,
-      global: nextGlobal,
-    }));
-
-    await withAuth((auth) => updateConfigPathAction(auth, "global", nextGlobal, "home"));
     await updateUserProperty("localizationPreferences", {
       ...(user?.localizationPreferences || {}),
       weatherUnit: unit,
@@ -243,14 +226,13 @@ function WeatherUnitSelector() {
 
 
 function WeatherLocationSelector() {
-  const { config, patchConfig } = usePageConfig();
-  const { withAuth, user, updateUserProperty } = useAuth();
+  const { user, updateUserProperty } = useAuth();
   const { refresh } = useLocalization();
   const [open, setOpen] = useState(false);
 
   // derive current global location (if any)
   const currentGlobal = useMemo(() => {
-    const raw = config?.global?.weatherLocation;
+    const raw = user?.localizationPreferences?.weatherLocation;
     if (!raw) return { displayName: "", coordinates: "" };
     try {
       const parsed = JSON.parse(raw);
@@ -264,7 +246,7 @@ function WeatherLocationSelector() {
         return { displayName: "", coordinates: "" };
       }
     }
-  }, [config?.global?.weatherLocation]);
+  }, [user?.localizationPreferences?.weatherLocation]);
 
   const [value, setValue] = useState<{ displayName: string; coordinates: string }>(currentGlobal);
 
@@ -277,20 +259,9 @@ function WeatherLocationSelector() {
     const lat = coords[0] ?? "";
     const lon = coords[1] ?? "";
 
-    const updatedGlobal = {
-      ...(config?.global || {}),
-      // store as JSON string
-      weatherLocation: JSON.stringify({ name: value.displayName || "", lat, lon }),
-    };
-
     const nextWeatherLocation = JSON.stringify({ name: value.displayName || "", lat, lon });
 
     try {
-      patchConfig((prev) => ({
-        ...prev,
-        global: updatedGlobal,
-      }));
-      await withAuth((auth) => updateConfigPathAction(auth, "global", updatedGlobal, "home"));
       await updateUserProperty("localizationPreferences", {
         ...(user?.localizationPreferences || {}),
         weatherLocation: nextWeatherLocation,
@@ -331,22 +302,14 @@ function WeatherLocationSelector() {
 }
 
 function LinkOpeningBehaviourSelect() {
-  const { config, patchConfig } = usePageConfig();
-  const { withAuth } = useAuth();
-  const value = config?.global?.linkOpenBehaviour ?? "sametab";
+  const { user, updateUserProperty } = useAuth();
+  const value = user?.searchPreferences?.linkOpenBehaviour ?? "sametab";
 
   async function handleChange(setting: "newtab" | "sametab") {
-    const nextGlobal = {
-      ...(config?.global || {}),
+    await updateUserProperty("searchPreferences", {
+      ...(user?.searchPreferences || {}),
       linkOpenBehaviour: setting,
-    };
-
-    patchConfig((prev) => ({
-      ...prev,
-      global: nextGlobal,
-    }));
-
-    await withAuth((auth) => updateConfigPathAction(auth, "global", nextGlobal, "home"));
+    });
   }
 
   return (

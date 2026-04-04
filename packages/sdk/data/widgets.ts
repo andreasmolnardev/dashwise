@@ -1,5 +1,6 @@
 import { getHomeLinks } from "./links";
 import { getSuperuserPB } from "@dashwise/sdk/lib/pocketbase";
+import { defaultIntegrationsBlueprint, weatherIntegrationBlueprint } from "@dashwise/assets";
 import { readFile } from "fs/promises";
 import path from "path";
 import YAML from "yaml";
@@ -130,51 +131,23 @@ function normalizeWidgetList(rawWidgets: unknown): WidgetCatalogItem[] {
 }
 
 async function getDefaultWidgets(): Promise<WidgetCatalog> {
-    const candidatePaths = [
-        path.resolve(process.cwd(), "lib/integrations/default.yaml"),
-        path.resolve(process.cwd(), "../lib/integrations/default.yaml"),
-    ];
+    const widgets = defaultIntegrationsBlueprint?.configuration?.widgets;
+    const normalized = normalizeWidgetList(widgets);
 
-    for (const candidatePath of candidatePaths) {
-        try {
-            const content = await readFile(candidatePath, "utf-8");
-            const parsed = YAML.parse(content) as Record<string, any>;
-            const widgets = parsed?.configuration?.widgets;
-            const normalized = normalizeWidgetList(widgets);
-
-            if (normalized.length === 0) {
-                return {};
-            }
-
-            return {
-                "integration-default": normalized,
-            };
-        } catch {
-            continue;
-        }
+    if (normalized.length === 0) {
+        return {};
     }
 
-    return {};
+    return {
+        "integration-default": normalized,
+    };
 }
 
 async function getDefaultWeatherWidgets(): Promise<WidgetCatalogItem[]> {
-    const candidatePaths = [
-        path.resolve(process.cwd(), "lib/integrations/weather.yaml"),
-        path.resolve(process.cwd(), "../lib/integrations/weather.yaml"),
-    ];
+    const widgets = weatherIntegrationBlueprint?.configuration?.widgets;
+    const normalized = normalizeWidgetList(widgets);
 
-    for (const candidatePath of candidatePaths) {
-        try {
-            const content = await readFile(candidatePath, "utf-8");
-            const parsed = YAML.parse(content) as Record<string, any>;
-            const widgets = parsed?.configuration?.widgets;
-            return normalizeWidgetList(widgets);
-        } catch {
-            continue;
-        }
-    }
-
-    return [];
+    return normalized;
 }
 
 async function loadIntegrationYaml(relativePath: string) {
@@ -253,19 +226,14 @@ function mergeGlanceables(...groups: GlanceableCatalogItem[][]) {
 }
 
 async function getDefaultGlanceables(): Promise<GlanceableCatalogItem[]> {
-    const [defaultYaml, weatherYaml] = await Promise.all([
-        loadIntegrationYaml("lib/integrations/default.yaml"),
-        loadIntegrationYaml("lib/integrations/weather.yaml"),
-    ]);
-
     return mergeGlanceables(
-        normalizeGlanceables(defaultYaml?.configuration?.glanceables, {
+        normalizeGlanceables(defaultIntegrationsBlueprint?.configuration?.glanceables, {
             date: "date",
             greeting: "greeting",
             "local timezone": "local-timezone",
             "world clock": "world-clock",
         }),
-        normalizeGlanceables(weatherYaml?.configuration?.glanceables, {
+        normalizeGlanceables(weatherIntegrationBlueprint?.configuration?.glanceables, {
             "local weather": "weather",
         }),
     );

@@ -689,7 +689,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/integrations/with-widget": {
+    "/widgets/by-integration": {
         parameters: {
             query?: never;
             header?: never;

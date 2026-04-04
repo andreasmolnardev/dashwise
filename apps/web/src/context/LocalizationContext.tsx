@@ -2,6 +2,7 @@
 
 import { createContext, ReactNode, useContext, useMemo } from "react";
 import { usePageConfig } from "@/hooks/usePageConfig";
+import useAuth from "@/context/useAuth";
 
 type TimeFormatPreference = "12-hour" | "24-hour";
 type TemperatureUnit = "c" | "f";
@@ -45,12 +46,17 @@ function toDate(input?: Date | string | number): Date {
 }
 
 export function LocalizationProvider({ children }: { children: ReactNode }) {
-  const { config, refreshConfig } = usePageConfig();
+  const { refreshConfig } = usePageConfig();
+  const { user } = useAuth();
 
-  const locale = config?.global?.locale || "en-US";
-  const timeFormat = normalizeTimeFormat(config?.global?.timeFormat ?? config?.global?.["time-format"]);
-  const dateFormat = config?.global?.dateFormat || "DD-MM-YYYY";
-  const weatherUnit = normalizeUnit(config?.global?.weatherUnit);
+  const localizationPreferences = user?.localizationPreferences ?? {};
+
+  const locale = localizationPreferences.locale || "en-US";
+  const timeFormat = normalizeTimeFormat(
+    localizationPreferences.timeFormat ?? localizationPreferences["time-format"]
+  );
+  const dateFormat = localizationPreferences.dateFormat || "DD-MM-YYYY";
+  const weatherUnit = normalizeUnit(localizationPreferences.weatherUnit);
 
   const value = useMemo<LocalizationContextType>(() => {
     const weatherUnitSymbol: "°C" | "°F" = weatherUnit === "f" ? "°F" : "°C";

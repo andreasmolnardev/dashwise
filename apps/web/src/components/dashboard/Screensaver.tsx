@@ -1,17 +1,17 @@
 "use client";
 
-import { usePageConfig } from "@/hooks/usePageConfig";
 import { useEffect, useState } from "react";
 import { loadFont } from "@/lib/loadFont";
 import ClockWidget from "../widgets/ClockWidget";
+import useAuth from "@/context/useAuth";
 
 export default function Screensaver({ active, onExit }: { active: boolean; onExit: () => void }) {
-  const { config } = usePageConfig();
+  const { user } = useAuth();
   const [fonts, setFonts] = useState<{ name: string; path: string }[]>([]);
-  const [screensaverConfig, setScreensaverConfig] = useState<any>(config.appearance?.screensaver);
+  const [screensaverConfig, setScreensaverConfig] = useState<any>(user?.screensaverPreferences);
 
   useEffect(() => {
-    fetch("/assets/fonts/index.json")
+    fetch("/fonts/index.json")
       .then((res) => res.json())
       .then(setFonts);
     
@@ -20,17 +20,17 @@ export default function Screensaver({ active, onExit }: { active: boolean; onExi
       if (local) {
         setScreensaverConfig(JSON.parse(local));
       } else {
-        setScreensaverConfig(config.appearance?.screensaver);
+        setScreensaverConfig(user?.screensaverPreferences);
       }
     };
 
     checkLocal();
     window.addEventListener("dashwise_local_config_updated", checkLocal);
     return () => window.removeEventListener("dashwise_local_config_updated", checkLocal);
-  }, [config.appearance?.screensaver]);
+  }, [user?.screensaverPreferences]);
 
   const useHomePageStyle = screensaverConfig?.useHomePageStyle ?? true;
-  const homePageFont = config.appearance?.clock?.defaultFont ||  "MomoTrustDisplay";
+  const homePageFont = user?.appearancePreferences?.clock?.defaultFont || "MomoTrustDisplay";
 
   const clockFont = useHomePageStyle ? homePageFont : screensaverConfig?.clockFont || homePageFont;
   const clockFontWeight = useHomePageStyle ? "font-normal" : screensaverConfig?.clockFontWeight || "font-normal";

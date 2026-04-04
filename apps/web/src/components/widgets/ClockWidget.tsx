@@ -1,10 +1,10 @@
 "use client";
-import { usePageConfig } from "@/hooks/usePageConfig";
 import { useLocalization } from "@/context/LocalizationContext";
 import { loadFont } from "@/lib/loadFont";
 import { cn } from "@/lib/utils";
 import { useEffect, useState } from "react";
 import { ClockAppearance } from "../settings/ClockFontSelectionCarousel";
+import useAuth from "@/context/useAuth";
 
 type ClockWidgetProps = {
   format?: "24h" | "12h";
@@ -39,18 +39,18 @@ export default function ClockWidget({
   style,
 }: ClockWidgetProps) {
   const [time, setTime] = useState("");
-  const { config } = usePageConfig();
+  const { user } = useAuth();
   const { formatTime, timeFormat } = useLocalization();
 
   const [fonts, setFonts] = useState<FontEntry[]>([]);
   const [internalFont, setInternalFont] = useState<FontEntry>();
 
-  const clockAppearance = config?.appearance?.clock as ClockAppearance | undefined;
+  const clockAppearance = user?.appearancePreferences?.clock as ClockAppearance | undefined;
 
   // Fetch font list and add "Default" option
   useEffect(() => {
     let mounted = true;
-    fetch("/assets/fonts/index.json")
+    fetch("/fonts/index.json")
       .then((r) => r.json())
       .then((data: FontEntry[]) => {
         if (!mounted) return;

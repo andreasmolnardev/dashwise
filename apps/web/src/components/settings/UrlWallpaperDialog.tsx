@@ -11,7 +11,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { usePageConfig } from "@/hooks/usePageConfig";
 import useAuth from "@/context/useAuth";
 
 interface UrlWallpaperDialogProps {
@@ -29,7 +28,6 @@ export default function UrlWallpaperDialogComponent({
   open,
   onOpenChange,
 }: UrlWallpaperDialogProps) {
-  const { config, patchConfig } = usePageConfig();
   const { user, updateUserProperty } = useAuth();
   
   const [url, setUrl] = useState("");
@@ -47,16 +45,11 @@ export default function UrlWallpaperDialogComponent({
     setMessage(null);
 
     try {
-      const currentAppearance = (user?.appearancePreferences ?? config?.appearance ?? {}) as AppearanceConfig;
+      const currentAppearance = (user?.appearancePreferences ?? {}) as AppearanceConfig;
       const updatedAppearance: AppearanceConfig = {
         ...currentAppearance,
         backgroundImageUrl: url,
       };
-
-      patchConfig((prev) => ({
-        ...prev,
-        appearance: updatedAppearance,
-      }));
 
       await updateUserProperty("appearancePreferences", updatedAppearance);
 

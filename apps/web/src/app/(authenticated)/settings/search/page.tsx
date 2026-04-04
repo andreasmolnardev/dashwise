@@ -2,7 +2,6 @@
 import React, { useEffect, useState } from "react";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
-import { updateConfigPathAction } from "@/app/actions/config";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,7 +17,6 @@ import {
   DialogClose,
 } from "@/components/ui/dialog";
 import { Plus, MoreHorizontal } from "lucide-react";
-import { usePageConfig } from "@/hooks/usePageConfig";
 import SearchEngineDetailsForm from "@/components/settings/SearchEngineDetailsForm";
 import TabSwitcher from "@/components/common/TabSwitcher";
 import SearchEngineBrowseFeedComponent from "@/components/settings/SearchEngineBrowseFeed";
@@ -27,7 +25,7 @@ import { Select, SelectValue, SelectContent, SelectItem, SelectTrigger } from "@
 import useAuth from "@/context/useAuth";
 
 export default function SearchSettingsPage() {
-  const { withAuth, user, updateUserProperty } = useAuth();
+  const { user, updateUserProperty } = useAuth();
   const [engines, setEngines] = useState<SearchEngine[]>(user.searchPreferences?.searchEngines || []);
   const [activeTab, setActiveTab] = useState("manual");
 
@@ -49,7 +47,7 @@ export default function SearchSettingsPage() {
     setEngines(updated);
 
     try {
-      updateUserProperty("searchPreferences", {
+      await updateUserProperty("searchPreferences", {
         ...user.searchPreferences,
         searchEngines: updated,
       });
@@ -127,7 +125,7 @@ export default function SearchSettingsPage() {
               <div className="flex items-center gap-4">
                 <img src={engine.icon} alt="" className="w-6 h-6" />
                 <div>
-                  <h3 className="text-lg font-medium group-hover:text-(--primary)">{engine.name}</h3>
+                  <h3 className="text-lg font-medium group-hover:text-primary">{engine.name}</h3>
                   <p className="text-sm text-gray-100">
                     {engine.url_home} - !{engine.slug} {engine.status === "default" && " - Default engine"}
                   </p>
@@ -277,18 +275,14 @@ export default function SearchSettingsPage() {
 }
 
 function RedirectBangsSetting(user) {
-  const { config, refreshConfig } = usePageConfig();
-  const { withAuth } = useAuth();
+  const { updateUserProperty } = useAuth();
 
   async function handleChange(newVal: string) {
-    await withAuth((auth) => updateConfigPathAction(auth, "global", {
-      ...config.global,
+    await updateUserProperty("searchPreferences", {
+      ...(user.searchPreferences || {}),
       searchEngineShortcutFallback: newVal,
-    }, "home"));
-
-    await refreshConfig();
+    });
   }
-  // write to user search
 
   return (
     <div className="flex border border-transparent items-center col-span-full p-1.5 rounded-md gap-2">

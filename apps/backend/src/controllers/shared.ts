@@ -65,6 +65,14 @@ export function withJson(handler: JsonHandler) {
 }
 
 export function readAuthToken(c: Context) {
+  const authorization = c.req.header("authorization") ?? c.req.header("Authorization");
+  if (authorization?.toLowerCase().startsWith("bearer ")) {
+    const token = authorization.slice(7).trim();
+    if (token) {
+      return token;
+    }
+  }
+
   return c.req.query("token") ?? c.req.query("authToken") ?? null;
 }
 

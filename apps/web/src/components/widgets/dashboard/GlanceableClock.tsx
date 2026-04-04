@@ -5,9 +5,11 @@ import ClockWidget from "../ClockWidget";
 import GlanceableComponent from "../../glanceables/Glanceable";
 import { usePageConfig } from "@/hooks/usePageConfig";
 import type { WidgetItemProps } from "../Widget";
+import useAuth from "@/context/useAuth";
 
 export default function GlanceableClockWidget({ className, params }: WidgetItemProps) {
   const { config } = usePageConfig();
+  const { user } = useAuth();
   const clockStyle = params?.["clock-style"] as Record<string, any> | undefined;
 
   // params.glanceables overrides config-level glanceables
@@ -32,7 +34,7 @@ export default function GlanceableClockWidget({ className, params }: WidgetItemP
       <div style={{ gridArea: "clock" }} className="area-clock w-full flex items-center justify-center text-2xl md:text-4xl leading-tight">
         <div style={{ margin: "0 auto", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
           <ClockWidget
-            font={clockStyle?.defaultFont ?? config?.appearance?.clock?.defaultFont}
+            font={clockStyle?.defaultFont ?? user?.appearancePreferences?.clock?.defaultFont}
             weight={clockStyle?.fontWeight}
             color={clockStyle?.color}
             letterSpacing={clockStyle?.letterSpacing}

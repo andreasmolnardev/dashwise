@@ -10,9 +10,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
-import { usePageConfig } from "@/hooks/usePageConfig";
 import useAuth from "@/context/useAuth";
-import { appendConfigArrayItemAction } from "@/app/actions/config";
+import { createHomeLinkGroupAction } from "@/app/actions/links";
 
 type Props = {
   open: boolean;
@@ -25,7 +24,6 @@ export default function CreateLinkGroupDialog({
   onOpenChange,
   onCreated,
 }: Props) {
-  const { config, refreshConfig } = usePageConfig();
   const { withAuth } = useAuth();
 
   const [alert, setAlert] = useState<{
@@ -37,11 +35,7 @@ export default function CreateLinkGroupDialog({
 
   const onCreateNewLinkGroupSubmit = async (newGroup: string) => {
     try {
-      await withAuth((auth) =>
-        appendConfigArrayItemAction(auth, "linkGroups", newGroup)
-      );
-
-      await refreshConfig();
+      await withAuth((auth) => createHomeLinkGroupAction(auth, newGroup));
 
       setAlert({
         open: true,

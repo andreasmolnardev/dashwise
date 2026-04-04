@@ -3,6 +3,7 @@ import type { SyntheticEvent } from 'react';
 
 import { Dialog, DialogContent } from '../ui/dialog';
 import { usePageConfig } from "@/hooks/usePageConfig";
+import useAuth from "@/context/useAuth";
 import { Separator } from '../ui/separator';
 import { DialogTitle } from '@radix-ui/react-dialog';
 import { cn } from '@/lib/utils';
@@ -103,8 +104,9 @@ function normalizeConfigLinks(input: IncomingSearchItem[] = []): LinkItem[] {
 
 
 export default function CommandBar({ open, setOpen, searchItems, config }: CommandBarProps) {
-  // search engines still read from config (unchanged)
-  const searchEngines: SearchEngine[] = (config.searchEngines || []) as SearchEngine[];
+  const { user } = useAuth();
+  const searchPreferences = user?.searchPreferences ?? {};
+  const searchEngines: SearchEngine[] = (searchPreferences.searchEngines || []) as SearchEngine[];
 
   const links: LinkItem[] = React.useMemo(() => normalizeConfigLinks(searchItems || []), [searchItems]);
 
@@ -251,7 +253,7 @@ export default function CommandBar({ open, setOpen, searchItems, config }: Comma
     const parsed = parseBang(trimmedQuery);
     if (!currentAppId && parsed) {
       const engine = searchEngines.find((se) => (se.slug || '').toLowerCase() === parsed.slug);
-      const fallbackEngine = searchEngines.find((se) => (se.slug || '').toLowerCase() == config.searchEngineShortcutFallback)
+      const fallbackEngine = searchEngines.find((se) => (se.slug || '').toLowerCase() == searchPreferences.searchEngineShortcutFallback)
       if (engine) {
         items.unshift({
           name: `Search with ${engine.name} (${engine.slug ? '!' + engine.slug : ''})`,
@@ -464,11 +466,11 @@ export default function CommandBar({ open, setOpen, searchItems, config }: Comma
                 </div>
                 <div className="flex-1 flex items-center min-w-0">
                   <div className="flex-1 min-w-0 flex gap-2 items-center overflow-hidden">
-                    <div className="text-sm font-medium truncate flex-shrink min-w-0">
+                    <div className="text-sm font-medium truncate shrink min-w-0">
                       {item.name}
                     </div>
 
-                    <span className="text-xs text-muted-foreground truncate flex-shrink-0 max-w-[30%]">
+                    <span className="text-xs text-muted-foreground truncate shrink-0 max-w-[30%]">
                       {item.linkGroup || ""}
                     </span>
                   </div>
