@@ -66,6 +66,8 @@ configuration:
         type: json
         data_path: "token"
         data_set_env: "TOKEN"
+        invalidate:
+          after: 86400 # a day 
 
     fetch-systems:
       method: GET

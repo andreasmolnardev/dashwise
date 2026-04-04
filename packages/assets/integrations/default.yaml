@@ -20,16 +20,19 @@ configuration:
       key: "placeholder"
       template: "placeholder"
       category: "Placeholder"
+    - name: "Weekly view"
+      key: "calendar-week"
+      category: "Calendar"
   glanceables:
     - name: "Date"
       icon: none
-      text: "${lib.date.now}:" 
+      text: "${date.now}" 
     - name: "Greeting"
       icon: none
       text: "Hello"
     - name: "Local Timezone"
       icon: none
-      text: "${lib.date.current_timezone}"
+      text: "${user.current_timezone}"
     - name: "World Clock"
       properties:
         timezone: "type:tz ??? 'Europe/London'"

@@ -43,7 +43,7 @@ export const appRouter = createBrowserRouter([
       {
         element: <AuthenticatedLayout />,
         children: [
-          { path: "home", element: <DynamicPage /> },
+           { path: "home", element: <DynamicPage /> },
           { path: "news", element: <NewsPage /> },
           { path: "news/onboarding", element: <NewsOnboardingPage /> },
           {

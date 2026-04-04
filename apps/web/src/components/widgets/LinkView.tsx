@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { usePageConfig } from "@/hooks/usePageConfig";
 import { useAuth } from "@/context/useAuth";
 import { getMonitoringStatusAction } from "@/app/actions/monitoring";
-import { getHomeLinksAction } from "@/app/actions/links";
+import { getHomeLinksAction, updateHomeLinkFolderIconAction } from "@/app/actions/links";
 import { PaginatedCarouselViewComponent } from "./PaginatedCarouselView";
 import MonitoringDialog, { JobEntry } from "./MonitoringDialog";
 import {
@@ -31,7 +31,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import LinkDetailsForm from "@/components/settings/LinkDetailsForm";
-import { set } from "date-fns";
+import IconPickerComponent from "@/components/settings/IconPicker";
 
 export interface LinkType {
   id?: string;
@@ -39,7 +39,10 @@ export interface LinkType {
   url?: string;
   iconUrl?: string;
   collection?: string;
+  collectionId?: string;
   folder?: string;
+  folderId?: string;
+  folderIcon?: string;
   statusCheck?: boolean;
 }
 export default function LinkView({ links = [] }: { links?: LinkType[] }) {
@@ -93,16 +96,24 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
   const emittedFolders = new Set<string>();
   type Item =
     | { type: "link"; link: LinkType }
-    | { type: "folder"; name: string; links: LinkType[] };
+    | { type: "folder"; key: string; recordId?: string; name: string; icon?: string; links: LinkType[] };
 
   const items: Item[] = [];
 
   for (const l of visibleLinks) {
-    if (l.folder) {
-      if (!emittedFolders.has(l.folder)) {
-        const children = visibleLinks.filter((x) => x.folder === l.folder);
-        items.push({ type: "folder", name: l.folder, links: children });
-        emittedFolders.add(l.folder);
+    const folderKey = l.folderId || l.folder;
+    if (folderKey) {
+      if (!emittedFolders.has(folderKey)) {
+        const children = visibleLinks.filter((x) => (x.folderId || x.folder) === folderKey);
+        items.push({
+          type: "folder",
+          key: folderKey,
+          recordId: l.folderId,
+          name: l.folder || folderKey,
+          icon: l.folderIcon,
+          links: children,
+        });
+        emittedFolders.add(folderKey);
       }
     } else {
       items.push({ type: "link", link: l });
@@ -123,6 +134,11 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
   const [openDialogFor, setOpenDialogFor] = useState<string | null>(null);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [editingLink, setEditingLink] = useState<LinkType | null>(null);
+  const [editingFolder, setEditingFolder] = useState<{
+    id: string;
+    name: string;
+    icon?: string;
+  } | null>(null);
 
   function serverStatusToBool(status?: string | null): boolean | undefined {
     if (status === undefined || status === null) return undefined;
@@ -318,7 +334,7 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
           // folder tile (Popover)
           const folder = item;
           return (
-            <Popover key={folder.name + itemIdx}>
+            <Popover key={folder.key}>
               <PopoverTrigger asChild>
                 <button
                   type="button"
@@ -326,9 +342,17 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
                   aria-label={`Open folder ${folder.name}`}
                   title={folder.name}
                 >
-                  <div className="h-[35px] w-[35px] flex items-center justify-center text-white/80 group-hover:text-white transition-colors">
-                    <Icon icon="fa6-solid:folder" className="h-6 w-6" />
-                  </div>
+                  {folder.icon ? (
+                    <img
+                      src={folder.icon}
+                      alt={folder.name}
+                      className="h-8.75 w-8.75 object-contain rounded-lg bg-white/5 transition-colors"
+                    />
+                  ) : (
+                    <div className="h-8.75 w-8.75 flex items-center justify-center text-white/80 group-hover:text-white transition-colors">
+                      <Icon icon="fa6-solid:folder" className="h-6 w-6" />
+                    </div>
+                  )}
 
                   <div className="flex items-center w-full justify-center">
                     <span className="text-sm text-white truncate px-1">
@@ -338,9 +362,32 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
                 </button>
               </PopoverTrigger>
 
-              <PopoverContent className="w-[350px] frosted text-foreground space-y-2">
-                <header className="flex justify-between items-center">
-                  <h4 className="font-semibold mb-2">{folder.name}</h4>
+              <PopoverContent className="w-87.5 frosted text-foreground space-y-2">
+                <header className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <button
+                      type="button"
+                      disabled={!folder.recordId}
+                      onClick={() => {
+                        if (!folder.recordId) return;
+                        setEditingFolder({ id: folder.recordId, name: folder.name, icon: folder.icon });
+                      }}
+                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/5 transition-colors hover:bg-white/10"
+                      title={`Change icon for ${folder.name}`}
+                      aria-label={`Change icon for ${folder.name}`}
+                    >
+                      {folder.icon ? (
+                        <img
+                          src={folder.icon}
+                          alt={folder.name}
+                          className="h-6 w-6 object-contain"
+                        />
+                      ) : (
+                        <Icon icon="fa6-solid:folder" className="h-5 w-5 text-white/80" />
+                      )}
+                    </button>
+                    <h4 className="font-semibold truncate">{folder.name}</h4>
+                  </div>
                   <PopoverClose asChild>
                     <Button variant="ghost" className="h-8 w-8 p-0">
                       <Icon icon="fa6-solid:xmark" />
@@ -440,6 +487,57 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
         </DialogContent>
       </Dialog>
 
+      <Dialog
+        open={!!editingFolder}
+        onOpenChange={(open) => !open && setEditingFolder(null)}
+      >
+        <DialogContent className="frosted text-foreground max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Change Folder Icon</DialogTitle>
+          </DialogHeader>
+          {editingFolder && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 px-3 py-2">
+                {editingFolder.icon ? (
+                  <img
+                    src={editingFolder.icon}
+                    alt={editingFolder.name}
+                    className="h-10 w-10 rounded-lg object-contain bg-black/10"
+                  />
+                ) : (
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-black/10">
+                    <Icon icon="fa6-solid:folder" className="h-6 w-6 text-white/70" />
+                  </div>
+                )}
+                <div className="min-w-0">
+                  <p className="truncate font-medium">{editingFolder.name}</p>
+                  <p className="text-sm text-white/60">Choose a new icon for this folder.</p>
+                </div>
+              </div>
+
+              <IconPickerComponent
+                onSelect={async (iconObj) => {
+                  if (!editingFolder?.id) return;
+                  await withAuth((auth) => updateHomeLinkFolderIconAction(auth, editingFolder.id, { icon: iconObj.url ?? "" }));
+                  setLocalLinks((current) =>
+                    current.map((link) =>
+                      link.folderId === editingFolder.id
+                        ? { ...link, folderIcon: iconObj.url ?? "" }
+                        : link
+                    )
+                  );
+                  setEditingFolder((current) =>
+                    current ? { ...current, icon: iconObj.url ?? "" } : current
+                  );
+                  await refreshHomeLinks();
+                  setEditingFolder(null);
+                }}
+              />
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
       {selectedLink && (
         <MonitoringDialog
           open={!!selectedLink}
@@ -496,11 +594,11 @@ function LinkTile({
           <img
             src={link.iconUrl}
             alt={link.title ?? "Icon"}
-            className="h-[35px] w-[35px] object-contain rounded-lg bg-white/5 transition-colors"
+            className="h-8.75 w-8.75 object-contain rounded-lg bg-white/5 transition-colors"
           />
         )
         : (
-          <div className="h-[35px] w-[35px] flex items-center justify-center">
+          <div className="h-8.75 w-8.75 flex items-center justify-center">
             <Icon icon="fa6-solid:folder" className="h-6 w-6 opacity-20" />
           </div>
         )}

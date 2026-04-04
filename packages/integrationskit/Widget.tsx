@@ -19,6 +19,8 @@ export type WidgetProps = {
     widgetJSON?: Record<string, any> | null;
     /** Optional per-user env overrides stored in page config. */
     input?: Record<string, any> | null;
+    /** Optional runtime endpoint/computed data resolved by backend. */
+    data?: Record<string, any> | null;
     /** When true, uses ??? fallback values baked into the YAML instead of live data */
     isPreview?: boolean;
     className?: string;
@@ -29,6 +31,7 @@ export default function Widget({
     integrationJSON,
     widgetJSON,
     input,
+    data,
     isPreview = false,
     className,
 }: WidgetProps) {
@@ -80,14 +83,17 @@ export default function Widget({
             }
 
             try {
-                const runtimeData = integrationJSON
-                    ? (await resolveWidgetRuntimeData({
-                        widgetJSON: widgetWithInput,
-                        integrationJSON: integrationJSON ?? null,
-                        data: null,
-                        isPreview: isPreview,
-                    })).data
-                    : null;
+                const runtimeData = data !== undefined
+                    ? data
+                    : integrationJSON
+                        ? (await resolveWidgetRuntimeData({
+                            widgetJSON: widgetWithInput,
+                            integrationJSON: integrationJSON ?? null,
+                            data: null,
+                            isPreview: isPreview,
+                        })).data
+                        : null;
+                console.log("Resolved widget runtime data:", runtimeData);
                 if (!cancelled) {
                     setResolved(
                         resolveWidgetProperties({
@@ -115,7 +121,7 @@ export default function Widget({
         return () => {
             cancelled = true;
         };
-    }, [effectiveWidgetJSON, integrationJSON, isPreview, widgetWithInput]);
+    }, [data, effectiveWidgetJSON, integrationJSON, isPreview, widgetWithInput]);
 
     if (!effectiveWidgetJSON) {
         console.warn(

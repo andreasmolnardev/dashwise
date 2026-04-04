@@ -6,7 +6,10 @@ import LinkView from "./LinkView";
 import SearchBar from "./SearchBar";
 import Widget from "@dashwise/integrationskit/Widget";
 import useAuth from "@/context/useAuth";
-import { getIntegrationWithWidgetAction } from "@/app/actions/integrations";
+import {
+  getConsumerDataAction,
+  getIntegrationWithWidgetAction,
+} from "@/app/actions/integrations";
 
 export type WidgetProps = {
   type: string;
@@ -71,6 +74,8 @@ function IntegrationWidget({
 }) {
   const { withAuth, user } = useAuth();
   const [integrationJSON, setIntegrationJSON] = useState<any>(null);
+  const [runtimeData, setRuntimeData] = useState<Record<string, any> | null>(null);
+  const [runtimeInput, setRuntimeInput] = useState<Record<string, any> | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -82,20 +87,39 @@ function IntegrationWidget({
         setIsLoading(true);
         setLoadError(null);
         setIntegrationJSON(null);
+        setRuntimeData(null);
+        setRuntimeInput(null);
       }
 
       try {
-        const data = await withAuth((auth) =>
-          getIntegrationWithWidgetAction(auth, type)
-        );
+        const data = await withAuth(async (auth) => {
+          const integrationPayload = await getIntegrationWithWidgetAction(auth, type);
+          if (!integrationPayload?.integration || !integrationPayload?.widgetJSON) {
+            throw new Error(`Widget "${type}" could not be loaded.`);
+          }
+
+          const resolvedInput = resolveUserInjectedEnv(
+            integrationPayload.integration?.configuration.environment_variables,
+            user,
+          );
+          const mergedInput = mergeWidgetInput(resolvedInput, properties);
+
+          const consumer = isPreview
+            ? { data: null }
+            : await getConsumerDataAction(auth, "widget", type, mergedInput ?? undefined);
+
+          return {
+            integrationPayload,
+            mergedInput,
+            runtimeData: consumer?.data ?? null,
+          };
+        });
 
         if (cancelled) return;
 
-        if (!data?.integration || !data?.widgetJSON) {
-          throw new Error(`Widget "${type}" could not be loaded.`);
-        }
-
-        setIntegrationJSON(data);
+        setIntegrationJSON(data.integrationPayload);
+        setRuntimeInput(data.mergedInput ?? null);
+        setRuntimeData(data.runtimeData ?? null);
       } catch (error) {
         if (cancelled) return;
         setLoadError(error instanceof Error ? error.message : String(error));
@@ -110,7 +134,7 @@ function IntegrationWidget({
     return () => {
       cancelled = true;
     };
-  }, [type, withAuth]);
+  }, [isPreview, properties, type, user, withAuth]);
 
   if (isLoading) {
     return <WidgetLoadingState className="w-full" />;
@@ -125,20 +149,33 @@ function IntegrationWidget({
     );
   }
 
-  const resolvedInput = resolveUserInjectedEnv(
-    integrationJSON.integration?.configuration.environment_variables,
-    user
-  );
-
   return (
     <Widget
       isPreview={isPreview ?? false}
       widgetKey={type}
       widgetJSON={integrationJSON.widgetJSON}
       integrationJSON={integrationJSON.integration}
-      input={resolvedInput}
+      input={runtimeInput}
+      data={runtimeData}
     />
   );
+}
+
+function mergeWidgetInput(
+  resolvedInput: Record<string, any> | null | undefined,
+  properties: Record<string, any> | undefined,
+) {
+  const instanceInput =
+    properties && typeof properties.input === "object" && properties.input !== null
+      ? (properties.input as Record<string, any>)
+      : null;
+  if (!resolvedInput && !instanceInput) {
+    return null;
+  }
+  return {
+    ...(resolvedInput ?? {}),
+    ...(instanceInput ?? {}),
+  };
 }
 function resolveUserInjectedEnv(envVars: any, user: any): any {
   if (envVars == null) return envVars;
@@ -208,7 +245,7 @@ function WidgetErrorState({
       <p className="text-sm font-semibold text-red-200">
         Widget failed to load
       </p>
-      <p className="mt-1 text-xs leading-snug text-red-100/80 break-words max-h-10 overflow-x-scroll">
+      <p className="mt-1 text-xs leading-snug text-red-100/80 wrap-break-word max-h-10 overflow-x-scroll">
         {message}
       </p>
     </div>

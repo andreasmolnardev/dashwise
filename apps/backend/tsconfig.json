@@ -6,6 +6,7 @@
     "baseUrl": ".",
     "module": "esnext",
     "moduleResolution": "bundler",
+    "jsx": "preserve",
     "strict": true,
     "lib": ["esnext"],
     "types": [

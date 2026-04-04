@@ -12,3 +12,7 @@ export async function getUserGlanceableAction(auth: ActionAuth) {
 export async function getUserGlanceablesAction(auth: ActionAuth) {
   return api.glanceables.getUserGlanceablesAction(auth);
 }
+
+export async function getIntegrationWithGlanceableAction(auth: ActionAuth, glanceableType: string) {
+  return api.glanceables.getIntegrationWithGlanceableAction({ auth, glanceableType });
+}

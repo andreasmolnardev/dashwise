@@ -34,6 +34,13 @@ export interface LinkFolder {
     updated: string;
 }
 
+export interface HomeLinkFolderPathItem {
+    id: string;
+    name: string;
+    icon: string;
+    parentFolder?: string;
+}
+
 export interface LinkItem {
     collectionId: string;
     collectionName: "linkItems";
@@ -134,15 +141,15 @@ export async function getLinksTags() {
 // ─── Home links ───────────────────────────────────────────────────────────────
 
 function buildFolderPathResolver(
-    folders: { id: string; name: string; parentFolder?: string }[],
+    folders: HomeLinkFolderPathItem[],
 ) {
     const folderById = new Map(folders.map((f) => [f.id, f]));
 
-    return function resolvePath(folderId: string): string[] {
-        const path: string[] = [];
+    return function resolvePath(folderId: string): HomeLinkFolderPathItem[] {
+        const path: HomeLinkFolderPathItem[] = [];
         let current = folderById.get(folderId);
         while (current) {
-            path.unshift(current.name);
+            path.unshift(current);
             current = current.parentFolder
                 ? folderById.get(current.parentFolder)
                 : undefined;
@@ -168,7 +175,6 @@ async function getHomeListId(userId: string) {
 
 export async function getHomeLinks(userId: string) {
 
-    console.log("Test")
     const pb = getServerPB();
     const userHomeListId = await getHomeListId(userId);
 
@@ -189,20 +195,26 @@ export async function getHomeLinks(userId: string) {
         folders.map((f) => ({
             id: f.id,
             name: f.name,
+            icon: f.icon,
             parentFolder: f.parentFolder,
         })),
     );
 
     return records.map((r) => {
         const path = r.folder ? resolvePath(r.folder) : [];
+        const collectionFolder = path[0];
+        const nestedFolder = path[1];
         return {
             id: r.id as string,
             url: r.url as string,
             title: r.title as string,
             iconUrl: r.iconUrl as string,
             description: r.description as string,
-            collection: path[0] ?? "",
-            folder: path[1] ?? "",
+            collection: collectionFolder?.name ?? "",
+            collectionId: collectionFolder?.id,
+            folder: nestedFolder?.name ?? "",
+            folderId: nestedFolder?.id,
+            folderIcon: nestedFolder?.icon ?? "",
         };
     });
 }
@@ -302,6 +314,30 @@ export async function createHomeLinkGroup(
     return {
         id: folderId!,
         name: normalizedName,
+    };
+}
+
+export async function updateHomeLinkFolderIcon(
+    userId: string,
+    folderId: string,
+    data: { icon?: string },
+): Promise<{ id: string; name: string; icon: string }> {
+    const pb = getServerPB();
+    const folder = await pb.collection("linksFolders").getOne(folderId);
+    const list = await pb.collection("linksLists").getOne(folder.list);
+
+    if (list.user !== userId || list.type !== "home") {
+        throw new Error("Unauthorized");
+    }
+
+    const updated = await pb.collection("linksFolders").update(folderId, {
+        icon: data.icon ?? "",
+    });
+
+    return {
+        id: updated.id,
+        name: updated.name,
+        icon: updated.icon,
     };
 }
 

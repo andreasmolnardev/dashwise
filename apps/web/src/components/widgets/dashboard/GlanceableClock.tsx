@@ -1,11 +1,21 @@
 // components/widgets/dashboard/GlanceableClock.tsx
 "use client";
 
+import { useEffect, useState } from "react";
 import ClockWidget from "../ClockWidget";
 import GlanceableComponent from "@dashwise/integrationskit/Glanceable";
 import { usePageConfig } from "@/hooks/usePageConfig";
 import type { WidgetItemProps } from "../Widget";
 import useAuth from "@/context/useAuth";
+import { getIntegrationWithGlanceableAction } from "@/app/actions/widgets";
+import { getConsumerDataAction } from "@/app/actions/integrations";
+
+type ResolvedGlanceablePayload = {
+  integration: Record<string, any> | null;
+  glanceableJSON: Record<string, any> | null;
+};
+
+const glanceableIntegrationCache = new Map<string, ResolvedGlanceablePayload | null>();
 
 export default function GlanceableClockWidget({ className, params }: WidgetItemProps) {
   const { pageConfig } = usePageConfig();
@@ -47,14 +57,123 @@ export default function GlanceableClockWidget({ className, params }: WidgetItemP
       </div>
       <div style={{ gridArea: "gl1" }} className="area-gl1">
         {glanceableKeys[0] && (
-          <GlanceableComponent type={glanceableKeys[0]} params={getParams(glanceableKeys[0])} className="font-medium" />
+          <ResolvedGlanceable
+            type={glanceableKeys[0]}
+            params={getParams(glanceableKeys[0])}
+            className="font-medium"
+          />
         )}
       </div>
       <div style={{ gridArea: "gl2" }} className="area-gl2">
         {glanceableKeys[1] && (
-          <GlanceableComponent type={glanceableKeys[1]} params={getParams(glanceableKeys[1])} className="font-medium" />
+          <ResolvedGlanceable
+            type={glanceableKeys[1]}
+            params={getParams(glanceableKeys[1])}
+            className="font-medium"
+          />
         )}
       </div>
     </section>
   );
+}
+
+function ResolvedGlanceable({
+  type,
+  params,
+  className,
+}: {
+  type: string;
+  params?: Record<string, any>;
+  className?: string;
+}) {
+  const { withAuth } = useAuth();
+  const [resolved, setResolved] = useState<ResolvedGlanceablePayload | null | undefined>(() => glanceableIntegrationCache.get(type));
+  const [runtimeData, setRuntimeData] = useState<Record<string, any> | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const cached = glanceableIntegrationCache.get(type);
+
+    if (cached !== undefined) {
+      setResolved(cached);
+      return;
+    }
+
+    const load = async () => {
+      try {
+        const data = await withAuth((auth) => getIntegrationWithGlanceableAction(auth, type));
+
+        if (cancelled) return;
+
+        const next = data?.integration && data?.glanceableJSON ? data : null;
+        glanceableIntegrationCache.set(type, next);
+        setResolved(next);
+      } catch {
+        if (cancelled) return;
+
+        glanceableIntegrationCache.set(type, null);
+        setResolved(null);
+      }
+    };
+
+    void load();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [type, withAuth]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!resolved?.glanceableJSON) {
+      setRuntimeData(null);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    const load = async () => {
+      try {
+        const data = await withAuth((auth) =>
+          getConsumerDataAction(auth, "glanceable", type, getGlanceableInput(params))
+        );
+        if (cancelled) return;
+        setRuntimeData((data?.data as Record<string, any> | null) ?? null);
+      } catch {
+        if (cancelled) return;
+        setRuntimeData(null);
+      }
+    };
+
+    void load();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [params, resolved, type, withAuth]);
+
+  if (resolved?.glanceableJSON) {
+    return (
+      <GlanceableComponent
+        glanceableJSON={resolved.glanceableJSON}
+        integrationJSON={resolved.integration}
+        data={runtimeData}
+        params={params}
+        className={className}
+      />
+    );
+  }
+
+  return <GlanceableComponent type={type} params={params} className={className} />;
+}
+
+function getGlanceableInput(params?: Record<string, any>) {
+  if (!params || typeof params !== "object") {
+    return undefined;
+  }
+  if (params.input && typeof params.input === "object") {
+    return params.input as Record<string, any>;
+  }
+  return params;
 }

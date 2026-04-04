@@ -20,3 +20,12 @@ export async function getWidgetPropertiesAction(auth: ActionAuth, widgetSlug: st
 export async function getIntegrationWithWidgetAction(auth: ActionAuth, widgetKey: string) {
   return api.widgets.getIntegrationWithWidgetAction({ auth, widgetKey });
 }
+
+export async function getConsumerDataAction(
+  auth: ActionAuth,
+  type: "widget" | "glanceable",
+  key: string,
+  input?: Record<string, any>,
+) {
+  return api.integrations.getConsumerDataAction({ auth, type, key, input });
+}

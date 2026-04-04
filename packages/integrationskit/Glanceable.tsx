@@ -1,11 +1,18 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { interpolateString, flattenToEnv } from "./data/resolveProperties";
+import IntegrationIcon from "./templates/IntegrationIcon";
+import {
+  flattenToEnv,
+  interpolateString,
+  resolveGlanceableRuntimeData,
+} from "./data/resolveProperties";
 
 export type GlanceableProps = {
   /** The glanceable definition from configuration.glanceables[] */
   glanceableJSON?: Record<string, any>;
+  /** Full integration JSON used to resolve runtime environment values. */
+  integrationJSON?: Record<string, any> | null;
   /** Runtime data hydrated by the SDK. Omit / null in preview mode. */
   data?: Record<string, any> | null;
   /** When true, renders fallback/example values */
@@ -18,6 +25,7 @@ export type GlanceableProps = {
 
 export default function Glanceable({
   glanceableJSON,
+  integrationJSON,
   data,
   isPreview = false,
   className,
@@ -28,27 +36,92 @@ export default function Glanceable({
     return <LegacyGlanceable type={type} params={params} className={className} />;
   }
 
-  const safeGlanceableJSON = glanceableJSON ?? {};
-  const env: Record<string, string> = isPreview
-    ? buildPreviewEnv(safeGlanceableJSON)
-    : flattenToEnv(data ?? {});
+  const safeGlanceableJSON = useMemo(
+    () => mergeGlanceableJSON(glanceableJSON ?? {}, params),
+    [glanceableJSON, params],
+  );
+  const baseEnv = useMemo(
+    () => (isPreview ? buildPreviewEnv(safeGlanceableJSON) : buildGlanceableEnv(safeGlanceableJSON)),
+    [isPreview, safeGlanceableJSON],
+  );
+  const [resolvedRuntimeData, setResolvedRuntimeData] = useState<
+    Record<string, any> | null
+  >(data ?? null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (data !== undefined) {
+      setResolvedRuntimeData(data);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    if (!integrationJSON || isPreview) {
+      setResolvedRuntimeData(null);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    const loadRuntimeData = async () => {
+      try {
+        const runtimeData = await resolveGlanceableRuntimeData({
+          glanceableJSON: safeGlanceableJSON,
+          integrationJSON,
+          data: null,
+          isPreview,
+          baseEnv,
+        });
+
+        if (!cancelled) {
+          setResolvedRuntimeData(runtimeData.data);
+        }
+      } catch {
+        if (!cancelled) {
+          setResolvedRuntimeData(null);
+        }
+      }
+    };
+
+    void loadRuntimeData();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [baseEnv, data, integrationJSON, isPreview, safeGlanceableJSON]);
+
+  const env = useMemo(() => {
+    const integrationEnv =
+      integrationJSON?.configuration?.environment_variables &&
+      typeof integrationJSON.configuration.environment_variables === "object"
+        ? flattenToEnv(
+            integrationJSON.configuration.environment_variables as Record<
+              string,
+              any
+            >,
+          )
+        : {};
+
+    return {
+      ...baseEnv,
+      ...integrationEnv,
+      ...(resolvedRuntimeData ? flattenToEnv(resolvedRuntimeData) : {}),
+    };
+  }, [integrationJSON, isPreview, resolvedRuntimeData, safeGlanceableJSON]);
 
   const rawText = typeof safeGlanceableJSON.text === "string" ? safeGlanceableJSON.text : "";
-  const text = rawText ? interpolateString(rawText, env) : (safeGlanceableJSON.name ?? "");
+  const text = rawText ? resolveGlanceableText(rawText, env) : (safeGlanceableJSON.name ?? "");
 
-  const iconSrc =
-    safeGlanceableJSON.icon && safeGlanceableJSON.icon !== "none"
-      ? typeof safeGlanceableJSON.icon === "string"
-        ? safeGlanceableJSON.icon
-        : null
-      : null;
+  const iconSrc = getGlanceableIconSource(safeGlanceableJSON.icon);
 
   return (
     <span
       className={`inline-flex items-center gap-1 text-sm ${className ?? ""}`}
     >
       {iconSrc && (
-        <img src={iconSrc} alt="" className="h-4 w-4 object-contain shrink-0" />
+        <IntegrationIcon source={iconSrc} alt="" size={16} className="h-4 w-4 object-contain shrink-0" />
       )}
       <span>{text}</span>
     </span>
@@ -223,17 +296,60 @@ function toDate(input?: Date | string | number): Date {
   return input instanceof Date ? input : new Date(input);
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+function mergeGlanceableJSON(glanceableJSON: Record<string, any>, params?: Record<string, any>) {
+  if (!params || typeof params !== "object") {
+    return glanceableJSON;
+  }
 
-function buildPreviewEnv(def: Record<string, any>): Record<string, string> {
+  return {
+    ...glanceableJSON,
+    properties: {
+      ...(glanceableJSON.properties ?? {}),
+      ...params,
+    },
+  };
+}
+
+function getGlanceableIconSource(icon: unknown) {
+  if (!icon || icon === "none") return null;
+  if (typeof icon === "string") return icon;
+
+  if (typeof icon === "object") {
+    const iconRecord = icon as Record<string, any>;
+    const source =
+      iconRecord.source ??
+      iconRecord.file ??
+      iconRecord.icon ??
+      iconRecord.value;
+
+    if (typeof source === "string" && source.trim()) {
+      return source.trim();
+    }
+  }
+
+  return null;
+}
+
+function resolveGlanceableText(template: string, env: Record<string, string>) {
+  const interpolated = interpolateString(template, env);
+
+  return interpolated.replace(/\$\{lib\.date\.time\(([^}]+)\)\}/g, (_match, rawTimezone: string) => {
+    const timezone = normalizeTimezone(interpolateString(String(rawTimezone).trim(), env));
+    return timezone ? formatTime(new Date(), { timeZone: timezone }) : formatTime(new Date());
+  });
+}
+
+function buildGlanceableEnv(def: Record<string, any>): Record<string, string> {
   const env: Record<string, string> = {};
+  const now = new Date();
+  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
-  // Stub lib.date values
-  env["lib.date.now"] = new Date().toLocaleDateString();
-  env["lib.date.current_timezone"] = Intl.DateTimeFormat().resolvedOptions().timeZone;
-  env["lib.date.time"] = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  env["date.now"] = now.toLocaleDateString();
+  env["user.current_timezone"] = timezone;
+  env["lib.date.now"] = now.toLocaleDateString();
+  env["lib.date.current_timezone"] = timezone;
+  env["lib.date.time"] = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
-  // Expose declared properties as both bare key and properties.key
   const props = def.properties ?? {};
   for (const [k, v] of Object.entries(props)) {
     const str = String(v ?? "");
@@ -242,4 +358,10 @@ function buildPreviewEnv(def: Record<string, any>): Record<string, string> {
   }
 
   return env;
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function buildPreviewEnv(def: Record<string, any>): Record<string, string> {
+  return buildGlanceableEnv(def);
 }

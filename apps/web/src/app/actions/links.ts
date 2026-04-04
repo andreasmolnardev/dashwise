@@ -13,6 +13,10 @@ export async function createHomeLinkGroupAction(auth: ActionAuth, name: string) 
   return api.links.createHomeLinkGroupAction({ auth, name });
 }
 
+export async function updateHomeLinkFolderIconAction(auth: ActionAuth, folderId: string, data: { icon?: string }) {
+  return api.links.updateHomeLinkFolderIconAction({ auth, folderId, data });
+}
+
 export async function getHomeLinksAction(auth: ActionAuth) {
   return api.links.getHomeLinksAction(auth);
 }

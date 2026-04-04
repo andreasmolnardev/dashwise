@@ -50,7 +50,7 @@ const config: Config = {
 
   default_bg_url: env.NEXT_PUBLIC_DEFAULT_BG_URL || "/dashboard-wallpaper.png",
 
-  version: "0.5",
+  version: "1.0",
 
   allowInsecureCertsForIntegrationUrls: allowInsecureCertsForIntegrationUrls || false,
   enableSSO: enableSSOLogin,

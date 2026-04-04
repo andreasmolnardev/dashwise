@@ -24,6 +24,16 @@ export type EndpointResolutionContext = {
 	env: Record<string, string>;
 	scope?: Record<string, any>;
 	signal?: AbortSignal;
+	cache?: EndpointRuntimeCacheAdapter;
+};
+
+export type EndpointRuntimeCacheAdapter = {
+	get: (endpointId: string) => ResolvedEndpointData | null;
+	set: (
+		endpointId: string,
+		payload: ResolvedEndpointData,
+		expiresAt: number | null,
+	) => void;
 };
 
 /**
@@ -126,15 +136,29 @@ export async function resolveEndpointCatalog(
 		if (idx === -1) idx = 0;
 
 		const endpoint = work.splice(idx, 1)[0];
+		const endpointKey = resolveEndpointCacheKey(endpoint);
+		const ttlSeconds = resolveInvalidateAfterSeconds(endpoint);
 
-		const resolvedEndpoint = await getEndpointData(endpoint, {
-			...context,
-			env: nextEnv,
-			scope: {
-				...(context.scope ?? {}),
-				endpoints: resolved,
-			},
-		});
+		let resolvedEndpoint: ResolvedEndpointData | null = null;
+		if (endpointKey && context.cache) {
+			resolvedEndpoint = context.cache.get(endpointKey);
+		}
+
+		if (!resolvedEndpoint) {
+			resolvedEndpoint = await getEndpointData(endpoint, {
+				...context,
+				env: nextEnv,
+				scope: {
+					...(context.scope ?? {}),
+					endpoints: resolved,
+				},
+			});
+
+			if (endpointKey && context.cache && ttlSeconds !== null) {
+				const expiresAt = Date.now() + ttlSeconds * 1000;
+				context.cache.set(endpointKey, resolvedEndpoint, expiresAt);
+			}
+		}
 
 		const key = resolvedEndpoint.id ?? resolvedEndpoint.name;
 		if (key) resolved[key] = resolvedEndpoint;
@@ -159,6 +183,29 @@ export async function resolveEndpointCatalog(
 	}
 
 	return { endpoints: resolved, env: nextEnv };
+}
+
+function resolveEndpointCacheKey(endpoint: EndpointDefinition): string | null {
+	if (typeof endpoint.id === "string" && endpoint.id.trim()) {
+		return endpoint.id.trim();
+	}
+	if (typeof endpoint.name === "string" && endpoint.name.trim()) {
+		return endpoint.name.trim();
+	}
+	return null;
+}
+
+function resolveInvalidateAfterSeconds(endpoint: EndpointDefinition): number | null {
+	const responseDirective = isPlainObject(endpoint.response) ? endpoint.response : null;
+	const invalidate = isPlainObject(responseDirective?.invalidate)
+		? responseDirective.invalidate
+		: null;
+	const afterRaw = invalidate?.after;
+	const parsed = Number(afterRaw);
+	if (!Number.isFinite(parsed) || parsed <= 0) {
+		return null;
+	}
+	return parsed;
 }
 
 export async function getEndpointData(

@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import IconPickerComponent from "@/components/settings/IconPicker";
+import IconPickerComponent, { loadIconCatalog } from "@/components/settings/IconPicker";
 import useAuth from "@/context/useAuth";
 
 import {
@@ -48,8 +48,7 @@ export default function SearchEngineDetailsForm({
     const [open, setOpen] = useState(false);
 
     useEffect(() => {
-        fetch("/icons/index.json")
-            .then((res) => res.json())
+        void loadIconCatalog()
             .then((d) => setIcons(d))
             .catch(() => setIcons([]));
     }, []);

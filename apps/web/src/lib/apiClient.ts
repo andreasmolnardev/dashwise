@@ -180,6 +180,12 @@ const routes: Record<string, RouteConfig> = {
     path: "/links/home/groups",
     body: (input) => input,
   },
+  "links.updateHomeLinkFolderIconAction": {
+    method: "PUT",
+    path: "/links/folders/{folderId}/icon" as any,
+    params: (input) => ({ path: { folderId: String(input?.folderId ?? "") } }),
+    body: (input) => ({ auth: input?.auth, data: input?.data }),
+  },
   "links.getHomeLinksAction": {
     method: "GET",
     path: "/links/home",
@@ -246,6 +252,12 @@ const routes: Record<string, RouteConfig> = {
     auth: (input) => authToken(input?.auth),
     query: (input) => ({ widgetKey: input?.widgetKey }),
   },
+  "glanceables.getIntegrationWithGlanceableAction": {
+    method: "GET",
+    path: "/glanceables/by-integration",
+    auth: (input) => authToken(input?.auth),
+    query: (input) => ({ glanceableType: input?.glanceableType }),
+  },
 
   "integrations.getIntegrationsAction": {
     method: "GET",
@@ -271,6 +283,16 @@ const routes: Record<string, RouteConfig> = {
     path: "/integrations/widget-properties",
     auth: (input) => authToken(input?.auth),
     query: (input) => ({ widgetSlug: input?.widgetSlug }),
+  },
+  "integrations.getConsumerDataAction": {
+    method: "GET",
+    path: "/integrations/consumerData",
+    auth: (input) => authToken(input?.auth),
+    query: (input) => ({
+      type: input?.type,
+      key: input?.key,
+      input: input?.input ? JSON.stringify(input.input) : undefined,
+    }),
   },
 
   "misc.getLocationsAction": {

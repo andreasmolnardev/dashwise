@@ -13,7 +13,6 @@ export default function IconDetailsCard({ resolved, className }: IconDetailsCard
   const header = resolved.header;
   const card = resolved.card;
   const iconSrc = card?.icon ?? null;
-  console.log({ resolved, header, card, iconSrc })
 
   const primary = card?.primary ?? "";
   const secondary = card?.secondary ?? "";

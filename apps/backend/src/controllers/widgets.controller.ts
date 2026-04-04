@@ -1,6 +1,9 @@
 import type { Hono } from "hono";
 
-import { getIntegrationWithWidget } from "@dashwise/sdk/data/integrations";
+import {
+  getIntegrationWithGlanceable,
+  getIntegrationWithWidget,
+} from "@dashwise/sdk/data/integrations";
 import { getUserGlanceable, getUserWidgets } from "@dashwise/sdk/data/widgets";
 
 import { readAuthToken, requireAuth, withJson } from "./shared";
@@ -25,5 +28,9 @@ export function registerWidgetsControllers(app: Hono) {
   app.get("/api/v1/widgets/by-integration", withJson(async (c) => {
     const { userId } = await requireAuth({ token: readAuthToken(c) });
     return getIntegrationWithWidget(userId, String(c.req.query("widgetKey") ?? ""));
+  }));
+  app.get("/api/v1/glanceables/by-integration", withJson(async (c) => {
+    const { userId } = await requireAuth({ token: readAuthToken(c) });
+    return getIntegrationWithGlanceable(userId, String(c.req.query("glanceableType") ?? ""));
   }));
 }

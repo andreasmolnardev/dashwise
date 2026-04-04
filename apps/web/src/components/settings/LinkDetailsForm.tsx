@@ -33,7 +33,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import IconPickerComponent, { IconResult } from "@/components/settings/IconPicker";
+import IconPickerComponent, { IconResult, loadIconCatalog } from "@/components/settings/IconPicker";
 import { RadioGroup, RadioGroupItem } from "../ui/radio-group";
 import { Switch } from "@/components/ui/switch";
 import { faEllipsisV, faPaperclip } from "@fortawesome/free-solid-svg-icons";
@@ -138,8 +138,7 @@ export default function LinkDetailsForm({
 
   // Load icons
   useEffect(() => {
-    fetch("/icons/index.json")
-      .then((res) => res.json())
+    void loadIconCatalog()
       .then((data) => setIcons(data))
       .catch(console.error);
   }, []);

@@ -6,11 +6,13 @@ import { Link, useSearchParams } from "react-router-dom";
 import { Icon } from "@iconify-icon/react";
 import PagesTabs from "../PagesTabs";
 import UpdateDetailsDialogComponent from "./UpdateDetailsDialog";
+import QuickLaunchPopover from "./QuickLaunchPopover";
 import useAuth from "@/context/useAuth";
 import { getNotificationsAction } from "@/app/actions/notifications/items";
 import { getIntegrationWithWidgetAction } from "@/app/actions/integrations";
 import { renderWidget } from "../widgets/Widget";
 import Widget from "@dashwise/integrationskit/Widget";
+import PageNotFound from "../errorPages/PageNotFound";
 
 const COLUMN_ORDER = ["left", "middle", "right"] as const;
 type Column = (typeof COLUMN_ORDER)[number];
@@ -66,6 +68,10 @@ export default function DashboardLayoutTemplate({
     const [measuredHeights, setMeasuredHeights] = useState<
         Record<string, number>
     >({});
+
+    if (!config) {
+        return <PageNotFound />
+    }
 
     const columns = config.columns as
         | Record<Column, Record<string, any>>
@@ -451,9 +457,10 @@ export function BottomNavbar({
         >
             <div id="app-details" className="flex items-center gap-2">
                 <Link to="/home" className="flex items-center gap-2">
-                    <img src="/dashwise-icon.png" alt="" className="h-[36px]" />
+                    <img src="/dashwise-icon.png" alt="" className="h-9" />
                     <span className="font-semibold">dashwise</span>
                 </Link>
+                <QuickLaunchPopover />
                 <a
                     href="https://github.com/andreasmolnardev/dashwise-next"
                     className="frosted rounded-full p-1 transition-colors duration-200 group"
@@ -488,11 +495,11 @@ export function BottomNavbar({
                     >
                         <Icon
                             icon="fa6-solid:bell"
-                            className="text-foreground group-hover:text-(--primary) transition-colors duration-200"
+                            className="text-foreground group-hover:text-primary transition-colors duration-200"
                         />
                     </Link>
                     {unreadCount > 0 && (
-                        <span className="absolute -top-3 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-(--primary) text-[10px] font-bold text-white pointer-events-none">
+                        <span className="absolute -top-3 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-white pointer-events-none">
                             {unreadCount > 9 ? "9+" : unreadCount}
                         </span>
                     )}
@@ -504,7 +511,7 @@ export function BottomNavbar({
                     >
                         <Icon
                             icon="fa6-solid:gear"
-                            className="text-foreground group-hover:text-(--primary) transition-colors duration-200"
+                            className="text-foreground group-hover:text-primary transition-colors duration-200"
                         />
                     </Link>
                 </li>

@@ -98,7 +98,7 @@ export default function NotificationsLayoutComponent({ children }: { children: R
                             data-href="/home"
                         >
                             <Icon icon="fa6-solid:house" className=" group-hover:text-(--primary)" />
-                            <Label>Back Home</Label>
+                            <Label>Go to dashboard</Label>
                         </div>
                     </Link>
                 </div>

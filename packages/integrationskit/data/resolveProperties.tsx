@@ -5,6 +5,7 @@
 // kit owns the endpoint/computed-field boundary.
 
 import { resolveEndpointCatalog } from "./getEndpointData";
+import type { EndpointRuntimeCacheAdapter } from "./getEndpointData";
 import {
   flattenToEnv,
   getNestedValue,
@@ -78,11 +79,20 @@ export type ResolveOptions = {
   integrationJSON: Record<string, any> | null;
   data: Record<string, any> | null;
   isPreview: boolean;
+  endpointCache?: EndpointRuntimeCacheAdapter;
 };
 
 export type RuntimeDataResolution = {
   data: Record<string, any> | null;
   env: Record<string, string>;
+};
+
+type RuntimeDataResolutionOptions = {
+  integrationJSON: Record<string, any> | null;
+  data: Record<string, any> | null;
+  isPreview: boolean;
+  env: Record<string, string>;
+  endpointCache?: EndpointRuntimeCacheAdapter;
 };
 
 // ── Main entry ────────────────────────────────────────────────────────────────
@@ -168,26 +178,72 @@ function patchIntegrationIcons(res: ResolvedWidget, env: Record<string, any>) {
 export async function resolveWidgetRuntimeData(
   opts: ResolveOptions,
 ): Promise<RuntimeDataResolution> {
-  const { widgetJSON, integrationJSON, data, isPreview } = opts;
+  const { widgetJSON, integrationJSON, data, isPreview, endpointCache } = opts;
+
+  return resolveIntegrationRuntimeData({
+    integrationJSON,
+    data,
+    isPreview,
+    env: buildEnv({ widgetJSON, integrationJSON, data, isPreview }),
+    endpointCache,
+  });
+}
+
+export async function resolveGlanceableRuntimeData(opts: {
+  glanceableJSON: Record<string, any>;
+  integrationJSON: Record<string, any> | null;
+  data: Record<string, any> | null;
+  isPreview: boolean;
+  baseEnv?: Record<string, string>;
+  endpointCache?: EndpointRuntimeCacheAdapter;
+}): Promise<RuntimeDataResolution> {
+  const { integrationJSON, data, isPreview, baseEnv = {}, endpointCache } = opts;
+  const integrationEnv =
+    integrationJSON?.configuration?.environment_variables &&
+    typeof integrationJSON.configuration.environment_variables === "object"
+      ? flattenToEnv(
+          integrationJSON.configuration.environment_variables as Record<
+            string,
+            any
+          >,
+        )
+      : {};
+
+  return resolveIntegrationRuntimeData({
+    integrationJSON,
+    data,
+    isPreview,
+    env: {
+      ...baseEnv,
+      ...integrationEnv,
+    },
+    endpointCache,
+  });
+}
+
+async function resolveIntegrationRuntimeData(
+  opts: RuntimeDataResolutionOptions,
+): Promise<RuntimeDataResolution> {
+  const { integrationJSON, data, isPreview, env, endpointCache } = opts;
 
   if (isPreview) {
-    return { data: null, env: buildEnv(opts) };
+    return { data: null, env };
   }
 
   if (data) {
-    return { data, env: buildEnv(opts) };
+    return { data, env };
   }
 
   const integrationConfig = (integrationJSON?.configuration ?? {}) as Record<
     string,
     any
   >;
-  const baseEnv = buildEnv(opts);
   const endpointResult = await resolveEndpointCatalog(
     integrationConfig.endpoints,
     {
-      env: baseEnv,
+      env,
       scope: {},
+      cache: endpointCache,
     },
   );
 

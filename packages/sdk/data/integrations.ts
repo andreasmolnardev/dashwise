@@ -19,6 +19,7 @@ type IntegrationRecord = {
     userId: string | null;
     config: Record<string, unknown>;
     environment: Record<string, string>;
+    localData: Record<string, unknown>;
     created: string;
     updated: string;
 };
@@ -139,7 +140,6 @@ export async function testIntegrationEndpoint(
     userId: string,
     rawTarget: string,
 ) {
-    console.log("Test23");
     if (!rawTarget) {
         throw new ApiActionError("Missing target", 400, {
             error: "Missing target",
@@ -179,8 +179,6 @@ export async function testIntegrationEndpoint(
             error: "Endpoint not found",
         });
     }
-
-    console.log("TEST");
 
     const resolvedUrl = endpoint.resolvedUrl || endpoint.url;
     if (!resolvedUrl) {
@@ -347,18 +345,10 @@ export async function getWidgetProperties(userId: string, widgetSlug: string) {
     }
 
     const normalizedSlug = widgetSlug.trim().toLowerCase();
-    const pb = await getSuperuserPB();
-    const list = await pb.collection("integrations").getFullList({
-        filter: `user="${userId}"`,
-        sort: "-updated",
-    });
+    
+    const { integrations } = await listIntegrations(userId);
 
-    for (const record of list) {
-        if (!ownsIntegration(record, userId)) {
-            continue;
-        }
-
-        const integration = mapIntegration(record);
+    for (const integration of integrations) {
         const rawWidgets =
             (integration.config?.configuration as
                 | Record<string, unknown>
@@ -473,6 +463,7 @@ export async function getIntegrationWithWidget(
             );
 
             return {
+                integrationId: integration.id,
                 integration: {
                     ...config,
                     configuration: {
@@ -484,11 +475,83 @@ export async function getIntegrationWithWidget(
                     ...rawWidget,
                     key: resolvedKey,
                 },
+                localData: integration.localData,
             };
         }
     }
 
-    return { integration: null, widgetJSON: null };
+    return { integrationId: null, integration: null, widgetJSON: null, localData: null };
+}
+
+export async function getIntegrationWithGlanceable(
+    userId: string,
+    glanceableType: string,
+) {
+    if (!glanceableType || !glanceableType.trim()) {
+        throw new ApiActionError("Missing glanceable type", 400, {
+            error: "Missing glanceable type",
+        });
+    }
+
+    const normalizedType = glanceableType.trim().toLowerCase();
+    
+    const { integrations } = await listIntegrations(userId);
+
+    for (const integration of integrations) {
+        const rawGlanceables =
+            (integration.config?.configuration as
+                | Record<string, unknown>
+                | undefined)?.glanceables;
+
+        if (!Array.isArray(rawGlanceables) || rawGlanceables.length === 0) {
+            continue;
+        }
+
+        for (const rawGlanceable of rawGlanceables) {
+            if (!isPlainObject(rawGlanceable)) {
+                continue;
+            }
+
+            const resolvedType = resolveGlanceableIdentifier(rawGlanceable);
+
+            if (
+                !resolvedType ||
+                resolvedType.toLowerCase() !== normalizedType
+            ) {
+                continue;
+            }
+
+            const config = integration.config;
+            const configuration = config?.configuration as
+                | Record<string, unknown>
+                | undefined;
+
+            const environmentVariables = resolveEnvironmentVariables(
+                configuration?.environment_variables as
+                    | Record<string, { default?: string }>
+                    | undefined,
+                integration?.environment,
+            );
+
+            return {
+                integrationId: integration.id,
+                integration: {
+                    ...config,
+                    configuration: {
+                        ...configuration,
+                        environment_variables: environmentVariables,
+                    },
+                },
+                glanceableJSON: {
+                    ...rawGlanceable,
+                    type: resolvedType,
+                },
+                localData: integration.localData,
+            };
+        }
+    }
+
+    return { integrationId: null, integration: null, glanceableJSON: null, localData: null };
 }
 
 function toResponseHeaders(headers: Record<string, unknown>) {
@@ -588,6 +651,22 @@ function resolveWidgetIdentifier(rawWidget: Record<string, unknown>) {
     }
     return normalizeWidgetSlug(
         typeof rawWidget.name === "string" ? rawWidget.name : null,
+    );
+}
+
+function resolveGlanceableIdentifier(rawGlanceable: Record<string, unknown>) {
+    if (typeof rawGlanceable.type === "string" && rawGlanceable.type.trim()) {
+        return rawGlanceable.type.trim();
+    }
+    if (typeof rawGlanceable.slug === "string" && rawGlanceable.slug.trim()) {
+        return rawGlanceable.slug.trim();
+    }
+    return normalizeWidgetSlug(
+        typeof rawGlanceable.name === "string"
+            ? rawGlanceable.name
+            : typeof rawGlanceable.displayName === "string"
+                ? rawGlanceable.displayName
+                : null,
     );
 }
 
@@ -800,6 +879,10 @@ function toEnvMap(raw: unknown) {
 function mapIntegration(record: any): IntegrationRecord {
     const config = normalizeConfig(record.config);
     const environment = decodeEnvironment(record.environment);
+    const localDataRaw = parseNullableJson(record.localData);
+    const localData = isPlainObject(localDataRaw)
+        ? (localDataRaw as Record<string, unknown>)
+        : {};
 
     return {
         id: record.id,
@@ -810,6 +893,7 @@ function mapIntegration(record: any): IntegrationRecord {
             : record.user?.id ?? null,
         config,
         environment,
+        localData,
         created: record.created,
         updated: record.updated,
     };
