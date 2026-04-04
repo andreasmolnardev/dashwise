@@ -6,9 +6,9 @@ export async function getUserWidgetsAction(auth: ActionAuth) {
 }
 
 export async function getUserGlanceableAction(auth: ActionAuth) {
-  return api.widgets.getUserGlanceableAction(auth);
+  return api.glanceables.getUserGlanceablesAction(auth);
 }
 
 export async function getUserGlanceablesAction(auth: ActionAuth) {
-  return api.widgets.getUserGlanceablesAction(auth);
+  return api.glanceables.getUserGlanceablesAction(auth);
 }

@@ -10,6 +10,10 @@ export function registerWidgetsControllers(app: Hono) {
     const { userId } = await requireAuth({ token: readAuthToken(c) });
     return getUserWidgets(userId);
   }));
+  app.get("/api/v1/glanceables", withJson(async (c) => {
+    const { userId } = await requireAuth({ token: readAuthToken(c) });
+    return getUserGlanceable(userId);
+  }));
   app.get("/api/v1/widgets/glanceable", withJson(async (c) => {
     const { userId } = await requireAuth({ token: readAuthToken(c) });
     return getUserGlanceable(userId);

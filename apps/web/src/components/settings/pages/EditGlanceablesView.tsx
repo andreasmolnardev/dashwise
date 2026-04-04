@@ -2,7 +2,7 @@
 
 import { type Dispatch, type SetStateAction } from "react";
 import ClockWidget from "@/components/widgets/ClockWidget";
-import GlanceableComponent from "@/components/glanceables/Glanceable";
+import GlanceableComponent from "@dashwise/integrationskit/Glanceable";
 import {
   Select,
   SelectContent,
@@ -104,7 +104,7 @@ export function EditGlanceablesView({
             className="flex flex-col items-center"
           >
             <ClockWidget
-              className="!p-0 !text-4xl"
+                className="p-0! text-4xl!"
               font={clockStyle.defaultFont}
               weight={clockStyle.fontWeight}
               color={clockStyle.color}
@@ -160,7 +160,7 @@ export function EditGlanceablesView({
                   key={glanceable.type}
                   type="button"
                   onClick={() => setGlanceableForSide(selectedClockSide, glanceable.type)}
-                  className="flex min-w-[140px] flex-col items-center rounded-xl p-3 transition hover:bg-white/5"
+                  className="flex min-w-35 flex-col items-center rounded-xl p-3 transition hover:bg-white/5"
                 >
                   <GlanceableComponent
                     type={glanceable.type}

@@ -235,6 +235,11 @@ const routes: Record<string, RouteConfig> = {
     path: "/widgets/glanceables",
     auth: (input) => authToken(input),
   },
+  "glanceables.getUserGlanceablesAction": {
+    method: "GET",
+    path: "/glanceables",
+    auth: (input) => authToken(input),
+  },
   "widgets.getIntegrationWithWidgetAction": {
     method: "GET",
     path: "/widgets/by-integration",

@@ -305,7 +305,7 @@ configuration:
       properties:
         header:
           show_if: "${SHOW_LOCATION}"
-          title: "Forecast for ${WEATHER_LOCATION.name}"
+          title: "${WEATHER_LOCATION.name} • Forecast"
           icon: "${computed.weather.fields.icon_file} ??? fa6-solid:sun"
         columns:
           - label: "Now"
@@ -350,6 +350,10 @@ configuration:
           displayName: "${WEATHER_LOCATION.name}"
           showLocation: "${SHOW_LOCATION}"
       properties:
+        header:
+          show_if: "${SHOW_LOCATION}"
+          title: "${WEATHER_LOCATION.name} • Current conditions"
+          icon: "fa6-solid:location-dot"
         icon:
           type: "weather"
           file: "${computed.weather.fields.icon_file} ??? fa6-solid:sun"
@@ -361,6 +365,7 @@ configuration:
 
   glanceables:
     - name: "Local Weather"
+      key: "local-weather"
       properties:
         lat: "${WEATHER_LOCATION.lat}"
         lon: "${WEATHER_LOCATION.lon}"
@@ -371,4 +376,4 @@ configuration:
         file: "${computed.weather.icon_file} ??? fa6-solid:sun"
         size: 16
         description: "${computed.weather.description}"
-      text: "${computed.weather.temperature}${computed.weather.unit}"
+      text: "${computed.weather.temperature}${computed.weather.unit} in ${WEATHER_LOCATION.name}"

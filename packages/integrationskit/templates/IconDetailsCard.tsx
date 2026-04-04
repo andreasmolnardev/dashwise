@@ -12,7 +12,8 @@ interface IconDetailsCardProps {
 export default function IconDetailsCard({ resolved, className }: IconDetailsCardProps) {
   const header = resolved.header;
   const card = resolved.card;
-  const iconSrc = card?.icon?.source ?? null;
+  const iconSrc = card?.icon ?? null;
+  console.log({ resolved, header, card, iconSrc })
 
   const primary = card?.primary ?? "";
   const secondary = card?.secondary ?? "";
@@ -22,14 +23,14 @@ export default function IconDetailsCard({ resolved, className }: IconDetailsCard
       {header?.show !== false && header?.title && (
         <a
           href={header.titleAction ?? "#"}
-          className="font-medium mb-2 grid grid-cols-[18px_1fr_16px] w-full text-start items-center gap-2"
+          className="font-medium mb-2 flex w-full text-start items-center gap-2"
         >
           <IntegrationIcon source={header.icon} className="h-4 mx-0.5" alt="" size={16} />
           <p className="font-semibold truncate">{header.title}</p>
         </a>
       )}
 
-      <div className="grid grid-cols-[auto_minmax(0,1fr)] grid-rows-2 items-center gap-x-3 gap-y-1">
+      <div className="flex items-center gap-x-3 gap-y-1">
         <div className="row-span-2 flex h-12 w-12 items-center justify-center rounded-lg bg-black/10 shrink-0">
           <IntegrationIcon
             source={iconSrc ?? undefined}
@@ -40,13 +41,10 @@ export default function IconDetailsCard({ resolved, className }: IconDetailsCard
           />
         </div>
 
-        <div className="min-w-0">
+        <div className="min-w-0 space-y-1">
           <p className="truncate text-lg font-semibold leading-tight">
             {primary || "—"}
           </p>
-        </div>
-
-        <div className="min-w-0">
           {secondary ? (
             <p className="truncate text-sm opacity-75 leading-tight">{secondary}</p>
           ) : null}

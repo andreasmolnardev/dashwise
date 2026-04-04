@@ -51,7 +51,7 @@ export function renderWidget({
     case "link-view": return (<LinkView/>);
 
     case "placeholder":
-      return <div className={`frosted rounded-xl ${className ?? ""}`} />;
+      return <div className={`${className ?? ""}`} />;
 
     default:
       return (

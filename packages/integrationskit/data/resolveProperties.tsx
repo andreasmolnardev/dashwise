@@ -117,7 +117,7 @@ export function resolveWidgetProperties(opts: ResolveOptions): ResolvedWidget {
     const result: ResolvedWidget = {
       header,
       card: {
-        icon: resolveValue(props.icon, env),
+        icon: resolveValue(props.icon.file, env),
         primary: resolveValue(props.primary, env),
         secondary: resolveValue(props.secondary, env),
       },
@@ -161,8 +161,6 @@ function patchIntegrationIcons(res: ResolvedWidget, env: Record<string, any>) {
       icon: resolveIfIntegrationRef(item.icon, env),
     }));
   }
-
-  console.log("Patched widget properties with integration icons", { res });
 
   return res;
 }
@@ -364,7 +362,6 @@ export function resolveValue(
   val: any,
   env: Record<string, string>,
 ): string | undefined {
-  console.log("Resolving value", { val, env });
   if (val === undefined || val === null) return undefined;
   if (typeof val === "number" || typeof val === "boolean") return String(val);
   if (typeof val === "string") return resolveStringWithFallback(val, env);

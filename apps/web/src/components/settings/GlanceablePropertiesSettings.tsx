@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import useAuth from "@/context/useAuth";
-import GlanceableComponent, { GlanceableProps } from "@/components/glanceables/Glanceable";
+import GlanceableComponent, { GlanceableProps } from "@dashwise/integrationskit/Glanceable";
 import { usePageConfig } from "@/hooks/usePageConfig.ts";
 import { updatePageConfigAction } from "@/app/actions/pageConfigs";
 import { getUserGlanceableAction } from "@/app/actions/widgets";
@@ -69,7 +69,7 @@ export default function GlanceablePropertiesSettingsComponent({
 
         setSaving(true);
         try {
-            // Build updated glanceables from local config (preferred) or fall back to glanceables.json
+            // Build updated glanceables from local config (preferred) or fall back to the API catalog
             const existing = pageConfig?.glanceables && Array.isArray(pageConfig.glanceables)
                 ? [...pageConfig.glanceables]
                 : glanceables_mapped.slice(0, 2).map(g => ({ type: g.type, displayName: g.displayName, description: g.description, properties: g.exampleProps ?? {} }));

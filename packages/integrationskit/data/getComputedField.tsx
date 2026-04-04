@@ -397,7 +397,6 @@ function resolveOperationValue(def: Record<string, any>, context: ComputedResolu
 		const falseBranch = def.else ?? def.whenFalse ?? def.false ?? def.valueIfFalse;
 		const selectedBranch = condition ? trueBranch : falseBranch;
 		const result = resolveComputedFieldValue(selectedBranch, context);
-		console.log("Resolved if operation with condition", { condition, selectedBranch, result });
 		return result !== undefined && result !== null ? result : fallback;
 	}
 

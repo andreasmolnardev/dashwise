@@ -30,7 +30,7 @@ export default function WidgetColumnTemplate({
       {(title || iconUrl) && (
         <a
           href={url || "#"}
-          className="font-medium mb-1 flex w-full text-start items-center gap-2"
+          className="font-medium mb-1 flex w-full text-start items-center gap-1 pl-1"
         >
           <IntegrationIcon
             source={iconUrl}

@@ -258,8 +258,9 @@ function WeatherLocationSelector() {
     const coords = (value.coordinates || "").split(",").map((s) => s.trim());
     const lat = coords[0] ?? "";
     const lon = coords[1] ?? "";
+    const name = (value.displayName || "").split(",")[0]?.trim() || "";
 
-    const nextWeatherLocation = JSON.stringify({ name: value.displayName || "", lat, lon });
+    const nextWeatherLocation = JSON.stringify({ name, lat, lon });
 
     try {
       await updateUserProperty("localizationPreferences", {

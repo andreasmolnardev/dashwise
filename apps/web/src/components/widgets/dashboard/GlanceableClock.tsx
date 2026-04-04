@@ -2,19 +2,19 @@
 "use client";
 
 import ClockWidget from "../ClockWidget";
-import GlanceableComponent from "../../glanceables/Glanceable";
+import GlanceableComponent from "@dashwise/integrationskit/Glanceable";
 import { usePageConfig } from "@/hooks/usePageConfig";
 import type { WidgetItemProps } from "../Widget";
 import useAuth from "@/context/useAuth";
 
 export default function GlanceableClockWidget({ className, params }: WidgetItemProps) {
-  const { config } = usePageConfig();
+  const { pageConfig } = usePageConfig();
   const { user } = useAuth();
   const clockStyle = params?.["clock-style"] as Record<string, any> | undefined;
 
   // params.glanceables overrides config-level glanceables
   const glanceableOverrides: Record<string, any> | undefined = params?.glanceables;
-  const defaultGlanceables: any[] = config?.glanceables ?? [];
+  const defaultGlanceables: any[] = pageConfig?.glanceables ?? [];
 
   const glanceableKeys = glanceableOverrides
     ? Object.keys(glanceableOverrides)

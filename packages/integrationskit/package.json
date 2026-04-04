@@ -11,7 +11,8 @@
     "@dashwise/sdk": "workspace:*"
   },
   "exports": {
-    "./GlanceableComponent": "./GlanceableComponent.tsx",
+    "./Glanceable": "./Glanceable.tsx",
+    "./GlanceableComponent": "./Glanceable.tsx",
     "./Widget": "./Widget.tsx"
   }
 }

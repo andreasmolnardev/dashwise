@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { usePageConfig } from "@/hooks/usePageConfig";
-import useAuth from "@/context/useAuth";
+import { useAuth } from "@/context/useAuth";
 import { getMonitoringStatusAction } from "@/app/actions/monitoring";
 import { getHomeLinksAction } from "@/app/actions/links";
 import { PaginatedCarouselViewComponent } from "./PaginatedCarouselView";
@@ -43,7 +43,7 @@ export interface LinkType {
   statusCheck?: boolean;
 }
 export default function LinkView({ links = [] }: { links?: LinkType[] }) {
-  const { config } = usePageConfig();
+  const { pageConfig } = usePageConfig();
   const { token, withAuth } = useAuth();
   const [localLinks, setLocalLinks] = useState<LinkType[]>(links);
 
@@ -286,7 +286,7 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
             ))}
           </div>
 
-            <Button
+          <Button
             type="button"
             variant="ghost"
             size="icon"
@@ -307,7 +307,6 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
               <LinkTile
                 key={item.link.id || item.link.url || itemIdx}
                 link={item.link}
-                config={config}
                 monitoringDetails={monitoringDetails}
                 setOpenDialogFor={setOpenDialogFor}
                 setEditingLink={setEditingLink}
@@ -327,7 +326,7 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
                   aria-label={`Open folder ${folder.name}`}
                   title={folder.name}
                 >
-                    <div className="h-[35px] w-[35px] flex items-center justify-center text-white/80 group-hover:text-white transition-colors">
+                  <div className="h-[35px] w-[35px] flex items-center justify-center text-white/80 group-hover:text-white transition-colors">
                     <Icon icon="fa6-solid:folder" className="h-6 w-6" />
                   </div>
 
@@ -368,7 +367,6 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
                       <LinkTile
                         key={child.id || child.url || childIdx}
                         link={child}
-                        config={config}
                         monitoringDetails={monitoringDetails}
                         setOpenDialogFor={setOpenDialogFor}
                         setEditingLink={setEditingLink}
@@ -461,7 +459,6 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
 
 interface LinkTileProps {
   link: LinkType;
-  config: any;
   monitoringDetails: any;
   setOpenDialogFor: (id: string) => void;
   setEditingLink: (link: LinkType) => void;
@@ -470,12 +467,12 @@ interface LinkTileProps {
 
 function LinkTile({
   link,
-  config,
   monitoringDetails,
   setOpenDialogFor,
   setEditingLink,
   itemIdx,
 }: LinkTileProps) {
+  const { user } = useAuth();
   const serverEntry = link.id && monitoringDetails
     ? monitoringDetails[link.id]
     : undefined;
@@ -488,10 +485,8 @@ function LinkTile({
     <a
       key={link.id || link.url || itemIdx}
       href={link.url}
-      target={config?.global?.linkOpenBehaviour === "newtab"
-        ? "_blank"
-        : "_self"}
-      rel={config?.global?.linkOpenBehaviour === "newtab"
+      target={user?.global?.linkOpenBehaviour === "newtab" ? "_blank" : "_self"}
+      rel={user?.global?.linkOpenBehaviour === "newtab"
         ? "noopener noreferrer"
         : undefined}
       className="group flex flex-col items-center justify-between space-y-2 frosted rounded-2xl p-2 hover:text-(primary) transition-colors min-h-18 w-full"
@@ -543,7 +538,7 @@ function LinkTile({
             </button>
           )}
         </div>
-            <button
+        <button
           onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();
