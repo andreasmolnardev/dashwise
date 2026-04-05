@@ -361,7 +361,6 @@ configuration:
           description: "${computed.weather.fields.description}"
           useFrostedGradient: true
         primary: "${computed.weather.fields.temperature:temp} ${computed.weather.fields.description}"
-        secondary: "${computed.weather.fields.insight}"
 
   glanceables:
     - name: "Local Weather"
