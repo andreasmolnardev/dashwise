@@ -7,7 +7,7 @@ import IntegrationIcon from "./IntegrationIcon";
 interface WidgetColumnTemplateProps {
   children: React.ReactNode;
   className?: string;
-  title?: string;
+  title?: React.ReactNode;
   url?: string;
   iconUrl?: string;
 }
@@ -23,6 +23,7 @@ export default function WidgetColumnTemplate({
   url = "",
   iconUrl = "",
 }: WidgetColumnTemplateProps) {
+   const count = React.Children.count(children);
   return (
     <div
       className={`rounded-lg p-2 justify-center frosted ${className} flex-col`}
@@ -48,7 +49,9 @@ export default function WidgetColumnTemplate({
         </a>
       )}
 
-      <div className="grid auto-cols-fr grid-flow-col gap-2 text-center">
+      <div className="grid grid-flow-col gap-2 text-center" style={{
+        gridTemplateColumns: `repeat(${count}, minmax(0, 1fr))`,
+      }}>
         {children}
       </div>
     </div>
