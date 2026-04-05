@@ -5,6 +5,7 @@ import {
     resolveWidgetProperties,
     resolveWidgetRuntimeData,
 } from "./data/resolveProperties";
+import { renderLocalizedText, type TextFormatters } from "./data/renderText";
 import WidgetColumnTemplate from "./templates/WidgetColumn";
 import VerticalList from "./templates/VerticalList";
 import IconDetailsCard from "./templates/IconDetailsCard";
@@ -23,6 +24,8 @@ export type WidgetProps = {
     data?: Record<string, any> | null;
     /** Optional fully resolved blueprint. When provided, no client resolution runs. */
     resolved?: ResolvedWidget | null;
+    /** Localization callbacks used to format typed placeholders. */
+    formatters?: TextFormatters;
     /** When true, uses ??? fallback values baked into the YAML instead of live data */
     isPreview?: boolean;
     className?: string;
@@ -35,6 +38,7 @@ export default function Widget({
     input,
     data,
     resolved: preResolved,
+    formatters,
     isPreview = false,
     className,
 }: WidgetProps) {
@@ -164,16 +168,17 @@ export default function Widget({
 
     switch (template) {
         case "columns":
-            return <ColumnsWidget resolved={resolved} className={className} />;
+            return <ColumnsWidget resolved={resolved} className={className} formatters={formatters} />;
 
         case "vertical-list":
-            return <VerticalList resolved={resolved} className={className} />;
+            return <VerticalList resolved={resolved} className={className} formatters={formatters} />;
 
         case "icon-details-card":
             return (
                 <IconDetailsCard
                     resolved={resolved}
                     className={className}
+                    formatters={formatters}
                 />
             );
 
@@ -252,9 +257,11 @@ function applyWidgetInput(
 function ColumnsWidget({
     resolved,
     className,
+    formatters,
 }: {
     resolved: ResolvedWidget;
     className?: string;
+    formatters?: TextFormatters;
 }) {
     const header = resolved.header;
     const columns = resolved.columns ?? [];
@@ -262,26 +269,26 @@ function ColumnsWidget({
     return (
         <WidgetColumnTemplate
             className={className}
-            title={header?.show !== false ? (header?.title ?? "") : ""}
+            title={header?.show !== false ? renderLocalizedText(header?.title ?? "", formatters) : ""}
             url={header?.titleAction ?? ""}
             iconUrl={header?.icon ?? ""}
         >
-            {columns.map((col, i) => <ColumnCell key={i} col={col} />)}
+            {columns.map((col, i) => <ColumnCell key={i} col={col} formatters={formatters} />)}
         </WidgetColumnTemplate>
     );
 }
 
 function ColumnCell(
-    { col }: { col: NonNullable<ResolvedWidget["columns"]>[number] },
+    { col, formatters }: { col: NonNullable<ResolvedWidget["columns"]>[number]; formatters?: TextFormatters },
 ) {
     const hasProgress = !!col.progress;
     const hasIcon = !!col.icon?.file;
 
     return (
-        <div className="flex flex-col items-center gap-1 py-1">
+        <div className="flex flex-col items-center gap-1 py-1 w-full">
             {col.label && (
                 <p className="text-[11px] opacity-60 uppercase tracking-wide">
-                    {col.label}
+                    {renderLocalizedText(col.label, formatters)}
                 </p>
             )}
 
@@ -306,13 +313,13 @@ function ColumnCell(
 
             {col.primary && (
                 <p className="font-semibold text-sm leading-tight text-center">
-                    {col.primary}
+                    {renderLocalizedText(col.primary, formatters)}
                 </p>
             )}
 
             {col.secondary && (
                 <p className="text-xs opacity-70 leading-tight text-center">
-                    {col.secondary}
+                    {renderLocalizedText(col.secondary, formatters)}
                 </p>
             )}
 
@@ -323,12 +330,12 @@ function ColumnCell(
                             href={col.titleAction}
                             className="text-xs font-medium hover:text-primary transition-colors truncate max-w-full"
                         >
-                            {col.title}
+                            {renderLocalizedText(col.title, formatters)}
                         </a>
                     )
                     : (
                         <p className="text-xs font-medium truncate max-w-full">
-                            {col.title}
+                            {renderLocalizedText(col.title, formatters)}
                         </p>
                     )
             )}

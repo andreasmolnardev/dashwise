@@ -53,7 +53,7 @@ interface ActionProps {
 
 export function Tab({ dst, icon, title, badge, dropdownActions }: TabProps) {
     const { pathname } = useContext(SidebarContext);
-    const isActive = pathname === dst;
+    const isActive = pathname === dst || pathname.startsWith(`${dst}/`);
     const [dropdownOpen, setDropdownOpen] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -77,7 +77,7 @@ export function Tab({ dst, icon, title, badge, dropdownActions }: TabProps) {
                         <Icon
                             icon={icon}
                             className={`text-sm transition-colors ${
-                                isActive ? "text-(--primary)" : "text-white/60 group-hover:text-(--primary)"
+                                isActive ? "text-primary" : "text-white/60 group-hover:text-primary"
                             }`}
                         />
                         <span
@@ -90,7 +90,7 @@ export function Tab({ dst, icon, title, badge, dropdownActions }: TabProps) {
                     </div>
 
                     {badge !== undefined && (
-                        <span className="ml-auto mr-1 px-1.5 py-0.5 bg-(--primary) rounded-full text-[10px] font-bold leading-none">
+                        <span className="ml-auto mr-1 px-1.5 py-0.5 bg-primary rounded-full text-[10px] font-bold leading-none">
                             {badge}
                         </span>
                     )}
@@ -113,7 +113,7 @@ export function Tab({ dst, icon, title, badge, dropdownActions }: TabProps) {
             {dropdownActions && dropdownOpen && (
                 <div
                     ref={dropdownRef}
-                    className="absolute left-full top-0 ml-1 z-50 min-w-[140px] rounded-md bg-[var(--surface)] border border-white/10 shadow-lg overflow-hidden"
+                    className="absolute left-full top-0 ml-1 z-50 min-w-35 rounded-md bg-(--surface) border border-white/10 shadow-lg overflow-hidden"
                 >
                     {dropdownActions.map((a, i) => (
                         <button
@@ -142,7 +142,7 @@ export function Action({ icon, title, action }: ActionProps) {
             onClick={action}
             className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-white/60 hover:text-white hover:bg-white/10 transition-colors group"
         >
-            <Icon icon={icon} className="text-sm group-hover:text-(--primary) transition-colors" />
+            <Icon icon={icon} className="text-sm group-hover:text-primary transition-colors" />
             <span className="text-sm leading-none">{title}</span>
         </button>
     );
@@ -230,7 +230,7 @@ export function Sidebar({ children }: { children: ReactNode }) {
                     <div className="flex items-center gap-2 px-2 py-1.5 rounded-md">
                         <Icon
                             icon="fa6-solid:house"
-                            className="text-sm text-white/40 group-hover:text-(--primary) transition-colors"
+                            className="text-sm text-white/40 group-hover:text-primary transition-colors"
                         />
                         <span className="text-sm text-white/50 group-hover:text-white transition-colors leading-none">
                             Go to dashboard
@@ -270,7 +270,7 @@ export default function AppTemplate({
         <SidebarContext.Provider value={{ pathname }}>
             <div className="flex h-dvh bg-(--surface) backdrop-blur-[5px] backdrop-brightness-85 text-white p-8 gap-8">
                 {/* Sidebar column */}
-                <div className="w-[220px] shrink-0 flex flex-col">
+                <div className="w-55 shrink-0 flex flex-col">
                     <h1 className="text-4xl font-bold tracking-tight text-balance mb-4 shrink-0">{title}</h1>
                     <div className="flex-1 min-h-0">{sidebar}</div>
                 </div>

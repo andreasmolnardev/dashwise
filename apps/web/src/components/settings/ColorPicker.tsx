@@ -14,7 +14,7 @@ export function ColorPicker({ value, onValueChange, className }: ColorPickerProp
   return (
     <div className={className}>
       {/* main picker */}
-      <HexColorPicker color={value} onChange={onValueChange} className="!w-full !h-40 rounded-md" />
+      <HexColorPicker color={value} onChange={onValueChange} style={{ width: "100%", height: "10rem" }} className="rounded-md" />
 
       {/* color input row */}
       <div className="flex items-center gap-2 mt-2">
@@ -25,6 +25,7 @@ export function ColorPicker({ value, onValueChange, className }: ColorPickerProp
           className="flex-1 rounded-md border frosted px-2 py-1 text-sm"
         />
         <Button
+          type="button"
           size="sm"
           variant="outline"
           onClick={() => onValueChange("#6b21a8")}

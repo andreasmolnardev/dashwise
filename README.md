@@ -31,14 +31,17 @@ bun install
 bun run dev
 ```
 
-The backend expects a PocketBase binary at `pocketbase/pocketbase` or via `PB_BINARY_PATH`. The Docker setup still exists for deployment, but it is no longer required for local development.
+The backend expects a PocketBase binary at `pocketbase/pocketbase` or via `PB_BINARY_PATH`.
+Set `START_POCKETBASE=false` when you want the backend to connect to an external PocketBase instance instead of spawning its own local process. In that mode, set both `PB_URL` and `NEXT_PUBLIC_PB_URL` to the external PocketBase URL.
 
 ## Configuration
 You can use the following environment variables for the main container:
 
 | Name | Required | Default Value | Description |
 | --- | --- | --- | --- |
+| PB_URL | No | `http://127.0.0.1:8090` | PocketBase URL used by the backend |
 | NEXT_PUBLIC_PB_URL | Yes | `http://pocketbase:8090` | URL of the PocketBase instance |
+| START_POCKETBASE | No | `true` | Start the bundled PocketBase process; set to `false` to use an external instance |
 | NEXT_PUBLIC_INTEGRATIONS_ENABLE_SSL | No | `false` | Enable SSL for integrations |
 | PB_ADMIN_EMAIL | Yes | `default@dashwise.local` | Email of the PocketBase admin user |
 | PB_ADMIN_PASSWORD | Yes | `DashwiseIsAwesome` | Password of the PocketBase admin user |

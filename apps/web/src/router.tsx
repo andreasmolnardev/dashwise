@@ -15,6 +15,13 @@ import NotificationsPage from "./app/(authenticated)/apps/notifications/page";
 import NotificationsInboxPage from "./app/(authenticated)/apps/notifications/inbox/page";
 import NotificationsForwardersPage from "./app/(authenticated)/apps/notifications/forwarders/page";
 import NotificationsTokensPage from "./app/(authenticated)/apps/notifications/tokens/page";
+import LinksLayout from "./app/(authenticated)/apps/links/layout";
+import LinksPage from "./app/(authenticated)/apps/links/page";
+import LinksHomePage from "./app/(authenticated)/apps/links/home/page";
+import LinksListsPage from "./app/(authenticated)/apps/links/lists/page";
+import LinksListDetailPage from "./app/(authenticated)/apps/links/lists/[listId]/page";
+import LinksTagsPage from "./app/(authenticated)/apps/links/tags/page";
+import LinksTagDetailPage from "./app/(authenticated)/apps/links/tags/[tagId]/page";
 import SettingsLayout from "./app/(authenticated)/settings/layout";
 import SettingsPage from "./app/(authenticated)/settings/page";
 import SettingsGeneralPage from "./app/(authenticated)/settings/general/page";
@@ -46,6 +53,18 @@ export const appRouter = createBrowserRouter([
            { path: "home", element: <DynamicPage /> },
           { path: "news", element: <NewsPage /> },
           { path: "news/onboarding", element: <NewsOnboardingPage /> },
+          {
+            path: "links",
+            element: <LinksLayout />,
+            children: [
+              { index: true, element: <LinksPage /> },
+              { path: "home", element: <LinksHomePage /> },
+              { path: "lists", element: <LinksListsPage /> },
+              { path: "lists/:listId", element: <LinksListDetailPage /> },
+              { path: "tags", element: <LinksTagsPage /> },
+              { path: "tags/:tagId", element: <LinksTagDetailPage /> },
+            ],
+          },
           {
             path: "notifications",
             element: <NotificationsLayout />,

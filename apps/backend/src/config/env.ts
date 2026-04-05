@@ -2,9 +2,14 @@ import * as dotenv from "dotenv";
 dotenv.config();
 
 const processAllowSsl = process.env.ALLOW_SSL;
+const processStartPocketBase = process.env.START_POCKETBASE;
 
 export const config = {
   PB_URL: process.env.PB_URL || "http://127.0.0.1:8090",
+  START_POCKETBASE:
+    processStartPocketBase == null
+      ? true
+      : !(processStartPocketBase === "false" || processStartPocketBase === "0"),
   SEARCHITEMS_SCHEDULE: process.env.SEARCHITEMS_SCHEDULE || "*/10 * * * *",
   ENABLE_ICONS_REFRESH: process.env.ENABLE_ICONS_REFRESH === "true",
   PULL_ICONS_SCHEDULE: process.env.PULL_ICONS_SCHEDULE || "0 */18 * * *",

@@ -33,7 +33,13 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import IconPickerComponent, { IconResult, loadIconCatalog } from "@/components/settings/IconPicker";
+import IconPickerComponent, {
+  IconResult,
+  getIconifySlugFromUrl,
+  getMonoIconReferenceFromUrl,
+  loadIconCatalog,
+} from "@/components/settings/IconPicker";
+import AppIcon from "@/components/shared/AppIcon";
 import { RadioGroup, RadioGroupItem } from "../ui/radio-group";
 import { Switch } from "@/components/ui/switch";
 import { faEllipsisV, faPaperclip } from "@fortawesome/free-solid-svg-icons";
@@ -233,7 +239,17 @@ export default function LinkDetailsForm({
     if (link?.name && link?.url && link?.icon) {
       setName(link.name);
       setUrl(link.url);
-      setIcon({ url: link.icon, iconSet: link.icon.includes("-light") ? "mono" : "custom" });
+      const iconifySlug = getIconifySlugFromUrl(link.icon);
+      const monoReference = getMonoIconReferenceFromUrl(link.icon);
+
+      setIcon(
+        iconifySlug
+          ? { url: iconifySlug, iconSet: "custom", name: iconifySlug }
+          : {
+            url: link.icon,
+            iconSet: monoReference ? "mono" : "custom",
+          }
+      );
       setIconEdited(true);
     }
   }, [link]);
@@ -424,7 +440,7 @@ export default function LinkDetailsForm({
         <RadioGroup className="flex flex-wrap items-center gap-2" defaultValue="current">
           <Label
             key={name}
-            className="h-[35px] w-[96px] frosted rounded-md flex items-center justify-center gap-2 outline-2 outline-transparent has-checked:outline-(--primary)"
+            className="h-8.75 w-24 frosted rounded-md flex items-center justify-center gap-2 outline-2 outline-transparent has-checked:outline-primary"
           >
             <RadioGroupItem value={name} className="hidden" />
             <Icon set={String(icon?.iconSet) || ""} url={String(icon?.url) || ""} name={String(icon?.name) || ""} />
@@ -437,7 +453,7 @@ export default function LinkDetailsForm({
           <Popover modal={true}>
             <PopoverTrigger>
                 <Label
-                className="h-[35px] frosted rounded-md flex items-center justify-center px-2 gap-2 outline-2 outline-transparent cursor-pointer"
+                className="h-8.75 frosted rounded-md flex items-center justify-center px-2 gap-2 outline-2 outline-transparent cursor-pointer"
                 title="Set icon by link"
               >
                 <Iconify icon="fa6-solid:paperclip" />
@@ -445,7 +461,7 @@ export default function LinkDetailsForm({
               </Label>
             </PopoverTrigger>
 
-            <PopoverContent className="frosted p-3 text-foreground w-[300px]">
+            <PopoverContent className="frosted p-3 text-foreground w-75">
               <div className="flex flex-col gap-2">
                 <Label htmlFor="iconUrl">Icon URL</Label>
                 <Input
@@ -471,7 +487,7 @@ export default function LinkDetailsForm({
             <PopoverTrigger>
               <Label
                 key={name}
-                className="h-[35px] frosted rounded-md flex items-center justify-center px-2 gap-2 outline-2 outline-transparent has-checked:outline-(--primary)"
+                className="h-8.75 frosted rounded-md flex items-center justify-center px-2 gap-2 outline-2 outline-transparent has-checked:outline-primary"
               >
                 <Iconify icon="fa6-solid:ellipsis-vertical" />
                 <span>Icon Picker</span>
@@ -480,6 +496,7 @@ export default function LinkDetailsForm({
             <PopoverContent className="frosted text-foreground">
               <IconPickerComponent
                 initialIcons={icons}
+                initialSelection={icon}
                 onSelect={(iconObj) => {
                   setIcon(iconObj);
                   setIconEdited(true);
@@ -633,13 +650,13 @@ export default function LinkDetailsForm({
                 variant="outline"
                 role="combobox"
                 aria-expanded={linkGroupOpen}
-                className="rounded-full bg-white border-0 frosted w-[170px] justify-between"
+                className="rounded-full bg-white border-0 frosted w-42.5 justify-between"
               >
                 {linkGroup || "Select or create"}
                 <ChevronsUpDown className="opacity-50" />
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-[230px] p-0">
+            <PopoverContent className="w-57.5 p-0">
               <Command className="text-black">
                 <CommandInput
                   placeholder="Search or create group..."
@@ -702,26 +719,13 @@ export default function LinkDetailsForm({
           <p className="text-xs text-gray-400 mb-1">
             Preview {isEditing && "(Editing)"}
           </p>
-          <div className="group flex flex-col items-center justify-between space-y-2 frosted rounded-2xl p-2 min-h-18 w-[120px] mx-auto">
-            {icon?.iconSet === "mono" ? (
-              <div
-                className="h-[35px] w-[35px] bg-white group-hover:bg-(--primary) transition"
-                style={{
-                  maskImage: `url(${icon.url})`,
-                  WebkitMaskImage: `url(${icon.url})`,
-                  maskRepeat: "no-repeat",
-                  WebkitMaskRepeat: "no-repeat",
-                  maskPosition: "center",
-                  WebkitMaskPosition: "center",
-                  maskSize: "contain",
-                  WebkitMaskSize: "contain",
-                }}
-              />
-            ) : icon?.url ? (
-              <img
-                src={icon.url}
+          <div className="group flex flex-col items-center justify-between space-y-2 frosted rounded-2xl p-2 min-h-18 w-30 mx-auto">
+            {icon?.url ? (
+              <AppIcon
+                source={icon.url}
                 alt={icon?.name ?? "Custom Icon"}
-                className="h-[35px] w-[35px] object-contain"
+                className="h-8.75 w-8.75 text-foreground group-hover:text-primary transition-colors"
+                imageClassName="object-contain"
               />
             ) : null}
             <span className="text-sm text-white">{name || "Link name"}</span>
@@ -795,7 +799,7 @@ async function getIcon(
     if (safeName) {
       const autoIcon = `/icons/svg/${safeName}-light.svg`;
       if (await testImage(autoIcon)) {
-        return { iconSet: "custom", url: autoIcon };
+        return { iconSet: "mono", url: autoIcon };
       }
     }
   }
@@ -828,31 +832,18 @@ export function Icon({
   if (!url || url == "undefined") {
     return (
       <div
-        className="bg-white rounded-md opacity-30 h-[22px] w-[22px]"
+        className="bg-white rounded-md opacity-30 h-5.5 w-5.5"
         aria-label="icon placeholder"
       />
     );
   }
 
-  return set === "mono" ? (
-    <div
-      className="bg-white h-[22px] w-[22px]"
-      style={{
-        maskImage: `url(${url})`,
-        WebkitMaskImage: `url(${url})`,
-        maskRepeat: "no-repeat",
-        WebkitMaskRepeat: "no-repeat",
-        maskPosition: "center",
-        WebkitMaskPosition: "center",
-        maskSize: "contain",
-        WebkitMaskSize: "contain",
-      }}
-    />
-  ) : (
-    <img
-      src={url}
+  return (
+    <AppIcon
+      source={url}
       alt={name ?? ""}
-      className="h-[22px] w-[22px] object-contain"
+      className="h-5.5 w-5.5 text-white"
+      imageClassName="object-contain"
     />
   );
 }

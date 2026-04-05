@@ -11,6 +11,7 @@ import {
   getNestedValue,
   resolveComputedFields,
 } from "./getComputedField";
+import { encodeTypedText } from "./renderText";
 
 // ── Public types ──────────────────────────────────────────────────────────────
 
@@ -80,6 +81,7 @@ export type ResolveOptions = {
   data: Record<string, any> | null;
   isPreview: boolean;
   endpointCache?: EndpointRuntimeCacheAdapter;
+  allowInsecureEndpoints?: boolean;
 };
 
 export type RuntimeDataResolution = {
@@ -186,7 +188,7 @@ export async function resolveWidgetRuntimeData(
     isPreview,
     env: buildEnv({ widgetJSON, integrationJSON, data, isPreview }),
     endpointCache,
-  });
+  }, opts.allowInsecureEndpoints);
 }
 
 export async function resolveGlanceableRuntimeData(opts: {
@@ -196,6 +198,7 @@ export async function resolveGlanceableRuntimeData(opts: {
   isPreview: boolean;
   baseEnv?: Record<string, string>;
   endpointCache?: EndpointRuntimeCacheAdapter;
+  allowInsecureEndpoints?: boolean;
 }): Promise<RuntimeDataResolution> {
   const { integrationJSON, data, isPreview, baseEnv = {}, endpointCache } = opts;
   const integrationEnv =
@@ -218,11 +221,12 @@ export async function resolveGlanceableRuntimeData(opts: {
       ...integrationEnv,
     },
     endpointCache,
-  });
+  }, opts.allowInsecureEndpoints);
 }
 
 async function resolveIntegrationRuntimeData(
   opts: RuntimeDataResolutionOptions,
+  allowInsecureEndpoints = false,
 ): Promise<RuntimeDataResolution> {
   const { integrationJSON, data, isPreview, env, endpointCache } = opts;
 
@@ -245,6 +249,7 @@ async function resolveIntegrationRuntimeData(
       scope: {},
       cache: endpointCache,
     },
+    allowInsecureEndpoints
   );
 
   const computed = resolveComputedFields(integrationConfig.computed, {
@@ -424,7 +429,7 @@ export function resolveValue(
   if (typeof val === "object") {
     // operation-based field — we can't execute operations here (SDK does that),
     // so return the fallback if present
-    if (typeof val.fallback === "string") return val.fallback;
+    if (typeof val.fallback === "string") return resolveStringWithFallback(val.fallback, env);
     if (typeof val.value === "string") {
       return resolveStringWithFallback(val.value, env);
     }
@@ -450,11 +455,42 @@ function resolveStringWithFallback(
       continue;
     }
 
-    const result = interpolateString(trimmed, env);
+    const result = resolveStringWithCasts(trimmed, env);
     if (result.trim()) return result;
   }
   // All segments empty — return the last one as-is (it's the final fallback)
   return segments[segments.length - 1].trim();
+}
+
+export function resolveStringWithCasts(
+  template: string,
+  env: Record<string, string>,
+): string {
+  return template.replace(/\$\{([^}]+)\}/g, (_, rawKey) => {
+    const { path, cast, castArgs } = parseTypedPlaceholder(String(rawKey));
+    const resolved = interpolateString("${" + path + "}", env);
+
+    if (!cast) {
+      return resolved;
+    }
+
+    if (resolved === undefined || resolved === null || `${resolved}`.trim() === "") {
+      return "";
+    }
+
+    return encodeTypedText(cast, resolved, castArgs);
+  });
+}
+
+function parseTypedPlaceholder(rawKey: string) {
+  const parts = rawKey.split(":").map((part) => part.trim()).filter(Boolean);
+  const path = parts.shift() ?? "";
+  const cast = parts.shift() ?? "";
+  return {
+    path,
+    cast: cast || undefined,
+    castArgs: parts,
+  };
 }
 
 /** Replaces ${KEY} placeholders with env values.

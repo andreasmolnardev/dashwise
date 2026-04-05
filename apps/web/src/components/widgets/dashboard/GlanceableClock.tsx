@@ -8,6 +8,7 @@ import { usePageConfig } from "@/hooks/usePageConfig";
 import type { WidgetItemProps } from "../Widget";
 import useAuth from "@/context/useAuth";
 import { getConsumerDataAction } from "@/app/actions/integrations";
+import { useLocalization } from "@/context/LocalizationContext";
 
 type ResolvedGlanceablePayload = {
   consumer: "glanceable";
@@ -20,10 +21,12 @@ type ResolvedGlanceablePayload = {
 };
 
 const glanceableConsumerCache = new Map<string, ResolvedGlanceablePayload | null>();
+type LocalizationFormatters = Pick<ReturnType<typeof useLocalization>, "formatTemperature" | "formatTime" | "formatDate">;
 
 export default function GlanceableClockWidget({ className, params }: WidgetItemProps) {
   const { pageConfig } = usePageConfig();
   const { user } = useAuth();
+  const localization = useLocalization();
   const clockStyle = params?.["clock-style"] as Record<string, any> | undefined;
 
   // params.glanceables overrides config-level glanceables
@@ -64,6 +67,7 @@ export default function GlanceableClockWidget({ className, params }: WidgetItemP
           <ResolvedGlanceable
             type={glanceableKeys[0]}
             params={getParams(glanceableKeys[0])}
+            formatters={localization}
             className="font-medium"
           />
         )}
@@ -73,6 +77,7 @@ export default function GlanceableClockWidget({ className, params }: WidgetItemP
           <ResolvedGlanceable
             type={glanceableKeys[1]}
             params={getParams(glanceableKeys[1])}
+            formatters={localization}
             className="font-medium"
           />
         )}
@@ -85,10 +90,12 @@ function ResolvedGlanceable({
   type,
   params,
   className,
+  formatters,
 }: {
   type: string;
   params?: Record<string, any>;
   className?: string;
+  formatters?: LocalizationFormatters;
 }) {
   const { withAuth } = useAuth();
   const cacheKey = `${type}:${stableStringify(params ?? {})}`;
@@ -140,12 +147,13 @@ function ResolvedGlanceable({
           icon: resolved.blueprint.icon,
         }}
         params={params}
+          formatters={formatters}
         className={className}
       />
     );
   }
 
-  return <GlanceableComponent type={type} params={params} className={className} />;
+  return <GlanceableComponent type={type} params={params} formatters={formatters} className={className} />;
 }
 
 function stableStringify(value: Record<string, any>) {

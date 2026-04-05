@@ -4,7 +4,10 @@ import React, { useEffect, useMemo, useState } from "react";
 import { usePageConfig } from "@/hooks/usePageConfig";
 import { useAuth } from "@/context/useAuth";
 import { getMonitoringStatusAction } from "@/app/actions/monitoring";
-import { getHomeLinksAction, updateHomeLinkFolderIconAction } from "@/app/actions/links";
+import {
+  getHomeLinksAction,
+  updateHomeLinkFolderIconAction,
+} from "@/app/actions/links";
 import { PaginatedCarouselViewComponent } from "./PaginatedCarouselView";
 import MonitoringDialog, { JobEntry } from "./MonitoringDialog";
 import {
@@ -32,6 +35,7 @@ import {
 } from "@/components/ui/dialog";
 import LinkDetailsForm from "@/components/settings/LinkDetailsForm";
 import IconPickerComponent from "@/components/settings/IconPicker";
+import AppIcon from "@/components/shared/AppIcon";
 
 export interface LinkType {
   id?: string;
@@ -45,10 +49,35 @@ export interface LinkType {
   folderIcon?: string;
   statusCheck?: boolean;
 }
+
+const FOLDER_ICON_CONTENTS_KEY = "dashwise_folder_icon_show_contents";
+
 export default function LinkView({ links = [] }: { links?: LinkType[] }) {
   const { pageConfig } = usePageConfig();
   const { token, withAuth } = useAuth();
   const [localLinks, setLocalLinks] = useState<LinkType[]>(links);
+  const [showFolderContents, setShowFolderContents] = useState(false);
+
+  useEffect(() => {
+    try {
+      setShowFolderContents(
+        window.localStorage.getItem(FOLDER_ICON_CONTENTS_KEY) === "1",
+      );
+    } catch {
+      setShowFolderContents(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(
+        FOLDER_ICON_CONTENTS_KEY,
+        showFolderContents ? "1" : "0",
+      );
+    } catch {
+      // ignore storage failures
+    }
+  }, [showFolderContents]);
 
   useEffect(() => {
     const fetchLinks = async () => {
@@ -96,7 +125,14 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
   const emittedFolders = new Set<string>();
   type Item =
     | { type: "link"; link: LinkType }
-    | { type: "folder"; key: string; recordId?: string; name: string; icon?: string; links: LinkType[] };
+    | {
+      type: "folder";
+      key: string;
+      recordId?: string;
+      name: string;
+      icon?: string;
+      links: LinkType[];
+    };
 
   const items: Item[] = [];
 
@@ -104,7 +140,9 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
     const folderKey = l.folderId || l.folder;
     if (folderKey) {
       if (!emittedFolders.has(folderKey)) {
-        const children = visibleLinks.filter((x) => (x.folderId || x.folder) === folderKey);
+        const children = visibleLinks.filter((x) =>
+          (x.folderId || x.folder) === folderKey
+        );
         items.push({
           type: "folder",
           key: folderKey,
@@ -134,11 +172,13 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
   const [openDialogFor, setOpenDialogFor] = useState<string | null>(null);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [editingLink, setEditingLink] = useState<LinkType | null>(null);
-  const [editingFolder, setEditingFolder] = useState<{
-    id: string;
-    name: string;
-    icon?: string;
-  } | null>(null);
+  const [editingFolder, setEditingFolder] = useState<
+    {
+      id: string;
+      name: string;
+      icon?: string;
+    } | null
+  >(null);
 
   function serverStatusToBool(status?: string | null): boolean | undefined {
     if (status === undefined || status === null) return undefined;
@@ -342,17 +382,21 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
                   aria-label={`Open folder ${folder.name}`}
                   title={folder.name}
                 >
-                  {folder.icon ? (
-                    <img
-                      src={folder.icon}
-                      alt={folder.name}
-                      className="h-8.75 w-8.75 object-contain rounded-lg bg-white/5 transition-colors"
-                    />
-                  ) : (
-                    <div className="h-8.75 w-8.75 flex items-center justify-center text-white/80 group-hover:text-white transition-colors">
-                      <Icon icon="fa6-solid:folder" className="h-6 w-6" />
-                    </div>
-                  )}
+                  {folder.icon
+                    ? (
+                      <AppIcon
+                        source={folder.icon}
+                        alt={folder.name}
+                        className="text-white/90 h-[2rem] text-[2rem]"
+                        imageClassName="invert object-contain"
+                      />
+                    )
+                    : (
+                      <Icon
+                        icon="fa6-solid:folder"
+                        className="h-5 w-5 text-white/30"
+                      />
+                    )}
 
                   <div className="flex items-center w-full justify-center">
                     <span className="text-sm text-white truncate px-1">
@@ -370,29 +414,61 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
                       disabled={!folder.recordId}
                       onClick={() => {
                         if (!folder.recordId) return;
-                        setEditingFolder({ id: folder.recordId, name: folder.name, icon: folder.icon });
+                        setEditingFolder({
+                          id: folder.recordId,
+                          name: folder.name,
+                          icon: folder?.icon,
+                        });
                       }}
                       className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/5 transition-colors hover:bg-white/10"
                       title={`Change icon for ${folder.name}`}
                       aria-label={`Change icon for ${folder.name}`}
                     >
-                      {folder.icon ? (
-                        <img
-                          src={folder.icon}
-                          alt={folder.name}
-                          className="h-6 w-6 object-contain"
-                        />
-                      ) : (
-                        <Icon icon="fa6-solid:folder" className="h-5 w-5 text-white/80" />
-                      )}
+                      {folder.icon
+                        ? (
+                          <AppIcon
+                            source={folder.icon}
+                            alt={folder.name}
+                            className="text-white/90 h-5 w-5"
+                            imageClassName="invert object-contain"
+                          />
+                        )
+                        : (
+                          <Icon
+                            icon="fa6-solid:folder"
+                            className="h-5 w-5 text-white/30"
+                          />
+                        )}
                     </button>
                     <h4 className="font-semibold truncate">{folder.name}</h4>
                   </div>
-                  <PopoverClose asChild>
-                    <Button variant="ghost" className="h-8 w-8 p-0">
-                      <Icon icon="fa6-solid:xmark" />
-                    </Button>
-                  </PopoverClose>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setShowFolderContents((current) => !current)}
+                      className={`flex h-8 w-8 items-center justify-center rounded-lg  transition-colors`}
+                      aria-pressed={showFolderContents}
+                      aria-label={showFolderContents
+                        ? "Hide folder contents preview"
+                        : "Show folder contents preview"}
+                      title={showFolderContents
+                        ? "Hide folder contents preview"
+                        : "Show folder contents preview"}
+                    >
+                      <AppIcon
+                        source="glyphs:columns-2-bold"
+                        className={`h-4 w-4 ${
+                          showFolderContents ? "text-primary" : ""
+                        }`}
+                      />
+                    </button>
+                    <PopoverClose asChild>
+                      <Button variant="ghost" className="h-8 w-8 p-0">
+                        <Icon icon="fa6-solid:xmark" />
+                      </Button>
+                    </PopoverClose>
+                  </div>
                 </header>
                 <div
                   className="grid gap-3"
@@ -497,28 +573,30 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
           </DialogHeader>
           {editingFolder && (
             <div className="space-y-3">
-              <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 px-3 py-2">
+              <div className="flex items-center gap-3 rounded-xl py-2">
                 {editingFolder.icon ? (
-                  <img
-                    src={editingFolder.icon}
-                    alt={editingFolder.name}
-                    className="h-10 w-10 rounded-lg object-contain bg-black/10"
-                  />
-                ) : (
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-black/10">
-                    <Icon icon="fa6-solid:folder" className="h-6 w-6 text-white/70" />
-                  </div>
-                )}
+                    <AppIcon
+                      source={editingFolder.icon}
+                      alt={editingFolder.name}
+                      className="text-white/90 h-5 w-5"
+                      imageClassName="invert object-contain"
+                    />
+                  ) : (
+                      <Icon icon="fa6-solid:folder" className="h-5 w-5 text-white/30" />
+                  )}
                 <div className="min-w-0">
                   <p className="truncate font-medium">{editingFolder.name}</p>
-                  <p className="text-sm text-white/60">Choose a new icon for this folder.</p>
                 </div>
               </div>
 
               <IconPickerComponent
                 onSelect={async (iconObj) => {
                   if (!editingFolder?.id) return;
-                  await withAuth((auth) => updateHomeLinkFolderIconAction(auth, editingFolder.id, { icon: iconObj.url ?? "" }));
+                  await withAuth((auth) =>
+                    updateHomeLinkFolderIconAction(auth, editingFolder.id, {
+                      icon: iconObj.url ?? "",
+                    })
+                  );
                   setLocalLinks((current) =>
                     current.map((link) =>
                       link.folderId === editingFolder.id
@@ -527,7 +605,7 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
                     )
                   );
                   setEditingFolder((current) =>
-                    current ? { ...current, icon: iconObj.url ?? "" } : current
+                    current ? { ...current, icon: iconObj?.url ?? "" } : current
                   );
                   await refreshHomeLinks();
                   setEditingFolder(null);
@@ -591,15 +669,19 @@ function LinkTile({
     >
       {link.iconUrl
         ? (
-          <img
-            src={link.iconUrl}
-            alt={link.title ?? "Icon"}
-            className="h-8.75 w-8.75 object-contain rounded-lg bg-white/5 transition-colors"
+          <AppIcon
+            source={link.iconUrl}
+            alt={link.title}
+            className="h-8.75 w-8.75 text-foreground transition-colors group-hover:text-primary"
+            imageClassName="object-contain"
           />
         )
         : (
           <div className="h-8.75 w-8.75 flex items-center justify-center">
-            <Icon icon="fa6-solid:folder" className="h-6 w-6 opacity-20" />
+            <Icon
+              icon="fa6-solid:folder"
+              className="h-6 w-6 opacity-20 text-[2rem]"
+            />
           </div>
         )}
 

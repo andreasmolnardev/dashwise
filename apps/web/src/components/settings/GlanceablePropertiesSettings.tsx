@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import useAuth from "@/context/useAuth";
+import { useLocalization } from "@/context/LocalizationContext";
 import GlanceableComponent, { GlanceableProps } from "@dashwise/integrationskit/Glanceable";
 import { usePageConfig } from "@/hooks/usePageConfig.ts";
 import { updatePageConfigAction } from "@/app/actions/pageConfigs";
@@ -125,11 +126,21 @@ export default function GlanceablePropertiesSettingsComponent({
 }
 
 function Preview({ type, params, className }: GlanceableProps & { params?: Record<string, any> }) {
+    const localization = useLocalization();
     return (
         <div>
             <h3 className="text-lg">Preview</h3>
             <div className="flex items-center justify-center w-full py-2">
-                <GlanceableComponent type={type} params={params} className="font-medium text-lg" />
+                <GlanceableComponent
+                    type={type}
+                    params={params}
+                    className="font-medium text-lg"
+                    formatters={{
+                        formatTemperature: localization.formatTemperature,
+                        formatTime: localization.formatTime,
+                        formatDate: localization.formatDate,
+                    }}
+                />
             </div>
         </div>
     );

@@ -42,7 +42,13 @@ export type EndpointRuntimeCacheAdapter = {
 export async function resolveEndpointCatalog(
 	endpoints: unknown,
 	context: EndpointResolutionContext,
-): Promise<{ endpoints: Record<string, ResolvedEndpointData>; env: Record<string, string> }> {
+	allowInsecureEndpoints = false,
+): Promise<
+	{
+		endpoints: Record<string, ResolvedEndpointData>;
+		env: Record<string, string>;
+	}
+> {
 	const normalized = normalizeEndpoints(endpoints);
 	const nextEnv = { ...context.env };
 	const resolved: Record<string, ResolvedEndpointData> = {};
@@ -105,7 +111,9 @@ export async function resolveEndpointCatalog(
 	}
 
 	function endpointProducedVar(endpoint: EndpointDefinition) {
-		const responseDirective = isPlainObject(endpoint.response) ? endpoint.response : null;
+		const responseDirective = isPlainObject(endpoint.response)
+			? endpoint.response
+			: null;
 		return typeof responseDirective?.data_set_env === "string"
 			? responseDirective.data_set_env
 			: null;
@@ -152,7 +160,7 @@ export async function resolveEndpointCatalog(
 					...(context.scope ?? {}),
 					endpoints: resolved,
 				},
-			});
+			}, allowInsecureEndpoints);
 
 			if (endpointKey && context.cache && ttlSeconds !== null) {
 				const expiresAt = Date.now() + ttlSeconds * 1000;
@@ -163,7 +171,9 @@ export async function resolveEndpointCatalog(
 		const key = resolvedEndpoint.id ?? resolvedEndpoint.name;
 		if (key) resolved[key] = resolvedEndpoint;
 
-		const responseDirective = isPlainObject(endpoint.response) ? endpoint.response : null;
+		const responseDirective = isPlainObject(endpoint.response)
+			? endpoint.response
+			: null;
 		const dataSetEnv = typeof responseDirective?.data_set_env === "string"
 			? responseDirective.data_set_env
 			: null;
@@ -195,8 +205,12 @@ function resolveEndpointCacheKey(endpoint: EndpointDefinition): string | null {
 	return null;
 }
 
-function resolveInvalidateAfterSeconds(endpoint: EndpointDefinition): number | null {
-	const responseDirective = isPlainObject(endpoint.response) ? endpoint.response : null;
+function resolveInvalidateAfterSeconds(
+	endpoint: EndpointDefinition,
+): number | null {
+	const responseDirective = isPlainObject(endpoint.response)
+		? endpoint.response
+		: null;
 	const invalidate = isPlainObject(responseDirective?.invalidate)
 		? responseDirective.invalidate
 		: null;
@@ -211,6 +225,7 @@ function resolveInvalidateAfterSeconds(endpoint: EndpointDefinition): number | n
 export async function getEndpointData(
 	endpoint: EndpointDefinition,
 	context: EndpointResolutionContext,
+	allowSsl?: boolean,
 ): Promise<ResolvedEndpointData> {
 	const method = String(endpoint.method ?? "GET").toUpperCase();
 	const resolvedUrl = resolveStringValue(String(endpoint.url ?? ""), context);
@@ -219,7 +234,7 @@ export async function getEndpointData(
 
 	// If we have a request body but no Content-Type header, default to JSON
 	const hasContentType = Object.keys(requestHeaders).some((k) =>
-		k.toLowerCase() === "content-type",
+		k.toLowerCase() === "content-type"
 	);
 	if (requestBody !== null && !hasContentType) {
 		requestHeaders["content-type"] = "application/json";
@@ -227,8 +242,8 @@ export async function getEndpointData(
 	const endpointLabel = typeof endpoint.name === "string"
 		? endpoint.name
 		: typeof endpoint.id === "string"
-			? endpoint.id
-			: "endpoint";
+		? endpoint.id
+		: "endpoint";
 
 	if (!resolvedUrl) {
 		return {
@@ -252,19 +267,29 @@ export async function getEndpointData(
 			headers: requestHeaders,
 			body: requestBody,
 		});
-		response = await fetch(resolvedUrl, {
+		const fetchOptions: RequestInit = {
 			method,
 			headers: requestHeaders,
 			body: requestBody,
 			signal: context.signal,
-		});
+		};
+
+		if (allowSsl) {
+			(fetchOptions as any).tls = {
+				rejectUnauthorized: false,
+			};
+		}
+
+		response = await fetch(resolvedUrl, fetchOptions);
 	} catch (error) {
 		console.error(
 			`Error fetching endpoint "${endpointLabel}" (${method} ${resolvedUrl}):`,
 			error,
 		);
 		throw new Error(
-			`Failed to fetch endpoint "${endpointLabel}" (${method} ${resolvedUrl}): ${getErrorMessage(error)}`,
+			`Failed to fetch endpoint "${endpointLabel}" (${method} ${resolvedUrl}): ${
+				getErrorMessage(error)
+			}`,
 		);
 	}
 
@@ -280,7 +305,11 @@ export async function getEndpointData(
 		const suffix = responseSummary ? ` - ${responseSummary}` : "";
 		console.error(
 			`Non-OK response for endpoint "${endpointLabel}" (${method} ${resolvedUrl}):`,
-			{ status: response.status, statusText: response.statusText, body: rawResponse },
+			{
+				status: response.status,
+				statusText: response.statusText,
+				body: rawResponse,
+			},
 		);
 		throw new Error(
 			`Failed to fetch endpoint "${endpointLabel}" (${method} ${resolvedUrl}): ${response.status} ${response.statusText}${suffix}`,
@@ -321,12 +350,15 @@ function normalizeEndpoints(endpoints: unknown): EndpointDefinition[] {
 	return [];
 }
 
-function resolveHeaders(endpoint: EndpointDefinition, context: EndpointResolutionContext) {
+function resolveHeaders(
+	endpoint: EndpointDefinition,
+	context: EndpointResolutionContext,
+) {
 	const rawHeaders = isPlainObject(endpoint.headers)
 		? endpoint.headers
 		: isPlainObject(endpoint.custom_headers)
-			? endpoint.custom_headers
-			: {};
+		? endpoint.custom_headers
+		: {};
 
 	const headers: Record<string, string> = {};
 	for (const [key, value] of Object.entries(rawHeaders)) {
@@ -334,29 +366,39 @@ function resolveHeaders(endpoint: EndpointDefinition, context: EndpointResolutio
 	}
 
 	const auth = resolveStringValue(String(endpoint.auth ?? ""), context);
-	if (auth && !Object.keys(headers).some((key) => key.toLowerCase() === "authorization")) {
+	if (
+		auth && !Object.keys(headers).some((key) =>
+			key.toLowerCase() === "authorization"
+		)
+	) {
 		headers.Authorization = auth;
 	}
 
 	return headers;
 }
 
-function resolveBody(endpoint: EndpointDefinition, context: EndpointResolutionContext, method: string) {
+function resolveBody(
+	endpoint: EndpointDefinition,
+	context: EndpointResolutionContext,
+	method: string,
+) {
 	if (["GET", "HEAD"].includes(method)) return null;
 
 	const rawBody = endpoint.body;
 	if (rawBody === undefined || rawBody === null) return null;
 
 	const resolvedBody = resolveComputedFieldValue(rawBody, context as any);
-	return typeof resolvedBody === "string" ? resolvedBody : JSON.stringify(resolvedBody);
+	return typeof resolvedBody === "string"
+		? resolvedBody
+		: JSON.stringify(resolvedBody);
 }
 
 function mapResponseBody(body: unknown, endpoint: EndpointDefinition) {
 	const mappings = Array.isArray(endpoint.response_mappings)
 		? endpoint.response_mappings
 		: isPlainObject(endpoint.response_mapping)
-			? [endpoint.response_mapping]
-			: [];
+		? [endpoint.response_mapping]
+		: [];
 
 	if (mappings.length === 0 || !isPlainObject(body)) {
 		return body;
@@ -369,7 +411,9 @@ function mapResponseBody(body: unknown, endpoint: EndpointDefinition) {
 			mapped[target] = resolveMappedNode(source, {
 				root: body as Record<string, any>,
 				current: body as Record<string, any>,
-				groupBy: typeof endpoint.group_by === "string" ? endpoint.group_by : undefined,
+				groupBy: typeof endpoint.group_by === "string"
+					? endpoint.group_by
+					: undefined,
 			});
 		}
 	}
@@ -395,7 +439,10 @@ function resolveMappedNode(node: any, context: MappingContext): any {
 		const merged: Record<string, any> = {};
 		for (const entry of node) {
 			const resolved = resolveMappedNode(entry, context);
-			if (resolved && typeof resolved === "object" && !Array.isArray(resolved)) {
+			if (
+				resolved && typeof resolved === "object" &&
+				!Array.isArray(resolved)
+			) {
 				Object.assign(merged, resolved);
 			}
 		}
@@ -404,47 +451,67 @@ function resolveMappedNode(node: any, context: MappingContext): any {
 
 	if (!isPlainObject(node)) return node;
 
-	if (typeof node.iterate === "string" || typeof node.iterate_over === "string") {
-		const iteratePath = typeof node.iterate === "string" ? node.iterate : node.iterate_over;
-		const source = getNestedValue(context.current as Record<string, any>, iteratePath) ??
-			getNestedValue(context.root, iteratePath);
+	if (
+		typeof node.iterate === "string" ||
+		typeof node.iterate_over === "string"
+	) {
+		const iteratePath = typeof node.iterate === "string"
+			? node.iterate
+			: node.iterate_over;
+		const source =
+			getNestedValue(
+				context.current as Record<string, any>,
+				iteratePath,
+			) ??
+				getNestedValue(context.root, iteratePath);
 		const items = Array.isArray(source)
 			? source
 			: source && typeof source === "object"
-				? Object.values(source)
-				: [];
-		const slice = typeof node.slice === "string" ? parseSlice(node.slice) : null;
+			? Object.values(source)
+			: [];
+		const slice = typeof node.slice === "string"
+			? parseSlice(node.slice)
+			: null;
 		const sliced = slice ? items.slice(slice.start, slice.end) : items;
 		const mappingShape = isPlainObject(node.mappingProperties)
 			? node.mappingProperties
 			: isPlainObject(node.properties)
-				? node.properties
-				: isPlainObject(node.fields)
-					? node.fields
-					: node;
+			? node.properties
+			: isPlainObject(node.fields)
+			? node.fields
+			: node;
 		return sliced.map((item, index) =>
 			resolveMappingProperties(mappingShape, {
 				root: context.root,
 				current: item,
 				groupBy: context.groupBy,
 				index,
-			}),
+			})
 		);
 	}
 
 	if (typeof node.aggregate_over === "string") {
-		const source = getNestedValue(context.current as Record<string, any>, node.aggregate_over) ??
-			getNestedValue(context.root, node.aggregate_over);
+		const source =
+			getNestedValue(
+				context.current as Record<string, any>,
+				node.aggregate_over,
+			) ??
+				getNestedValue(context.root, node.aggregate_over);
 		const items = Array.isArray(source)
 			? source
 			: source && typeof source === "object"
-				? Object.values(source)
-				: [];
+			? Object.values(source)
+			: [];
 
 		if (context.groupBy && items.length > 0) {
 			const groups = new Map<string, any[]>();
 			for (const item of items) {
-				const groupKey = String(getNestedValue(item as Record<string, any>, context.groupBy) ?? "");
+				const groupKey = String(
+					getNestedValue(
+						item as Record<string, any>,
+						context.groupBy,
+					) ?? "",
+				);
 				const nextGroup = groups.get(groupKey) ?? [];
 				nextGroup.push(item);
 				groups.set(groupKey, nextGroup);
@@ -473,10 +540,23 @@ function resolveMappedNode(node: any, context: MappingContext): any {
 	return resolveMappingProperties(node, context);
 }
 
-function resolveMappingProperties(node: Record<string, any>, context: MappingContext, index = 0) {
+function resolveMappingProperties(
+	node: Record<string, any>,
+	context: MappingContext,
+	index = 0,
+) {
 	const output: Record<string, any> = {};
 	for (const [key, value] of Object.entries(node)) {
-		if (["iterate", "iterate_over", "mappingProperties", "aggregate_over", "slice", "group_by"].includes(key)) {
+		if (
+			[
+				"iterate",
+				"iterate_over",
+				"mappingProperties",
+				"aggregate_over",
+				"slice",
+				"group_by",
+			].includes(key)
+		) {
 			continue;
 		}
 		output[key] = resolveMappedNode(value, {
@@ -493,17 +573,27 @@ function resolveMappedString(template: string, context: MappingContext) {
 	const interpolated = template.replace(/\$\{([^}]+)\}/g, (_, key) => {
 		const expr = key.trim();
 		if (expr === "_index") return String(context.index ?? 0);
-		const fromCurrent = getNestedValue(context.current as Record<string, any>, expr);
-		if (fromCurrent !== undefined && fromCurrent !== null) return String(fromCurrent);
+		const fromCurrent = getNestedValue(
+			context.current as Record<string, any>,
+			expr,
+		);
+		if (fromCurrent !== undefined && fromCurrent !== null) {
+			return String(fromCurrent);
+		}
 		const fromRoot = getNestedValue(context.root, expr);
-		if (fromRoot !== undefined && fromRoot !== null) return String(fromRoot);
+		if (fromRoot !== undefined && fromRoot !== null) {
+			return String(fromRoot);
+		}
 		return "";
 	});
 
 	const trimmed = interpolated.trim();
 	if (!trimmed) return "";
 
-	const currentValue = getNestedValue(context.current as Record<string, any>, trimmed);
+	const currentValue = getNestedValue(
+		context.current as Record<string, any>,
+		trimmed,
+	);
 	if (currentValue !== undefined) return currentValue;
 
 	const rootValue = getNestedValue(context.root, trimmed);
@@ -512,7 +602,10 @@ function resolveMappedString(template: string, context: MappingContext) {
 	return trimmed;
 }
 
-function resolveMappedOperation(node: Record<string, any>, context: MappingContext) {
+function resolveMappedOperation(
+	node: Record<string, any>,
+	context: MappingContext,
+) {
 	const operation = String(node.operation ?? "").trim().toLowerCase();
 	const source = node.field !== undefined ? node.field : node.value;
 	const fallback = node.fallback;
@@ -521,11 +614,14 @@ function resolveMappedOperation(node: Record<string, any>, context: MappingConte
 	if (operation === "avg") {
 		const list = Array.isArray(context.current) ? context.current : [];
 		const values = list
-			.map((item) => resolveMappedNode(source, { ...context, current: item }))
+			.map((item) =>
+				resolveMappedNode(source, { ...context, current: item })
+			)
 			.map((value) => Number(value))
 			.filter((value) => Number.isFinite(value));
 		if (values.length === 0) return fallback;
-		let result: any = values.reduce((sum, value) => sum + value, 0) / values.length;
+		let result: any = values.reduce((sum, value) => sum + value, 0) /
+			values.length;
 		if (transform) result = applyMappedTransform(transform, result);
 		return result;
 	}
@@ -535,7 +631,10 @@ function resolveMappedOperation(node: Record<string, any>, context: MappingConte
 		const offset = Number(node.offset ?? 0);
 		const index = list.length - 1 - (Number.isFinite(offset) ? offset : 0);
 		if (index < 0 || index >= list.length) return fallback;
-		let result = resolveMappedNode(source, { ...context, current: list[index] });
+		let result = resolveMappedNode(source, {
+			...context,
+			current: list[index],
+		});
 		if (transform) result = applyMappedTransform(transform, result);
 		return result === undefined || result === null ? fallback : result;
 	}
@@ -544,7 +643,10 @@ function resolveMappedOperation(node: Record<string, any>, context: MappingConte
 		const fields = Array.isArray(node.fields) ? node.fields : [];
 		for (const field of fields) {
 			const resolved = resolveMappedNode(field, context);
-			if (resolved !== undefined && resolved !== null && String(resolved).trim() !== "") {
+			if (
+				resolved !== undefined && resolved !== null &&
+				String(resolved).trim() !== ""
+			) {
 				return resolved;
 			}
 		}
@@ -575,7 +677,10 @@ function parseSlice(slice: string) {
 	};
 }
 
-function resolveStringValue(template: string, context: EndpointResolutionContext) {
+function resolveStringValue(
+	template: string,
+	context: EndpointResolutionContext,
+) {
 	return template.replace(/\$\{([^}]+)\}/g, (_, key) => {
 		const expr = key.trim();
 
@@ -600,8 +705,13 @@ function resolveStringValue(template: string, context: EndpointResolutionContext
 			}
 
 			if (typeof parsed === "object" && parsed !== null) {
-				const nested = getNestedValue(parsed as Record<string, any>, normalizedPath);
-				return nested === undefined || nested === null ? "" : String(nested);
+				const nested = getNestedValue(
+					parsed as Record<string, any>,
+					normalizedPath,
+				);
+				return nested === undefined || nested === null
+					? ""
+					: String(nested);
 			}
 
 			return String(raw);
@@ -610,7 +720,9 @@ function resolveStringValue(template: string, context: EndpointResolutionContext
 		// For computed expressions (e.g. if(...)), defer to the computed-field resolver
 		try {
 			const resolved = resolveComputedFieldValue(expr, context as any);
-			return resolved === undefined || resolved === null ? "" : String(resolved);
+			return resolved === undefined || resolved === null
+				? ""
+				: String(resolved);
 		} catch {
 			return "";
 		}
@@ -620,7 +732,9 @@ function resolveStringValue(template: string, context: EndpointResolutionContext
 function formatEnvValue(value: unknown) {
 	if (value === null || value === undefined) return "";
 	if (typeof value === "string") return value;
-	if (typeof value === "number" || typeof value === "boolean") return String(value);
+	if (typeof value === "number" || typeof value === "boolean") {
+		return String(value);
+	}
 	try {
 		return JSON.stringify(value);
 	} catch {

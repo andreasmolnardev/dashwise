@@ -242,14 +242,6 @@ export async function testIntegrationEndpoint(
             requestHeaders["content-type"] = "application/json";
         }
     }
-
-    const insecureRequested = endpoint.allow_insecure_ssl === true ||
-        endpoint.allow_insecure_ssl === "true" ||
-        (endpoint as any).insecure_skip_verify === true ||
-        (endpoint as any).insecure_skip_verify === "true";
-    const allowInsecure = 
-        insecureRequested;
-
     const curlCommand = buildCurlCommand({
         url: resolvedUrl,
         method,
@@ -267,7 +259,7 @@ export async function testIntegrationEndpoint(
         data: requestBody,
         timeout: resolveTimeout(endpoint.timeout),
         validateStatus: () => true,
-        ...(allowInsecure
+        ...(true
             ? { httpsAgent: new https.Agent({ rejectUnauthorized: false }) }
             : {}),
     });

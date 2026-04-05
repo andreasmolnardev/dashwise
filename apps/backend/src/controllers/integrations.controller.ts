@@ -24,6 +24,7 @@ import type {
 } from "@dashwise/integrationskit/data/getEndpointData";
 
 import { readAuthToken, readBool, readJsonBody, requireAuth, withJson } from "./shared";
+import { config } from "src/config/env";
 
 type ConsumerType = "widget" | "glanceable";
 
@@ -127,7 +128,6 @@ async function resolveConsumerData(
   },
 ) {
   const user = await getAuthUserRecord(opts.pb, opts.userId);
-
   if (opts.type === "widget") {
     return resolveWidgetConsumer({
       userId: opts.userId,
@@ -213,6 +213,7 @@ async function resolveWidgetConsumer(opts: {
       data: null,
       isPreview: opts.isPreview,
       endpointCache: cacheContext.adapter,
+      allowInsecureEndpoints: config.ALLOW_SSL
     });
 
     await persistLocalDataIfChanged(payload.integrationId, cacheContext);
@@ -293,7 +294,7 @@ async function resolveGlanceableConsumer(opts: {
     data: runtimeData.data,
     blueprint: {
       text: rawText ? resolveGlanceableText(rawText, runtimeData.env) : "",
-      icon: getGlanceableIconSource(glanceableJSON.icon),
+      icon: getGlanceableIconSource(glanceableJSON.icon, runtimeData.env),
       glanceableJSON,
     },
   };
@@ -453,9 +454,9 @@ function resolveUserInjectedEnv(envVars: any, user: Record<string, any> | null):
   return envVars;
 }
 
-function getGlanceableIconSource(icon: unknown) {
+function getGlanceableIconSource(icon: unknown, env: Record<string, string>) {
   if (!icon || icon === "none") return null;
-  if (typeof icon === "string") return icon;
+  if (typeof icon === "string") return resolveTemplatedString(icon, env);
 
   if (typeof icon === "object") {
     const iconRecord = icon as Record<string, any>;
@@ -466,11 +467,24 @@ function getGlanceableIconSource(icon: unknown) {
       iconRecord.value;
 
     if (typeof source === "string" && source.trim()) {
-      return source.trim();
+      return resolveTemplatedString(source.trim(), env);
     }
   }
 
   return null;
+}
+
+function resolveTemplatedString(value: string, env: Record<string, string>) {
+  const segments = value.split("???");
+
+  for (const segment of segments) {
+    const resolved = interpolateString(segment.trim(), env).trim();
+    if (resolved) {
+      return resolved;
+    }
+  }
+
+  return segments[segments.length - 1].trim();
 }
 
 function resolveGlanceableText(template: string, env: Record<string, string>) {

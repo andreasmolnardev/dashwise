@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { GlanceableSide } from "./utils";
+import { useLocalization } from "@/context/LocalizationContext";
 
 type GlanceableCatalogItem = {
   type: string;
@@ -44,6 +45,7 @@ export function EditGlanceablesView({
   setClockStyle,
   fonts,
 }: EditGlanceablesViewProps) {
+  const localization = useLocalization();
   const selectedClockSide: GlanceableSide = selectedClockPart === "right"
     ? "right"
     : "left";
@@ -85,6 +87,11 @@ export function EditGlanceablesView({
               <GlanceableComponent
                 type={clockSelection.left}
                 params={clockGlanceables[clockSelection.left] ?? {}}
+                formatters={{
+                  formatTemperature: localization.formatTemperature,
+                  formatTime: localization.formatTime,
+                  formatDate: localization.formatDate,
+                }}
               />
             </div>
             <p
@@ -135,6 +142,11 @@ export function EditGlanceablesView({
               <GlanceableComponent
                 type={clockSelection.right}
                 params={clockGlanceables[clockSelection.right] ?? {}}
+                formatters={{
+                  formatTemperature: localization.formatTemperature,
+                  formatTime: localization.formatTime,
+                  formatDate: localization.formatDate,
+                }}
               />
             </div>
             <p
@@ -165,6 +177,11 @@ export function EditGlanceablesView({
                   <GlanceableComponent
                     type={glanceable.type}
                     params={glanceable.exampleProps ?? {}}
+                    formatters={{
+                      formatTemperature: localization.formatTemperature,
+                      formatTime: localization.formatTime,
+                      formatDate: localization.formatDate,
+                    }}
                     className="h-8 rounded-full px-2 py-0.5"
                   />
                   <p className="mt-2 truncate text-xs text-white/75">

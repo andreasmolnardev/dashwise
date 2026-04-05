@@ -176,7 +176,6 @@ export default async function indexStatusMonitoringJobs(): Promise<{
         result.errors++;
         result.details.push({ action: 'fatal', error: err?.message || String(err) });
     }
-    console.log(result);
     return result;
 }
 

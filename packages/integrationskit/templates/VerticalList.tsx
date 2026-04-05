@@ -4,13 +4,15 @@ import { Icon } from "@iconify-icon/react";
 import React from "react";
 import IntegrationIcon from "./IntegrationIcon";
 import type { ResolvedWidget } from "../data/resolveProperties";
+import { renderLocalizedText, type TextFormatters } from "../data/renderText";
 
 interface VerticalListProps {
   resolved: ResolvedWidget;
   className?: string;
+  formatters?: TextFormatters;
 }
 
-export default function VerticalList({ resolved, className }: VerticalListProps) {
+export default function VerticalList({ resolved, className, formatters }: VerticalListProps) {
   const header = resolved.header;
   const items = resolved.list ?? [];
 
@@ -22,7 +24,7 @@ export default function VerticalList({ resolved, className }: VerticalListProps)
           className="font-medium mb-1 grid grid-cols-[18px_1fr_16px] w-full text-start items-center gap-2"
         >
           <IntegrationIcon source={header.icon} className="h-4 mx-0.5" alt="" size={16} />
-          <p className="font-semibold truncate">{header.title}</p>
+          <p className="font-semibold truncate">{renderLocalizedText(header.title, formatters)}</p>
           {header.titleAction && (
             <Icon
               icon="fa6-solid:up-right-from-square"
@@ -86,16 +88,16 @@ function ListRow({
               href={item.titleAction}
               className="block text-sm font-medium truncate hover:text-primary transition-colors"
             >
-              {item.title}
+              {renderLocalizedText(item.title, formatters)}
             </a>
           ) : (
-            <p className="text-sm font-medium truncate">{item.title}</p>
+            <p className="text-sm font-medium truncate">{renderLocalizedText(item.title, formatters)}</p>
           )
         )}
 
         {subtitleLines.length > 0 && (
           <p className="text-xs opacity-60 truncate leading-snug">
-            {subtitleLines.join(" · ")}
+            {renderLocalizedText(subtitleLines, formatters)}
           </p>
         )}
       </div>

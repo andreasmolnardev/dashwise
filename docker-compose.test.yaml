@@ -35,6 +35,7 @@ services:
       MONITORING_INDEXER_SCHEDULE: "*/10 * * * *"
       MONITORING_RUNNER_SCHEDULE: "*/1 * * * *"
       ALLOW_SSL: false
+      START_POCKETBASE: "false"
       PB_ADMIN_EMAIL: default@dashwise.local
       PB_ADMIN_PASSWORD: dashwiseIsAwesome  
     restart: unless-stopped

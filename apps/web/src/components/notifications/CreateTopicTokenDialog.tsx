@@ -14,7 +14,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
 import { Button } from "../ui/button";
 import { createTopicTokenAction } from "@/app/actions/notifications/topicTokens";
-import { TokenItem } from "@/app/(authenticated)/notifications/tokens/page";
+import { TokenItem } from "@/app/(authenticated)/apps/notifications/tokens/page";
 import TopicCombobox, { type Topic } from "./TopicCombobox";
 
 type NewTokenDialogProps = {

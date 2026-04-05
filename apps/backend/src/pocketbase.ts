@@ -56,12 +56,11 @@ function resolvePocketBaseRuntimePath() {
   );
 }
 
-async function waitForPocketBaseReady(pb: Bun.Subprocess) {
-  const healthUrl = new URL("/api/health", config.PB_URL).toString();
+async function waitForPocketBaseReady(healthUrl: string, pb?: Bun.Subprocess) {
   const deadline = Date.now() + 30_000;
 
   while (Date.now() < deadline) {
-    if (pb.exitCode !== null) {
+    if (pb && pb.exitCode !== null) {
       throw new Error(`PocketBase exited before becoming ready (code ${pb.exitCode})`);
     }
 
@@ -82,6 +81,14 @@ async function waitForPocketBaseReady(pb: Bun.Subprocess) {
 }
 
 export async function startPocketbase() {
+  const healthUrl = new URL("/api/health", config.PB_URL).toString();
+
+  if (!config.START_POCKETBASE) {
+    console.log("Skipping internal PocketBase startup; using configured PB_URL:", config.PB_URL);
+    await waitForPocketBaseReady(healthUrl);
+    return null;
+  }
+
   const monorepoRoot = findRepoRoot(__dirname);
   const pocketBaseRoot = resolve(monorepoRoot, "pocketbase");
 
@@ -139,7 +146,7 @@ export async function startPocketbase() {
   process.on("SIGINT", shutdown);
   process.on("SIGTERM", shutdown);
 
-  await waitForPocketBaseReady(pb);
+  await waitForPocketBaseReady(healthUrl, pb);
 
   return pb;
 }

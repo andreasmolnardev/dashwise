@@ -7,6 +7,7 @@ import SearchBar from "./SearchBar";
 import Widget from "@dashwise/integrationskit/Widget";
 import useAuth from "@/context/useAuth";
 import { getConsumerDataAction } from "@/app/actions/integrations";
+import { useLocalization } from "@/context/LocalizationContext";
 
 export type WidgetProps = {
   type: string;
@@ -70,6 +71,7 @@ function IntegrationWidget({
   isPreview?: boolean;
 }) {
   const { withAuth } = useAuth();
+  const localization = useLocalization();
   const [consumerPayload, setConsumerPayload] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -135,6 +137,11 @@ function IntegrationWidget({
       widgetJSON={consumerPayload.blueprint.widgetJSON}
       data={consumerPayload.data}
       resolved={consumerPayload.blueprint.resolved}
+      formatters={{
+        formatTemperature: localization.formatTemperature,
+        formatTime: localization.formatTime,
+        formatDate: localization.formatDate,
+      }}
     />
   );
 }

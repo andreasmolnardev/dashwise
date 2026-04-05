@@ -4,9 +4,10 @@ import React, { useEffect, useMemo, useState } from "react";
 import IntegrationIcon from "./templates/IntegrationIcon";
 import {
   flattenToEnv,
-  interpolateString,
+  resolveStringWithCasts,
   resolveGlanceableRuntimeData,
 } from "./data/resolveProperties";
+import { renderLocalizedText, type TextFormatters } from "./data/renderText";
 
 export type GlanceableProps = {
   /** The glanceable definition from configuration.glanceables[] */
@@ -26,6 +27,7 @@ export type GlanceableProps = {
     text: string;
     icon?: string | null;
   };
+  formatters?: TextFormatters;
 };
 
 export default function Glanceable({
@@ -37,22 +39,23 @@ export default function Glanceable({
   type,
   params,
   resolved,
+  formatters,
 }: GlanceableProps) {
   if (resolved) {
     return (
       <span
-        className={`inline-flex items-center gap-1 text-sm ${className ?? ""}`}
+        className={`inline-flex items-center gap-1 ${className ?? ""}`}
       >
         {resolved.icon && (
-          <IntegrationIcon source={resolved.icon} alt="" size={16} className="h-4 w-4 object-contain shrink-0" />
+          <IntegrationIcon source={resolved.icon} alt="" className="text-lg object-contain shrink-0" />
         )}
-        <span>{resolved.text}</span>
+        <span>{renderLocalizedText(resolved.text, formatters)}</span>
       </span>
     );
   }
 
   if (!glanceableJSON && type) {
-    return <LegacyGlanceable type={type} params={params} className={className} />;
+    return <LegacyGlanceable type={type} params={params} className={className} formatters={formatters} />;
   }
 
   const safeGlanceableJSON = useMemo(
@@ -109,7 +112,7 @@ export default function Glanceable({
     return () => {
       cancelled = true;
     };
-  }, [baseEnv, data, integrationJSON, isPreview, safeGlanceableJSON]);
+  }, [baseEnv, data, formatters, integrationJSON, isPreview, safeGlanceableJSON]);
 
   const env = useMemo(() => {
     const integrationEnv =
@@ -131,16 +134,16 @@ export default function Glanceable({
   }, [integrationJSON, isPreview, resolvedRuntimeData, safeGlanceableJSON]);
 
   const rawText = typeof safeGlanceableJSON.text === "string" ? safeGlanceableJSON.text : "";
-  const text = rawText ? resolveGlanceableText(rawText, env) : (safeGlanceableJSON.name ?? "");
+  const text = rawText ? resolveGlanceableText(rawText, env, formatters) : (safeGlanceableJSON.name ?? "");
 
   const iconSrc = getGlanceableIconSource(safeGlanceableJSON.icon);
 
   return (
     <span
-      className={`inline-flex items-center gap-1 text-sm ${className ?? ""}`}
+      className={`inline-flex items-center gap-1 ${className ?? ""}`}
     >
       {iconSrc && (
-        <IntegrationIcon source={iconSrc} alt="" size={16} className="h-4 w-4 object-contain shrink-0" />
+        <IntegrationIcon source={iconSrc} alt="" className="text-lg object-contain shrink-0" />
       )}
       <span>{text}</span>
     </span>
@@ -151,14 +154,16 @@ function LegacyGlanceable({
   type,
   params,
   className,
+  formatters,
 }: {
   type: string;
   params?: Record<string, any>;
   className?: string;
+  formatters?: TextFormatters;
 }) {
   switch (type) {
     case "date":
-      return <span className={`inline-flex items-center text-sm ${className ?? ""}`}>{formatDate(new Date(), params?.format)}</span>;
+      return <span className={`inline-flex items-center text-sm ${className ?? ""}`}>{formatDate(new Date(), params?.format, formatters)}</span>;
 
     case "greeting":
       return <span className={`inline-flex items-center text-sm ${className ?? ""}`}>Hello</span>;
@@ -167,10 +172,10 @@ function LegacyGlanceable({
       return <span className={`inline-flex items-center text-sm ${className ?? ""}`}>{getLocalTimezoneLabel()}</span>;
 
     case "weather":
-      return <span className={`inline-flex items-center text-sm ${className ?? ""}`}>{formatWeather(params)}</span>;
+      return <span className={`inline-flex items-center text-sm ${className ?? ""}`}>{formatWeather(params, formatters)}</span>;
 
     case "world-clock":
-      return <LegacyWorldClock params={params} className={className} />;
+      return <LegacyWorldClock params={params} className={className} formatters={formatters} />;
 
     default:
       return <span className={`inline-flex items-center text-sm ${className ?? ""}`}>{params?.name ?? type}</span>;
@@ -180,9 +185,11 @@ function LegacyGlanceable({
 function LegacyWorldClock({
   params,
   className,
+  formatters,
 }: {
   params?: Record<string, any>;
   className?: string;
+  formatters?: TextFormatters;
 }) {
   const timezone = useMemo(() => normalizeTimezone(params?.timezone), [params?.timezone]);
   const location = useMemo(() => parseTemplateLikeString(params?.location) || "", [params?.location]);
@@ -191,14 +198,14 @@ function LegacyWorldClock({
   useEffect(() => {
     const updateTime = () => {
       const now = new Date();
-      const formatted = timezone ? formatTime(now, { timeZone: timezone }) : formatTime(now);
+      const formatted = timezone ? formatTime(now, { timeZone: timezone }, formatters) : formatTime(now, undefined, formatters);
       setTime(formatted);
     };
 
     updateTime();
     const interval = setInterval(updateTime, 60 * 1000);
     return () => clearInterval(interval);
-  }, [timezone]);
+  }, [formatters, timezone]);
 
   return <span className={`inline-flex items-center text-sm ${className ?? ""}`}>{time}{location ? ` in ${location}` : ""}</span>;
 }
@@ -214,7 +221,7 @@ function getLocalTimezoneLabel() {
   return `GMT${offset >= 0 ? "+" : ""}${offset}`;
 }
 
-function formatWeather(params?: Record<string, any>) {
+function formatWeather(params?: Record<string, any>, formatters?: TextFormatters) {
   const description = params?.description;
   const weatherCode = params?.weatherCode;
   const emoji = getWeatherEmoji(weatherCode, description);
@@ -224,7 +231,10 @@ function formatWeather(params?: Record<string, any>) {
     ? ` in ${params.name.split(",")[0]}`
     : "";
 
-  return `${emoji} ${temperature}${unit}${location}`.trim();
+  const temperatureText = formatters?.formatTemperature
+    ? formatters.formatTemperature(Number(temperature), params?.temperatureUnit ?? "c")
+    : `${temperature}${unit}`;
+  return `${emoji} ${temperatureText}${location}`.trim();
 }
 
 function getWeatherEmoji(weatherCode: unknown, description: unknown) {
@@ -281,7 +291,8 @@ function parseTemplateLikeString(raw: unknown): string | undefined {
   return undefined;
 }
 
-function formatDate(input?: Date | string | number, overrideFormat?: string) {
+function formatDate(input?: Date | string | number, overrideFormat?: string, formatters?: TextFormatters) {
+  if (formatters?.formatDate) return formatters.formatDate(input, overrideFormat);
   const date = toDate(input);
   const pattern = overrideFormat || "DD-MM-YYYY";
 
@@ -301,7 +312,8 @@ function formatDate(input?: Date | string | number, overrideFormat?: string) {
     .trim();
 }
 
-function formatTime(input?: Date | string | number, opts?: Intl.DateTimeFormatOptions) {
+function formatTime(input?: Date | string | number, opts?: Intl.DateTimeFormatOptions, formatters?: TextFormatters) {
+  if (formatters?.formatTime) return formatters.formatTime(input, opts);
   const date = toDate(input);
   return new Intl.DateTimeFormat(undefined, {
     hour: "2-digit",
@@ -349,13 +361,13 @@ function getGlanceableIconSource(icon: unknown) {
   return null;
 }
 
-function resolveGlanceableText(template: string, env: Record<string, string>) {
-  const interpolated = interpolateString(template, env);
-
-  return interpolated.replace(/\$\{lib\.date\.time\(([^}]+)\)\}/g, (_match, rawTimezone: string) => {
-    const timezone = normalizeTimezone(interpolateString(String(rawTimezone).trim(), env));
-    return timezone ? formatTime(new Date(), { timeZone: timezone }) : formatTime(new Date());
+function resolveGlanceableText(template: string, env: Record<string, string>, formatters?: TextFormatters) {
+  const withLibDate = template.replace(/\$\{lib\.date\.time\((.+)\)\}/g, (_match, rawTimezone: string) => {
+    const timezone = normalizeTimezone(resolveStringWithCasts(String(rawTimezone).trim(), env));
+    return timezone ? formatTime(new Date(), { timeZone: timezone }, formatters) : formatTime(new Date(), undefined, formatters);
   });
+
+  return resolveStringWithCasts(withLibDate, env);
 }
 
 function buildGlanceableEnv(def: Record<string, any>): Record<string, string> {

@@ -1,6 +1,7 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
+    "ignoreDeprecations": "6.0",
     "declaration": true,
     "emitDeclarationOnly": false,
     "baseUrl": ".",
@@ -13,6 +14,8 @@
       "bun"
     ],
     "paths": {
+      "@dashwise/assets": ["../../packages/assets/index.ts"],
+      "@dashwise/assets/*": ["../../packages/assets/*"],
       "@dashwise/sdk": ["../../packages/sdk/index.ts"],
       "@dashwise/sdk/index": ["../../packages/sdk/index.ts"],
       "@dashwise/sdk/lib/*": ["../../packages/sdk/lib/*"],

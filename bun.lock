@@ -116,6 +116,10 @@
       "name": "@dashwise/api-types",
       "version": "1.0.0",
     },
+    "packages/assets": {
+      "name": "@dashwise/assets",
+      "version": "1.0.0",
+    },
     "packages/integrationskit": {
       "name": "@dashwise/integrationskit",
       "version": "1.0.0",
@@ -131,6 +135,7 @@
       "name": "@dashwise/sdk",
       "version": "0.5.1",
       "dependencies": {
+        "@dashwise/assets": "workspace:*",
         "axios": "^1.12.2",
         "pocketbase": "^0.26.8",
         "sharp": "^0.34.3",
@@ -151,6 +156,8 @@
     "@cspotcode/source-map-support": ["@cspotcode/source-map-support@0.8.1", "", { "dependencies": { "@jridgewell/trace-mapping": "0.3.9" } }, "sha512-IchNf6dN4tHoMFIn/7OE8LWZ19Y6q/67Bmf6vnGREv8RSbBVb9LPJxEcnwrcwX6ixSvaiGoomAUvu4YSxXrVgw=="],
 
     "@dashwise/api-types": ["@dashwise/api-types@workspace:packages/api-types"],
+
+    "@dashwise/assets": ["@dashwise/assets@workspace:packages/assets"],
 
     "@dashwise/backend": ["@dashwise/backend@workspace:apps/backend"],
 
