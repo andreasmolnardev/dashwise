@@ -118,6 +118,10 @@
   @apply bg-white/10 dark:bg-black/35 backdrop-blur-md border border-white/20 dark:border-white/10 shadow-sm;
 }
 
+.frosted-lite{
+  @apply bg-white/10 dark:bg-black/35;
+}
+
 .frosted-theme-dark .frosted {
   @apply bg-black/35 backdrop-blur-md border border-white/10 shadow-sm;
 }
@@ -186,4 +190,9 @@
   body {
     @apply bg-background text-foreground font-sans;
   }
+}
+
+iconify-picker{
+  --picker-bg: var(--background);
+  --picker-icon-color: var(--foreground);
 }

@@ -2,14 +2,14 @@
 import useAuth from "@/context/useAuth";
 import { useParams } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { getPageConfigAction } from "../../actions/pageConfigs";
+import { getPageConfigAction } from "../../../actions/pageConfigs";
 import PageNotFound from "@/components/errorPages/PageNotFound";
 import DashboardLayoutTemplate from "@/components/dashboard/DashboardLayoutTemplate";
 
 export default function DashboardPageFromConfig() {
     const params = useParams();
     const { withAuth } = useAuth();
-    const pageName = (params?.page as string) || "";
+    const pageName = (params?.page as string) || "home";
 
     const [config, setConfig] = useState<any | null>(null);
     const [loading, setLoading] = useState(true);
