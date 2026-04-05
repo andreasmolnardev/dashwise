@@ -68,6 +68,7 @@ The jobs container can be configured with the following environment variables:
 
 ## Tech Stack
 Frontend: React SPA bundled with Bun
+API Layer: Bun with Hono
 Backend: Pocketbase
 
 ## How it works
