@@ -7,15 +7,19 @@ import GlanceableComponent from "@dashwise/integrationskit/Glanceable";
 import { usePageConfig } from "@/hooks/usePageConfig";
 import type { WidgetItemProps } from "../Widget";
 import useAuth from "@/context/useAuth";
-import { getIntegrationWithGlanceableAction } from "@/app/actions/widgets";
 import { getConsumerDataAction } from "@/app/actions/integrations";
 
 type ResolvedGlanceablePayload = {
-  integration: Record<string, any> | null;
-  glanceableJSON: Record<string, any> | null;
+  consumer: "glanceable";
+  blueprint: {
+    text: string;
+    icon: string | null;
+    glanceableJSON: Record<string, any>;
+  };
+  data: Record<string, any> | null;
 };
 
-const glanceableIntegrationCache = new Map<string, ResolvedGlanceablePayload | null>();
+const glanceableConsumerCache = new Map<string, ResolvedGlanceablePayload | null>();
 
 export default function GlanceableClockWidget({ className, params }: WidgetItemProps) {
   const { pageConfig } = usePageConfig();
@@ -87,12 +91,12 @@ function ResolvedGlanceable({
   className?: string;
 }) {
   const { withAuth } = useAuth();
-  const [resolved, setResolved] = useState<ResolvedGlanceablePayload | null | undefined>(() => glanceableIntegrationCache.get(type));
-  const [runtimeData, setRuntimeData] = useState<Record<string, any> | null>(null);
+  const cacheKey = `${type}:${stableStringify(params ?? {})}`;
+  const [resolved, setResolved] = useState<ResolvedGlanceablePayload | null | undefined>(() => glanceableConsumerCache.get(cacheKey));
 
   useEffect(() => {
     let cancelled = false;
-    const cached = glanceableIntegrationCache.get(type);
+    const cached = glanceableConsumerCache.get(cacheKey);
 
     if (cached !== undefined) {
       setResolved(cached);
@@ -101,17 +105,21 @@ function ResolvedGlanceable({
 
     const load = async () => {
       try {
-        const data = await withAuth((auth) => getIntegrationWithGlanceableAction(auth, type));
+        const data = await withAuth((auth) =>
+          getConsumerDataAction(auth, type, params, {
+            type: "glanceable",
+          })
+        );
 
         if (cancelled) return;
 
-        const next = data?.integration && data?.glanceableJSON ? data : null;
-        glanceableIntegrationCache.set(type, next);
+        const next = data?.consumer === "glanceable" ? data as ResolvedGlanceablePayload : null;
+        glanceableConsumerCache.set(cacheKey, next);
         setResolved(next);
       } catch {
         if (cancelled) return;
 
-        glanceableIntegrationCache.set(type, null);
+        glanceableConsumerCache.set(cacheKey, null);
         setResolved(null);
       }
     };
@@ -121,44 +129,16 @@ function ResolvedGlanceable({
     return () => {
       cancelled = true;
     };
-  }, [type, withAuth]);
+  }, [cacheKey, params, type, withAuth]);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    if (!resolved?.glanceableJSON) {
-      setRuntimeData(null);
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    const load = async () => {
-      try {
-        const data = await withAuth((auth) =>
-          getConsumerDataAction(auth, "glanceable", type, getGlanceableInput(params))
-        );
-        if (cancelled) return;
-        setRuntimeData((data?.data as Record<string, any> | null) ?? null);
-      } catch {
-        if (cancelled) return;
-        setRuntimeData(null);
-      }
-    };
-
-    void load();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [params, resolved, type, withAuth]);
-
-  if (resolved?.glanceableJSON) {
+  if (resolved?.blueprint?.glanceableJSON) {
     return (
       <GlanceableComponent
-        glanceableJSON={resolved.glanceableJSON}
-        integrationJSON={resolved.integration}
-        data={runtimeData}
+        glanceableJSON={resolved.blueprint.glanceableJSON}
+        resolved={{
+          text: resolved.blueprint.text,
+          icon: resolved.blueprint.icon,
+        }}
         params={params}
         className={className}
       />
@@ -168,12 +148,12 @@ function ResolvedGlanceable({
   return <GlanceableComponent type={type} params={params} className={className} />;
 }
 
-function getGlanceableInput(params?: Record<string, any>) {
-  if (!params || typeof params !== "object") {
-    return undefined;
-  }
-  if (params.input && typeof params.input === "object") {
-    return params.input as Record<string, any>;
-  }
-  return params;
+function stableStringify(value: Record<string, any>) {
+  const sorted = Object.keys(value)
+    .sort()
+    .reduce<Record<string, any>>((acc, key) => {
+      acc[key] = value[key];
+      return acc;
+    }, {});
+  return JSON.stringify(sorted);
 }

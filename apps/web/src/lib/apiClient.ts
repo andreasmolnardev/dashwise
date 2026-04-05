@@ -285,13 +285,14 @@ const routes: Record<string, RouteConfig> = {
     query: (input) => ({ widgetSlug: input?.widgetSlug }),
   },
   "integrations.getConsumerDataAction": {
-    method: "GET",
+    method: "POST",
     path: "/integrations/consumerData",
     auth: (input) => authToken(input?.auth),
-    query: (input) => ({
-      type: input?.type,
+    body: (input) => ({
       key: input?.key,
-      input: input?.input ? JSON.stringify(input.input) : undefined,
+      type: input?.type,
+      properties: input?.properties,
+      isPreview: input?.isPreview,
     }),
   },
 

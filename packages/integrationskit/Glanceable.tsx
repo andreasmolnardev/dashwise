@@ -21,6 +21,11 @@ export type GlanceableProps = {
   /** Legacy compatibility: render from a glanceable type + params payload. */
   type?: string;
   params?: Record<string, any>;
+  /** Optional fully resolved glanceable payload from backend. */
+  resolved?: {
+    text: string;
+    icon?: string | null;
+  };
 };
 
 export default function Glanceable({
@@ -31,7 +36,21 @@ export default function Glanceable({
   className,
   type,
   params,
+  resolved,
 }: GlanceableProps) {
+  if (resolved) {
+    return (
+      <span
+        className={`inline-flex items-center gap-1 text-sm ${className ?? ""}`}
+      >
+        {resolved.icon && (
+          <IntegrationIcon source={resolved.icon} alt="" size={16} className="h-4 w-4 object-contain shrink-0" />
+        )}
+        <span>{resolved.text}</span>
+      </span>
+    );
+  }
+
   if (!glanceableJSON && type) {
     return <LegacyGlanceable type={type} params={params} className={className} />;
   }

@@ -20,7 +20,7 @@ dist/
 # But keep these:
 !/pocketbase/init-pb.sh
 !/pocketbase/Dockerfile
-!/pocketbase/pb_migrations/
+!/pocketbase/migrations/
 
 #jobs runner's node modules
 /jobs/node_modules

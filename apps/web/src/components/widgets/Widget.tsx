@@ -6,10 +6,7 @@ import LinkView from "./LinkView";
 import SearchBar from "./SearchBar";
 import Widget from "@dashwise/integrationskit/Widget";
 import useAuth from "@/context/useAuth";
-import {
-  getConsumerDataAction,
-  getIntegrationWithWidgetAction,
-} from "@/app/actions/integrations";
+import { getConsumerDataAction } from "@/app/actions/integrations";
 
 export type WidgetProps = {
   type: string;
@@ -72,10 +69,8 @@ function IntegrationWidget({
   properties?: Record<string, any>;
   isPreview?: boolean;
 }) {
-  const { withAuth, user } = useAuth();
-  const [integrationJSON, setIntegrationJSON] = useState<any>(null);
-  const [runtimeData, setRuntimeData] = useState<Record<string, any> | null>(null);
-  const [runtimeInput, setRuntimeInput] = useState<Record<string, any> | null>(null);
+  const { withAuth } = useAuth();
+  const [consumerPayload, setConsumerPayload] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -86,40 +81,24 @@ function IntegrationWidget({
       if (!cancelled) {
         setIsLoading(true);
         setLoadError(null);
-        setIntegrationJSON(null);
-        setRuntimeData(null);
-        setRuntimeInput(null);
+        setConsumerPayload(null);
       }
 
       try {
-        const data = await withAuth(async (auth) => {
-          const integrationPayload = await getIntegrationWithWidgetAction(auth, type);
-          if (!integrationPayload?.integration || !integrationPayload?.widgetJSON) {
-            throw new Error(`Widget "${type}" could not be loaded.`);
-          }
-
-          const resolvedInput = resolveUserInjectedEnv(
-            integrationPayload.integration?.configuration.environment_variables,
-            user,
-          );
-          const mergedInput = mergeWidgetInput(resolvedInput, properties);
-
-          const consumer = isPreview
-            ? { data: null }
-            : await getConsumerDataAction(auth, "widget", type, mergedInput ?? undefined);
-
-          return {
-            integrationPayload,
-            mergedInput,
-            runtimeData: consumer?.data ?? null,
-          };
-        });
+        const data = await withAuth((auth) =>
+          getConsumerDataAction(auth, type, properties, {
+            type: "widget",
+            isPreview,
+          })
+        );
 
         if (cancelled) return;
 
-        setIntegrationJSON(data.integrationPayload);
-        setRuntimeInput(data.mergedInput ?? null);
-        setRuntimeData(data.runtimeData ?? null);
+        if (data?.consumer !== "widget" || !data?.blueprint?.widgetJSON) {
+          throw new Error(`Widget "${type}" could not be loaded.`);
+        }
+
+        setConsumerPayload(data);
       } catch (error) {
         if (cancelled) return;
         setLoadError(error instanceof Error ? error.message : String(error));
@@ -134,13 +113,13 @@ function IntegrationWidget({
     return () => {
       cancelled = true;
     };
-  }, [isPreview, properties, type, user, withAuth]);
+  }, [isPreview, properties, type, withAuth]);
 
   if (isLoading) {
     return <WidgetLoadingState className="w-full" />;
   }
 
-  if (loadError || !integrationJSON) {
+  if (loadError || !consumerPayload) {
     return (
       <WidgetErrorState
         className="w-full"
@@ -153,61 +132,11 @@ function IntegrationWidget({
     <Widget
       isPreview={isPreview ?? false}
       widgetKey={type}
-      widgetJSON={integrationJSON.widgetJSON}
-      integrationJSON={integrationJSON.integration}
-      input={runtimeInput}
-      data={runtimeData}
+      widgetJSON={consumerPayload.blueprint.widgetJSON}
+      data={consumerPayload.data}
+      resolved={consumerPayload.blueprint.resolved}
     />
   );
-}
-
-function mergeWidgetInput(
-  resolvedInput: Record<string, any> | null | undefined,
-  properties: Record<string, any> | undefined,
-) {
-  const instanceInput =
-    properties && typeof properties.input === "object" && properties.input !== null
-      ? (properties.input as Record<string, any>)
-      : null;
-  if (!resolvedInput && !instanceInput) {
-    return null;
-  }
-  return {
-    ...(resolvedInput ?? {}),
-    ...(instanceInput ?? {}),
-  };
-}
-function resolveUserInjectedEnv(envVars: any, user: any): any {
-  if (envVars == null) return envVars;
-
-  const resolveString = (str: string) => {
-    if (typeof str !== "string" || str.indexOf("${") === -1) return str;
-    return str.replace(/\$\{([^}]+)\}/g, (_m, expr: string) => {
-      const trimmed = expr.trim();
-      if (!trimmed.startsWith("user.")) return "";
-      const path = trimmed.slice(5).split(".");
-      let val: any = user;
-      for (const seg of path) {
-        if (val == null) return "";
-        val = val[seg];
-      }
-      if (val == null) return "";
-      if (typeof val === "object") return JSON.stringify(val);
-      return String(val);
-    });
-  };
-
-  if (typeof envVars === "string") return resolveString(envVars);
-  if (Array.isArray(envVars)) return envVars.map((v) => resolveUserInjectedEnv(v, user));
-  if (typeof envVars === "object") {
-    const out: Record<string, any> = {};
-    for (const [k, v] of Object.entries(envVars)) {
-      out[k] = resolveUserInjectedEnv(v, user);
-    }
-    return out;
-  }
-
-  return envVars;
 }
 
 function WidgetLoadingState({ className }: { className?: string }) {

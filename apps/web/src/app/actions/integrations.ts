@@ -23,9 +23,18 @@ export async function getIntegrationWithWidgetAction(auth: ActionAuth, widgetKey
 
 export async function getConsumerDataAction(
   auth: ActionAuth,
-  type: "widget" | "glanceable",
   key: string,
-  input?: Record<string, any>,
+  properties?: Record<string, any>,
+  options?: {
+    type?: "widget" | "glanceable";
+    isPreview?: boolean;
+  },
 ) {
-  return api.integrations.getConsumerDataAction({ auth, type, key, input });
+  return api.integrations.getConsumerDataAction({
+    auth,
+    key,
+    properties,
+    type: options?.type,
+    isPreview: options?.isPreview,
+  });
 }

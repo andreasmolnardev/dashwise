@@ -13,6 +13,10 @@
   "exports": {
     "./Glanceable": "./Glanceable.tsx",
     "./GlanceableComponent": "./Glanceable.tsx",
-    "./Widget": "./Widget.tsx"
+    "./Widget": "./Widget.tsx",
+    "./data/resolveProperties": "./data/resolveProperties.tsx",
+    "./data/getEndpointData": "./data/getEndpointData.tsx",
+    "./data/getComputedField": "./data/getComputedField.tsx",
+    "./data/getLookupTableValue": "./data/getLookupTableValue.tsx"
   }
 }

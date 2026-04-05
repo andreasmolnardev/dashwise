@@ -21,6 +21,8 @@ export type WidgetProps = {
     input?: Record<string, any> | null;
     /** Optional runtime endpoint/computed data resolved by backend. */
     data?: Record<string, any> | null;
+    /** Optional fully resolved blueprint. When provided, no client resolution runs. */
+    resolved?: ResolvedWidget | null;
     /** When true, uses ??? fallback values baked into the YAML instead of live data */
     isPreview?: boolean;
     className?: string;
@@ -32,6 +34,7 @@ export default function Widget({
     widgetJSON,
     input,
     data,
+    resolved: preResolved,
     isPreview = false,
     className,
 }: WidgetProps) {
@@ -54,6 +57,16 @@ export default function Widget({
 
     useEffect(() => {
         let cancelled = false;
+
+        if (preResolved) {
+            setResolved(preResolved);
+            setResolutionError(null);
+            setIsResolving(false);
+            return () => {
+                cancelled = true;
+            };
+        }
+
         async function runResolution() {
             if (!effectiveWidgetJSON || !widgetWithInput) {
                 if (!cancelled) {
@@ -121,7 +134,7 @@ export default function Widget({
         return () => {
             cancelled = true;
         };
-    }, [data, effectiveWidgetJSON, integrationJSON, isPreview, widgetWithInput]);
+    }, [data, effectiveWidgetJSON, integrationJSON, isPreview, preResolved, widgetWithInput]);
 
     if (!effectiveWidgetJSON) {
         console.warn(
@@ -130,7 +143,7 @@ export default function Widget({
         return <div className={`frosted rounded-xl ${className ?? ""}`} />;
     }
 
-    if (isResolving) {
+    if (isResolving && !preResolved) {
         return <WidgetLoadingState className={className} />;
     }
 
