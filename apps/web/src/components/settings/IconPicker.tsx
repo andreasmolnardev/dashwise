@@ -4,6 +4,7 @@ import { useDeferredValue, useEffect, useMemo, useRef, useState, type UIEvent } 
 import { RadioGroup, RadioGroupItem } from "../ui/radio-group";
 import { Label } from "@radix-ui/react-label";
 import { Input } from "../ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 
 interface Icon {
     Name: string;
@@ -26,6 +27,64 @@ export interface IconResult {
 
 type PickerSource = "default" | "mono" | "iconify";
 
+const ICONIFY_COLLECTIONS = [
+    { value: "mdi", label: "Material Design Icons" },
+    { value: "fa6-solid", label: "Font Awesome Solid" },
+    { value: "tabler", label: "Tabler" },
+    { value: "heroicons", label: "Heroicons" },
+    { value: "lucide", label: "Lucide" },
+    { value: "material-symbols", label: "Material Symbols" },
+    { value: "solar", label: "Solar" },
+    { value: "ph", label: "Phosphor" },
+] as const;
+
+const ICONIFY_API_PREFIX = "https://api.iconify.design/";
+const DEFAULT_ICONIFY_COLOR = "#ffffff";
+
+export function isIconifyUrl(source?: string | null) {
+    return Boolean(source && (
+        source.startsWith(ICONIFY_API_PREFIX)
+        || (source.includes(":") && !source.startsWith("http://") && !source.startsWith("https://"))
+    ));
+}
+
+export function getIconifySlugFromUrl(source?: string | null) {
+    if (!source) return null;
+
+    if (source.startsWith(ICONIFY_API_PREFIX)) {
+        try {
+            const parsed = new URL(source as string);
+            return parsed.pathname.replace(/^\//, "").replace(/\.svg$/, "");
+        } catch {
+            return null;
+        }
+    }
+
+    return isIconifyUrl(source) ? source : null;
+}
+
+export function getIconifyColorFromUrl(source?: string | null) {
+    if (!isIconifyUrl(source)) return null;
+
+    try {
+        const parsed = new URL(source as string);
+        return parsed.searchParams.get("color");
+    } catch {
+        return null;
+    }
+}
+
+export function buildIconifyUrl(iconName: string) {
+    return `${ICONIFY_API_PREFIX}${iconName}.svg`;
+}
+
+export function getMonoIconReferenceFromUrl(source?: string | null) {
+    if (!source) return null;
+
+    const match = source.match(/^\/icons\/webp\/([^/]+?)(?:-(?:light|dark))?\.webp(?:\?.*)?$/i);
+    return match?.[1] ?? null;
+}
+
 type IconifySelectionDetail = {
     iconName?: string;
     collection?: string;
@@ -34,6 +93,7 @@ type IconifySelectionDetail = {
 };
 
 const ICON_BATCH_SIZE = 120;
+const EMPTY_ICONS: Icon[] = [];
 
 let iconCatalogPromise: Promise<Icon[]> | null = null;
 
@@ -90,6 +150,7 @@ function IconifyPickerPanel({
                 picker.setAttribute("height", "35vh");
                 picker.setAttribute("collection", collection);
                 picker.setAttribute("hide-search", "");
+                picker.setAttribute("hide-collection", "");
                 picker.setAttribute("part", "iconify-picker");
 
                 if (selected) {
@@ -112,7 +173,7 @@ function IconifyPickerPanel({
                         iconSet: "custom",
                         variant: "default",
                         name: iconName,
-                        url: `https://api.iconify.design/${iconName}.svg`,
+                        url: iconName,
                     });
                 };
 
@@ -173,11 +234,13 @@ function IconifyPickerPanel({
 
 
 export default function IconPickerComponent({
-    initialIcons = [],
+    initialIcons = EMPTY_ICONS,
+    initialSelection,
     onClose,
     onSelect,
 }: {
     initialIcons?: Icon[];
+    initialSelection?: IconResult | null;
     onClose?: () => void;
     onSelect?: (icon: IconResult) => void;
 }) {
@@ -191,6 +254,24 @@ export default function IconPickerComponent({
     const [iconsLoading, setIconsLoading] = useState(initialIcons.length === 0);
     const [iconsError, setIconsError] = useState<string | null>(null);
     const [visibleCount, setVisibleCount] = useState(ICON_BATCH_SIZE);
+
+    useEffect(() => {
+        if (!initialSelection?.url) return;
+
+        const iconifySlug = getIconifySlugFromUrl(initialSelection.url);
+        if (iconifySlug) {
+            setPickerSource("iconify");
+            setIconifySelected(iconifySlug);
+            setIconifyCollection(iconifySlug.split(":")[0] || "mdi");
+            return;
+        }
+
+        const monoReference = getMonoIconReferenceFromUrl(initialSelection.url);
+        if (monoReference) {
+            setPickerSource(initialSelection.iconSet === "mono" ? "mono" : "default");
+            setSelected(monoReference);
+        }
+    }, [initialSelection]);
 
     useEffect(() => {
         let cancelled = false;
@@ -281,7 +362,12 @@ export default function IconPickerComponent({
             if (collection) setIconifyCollection(collection);
         }
 
-        if (onSelect) onSelect(icon);
+        if (onSelect) {
+            onSelect({
+                ...icon,
+                url: iconName ?? icon.url,
+            });
+        }
         if (onClose) onClose();
     };
 
@@ -298,6 +384,9 @@ export default function IconPickerComponent({
         setVisibleCount((current) => Math.min(current + ICON_BATCH_SIZE, filteredIcons.length));
     };
 
+    const activeIconifyCollection =
+        ICONIFY_COLLECTIONS.find((option) => option.value === iconifyCollection)?.label ?? iconifyCollection;
+
 
     return (
         <div>
@@ -309,27 +398,53 @@ export default function IconPickerComponent({
                 className="frosted mb-3 w-full rounded-md border p-2 focus:outline-none focus:ring-2 focus:ring-primary"
             />
 
-            <div className="mb-3 flex w-fit overflow-hidden rounded-md frosted">
-                {[
-                    { key: "default" as const, label: "Default" },
-                    { key: "mono" as const, label: "Monocolor" },
-                    { key: "iconify" as const, label: "Iconify" },
-                ].map((option) => (
-                    <button
-                        key={option.key}
-                        type="button"
-                        onClick={() => setPickerSource(option.key)}
-                        className={`px-3 py-1 text-sm transition-colors ${pickerSource === option.key ? "bg-primary/20 text-primary" : "opacity-60"}`}
+            <div className="mb-3 flex flex-col gap-2 rounded-md sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex w-fit overflow-hidden rounded-md frosted px-1 py-1 ">
+                    {[
+                        { key: "default" as const, label: "Default" },
+                        { key: "mono" as const, label: "Monocolor" },
+                        { key: "iconify" as const, label: "Iconify" },
+                    ].map((option) => (
+                        <button
+                            key={option.key}
+                            type="button"
+                            onClick={() => setPickerSource(option.key)}
+                            className={`px-3 py-1 text-sm transition-colors ${pickerSource === option.key ? "bg-primary/20 text-primary" : "opacity-60"} text-white`}
+                        >
+                            {option.label}
+                        </button>
+                    ))}
+                </div>
+
+                {pickerSource === "iconify" && (
+                    <Select
+                        value={iconifyCollection}
+                        onValueChange={setIconifyCollection}
                     >
-                        {option.label}
-                    </button>
-                ))}
+                        <SelectTrigger
+                            aria-label="Choose icon set"
+                            className="h-8 w-full max-w-55 border-white/10 bg-white/10 text-sm sm:w-55"
+                        >
+                            <SelectValue placeholder="Choose icon set">
+                                {activeIconifyCollection}
+                            </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                            {ICONIFY_COLLECTIONS.map((option) => (
+                                <SelectItem
+                                    key={option.value}
+                                    value={option.value}
+                                >
+                                    {option.label}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                )}
             </div>
 
             {pickerSource !== "iconify" ? (
                 <>
-                    <h3 className="mb-2 text-lg font-semibold">Pick an icon</h3>
-
                     {iconsLoading && filteredIcons.length === 0 ? (
                         <div className="max-h-[35vh] overflow-y-auto rounded-md border border-white/10 p-3">
                             <div className="mb-3 h-4 w-40 animate-pulse rounded bg-white/10" />
@@ -359,7 +474,7 @@ export default function IconPickerComponent({
                             <RadioGroup
                                 value={selected ?? undefined}
                                 onValueChange={handleSelect}
-                                className="grid grid-cols-5 gap-4"
+                                className="grid grid-cols-5 gap-4 justify-items-center"
                             >
                                 {visibleIcons.map((icon) => (
                                     <Label
