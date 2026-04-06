@@ -4,15 +4,15 @@ import { Link, useLocation } from "react-router-dom";
 import { Icon } from "@iconify-icon/react";
 import { Label } from "@/components/ui/label";
 import {
+    Children,
+    createContext,
+    isValidElement,
+    ReactNode,
     useCallback,
+    useContext,
     useEffect,
     useRef,
     useState,
-    createContext,
-    useContext,
-    Children,
-    isValidElement,
-    ReactNode,
 } from "react";
 
 // ─── Context ─────────────────────────────────────────────────────────────────
@@ -60,7 +60,9 @@ export function Tab({ dst, icon, title, badge, dropdownActions }: TabProps) {
     useEffect(() => {
         if (!dropdownOpen) return;
         const handler = (e: MouseEvent) => {
-            if (!dropdownRef.current?.contains(e.target as Node)) setDropdownOpen(false);
+            if (!dropdownRef.current?.contains(e.target as Node)) {
+                setDropdownOpen(false);
+            }
         };
         document.addEventListener("mousedown", handler);
         return () => document.removeEventListener("mousedown", handler);
@@ -70,19 +72,23 @@ export function Tab({ dst, icon, title, badge, dropdownActions }: TabProps) {
         <div className="relative">
             <Link to={dst} className="block group">
                 <div
-                    className={`settings-label-div flex items-center justify-between px-2 py-1.5 rounded-md relative z-10 cursor-pointer select-none transition-all duration-150 frosted-lite`}
+                    className={`settings-label-div flex items-center justify-between px-3 py-3 h-12 rounded-md relative z-10 cursor-pointer select-none transition-all duration-150 frosted-lite`}
                     data-href={dst}
                 >
                     <div className="flex items-center gap-2">
                         <Icon
                             icon={icon}
-                            className={`text-sm transition-colors ${
-                                isActive ? "text-primary" : "text-white/60 group-hover:text-primary"
+                            className={`transition-colors ${
+                                isActive
+                                    ? "text-primary"
+                                    : "text-white/60 group-hover:text-primary"
                             }`}
                         />
                         <span
-                            className={`text-sm leading-none transition-colors ${
-                                isActive ? "text-white" : "text-white/70 group-hover:text-white"
+                            className={`leading-none transition-colors ${
+                                isActive
+                                    ? "text-white"
+                                    : "text-white/70 group-hover:text-white"
                             }`}
                         >
                             {title}
@@ -104,7 +110,10 @@ export function Tab({ dst, icon, title, badge, dropdownActions }: TabProps) {
                             }}
                             className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-white/10"
                         >
-                            <Icon icon="fa6-solid:ellipsis" className="text-xs text-white/60" />
+                            <Icon
+                                icon="fa6-solid:ellipsis"
+                                className="text-xs text-white/60"
+                            />
                         </button>
                     )}
                 </div>
@@ -122,9 +131,11 @@ export function Tab({ dst, icon, title, badge, dropdownActions }: TabProps) {
                                 a.action();
                                 setDropdownOpen(false);
                             }}
-                            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-white/80 hover:bg-white/10 hover:text-white transition-colors text-left"
+                            className="w-full flex items-center gap-2 px-3 py-2 text-white/80 hover:bg-white/10 hover:text-white transition-colors text-left"
                         >
-                            {a.icon && <Icon icon={a.icon} className="text-xs" />}
+                            {a.icon && (
+                                <Icon icon={a.icon} className="text-lg" />
+                            )}
                             {a.label}
                         </button>
                     ))}
@@ -142,7 +153,10 @@ export function Action({ icon, title, action }: ActionProps) {
             onClick={action}
             className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-white/60 hover:text-white hover:bg-white/10 transition-colors group"
         >
-            <Icon icon={icon} className="text-sm group-hover:text-primary transition-colors" />
+            <Icon
+                icon={icon}
+                className="text-sm group-hover:text-primary transition-colors"
+            />
             <span className="text-sm leading-none">{title}</span>
         </button>
     );
@@ -150,8 +164,12 @@ export function Action({ icon, title, action }: ActionProps) {
 
 // ─── Sidebar ─────────────────────────────────────────────────────────────────
 
-function groupTabs(children: ReactNode): Array<{ group: string | undefined; tabs: React.ReactElement<TabProps>[] }> {
-    const groups: Array<{ group: string | undefined; tabs: React.ReactElement<TabProps>[] }> = [];
+function groupTabs(
+    children: ReactNode,
+): Array<{ group: string | undefined; tabs: React.ReactElement<TabProps>[] }> {
+    const groups: Array<
+        { group: string | undefined; tabs: React.ReactElement<TabProps>[] }
+    > = [];
     const seen = new Map<string | undefined, number>();
 
     Children.forEach(children, (child) => {
@@ -175,11 +193,11 @@ export function Sidebar({ children }: { children: ReactNode }) {
     const { pathname } = useContext(SidebarContext);
 
     const tabs = Children.toArray(children).filter(
-        (c) => isValidElement(c) && (c as React.ReactElement).type === Tab
+        (c) => isValidElement(c) && (c as React.ReactElement).type === Tab,
     ) as React.ReactElement<TabProps>[];
 
     const actions = Children.toArray(children).filter(
-        (c) => isValidElement(c) && (c as React.ReactElement).type === Action
+        (c) => isValidElement(c) && (c as React.ReactElement).type === Action,
     ) as React.ReactElement<ActionProps>[];
 
     const grouped = groupTabs(tabs);
@@ -191,33 +209,19 @@ export function Sidebar({ children }: { children: ReactNode }) {
                 {/* Actions row — sticky, always visible above tabs */}
                 {actions.length > 0 && (
                     <div className="shrink-0 pb-1 mb-1 border-b border-white/10 space-y-0.5">
-                        {actions.map((a, i) => (
-                            <div key={i}>{a}</div>
-                        ))}
+                        {actions.map((a, i) => <div key={i}>{a}</div>)}
                     </div>
                 )}
 
                 {/* Tab groups — scrollable */}
                 <div className="overflow-y-auto flex-1">
-                    <div className="space-y-2">
+                    <div className="space-y-1">
                         {grouped.map(({ group, tabs }, gi) => (
                             <div
                                 key={gi}
-                                className={`${gi > 0 ? "pt-2 border-t border-white/10" : ""}`}
+                                className="rounded-xl overflow-hidden"
                             >
-                                {/* Group label if group has a name */}
-                                {group && (
-                                    <p className="px-2 mb-0.5 text-[10px] uppercase tracking-widest text-white/30 font-medium select-none">
-                                        {group}
-                                    </p>
-                                )}
-
-                                {/* Tabs within group — tight spacing */}
-                                <div className="space-y-0.5">
-                                    {tabs.map((tab, ti) => (
-                                        <div key={ti}>{tab}</div>
-                                    ))}
-                                </div>
+                                {tabs.map((tab, ti) => <>{tab}</>)}
                             </div>
                         ))}
                     </div>
@@ -259,19 +263,21 @@ export default function AppTemplate({
 }) {
     const pathname = useLocation().pathname;
     const sidebar = Children.toArray(children).find(
-        (c) => isValidElement(c) && (c as React.ReactElement).type === Sidebar
+        (c) => isValidElement(c) && (c as React.ReactElement).type === Sidebar,
     );
 
     const content = Children.toArray(children).find(
-        (c) => isValidElement(c) && (c as React.ReactElement).type === Content
+        (c) => isValidElement(c) && (c as React.ReactElement).type === Content,
     );
 
     return (
         <SidebarContext.Provider value={{ pathname }}>
-            <div className="flex h-dvh bg-(--surface) backdrop-blur-[5px] backdrop-brightness-85 text-white p-8 gap-8">
+            <div className="flex h-dvh bg-(--surface) backdrop-blur-[5px] backdrop-brightness-85 text-white p-4 gap-8">
                 {/* Sidebar column */}
                 <div className="w-55 shrink-0 flex flex-col">
-                    <h1 className="text-4xl font-bold tracking-tight text-balance mb-4 shrink-0">{title}</h1>
+                    <h1 className="text-4xl font-bold tracking-tight text-balance mb-4 shrink-0">
+                        {title}
+                    </h1>
                     <div className="flex-1 min-h-0">{sidebar}</div>
                 </div>
 

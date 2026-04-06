@@ -35,18 +35,21 @@ export default function NotificationsLayoutComponent({ children }: { children: R
             <Sidebar>
                 <Tab
                     dst="/notifications/inbox"
+                    group="inbox"
                     icon="fa6-solid:inbox"
                     title="Inbox"
                     badge={unreadCount > 0 ? unreadCount : undefined}
                 />
                 <Tab
                     dst="/notifications/forwarders"
+                    group="forwarders"
                     icon="fa6-solid:share-nodes"
                     title="Forwarders"
                 />
                 <Tab
                     dst="/notifications/tokens"
                     icon="fa6-solid:key"
+                    group="tokens"
                     title="Tokens"
                 />
             </Sidebar>
