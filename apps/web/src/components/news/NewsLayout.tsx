@@ -104,6 +104,7 @@ export default function NewsLayout({ children }: { children: ReactNode }) {
                     icon="fa6-solid:newspaper"
                     title="All feed"
                     group="Feeds"
+                    isRoot={true}
                 />
 
                 {userFeeds.map((feed) => (
@@ -133,7 +134,8 @@ export default function NewsLayout({ children }: { children: ReactNode }) {
                     <Tab
                         key={subscription.id || subscription.url}
                         dst={`/apps/news/${encodeSubscriptionRouteId(subscription)}`}
-                        icon="fa6-solid:rss"
+                        icon={subscription.icon ? `url:${subscription.icon}` : "fa6-solid:rss"}
+                        fallbackIcon="fa6-solid:rss"
                         title={subscription.title || subscription.url}
                         group="Subscriptions"
                         dropdownActions={[

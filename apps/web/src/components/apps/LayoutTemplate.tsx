@@ -2,6 +2,7 @@
 
 import { Link, useLocation } from "react-router-dom";
 import { Icon } from "@iconify-icon/react";
+import AppIcon from "@/components/shared/AppIcon";
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -46,6 +47,7 @@ interface TabProps {
     title: string;
     group?: string;
     isRoot?: boolean;
+    fallbackIcon?: string;
     badge?: number | string;
     dropdownActions?: DropdownAction[];
 }
@@ -73,24 +75,29 @@ interface GroupLabelProps {
 
 // ─── Tab ─────────────────────────────────────────────────────────────────────
 
-export function Tab({ dst, icon, title, badge, dropdownActions }: TabProps) {
+export function Tab({ dst, icon, title, group, isRoot, fallbackIcon, badge, dropdownActions }: TabProps) {
     const { pathname, search } = useContext(SidebarContext);
     const destination = new URL(dst, "http://dashwise.local");
     const isActive = destination.search
         ? pathname === destination.pathname && search === destination.search
-        : pathname === destination.pathname || pathname.startsWith(`${destination.pathname}/`);
+        : (isRoot
+            ? pathname === destination.pathname
+            : pathname === destination.pathname || pathname.startsWith(`${destination.pathname}/`));
 
     return (
         <div className="relative">
             <div className="group flex items-center justify-between px-3 py-3 h-10 rounded-md relative z-10 select-none transition-all duration-150 frosted-lite">
                 <Link to={dst} className="flex min-w-0 flex-1 items-center gap-2">
-                    <Icon
-                        icon={icon}
-                        className={`transition-colors ${
+                    <AppIcon
+                        source={icon}
+                        fallbackSource={fallbackIcon}
+                        alt={title}
+                        className={`h-4 w-4 shrink-0 transition-colors ${
                             isActive
                                 ? "text-primary"
                                 : "text-white/60 group-hover:text-primary"
                         }`}
+                        imageClassName="object-contain"
                     />
                     <span
                         className={`leading-none transition-colors ${
