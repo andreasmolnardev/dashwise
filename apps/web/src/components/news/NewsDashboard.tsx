@@ -23,6 +23,7 @@ import {
 import SubscriptionDetailsForm from "./SubscriptionDetailsForm";
 import {
     getNewsFeedAction,
+    getNewsFeedsAction,
     getNewsSubscriptionsAction,
     refreshNewsFeedAction,
     subscribeNewsFeedAction,
@@ -55,7 +56,7 @@ export default function NewsDashboardComponent(
     const sidebarAction = searchParams.get("action");
     const editSubscriptionRef = searchParams.get("subscription");
 
-    const [feed, setFeed] = useState<Record<string, any[]> | null>(null);
+    const [feed, setFeed] = useState<any[] | null>(null);
     const [subscriptions, setSubscriptions] = useState<Subscription[] | null>(
         null,
     );
@@ -80,11 +81,13 @@ export default function NewsDashboardComponent(
         if (!token) return;
 
         try {
-            const data: any = await withAuth((auth) =>
-                getNewsSubscriptionsAction(auth)
-            );
-            setSubscriptions(data?.subscriptions ?? []);
-            setFeeds(data?.feeds ?? []);
+            const [subscriptionsData, feedsData]: any[] = await Promise.all([
+                withAuth((auth) => getNewsSubscriptionsAction(auth)),
+                withAuth((auth) => getNewsFeedsAction(auth)),
+            ]);
+
+            setSubscriptions(subscriptionsData?.subscriptions ?? []);
+            setFeeds(Array.isArray(feedsData?.feeds) ? feedsData.feeds : []);
         } catch (err) {
             console.error("Failed to load subscriptions:", err);
         }
@@ -95,12 +98,9 @@ export default function NewsDashboardComponent(
 
         try {
             const data: any = await withAuth((auth) =>
-                getNewsFeedAction(
-                    auth,
-                    activeFeedId === "all" ? null : activeFeedId,
-                )
+                getNewsFeedAction(auth, activeFeedId)
             );
-            setFeed(data?.feed ?? {});
+            setFeed(Array.isArray(data) ? data : Array.isArray(data?.feed) ? data.feed : []);
         } catch (err) {
             console.error("Failed to load news:", err);
         }
@@ -262,15 +262,10 @@ export default function NewsDashboardComponent(
         }
     };
 
-    // Flatten and sort articles
     const allArticles = feed
-        ? Object.entries(feed).flatMap(([category, articles]) =>
-            articles.map((a) => ({ ...a, category }))
+        ? [...feed].sort((a, b) =>
+            new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime()
         )
-            .filter((a) => !selectedSource || a.source === selectedSource)
-            .sort((a, b) =>
-                new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime()
-            )
         : [];
 
     const totalPages = Math.ceil(allArticles.length / itemsPerPage);
@@ -334,7 +329,7 @@ export default function NewsDashboardComponent(
                                 <NewsArticle
                                     key={idx}
                                     item={item}
-                                    iconUrl={getIconUrl(item.source)}
+                                    iconUrl={getIconUrl(item.subscription_id || item.subscription_name)}
                                 />
                             ))}
 
@@ -515,21 +510,16 @@ function NewsArticle({ item, iconUrl }: { item: any; iconUrl?: string }) {
 
                     <div className="flex flex-wrap justify-between text-xs mt-1 opacity-80 gap-y-1">
                         <div className="flex items-center gap-1 flex-wrap">
-                            {item.source && (
+                            {item.subscription_name && (
                                 <span className="flex items-center gap-1">
                                     {iconUrl && (
                                         <img
                                             src={iconUrl}
-                                            alt={item.source}
+                                            alt={item.subscription_name}
                                             className="h-4"
                                         />
                                     )}
-                                    {item.source}
-                                </span>
-                            )}
-                            {item.category && (
-                                <span className="before:content-['•'] before:mx-1 opacity-60">
-                                    {item.category}
+                                    {item.subscription_name}
                                 </span>
                             )}
                             {item.author && (

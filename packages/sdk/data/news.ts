@@ -78,6 +78,16 @@ async function getUserFeeds(userId: string): Promise<FeedRecord[]> {
   return (Array.isArray(feeds) ? feeds : []).filter((feed: any) => String(feed.userId || "") === userId);
 }
 
+function buildFeedList(feeds: FeedRecord[]) {
+  return [
+    { id: "all", title: "All feed" },
+    ...feeds.map((feed) => ({
+      id: String(feed.id),
+      title: String(feed.title || "Untitled feed"),
+    })),
+  ];
+}
+
 function parseCachedItems(raw: unknown): FeedItem[] {
   if (!raw) return [];
   if (Array.isArray(raw)) return raw;
@@ -211,15 +221,23 @@ async function buildFeedFromSubscriptions(
     }
   }
 
-  const feed: Record<string, FeedItem[]> = {};
+  const feed: Array<FeedItem & { subscription_id: string; subscription_name: string }> = [];
 
   for (const subscription of selectedSubscriptions) {
-    const key = subscription.title || subscription.url || subscription.id || "Subscription";
+    const subscriptionId = String(subscription.id || "");
+    const subscriptionName = String(subscription.title || subscription.name || subscription.url || "Subscription");
     const items = getSubscriptionItems(subscription).sort((a, b) => itemTime(b) - itemTime(a));
-    feed[key] = items;
+
+    for (const item of items) {
+      feed.push({
+        ...item,
+        subscription_id: subscriptionId,
+        subscription_name: subscriptionName,
+      });
+    }
   }
 
-  return feed;
+  return feed.sort((left, right) => itemTime(right) - itemTime(left));
 }
 
 export async function getNewsFeed(userId: string, feedId?: string | null) {
@@ -237,7 +255,7 @@ export async function getNewsFeed(userId: string, feedId?: string | null) {
     : subscriptions.filter((subscription) => !excludedIds.has(String(subscription.id || "")));
 
   const feed = await buildFeedFromSubscriptions(scopedSubscriptions, feedId, feeds);
-  return { feed };
+  return feed;
 }
 
 export async function getNewsSubscriptions(userId: string) {
@@ -260,15 +278,18 @@ export async function getNewsSubscriptions(userId: string) {
       .map((feed) => String(feed.id)),
   }));
 
-  const feedRecords = feeds.length > 0 ? feeds : [];
-
   return {
     id: null,
     subscriptions: subscriptionsWithFeedIds,
-    feeds: [
-      { id: "all", title: "All feed" },
-      ...feedRecords.map((feed) => ({ id: String(feed.id), title: String(feed.title || "Untitled feed") })),
-    ],
+  };
+}
+
+export async function getNewsFeeds(userId: string) {
+  const feeds = await getUserFeeds(userId);
+
+  return {
+    id: null,
+    feeds: buildFeedList(feeds),
   };
 }
 

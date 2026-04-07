@@ -322,13 +322,18 @@ const routes: Record<string, RouteConfig> = {
 
   "news.getNewsFeedAction": {
     method: "GET",
-    path: "/news/feed",
+    path: "/news/feeds/{id}" as any,
     auth: (input) => authToken(input?.auth),
-    query: (input) => ({ feedId: input?.feedId }),
+    params: (input) => ({ path: { id: String(input?.feedId ?? "all") } }),
   },
   "news.getNewsSubscriptionsAction": {
     method: "GET",
-    path: "/news",
+    path: "/news/subscriptions",
+    auth: (input) => authToken(input),
+  },
+  "news.getNewsFeedsAction": {
+    method: "GET",
+    path: "/news/feeds",
     auth: (input) => authToken(input),
   },
   "news.refreshNewsFeedAction": {
@@ -339,7 +344,18 @@ const routes: Record<string, RouteConfig> = {
   "news.subscribeNewsFeedAction": {
     method: "POST",
     path: "/news/feed-subscribe",
-    body: (input) => input,
+    body: (input) => ({
+      auth: input?.auth,
+      sub: input?.sub
+        ? {
+            feedUrl: input.sub.feedUrl,
+            name: input.sub.name,
+            icon: input.sub.icon,
+            feedIds: input.sub.feedIds,
+            newFeedTitles: input.sub.newFeedTitles,
+          }
+        : input?.sub,
+    }),
   },
   "news.unsubscribeNewsFeedAction": {
     method: "POST",

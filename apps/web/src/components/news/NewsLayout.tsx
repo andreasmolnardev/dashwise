@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import useAuth from "@/context/useAuth";
 import { getNewsSubscriptionsAction } from "@/app/actions/news";
+import { getNewsFeedsAction } from "@/app/actions/news";
 import AppTemplate, { Content, GroupLabel, Sidebar, Tab } from "@/components/apps/LayoutTemplate";
 
 interface Subscription {
@@ -36,12 +37,15 @@ export default function NewsLayout({ children }: { children: ReactNode }) {
 
         const loadSubscriptions = async () => {
             try {
-                const data: any = await withAuth((auth) => getNewsSubscriptionsAction(auth));
+                const [subscriptionsData, feedsData]: any[] = await Promise.all([
+                    withAuth((auth) => getNewsSubscriptionsAction(auth)),
+                    withAuth((auth) => getNewsFeedsAction(auth)),
+                ]);
 
                 if (!mounted) return;
 
-                setSubscriptions(data?.subscriptions ?? []);
-                setFeeds(Array.isArray(data?.feeds) ? data.feeds : []);
+                setSubscriptions(subscriptionsData?.subscriptions ?? []);
+                setFeeds(Array.isArray(feedsData?.feeds) ? feedsData.feeds : []);
             } catch (error) {
                 console.error("Failed to load news subscriptions:", error);
                 if (mounted) {

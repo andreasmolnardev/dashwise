@@ -9,11 +9,15 @@ export async function getNewsSubscriptionsAction(auth: ActionAuth) {
   return api.news.getNewsSubscriptionsAction(auth);
 }
 
+export async function getNewsFeedsAction(auth: ActionAuth) {
+  return api.news.getNewsFeedsAction(auth);
+}
+
 export async function refreshNewsFeedAction(auth: ActionAuth) {
   return api.news.refreshNewsFeedAction(auth);
 }
 
-export async function subscribeNewsFeedAction(auth: ActionAuth, sub: { feedUrl: string; name?: string; icon?: string; feedIds?: string[]; }) {
+export async function subscribeNewsFeedAction(auth: ActionAuth, sub: { feedUrl: string; name?: string; icon?: string; feedIds?: string[]; newFeedTitles?: string[]; }) {
   return api.news.subscribeNewsFeedAction({ auth, sub });
 }
 
