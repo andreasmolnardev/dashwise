@@ -326,6 +326,12 @@ const routes: Record<string, RouteConfig> = {
     auth: (input) => authToken(input?.auth),
     params: (input) => ({ path: { id: String(input?.feedId ?? "all") } }),
   },
+  "news.getNewsFeedMetadataAction": {
+    method: "GET",
+    path: "/news/feed-metadata" as any,
+    auth: (input) => authToken(input?.auth),
+    query: (input) => ({ url: input?.url }),
+  },
   "news.getNewsSubscriptionsAction": {
     method: "GET",
     path: "/news/subscriptions",

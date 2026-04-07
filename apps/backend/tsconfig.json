@@ -4,6 +4,7 @@
     "ignoreDeprecations": "6.0",
     "declaration": true,
     "emitDeclarationOnly": false,
+    "rootDir": "../..",
     "baseUrl": ".",
     "module": "esnext",
     "moduleResolution": "bundler",

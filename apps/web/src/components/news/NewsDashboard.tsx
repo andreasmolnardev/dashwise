@@ -23,6 +23,7 @@ import {
 import SubscriptionDetailsForm from "./SubscriptionDetailsForm";
 import {
     getNewsFeedAction,
+    getNewsFeedMetadataAction,
     getNewsFeedsAction,
     getNewsSubscriptionsAction,
     refreshNewsFeedAction,
@@ -453,6 +454,9 @@ export default function NewsDashboardComponent(
                             }
                             : undefined}
                         feeds={feeds}
+                        resolveFeedMetadata={(feedUrl) =>
+                            withAuth((auth) => getNewsFeedMetadataAction(auth, feedUrl))
+                        }
                         onClose={() => {
                             setAddOpen(false);
                             setEditingFeed(null);

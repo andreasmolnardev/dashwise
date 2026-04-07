@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Icon } from "@iconify-icon/react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@radix-ui/react-label";
@@ -38,6 +38,7 @@ interface SubscriptionDetailsFormProps {
   feeds: FeedOption[];
   onClose?: () => void | Promise<void>;
   onSave?: (feed: NewsFeed) => Promise<void> | void;
+  resolveFeedMetadata?: (feedUrl: string) => Promise<{ title?: string; icon?: string } | null | undefined>;
 }
 
 export default function SubscriptionDetailsForm({
@@ -45,6 +46,7 @@ export default function SubscriptionDetailsForm({
   feeds,
   onClose,
   onSave,
+  resolveFeedMetadata,
 }: SubscriptionDetailsFormProps) {
   const [feedUrl, setFeedUrl] = useState(() => feed?.feedUrl || "");
   const [name, setName] = useState(() => feed?.name || "");
@@ -54,9 +56,74 @@ export default function SubscriptionDetailsForm({
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
+  const [metadataLoading, setMetadataLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const nameRef = useRef(name);
+  const iconRef = useRef(icon);
+  const lastAutoNameRef = useRef("");
+  const lastAutoIconRef = useRef("");
 
   const isEditing = Boolean(feed?.id);
+
+  useEffect(() => {
+    nameRef.current = name;
+  }, [name]);
+
+  useEffect(() => {
+    iconRef.current = icon;
+  }, [icon]);
+
+  useEffect(() => {
+    if (!resolveFeedMetadata) return;
+
+    const trimmedUrl = feedUrl.trim();
+    if (!trimmedUrl) return;
+
+    let cancelled = false;
+    const timeoutId = window.setTimeout(async () => {
+      try {
+        new URL(trimmedUrl);
+      } catch {
+        return;
+      }
+
+      setMetadataLoading(true);
+
+      try {
+        const metadata = await resolveFeedMetadata(trimmedUrl);
+        if (cancelled || !metadata) return;
+
+        const resolvedTitle = metadata.title?.trim();
+        if (resolvedTitle) {
+          const currentName = nameRef.current.trim();
+          if (!currentName || currentName === lastAutoNameRef.current) {
+            lastAutoNameRef.current = resolvedTitle;
+            setName(resolvedTitle);
+          }
+        }
+
+        const resolvedIcon = metadata.icon?.trim();
+        if (resolvedIcon) {
+          const currentIcon = iconRef.current.trim();
+          if (!currentIcon || currentIcon === lastAutoIconRef.current) {
+            lastAutoIconRef.current = resolvedIcon;
+            setIcon(resolvedIcon);
+          }
+        }
+      } catch {
+        // Autofill is best-effort only.
+      } finally {
+        if (!cancelled) {
+          setMetadataLoading(false);
+        }
+      }
+    }, 350);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeoutId);
+    };
+  }, [feedUrl, resolveFeedMetadata]);
 
   const availableFeeds = useMemo(
     () => feeds.filter((entry) => entry.id !== "all"),
@@ -176,6 +243,9 @@ export default function SubscriptionDetailsForm({
           onChange={(event) => setFeedUrl(event.target.value)}
           disabled={loading || isEditing}
         />
+        {metadataLoading && (
+          <p className="mt-1 text-xs text-white/50">Looking up feed title and icon...</p>
+        )}
       </div>
 
       <div>
@@ -185,7 +255,10 @@ export default function SubscriptionDetailsForm({
           className="frosted mt-1"
           placeholder="My Feed"
           value={name}
-          onChange={(event) => setName(event.target.value)}
+          onChange={(event) => {
+            lastAutoNameRef.current = "";
+            setName(event.target.value);
+          }}
           disabled={loading}
         />
       </div>
@@ -197,11 +270,14 @@ export default function SubscriptionDetailsForm({
           className="frosted mt-1"
           placeholder="https://example.com/icon.png"
           value={icon}
-          onChange={(event) => setIcon(event.target.value)}
+          onChange={(event) => {
+            lastAutoIconRef.current = "";
+            setIcon(event.target.value);
+          }}
           disabled={loading}
         />
         <p className="mt-1 text-xs text-white/60">
-          Leave empty to let the backend choose a default icon
+          Leave empty to let the backend choose a default icon.
         </p>
       </div>
 

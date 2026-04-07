@@ -13,6 +13,10 @@ export async function getNewsFeedsAction(auth: ActionAuth) {
   return api.news.getNewsFeedsAction(auth);
 }
 
+export async function getNewsFeedMetadataAction(auth: ActionAuth, url: string) {
+  return api.news.getNewsFeedMetadataAction({ auth, url });
+}
+
 export async function refreshNewsFeedAction(auth: ActionAuth) {
   return api.news.refreshNewsFeedAction(auth);
 }

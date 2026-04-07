@@ -1,3 +1,4 @@
+import Parser from 'rss-parser';
 import { channelId } from "@gonetone/get-youtube-id-by-url";
 import config from "../lib/config";
 import { getFaviconFromDOM } from "../lib/api/tools/faviconFromDom";
@@ -31,6 +32,12 @@ type Subscription = {
   title?: string;
   name?: string;
   feedIds?: string[];
+};
+
+type FeedMetadata = {
+  feedUrl: string;
+  title: string;
+  icon: string;
 };
 
 type FeedRecord = {
@@ -85,6 +92,69 @@ function buildFeedList(feeds: FeedRecord[]) {
       title: String(feed.title || "Untitled feed"),
     })),
   ];
+}
+
+async function normalizeNewsFeedUrl(feedUrl: string) {
+  const originalFeedUrl = String(feedUrl || "").trim();
+
+  if (!originalFeedUrl) {
+    return "";
+  }
+
+  if (originalFeedUrl.includes("https://www.youtube.com/@")) {
+    const id = await channelId(originalFeedUrl);
+    if (id) {
+      return `https://www.youtube.com/feeds/videos.xml?channel_id=${id}`;
+    }
+  }
+
+  return originalFeedUrl;
+}
+
+function getFeedIcon(feed: any, fallbackUrl: string) {
+  const icon = String(feed?.image?.url || feed?.icon || "").trim();
+  if (icon) {
+    return icon;
+  }
+
+  return fallbackUrl;
+}
+
+export async function getNewsFeedMetadata(feedUrl: string): Promise<FeedMetadata> {
+  const normalizedFeedUrl = await normalizeNewsFeedUrl(feedUrl);
+
+  if (!normalizedFeedUrl) {
+    return { feedUrl: "", title: "", icon: "" };
+  }
+
+  try {
+    const parser = new Parser<any, FeedItem>({
+      customFields: {
+        feed: ["image", "icon"],
+      },
+    });
+
+    const feed = await parser.parseURL(normalizedFeedUrl);
+    const title = String(feed?.title || "").trim();
+    const icon = getFeedIcon(
+      feed,
+      (await getFaviconFromDOM(String(feed?.link || normalizedFeedUrl), true)) || "",
+    );
+
+    return {
+      feedUrl: normalizedFeedUrl,
+      title,
+      icon: String(icon || "").trim(),
+    };
+  } catch (error) {
+    console.error(`Error fetching feed metadata: ${normalizedFeedUrl}`, error);
+
+    return {
+      feedUrl: normalizedFeedUrl,
+      title: "",
+      icon: (await getFaviconFromDOM(normalizedFeedUrl, true)) || "",
+    };
+  }
 }
 
 function parseCachedItems(raw: unknown): FeedItem[] {
@@ -317,12 +387,7 @@ export async function subscribeNewsFeed(
   sub: { feedUrl: string; name?: string; icon?: string; feedIds?: string[]; newFeedTitles?: string[] }
 ) {
   const originalFeedUrl = sub.feedUrl;
-  if (originalFeedUrl.includes("https://www.youtube.com/@")) {
-    const id = await channelId(originalFeedUrl);
-    if (id) {
-      sub.feedUrl = `https://www.youtube.com/feeds/videos.xml?channel_id=${id}`;
-    }
-  }
+  sub.feedUrl = await normalizeNewsFeedUrl(sub.feedUrl);
 
   if (!sub.name && originalFeedUrl.includes("https://www.youtube.com/@")) {
     const match = originalFeedUrl.match(/@([^/?#]+)/);
