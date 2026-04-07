@@ -1,6 +1,4 @@
-import axios from 'axios';
-import { AxiosRequestConfig } from 'axios';
-import https from 'https';
+import { Buffer } from 'buffer';
 
 export type MonitoringRequestAuth =
     | { type: 'bearer'; token: string }
@@ -30,10 +28,6 @@ export async function monitorHelper({
     const timeout = setTimeout(() => controller.abort(), 10_000);
 
     try {
-        const agent = (allowSSL && url.startsWith('https://'))
-            ? new https.Agent({ rejectUnauthorized: false })
-            : undefined;
-
         const headers: Record<string, string> = {};
         if (auth?.type === 'bearer' && auth.token) {
             headers.Authorization = `Bearer ${auth.token}`;
@@ -42,24 +36,19 @@ export async function monitorHelper({
             headers[auth.name] = auth.value ?? '';
         }
 
-        const requestConfig: AxiosRequestConfig = {
-            url,
-            method,
-            signal: controller.signal,
-            timeout: 10_000,
-            httpsAgent: agent,
-            headers,
-            validateStatus: () => true, // don't throw on non-200 responses
-        };
-
         if (auth?.type === 'basic') {
-            requestConfig.auth = {
-                username: auth.username,
-                password: auth.password,
-            };
+            const credentials = Buffer.from(`${auth.username}:${auth.password}`).toString('base64');
+            headers.Authorization = `Basic ${credentials}`;
         }
 
-        const res = await axios.request(requestConfig);
+        const res = await fetch(url, {
+            method,
+            signal: controller.signal,
+            headers,
+            ...(allowSSL && url.startsWith('https://')
+                ? { tls: { rejectUnauthorized: false } }
+                : {}),
+        });
 
         return res.status;
     } finally {

@@ -1,4 +1,3 @@
-import axios from "axios";
 import config from "../lib/config";
 import { getSuperuserPB } from "@dashwise/sdk/lib/pocketbase";
 
@@ -103,7 +102,15 @@ export async function runMonitoringStatus(userId: string, body: any) {
   const webhookUrl = `${config.jobs_url}/webhook/statusMonitoringRunner${
     sourceLinkId ? `?linkId=${encodeURIComponent(sourceLinkId)}` : ""
   }`;
-  const webhookResponse = await axios.get(webhookUrl);
+  const webhookResponse = await fetch(webhookUrl, {
+    ...(webhookUrl.startsWith("https://")
+      ? { tls: { rejectUnauthorized: false } }
+      : {}),
+  } as any);
+  const webhookContentType = webhookResponse.headers.get("content-type") || "";
+  const webhookData = webhookContentType.includes("application/json")
+    ? await webhookResponse.json()
+    : await webhookResponse.text();
 
   const refreshedJobs = await pb
     .collection("monitoringJobs")
@@ -111,7 +118,9 @@ export async function runMonitoringStatus(userId: string, body: any) {
   const refreshedJob = refreshedJobs[0] || targetJob;
   const statusSummary = await getLatestJobStatus(pb, userId, refreshedJob);
 
-  const runnerDetails = webhookResponse?.data?.result?.details;
+  const runnerDetails = typeof webhookData === "object" && webhookData
+    ? (webhookData as any)?.result?.details
+    : undefined;
   const matchingRunnerDetail = Array.isArray(runnerDetails)
     ? runnerDetails.find((entry: any) => entry?.jobId === refreshedJob.id) || runnerDetails[0]
     : undefined;
@@ -137,6 +146,6 @@ export async function runMonitoringStatus(userId: string, body: any) {
     httpStatus: matchingRunnerDetail?.httpStatus,
     method: matchingRunnerDetail?.method,
     result: matchingRunnerDetail,
-    webhookResult: webhookResponse?.data,
+    webhookResult: webhookData,
   };
 }

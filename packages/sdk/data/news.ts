@@ -1,4 +1,3 @@
-import axios from "axios";
 import { channelId } from "@gonetone/get-youtube-id-by-url";
 import config from "../lib/config";
 import { getFaviconFromDOM } from "../lib/api/tools/faviconFromDom";
@@ -299,8 +298,18 @@ export async function refreshNewsFeed(userId: string) {
   }
 
   const url = `${config.jobs_url}/webhook/newsFeedBuilder`;
-  const response = await axios.get(url);
-  return response.data;
+  const response = await fetch(url, {
+    ...(url.startsWith("https://")
+      ? { tls: { rejectUnauthorized: false } }
+      : {}),
+  } as any);
+
+  const contentType = response.headers.get("content-type") || "";
+  if (contentType.includes("application/json")) {
+    return await response.json();
+  }
+
+  return await response.text();
 }
 
 export async function subscribeNewsFeed(

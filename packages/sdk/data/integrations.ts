@@ -1,6 +1,4 @@
 import { Buffer } from "buffer";
-import https from "https";
-import axios from "axios";
 import YAML from "yaml";
 import fs from "fs/promises";
 import path from "path";
@@ -187,14 +185,9 @@ export async function testIntegrationEndpoint(
         });
     }
 
-    const method =
-        (typeof endpoint.method === "string" ? endpoint.method : "GET")
-            .toUpperCase();
+    const method = (typeof endpoint.method === "string" ? endpoint.method : "GET").toUpperCase();
     const allowBody = !METHOD_WITHOUT_BODY.has(method);
-    const envMap = buildEnvValueMap(
-        integration.config,
-        integration.environment,
-    );
+    const envMap = buildEnvValueMap(integration.config, integration.environment);
 
     const requestHeaders: Record<string, string> = {
         ...(endpoint.resolvedHeaders ?? {}),
@@ -203,21 +196,14 @@ export async function testIntegrationEndpoint(
         requestHeaders[key] = interpolateString(String(value ?? ""), envMap);
     }
 
-    const resolvedAuth = interpolateString(
-        endpoint.resolvedAuth || endpoint.auth || "",
-        envMap,
-    );
-    const hasAuthorizationHeader = Object.keys(requestHeaders).some(
-        (key) => key.toLowerCase() === "authorization",
-    );
+    const resolvedAuth = interpolateString(endpoint.resolvedAuth || endpoint.auth || "", envMap);
+    const hasAuthorizationHeader = Object.keys(requestHeaders).some((key) => key.toLowerCase() === "authorization");
     if (!hasAuthorizationHeader && resolvedAuth) {
         requestHeaders.Authorization = resolvedAuth;
     }
 
     if (hasAuthorizationHeader) {
-        const authHeaderKey = Object.keys(requestHeaders).find(
-            (key) => key.toLowerCase() === "authorization",
-        );
+        const authHeaderKey = Object.keys(requestHeaders).find((key) => key.toLowerCase() === "authorization");
         if (authHeaderKey) {
             const existing = requestHeaders[authHeaderKey];
             if (UNRESOLVED_TOKEN_REGEX.test(existing) && resolvedAuth) {
@@ -225,23 +211,19 @@ export async function testIntegrationEndpoint(
             }
         }
     }
-    let requestBody: string | null = null;
 
-    if (
-        allowBody && endpoint.resolvedBody !== null &&
-        endpoint.resolvedBody !== undefined
-    ) {
+    let requestBody: string | null = null;
+    if (allowBody && endpoint.resolvedBody !== null && endpoint.resolvedBody !== undefined) {
         requestBody = typeof endpoint.resolvedBody === "string"
             ? endpoint.resolvedBody
             : JSON.stringify(endpoint.resolvedBody);
 
-        const hasContentType = Object.keys(requestHeaders).some(
-            (key) => key.toLowerCase() === "content-type",
-        );
+        const hasContentType = Object.keys(requestHeaders).some((key) => key.toLowerCase() === "content-type");
         if (!hasContentType) {
             requestHeaders["content-type"] = "application/json";
         }
     }
+
     const curlCommand = buildCurlCommand({
         url: resolvedUrl,
         method,
@@ -252,81 +234,76 @@ export async function testIntegrationEndpoint(
         `[Integrations] Endpoint test cURL (${integrationId}.${endpointKey}): ${curlCommand}`,
     );
 
-    const response = await axios.request({
-        url: resolvedUrl,
-        method: method as any,
-        headers: requestHeaders,
-        data: requestBody,
-        timeout: resolveTimeout(endpoint.timeout),
-        validateStatus: () => true,
-        ...(true
-            ? { httpsAgent: new https.Agent({ rejectUnauthorized: false }) }
-            : {}),
-    });
+    const timeoutController = createTimeoutController(resolveTimeout(endpoint.timeout));
 
-    const rawResponseBody = typeof response.data === "string"
-        ? response.data
-        : JSON.stringify(response.data ?? "");
-    const parsedResponseBody = typeof response.data === "string"
-        ? tryParseJson(response.data)
-        : response.data;
-
-    const endpointConfig = findEndpointConfig(integration.config, endpointKey);
-    const responseDirective = endpointConfig?.response as
-        | Record<string, unknown>
-        | undefined;
-    const dataSetEnv = typeof responseDirective?.data_set_env === "string"
-        ? responseDirective.data_set_env
-        : null;
-    const dataPath = typeof responseDirective?.data_path === "string"
-        ? responseDirective.data_path
-        : undefined;
-
-    if (
-        dataSetEnv && parsedResponseBody !== null &&
-        parsedResponseBody !== undefined
-    ) {
-        const resolvedValue = extractValueFromPath(
-            parsedResponseBody,
-            dataPath,
-        );
-        if (resolvedValue !== undefined && resolvedValue !== null) {
-            const formattedValue = formatEnvValue(resolvedValue);
-            if (integration.environment[dataSetEnv] !== formattedValue) {
-                const updatedEnvironment = {
-                    ...integration.environment,
-                    [dataSetEnv]: formattedValue,
-                };
-                await pb.collection("integrations").update(integrationId, {
-                    environment: encodeEnvironment(updatedEnvironment),
-                });
-            }
-        }
-    }
-
-    return {
-        integration: { id: integration.id, name: integration.name },
-        endpoint: {
-            id: endpoint.id,
-            name: endpoint.name,
-            description: endpoint.description,
-            method,
-            url: resolvedUrl,
-        },
-        request: {
-            url: resolvedUrl,
+    try {
+        const response = await fetch(resolvedUrl, {
             method,
             headers: requestHeaders,
             body: requestBody,
-        },
-        response: {
-            status: response.status,
-            statusText: response.statusText,
-            headers: toResponseHeaders(response.headers),
-            body: rawResponseBody,
-            parsedBody: parsedResponseBody,
-        },
-    };
+            signal: timeoutController.signal,
+            ...(buildTlsOptions(
+                endpoint.allow_insecure_ssl ??
+                    (endpoint as any).insecure_skip_verify ??
+                    (endpoint as any).allowInsecureSSL,
+                resolvedUrl,
+            ) as any),
+        } as any);
+
+        const rawResponseBody = await response.text();
+        const parsedResponseBody = tryParseJson(rawResponseBody);
+
+        const endpointConfig = findEndpointConfig(integration.config, endpointKey);
+        const responseDirective = endpointConfig?.response as Record<string, unknown> | undefined;
+        const dataSetEnv = typeof responseDirective?.data_set_env === "string"
+            ? responseDirective.data_set_env
+            : null;
+        const dataPath = typeof responseDirective?.data_path === "string"
+            ? responseDirective.data_path
+            : undefined;
+
+        if (dataSetEnv && parsedResponseBody !== null && parsedResponseBody !== undefined) {
+            const resolvedValue = extractValueFromPath(parsedResponseBody, dataPath);
+            if (resolvedValue !== undefined && resolvedValue !== null) {
+                const formattedValue = formatEnvValue(resolvedValue);
+                if (integration.environment[dataSetEnv] !== formattedValue) {
+                    const updatedEnvironment = {
+                        ...integration.environment,
+                        [dataSetEnv]: formattedValue,
+                    };
+                    await pb.collection("integrations").update(integrationId, {
+                        environment: encodeEnvironment(updatedEnvironment),
+                    });
+                }
+            }
+        }
+
+        return {
+            integration: { id: integration.id, name: integration.name },
+            endpoint: {
+                id: endpoint.id,
+                name: endpoint.name,
+                description: endpoint.description,
+                method,
+                url: resolvedUrl,
+            },
+            request: {
+                url: resolvedUrl,
+                method,
+                headers: requestHeaders,
+                body: requestBody,
+            },
+            response: {
+                status: response.status,
+                statusText: response.statusText,
+                headers: toResponseHeaders(response.headers),
+                body: rawResponseBody,
+                parsedBody: parsedResponseBody,
+            },
+        };
+    } finally {
+        timeoutController.clear();
+    }
 }
 
 export async function getWidgetProperties(userId: string, widgetSlug: string) {
@@ -546,8 +523,16 @@ export async function getIntegrationWithGlanceable(
     return { integrationId: null, integration: null, glanceableJSON: null, localData: null };
 }
 
-function toResponseHeaders(headers: Record<string, unknown>) {
+function toResponseHeaders(headers: unknown) {
     const result: Record<string, string> = {};
+
+    if (headers && typeof headers === "object" && "entries" in headers) {
+        for (const [key, value] of (headers as { entries(): IterableIterator<[string, string]> }).entries()) {
+            result[key] = value;
+        }
+
+        return result;
+    }
 
     for (const [key, value] of Object.entries(headers ?? {})) {
         if (value === undefined || value === null) {
@@ -563,6 +548,39 @@ function toResponseHeaders(headers: Record<string, unknown>) {
     }
 
     return result;
+}
+
+function buildTlsOptions(
+    allowInsecureSsl: unknown,
+    url: string,
+) {
+    const shouldIgnoreCertificateErrors =
+        isTruthyValue(allowInsecureSsl) && url.startsWith("https://");
+
+    return shouldIgnoreCertificateErrors
+        ? { tls: { rejectUnauthorized: false } }
+        : {};
+}
+
+function createTimeoutController(timeoutMs: number) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+    return {
+        signal: controller.signal,
+        clear() {
+            clearTimeout(timeout);
+        },
+    };
+}
+
+function isTruthyValue(value: unknown) {
+    if (typeof value === "string") {
+        const normalized = value.trim().toLowerCase();
+        return normalized === "true" || normalized === "1" || normalized === "yes" || normalized === "on";
+    }
+
+    return Boolean(value);
 }
 
 function buildCurlCommand(request: {

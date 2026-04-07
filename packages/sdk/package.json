@@ -10,7 +10,6 @@
   "license": "ISC",
   "dependencies": {
     "@dashwise/assets": "workspace:*",
-    "axios": "^1.12.2",
     "pocketbase": "^0.26.8",
     "sharp": "^0.34.3",
     "speakeasy": "^2.0.0",
