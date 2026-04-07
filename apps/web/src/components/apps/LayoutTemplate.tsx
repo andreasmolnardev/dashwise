@@ -198,8 +198,12 @@ function SidebarGroupHeader({
             >
                 {collapsible && (
                     <Icon
-                        icon={collapsed ? "fa6-solid:chevron-right" : "fa6-solid:chevron-down"}
-                        className="text-[10px] w-[16px]"
+                        icon="fa6-solid:chevron-right"
+                        className="text-[10px] w-4 transition-transform duration-250"
+                        style={{
+                            transform: collapsed ? "rotate(0deg)" : "rotate(90deg)",
+                            transitionTimingFunction: "cubic-bezier(0.4,0,0.2,1)",
+                        }}
                     />
                 )}
                 <span className="truncate w-full">{title}</span>
@@ -349,7 +353,16 @@ export function Sidebar({ children }: { children: ReactNode }) {
                                     )}
 
                                     {!collapsed && groupTabs.map((tab, tabIndex) => (
-                                        <div key={`${groupKey || "ungrouped"}-tab-${tabIndex}`}>{tab}</div>
+                                        <div
+                                            key={`${groupKey || "ungrouped"}-tab-${tabIndex}`}
+                                            style={{
+                                                animation: "tabDrop 0.24s ease-out both",
+                                                animationDirection: collapsed ? "reverse" : "normal",
+                                                animationDelay: `${tabIndex * 40}ms`,
+                                            }}
+                                        >
+                                            {tab}
+                                        </div>
                                     ))}
                                 </div>
                             );

@@ -150,6 +150,17 @@
   @apply bg-white/10 dark:bg-black/45 backdrop-blur-md border border-white/20 dark:border-white/10 shadow-sm;
 }
 
+@keyframes tabDrop {
+  0% {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .scrollbar-hide {
   -ms-overflow-style: none;  /* IE/Edge */
   scrollbar-width: none;     /* Firefox */
