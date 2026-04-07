@@ -387,14 +387,14 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
                       <AppIcon
                         source={folder.icon}
                         alt={folder.name}
-                        className="text-white/90 h-[2rem] text-[2rem]"
+                        className="text-white/90 h-[2rem] text-[2rem] group-hover:text-primary"
                         imageClassName="invert object-contain"
                       />
                     )
                     : (
                       <Icon
                         icon="fa6-solid:folder"
-                        className="h-5 w-5 text-white/30"
+                        className="h-5 w-5 text-white/30 group-hover:text-primary"
                       />
                     )}
 
