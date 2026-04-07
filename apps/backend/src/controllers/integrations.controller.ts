@@ -15,6 +15,7 @@ import {
   flattenToEnv,
   interpolateString,
   resolveGlanceableRuntimeData,
+  resolveStringWithCasts,
   resolveWidgetProperties,
   resolveWidgetRuntimeData,
 } from "@dashwise/integrationskit/data/resolveProperties";
@@ -488,12 +489,12 @@ function resolveTemplatedString(value: string, env: Record<string, string>) {
 }
 
 function resolveGlanceableText(template: string, env: Record<string, string>) {
-  const interpolated = interpolateString(template, env);
-
-  return interpolated.replace(/\$\{lib\.date\.time\(([^}]+)\)\}/g, (_match: string, rawTimezone: string) => {
+  const withLibDate = template.replace(/\$\{lib\.date\.time\(([^}]+)\)\}/g, (_match: string, rawTimezone: string) => {
     const timezone = normalizeTimezone(interpolateString(String(rawTimezone).trim(), env));
     return timezone ? formatTime(new Date(), { timeZone: timezone }) : formatTime(new Date());
   });
+
+  return resolveStringWithCasts(withLibDate, env);
 }
 
 function normalizeTimezone(raw: unknown): string | undefined {
