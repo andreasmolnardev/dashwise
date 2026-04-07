@@ -46,8 +46,6 @@ export default function AppIcon({
 }) {
     if (!source) return null;
 
-    console.log("Rendering AppIcon with source:", source, className);
-
     const iconifySlug = getIconifySlugFromSource(source);
     if (iconifySlug) {
         return (
