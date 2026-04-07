@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import AppTemplate, { Sidebar, Tab, Content } from "@/components/apps/LayoutTemplate";
+import AppTemplate, { GroupLabel, Sidebar, Tab, Content } from "@/components/apps/LayoutTemplate";
 import useAuth from "@/context/useAuth";
 import { getLinksCollectionsAction, getLinksTagsAction } from "@/app/actions/links";
 
@@ -72,6 +72,7 @@ export default function LinksLayout({ children }: { children: ReactNode }) {
         <AppTemplate title="Bookmarks">
             <Sidebar>
                 <Tab dst="/links/home" icon="fa6-solid:house" title="Home" />
+                <GroupLabel group="Lists" title="Lists" />
                 <Tab dst="/links/lists" icon="fa6-solid:list" title="Lists" isRoot />
                 {userCollections.map((collection) => (
                     <Tab
@@ -82,6 +83,7 @@ export default function LinksLayout({ children }: { children: ReactNode }) {
                         group="Lists"
                     />
                 ))}
+                <GroupLabel group="Tags" title="Tags" />
                 <Tab dst="/links/tags" icon="fa6-solid:tag" title="Tags" isRoot />
                 {tags.map((tag) => (
                     <Tab

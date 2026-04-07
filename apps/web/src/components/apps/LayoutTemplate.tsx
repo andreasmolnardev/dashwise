@@ -17,7 +17,6 @@ import {
     ReactNode,
     useContext,
     useEffect,
-    useRef,
     useState,
 } from "react";
 
@@ -201,7 +200,7 @@ function SidebarGroupHeader({
     dropdownActions: DropdownAction[];
 }) {
     return (
-        <div className="relative rounded-sm frosted-lite flex items-center justify-between px-2">
+        <div className="relative rounded-sm frosted-lite flex items-center justify-between px-2 mt-1">
             <button
                 type="button"
                 onClick={collapsible ? onToggle : undefined}
@@ -323,7 +322,6 @@ export function Sidebar({ children }: { children: ReactNode }) {
 
     const groupOrder = Array.from(new Set([
         ...grouped.map((entry) => entry.group ?? ""),
-        ...groupLabels.map((entry) => entry.props.group ?? ""),
     ]));
 
     const tabsByGroup = new Map<string, React.ReactElement<TabProps>[]>();
@@ -337,11 +335,11 @@ export function Sidebar({ children }: { children: ReactNode }) {
             <div className="flex flex-col overflow-hidden flex-1 min-h-0">
                 {/* Tab groups — scrollable */}
                 <div className="overflow-y-auto flex-1">
-                    <div className="space-y-2">
+                    <div className="space-y-1">
                         {groupOrder.map((groupKey, groupIndex) => {
                             const label = groupLabelByGroup.get(groupKey);
                             const groupTabs = tabsByGroup.get(groupKey) ?? [];
-                            const displayLabel = label?.props.title || label?.props.group || groupKey;
+                            const displayLabel = label?.props.title ?? label?.props.group;
                             const collapsible = Boolean(label?.props.collapsible);
                             const collapsed = collapsible
                                 ? (collapsedGroups[groupKey] ?? Boolean(label?.props.collapsed))
@@ -349,7 +347,7 @@ export function Sidebar({ children }: { children: ReactNode }) {
 
                             return (
                                 <div key={`${groupKey || "ungrouped"}-${groupIndex}`} className="rounded-xl overflow-hidden space-y-0.5">
-                                    {displayLabel && (
+                                    {label && displayLabel && (
                                         <SidebarGroupHeader
                                             title={displayLabel}
                                             groupKey={groupKey || "ungrouped"}
@@ -443,11 +441,11 @@ export default function AppTemplate({
             closeMobileSidebar: () => setMobileSidebarOpen(false),
         }}>
             <div className="relative flex h-dvh overflow-hidden bg-(--surface) text-white backdrop-blur-[5px] backdrop-brightness-85">
-                <div className="hidden md:flex w-55 shrink-0 flex-col p-4 pr-0">
-                    <h1 className="text-4xl font-bold tracking-tight text-balance mb-4 shrink-0">
+                <div className="hidden md:flex w-65 shrink-0 flex-col p-4 pr-0">
+                    <h1 className="text-4xl font-bold tracking-tight text-balance mb-1 shrink-0">
                         {title}
                     </h1>
-                    <div className="flex-1 min-h-0 pr-8">{sidebar}</div>
+                    <div className="flex-1 min-h-0 pr-4">{sidebar}</div>
                 </div>
 
                 <div className="flex min-w-0 flex-1 flex-col p-4 md:pl-0 gap-4">
