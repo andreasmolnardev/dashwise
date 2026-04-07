@@ -11,7 +11,7 @@ export function registerNewsControllers(app: Hono) {
   }));
   app.get("/api/v1/news/feed", withJson(async (c) => {
     const { userId } = await requireAuth({ token: readAuthToken(c) });
-    return getNewsFeed(userId, c.req.query("category") ?? null);
+    return getNewsFeed(userId, c.req.query("feedId") ?? null);
   }));
   app.get("/api/v1/news/feed-refresh", withJson(async (c) => {
     const { userId } = await requireAuth({ token: readAuthToken(c) });

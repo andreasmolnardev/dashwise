@@ -324,7 +324,7 @@ const routes: Record<string, RouteConfig> = {
     method: "GET",
     path: "/news/feed",
     auth: (input) => authToken(input?.auth),
-    query: (input) => ({ category: input?.category }),
+    query: (input) => ({ feedId: input?.feedId }),
   },
   "news.getNewsSubscriptionsAction": {
     method: "GET",
