@@ -1,22 +1,24 @@
 import { FeedItem, getFeedItems } from "./helper";
 import {
   createNewsFeedItemsCache,
-  getAllNewsFeeds,
+  getAllNewsSubscriptions,
   getNewsFeedById,
+  getNewsSubscriptionById,
   getNewsFeedItemsCacheByUrl,
   updateNewsFeedItemsCache,
 } from "@dashwise/sdk/data/superuser";
 
 interface Subscription {
-  category: string;
-  feedUrl: string;
+  id?: string;
+  url?: string;
   icon?: string;
-  name?: string;
+  title?: string;
 }
 
 interface NewsFeedRecord {
   id: string;
-  subscriptions?: Subscription[];
+  subscriptionRefs?: string[];
+  excludedSubscriptionRefs?: string[];
   [k: string]: any;
 }
 
@@ -47,13 +49,18 @@ export async function newsFeedBuilder(feedId?: string): Promise<{
   let newsFeeds: NewsFeedRecord[] = [];
   try {
     if (feedId) {
-      const singleFeed = await getNewsFeedById(feedId);
-      newsFeeds = [singleFeed as NewsFeedRecord];
+      const singleSubscription = await getNewsSubscriptionById(feedId).catch(() => null);
+      if (singleSubscription) {
+        newsFeeds = [{ id: singleSubscription.id, subscriptionRefs: [singleSubscription.id] }];
+      } else {
+        const singleFeed = await getNewsFeedById(feedId);
+        newsFeeds = [singleFeed as NewsFeedRecord];
+      }
     } else {
-      newsFeeds = (await getAllNewsFeeds(2000)) as NewsFeedRecord[];
+      newsFeeds = (await getAllNewsSubscriptions(2000)) as NewsFeedRecord[];
     }
   } catch (err: any) {
-    console.error("Failed to fetch 'newsFeeds':", err);
+    console.error("Failed to fetch news records:", err);
     return {
       ...result,
       errors: 1,
@@ -63,7 +70,11 @@ export async function newsFeedBuilder(feedId?: string): Promise<{
 
   const processFeed = async (newsFeed: NewsFeedRecord) => {
     const feedResult = { processed: 1, skipped: 0, updated: 0, errors: 0, details: [] as any[] };
-    const subscriptions = newsFeed.subscriptions || [];
+    const subscriptions = newsFeed.subscriptionRefs?.length
+      ? newsFeed.subscriptionRefs.map((subscriptionId) => ({ id: String(subscriptionId), url: String(subscriptionId) }))
+      : newsFeed.id
+        ? [{ id: newsFeed.id, url: newsFeed.id }]
+        : [];
 
     if (!subscriptions.length) {
       feedResult.skipped++;
@@ -76,26 +87,29 @@ export async function newsFeedBuilder(feedId?: string): Promise<{
 
     // Fetch subscriptions in parallel
     const subPromises = subscriptions.map(async (sub) => {
-      if (!sub.feedUrl || !sub.category) {
+      const subscriptionRecord = sub.id ? await getNewsSubscriptionById(sub.id).catch(() => null) : null;
+      const feedUrl = String(subscriptionRecord?.url || sub.url || "");
+
+      if (!feedUrl) {
         return {
           action: 'skip_subscription',
-          subName: sub.name,
-          reason: 'missing feedUrl or category',
+          subName: subscriptionRecord?.title || subscriptionRecord?.url || sub.id,
+          reason: 'missing feedUrl',
         };
       }
 
       try {
-        const feedItems = await getFeedItems({ feedUrl: sub.feedUrl, maxItems: maxItemsPerFeed, feedName: sub.name }) as FeedItem[];
+        const feedItems = await getFeedItems({ feedUrl, maxItems: maxItemsPerFeed, feedName: subscriptionRecord?.title || feedUrl }) as FeedItem[];
         return {
           action: 'success',
-          feedUrl: sub.feedUrl,
+          feedUrl,
           items: feedItems
         };
       } catch (err: any) {
         return {
           action: 'feed_fetch_error',
-          subName: sub.name,
-          feedUrl: sub.feedUrl,
+          subName: subscriptionRecord?.title || subscriptionRecord?.url || sub.id,
+          feedUrl,
           error: err?.message || String(err),
         };
       }
