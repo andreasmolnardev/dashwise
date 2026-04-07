@@ -2,13 +2,18 @@
 
 import { Link, useLocation } from "react-router-dom";
 import { Icon } from "@iconify-icon/react";
-import { Label } from "@/components/ui/label";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
     Children,
     createContext,
     isValidElement,
     ReactNode,
-    useCallback,
     useContext,
     useEffect,
     useRef,
@@ -19,15 +24,17 @@ import {
 
 interface SidebarContextValue {
     pathname: string;
+    search: string;
 }
 
 const SidebarContext = createContext<SidebarContextValue>({
     pathname: "",
+    search: "",
 });
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-interface DropdownAction {
+export interface DropdownAction {
     label: string;
     icon?: string;
     action: () => void;
@@ -49,98 +56,96 @@ interface ActionProps {
     action: () => void;
 }
 
+interface GroupLabelAction {
+    icon: string;
+    title: string;
+    action: () => void;
+}
+
+interface GroupLabelProps {
+    group?: string;
+    title?: string;
+    collapsible?: boolean;
+    collapsed?: boolean;
+    actions?: GroupLabelAction[];
+    dropdownActions?: DropdownAction[];
+}
+
 // ─── Tab ─────────────────────────────────────────────────────────────────────
 
 export function Tab({ dst, icon, title, badge, dropdownActions }: TabProps) {
-    const { pathname } = useContext(SidebarContext);
-    const isActive = pathname === dst || pathname.startsWith(`${dst}/`);
-    const [dropdownOpen, setDropdownOpen] = useState(false);
-    const dropdownRef = useRef<HTMLDivElement>(null);
-
-    useEffect(() => {
-        if (!dropdownOpen) return;
-        const handler = (e: MouseEvent) => {
-            if (!dropdownRef.current?.contains(e.target as Node)) {
-                setDropdownOpen(false);
-            }
-        };
-        document.addEventListener("mousedown", handler);
-        return () => document.removeEventListener("mousedown", handler);
-    }, [dropdownOpen]);
+    const { pathname, search } = useContext(SidebarContext);
+    const destination = new URL(dst, "http://dashwise.local");
+    const isActive = destination.search
+        ? pathname === destination.pathname && search === destination.search
+        : pathname === destination.pathname || pathname.startsWith(`${destination.pathname}/`);
 
     return (
         <div className="relative">
-            <Link to={dst} className="block group">
-                <div
-                    className={`settings-label-div flex items-center justify-between px-3 py-3 h-12 rounded-md relative z-10 cursor-pointer select-none transition-all duration-150 frosted-lite`}
-                    data-href={dst}
-                >
-                    <div className="flex items-center gap-2">
-                        <Icon
-                            icon={icon}
-                            className={`transition-colors ${
-                                isActive
-                                    ? "text-primary"
-                                    : "text-white/60 group-hover:text-primary"
-                            }`}
-                        />
-                        <span
-                            className={`leading-none transition-colors ${
-                                isActive
-                                    ? "text-white"
-                                    : "text-white/70 group-hover:text-white"
-                            }`}
-                        >
-                            {title}
-                        </span>
-                    </div>
+            <div className="group flex items-center justify-between px-3 py-3 h-10 rounded-md relative z-10 select-none transition-all duration-150 frosted-lite">
+                <Link to={dst} className="flex min-w-0 flex-1 items-center gap-2">
+                    <Icon
+                        icon={icon}
+                        className={`transition-colors ${
+                            isActive
+                                ? "text-primary"
+                                : "text-white/60 group-hover:text-primary"
+                        }`}
+                    />
+                    <span
+                        className={`leading-none transition-colors ${
+                            isActive
+                                ? "text-white"
+                                : "text-white/70 group-hover:text-white"
+                        }`}
+                    >
+                        {title}
+                    </span>
+                </Link>
 
-                    {badge !== undefined && (
-                        <span className="ml-auto mr-1 px-1.5 py-0.5 bg-primary rounded-full text-[10px] font-bold leading-none">
-                            {badge}
-                        </span>
-                    )}
+                {badge !== undefined && (
+                    <span className="ml-auto mr-1 px-1.5 py-0.5 bg-primary rounded-full text-[10px] font-bold leading-none">
+                        {badge}
+                    </span>
+                )}
 
-                    {dropdownActions && dropdownActions.length > 0 && (
-                        <button
-                            onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                setDropdownOpen((v) => !v);
-                            }}
-                            className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-white/10"
-                        >
-                            <Icon
-                                icon="fa6-solid:ellipsis"
-                                className="text-xs text-white/60"
-                            />
-                        </button>
-                    )}
-                </div>
-            </Link>
-
-            {dropdownActions && dropdownOpen && (
-                <div
-                    ref={dropdownRef}
-                    className="absolute left-full top-0 ml-1 z-50 min-w-35 rounded-md bg-(--surface) border border-white/10 shadow-lg overflow-hidden"
-                >
-                    {dropdownActions.map((a, i) => (
-                        <button
-                            key={i}
-                            onClick={() => {
-                                a.action();
-                                setDropdownOpen(false);
-                            }}
-                            className="w-full flex items-center gap-2 px-3 py-2 text-white/80 hover:bg-white/10 hover:text-white transition-colors text-left"
-                        >
-                            {a.icon && (
-                                <Icon icon={a.icon} className="text-lg" />
-                            )}
-                            {a.label}
-                        </button>
-                    ))}
-                </div>
-            )}
+                {dropdownActions && dropdownActions.length > 0 && (
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <button
+                                type="button"
+                                onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                }}
+                                className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-white/10"
+                            >
+                                <Icon
+                                    icon="fa6-solid:ellipsis"
+                                    className="text-xs text-white/60"
+                                />
+                            </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="frosted text-foreground min-w-40">
+                            {dropdownActions.map((action, index) => (
+                                <DropdownMenuItem
+                                    key={index}
+                                    onSelect={(event) => {
+                                        event.preventDefault();
+                                        action.action();
+                                    }}
+                                    className="cursor-pointer"
+                                >
+                                    {action.icon && (
+                                        <Icon icon={action.icon} className="text-sm" />
+                                    )}
+                                    {action.label}
+                                </DropdownMenuItem>
+                            ))}
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                )}
+            </div>
         </div>
     );
 }
@@ -159,6 +164,93 @@ export function Action({ icon, title, action }: ActionProps) {
             />
             <span className="text-sm leading-none">{title}</span>
         </button>
+    );
+}
+
+export function GroupLabel(_props: GroupLabelProps) {
+    return null;
+}
+
+function SidebarGroupHeader({
+    title,
+    groupKey,
+    collapsible,
+    collapsed,
+    onToggle,
+    actions,
+    dropdownActions,
+}: {
+    title: string;
+    groupKey: string;
+    collapsible: boolean;
+    collapsed: boolean;
+    onToggle: () => void;
+    actions: GroupLabelAction[];
+    dropdownActions: DropdownAction[];
+}) {
+    return (
+        <div className="relative rounded-sm frosted-lite flex items-center justify-between px-2">
+            <button
+                type="button"
+                onClick={collapsible ? onToggle : undefined}
+                className="flex w-full items-center gap-1 rounded px-1 py-2 text-left text-[11px] text-white/45 hover:text-white/75"
+                title={title}
+            >
+                {collapsible && (
+                    <Icon
+                        icon={collapsed ? "fa6-solid:chevron-right" : "fa6-solid:chevron-down"}
+                        className="text-[10px] w-[16px]"
+                    />
+                )}
+                <span className="truncate w-full">{title}</span>
+            </button>
+
+            <div className="flex items-center gap-1">
+                {actions.map((action, index) => (
+                    <button
+                        key={`${groupKey}-action-${index}`}
+                        type="button"
+                        onClick={action.action}
+                        title={action.title}
+                        className="rounded p-1 text-white/45 hover:bg-white/10 hover:text-white"
+                    >
+                        <Icon icon={action.icon} className="text-xs" />
+                    </button>
+                ))}
+
+                {dropdownActions.length > 0 && (
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <button
+                                type="button"
+                                title="More actions"
+                                className="rounded p-1 text-white/45 hover:bg-white/10 hover:text-white"
+                            >
+                                <Icon icon="fa6-solid:ellipsis" className="text-xs" />
+                            </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="frosted text-foreground min-w-40">
+                            <DropdownMenuLabel className="text-xs uppercase tracking-[0.12em] text-white/45">
+                                {title}
+                            </DropdownMenuLabel>
+                            {dropdownActions.map((action, index) => (
+                                <DropdownMenuItem
+                                    key={`${groupKey}-dropdown-${index}`}
+                                    onSelect={(event) => {
+                                        event.preventDefault();
+                                        action.action();
+                                    }}
+                                    className="cursor-pointer"
+                                >
+                                    {action.icon && <Icon icon={action.icon} className="text-sm" />}
+                                    {action.label}
+                                </DropdownMenuItem>
+                            ))}
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                )}
+            </div>
+        </div>
     );
 }
 
@@ -190,46 +282,90 @@ function groupTabs(
 }
 
 export function Sidebar({ children }: { children: ReactNode }) {
-    const { pathname } = useContext(SidebarContext);
-
     const tabs = Children.toArray(children).filter(
         (c) => isValidElement(c) && (c as React.ReactElement).type === Tab,
     ) as React.ReactElement<TabProps>[];
+
+    const groupLabels = Children.toArray(children).filter(
+        (c) => isValidElement(c) && (c as React.ReactElement).type === GroupLabel,
+    ) as React.ReactElement<GroupLabelProps>[];
 
     const actions = Children.toArray(children).filter(
         (c) => isValidElement(c) && (c as React.ReactElement).type === Action,
     ) as React.ReactElement<ActionProps>[];
 
     const grouped = groupTabs(tabs);
+    const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
+
+    const groupLabelByGroup = new Map<string, React.ReactElement<GroupLabelProps>>();
+    for (const groupLabel of groupLabels) {
+        const key = groupLabel.props.group ?? "";
+        if (!groupLabelByGroup.has(key)) {
+            groupLabelByGroup.set(key, groupLabel);
+        }
+    }
+
+    const groupOrder = Array.from(new Set([
+        ...grouped.map((entry) => entry.group ?? ""),
+        ...groupLabels.map((entry) => entry.props.group ?? ""),
+    ]));
+
+    const tabsByGroup = new Map<string, React.ReactElement<TabProps>[]>();
+    for (const entry of grouped) {
+        tabsByGroup.set(entry.group ?? "", entry.tabs);
+    }
 
     return (
         <div className="relative flex flex-col h-full justify-between py-2">
             {/* Scrollable tab area — actions stay pinned above */}
             <div className="flex flex-col overflow-hidden flex-1 min-h-0">
-                {/* Actions row — sticky, always visible above tabs */}
-                {actions.length > 0 && (
-                    <div className="shrink-0 pb-1 mb-1 border-b border-white/10 space-y-0.5">
-                        {actions.map((a, i) => <div key={i}>{a}</div>)}
-                    </div>
-                )}
-
                 {/* Tab groups — scrollable */}
                 <div className="overflow-y-auto flex-1">
-                    <div className="space-y-1">
-                        {grouped.map(({ group, tabs }, gi) => (
-                            <div
-                                key={gi}
-                                className="rounded-xl overflow-hidden"
-                            >
-                                {tabs.map((tab, ti) => <>{tab}</>)}
-                            </div>
-                        ))}
+                    <div className="space-y-2">
+                        {groupOrder.map((groupKey, groupIndex) => {
+                            const label = groupLabelByGroup.get(groupKey);
+                            const groupTabs = tabsByGroup.get(groupKey) ?? [];
+                            const displayLabel = label?.props.title || label?.props.group || groupKey;
+                            const collapsible = Boolean(label?.props.collapsible);
+                            const collapsed = collapsible
+                                ? (collapsedGroups[groupKey] ?? Boolean(label?.props.collapsed))
+                                : false;
+
+                            return (
+                                <div key={`${groupKey || "ungrouped"}-${groupIndex}`} className="rounded-xl overflow-hidden space-y-0.5">
+                                    {displayLabel && (
+                                        <SidebarGroupHeader
+                                            title={displayLabel}
+                                            groupKey={groupKey || "ungrouped"}
+                                            collapsible={collapsible}
+                                            collapsed={collapsed}
+                                            onToggle={() => setCollapsedGroups((prev) => ({
+                                                ...prev,
+                                                [groupKey]: !collapsed,
+                                            }))}
+                                            actions={label?.props.actions ?? []}
+                                            dropdownActions={label?.props.dropdownActions ?? []}
+                                        />
+                                    )}
+
+                                    {!collapsed && groupTabs.map((tab, tabIndex) => (
+                                        <div key={`${groupKey || "ungrouped"}-tab-${tabIndex}`}>{tab}</div>
+                                    ))}
+                                </div>
+                            );
+                        })}
                     </div>
                 </div>
             </div>
 
             {/* Go to dashboard — always at bottom */}
             <div className="shrink-0 pt-2 border-t border-white/10 mt-2">
+                {actions.length > 0 && (
+                    <div className="shrink-0 border-white/10 space-y-0.5">
+                        {actions.map((a, i) => <div key={i}>{a}</div>)}
+                    </div>
+                )}
+
                 <Link to="/home" className="block group">
                     <div className="flex items-center gap-2 px-2 py-1.5 rounded-md">
                         <Icon
@@ -261,7 +397,7 @@ export default function AppTemplate({
     title: string;
     children: ReactNode;
 }) {
-    const pathname = useLocation().pathname;
+    const location = useLocation();
     const sidebar = Children.toArray(children).find(
         (c) => isValidElement(c) && (c as React.ReactElement).type === Sidebar,
     );
@@ -271,7 +407,7 @@ export default function AppTemplate({
     );
 
     return (
-        <SidebarContext.Provider value={{ pathname }}>
+        <SidebarContext.Provider value={{ pathname: location.pathname, search: location.search }}>
             <div className="flex h-dvh bg-(--surface) backdrop-blur-[5px] backdrop-brightness-85 text-white p-4 gap-8">
                 {/* Sidebar column */}
                 <div className="w-55 shrink-0 flex flex-col">
