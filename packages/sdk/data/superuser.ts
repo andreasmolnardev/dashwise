@@ -10,19 +10,28 @@ export async function getUserConfigById(configId: string) {
 	return pb.collection("userConfig").getOne(configId);
 }
 
-export async function getUserConfigsByAssociatedUserId(userId: string, batchSize = 1000) {
+export async function getUserConfigsByAssociatedUserId(
+	userId: string,
+	batchSize = 1000,
+) {
 	const pb = await getSuperuserPB();
 	return pb.collection("userConfig").getFullList(batchSize, {
 		filter: `associatedUserId = "${userId}"`,
 	});
 }
 
-export async function updateUserConfigRecord(configId: string, payload: Record<string, unknown>) {
+export async function updateUserConfigRecord(
+	configId: string,
+	payload: Record<string, unknown>,
+) {
 	const pb = await getSuperuserPB();
 	return pb.collection("userConfig").update(configId, payload);
 }
 
-export async function getMonitoringJobsByUserId(userId: string, batchSize = 2000) {
+export async function getMonitoringJobsByUserId(
+	userId: string,
+	batchSize = 2000,
+) {
 	const pb = await getSuperuserPB();
 	return pb.collection("monitoringJobs").getFullList(batchSize, {
 		filter: `userId = "${userId}"`,
@@ -31,7 +40,10 @@ export async function getMonitoringJobsByUserId(userId: string, batchSize = 2000
 
 export async function getMonitoringJobs(batchSize = 2000, filter?: string) {
 	const pb = await getSuperuserPB();
-	return pb.collection("monitoringJobs").getFullList(batchSize, filter ? { filter } : undefined);
+	return pb.collection("monitoringJobs").getFullList(
+		batchSize,
+		filter ? { filter } : undefined,
+	);
 }
 
 export async function createMonitoringJob(payload: Record<string, unknown>) {
@@ -39,12 +51,17 @@ export async function createMonitoringJob(payload: Record<string, unknown>) {
 	return pb.collection("monitoringJobs").create(payload);
 }
 
-export async function updateMonitoringJob(jobId: string, payload: Record<string, unknown>) {
+export async function updateMonitoringJob(
+	jobId: string,
+	payload: Record<string, unknown>,
+) {
 	const pb = await getSuperuserPB();
 	return pb.collection("monitoringJobs").update(jobId, payload);
 }
 
-export async function createMonitoringJobStatusLog(payload: Record<string, unknown>) {
+export async function createMonitoringJobStatusLog(
+	payload: Record<string, unknown>,
+) {
 	const pb = await getSuperuserPB();
 	return pb.collection("monitoringJobStatusLogs").create(payload);
 }
@@ -54,7 +71,10 @@ export async function getAppInfoRecords(batchSize = 200) {
 	return pb.collection("appInfo").getFullList(batchSize);
 }
 
-export async function updateAppInfoRecord(recordId: string, payload: Record<string, unknown>) {
+export async function updateAppInfoRecord(
+	recordId: string,
+	payload: Record<string, unknown>,
+) {
 	const pb = await getSuperuserPB();
 	return pb.collection("appInfo").update(recordId, payload);
 }
@@ -74,26 +94,93 @@ export async function getAllNewsFeeds(batchSize = 2000) {
 	return pb.collection("newsFeeds").getFullList(batchSize);
 }
 
+export async function getNewsFeedsByUserId(userId: string, batchSize = 2000) {
+	const pb = await getSuperuserPB();
+	return pb.collection("newsFeeds").getFullList(batchSize, {
+		filter: `userId="${userId.replace(/"/g, '\\"')}"`,
+	});
+}
+
+export async function getNewsFeedByTitle(userId: string, title: string) {
+	const pb = await getSuperuserPB();
+	return pb.collection("newsFeeds").getFirstListItem(
+		`userId="${userId.replace(/"/g, '\\"')}" && title="${title.replace(/"/g, '\\"')}"`,
+	);
+}
+
+export async function createNewsFeedRecord(payload: Record<string, unknown>) {
+	const pb = await getSuperuserPB();
+	return pb.collection("newsFeeds").create(payload);
+}
+
+export async function updateNewsFeedRecord(
+	feedId: string,
+	payload: Record<string, unknown>,
+) {
+	const pb = await getSuperuserPB();
+	return pb.collection("newsFeeds").update(feedId, payload);
+}
+
+export async function getAllNewsSubscriptions(batchSize = 2000) {
+	const pb = await getSuperuserPB();
+	return pb.collection("newsSubscriptions").getFullList(batchSize);
+}
+
 export async function getNewsFeedById(feedId: string) {
 	const pb = await getSuperuserPB();
 	return pb.collection("newsFeeds").getOne(feedId);
 }
 
+export async function getNewsSubscriptionById(subscriptionId: string) {
+	const pb = await getSuperuserPB();
+	return pb.collection("newsSubscriptions").getOne(subscriptionId);
+}
+
+export async function getNewsSubscriptionByUrl(url: string) {
+	const pb = await getSuperuserPB();
+	return pb.collection("newsSubscriptions").getFirstListItem(
+		`url="${url.replace(/"/g, '\\"')}"`,
+	);
+}
+
+export async function updateNewsSubscription(
+	subscriptionId: string,
+	payload: Record<string, unknown>,
+) {
+	const pb = await getSuperuserPB();
+	return pb.collection("newsSubscriptions").update(subscriptionId, payload);
+}
+
+export async function createNewsSubscription(payload: Record<string, unknown>) {
+	const pb = await getSuperuserPB();
+	return pb.collection("newsSubscriptions").create(payload);
+}
+
 export async function getNewsFeedItemsCacheByUrl(url: string) {
 	const pb = await getSuperuserPB();
-	return pb.collection("newsFeedItemsCache").getList(1, 1, {
+	return pb.collection("newsSubscriptions").getList(1, 1, {
 		filter: `url="${url.replace(/"/g, '\\"')}"`,
 	});
 }
 
-export async function updateNewsFeedItemsCache(recordId: string, payload: Record<string, unknown>) {
+export async function deleteNewsSubscription(subscriptionId: string) {
 	const pb = await getSuperuserPB();
-	return pb.collection("newsFeedItemsCache").update(recordId, payload);
+	return pb.collection("newsSubscriptions").delete(subscriptionId);
 }
 
-export async function createNewsFeedItemsCache(payload: Record<string, unknown>) {
+export async function updateNewsFeedItemsCache(
+	recordId: string,
+	payload: Record<string, unknown>,
+) {
 	const pb = await getSuperuserPB();
-	return pb.collection("newsFeedItemsCache").create(payload);
+	return pb.collection("newsSubscriptions").update(recordId, payload);
+}
+
+export async function createNewsFeedItemsCache(
+	payload: Record<string, unknown>,
+) {
+	const pb = await getSuperuserPB();
+	return pb.collection("newsSubscriptions").create(payload);
 }
 
 export async function getQueuedNotificationItems(batchSize = 100) {
