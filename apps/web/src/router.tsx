@@ -9,7 +9,7 @@ import AuthenticatedLayout from "./app/(authenticated)/layout";
 import OnboardingPage from "./app/(authenticated)/onboarding/page";
 import DynamicPage from "./app/(authenticated)/dashboard/[page]/page";
 import NewsPage from "./app/(authenticated)/apps/news/page";
-import NewsOnboardingPage from "./app/(authenticated)/apps/news/onboarding/page";
+import NewsLayout from "./components/news/NewsLayout";
 import NotificationsLayout from "./app/(authenticated)/apps/notifications/layout";
 import NotificationsPage from "./app/(authenticated)/apps/notifications/page";
 import NotificationsInboxPage from "./app/(authenticated)/apps/notifications/inbox/page";
@@ -51,8 +51,23 @@ export const appRouter = createBrowserRouter([
         element: <AuthenticatedLayout />,
         children: [
            { path: "home", element: <DynamicPage /> },
-          { path: "news", element: <NewsPage /> },
-          { path: "news/onboarding", element: <NewsOnboardingPage /> },
+            { path: "news", element: <Navigate to="/apps/news" replace /> },
+            {
+              path: "apps/news",
+              element: (
+                <NewsLayout>
+                  <NewsPage />
+                </NewsLayout>
+              ),
+            },
+            {
+              path: "apps/news/:feedId",
+              element: (
+                <NewsLayout>
+                  <NewsPage />
+                </NewsLayout>
+              ),
+            },
           {
             path: "links",
             element: <LinksLayout />,
