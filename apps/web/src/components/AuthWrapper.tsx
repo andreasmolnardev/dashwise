@@ -137,7 +137,7 @@ export default function AuthWrapper({ children }: AuthWrapperProps) {
   return (
     <LocalizationProvider>
       <div
-        className={cn("min-h-screen overflow-hidden")}
+        className={cn("min-h-screen overflow-hidden overscroll-none")}
         style={{
           backdropFilter: `blur(${blur}px) brightness(${appliedBrightness}%)`,
           WebkitBackdropFilter: `blur(${blur}px) brightness(${appliedBrightness}%)`,
