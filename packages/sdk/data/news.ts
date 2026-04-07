@@ -2,7 +2,19 @@ import axios from "axios";
 import { channelId } from "@gonetone/get-youtube-id-by-url";
 import config from "../lib/config";
 import { getFaviconFromDOM } from "../lib/api/tools/faviconFromDom";
-import { getSuperuserPB } from "@dashwise/sdk/lib/pocketbase";
+import {
+  deleteNewsSubscription,
+  getAllNewsFeeds,
+  getAllNewsSubscriptions,
+  getNewsFeedByTitle,
+  getNewsFeedsByUserId,
+  getNewsSubscriptionById,
+  getNewsSubscriptionByUrl,
+  createNewsFeedRecord,
+  updateNewsFeedRecord,
+  updateNewsSubscription,
+  createNewsSubscription,
+} from "@dashwise/sdk/data/superuser";
 
 type FeedItem = {
   title: string;
@@ -12,10 +24,22 @@ type FeedItem = {
 };
 
 type Subscription = {
-  category: string;
-  feedUrl: string;
+  id?: string;
+  url: string;
+  feedUrl?: string;
   icon?: string;
+  json?: unknown;
+  title?: string;
   name?: string;
+  feedIds?: string[];
+};
+
+type FeedRecord = {
+  id: string;
+  title?: string;
+  subscriptionRefs?: string[];
+  excludedSubscriptionRefs?: string[];
+  [key: string]: any;
 };
 
 function escapeFilter(value: string) {
@@ -32,92 +56,219 @@ function itemTime(item: FeedItem): number {
   return 0;
 }
 
-async function getUserNewsFeedRecord(userId: string) {
-  const pb = await getSuperuserPB();
-  try {
-    return await pb
-      .collection("newsFeeds")
-      .getFirstListItem(`userId="${escapeFilter(userId)}"`);
-  } catch (error: any) {
-    if (error?.status === 404) return null;
-    throw error;
+function normalizeSubscription(entry: any): Subscription | null {
+  if (!entry) return null;
+
+  const url = String(entry.url || entry.feedUrl || "").trim();
+  if (!url) return null;
+
+  return {
+    id: entry.id ? String(entry.id) : undefined,
+    url,
+    feedUrl: url,
+    icon: entry.icon ? String(entry.icon) : "",
+    json: entry.json,
+    title: String(entry.title || entry.name || url),
+    name: String(entry.title || entry.name || url),
+  };
+}
+
+async function getUserFeeds(userId: string): Promise<FeedRecord[]> {
+  const feeds = await getAllNewsFeeds(2000);
+  return (Array.isArray(feeds) ? feeds : []).filter((feed: any) => String(feed.userId || "") === userId);
+}
+
+function parseCachedItems(raw: unknown): FeedItem[] {
+  if (!raw) return [];
+  if (Array.isArray(raw)) return raw;
+
+  if (typeof raw === "string") {
+    try {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+
+  return [];
+}
+
+function getSubscriptionItems(subscription: Subscription): FeedItem[] {
+  return parseCachedItems(subscription.json);
+}
+
+async function getUserSubscriptionIdsFromFeeds(feeds: FeedRecord[]) {
+  const ids = new Set<string>();
+
+  for (const feed of feeds) {
+    for (const id of feed.subscriptionRefs ?? []) {
+      ids.add(String(id));
+    }
+  }
+
+  return ids;
+}
+
+async function getUserExcludedSubscriptionIdsFromFeeds(feeds: FeedRecord[]) {
+  const ids = new Set<string>();
+
+  for (const feed of feeds) {
+    for (const id of feed.excludedSubscriptionRefs ?? []) {
+      ids.add(String(id));
+    }
+  }
+
+  return ids;
+}
+
+async function syncSubscriptionFeedRefs(
+  userId: string,
+  subscriptionId: string,
+  feedIds: string[] = [],
+  newFeedTitles: string[] = [],
+) {
+  const feeds = await getNewsFeedsByUserId(userId);
+  const selectedIds = new Set(feedIds.map(String).filter(Boolean));
+
+  for (const rawTitle of newFeedTitles) {
+    const title = String(rawTitle || "").trim();
+    if (!title) continue;
+
+    const existingFeed = await getNewsFeedByTitle(userId, title).catch(() => null);
+
+    if (existingFeed?.id) {
+      selectedIds.add(String(existingFeed.id));
+      continue;
+    }
+
+    const createdFeed = await createNewsFeedRecord({
+      userId,
+      title,
+      subscriptionRefs: [subscriptionId],
+      excludedSubscriptionRefs: [],
+    });
+    selectedIds.add(String(createdFeed.id));
+  }
+
+  for (const feed of feeds) {
+    const feedId = String(feed.id || "");
+    if (!feedId) continue;
+
+    const currentRefs = new Set((feed.subscriptionRefs ?? []).map(String));
+    const hasSubscription = currentRefs.has(subscriptionId);
+
+    if (selectedIds.has(feedId)) {
+      if (!hasSubscription) {
+        currentRefs.add(subscriptionId);
+        await updateNewsFeedRecord(feed.id, {
+          subscriptionRefs: Array.from(currentRefs),
+        });
+      }
+      continue;
+    }
+
+    if (hasSubscription) {
+      currentRefs.delete(subscriptionId);
+      await updateNewsFeedRecord(feed.id, {
+        subscriptionRefs: Array.from(currentRefs),
+      });
+    }
   }
 }
 
-async function buildFeedFromSubscriptions(subscriptions: Subscription[], category?: string | null) {
-  const pb = await getSuperuserPB();
-  let feed: Record<string, FeedItem[]> = {};
+async function buildFeedFromSubscriptions(
+  subscriptions: Subscription[],
+  feedId?: string | null,
+  feeds: FeedRecord[] = [],
+) {
+  const byId = new Map(subscriptions.filter((subscription) => subscription.id).map((subscription) => [String(subscription.id), subscription] as const));
 
-  const urls = Array.from(
-    new Set(
-      subscriptions
-        .map((sub) => sub?.feedUrl)
-        .filter((url): url is string => typeof url === "string" && url.length > 0)
-    )
-  );
+  const selectByFeed = (feed: FeedRecord) => {
+    const refs = new Set((feed.subscriptionRefs ?? []).map(String));
+    const exclusions = new Set((feed.excludedSubscriptionRefs ?? []).map(String));
+    return subscriptions.filter((subscription) => subscription.id && refs.has(String(subscription.id)) && !exclusions.has(String(subscription.id)));
+  };
 
-  const cacheByUrl: Record<string, FeedItem[]> = {};
-  if (urls.length > 0) {
-    const filter = urls.map((url) => `url="${escapeFilter(url)}"`).join(" || ");
-    const cacheRecords = await pb.collection("newsFeedItemsCache").getFullList({ filter });
+  let selectedSubscriptions: Subscription[] = subscriptions;
 
-    for (const cacheRecord of cacheRecords) {
-      const raw = cacheRecord.json;
-      if (!raw) {
-        cacheByUrl[cacheRecord.url] = [];
-        continue;
-      }
-
-      try {
-        if (typeof raw === "string") {
-          const parsed = JSON.parse(raw);
-          cacheByUrl[cacheRecord.url] = Array.isArray(parsed) ? parsed : [];
-        } else if (Array.isArray(raw)) {
-          cacheByUrl[cacheRecord.url] = raw;
-        } else {
-          cacheByUrl[cacheRecord.url] = [];
-        }
-      } catch {
-        cacheByUrl[cacheRecord.url] = [];
+  if (feedId && feedId !== "all") {
+    const feedRecord = feeds.find((feed) => String(feed.id) === feedId);
+    if (feedRecord) {
+      selectedSubscriptions = selectByFeed(feedRecord);
+    } else if (byId.has(feedId)) {
+      selectedSubscriptions = [byId.get(feedId)!];
+    } else {
+      selectedSubscriptions = [];
+    }
+  } else {
+    const allFeedRecord = feeds.find((feed) => String(feed.id) === "all" || String(feed.title || "").toLowerCase() === "all feed");
+    if (allFeedRecord) {
+      selectedSubscriptions = selectByFeed(allFeedRecord);
+      if (!selectedSubscriptions.length) {
+        selectedSubscriptions = subscriptions;
       }
     }
   }
 
-  for (const sub of subscriptions) {
-    if (!sub?.category || !sub?.feedUrl) continue;
-    if (!feed[sub.category]) {
-      feed[sub.category] = [];
-    }
-    feed[sub.category].push(...(cacheByUrl[sub.feedUrl] ?? []));
-  }
+  const feed: Record<string, FeedItem[]> = {};
 
-  for (const key of Object.keys(feed)) {
-    feed[key] = feed[key].sort((a, b) => itemTime(b) - itemTime(a)).slice(0, 10);
-  }
-
-  if (category && category !== "All") {
-    feed = feed[category] ? { [category]: feed[category] } : {};
+  for (const subscription of selectedSubscriptions) {
+    const key = subscription.title || subscription.url || subscription.id || "Subscription";
+    const items = getSubscriptionItems(subscription).sort((a, b) => itemTime(b) - itemTime(a));
+    feed[key] = items;
   }
 
   return feed;
 }
 
-export async function getNewsFeed(userId: string, category?: string | null) {
-  const record = await getUserNewsFeedRecord(userId);
-  if (!record) {
-    return { feed: {} };
-  }
+export async function getNewsFeed(userId: string, feedId?: string | null) {
+  const feeds = await getUserFeeds(userId);
+  const subscriptionIds = await getUserSubscriptionIdsFromFeeds(feeds);
+  const excludedIds = await getUserExcludedSubscriptionIdsFromFeeds(feeds);
 
-  const subscriptions = record.subscriptions ?? [];
-  const feed = await buildFeedFromSubscriptions(subscriptions, category);
+  const allSubscriptions = (await getAllNewsSubscriptions(2000)) as any[];
+  const subscriptions = allSubscriptions
+    .map(normalizeSubscription)
+    .filter((entry: Subscription | null): entry is Subscription => Boolean(entry));
+
+  const scopedSubscriptions = subscriptionIds.size
+    ? subscriptions.filter((subscription) => subscription.id && subscriptionIds.has(String(subscription.id)) && !excludedIds.has(String(subscription.id)))
+    : subscriptions.filter((subscription) => !excludedIds.has(String(subscription.id || "")));
+
+  const feed = await buildFeedFromSubscriptions(scopedSubscriptions, feedId, feeds);
   return { feed };
 }
 
 export async function getNewsSubscriptions(userId: string) {
-  const record = await getUserNewsFeedRecord(userId);
+  const feeds = await getUserFeeds(userId);
+  const subscriptionIds = await getUserSubscriptionIdsFromFeeds(feeds);
+
+  const allSubscriptions = (await getAllNewsSubscriptions(2000)) as any[];
+  const subscriptions = allSubscriptions
+    .map(normalizeSubscription)
+    .filter((entry: Subscription | null): entry is Subscription => Boolean(entry));
+
+  const scopedSubscriptions = subscriptionIds.size
+    ? subscriptions.filter((subscription) => subscription.id && subscriptionIds.has(String(subscription.id)))
+    : subscriptions;
+
+  const subscriptionsWithFeedIds = scopedSubscriptions.map((subscription) => ({
+    ...subscription,
+    feedIds: feeds
+      .filter((feed) => (feed.subscriptionRefs ?? []).map(String).includes(String(subscription.id || "")))
+      .map((feed) => String(feed.id)),
+  }));
+
+  const feedRecords = feeds.length > 0 ? feeds : [];
+
   return {
-    id: record?.id ?? null,
-    subscriptions: record?.subscriptions ?? [],
+    id: null,
+    subscriptions: subscriptionsWithFeedIds,
+    feeds: [
+      { id: "all", title: "All feed" },
+      ...feedRecords.map((feed) => ({ id: String(feed.id), title: String(feed.title || "Untitled feed") })),
+    ],
   };
 }
 
@@ -126,23 +277,15 @@ export async function refreshNewsFeed(userId: string) {
     return { message: "Jobs webhook is disabled" };
   }
 
-  const record = await getUserNewsFeedRecord(userId);
-  if (!record?.id) {
-    return { message: "No subscriptions found for user" };
-  }
-
-  const url = `${config.jobs_url}/webhook/newsFeedBuilder?feedId=${record.id}`;
+  const url = `${config.jobs_url}/webhook/newsFeedBuilder`;
   const response = await axios.get(url);
   return response.data;
 }
 
 export async function subscribeNewsFeed(
   userId: string,
-  sub: { feedUrl: string; name?: string; icon?: string; category?: string }
+  sub: { feedUrl: string; name?: string; icon?: string; feedIds?: string[]; newFeedTitles?: string[] }
 ) {
-  const pb = await getSuperuserPB();
-  const filter = `userId="${escapeFilter(userId)}"`;
-
   const originalFeedUrl = sub.feedUrl;
   if (originalFeedUrl.includes("https://www.youtube.com/@")) {
     const id = await channelId(originalFeedUrl);
@@ -158,27 +301,28 @@ export async function subscribeNewsFeed(
 
   sub.icon = sub.icon?.trim() || (await getFaviconFromDOM(sub.feedUrl, true)) || "";
 
-  let record: any = null;
-  try {
-    record = await pb.collection("newsFeeds").getFirstListItem(filter);
-  } catch (error: any) {
-    if (error?.status === 404) {
-      await pb.collection("newsFeeds").create({ userId, subscriptions: [sub] });
-      if (config.jobs_webhook_enabled) {
-        await fetch(config.jobs_url + "/webhook/newsFeedBuilder");
-      }
-      return { message: "Feed successfully subscribed." };
+  const existing = await getNewsSubscriptionByUrl(sub.feedUrl).catch(() => null);
+
+  if (existing) {
+    await updateNewsSubscription(existing.id, {
+      url: sub.feedUrl,
+      icon: sub.icon,
+      json: existing.json ?? [],
+    });
+
+    if (existing.id) {
+      await syncSubscriptionFeedRefs(userId, existing.id, sub.feedIds ?? [], sub.newFeedTitles ?? []);
     }
-    throw error;
-  }
+  } else {
+    const created = await createNewsSubscription({
+      url: sub.feedUrl,
+      icon: sub.icon,
+      json: [],
+    });
 
-  const current = Array.isArray(record.subscriptions)
-    ? record.subscriptions.map((entry: any) => (typeof entry === "string" ? { feedUrl: entry } : entry))
-    : [];
-
-  if (!current.some((entry: any) => entry.feedUrl === sub.feedUrl)) {
-    current.push(sub);
-    await pb.collection("newsFeeds").update(record.id, { subscriptions: current });
+    if (created?.id) {
+      await syncSubscriptionFeedRefs(userId, created.id, sub.feedIds ?? [], sub.newFeedTitles ?? []);
+    }
   }
 
   if (config.jobs_webhook_enabled) {
@@ -188,49 +332,33 @@ export async function subscribeNewsFeed(
   return { message: "Feed successfully subscribed." };
 }
 
-export async function unsubscribeNewsFeed(userId: string, feedUrl: string) {
-  const pb = await getSuperuserPB();
-  const filter = `userId="${escapeFilter(userId)}"`;
-
-  const record = await pb.collection("newsFeeds").getFirstListItem(filter);
-  const current = Array.isArray(record.subscriptions)
-    ? record.subscriptions.map((entry: any) => (typeof entry === "string" ? { feedUrl: entry } : entry))
-    : [];
-
-  const next = current.filter((entry: any) => entry.feedUrl !== feedUrl);
-  await pb.collection("newsFeeds").update(record.id, { subscriptions: next });
-
-  return { message: "Feed successfully unsubscribed." };
+export async function unsubscribeNewsFeed(userId: string, subscriptionId: string) {
+  await deleteNewsSubscription(subscriptionId);
+  return { message: "Subscription removed." };
 }
 
 export async function updateNewsFeed(
   userId: string,
-  payload: { oldFeedUrl: string; feedUrl: string; name: string; icon: string; category: string }
+  payload: { subscriptionId?: string; oldFeedUrl?: string; feedUrl: string; title?: string; icon?: string; feedIds?: string[]; }
 ) {
-  const pb = await getSuperuserPB();
-  const filter = `userId="${escapeFilter(userId)}"`;
+  const target = payload.subscriptionId
+    ? await getNewsSubscriptionById(payload.subscriptionId)
+    : payload.oldFeedUrl
+      ? await getNewsSubscriptionByUrl(payload.oldFeedUrl)
+      : null;
 
-  const record = await pb.collection("newsFeeds").getFirstListItem(filter);
-  let found = false;
-
-  const next = (Array.isArray(record.subscriptions) ? record.subscriptions : []).map((entry: any) => {
-    const sub = typeof entry === "string" ? { feedUrl: entry } : entry;
-    if (sub.feedUrl === payload.oldFeedUrl) {
-      found = true;
-      return {
-        feedUrl: payload.feedUrl,
-        name: payload.name || sub.name || payload.feedUrl,
-        icon: payload.icon || sub.icon || "",
-        category: payload.category || sub.category || "",
-      };
-    }
-    return sub;
-  });
-
-  if (!found) {
-    return { _status: 404, error: "Feed not found" };
+  if (!target) {
+    return { _status: 404, error: "Subscription not found" };
   }
 
-  await pb.collection("newsFeeds").update(record.id, { subscriptions: next });
-  return { message: "Feed updated", subscriptions: next };
+  await updateNewsSubscription(target.id, {
+    url: payload.feedUrl,
+    title: payload.title,
+    icon: payload.icon || target.icon || "",
+    json: target.json ?? [],
+  });
+
+  await syncSubscriptionFeedRefs(userId, target.id, payload.feedIds ?? []);
+
+  return { message: "Subscription updated" };
 }
