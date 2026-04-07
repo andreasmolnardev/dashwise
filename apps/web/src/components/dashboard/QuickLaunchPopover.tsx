@@ -7,7 +7,7 @@ import { PopoverClose } from "@radix-ui/react-popover";
 
 const quickLinks = [
   {
-    href: "/news",
+    href: "/apps/news",
     label: "News",
     icon: "fa6-solid:newspaper",
   },
