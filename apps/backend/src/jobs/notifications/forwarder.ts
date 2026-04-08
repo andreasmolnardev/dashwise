@@ -8,21 +8,24 @@ import {
     getQueuedNotificationItems,
     markNotificationAsDone,
 } from "@dashwise/sdk/data/superuser";
+import { createLogger } from "../../lib/logger";
 
 /**
  * Process all notifications with forwardStatus="queued" and forward them
  */
+const logger = createLogger("Forwarder");
+
 export async function processQueuedNotifications() {
     try {
         // Find all notifications with forwardStatus="queued"
         const queuedNotifications = await getQueuedNotificationItems(100);
 
         if (queuedNotifications.length === 0) {
-            console.log("[Forwarder] No queued notifications to process");
+            logger.info("No queued notifications to process");
             return;
         }
 
-        console.log(`[Forwarder] Processing ${queuedNotifications.length} queued notifications`);
+        logger.info(`Processing ${queuedNotifications.length} queued notifications`);
 
         const byTopic = groupNotificationsByTopic(
             queuedNotifications as unknown as Array<{ id: string; topicId: string; content: unknown }>
@@ -50,14 +53,9 @@ export async function processQueuedNotifications() {
                             const message = formatNotificationMessage(notif.content);
                             await sendViaShoutrrr(forwarder.target, message);
                             successCount++;
-                            console.log(
-                                `[Forwarder] Successfully forwarded notification ${notif.id} to ${forwarder.target}`
-                            );
+                            logger.debug(`Forwarded notification ${notif.id} to ${forwarder.target}`);
                         } catch (error) {
-                            console.error(
-                                `[Forwarder] Error forwarding to ${forwarder.target}:`,
-                                error
-                            );
+                            logger.error(`Error forwarding to ${forwarder.target}`, error);
                         }
                     }
 
@@ -67,10 +65,10 @@ export async function processQueuedNotifications() {
                     }
                 }
             } catch (error) {
-                console.error(`[Forwarder] Error processing topic ${topicId}:`, error);
+                logger.error(`Error processing topic ${topicId}`, error);
             }
         }
     } catch (error) {
-        console.error("[Forwarder] Error in processQueuedNotifications:", error);
+        logger.error("Error in processQueuedNotifications", error);
     }
 }

@@ -2,11 +2,13 @@ import { accessSync, constants, existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { config } from "./config/env";
+import { createLogger } from "./lib/logger";
 
 /**
  * Resolve current file directory (ESM-safe)
  */
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
+const logger = createLogger("PocketBase");
 
 /**
  * Walk up until we find monorepo root (pnpm workspace marker)
@@ -84,8 +86,9 @@ export async function startPocketbase() {
   const healthUrl = new URL("/api/health", config.PB_URL).toString();
 
   if (!config.START_POCKETBASE) {
-    console.log("Skipping internal PocketBase startup; using configured PB_URL:", config.PB_URL);
+    logger.info(`Using configured PocketBase at ${config.PB_URL}`);
     await waitForPocketBaseReady(healthUrl);
+    logger.info(`Connection to PocketBase at ${config.PB_URL} succeeded`);
     return null;
   }
 
@@ -101,7 +104,8 @@ export async function startPocketbase() {
     throw new Error("Missing PocketBase admin credentials");
   }
 
-  console.log("PocketBase paths:", {
+  logger.info(`Binary found at ${pocketBaseBinary}`);
+  logger.debug("PocketBase paths", {
     binary: pocketBaseBinary,
     dataDir,
     migrationsDir,
@@ -118,7 +122,7 @@ export async function startPocketbase() {
   ]);
 
   if (createSuperuser.exitCode !== 0) {
-    console.log("Superuser may already exist or failed to create.");
+    logger.warn("Superuser already exists or could not be created");
   }
 
   // Start PocketBase
@@ -138,7 +142,7 @@ export async function startPocketbase() {
 
   // Forward Ctrl+C and kill PB
   const shutdown = () => {
-    console.log("Shutting down PocketBase...");
+    logger.info("Shutting down PocketBase");
     pb.kill();
     process.exit(0);
   };
@@ -147,6 +151,7 @@ export async function startPocketbase() {
   process.on("SIGTERM", shutdown);
 
   await waitForPocketBaseReady(healthUrl, pb);
+  logger.info(`Connection to PocketBase at ${config.PB_URL} succeeded`);
 
   return pb;
 }

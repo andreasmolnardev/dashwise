@@ -6,14 +6,16 @@ import { cors } from "hono/cors";
 import { config } from "./config/env";
 import { jobsApi, registerJobsCron } from "./jobs/index";
 import { startPocketbase } from "./pocketbase";
+import { createLogger } from "./lib/logger";
 import { registerRestRoutes } from "./restRoutes";
 
 const app = new Hono();
+const logger = createLogger("API");
 
 const pbProcess = await startPocketbase();
 
 const shutdown = () => {
-  console.log("Shutting down...");
+  logger.info("Shutting down");
   process.exit(0);
 };
 
@@ -68,10 +70,10 @@ app.get("*", async () => {
 const port = Number(process.env.PORT || 3000);
 
 Bun.serve({
+  hostname: "0.0.0.0",
   port,
   fetch: app.fetch,
 });
 
-
-console.log(`Dashwise backend running on :${port}`);
-console.log(`PocketBase target URL: ${config.PB_URL}`);
+logger.info(`Running on 0.0.0.0:${port}`);
+logger.info(`PocketBase target URL: ${config.PB_URL}`);

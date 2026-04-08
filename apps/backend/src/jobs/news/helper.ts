@@ -1,5 +1,7 @@
 import Parser from 'rss-parser';
 
+import { createLogger } from "../../lib/logger";
+
 export interface FeedItem {
     title: string;
     link: string;
@@ -11,6 +13,8 @@ export interface FeedItem {
     summary?: string;
     [key: string]: any;
 }
+
+const logger = createLogger("NewsFeedBuilder");
 
 type ParserItem = Parser.Item & FeedItem & {
     'media:thumbnail'?: { $: { url: string } } | string;
@@ -68,7 +72,7 @@ export async function getFeedItems({
         return formattedItems.slice(0, maxItems);
 
     } catch (error: any) {
-        console.error(`Error fetching or parsing feed: ${feedUrl}`, error);
+        logger.error(`Error fetching or parsing feed: ${feedUrl}`, error);
         return [];
     }
 }
@@ -159,71 +163,34 @@ export function getThumbnail(item: any, fallbackUrl?: any): string | undefined {
         // direct string
         if (typeof obj === 'string') return obj;
 
-        // direct object with url
-        if (typeof obj.url === 'string') return obj.url;
+        // common nested shapes
+        if (obj.url) return obj.url;
+        if (obj.href) return obj.href;
+        if (obj._) return obj._;
 
         return undefined;
     };
 
-    // 1. media:thumbnail on item
-    let url =
-        extractUrl(item['media:thumbnail']) ||
-        extractUrl(item.media?.thumbnail);
+    const candidates = [
+        extractUrl(item?.["media:thumbnail"]),
+        extractUrl(item?.["media:group"]),
+        extractUrl(item?.enclosure),
+        extractUrl(item?.thumbnail),
+        extractUrl(item?.image),
+        extractUrl(item?.logo),
+        getFirstImageSource(item?.content || item?.description || item?.summary || ""),
+        typeof fallbackUrl === 'string' ? fallbackUrl : extractUrl(fallbackUrl),
+    ];
 
-    if (url) return url;
-
-    // 2. media:group thumbnails (YouTube)
-    const mediaGroup = item['media:group'];
-    if (mediaGroup) {
-        url =
-            extractUrl(mediaGroup['media:thumbnail']) ||
-            extractUrl(mediaGroup.thumbnail);
-        if (url) return url;
-
-        // 3. media:content fallback
-        url = extractUrl(mediaGroup['media:content']);
-        if (url) return url;
+    for (const candidate of candidates) {
+        if (candidate && /^https?:\/\//i.test(candidate)) {
+            return candidate;
+        }
     }
-
-    // 4. enclosure
-    if (item.enclosure?.url) {
-        return item.enclosure.url;
-    }
-
-    // 5. HTML <img> fallback
-    const html =
-        item['content:encoded'] ||
-        item.content ||
-        item.summary ||
-        item.description;
-
-    if (typeof html === 'string') {
-        return getFirstImageSource(html) ?? fallbackUrl;
-    }
-
-    return fallbackUrl;
-}
-
-export function getDescription(item: any): string | undefined {
-    const stripHtml = (html: string) => html.replace(/<[^>]*>/g, '').trim();
-
-    // 1. Try media:group → media:description (YouTube)
-    const mediaGroup = item['media:group'];
-    if (mediaGroup) {
-        const mediaDesc = mediaGroup['media:description'] ?? mediaGroup.description;
-        if (typeof mediaDesc === 'string') return stripHtml(mediaDesc);
-        if (typeof mediaDesc === 'object') return stripHtml(mediaDesc[0]);
-        // rss-parser sometimes wraps text in $?._
-        if (mediaDesc?.$?._) return stripHtml(mediaDesc.$._);
-    }
-
-    // 2. Try item.description or item['content:encoded']
-    if (typeof item.description === 'string') return stripHtml(item.description);
-    if (typeof item['content:encoded'] === 'string') return stripHtml(item['content:encoded']);
-
-    // 3. Fallback: summary or content
-    if (typeof item.summary === 'string') return stripHtml(item.summary);
-    if (typeof item.content === 'string') return stripHtml(item.content);
 
     return undefined;
+}
+
+function getDescription(item: ParserItem) {
+    return item.description || item.summary || (typeof item.content === 'string' ? item.content : undefined) || (item as any)['content:encoded'];
 }

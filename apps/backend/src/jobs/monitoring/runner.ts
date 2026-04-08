@@ -7,6 +7,7 @@ import {
     getUserConfigsByAssociatedUserId,
     updateMonitoringJob,
 } from "@dashwise/sdk/data/superuser";
+import { createLogger } from "../../lib/logger";
 
 type StatusCheckMethod = "GET" | "HEAD" | "POST" | "PUT" | "PATCH" | "DELETE" | "OPTIONS";
 
@@ -19,6 +20,8 @@ type LinkCheckConfig = {
     statusCheckAuth?: unknown;
     statusCheckShowAsUp?: number[];
 };
+
+const logger = createLogger("Monitoring");
 
 export async function runStatusMonitoringJobs(): Promise<{
     processed: number;
@@ -45,7 +48,7 @@ export async function runStatusMonitoringJobsWithOptions(options?: {
     const result = { processed: 0, skipped: 0, updated: 0, logsCreated: 0, errors: 0, details: [] as any[] };
     const userLinkConfigCache = new Map<string, Map<string, LinkCheckConfig>>();
 
-    console.log("running status monitoring jobs");
+    logger.info("Running status monitoring jobs");
 
     // fetch all monitoring jobs (increase limit if you expect >2000)
     const requestedSource = options?.source || (options?.linkId ? `link ${options.linkId}` : undefined);

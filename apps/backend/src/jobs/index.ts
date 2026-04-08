@@ -12,8 +12,10 @@ import { runStatusMonitoringJobs, runStatusMonitoringJobsWithOptions } from "./m
 import { runVersionComparisonRunner } from "./updates/comparison-runner";
 import { newsFeedBuilder } from "./news/feed-builder";
 import { processQueuedNotifications } from "./notifications/forwarder";
+import { createLogger } from "../lib/logger";
 
 const execFileAsync = promisify(execFile);
+const logger = createLogger("Jobs");
 
 async function runSearchIndexerScript() {
   await runSearchItemsIndexing();
@@ -102,8 +104,8 @@ export function validateJobsBasicAuth(authorizationHeader: string | undefined) {
 }
 
 export function registerJobsCron() {
-  console.log("dashwise job runner is active");
-  console.log("Dashwise SDK app config:", _d.getAppConfig());
+  logger.info("Job runner active");
+  logger.debug("Dashwise SDK app config", _d.getAppConfig());
 
   cron.schedule(config.SEARCHITEMS_SCHEDULE, () => {
     void runSearchItemsJob("cron schedule");

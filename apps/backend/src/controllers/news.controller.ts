@@ -4,6 +4,9 @@ import type { Hono } from "hono";
 import { getNewsFeed, getNewsFeeds, getNewsSubscriptions, refreshNewsFeed, subscribeNewsFeed, unsubscribeNewsFeed, updateNewsFeed } from "@dashwise/sdk/data/news";
 
 import { readAuthToken, readJsonBody, requireAuth, withJson } from "./shared";
+import { createLogger } from "../lib/logger";
+
+const logger = createLogger("API");
 
 async function normalizeNewsFeedUrl(feedUrl: string) {
   const originalFeedUrl = String(feedUrl || "").trim();
@@ -66,7 +69,7 @@ async function getFeedMetadata(feedUrl: string) {
       icon,
     };
   } catch (error) {
-    console.error(`Error fetching feed metadata: ${normalizedFeedUrl}`, error);
+    logger.error(`Error fetching feed metadata for ${normalizedFeedUrl}`, error);
 
     try {
       const parsed = new URL(normalizedFeedUrl);

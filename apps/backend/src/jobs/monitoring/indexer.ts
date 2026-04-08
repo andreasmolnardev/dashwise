@@ -7,6 +7,7 @@ import {
     updateMonitoringJob,
     updateUserConfigRecord,
 } from "@dashwise/sdk/data/superuser";
+import { createLogger } from "../../lib/logger";
 
 type StatusCheckMethod = "GET" | "HEAD" | "POST" | "PUT" | "PATCH" | "DELETE" | "OPTIONS";
 
@@ -25,6 +26,8 @@ type ConfigLink = {
     statusCheckShowAsUp?: number[];
 };
 
+const logger = createLogger("Monitoring");
+
 export default async function indexStatusMonitoringJobs(): Promise<{
     created: number;
     skipped: number;
@@ -35,7 +38,7 @@ export default async function indexStatusMonitoringJobs(): Promise<{
 }> {
     const result = { created: 0, skipped: 0, updated: 0, disabled: 0, errors: 0, details: [] as any[] };
 
-    console.log("indexing monitoring jobs");
+    logger.info("Indexing monitoring jobs");
 
     try {
         // fetch all user configs
@@ -226,7 +229,7 @@ export async function generateMissingLinkIds(userId: string): Promise<{
             }
         }
     } catch (err: any) {
-        console.error("Error generating missing link IDs:", err.message || err);
+        logger.error("Error generating missing link IDs", err.message || err);
     }
     
     return result;

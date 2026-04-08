@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 
 import { createJobLog } from "@dashwise/sdk/data/superuser";
+import { createLogger } from "../lib/logger";
 
 type JobStatus = "started" | "success" | "error";
 
@@ -19,6 +20,8 @@ interface RunJobOptions {
   errorMessage?: string;
 }
 
+const logger = createLogger("JobLogger");
+
 function formatTimestamp(date: Date): string {
   return date.toISOString().replace("T", " ");
 }
@@ -34,7 +37,7 @@ async function writeLog(entry: JobLogEntry) {
       updated: entry.updated,
     });
   } catch (error) {
-    console.error("[JobLogger] Failed to write job log", entry.job, entry.status, error);
+    logger.error(`Failed to write job log for ${entry.job} (${entry.status})`, error);
   }
 }
 

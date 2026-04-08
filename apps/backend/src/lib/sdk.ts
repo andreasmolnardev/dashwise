@@ -1,8 +1,12 @@
 import { DashwiseSDKConnector } from "@dashwise/sdk";
 import { registerDashwiseSDKConnector } from "@dashwise/sdk/lib/pocketbase";
 import { config } from "../config/env";
+import { createLogger } from "./logger";
 
-console.log("Initializing Dashwise SDK Connector with config:", {
+const logger = createLogger("SDK");
+
+logger.info(`Using PocketBase at ${config.PB_URL}`);
+logger.debug("Dashwise SDK connector config", {
   pbUrl: config.PB_URL,
   superuserEmail: config.PB_ADMIN_EMAIL ? "configured" : "not configured",
   superuserPassword: config.PB_ADMIN_PASSWORD ? "configured" : "not configured",
