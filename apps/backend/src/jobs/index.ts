@@ -104,7 +104,6 @@ export function validateJobsBasicAuth(authorizationHeader: string | undefined) {
 }
 
 export function registerJobsCron() {
-  logger.info("Job runner active");
   logger.debug("Dashwise SDK app config", _d.getAppConfig());
 
   cron.schedule(config.SEARCHITEMS_SCHEDULE, () => {
