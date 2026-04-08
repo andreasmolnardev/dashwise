@@ -365,5 +365,12 @@ export async function newsFeedBuilder(feedId?: string): Promise<{
   }
 
   logger.debug("News feed builder finished", result);
+
+  if (result.errors === 0) {
+    logger.info(`News feed builder finished successfully: processed=${result.processed} updated=${result.updated} skipped=${result.skipped}`);
+  } else {
+    logger.warn(`News feed builder finished with errors: processed=${result.processed} updated=${result.updated} skipped=${result.skipped} errors=${result.errors}`);
+  }
+
   return result;
 }
