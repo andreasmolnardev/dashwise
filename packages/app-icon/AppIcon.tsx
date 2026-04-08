@@ -10,6 +10,7 @@ export type AppIconProps = {
 	alt?: string;
 	size?: number;
 	className?: string;
+	monoClassName?: string;
 	imageClassName?: string;
 	fallbackSource?: string | null;
 	fallbackPrefix?: string;
@@ -51,7 +52,7 @@ export function getIconifySlugFromSource(source?: string | null) {
 export function isMonoIconSource(source?: string | null) {
 	if (!source) return false;
 
-	return /^\/icons\/(?:webp|png)\/[^/]+?-(?:light|dark)\.(?:webp|png)(?:\?.*)?$/i.test(source);
+	return /^\/icons\/(?:webp|png|svg)\/[^/]+?-(?:light|dark)\.(?:webp|png|svg)(?:\?.*)?$/i.test(source);
 }
 
 function resolveImageSource(source: string, fallbackPrefix: string) {
@@ -71,6 +72,7 @@ export default function AppIcon({
 	alt,
 	size,
 	className,
+	monoClassName,
 	imageClassName,
 	fallbackSource,
 	fallbackPrefix = "",
@@ -87,6 +89,7 @@ export default function AppIcon({
 					source={fallbackSource}
 					alt={alt}
 					className={className}
+					monoClassName={monoClassName}
 					imageClassName={imageClassName}
 					fallbackPrefix={fallbackPrefix}
 					useFrostedGradient={useFrostedGradient}
@@ -121,7 +124,7 @@ export default function AppIcon({
 	if (isMonoIconSource(source)) {
 		return (
 			<span
-				className={combineClassNames("bg-current", className)}
+				className={combineClassNames("bg-current", className, monoClassName)}
 				style={{
 					maskImage: `url(${source})`,
 					WebkitMaskImage: `url(${source})`,

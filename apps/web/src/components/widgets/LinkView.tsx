@@ -35,7 +35,7 @@ import {
 } from "@/components/ui/dialog";
 import LinkDetailsForm from "@/components/settings/LinkDetailsForm";
 import IconPickerComponent from "@/components/settings/IconPicker";
-import AppIcon, { isMonoIconSource } from "@dashwise/app-icon";
+import AppIcon from "@dashwise/app-icon";
 
 export interface LinkType {
   id?: string;
@@ -657,23 +657,6 @@ function LinkTile({
   const isDisabled = serverStatus === "disabled";
   const showDot = Boolean(link.statusCheck);
 
-  const renderLocalTintableIcon = (source: string, className: string) => (
-    <span
-      className={className}
-      style={{
-        maskImage: `url(${source})`,
-        WebkitMaskImage: `url(${source})`,
-        maskRepeat: "no-repeat",
-        WebkitMaskRepeat: "no-repeat",
-        maskPosition: "center",
-        WebkitMaskPosition: "center",
-        maskSize: "contain",
-        WebkitMaskSize: "contain",
-      }}
-      aria-hidden
-    />
-  );
-
   return (
     <a
       key={link.id || link.url || itemIdx}
@@ -686,19 +669,13 @@ function LinkTile({
     >
       {link.iconUrl
         ? (
-          isMonoIconSource(link.iconUrl)
-            ? renderLocalTintableIcon(
-              link.iconUrl,
-              "h-8.75 w-8.75 bg-current text-foreground transition-colors group-hover:text-primary"
-            )
-            : (
-              <AppIcon
-                source={link.iconUrl}
-                alt={link.title}
-                className="h-8.75 w-8.75 text-foreground transition-colors group-hover:text-primary"
-                imageClassName="object-contain"
-              />
-            )
+          <AppIcon
+            source={link.iconUrl}
+            alt={link.title}
+            className="h-8.75 w-8.75"
+            monoClassName="text-foreground transition-colors group-hover:text-primary"
+            imageClassName="object-contain"
+          />
         )
         : (
           <div className="h-8.75 w-8.75 flex items-center justify-center">
