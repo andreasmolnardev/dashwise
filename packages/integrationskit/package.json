@@ -11,6 +11,8 @@
     "@dashwise/sdk": "workspace:*"
   },
   "exports": {
+    "./AppIcon": "./templates/AppIcon.tsx",
+    "./IntegrationIcon": "./templates/IntegrationIcon.tsx",
     "./Glanceable": "./Glanceable.tsx",
     "./GlanceableComponent": "./Glanceable.tsx",
     "./Widget": "./Widget.tsx",

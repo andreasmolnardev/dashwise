@@ -226,7 +226,7 @@ export async function newsFeedBuilder(feedId?: string): Promise<{
 }> {
   const result = { processed: 0, skipped: 0, updated: 0, errors: 0, details: [] as any[] };
 
-  const maxItemsPerFeed = 10;
+  const maxItemsPerFeed = 20;
 
   logger.info("Running news feed builder");
 

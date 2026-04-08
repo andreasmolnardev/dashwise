@@ -262,7 +262,7 @@ configuration:
       properties:
         header:
           title: "Beszel System Health"
-          icon: "integrations.beszel.details.icon"
+          icon: "url:/icons/png/beszel-light.png"
           titleAction: "url:${URL}"
         columns:
           iterate_over: "computed.system_health"
@@ -310,7 +310,7 @@ configuration:
       properties:
         header:
           title: "Beszel System Warnings"
-          icon: "integrations.beszel.details.icon"
+          icon: "url:/icons/png/beszel-light.png"
           titleAction: "url:${URL}"
         list:
           iterate_over: "computed.system_warnings"
@@ -341,7 +341,7 @@ configuration:
         mappingProperties:
           id: "${id}"
           name: "${name}"
-          icon: "integrations.beszel.details.icon"
+          icon: "url:/icons/png/beszel-light.png"
           secondaryInfo: "System"
           type: "beszelItem"
           action: "url:${URL}/system/${id}"

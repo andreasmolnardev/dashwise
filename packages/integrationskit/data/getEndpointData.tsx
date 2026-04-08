@@ -36,6 +36,8 @@ export type EndpointRuntimeCacheAdapter = {
 	) => void;
 };
 
+const inFlightEndpointRequests = new Map<string, Promise<ResolvedEndpointData>>();
+
 /**
  * Gets all integrations endpoint data
  */
@@ -231,6 +233,13 @@ export async function getEndpointData(
 	const resolvedUrl = resolveStringValue(String(endpoint.url ?? ""), context);
 	const requestHeaders = resolveHeaders(endpoint, context);
 	const requestBody = resolveBody(endpoint, context, method);
+	const requestKey = createEndpointRequestKey({
+		method,
+		resolvedUrl,
+		requestHeaders,
+		requestBody,
+		allowSsl: allowSsl === true,
+	});
 
 	// If we have a request body but no Content-Type header, default to JSON
 	const hasContentType = Object.keys(requestHeaders).some((k) =>
@@ -259,74 +268,149 @@ export async function getEndpointData(
 		};
 	}
 
-	let response: Response;
-	try {
-		console.log(`Fetching endpoint "${endpointLabel}"`, {
-			method,
-			url: resolvedUrl,
-			headers: requestHeaders,
-			body: requestBody,
-		});
-		const fetchOptions: RequestInit = {
-			method,
-			headers: requestHeaders,
-			body: requestBody,
-			signal: context.signal,
-		};
+	const endpointPromise = getOrCreateEndpointFetchPromise(
+		requestKey,
+		async () => {
+			try {
+				const now = new Date().toLocaleTimeString("en-GB", { hour12: false });
 
-		if (allowSsl) {
-			(fetchOptions as any).tls = {
-				rejectUnauthorized: false,
-			};
+				console.log(`[${now}] Fetching endpoint "${endpointLabel}"`, {
+					method,
+					url: resolvedUrl,
+					headers: requestHeaders,
+					body: requestBody,
+				});
+				const fetchOptions: RequestInit = {
+					method,
+					headers: requestHeaders,
+					body: requestBody,
+				};
+
+				if (allowSsl) {
+					(fetchOptions as any).tls = {
+						rejectUnauthorized: false,
+					};
+				}
+
+				const response = await fetch(resolvedUrl, fetchOptions);
+				const contentType = response.headers.get("content-type") ?? "";
+				const rawResponse = contentType.includes("application/json")
+					? await response.json().catch(async () => await response.text())
+					: await response.text();
+
+				if (!response.ok) {
+					const responseSummary = typeof rawResponse === "string"
+						? rawResponse.trim()
+						: JSON.stringify(rawResponse);
+					const suffix = responseSummary ? ` - ${responseSummary}` : "";
+					console.error(
+						`Non-OK response for endpoint "${endpointLabel}" (${method} ${resolvedUrl}):`,
+						{
+							status: response.status,
+							statusText: response.statusText,
+							body: rawResponse,
+						},
+					);
+					throw new Error(
+						`Failed to fetch endpoint "${endpointLabel}" (${method} ${resolvedUrl}): ${response.status} ${response.statusText}${suffix}`,
+					);
+				}
+
+				return {
+					id: typeof endpoint.id === "string" ? endpoint.id : null,
+					name: typeof endpoint.name === "string" ? endpoint.name : null,
+					method,
+					url: typeof endpoint.url === "string" ? endpoint.url : "",
+					resolvedUrl,
+					requestHeaders,
+					requestBody,
+					rawResponse,
+					mappedResponse: mapResponseBody(rawResponse, endpoint),
+				};
+			} catch (error) {
+				console.error(
+					`Error fetching endpoint "${endpointLabel}" (${method} ${resolvedUrl}):`,
+					error,
+				);
+				throw new Error(
+					`Failed to fetch endpoint "${endpointLabel}" (${method} ${resolvedUrl}): ${
+						getErrorMessage(error)
+					}`,
+				);
+			}
+		},
+	);
+
+	return await waitForEndpointFetch(endpointPromise, context.signal);
+}
+
+function getOrCreateEndpointFetchPromise(
+	requestKey: string,
+	createFetchPromise: () => Promise<ResolvedEndpointData>,
+) {
+	const existing = inFlightEndpointRequests.get(requestKey);
+	if (existing) {
+		return existing;
+	}
+
+	const pending = createFetchPromise().finally(() => {
+		const current = inFlightEndpointRequests.get(requestKey);
+		if (current === pending) {
+			inFlightEndpointRequests.delete(requestKey);
 		}
+	});
 
-		response = await fetch(resolvedUrl, fetchOptions);
-	} catch (error) {
-		console.error(
-			`Error fetching endpoint "${endpointLabel}" (${method} ${resolvedUrl}):`,
-			error,
-		);
-		throw new Error(
-			`Failed to fetch endpoint "${endpointLabel}" (${method} ${resolvedUrl}): ${
-				getErrorMessage(error)
-			}`,
-		);
+	inFlightEndpointRequests.set(requestKey, pending);
+	return pending;
+}
+
+function waitForEndpointFetch(
+	endpointPromise: Promise<ResolvedEndpointData>,
+	signal?: AbortSignal,
+) {
+	if (!signal) {
+		return endpointPromise;
 	}
 
-	const contentType = response.headers.get("content-type") ?? "";
-	const rawResponse = contentType.includes("application/json")
-		? await response.json().catch(async () => await response.text())
-		: await response.text();
-
-	if (!response.ok) {
-		const responseSummary = typeof rawResponse === "string"
-			? rawResponse.trim()
-			: JSON.stringify(rawResponse);
-		const suffix = responseSummary ? ` - ${responseSummary}` : "";
-		console.error(
-			`Non-OK response for endpoint "${endpointLabel}" (${method} ${resolvedUrl}):`,
-			{
-				status: response.status,
-				statusText: response.statusText,
-				body: rawResponse,
-			},
-		);
-		throw new Error(
-			`Failed to fetch endpoint "${endpointLabel}" (${method} ${resolvedUrl}): ${response.status} ${response.statusText}${suffix}`,
-		);
+	if (signal.aborted) {
+		return Promise.reject(abortError());
 	}
 
-	return {
-		id: typeof endpoint.id === "string" ? endpoint.id : null,
-		name: typeof endpoint.name === "string" ? endpoint.name : null,
-		method,
-		url: typeof endpoint.url === "string" ? endpoint.url : "",
-		resolvedUrl,
+	return Promise.race([
+		endpointPromise,
+		new Promise<ResolvedEndpointData>((_, reject) => {
+			const onAbort = () => {
+				signal.removeEventListener("abort", onAbort);
+				reject(abortError());
+			};
+
+			signal.addEventListener("abort", onAbort, { once: true });
+		}),
+	]);
+}
+
+function abortError() {
+	return new Error("Endpoint fetch aborted");
+}
+
+function createEndpointRequestKey(input: {
+	method: string;
+	resolvedUrl: string;
+	requestHeaders: Record<string, string>;
+	requestBody: string | null;
+	allowSsl: boolean;
+}) {
+	const requestHeaders = Object.entries(input.requestHeaders)
+		.sort(([left], [right]) => left.localeCompare(right))
+		.map(([key, value]) => [key, value]);
+
+	return JSON.stringify({
+		method: input.method,
+		resolvedUrl: input.resolvedUrl,
+		requestBody: input.requestBody,
 		requestHeaders,
-		requestBody,
-		rawResponse,
-		mappedResponse: mapResponseBody(rawResponse, endpoint),
-	};
+		allowSsl: input.allowSsl,
+	});
 }
 
 function getErrorMessage(error: unknown) {
@@ -367,7 +451,8 @@ function resolveHeaders(
 
 	const auth = resolveStringValue(String(endpoint.auth ?? ""), context);
 	if (
-		auth && !Object.keys(headers).some((key) =>
+		auth &&
+		!Object.keys(headers).some((key) =>
 			key.toLowerCase() === "authorization"
 		)
 	) {
@@ -458,12 +543,11 @@ function resolveMappedNode(node: any, context: MappingContext): any {
 		const iteratePath = typeof node.iterate === "string"
 			? node.iterate
 			: node.iterate_over;
-		const source =
-			getNestedValue(
-				context.current as Record<string, any>,
-				iteratePath,
-			) ??
-				getNestedValue(context.root, iteratePath);
+		const source = getNestedValue(
+			context.current as Record<string, any>,
+			iteratePath,
+		) ??
+			getNestedValue(context.root, iteratePath);
 		const items = Array.isArray(source)
 			? source
 			: source && typeof source === "object"
@@ -491,12 +575,11 @@ function resolveMappedNode(node: any, context: MappingContext): any {
 	}
 
 	if (typeof node.aggregate_over === "string") {
-		const source =
-			getNestedValue(
-				context.current as Record<string, any>,
-				node.aggregate_over,
-			) ??
-				getNestedValue(context.root, node.aggregate_over);
+		const source = getNestedValue(
+			context.current as Record<string, any>,
+			node.aggregate_over,
+		) ??
+			getNestedValue(context.root, node.aggregate_over);
 		const items = Array.isArray(source)
 			? source
 			: source && typeof source === "object"

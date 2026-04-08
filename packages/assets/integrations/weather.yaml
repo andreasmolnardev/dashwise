@@ -287,6 +287,10 @@ configuration:
         hourly: "this.endpoints.fetch-weather.mappedResponse.hourly"
       useEnv:
 
+  cache:
+    policy: "strict" # or "cache-first"
+    retention: 300 
+
   widgets:
     # --- Compact 3-column forecast (Now / Tonight / Tomorrow) ---
     - name: "Weather Forecast"

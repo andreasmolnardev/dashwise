@@ -1,4 +1,5 @@
 import type { Hono } from "hono";
+import { randomUUID } from "crypto";
 
 import {
   createIntegration,
@@ -28,6 +29,19 @@ import { readAuthToken, readBool, readJsonBody, requireAuth, withJson } from "./
 import { config } from "src/config/env";
 
 type ConsumerType = "widget" | "glanceable";
+type CachePolicy = "strict" | "cache-first";
+
+type IntegrationCacheConfig = {
+  policy: CachePolicy;
+  retentionSeconds: number;
+};
+
+type CacheRecord = {
+  value: unknown;
+  retentionSeconds: number | null;
+  invalidatesAt: number | null;
+  createdAt: number;
+};
 
 export function registerIntegrationsControllers(app: Hono) {
   app.get("/api/v1/integrations", withJson(async (c) => {
@@ -180,62 +194,118 @@ async function resolveWidgetConsumer(opts: {
   user: Record<string, any> | null;
 }) {
   const payload = await getIntegrationWithWidget(opts.userId, opts.key);
-    if (!payload?.integrationId || !payload?.integration || !payload?.widgetJSON) {
-      throw new ApiActionError("Widget integration not found", 404, {
-        error: "Widget integration not found",
-      });
-    }
-
-    const resolvedIntegrationEnv = resolveUserInjectedEnv(
-      payload.integration?.configuration?.environment_variables,
-      opts.user,
-    );
-    const integrationJSON = applyIntegrationEnv(
-      payload.integration,
-      resolvedIntegrationEnv,
-    );
-
-    const mergedInput = mergeWidgetInput(
-      resolvedIntegrationEnv,
-      opts.properties,
-    );
-    const widgetJSON = applyWidgetInput(payload.widgetJSON, mergedInput ?? {});
-    const cacheContext = createEndpointCacheContext({
-      localData: payload.localData,
-      type: "widget",
-      key: opts.key,
-      input: mergedInput ?? {},
-      integrationJSON,
+  if (!payload?.integrationId || !payload?.integration || !payload?.widgetJSON) {
+    throw new ApiActionError("Widget integration not found", 404, {
+      error: "Widget integration not found",
     });
+  }
 
-    const runtimeData = await resolveWidgetRuntimeData({
+  const cacheConfig = resolveIntegrationCacheConfig(payload.integration);
+  const envWithStatefulHiddenVars = resolveStatefulEnvironmentVariables({
+    envValues: toEnvValueMap(payload.integration?.configuration?.environment_variables),
+    envDefinitions: payload?.environmentDefinitions,
+    localData: payload.localData,
+    retentionSeconds: cacheConfig.retentionSeconds,
+  });
+
+  const resolvedIntegrationEnv = resolveUserInjectedEnv(envWithStatefulHiddenVars.values, opts.user);
+  const integrationJSON = applyIntegrationEnv(payload.integration, resolvedIntegrationEnv);
+  const mergedInput = mergeWidgetInput(resolvedIntegrationEnv, opts.properties);
+  const widgetJSON = applyWidgetInput(payload.widgetJSON, mergedInput ?? {});
+
+  const cacheContext = createIntegrationCacheContext({
+    localData: envWithStatefulHiddenVars.localData,
+    type: "widget",
+    key: opts.key,
+    input: mergedInput ?? {},
+    integrationJSON,
+    cacheConfig,
+  });
+
+  const cachedRuntime = cacheContext.getRuntimeSnapshot();
+  let runtimeData = cachedRuntime;
+  let freshRuntime: { data: Record<string, any> | null; env: Record<string, string> } | null = null;
+
+  const shouldResolveFresh = !cachedRuntime || cacheConfig.policy === "cache-first";
+  if (shouldResolveFresh) {
+    freshRuntime = await resolveWidgetRuntimeData({
       widgetJSON,
       integrationJSON,
       data: null,
       isPreview: opts.isPreview,
-      endpointCache: cacheContext.adapter,
-      allowInsecureEndpoints: config.ALLOW_SSL
+      endpointCache: cacheContext.createEndpointCacheAdapter({
+        readEnabled: !cachedRuntime,
+      }),
+      allowInsecureEndpoints: config.ALLOW_SSL,
     });
+    cacheContext.setRuntimeSnapshot(freshRuntime);
+    if (!runtimeData) {
+      runtimeData = freshRuntime;
+    }
+  }
 
-    await persistLocalDataIfChanged(payload.integrationId, cacheContext);
-    return {
-      consumer: "widget" as const,
-      key: opts.key,
-      integrationId: payload.integrationId,
-      input: mergedInput,
-      env: runtimeData.env,
+  if (!runtimeData) {
+    runtimeData = await resolveWidgetRuntimeData({
+      widgetJSON,
+      integrationJSON,
+      data: null,
+      isPreview: opts.isPreview,
+      endpointCache: cacheContext.createEndpointCacheAdapter({ readEnabled: true }),
+      allowInsecureEndpoints: config.ALLOW_SSL,
+    });
+    cacheContext.setRuntimeSnapshot(runtimeData);
+  }
+
+  await persistLocalDataIfChanged(payload.integrationId, cacheContext);
+
+  const staleServed = cacheConfig.policy === "cache-first" && Boolean(cachedRuntime && freshRuntime);
+  const blueprint = {
+    template: widgetJSON.template ?? "columns",
+    resolved: resolveWidgetProperties({
+      widgetJSON,
+      integrationJSON,
       data: runtimeData.data,
-      blueprint: {
-        template: widgetJSON.template ?? "columns",
-        resolved: resolveWidgetProperties({
-          widgetJSON,
-          integrationJSON,
-          data: runtimeData.data,
-          isPreview: opts.isPreview,
-        }),
+      isPreview: opts.isPreview,
+    }),
+    widgetJSON,
+  };
+
+  const freshBlueprint = staleServed && freshRuntime
+    ? {
+      template: widgetJSON.template ?? "columns",
+      resolved: resolveWidgetProperties({
         widgetJSON,
-      },
-    };
+        integrationJSON,
+        data: freshRuntime.data,
+        isPreview: opts.isPreview,
+      }),
+      widgetJSON,
+    }
+    : null;
+
+  return {
+    consumer: "widget" as const,
+    key: opts.key,
+    integrationId: payload.integrationId,
+    input: mergedInput,
+    env: runtimeData.env,
+    data: runtimeData.data,
+    blueprint,
+    fresh: staleServed && freshRuntime
+      ? {
+        env: freshRuntime.env,
+        data: freshRuntime.data,
+        blueprint: freshBlueprint,
+      }
+      : null,
+    cache: {
+      policy: cacheConfig.policy,
+      retentionSeconds: cacheConfig.retentionSeconds,
+      stateKey: cacheContext.stateKey,
+      fromCache: Boolean(cachedRuntime),
+      staleReturned: staleServed,
+    },
+  };
 }
 
 async function resolveGlanceableConsumer(opts: {
@@ -252,39 +322,82 @@ async function resolveGlanceableConsumer(opts: {
     });
   }
 
-  const resolvedIntegrationEnv = resolveUserInjectedEnv(
-    payload.integration?.configuration?.environment_variables,
-    opts.user,
-  );
-  const integrationJSON = applyIntegrationEnv(
-    payload.integration,
-    resolvedIntegrationEnv,
-  );
+  const cacheConfig = resolveIntegrationCacheConfig(payload.integration);
+  const envWithStatefulHiddenVars = resolveStatefulEnvironmentVariables({
+    envValues: toEnvValueMap(payload.integration?.configuration?.environment_variables),
+    envDefinitions: payload?.environmentDefinitions,
+    localData: payload.localData,
+    retentionSeconds: cacheConfig.retentionSeconds,
+  });
+
+  const resolvedIntegrationEnv = resolveUserInjectedEnv(envWithStatefulHiddenVars.values, opts.user);
+  const integrationJSON = applyIntegrationEnv(payload.integration, resolvedIntegrationEnv);
   const mergedInput = mergeGlanceableInput(resolvedIntegrationEnv, opts.properties);
   const glanceableJSON = mergeGlanceableJSON(payload.glanceableJSON, opts.properties);
 
-  const cacheContext = createEndpointCacheContext({
-    localData: payload.localData,
+  const cacheContext = createIntegrationCacheContext({
+    localData: envWithStatefulHiddenVars.localData,
     type: "glanceable",
     key: opts.key,
     input: mergedInput,
     integrationJSON,
+    cacheConfig,
   });
 
-  const runtimeData = await resolveGlanceableRuntimeData({
-    glanceableJSON,
-    integrationJSON,
-    data: null,
-    isPreview: opts.isPreview,
-    baseEnv: normalizeInputEnv(mergedInput),
-    endpointCache: cacheContext.adapter,
-  });
+  const cachedRuntime = cacheContext.getRuntimeSnapshot();
+  let runtimeData = cachedRuntime;
+  let freshRuntime: { data: Record<string, any> | null; env: Record<string, string> } | null = null;
+
+  const shouldResolveFresh = !cachedRuntime || cacheConfig.policy === "cache-first";
+  if (shouldResolveFresh) {
+    freshRuntime = await resolveGlanceableRuntimeData({
+      glanceableJSON,
+      integrationJSON,
+      data: null,
+      isPreview: opts.isPreview,
+      baseEnv: normalizeInputEnv(mergedInput),
+      endpointCache: cacheContext.createEndpointCacheAdapter({
+        readEnabled: !cachedRuntime,
+      }),
+    });
+    cacheContext.setRuntimeSnapshot(freshRuntime);
+    if (!runtimeData) {
+      runtimeData = freshRuntime;
+    }
+  }
+
+  if (!runtimeData) {
+    runtimeData = await resolveGlanceableRuntimeData({
+      glanceableJSON,
+      integrationJSON,
+      data: null,
+      isPreview: opts.isPreview,
+      baseEnv: normalizeInputEnv(mergedInput),
+      endpointCache: cacheContext.createEndpointCacheAdapter({ readEnabled: true }),
+    });
+    cacheContext.setRuntimeSnapshot(runtimeData);
+  }
 
   await persistLocalDataIfChanged(payload.integrationId, cacheContext);
 
   const rawText = typeof glanceableJSON.text === "string"
     ? glanceableJSON.text
     : (typeof glanceableJSON.name === "string" ? glanceableJSON.name : "");
+  const staleServed = cacheConfig.policy === "cache-first" && Boolean(cachedRuntime && freshRuntime);
+
+  const blueprint = {
+    text: rawText ? resolveGlanceableText(rawText, runtimeData.env) : "",
+    icon: getGlanceableIconSource(glanceableJSON.icon, runtimeData.env),
+    glanceableJSON,
+  };
+
+  const freshBlueprint = staleServed && freshRuntime
+    ? {
+      text: rawText ? resolveGlanceableText(rawText, freshRuntime.env) : "",
+      icon: getGlanceableIconSource(glanceableJSON.icon, freshRuntime.env),
+      glanceableJSON,
+    }
+    : null;
 
   return {
     consumer: "glanceable" as const,
@@ -293,10 +406,20 @@ async function resolveGlanceableConsumer(opts: {
     input: mergedInput,
     env: runtimeData.env,
     data: runtimeData.data,
-    blueprint: {
-      text: rawText ? resolveGlanceableText(rawText, runtimeData.env) : "",
-      icon: getGlanceableIconSource(glanceableJSON.icon, runtimeData.env),
-      glanceableJSON,
+    blueprint,
+    fresh: staleServed && freshRuntime
+      ? {
+        env: freshRuntime.env,
+        data: freshRuntime.data,
+        blueprint: freshBlueprint,
+      }
+      : null,
+    cache: {
+      policy: cacheConfig.policy,
+      retentionSeconds: cacheConfig.retentionSeconds,
+      stateKey: cacheContext.stateKey,
+      fromCache: Boolean(cachedRuntime),
+      staleReturned: staleServed,
     },
   };
 }
@@ -529,7 +652,7 @@ function normalizeInputEnv(input: Record<string, any>) {
   return flattenToEnv(isPlainObject(input) ? input : {});
 }
 
-function buildConsumerEnvSignature(
+function buildConsumerStateVars(
   integrationJSON: Record<string, any>,
   input: Record<string, any>,
 ) {
@@ -544,7 +667,7 @@ function buildConsumerEnvSignature(
     delete merged[variableName];
   }
 
-  return stableStringify(merged);
+  return merged;
 }
 
 function getEndpointProducedVars(integrationJSON: Record<string, any>) {
@@ -598,121 +721,235 @@ function isPlainObject(value: unknown): value is Record<string, any> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function createEndpointCacheContext(opts: {
+function resolveIntegrationCacheConfig(integrationJSON: Record<string, any>): IntegrationCacheConfig {
+  const rawCache = isPlainObject(integrationJSON?.configuration?.cache)
+    ? (integrationJSON.configuration.cache as Record<string, any>)
+    : null;
+  const rawPolicy = String(rawCache?.policy ?? "").trim().toLowerCase();
+  const policy: CachePolicy = rawPolicy === "cache-first" ? "cache-first" : "strict";
+
+  const rawRetention = Number(rawCache?.retention);
+  const retentionSeconds = Number.isFinite(rawRetention) && rawRetention > 0
+    ? rawRetention
+    : 300;
+
+  return { policy, retentionSeconds };
+}
+
+function toEnvValueMap(raw: unknown): Record<string, any> {
+  if (!isPlainObject(raw)) {
+    return {};
+  }
+
+  return Object.entries(raw as Record<string, unknown>).reduce<Record<string, any>>((acc, [key, value]) => {
+    acc[key] = value;
+    return acc;
+  }, {});
+}
+
+function resolveStatefulEnvironmentVariables(opts: {
+  envValues: Record<string, any>;
+  envDefinitions: unknown;
+  localData: unknown;
+  retentionSeconds: number;
+}) {
+  const localData = isPlainObject(opts.localData)
+    ? deepClone(opts.localData as Record<string, any>)
+    : {};
+  const hiddenEnvState = getOrCreateObject(localData, "statefulEnv");
+  const values = { ...opts.envValues };
+  const now = Date.now();
+  let changed = false;
+
+  if (isPlainObject(opts.envDefinitions)) {
+    for (const [name, definitionRaw] of Object.entries(opts.envDefinitions as Record<string, unknown>)) {
+      const definition = isPlainObject(definitionRaw)
+        ? (definitionRaw as Record<string, any>)
+        : null;
+      if (!definition || definition.user_hidden !== true) {
+        continue;
+      }
+
+      const stateRaw = hiddenEnvState[name];
+      const state = isPlainObject(stateRaw)
+        ? (stateRaw as Record<string, any>)
+        : null;
+      const currentValue = typeof values[name] === "string" ? values[name].trim() : "";
+      const stateValue = typeof state?.value === "string" ? state.value.trim() : "";
+      const invalidatesAt = Number(state?.invalidatesAt);
+      const hasState = Number.isFinite(invalidatesAt);
+      const stateStillValid = Number.isFinite(invalidatesAt) && invalidatesAt > now;
+
+      let resolved = currentValue;
+      if (!resolved && stateStillValid && stateValue) {
+        resolved = stateValue;
+        values[name] = stateValue;
+        changed = true;
+      }
+
+      if (!resolved || (hasState && !stateStillValid)) {
+        resolved = randomUUID().replace(/-/g, "");
+        values[name] = resolved;
+        hiddenEnvState[name] = {
+          value: resolved,
+          invalidatesAt: now + (opts.retentionSeconds * 1000),
+        };
+        changed = true;
+        continue;
+      }
+
+      if (
+        !state ||
+        state.value !== resolved ||
+        !hasState
+      ) {
+        hiddenEnvState[name] = {
+          value: resolved,
+          invalidatesAt: hasState && stateStillValid
+            ? invalidatesAt
+            : now + (opts.retentionSeconds * 1000),
+        };
+        changed = true;
+      }
+    }
+  }
+
+  return {
+    values,
+    localData,
+    changed,
+  };
+}
+
+function encodeStateKey(state: Record<string, string>) {
+  return Buffer.from(stableStringify(state), "utf-8").toString("base64");
+}
+
+function createIntegrationCacheContext(opts: {
   localData: unknown;
   type: ConsumerType;
   key: string;
   input: Record<string, any>;
   integrationJSON: Record<string, any>;
+  cacheConfig: IntegrationCacheConfig;
 }) {
   const root = isPlainObject(opts.localData)
     ? deepClone(opts.localData as Record<string, any>)
     : {};
-  const consumerDataCache = getOrCreateObject(root, "consumerDataCache");
-  const consumerTypeBucket = getOrCreateObject(consumerDataCache, opts.type);
-  const consumerKeyBucket = getOrCreateObject(consumerTypeBucket, opts.key);
-  const integrationEnv = buildConsumerEnvSignature(opts.integrationJSON, opts.input);
-  const currentIntegrationEnv = typeof consumerKeyBucket.integrationEnv === "string"
-    ? consumerKeyBucket.integrationEnv
-    : null;
+  const cacheKV = getOrCreateObject(root, "cacheKV");
+  const statefulVars = buildConsumerStateVars(opts.integrationJSON, opts.input);
+  const stateKey = encodeStateKey(statefulVars);
+  const cacheNamespace = `${opts.type}:${opts.key}:${stateKey}`;
+  const runtimeSnapshotKey = `${cacheNamespace}:runtime`;
 
   let changed = false;
 
-  if (currentIntegrationEnv !== integrationEnv) {
-    consumerKeyBucket.integrationEnv = integrationEnv;
-    consumerKeyBucket.endpoints = {};
-    consumerKeyBucket.invalidation = JSON.stringify({});
-    changed = true;
-  }
+  const readRecord = (key: string): CacheRecord | null => {
+    const recordRaw = cacheKV[key];
+    if (!isPlainObject(recordRaw)) {
+      return null;
+    }
 
-  const endpointsBucket = getOrCreateObject(consumerKeyBucket, "endpoints");
-  let invalidation = parseInvalidationMap(consumerKeyBucket.invalidation);
+    const record = recordRaw as CacheRecord;
+    const invalidatesAt = Number(record.invalidatesAt);
+    if (Number.isFinite(invalidatesAt) && invalidatesAt <= Date.now()) {
+      delete cacheKV[key];
+      changed = true;
+      return null;
+    }
 
-  const persistInvalidation = () => {
-    consumerKeyBucket.invalidation = JSON.stringify(invalidation);
+    return record;
   };
 
-  if (typeof consumerKeyBucket.invalidation !== "string") {
-    persistInvalidation();
+  const writeRecord = (
+    key: string,
+    value: unknown,
+    invalidatesAt: number | null,
+    retentionSeconds: number | null,
+  ) => {
+    cacheKV[key] = {
+      value,
+      retentionSeconds,
+      invalidatesAt,
+      createdAt: Date.now(),
+    } satisfies CacheRecord;
     changed = true;
-  }
+  };
 
-  if (typeof consumerKeyBucket.integrationEnv !== "string") {
-    consumerKeyBucket.integrationEnv = integrationEnv;
-    changed = true;
-  }
+  const createEndpointKey = (endpointId: string) => `${cacheNamespace}:endpoint:${endpointId}`;
 
-  const adapter: EndpointRuntimeCacheAdapter = {
-    get(endpointId: string): ResolvedEndpointData | null {
-      const expiresAt = Number(invalidation[endpointId]);
-      if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) {
-        delete endpointsBucket[endpointId];
-        delete invalidation[endpointId];
-        persistInvalidation();
-        changed = true;
-        return null;
-      }
+  const createEndpointCacheAdapter = (
+    options?: { readEnabled?: boolean },
+  ): EndpointRuntimeCacheAdapter => {
+    const readEnabled = options?.readEnabled ?? true;
+    return {
+      get(endpointId: string): ResolvedEndpointData | null {
+        if (!readEnabled) {
+          return null;
+        }
 
-      const record = endpointsBucket[endpointId];
-      if (!isPlainObject(record)) {
-        delete invalidation[endpointId];
-        persistInvalidation();
-        changed = true;
-        return null;
-      }
+        const record = readRecord(createEndpointKey(endpointId));
+        if (!record || !isPlainObject(record.value)) {
+          return null;
+        }
 
-      if (!isPlainObject(record)) {
-        delete endpointsBucket[endpointId];
-        delete invalidation[endpointId];
-        persistInvalidation();
-        changed = true;
-        return null;
-      }
+        return record.value as ResolvedEndpointData;
+      },
+      set(endpointId: string, payload: ResolvedEndpointData, expiresAt: number | null): void {
+        const expires = Number(expiresAt);
+        if (!Number.isFinite(expires) || expires <= Date.now()) {
+          return;
+        }
 
-      return record as ResolvedEndpointData;
-    },
-    set(endpointId: string, payload: ResolvedEndpointData, expiresAt: number | null): void {
-      if (!Number.isFinite(Number(expiresAt))) {
-        return;
-      }
+        const ttlSeconds = Math.max(1, Math.floor((expires - Date.now()) / 1000));
+        writeRecord(createEndpointKey(endpointId), payload, expires, ttlSeconds);
+      },
+    };
+  };
 
-      endpointsBucket[endpointId] = payload;
-      invalidation[endpointId] = Number(expiresAt);
-      persistInvalidation();
-      changed = true;
-    },
+  const getRuntimeSnapshot = () => {
+    const record = readRecord(runtimeSnapshotKey);
+    if (!record || !isPlainObject(record.value)) {
+      return null;
+    }
+
+    const value = record.value as Record<string, unknown>;
+    const env = isPlainObject(value.env)
+      ? (value.env as Record<string, string>)
+      : null;
+
+    if (!env) {
+      return null;
+    }
+
+    return {
+      env,
+      data: isPlainObject(value.data) ? (value.data as Record<string, any>) : null,
+    };
+  };
+
+  const setRuntimeSnapshot = (runtime: { data: Record<string, any> | null; env: Record<string, string> }) => {
+    writeRecord(
+      runtimeSnapshotKey,
+      {
+        data: runtime.data,
+        env: runtime.env,
+      },
+      Date.now() + (opts.cacheConfig.retentionSeconds * 1000),
+      opts.cacheConfig.retentionSeconds,
+    );
   };
 
   return {
-    adapter,
+    stateKey,
+    createEndpointCacheAdapter,
+    getRuntimeSnapshot,
+    setRuntimeSnapshot,
     get changed() {
       return changed;
     },
     localData: root,
   };
-}
-
-function parseInvalidationMap(raw: unknown): Record<string, number> {
-  if (typeof raw !== "string" || !raw.trim()) {
-    return {};
-  }
-
-  try {
-    const parsed = JSON.parse(raw);
-    if (!isPlainObject(parsed)) {
-      return {};
-    }
-
-    return Object.entries(parsed as Record<string, unknown>).reduce<Record<string, number>>((acc, [key, value]) => {
-      const expiresAt = Number(value);
-      if (Number.isFinite(expiresAt)) {
-        acc[key] = expiresAt;
-      }
-      return acc;
-    }, {});
-  } catch {
-    return {};
-  }
 }
 
 async function persistLocalDataIfChanged(

@@ -423,6 +423,9 @@ export async function getIntegrationWithWidget(
             const configuration = config?.configuration as
                 | Record<string, unknown>
                 | undefined;
+            const environmentDefinitions = isPlainObject(configuration?.environment_variables)
+                ? (configuration?.environment_variables as Record<string, unknown>)
+                : null;
 
             const environmentVariables = resolveEnvironmentVariables(
                 configuration?.environment_variables as
@@ -440,6 +443,7 @@ export async function getIntegrationWithWidget(
                         environment_variables: environmentVariables,
                     },
                 },
+                environmentDefinitions,
                 widgetJSON: {
                     ...rawWidget,
                     key: resolvedKey,
@@ -494,6 +498,9 @@ export async function getIntegrationWithGlanceable(
             const configuration = config?.configuration as
                 | Record<string, unknown>
                 | undefined;
+            const environmentDefinitions = isPlainObject(configuration?.environment_variables)
+                ? (configuration?.environment_variables as Record<string, unknown>)
+                : null;
 
             const environmentVariables = resolveEnvironmentVariables(
                 configuration?.environment_variables as
@@ -511,6 +518,7 @@ export async function getIntegrationWithGlanceable(
                         environment_variables: environmentVariables,
                     },
                 },
+                environmentDefinitions,
                 glanceableJSON: {
                     ...rawGlanceable,
                     type: resolvedType,
