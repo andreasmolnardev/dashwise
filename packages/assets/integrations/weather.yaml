@@ -246,19 +246,10 @@ configuration:
             field: "desc"
             fallback: "Unknown"
           icon_file:
-            operation: if #if sun has already set -> use night versions of icons else day
-            condition: "this.endpoints.fetch-weather.mappedResponse.daily.sunset_today < now()"
-            and: "this.lookup_tables.weather_code_map[this.endpoints.fetch-weather.mappedResponse.current.weather_code].iconNight"
-            then:
-              operation: lookup_table
-              table: "weather_code_map"
-              key: "this.endpoints.fetch-weather.mappedResponse.current.weather_code"
-              field: "iconNight"
-            else:
-              operation: lookup_table
-              table: "weather_code_map"
-              key: "this.endpoints.fetch-weather.mappedResponse.current.weather_code"
-              field: "iconDay"
+            operation: lookup_table
+            table: "weather_code_map"
+            key: "this.endpoints.fetch-weather.mappedResponse.current.weather_code"
+            field: "iconNight"
         tomorrow:
           temperature: "this.endpoints.fetch-weather.mappedResponse.daily.tomorrow.temperature"
           precipitation: "this.endpoints.fetch-weather.mappedResponse.daily.tomorrow.precipitation"
