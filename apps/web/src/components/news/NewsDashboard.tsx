@@ -20,9 +20,11 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
+import NewsFeedEditModal from "./NewsFeedEditModal";
 import SubscriptionDetailsForm from "./SubscriptionDetailsForm";
 import {
     getNewsFeedAction,
+    getNewsFeedRecordAction,
     getNewsFeedMetadataAction,
     getNewsFeedsAction,
     getNewsSubscriptionsAction,
@@ -30,10 +32,12 @@ import {
     subscribeNewsFeedAction,
     unsubscribeNewsFeedAction,
     updateNewsFeedAction,
+    updateNewsFeedRecordAction,
 } from "@/app/actions/news";
 import type {
     NewsFeedDraft,
     NewsFeedItem,
+    NewsFeedRecord,
     NewsFeedSummary,
     NewsFeedsResponse,
     NewsSubscriptionsResponse,
@@ -48,6 +52,7 @@ export default function NewsDashboardComponent(
     const activeFeedId = feedId || "all";
     const sidebarAction = searchParams.get("action");
     const editSubscriptionRef = searchParams.get("subscription");
+    const editFeedRef = searchParams.get("feed");
 
     const [feed, setFeed] = useState<NewsFeedItem[] | null>(null);
     const [subscriptions, setSubscriptions] = useState<NewsFeedDraft[] | null>(
@@ -57,6 +62,9 @@ export default function NewsDashboardComponent(
     const [currentPage, setCurrentPage] = useState(1);
     const [addOpen, setAddOpen] = useState(false);
     const [editingFeed, setEditingFeed] = useState<NewsFeedDraft | null>(null);
+    const [editFeedOpen, setEditFeedOpen] = useState(false);
+    const [editingNewsFeed, setEditingNewsFeed] = useState<NewsFeedRecord | null>(null);
+    const [loadingFeedRecord, setLoadingFeedRecord] = useState(false);
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [refreshStatus, setRefreshStatus] = useState<string | null>(null);
 
@@ -149,6 +157,68 @@ export default function NewsDashboardComponent(
         activeFeedId,
         navigate,
     ]);
+
+    useEffect(() => {
+        if (sidebarAction !== "edit-feed" || !editFeedRef) {
+            setEditFeedOpen(false);
+            setEditingNewsFeed(null);
+            setLoadingFeedRecord(false);
+            return;
+        }
+
+        let mounted = true;
+        setEditFeedOpen(true);
+        setLoadingFeedRecord(true);
+
+        const feedSummary = feeds.find((entry) => entry.id === editFeedRef);
+        const derivedSubscriptionRefs = editFeedRef === "all"
+            ? []
+            : (subscriptions ?? [])
+                .filter((subscription) => subscription.id && subscription.feedIds?.includes(editFeedRef))
+                .map((subscription) => String(subscription.id))
+                .filter(Boolean);
+
+        const fallbackRecord: NewsFeedRecord = {
+            id: editFeedRef,
+            title: feedSummary?.title || (editFeedRef === "all" ? "All feed" : "Untitled feed"),
+            subscriptionRefs: derivedSubscriptionRefs,
+            excludedSubscriptionRefs: [],
+        };
+
+        if (editFeedRef !== "all") {
+            setEditingNewsFeed(fallbackRecord);
+            setLoadingFeedRecord(false);
+            return;
+        }
+
+        withAuth((auth) => getNewsFeedRecordAction(auth, editFeedRef))
+            .then((record) => {
+                if (!mounted) return;
+                setEditingNewsFeed(record || fallbackRecord);
+            })
+            .catch((err) => {
+                console.error("Failed to load feed record:", err);
+                if (mounted) {
+                    setEditingNewsFeed(fallbackRecord);
+                }
+            })
+            .finally(() => {
+                if (mounted) {
+                    setLoadingFeedRecord(false);
+                }
+            });
+
+        return () => {
+            mounted = false;
+        };
+    }, [sidebarAction, editFeedRef, feeds, subscriptions, withAuth]);
+
+    const closeFeedEditor = () => {
+        navigate(`/apps/news/${activeFeedId === "all" ? "" : activeFeedId}`.replace(/\/$/, ""), { replace: true });
+        setEditFeedOpen(false);
+        setEditingNewsFeed(null);
+        setLoadingFeedRecord(false);
+    };
 
     const getRefreshTargetFeedIds = (explicitFeedIds?: string[]) => {
         if (explicitFeedIds && explicitFeedIds.length > 0) {
@@ -492,6 +562,27 @@ export default function NewsDashboardComponent(
                     />
                 </DialogContent>
             </Dialog>
+
+            <NewsFeedEditModal
+                open={editFeedOpen}
+                feed={editingNewsFeed}
+                loading={loadingFeedRecord}
+                subscriptions={(subscriptions ?? [])
+                    .filter((subscription) => subscription.id)
+                    .map((subscription) => ({
+                        id: String(subscription.id),
+                        title: String(subscription.title || subscription.name || subscription.url || "Untitled subscription"),
+                    }))}
+                onClose={closeFeedEditor}
+                onSave={async (payload) => {
+                    await withAuth((auth) => updateNewsFeedRecordAction(auth, payload));
+                    setEditFeedOpen(false);
+                    setEditingNewsFeed(null);
+                    await loadSubscriptions();
+                }}
+            />
+
+            
         </div>
     );
 }

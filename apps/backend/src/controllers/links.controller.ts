@@ -1,6 +1,6 @@
 import type { Hono } from "hono";
 
-import { createHomeLinkGroup, createHomeLinkItem, deleteLinkItem, getHomeLinkGroups, getHomeLinks, getLinksCollections, getLinksFolders, getLinksItems, getLinksTags, updateHomeLinkFolderIcon, updateHomeLinkItem } from "@dashwise/sdk/data/links";
+import { createCollection, createHomeLinkGroup, createHomeLinkItem, deleteLinkItem, getHomeLinkGroups, getHomeLinks, getLinksCollections, getLinksFolders, getLinksItems, getLinksTags, updateHomeLinkFolderIcon, updateHomeLinkItem } from "@dashwise/sdk/data/links";
 
 import { readAuthToken, readJsonBody, requireAuth, withJson } from "./shared";
 
@@ -8,6 +8,14 @@ export function registerLinksControllers(app: Hono) {
   app.get("/api/v1/links/collections", withJson(async (c) => {
     const { userId } = await requireAuth({ token: readAuthToken(c) });
     return getLinksCollections(userId);
+  }));
+  app.post("/api/v1/links/collections", withJson(async (c) => {
+    const body = await readJsonBody<any>(c);
+    const { userId } = await requireAuth(body?.auth);
+    return createCollection(userId, {
+      name: String(body?.name ?? ""),
+      description: typeof body?.description === "string" ? body.description : undefined,
+    });
   }));
   app.get("/api/v1/links/home/groups", withJson(async (c) => {
     const { userId } = await requireAuth({ token: readAuthToken(c) });

@@ -5,6 +5,10 @@ export async function getLinksCollectionsAction(auth: ActionAuth) {
   return callApiAction("links", "getLinksCollectionsAction", auth);
 }
 
+export async function createLinksCollectionAction(auth: ActionAuth, data: { name: string; description?: string }) {
+  return callApiAction("links", "createLinksCollectionAction", { auth, ...data });
+}
+
 export async function getHomeLinkGroupsAction(auth: ActionAuth) {
   return callApiAction("links", "getHomeLinkGroupsAction", auth);
 }

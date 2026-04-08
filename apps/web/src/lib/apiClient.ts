@@ -170,6 +170,11 @@ const routes: Record<string, RouteConfig> = {
     path: "/links/collections",
     auth: (input) => authToken(input),
   },
+  "links.createLinksCollectionAction": {
+    method: "POST",
+    path: "/links/collections",
+    body: (input) => input,
+  },
   "links.getHomeLinkGroupsAction": {
     method: "GET",
     path: "/links/home/groups",
@@ -326,6 +331,12 @@ const routes: Record<string, RouteConfig> = {
     auth: (input) => authToken(input?.auth),
     params: (input) => ({ path: { id: String(input?.feedId ?? "all") } }),
   },
+  "news.getNewsFeedRecordAction": {
+    method: "GET",
+    path: "/news/feed-records/{id}" as any,
+    auth: (input) => authToken(input?.auth),
+    params: (input) => ({ path: { id: String(input?.feedId ?? "all") } }),
+  },
   "news.getNewsFeedMetadataAction": {
     method: "GET",
     path: "/news/feed-metadata" as any,
@@ -375,6 +386,12 @@ const routes: Record<string, RouteConfig> = {
   "news.updateNewsFeedAction": {
     method: "POST",
     path: "/news/feed-update",
+    body: (input) => input,
+  },
+  "news.updateNewsFeedRecordAction": {
+    method: "POST",
+    path: "/news/feed-records/{id}" as any,
+    params: (input) => ({ path: { id: String(input?.feedId ?? "all") } }),
     body: (input) => input,
   },
 

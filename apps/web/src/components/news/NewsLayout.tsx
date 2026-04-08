@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import useAuth from "@/context/useAuth";
-import { getNewsSubscriptionsAction } from "@/app/actions/news";
-import { getNewsFeedsAction } from "@/app/actions/news";
+import {
+    getNewsFeedsAction,
+    getNewsSubscriptionsAction,
+} from "@/app/actions/news";
 import AppTemplate, { Content, GroupLabel, Sidebar, Tab } from "@/components/apps/LayoutTemplate";
 
 interface Subscription {
@@ -12,6 +14,7 @@ interface Subscription {
     title?: string;
     url: string;
     icon?: string;
+    feedIds?: string[];
 }
 
 interface FeedRecord {
@@ -23,6 +26,7 @@ export default function NewsLayout({ children }: { children: ReactNode }) {
     const { token, withAuth } = useAuth();
     const navigate = useNavigate();
     const { feedId } = useParams();
+    const [searchParams] = useSearchParams();
     const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
     const [feeds, setFeeds] = useState<FeedRecord[]>([]);
 
@@ -35,7 +39,7 @@ export default function NewsLayout({ children }: { children: ReactNode }) {
 
         let mounted = true;
 
-        const loadSubscriptions = async () => {
+        const loadSidebarData = async () => {
             try {
                 const [subscriptionsData, feedsData]: any[] = await Promise.all([
                     withAuth((auth) => getNewsSubscriptionsAction(auth)),
@@ -55,7 +59,7 @@ export default function NewsLayout({ children }: { children: ReactNode }) {
             }
         };
 
-        loadSubscriptions();
+        loadSidebarData();
 
         return () => {
             mounted = false;
@@ -63,7 +67,6 @@ export default function NewsLayout({ children }: { children: ReactNode }) {
     }, [token, withAuth]);
 
     const userFeeds = useMemo(() => feeds.filter((entry) => entry.id && entry.id !== "all"), [feeds]);
-
     const subscriptionTabs = useMemo(
         () => subscriptions
             .slice()
@@ -76,16 +79,26 @@ export default function NewsLayout({ children }: { children: ReactNode }) {
     };
 
     const activeFeedRoute = feedId ? `/apps/news/${feedId}` : "/apps/news";
+    const sidebarAction = searchParams.get("action");
+    const editFeedRef = searchParams.get("feed");
 
     const openSubscribeModal = () => {
         const params = new URLSearchParams({ action: "subscribe" });
         navigate(`${activeFeedRoute}?${params.toString()}`);
     };
 
-    const openEditModal = (subscription: Subscription) => {
+    const openEditSubscriptionModal = (subscription: Subscription) => {
         const params = new URLSearchParams({
             action: "edit",
             subscription: subscription.id || subscription.url,
+        });
+        navigate(`${activeFeedRoute}?${params.toString()}`);
+    };
+
+    const openEditFeedModal = (feed: FeedRecord) => {
+        const params = new URLSearchParams({
+            action: "edit-feed",
+            feed: feed.id,
         });
         navigate(`${activeFeedRoute}?${params.toString()}`);
     };
@@ -105,6 +118,13 @@ export default function NewsLayout({ children }: { children: ReactNode }) {
                     title="All feed"
                     group="Feeds"
                     isRoot={true}
+                    dropdownActions={[
+                        {
+                            label: "Edit feed",
+                            icon: "fa6-solid:pen-to-square",
+                            action: () => openEditFeedModal({ id: "all", title: "All feed" }),
+                        },
+                    ]}
                 />
 
                 {userFeeds.map((feed) => (
@@ -114,6 +134,13 @@ export default function NewsLayout({ children }: { children: ReactNode }) {
                         icon="fa6-solid:layer-group"
                         title={feed.title || "Untitled feed"}
                         group="Feeds"
+                        dropdownActions={[
+                            {
+                                label: "Edit feed",
+                                icon: "fa6-solid:pen-to-square",
+                                action: () => openEditFeedModal(feed),
+                            },
+                        ]}
                     />
                 ))}
 
@@ -142,7 +169,7 @@ export default function NewsLayout({ children }: { children: ReactNode }) {
                             {
                                 label: "Edit",
                                 icon: "fa6-solid:pen-to-square",
-                                action: () => openEditModal(subscription),
+                                action: () => openEditSubscriptionModal(subscription),
                             },
                         ]}
                     />

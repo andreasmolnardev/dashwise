@@ -3,6 +3,8 @@ import type {
   NewsFeedDraft,
   NewsFeedItem,
   NewsFeedMetadata,
+  NewsFeedRecord,
+  NewsFeedRecordUpdateInput,
   NewsFeedsResponse,
   NewsSubscribeInput,
   NewsSubscriptionsResponse,
@@ -12,6 +14,10 @@ import { callApiAction } from "@/lib/apiClient";
 
 export async function getNewsFeedAction(auth: ActionAuth, feedId?: string | null): Promise<NewsFeedItem[]> {
   return callApiAction("news", "getNewsFeedAction", { auth, feedId }) as Promise<NewsFeedItem[]>;
+}
+
+export async function getNewsFeedRecordAction(auth: ActionAuth, feedId?: string | null): Promise<NewsFeedRecord | null> {
+  return callApiAction("news", "getNewsFeedRecordAction", { auth, feedId }) as Promise<NewsFeedRecord | null>;
 }
 
 export async function getNewsSubscriptionsAction(auth: ActionAuth): Promise<NewsSubscriptionsResponse> {
@@ -40,4 +46,8 @@ export async function unsubscribeNewsFeedAction(auth: ActionAuth, feedUrl: strin
 
 export async function updateNewsFeedAction(auth: ActionAuth, payload: NewsUpdateInput | NewsFeedDraft) {
   return callApiAction("news", "updateNewsFeedAction", { auth, payload });
+}
+
+export async function updateNewsFeedRecordAction(auth: ActionAuth, payload: NewsFeedRecordUpdateInput) {
+  return callApiAction("news", "updateNewsFeedRecordAction", { auth, payload, feedId: payload.feedId });
 }

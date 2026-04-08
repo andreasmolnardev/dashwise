@@ -1,9 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useNavigate } from "react-router-dom";
 import AppTemplate, { GroupLabel, Sidebar, Tab, Content } from "@/components/apps/LayoutTemplate";
 import useAuth from "@/context/useAuth";
 import { getLinksCollectionsAction, getLinksTagsAction } from "@/app/actions/links";
+import CreateLinksCollectionDialog from "@/components/links/CreateLinksCollectionDialog";
+import CreateHomeTabDialog from "@/components/links/CreateHomeTabDialog";
 
 type LinkCollection = {
     id: string;
@@ -20,8 +23,11 @@ type LinkTag = {
 
 export default function LinksLayout({ children }: { children: ReactNode }) {
     const { token, withAuth } = useAuth();
+    const navigate = useNavigate();
     const [collections, setCollections] = useState<LinkCollection[]>([]);
     const [tags, setTags] = useState<LinkTag[]>([]);
+    const [createListOpen, setCreateListOpen] = useState(false);
+    const [createTabOpen, setCreateTabOpen] = useState(false);
 
     useEffect(() => {
         if (!token) {
@@ -72,7 +78,22 @@ export default function LinksLayout({ children }: { children: ReactNode }) {
         <AppTemplate title="Bookmarks">
             <Sidebar>
                 <Tab dst="/links/home" icon="fa6-solid:house" title="Home" />
-                <GroupLabel group="Lists" title="Lists" />
+                <GroupLabel
+                    group="Lists"
+                    title="Lists"
+                    actions={[
+                        {
+                            icon: "fa6-solid:folder-plus",
+                            title: "Create new list",
+                            action: () => setCreateListOpen(true),
+                        },
+                        {
+                            icon: "fa6-solid:layer-group",
+                            title: "Create new tab",
+                            action: () => setCreateTabOpen(true),
+                        },
+                    ]}
+                />
                 <Tab dst="/links/lists" icon="fa6-solid:list" title="Lists" isRoot />
                 {userCollections.map((collection) => (
                     <Tab
@@ -97,6 +118,20 @@ export default function LinksLayout({ children }: { children: ReactNode }) {
             </Sidebar>
 
             <Content>{children}</Content>
+
+            <CreateLinksCollectionDialog
+                open={createListOpen}
+                onOpenChange={setCreateListOpen}
+                onCreated={(collection) => {
+                    setCollections((current) => [collection, ...current.filter((item) => item.id !== collection.id)]);
+                    navigate(`/links/lists/${collection.id}`);
+                }}
+            />
+
+            <CreateHomeTabDialog
+                open={createTabOpen}
+                onOpenChange={setCreateTabOpen}
+            />
         </AppTemplate>
     );
 }

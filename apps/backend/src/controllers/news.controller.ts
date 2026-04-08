@@ -1,8 +1,8 @@
 import Parser from "rss-parser";
 import type { Context, Hono } from "hono";
 
-import { getNewsFeed, getNewsFeeds, getNewsSubscriptions, refreshNewsFeed, subscribeNewsFeed, unsubscribeNewsFeed, updateNewsFeed } from "@dashwise/sdk/data/news";
-import type { NewsFeedMetadata, NewsSubscribeInput, NewsUpdateInput } from "@dashwise/sdk/data/news";
+import { getNewsFeed, getNewsFeedRecord, getNewsFeeds, getNewsSubscriptions, refreshNewsFeed, subscribeNewsFeed, unsubscribeNewsFeed, updateNewsFeed, updateNewsFeedRecordForUser } from "@dashwise/sdk/data/news";
+import type { NewsFeedMetadata, NewsFeedRecordUpdateInput, NewsSubscribeInput, NewsUpdateInput } from "@dashwise/sdk/data/news";
 
 import { readAuthToken, readJsonBody, requireAuth, withJson } from "./shared";
 import { createLogger } from "../lib/logger";
@@ -128,6 +128,10 @@ export function registerNewsControllers(app: Hono) {
     const { userId } = await requireAuth({ token: readAuthToken(c) });
     return getNewsFeed(userId, c.req.query("feedId") ?? "all");
   }));
+  app.get("/api/v1/news/feed-records/:id", withJson(async (c) => {
+    const { userId } = await requireAuth({ token: readAuthToken(c) });
+    return getNewsFeedRecord(userId, String(c.req.param("id") ?? ""));
+  }));
   app.get("/api/v1/news/feed-metadata", withJson(async (c) => {
     await requireAuth({ token: readAuthToken(c) });
 
@@ -176,5 +180,12 @@ export function registerNewsControllers(app: Hono) {
     const { userId } = await requireAuth(body?.auth ?? {});
     const payload: NewsUpdateInput = body?.payload ?? { feedUrl: "" };
     return updateNewsFeed(userId, payload);
+  }));
+  app.post("/api/v1/news/feed-records/:id", withJson(async (c) => {
+    const body = await readJsonBody<{ auth?: { token?: string | null }; payload?: Partial<NewsFeedRecordUpdateInput> }>(c);
+    const { userId } = await requireAuth(body?.auth ?? {});
+    const feedId = String(c.req.param("id") ?? body?.payload?.feedId ?? "").trim();
+    const payload = body?.payload ?? {};
+    return updateNewsFeedRecordForUser(userId, feedId, payload);
   }));
 }

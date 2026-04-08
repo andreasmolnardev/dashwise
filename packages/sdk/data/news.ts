@@ -6,6 +6,7 @@ import {
   deleteNewsSubscription,
   getAllNewsFeeds,
   getAllNewsSubscriptions,
+  getNewsFeedById,
   getNewsFeedByTitle,
   getNewsFeedsByUserId,
   getNewsSubscriptionById,
@@ -87,6 +88,13 @@ export type NewsFeedRecord = {
   excludedSubscriptionRefs?: string[];
 };
 
+export type NewsFeedRecordUpdateInput = {
+  feedId: string;
+  title?: string;
+  subscriptionRefs?: string[];
+  excludedSubscriptionRefs?: string[];
+};
+
 function escapeFilter(value: string) {
   return value.replace(/"/g, '\\"');
 }
@@ -126,7 +134,7 @@ async function getUserFeeds(userId: string): Promise<NewsFeedRecord[]> {
 function buildFeedList(feeds: NewsFeedRecord[]) {
   return [
     { id: "all", title: "All feed" },
-    ...feeds.map((feed) => ({
+    ...feeds.filter((feed) => String(feed.id) !== "all" && String(feed.title || "").toLowerCase() !== "all feed").map((feed) => ({
       id: String(feed.id),
       title: String(feed.title || "Untitled feed"),
     })),
@@ -218,6 +226,110 @@ function parseCachedItems(raw: unknown): NewsFeedItem[] {
 
 function getSubscriptionItems(subscription: NewsSubscription): NewsFeedItem[] {
   return parseCachedItems(subscription.json);
+}
+
+function normalizeFeedRecord(entry: Record<string, unknown> | null): NewsFeedRecord | null {
+  if (!entry?.id) return null;
+
+  return {
+    id: String(entry.id),
+    title: String(entry.title ?? "").trim(),
+    subscriptionRefs: Array.isArray(entry.subscriptionRefs)
+      ? entry.subscriptionRefs.map((value) => String(value).trim()).filter(Boolean)
+      : [],
+    excludedSubscriptionRefs: Array.isArray(entry.excludedSubscriptionRefs)
+      ? entry.excludedSubscriptionRefs.map((value) => String(value).trim()).filter(Boolean)
+      : [],
+  };
+}
+
+async function getAllSubscriptionIdsForUser(userId: string) {
+  const subscriptions = await getNewsSubscriptions(userId);
+  return Array.from(
+    new Set(
+      (subscriptions.subscriptions ?? [])
+        .map((subscription) => String(subscription.id ?? "").trim())
+        .filter(Boolean),
+    ),
+  );
+}
+
+export async function getNewsFeedRecord(userId: string, feedId: string): Promise<NewsFeedRecord | null> {
+  const normalizedFeedId = String(feedId || "").trim();
+  if (!normalizedFeedId) return null;
+
+  if (normalizedFeedId === "all") {
+    const allFeedRecord = await getNewsFeedByTitle(userId, "All feed").catch(() => null);
+    if (allFeedRecord) {
+      return normalizeFeedRecord(allFeedRecord as Record<string, unknown>);
+    }
+
+    return {
+      id: "all",
+      title: "All feed",
+      subscriptionRefs: [],
+      excludedSubscriptionRefs: [],
+    };
+  }
+
+  const feedRecord = await getNewsFeedById(normalizedFeedId).catch(() => null);
+  if (!feedRecord) return null;
+
+  const ownerId = String((feedRecord as Record<string, unknown>).userId ?? "").trim();
+  if (ownerId && ownerId !== userId) return null;
+
+  return normalizeFeedRecord(feedRecord as Record<string, unknown>);
+}
+
+export async function updateNewsFeedRecordForUser(
+  userId: string,
+  feedId: string,
+  payload: Partial<NewsFeedRecordUpdateInput>,
+) {
+  const normalizedFeedId = String(feedId || "").trim();
+  if (!normalizedFeedId) return null;
+
+  const title = String(payload.title ?? "").trim();
+  const subscriptionRefs = Array.from(
+    new Set((payload.subscriptionRefs ?? []).map((value) => String(value).trim()).filter(Boolean)),
+  );
+  const excludedSubscriptionRefs = Array.from(
+    new Set((payload.excludedSubscriptionRefs ?? []).map((value) => String(value).trim()).filter(Boolean)),
+  );
+
+  if (normalizedFeedId === "all") {
+    const existingFeed = await getNewsFeedByTitle(userId, "All feed").catch(() => null);
+    if (existingFeed?.id) {
+      return updateNewsFeedRecord(String(existingFeed.id), {
+        title: title || "All feed",
+        subscriptionRefs,
+        excludedSubscriptionRefs,
+      });
+    }
+
+    const allSubscriptionRefs = subscriptionRefs.length
+      ? subscriptionRefs
+      : await getAllSubscriptionIdsForUser(userId);
+
+    return createNewsFeedRecord({
+      userId,
+      title: title || "All feed",
+      subscriptionRefs: allSubscriptionRefs,
+      excludedSubscriptionRefs,
+    });
+  }
+
+  const feedRecord = await getNewsFeedById(normalizedFeedId).catch(() => null);
+  if (!feedRecord) return null;
+
+  const ownerId = String((feedRecord as Record<string, unknown>).userId ?? "").trim();
+  if (ownerId && ownerId !== userId) return null;
+
+  return updateNewsFeedRecord(normalizedFeedId, {
+    title: title || String((feedRecord as Record<string, unknown>).title ?? "").trim(),
+    subscriptionRefs,
+    excludedSubscriptionRefs,
+  });
 }
 
 async function getUserSubscriptionIdsFromFeeds(feeds: NewsFeedRecord[]) {
