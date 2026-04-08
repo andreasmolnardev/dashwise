@@ -1,24 +1,24 @@
 import type { ActionAuth } from "@dashwise/sdk/data/auth";
-import { api } from "@/lib/apiClient";
+import { callApiAction } from "@/lib/apiClient";
 
 export async function getIntegrationsAction(auth: ActionAuth, options?: { id?: string; resolveEndpoints?: boolean }) {
-  return api.integrations.getIntegrationsAction({ auth, options });
+  return callApiAction("integrations", "getIntegrationsAction", { auth, options });
 }
 
 export async function createIntegrationAction(auth: ActionAuth, payload: { name?: string; source?: string; config: unknown; environment?: unknown }) {
-  return api.integrations.createIntegrationAction({ auth, payload });
+  return callApiAction("integrations", "createIntegrationAction", { auth, payload });
 }
 
 export async function testIntegrationEndpointAction(auth: ActionAuth, target: string) {
-  return api.integrations.testIntegrationEndpointAction({ auth, target });
+  return callApiAction("integrations", "testIntegrationEndpointAction", { auth, target });
 }
 
 export async function getWidgetPropertiesAction(auth: ActionAuth, widgetSlug: string) {
-  return api.integrations.getWidgetPropertiesAction({ auth, widgetSlug });
+  return callApiAction("integrations", "getWidgetPropertiesAction", { auth, widgetSlug });
 }
 
 export async function getIntegrationWithWidgetAction(auth: ActionAuth, widgetKey: string) {
-  return api.widgets.getIntegrationWithWidgetAction({ auth, widgetKey });
+  return callApiAction("widgets", "getIntegrationWithWidgetAction", { auth, widgetKey });
 }
 
 export async function getConsumerDataAction(
@@ -30,7 +30,7 @@ export async function getConsumerDataAction(
     isPreview?: boolean;
   },
 ) {
-  return api.integrations.getConsumerDataAction({
+  return callApiAction("integrations", "getConsumerDataAction", {
     auth,
     key,
     properties,

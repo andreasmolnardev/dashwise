@@ -1,46 +1,46 @@
 import type { ActionAuth } from "@dashwise/sdk/data/auth";
-import { api } from "@/lib/apiClient";
+import { callApiAction } from "@/lib/apiClient";
 
 export async function getLinksCollectionsAction(auth: ActionAuth) {
-  return api.links.getLinksCollectionsAction(auth);
+  return callApiAction("links", "getLinksCollectionsAction", auth);
 }
 
 export async function getHomeLinkGroupsAction(auth: ActionAuth) {
-  return api.links.getHomeLinkGroupsAction(auth);
+  return callApiAction("links", "getHomeLinkGroupsAction", auth);
 }
 
 export async function createHomeLinkGroupAction(auth: ActionAuth, name: string) {
-  return api.links.createHomeLinkGroupAction({ auth, name });
+  return callApiAction("links", "createHomeLinkGroupAction", { auth, name });
 }
 
 export async function updateHomeLinkFolderIconAction(auth: ActionAuth, folderId: string, data: { icon?: string }) {
-  return api.links.updateHomeLinkFolderIconAction({ auth, folderId, data });
+  return callApiAction("links", "updateHomeLinkFolderIconAction", { auth, folderId, data });
 }
 
 export async function getHomeLinksAction(auth: ActionAuth) {
-  return api.links.getHomeLinksAction(auth);
+  return callApiAction("links", "getHomeLinksAction", auth);
 }
 
 export async function getLinksFoldersAction(auth: ActionAuth, listId: string) {
-  return api.links.getLinksFoldersAction({ auth, listId });
+  return callApiAction("links", "getLinksFoldersAction", { auth, listId });
 }
 
 export async function getLinksItemsAction(auth: ActionAuth, listId: string, folderId?: string) {
-  return api.links.getLinksItemsAction({ auth, listId, folderId });
+  return callApiAction("links", "getLinksItemsAction", { auth, listId, folderId });
 }
 
 export async function getLinksTagsAction(auth: ActionAuth) {
-  return api.links.getLinksTagsAction(auth);
+  return callApiAction("links", "getLinksTagsAction", auth);
 }
 
 export async function createLinkItemAction(auth: ActionAuth, data: { url: string; title: string; iconUrl?: string; description?: string; linkGroup?: string; folder?: string }) {
-  return api.links.createLinkItemAction({ auth, data });
+  return callApiAction("links", "createLinkItemAction", { auth, data });
 }
 
 export async function updateHomeLinkItemAction(auth: ActionAuth, linkId: string, data: { url?: string; title?: string; iconUrl?: string; description?: string; linkGroup?: string; folder?: string }) {
-  return api.links.updateHomeLinkItemAction({ auth, linkId, data });
+  return callApiAction("links", "updateHomeLinkItemAction", { auth, linkId, data });
 }
 
 export async function deleteLinkItemAction(auth: ActionAuth, linkId: string) {
-  return api.links.deleteLinkItemAction({ auth, linkId });
+  return callApiAction("links", "deleteLinkItemAction", { auth, linkId });
 }

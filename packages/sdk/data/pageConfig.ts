@@ -14,11 +14,21 @@ format:
 }
 */
 
+export type PageConfig = {
+    appearance?: Record<string, unknown>;
+    columns?: Record<string, unknown>;
+    glanceables?: Array<Record<string, unknown>>;
+    meta?: Record<string, unknown> & { onboard?: boolean };
+    pages?: string[];
+    template?: string;
+    [key: string]: unknown;
+};
+
 type PageConfigRecord = {
     id: string;
     pageName: string;
     associatedUserId: string;
-    config: Record<string, any>;
+    config: PageConfig;
     created: string;
     updated: string;
 };
@@ -33,7 +43,7 @@ function escapeFilter(value: string) {
 export async function getPageConfigJSON(
     userId: string,
     pageName: string,
-): Promise<Record<string, any> | null> {
+): Promise<PageConfig | null> {
     const pb = await getSuperuserPB();
     try {
         const record = await pb
@@ -44,11 +54,14 @@ export async function getPageConfigJSON(
 
         if (!record) return null;
 
-        const config = (record?.config ?? {}) as Record<string, any>;
+        const config = (record?.config ?? {}) as PageConfig;
         return config;
-    } catch (error: any) {
-        if (error?.status === 404) return null;
-        throw error.originalError ?? error;
+    } catch (error: unknown) {
+        if (error && typeof error === "object" && "status" in error && (error as { status?: number }).status === 404) return null;
+        if (error && typeof error === "object" && "originalError" in error && (error as { originalError?: unknown }).originalError) {
+            throw (error as { originalError: unknown }).originalError;
+        }
+        throw error;
     }
 }
 
@@ -79,8 +92,8 @@ async function getPageConfig(
                     escapeFilter(pageName)
                 }"`,
             );
-    } catch (error: any) {
-        if (error?.status === 404) return null;
+    } catch (error: unknown) {
+        if (error && typeof error === "object" && "status" in error && (error as { status?: number }).status === 404) return null;
         throw error;
     }
 }
@@ -88,7 +101,7 @@ async function getPageConfig(
 export async function createPageFromDefaultConfig(
     userId: string,
     pageName: string,
-    defaultHomeConfig: Record<string, any>,
+    defaultHomeConfig: PageConfig,
 ) {
     const pb = await getSuperuserPB();
 
@@ -119,7 +132,7 @@ export async function createPageFromDefaultConfig(
 export async function updatePageConfig(
     userId: string,
     pageName: string,
-    config: Record<string, any>,
+    config: PageConfig,
 ) {
     const pb = await getSuperuserPB();
     const existing = await getPageConfig(userId, pageName);

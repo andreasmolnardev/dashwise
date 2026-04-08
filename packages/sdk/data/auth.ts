@@ -6,9 +6,9 @@ import config from "../lib/config";
 
 export class ApiActionError extends Error {
   status: number;
-  body?: any;
+  body?: unknown;
 
-  constructor(message: string, status = 500, body?: any) {
+  constructor(message: string, status = 500, body?: unknown) {
     super(message);
     this.status = status;
     this.body = body;
@@ -19,11 +19,82 @@ export type ActionAuth = {
   token?: string | null;
 };
 
+export type JsonPrimitive = string | number | boolean | null;
+export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue };
+
+export type UserPropertyValue = JsonValue;
+
+export type SearchEngineRecord = {
+  icon?: string;
+  name: string;
+  slug: string;
+  status: "default" | "enabled" | "disabled";
+  url_home: string;
+  url_params: string;
+};
+
+export type UserAppearancePreferences = {
+  accentColor?: string;
+  backgroundImageUrl?: string;
+  clock?: {
+    color?: string;
+    defaultFont?: string;
+    fontWeight?: number;
+    frosted?: boolean;
+    letterSpacing?: number;
+    opacity?: number;
+    outlineColor?: string;
+    outlineEnabled?: boolean;
+    outlineWidth?: number;
+    roundness?: number;
+  };
+  frostedAppearance?: string;
+  themeMode?: string;
+  wallpaperFilters?: {
+    blur?: number;
+    brightness?: number;
+    darkModeBrightness?: number;
+  };
+  [key: string]: unknown;
+};
+
+export type UserLocalizationPreferences = {
+  dateFormat?: string;
+  language?: string;
+  locale?: string;
+  timeFormat?: string;
+  weatherLocation?: string;
+  weatherUnit?: string;
+  [key: string]: unknown;
+};
+
+export type UserSearchPreferences = {
+  linkOpenBehaviour?: string;
+  searchEngineShortcutFallback?: string;
+  searchEngines?: SearchEngineRecord[];
+  [key: string]: unknown;
+};
+
+export type AuthUserRecord = {
+  id?: string;
+  email?: string;
+  global?: {
+    linkOpenBehaviour?: string;
+  };
+  name?: string;
+  appearancePreferences?: UserAppearancePreferences;
+  localizationPreferences?: UserLocalizationPreferences;
+  screensaverPreferences?: Record<string, unknown>;
+  searchPreferences?: UserSearchPreferences;
+  totpSecret?: string;
+  [key: string]: unknown;
+};
+
 const AUTH_CACHE_TTL_MS = 5000;
 const AUTH_REFRESH_LEEWAY_MS = 30_000;
 const tokenAuthCache = new Map<string, { userId: string; expiresAt: number }>();
 
-function decodeJwtPayload(token: string): Record<string, any> | null {
+function decodeJwtPayload(token: string): Record<string, unknown> | null {
   const parts = token.split(".");
   if (parts.length < 2) {
     return null;
@@ -45,9 +116,10 @@ function readTokenClaims(token: string) {
     return { userId: null, expMs: null };
   }
 
-  const userIdCandidates = [payload.id, payload.sub, payload.userId, payload.recordId];
+  const payloadRecord = payload as Record<string, unknown>;
+  const userIdCandidates = [payloadRecord.id, payloadRecord.sub, payloadRecord.userId, payloadRecord.recordId];
   const userId = userIdCandidates.find((value) => typeof value === "string") ?? null;
-  const expMs = typeof payload.exp === "number" ? payload.exp * 1000 : null;
+  const expMs = typeof payloadRecord.exp === "number" ? payloadRecord.exp * 1000 : null;
 
   return { userId, expMs };
 }
@@ -146,7 +218,7 @@ export async function loginUser(
     email,
     password,
   );
-  const user = authData.record as any;
+  const user = authData.record as AuthUserRecord & { id: string; totpSecret?: string };
 
   if (user.totpSecret) {
     if (!totp) {
@@ -181,7 +253,15 @@ export async function signupUser(payload: {
   email: string;
   password: string;
   passwordConfirm: string;
-  userConfig?: Record<string, any>;
+  userConfig?: {
+    preferences?: {
+      appearance?: Record<string, unknown>;
+      localization?: Record<string, unknown>;
+      search?: Record<string, unknown>;
+    };
+    homeConfig?: Record<string, unknown>;
+    linksConfig?: Record<string, unknown>;
+  };
 }) {
   if (config.disableUserSignup) {
     throw new ApiActionError("Signup failed.", 401, {
@@ -337,7 +417,7 @@ export async function deleteAccount(
     email,
     password,
   );
-  const user = authData.record as any;
+  const user = authData.record as AuthUserRecord & { id: string; totpSecret?: string };
 
   if (user.totpSecret) {
     if (!totp) {
@@ -376,7 +456,7 @@ export async function deleteAccount(
 export async function updateUserProperty(
   auth: ActionAuth,
   propertyName: string,
-  propertyValue: any
+  propertyValue: UserPropertyValue
 ) {
   const { pb, userId } = await requireUserAuth(auth);
 

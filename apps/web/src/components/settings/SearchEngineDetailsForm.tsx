@@ -107,7 +107,7 @@ export default function SearchEngineDetailsForm({
                 url_params: searchUrl,
             };
 
-            const existingEngines = user?.searchPreferences.searchEngines ?? []
+            const existingEngines = user.searchPreferences?.searchEngines ?? []
             if (isEditing) {
                 const updated = existingEngines.map((s: SearchEngine) =>
                     s.slug === engine!.slug ? payloadEngine : s

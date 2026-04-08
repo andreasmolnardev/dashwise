@@ -2,8 +2,9 @@
 
 import { getPageConfigAction } from "@/app/actions/pageConfigs";
 import useAuth from "@/context/useAuth";
+import type { PageConfig } from "@dashwise/sdk/data/pageConfig";
 import { useLocation, useNavigate } from "react-router-dom";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type SetStateAction } from "react";
 
 const nonPageSegments = new Set(["settings", "notifications", "onboarding", "screensaver", "auth"]);
 
@@ -25,13 +26,17 @@ export function usePageConfig(options?: UsePageConfigOptions) {
     [options?.pageName, pathname]
   );
 
-  const [pageConfig, setPageConfig] = useState<any>(null);
+  const [pageConfig, setPageConfig] = useState<PageConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const patchConfig = useCallback((updater: SetStateAction<PageConfig | null>) => {
+    setPageConfig((current) => (typeof updater === "function" ? updater(current) : updater));
+  }, []);
+
   const refreshConfig = useCallback(async () => {
     if (!token) {
-      setPageConfig({});
+      setPageConfig(null);
       setLoading(false);
       return;
     }
@@ -42,13 +47,13 @@ export function usePageConfig(options?: UsePageConfigOptions) {
         (auth) => getPageConfigAction(auth, resolvedPageName),
         () => navigate("/auth/login")
       );
-      setPageConfig(data ?? {});
+      setPageConfig((data ?? {}) as PageConfig);
       setError(null);
-    } catch (err: any) {
-      if (err?.status === 401) {
+    } catch (err: unknown) {
+      if (typeof err === "object" && err !== null && "status" in err && (err as { status?: number }).status === 401) {
         return;
       }
-      setError(err?.message ?? "Unknown error");
+      setError(err instanceof Error ? err.message : "Unknown error");
     } finally {
       setLoading(false);
     }
@@ -68,10 +73,12 @@ export function usePageConfig(options?: UsePageConfigOptions) {
   }, [refreshConfig]);
 
   return {
+    config: pageConfig,
     pageConfig,
     loading,
     error,
     pageName: resolvedPageName,
+    patchConfig,
     refreshConfig,
   };
 }

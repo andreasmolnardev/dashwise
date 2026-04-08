@@ -15,10 +15,11 @@
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "allowImportingTsExtensions": true,
-    "noImplicitAny": false,
+    "noImplicitAny": true,
     "isolatedModules": true,
     "jsx": "react-jsx",
     "incremental": true,
+    "ignoreDeprecations": "6.0",
     "types": [
       "bun",
       "node"

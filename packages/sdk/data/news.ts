@@ -16,14 +16,16 @@ import {
   createNewsSubscription,
 } from "@dashwise/sdk/data/superuser";
 
-type FeedItem = {
+export type NewsFeedItem = {
   title: string;
   link: string;
   pubDate: string | Date;
-  [key: string]: any;
+  subscription_id: string;
+  subscription_name: string;
+  [key: string]: unknown;
 };
 
-type Subscription = {
+export type NewsSubscription = {
   id?: string;
   url: string;
   feedUrl?: string;
@@ -32,27 +34,64 @@ type Subscription = {
   title?: string;
   name?: string;
   feedIds?: string[];
+  newFeedTitles?: string[];
 };
 
-type FeedMetadata = {
+export type NewsFeedMetadata = {
   feedUrl: string;
   title: string;
   icon: string;
 };
 
-type FeedRecord = {
+export type NewsFeedSummary = {
+  id: string;
+  title: string;
+};
+
+export type NewsFeedsResponse = {
+  id: null;
+  feeds: NewsFeedSummary[];
+};
+
+export type NewsSubscriptionsResponse = {
+  id: null;
+  subscriptions: NewsFeedDraft[];
+};
+
+export type NewsSubscribeInput = {
+  feedUrl: string;
+  name?: string;
+  icon?: string;
+  feedIds?: string[];
+  newFeedTitles?: string[];
+};
+
+export type NewsUpdateInput = {
+  subscriptionId?: string;
+  oldFeedUrl?: string;
+  feedUrl: string;
+  title?: string;
+  icon?: string;
+  feedIds?: string[];
+};
+
+export type NewsFeedDraft = Omit<NewsSubscription, "feedUrl" | "url"> & {
+  feedUrl: string;
+  url?: string;
+};
+
+export type NewsFeedRecord = {
   id: string;
   title?: string;
   subscriptionRefs?: string[];
   excludedSubscriptionRefs?: string[];
-  [key: string]: any;
 };
 
 function escapeFilter(value: string) {
   return value.replace(/"/g, '\\"');
 }
 
-function itemTime(item: FeedItem): number {
+function itemTime(item: NewsFeedItem): number {
   const value = item?.pubDate;
   if (value instanceof Date) return value.getTime();
   if (typeof value === "string") {
@@ -62,10 +101,10 @@ function itemTime(item: FeedItem): number {
   return 0;
 }
 
-function normalizeSubscription(entry: any): Subscription | null {
+function normalizeSubscription(entry: Record<string, unknown> | null): NewsSubscription | null {
   if (!entry) return null;
 
-  const url = String(entry.url || entry.feedUrl || "").trim();
+  const url = String(entry.url ?? entry.feedUrl ?? "").trim();
   if (!url) return null;
 
   return {
@@ -74,17 +113,17 @@ function normalizeSubscription(entry: any): Subscription | null {
     feedUrl: url,
     icon: entry.icon ? String(entry.icon) : "",
     json: entry.json,
-    title: String(entry.title || entry.name || url),
-    name: String(entry.title || entry.name || url),
+    title: String(entry.title ?? entry.name ?? url),
+    name: String(entry.title ?? entry.name ?? url),
   };
 }
 
-async function getUserFeeds(userId: string): Promise<FeedRecord[]> {
+async function getUserFeeds(userId: string): Promise<NewsFeedRecord[]> {
   const feeds = await getAllNewsFeeds(2000);
-  return (Array.isArray(feeds) ? feeds : []).filter((feed: any) => String(feed.userId || "") === userId);
+  return (Array.isArray(feeds) ? feeds : []).filter((feed) => String((feed as Record<string, unknown>).userId || "") === userId);
 }
 
-function buildFeedList(feeds: FeedRecord[]) {
+function buildFeedList(feeds: NewsFeedRecord[]) {
   return [
     { id: "all", title: "All feed" },
     ...feeds.map((feed) => ({
@@ -111,8 +150,12 @@ async function normalizeNewsFeedUrl(feedUrl: string) {
   return originalFeedUrl;
 }
 
-function getFeedIcon(feed: any, fallbackUrl: string) {
-  const icon = String(feed?.image?.url || feed?.icon || "").trim();
+function getFeedIcon(feed: Record<string, unknown> | null, fallbackUrl: string) {
+  const feedRecord = feed ?? {};
+  const image = feedRecord.image && typeof feedRecord.image === "object"
+    ? (feedRecord.image as Record<string, unknown>)
+    : null;
+  const icon = String(image?.url ?? feedRecord.icon ?? "").trim();
   if (icon) {
     return icon;
   }
@@ -120,7 +163,7 @@ function getFeedIcon(feed: any, fallbackUrl: string) {
   return fallbackUrl;
 }
 
-export async function getNewsFeedMetadata(feedUrl: string): Promise<FeedMetadata> {
+export async function getNewsFeedMetadata(feedUrl: string): Promise<NewsFeedMetadata> {
   const normalizedFeedUrl = await normalizeNewsFeedUrl(feedUrl);
 
   if (!normalizedFeedUrl) {
@@ -128,7 +171,7 @@ export async function getNewsFeedMetadata(feedUrl: string): Promise<FeedMetadata
   }
 
   try {
-    const parser = new Parser<any, FeedItem>({
+    const parser = new Parser<Record<string, unknown>, NewsFeedItem>({
       customFields: {
         feed: ["image", "icon"],
       },
@@ -157,7 +200,7 @@ export async function getNewsFeedMetadata(feedUrl: string): Promise<FeedMetadata
   }
 }
 
-function parseCachedItems(raw: unknown): FeedItem[] {
+function parseCachedItems(raw: unknown): NewsFeedItem[] {
   if (!raw) return [];
   if (Array.isArray(raw)) return raw;
 
@@ -173,11 +216,11 @@ function parseCachedItems(raw: unknown): FeedItem[] {
   return [];
 }
 
-function getSubscriptionItems(subscription: Subscription): FeedItem[] {
+function getSubscriptionItems(subscription: NewsSubscription): NewsFeedItem[] {
   return parseCachedItems(subscription.json);
 }
 
-async function getUserSubscriptionIdsFromFeeds(feeds: FeedRecord[]) {
+async function getUserSubscriptionIdsFromFeeds(feeds: NewsFeedRecord[]) {
   const ids = new Set<string>();
 
   for (const feed of feeds) {
@@ -189,7 +232,7 @@ async function getUserSubscriptionIdsFromFeeds(feeds: FeedRecord[]) {
   return ids;
 }
 
-async function getUserExcludedSubscriptionIdsFromFeeds(feeds: FeedRecord[]) {
+async function getUserExcludedSubscriptionIdsFromFeeds(feeds: NewsFeedRecord[]) {
   const ids = new Set<string>();
 
   for (const feed of feeds) {
@@ -207,7 +250,7 @@ async function syncSubscriptionFeedRefs(
   feedIds: string[] = [],
   newFeedTitles: string[] = [],
 ): Promise<string[]> {
-  const feeds = await getNewsFeedsByUserId(userId);
+  const feeds = await getUserFeeds(userId);
   const selectedIds = new Set(feedIds.map(String).filter(Boolean));
 
   for (const rawTitle of newFeedTitles) {
@@ -259,19 +302,19 @@ async function syncSubscriptionFeedRefs(
 }
 
 async function buildFeedFromSubscriptions(
-  subscriptions: Subscription[],
+  subscriptions: NewsSubscription[],
   feedId?: string | null,
-  feeds: FeedRecord[] = [],
+  feeds: NewsFeedRecord[] = [],
 ) {
   const byId = new Map(subscriptions.filter((subscription) => subscription.id).map((subscription) => [String(subscription.id), subscription] as const));
 
-  const selectByFeed = (feed: FeedRecord) => {
+  const selectByFeed = (feed: NewsFeedRecord) => {
     const refs = new Set((feed.subscriptionRefs ?? []).map(String));
     const exclusions = new Set((feed.excludedSubscriptionRefs ?? []).map(String));
     return subscriptions.filter((subscription) => subscription.id && refs.has(String(subscription.id)) && !exclusions.has(String(subscription.id)));
   };
 
-  let selectedSubscriptions: Subscription[] = subscriptions;
+  let selectedSubscriptions: NewsSubscription[] = subscriptions;
 
   if (feedId && feedId !== "all") {
     const feedRecord = feeds.find((feed) => String(feed.id) === feedId);
@@ -292,7 +335,7 @@ async function buildFeedFromSubscriptions(
     }
   }
 
-  const feed: Array<FeedItem & { subscription_id: string; subscription_name: string }> = [];
+  const feed: NewsFeedItem[] = [];
 
   for (const subscription of selectedSubscriptions) {
     const subscriptionId = String(subscription.id || "");
@@ -311,15 +354,15 @@ async function buildFeedFromSubscriptions(
   return feed.sort((left, right) => itemTime(right) - itemTime(left));
 }
 
-export async function getNewsFeed(userId: string, feedId?: string | null) {
+export async function getNewsFeed(userId: string, feedId?: string | null): Promise<NewsFeedItem[]> {
   const feeds = await getUserFeeds(userId);
   const subscriptionIds = await getUserSubscriptionIdsFromFeeds(feeds);
   const excludedIds = await getUserExcludedSubscriptionIdsFromFeeds(feeds);
 
-  const allSubscriptions = (await getAllNewsSubscriptions(2000)) as any[];
+  const allSubscriptions = (await getAllNewsSubscriptions(2000)) as Array<Record<string, unknown>>;
   const subscriptions = allSubscriptions
     .map(normalizeSubscription)
-    .filter((entry: Subscription | null): entry is Subscription => Boolean(entry));
+    .filter((entry: NewsSubscription | null): entry is NewsSubscription => Boolean(entry));
 
   const scopedSubscriptions = subscriptionIds.size
     ? subscriptions.filter((subscription) => subscription.id && subscriptionIds.has(String(subscription.id)) && !excludedIds.has(String(subscription.id)))
@@ -329,24 +372,31 @@ export async function getNewsFeed(userId: string, feedId?: string | null) {
   return feed;
 }
 
-export async function getNewsSubscriptions(userId: string) {
+export async function getNewsSubscriptions(userId: string): Promise<NewsSubscriptionsResponse> {
   const feeds = await getUserFeeds(userId);
   const subscriptionIds = await getUserSubscriptionIdsFromFeeds(feeds);
 
-  const allSubscriptions = (await getAllNewsSubscriptions(2000)) as any[];
+  const allSubscriptions = (await getAllNewsSubscriptions(2000)) as Array<Record<string, unknown>>;
   const subscriptions = allSubscriptions
     .map(normalizeSubscription)
-    .filter((entry: Subscription | null): entry is Subscription => Boolean(entry));
+    .filter((entry: NewsSubscription | null): entry is NewsSubscription => Boolean(entry));
 
   const scopedSubscriptions = subscriptionIds.size
     ? subscriptions.filter((subscription) => subscription.id && subscriptionIds.has(String(subscription.id)))
     : subscriptions;
 
-  const subscriptionsWithFeedIds = scopedSubscriptions.map((subscription) => ({
-    ...subscription,
+  const subscriptionsWithFeedIds: NewsFeedDraft[] = scopedSubscriptions.map((subscription) => ({
+    id: subscription.id,
+    url: subscription.url,
+    feedUrl: String(subscription.feedUrl ?? subscription.url ?? ""),
+    icon: subscription.icon,
+    json: subscription.json,
+    title: subscription.title,
+    name: subscription.name,
     feedIds: feeds
       .filter((feed) => (feed.subscriptionRefs ?? []).map(String).includes(String(subscription.id || "")))
       .map((feed) => String(feed.id)),
+    newFeedTitles: subscription.newFeedTitles,
   }));
 
   return {
@@ -355,7 +405,7 @@ export async function getNewsSubscriptions(userId: string) {
   };
 }
 
-export async function getNewsFeeds(userId: string) {
+export async function getNewsFeeds(userId: string): Promise<NewsFeedsResponse> {
   const feeds = await getUserFeeds(userId);
 
   return {
@@ -396,7 +446,7 @@ export async function refreshNewsFeed(
     ...(url.toString().startsWith("https://")
       ? { tls: { rejectUnauthorized: false } }
       : {}),
-  } as any);
+  } as RequestInit & { tls?: { rejectUnauthorized: boolean } });
 
   const contentType = response.headers.get("content-type") || "";
   if (contentType.includes("application/json")) {
@@ -408,8 +458,8 @@ export async function refreshNewsFeed(
 
 export async function subscribeNewsFeed(
   userId: string,
-  sub: { feedUrl: string; name?: string; icon?: string; feedIds?: string[]; newFeedTitles?: string[] }
-) {
+  sub: NewsSubscribeInput,
+): Promise<{ message: string }> {
   const originalFeedUrl = sub.feedUrl;
   sub.feedUrl = await normalizeNewsFeedUrl(sub.feedUrl);
 
@@ -455,15 +505,15 @@ export async function subscribeNewsFeed(
   return { message: "Feed successfully subscribed." };
 }
 
-export async function unsubscribeNewsFeed(userId: string, subscriptionId: string) {
+export async function unsubscribeNewsFeed(userId: string, subscriptionId: string): Promise<{ message: string }> {
   await deleteNewsSubscription(subscriptionId);
   return { message: "Subscription removed." };
 }
 
 export async function updateNewsFeed(
   userId: string,
-  payload: { subscriptionId?: string; oldFeedUrl?: string; feedUrl: string; title?: string; icon?: string; feedIds?: string[]; }
-) {
+  payload: NewsUpdateInput
+): Promise<{ message: string } | { _status: number; error: string }> {
   const target = payload.subscriptionId
     ? await getNewsSubscriptionById(payload.subscriptionId)
     : payload.oldFeedUrl

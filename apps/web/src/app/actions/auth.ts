@@ -1,5 +1,5 @@
-import type { ActionAuth } from "@dashwise/sdk/data/auth";
-import { api } from "@/lib/apiClient";
+import type { ActionAuth, AuthUserRecord, UserPropertyValue } from "@dashwise/sdk/data/auth";
+import { callApiAction } from "@/lib/apiClient";
 
 export type ChangePasswordRequest = {
   email?: string;
@@ -18,25 +18,25 @@ export type ChangePasswordError = {
 };
 
 export async function changePasswordAction(auth: ActionAuth, body: ChangePasswordRequest) {
-  return api.auth.changePasswordAction({ auth, body });
+  return callApiAction("auth", "changePasswordAction", { auth, body });
 }
 
 export async function loginUserAction(payload: { email: string; password: string; totp?: string }) {
-  return api.auth.loginUserAction(payload);
+  return callApiAction("auth", "loginUserAction", payload);
 }
 
 export async function signupUserAction(payload: { _name?: string; email: string; password: string; passwordConfirm: string }) {
-  return api.auth.signupUserAction(payload);
+  return callApiAction("auth", "signupUserAction", payload);
 }
 
 export async function validateAuthTokenAction(auth: ActionAuth) {
-  return api.auth.validateAuthTokenAction(auth);
+  return callApiAction("auth", "validateAuthTokenAction", auth);
 }
 
 export async function deleteAccountAction(auth: ActionAuth, payload: { email: string; password: string; totp?: string }) {
-  return api.auth.deleteAccountAction({ auth, payload });
+  return callApiAction("auth", "deleteAccountAction", { auth, payload });
 }
 
-export async function updateUserPropertyAction(auth: ActionAuth, propertyName: string, propertyValue: any) {
-  return api.auth.updateUserPropertyAction({ auth, propertyName, propertyValue });
+export async function updateUserPropertyAction(auth: ActionAuth, propertyName: string, propertyValue: UserPropertyValue): Promise<AuthUserRecord> {
+  return callApiAction("auth", "updateUserPropertyAction", { auth, propertyName, propertyValue }) as Promise<AuthUserRecord>;
 }

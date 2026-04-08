@@ -1,10 +1,12 @@
 "use client"
 
 import { updateUserPropertyAction } from "@/app/actions/auth";
-import type { ActionAuth } from "@dashwise/sdk/data/auth";
+import type { ActionAuth, AuthUserRecord, UserPropertyValue } from "@dashwise/sdk/data/auth";
 import { useCallback, useEffect, useState } from "react";
 
-type AuthUser = any | null;
+type AuthUser = AuthUserRecord;
+
+const EMPTY_AUTH_USER: AuthUser = {};
 
 function createUnauthorizedError() {
   const error = new Error("Unauthorized") as Error & { status: number; body: { error: string } };
@@ -17,9 +19,9 @@ export function useAuth() {
   const [user, setUser] = useState<AuthUser>(() => {
     try {
       const raw = typeof window !== "undefined" ? localStorage.getItem("pb_user") : null;
-      return raw ? JSON.parse(raw) : null;
+      return raw ? (JSON.parse(raw) as AuthUser) : EMPTY_AUTH_USER;
     } catch (e) {
-      return null;
+      return EMPTY_AUTH_USER;
     }
   });
 
@@ -50,9 +52,9 @@ export function useAuth() {
     const onStorage = (e: StorageEvent) => {
       if (e.key === "pb_user") {
         try {
-          setUser(e.newValue ? JSON.parse(e.newValue) : null);
+          setUser(e.newValue ? (JSON.parse(e.newValue) as AuthUser) : EMPTY_AUTH_USER);
         } catch (err) {
-          setUser(null);
+          setUser(EMPTY_AUTH_USER);
         }
       }
       if (e.key === "pb_token") {
@@ -64,11 +66,11 @@ export function useAuth() {
     return () => window.removeEventListener("storage", onStorage);
   }, []);
 
-  const setAuth = useCallback((u: AuthUser, t?: string | null) => {
+  const setAuth = useCallback((u: AuthUser | null, t?: string | null) => {
     try {
       if (u === null) {
         localStorage.removeItem("pb_user");
-        setUser(null);
+        setUser(EMPTY_AUTH_USER);
       } else {
         localStorage.setItem("pb_user", JSON.stringify(u));
         setUser(u);
@@ -121,8 +123,8 @@ export function useAuth() {
       }
       try {
         return await fn({ token });
-      } catch (err: any) {
-        if (err?.status === 401) {
+      } catch (err: unknown) {
+        if (typeof err === "object" && err !== null && "status" in err && (err as { status?: number }).status === 401) {
           onUnauthorized?.();
         }
         throw err;
@@ -132,7 +134,7 @@ export function useAuth() {
   );
 
   const updateUserProperty = useCallback(
-    async (propertyName: string, propertyValue: any) => {
+    async (propertyName: string, propertyValue: UserPropertyValue) => {
       const updatedUser = await withAuth((auth) =>
         updateUserPropertyAction(auth, propertyName, propertyValue)
       );

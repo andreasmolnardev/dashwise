@@ -31,21 +31,13 @@ import {
     unsubscribeNewsFeedAction,
     updateNewsFeedAction,
 } from "@/app/actions/news";
-
-interface Subscription {
-    id?: string;
-    title?: string;
-    name?: string;
-    url: string;
-    feedUrl?: string;
-    icon?: string;
-    feedIds?: string[];
-}
-
-interface FeedOption {
-    id: string;
-    title: string;
-}
+import type {
+    NewsFeedDraft,
+    NewsFeedItem,
+    NewsFeedSummary,
+    NewsFeedsResponse,
+    NewsSubscriptionsResponse,
+} from "@dashwise/sdk/data/news";
 
 export default function NewsDashboardComponent(
     children: React.PropsWithChildren<{}> = {},
@@ -57,14 +49,14 @@ export default function NewsDashboardComponent(
     const sidebarAction = searchParams.get("action");
     const editSubscriptionRef = searchParams.get("subscription");
 
-    const [feed, setFeed] = useState<any[] | null>(null);
-    const [subscriptions, setSubscriptions] = useState<Subscription[] | null>(
+    const [feed, setFeed] = useState<NewsFeedItem[] | null>(null);
+    const [subscriptions, setSubscriptions] = useState<NewsFeedDraft[] | null>(
         null,
     );
-    const [feeds, setFeeds] = useState<FeedOption[]>([]);
+    const [feeds, setFeeds] = useState<NewsFeedSummary[]>([]);
     const [currentPage, setCurrentPage] = useState(1);
     const [addOpen, setAddOpen] = useState(false);
-    const [editingFeed, setEditingFeed] = useState<Subscription | null>(null);
+    const [editingFeed, setEditingFeed] = useState<NewsFeedDraft | null>(null);
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [refreshStatus, setRefreshStatus] = useState<string | null>(null);
 
@@ -82,13 +74,13 @@ export default function NewsDashboardComponent(
         if (!token) return;
 
         try {
-            const [subscriptionsData, feedsData]: any[] = await Promise.all([
+            const [subscriptionsData, feedsData]: [NewsSubscriptionsResponse, NewsFeedsResponse] = await Promise.all([
                 withAuth((auth) => getNewsSubscriptionsAction(auth)),
                 withAuth((auth) => getNewsFeedsAction(auth)),
             ]);
 
-            setSubscriptions(subscriptionsData?.subscriptions ?? []);
-            setFeeds(Array.isArray(feedsData?.feeds) ? feedsData.feeds : []);
+            setSubscriptions(subscriptionsData.subscriptions ?? []);
+            setFeeds(Array.isArray(feedsData.feeds) ? feedsData.feeds : []);
         } catch (err) {
             console.error("Failed to load subscriptions:", err);
         }
@@ -98,10 +90,10 @@ export default function NewsDashboardComponent(
         if (!token) return;
 
         try {
-            const data: any = await withAuth((auth) =>
+            const data = await withAuth((auth) =>
                 getNewsFeedAction(auth, activeFeedId)
             );
-            setFeed(Array.isArray(data) ? data : Array.isArray(data?.feed) ? data.feed : []);
+            setFeed(Array.isArray(data) ? data : []);
         } catch (err) {
             console.error("Failed to load news:", err);
         }
@@ -194,31 +186,31 @@ export default function NewsDashboardComponent(
         }
     };
 
-    const subscribeFeed = async (feed: any) => {
+    const subscribeFeed = async (feed: NewsFeedDraft) => {
         if (!token) throw new Error("Not authenticated");
 
         await withAuth((auth) =>
             subscribeNewsFeedAction(auth, {
-                feedUrl: feed.feedUrl || feed.url,
-                name: feed.name || feed.title || "",
-                icon: feed.icon || "",
-                feedIds: feed.feedIds || [],
-                newFeedTitles: feed.newFeedTitles || [],
+                feedUrl: String(feed.feedUrl ?? feed.url ?? ""),
+                name: String(feed.name ?? feed.title ?? ""),
+                icon: String(feed.icon ?? ""),
+                feedIds: feed.feedIds ?? [],
+                newFeedTitles: feed.newFeedTitles ?? [],
             })
         );
 
         await loadSubscriptions();
         await refreshFeeds(
-            feed.name || feed.title || feed.feedUrl || feed.url || "new feed",
-            feed.feedIds || [],
+            String(feed.name ?? feed.title ?? feed.feedUrl ?? feed.url ?? "new feed"),
+            feed.feedIds ?? [],
         );
     };
 
-    const unsubscribeFeed = async (subscription: Subscription) => {
+    const unsubscribeFeed = async (subscription: NewsFeedDraft) => {
         if (!token) throw new Error("Not authenticated");
 
         await withAuth((auth) =>
-            unsubscribeNewsFeedAction(auth, subscription.id || subscription.url)
+            unsubscribeNewsFeedAction(auth, String(subscription.id ?? subscription.url ?? ""))
         );
 
         await loadSubscriptions();
@@ -228,23 +220,23 @@ export default function NewsDashboardComponent(
         );
     };
 
-    const updateFeed = async (subscriptionId: string, updatedFeed: any) => {
+    const updateFeed = async (subscriptionId: string, updatedFeed: NewsFeedDraft) => {
         if (!token) throw new Error("Not authenticated");
 
         await withAuth((auth) =>
             updateNewsFeedAction(auth, {
                 subscriptionId,
-                feedUrl: updatedFeed.feedUrl || updatedFeed.url,
-                title: updatedFeed.name || updatedFeed.title || "",
-                icon: updatedFeed.icon || "",
-                feedIds: updatedFeed.feedIds || [],
+                feedUrl: String(updatedFeed.feedUrl ?? updatedFeed.url ?? ""),
+                title: String(updatedFeed.name ?? updatedFeed.title ?? ""),
+                icon: String(updatedFeed.icon ?? ""),
+                feedIds: updatedFeed.feedIds ?? [],
             })
         );
 
         await loadSubscriptions();
         await refreshFeeds(
-            updatedFeed.name || updatedFeed.title || updatedFeed.feedUrl || updatedFeed.url || "feed",
-            updatedFeed.feedIds || [],
+            String(updatedFeed.name ?? updatedFeed.title ?? updatedFeed.feedUrl ?? updatedFeed.url ?? "feed"),
+            updatedFeed.feedIds ?? [],
         );
     };
 
@@ -269,7 +261,7 @@ export default function NewsDashboardComponent(
         ? "All feed"
         : selectedFeed?.title || "Feed";
 
-    const getIconUrl = (name) => {
+    const getIconUrl = (name: string) => {
         if (!subscriptions) {
             return "";
         }
@@ -467,9 +459,8 @@ export default function NewsDashboardComponent(
                         feed={editingFeed
                             ? {
                                 id: editingFeed.id,
-                                feedUrl: editingFeed.feedUrl || editingFeed.url,
-                                name: editingFeed.name || editingFeed.title ||
-                                    editingFeed.url,
+                                feedUrl: String(editingFeed.feedUrl ?? editingFeed.url ?? ""),
+                                name: String(editingFeed.name ?? editingFeed.title ?? editingFeed.url ?? ""),
                                 icon: editingFeed.icon,
                                 feedIds: editingFeed.feedIds || [],
                             }
@@ -486,7 +477,7 @@ export default function NewsDashboardComponent(
                             try {
                                 if (editingFeed) {
                                     await updateFeed(
-                                        editingFeed.id || editingFeed.url,
+                                        String(editingFeed.id ?? editingFeed.url ?? ""),
                                         feed,
                                     );
                                 } else {

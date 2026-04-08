@@ -18,15 +18,7 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
-
-export interface NewsFeed {
-  id?: string;
-  feedUrl: string;
-  name?: string;
-  icon?: string;
-  feedIds?: string[];
-  newFeedTitles?: string[];
-}
+import type { NewsFeedDraft } from "@dashwise/sdk/data/news";
 
 interface FeedOption {
   id: string;
@@ -34,10 +26,10 @@ interface FeedOption {
 }
 
 interface SubscriptionDetailsFormProps {
-  feed?: NewsFeed;
+  feed?: NewsFeedDraft;
   feeds: FeedOption[];
   onClose?: () => void | Promise<void>;
-  onSave?: (feed: NewsFeed) => Promise<void> | void;
+  onSave?: (feed: NewsFeedDraft) => Promise<void> | void;
   resolveFeedMetadata?: (feedUrl: string) => Promise<{ title?: string; icon?: string } | null | undefined>;
 }
 
@@ -48,9 +40,9 @@ export default function SubscriptionDetailsForm({
   onSave,
   resolveFeedMetadata,
 }: SubscriptionDetailsFormProps) {
-  const [feedUrl, setFeedUrl] = useState(() => feed?.feedUrl || "");
-  const [name, setName] = useState(() => feed?.name || "");
-  const [icon, setIcon] = useState(() => feed?.icon || "");
+  const [feedUrl, setFeedUrl] = useState<string>(() => feed?.feedUrl || "");
+  const [name, setName] = useState<string>(() => feed?.name || "");
+  const [icon, setIcon] = useState<string>(() => feed?.icon || "");
   const [selectedFeedIds, setSelectedFeedIds] = useState<string[]>(() => feed?.feedIds || []);
   const [newFeedTitles, setNewFeedTitles] = useState<string[]>(() => feed?.newFeedTitles || []);
   const [open, setOpen] = useState(false);
@@ -58,10 +50,10 @@ export default function SubscriptionDetailsForm({
   const [loading, setLoading] = useState(false);
   const [metadataLoading, setMetadataLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const nameRef = useRef(name);
-  const iconRef = useRef(icon);
-  const lastAutoNameRef = useRef("");
-  const lastAutoIconRef = useRef("");
+  const nameRef = useRef<string>(name);
+  const iconRef = useRef<string>(icon);
+  const lastAutoNameRef = useRef<string>("");
+  const lastAutoIconRef = useRef<string>("");
 
   const isEditing = Boolean(feed?.id);
 
@@ -203,7 +195,7 @@ export default function SubscriptionDetailsForm({
         throw new Error("Add the feed to at least one feed bucket");
       }
 
-      const payload: NewsFeed = {
+      const payload: NewsFeedDraft = {
         feedUrl: feedUrl.trim(),
         name: name.trim() || feedUrl.trim(),
         icon: icon.trim(),

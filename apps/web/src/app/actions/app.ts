@@ -1,9 +1,9 @@
-import { api } from "@/lib/apiClient";
+import { callApiAction } from "@/lib/apiClient";
 
 export async function getAppConfigAction() {
-  return api.app.getAppConfigAction();
+  return callApiAction("app", "getAppConfigAction");
 }
 
 export async function getAppInfoAction(_auth?: { token?: string | null }) {
-  return api.app.getAppInfoAction();
+  return callApiAction("app", "getAppInfoAction");
 }

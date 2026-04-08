@@ -1,6 +1,7 @@
 import type { Hono } from "hono";
 
 import { getPageConfigJSON, getUserPages, updatePageConfig } from "@dashwise/sdk/data/pageConfig";
+import type { PageConfig } from "@dashwise/sdk/data/pageConfig";
 
 import { loadSignupDefaults, normalizePageName, readAuthToken, readJsonBody, requireAuth, withJson } from "./shared";
 
@@ -16,12 +17,12 @@ export function registerPageConfigControllers(app: Hono) {
     return getUserPages(userId);
   }));
   app.put("/api/v1/pageConfig", withJson(async (c) => {
-    const body = await readJsonBody<any>(c);
+    const body = await readJsonBody<{ auth?: { token?: string | null }; pageName?: string; config?: PageConfig }>(c);
     const { userId } = await requireAuth(body?.auth);
     return updatePageConfig(userId, normalizePageName(body?.pageName), body?.config ?? {});
   }));
   app.post("/api/v1/pageConfig/home", withJson(async (c) => {
-    const body = await readJsonBody<any>(c);
+    const body = await readJsonBody<{ auth?: { token?: string | null } }>(c);
     const { userId } = await requireAuth(body?.auth);
     const existingHomeConfig = await getPageConfigJSON(userId, "home");
 

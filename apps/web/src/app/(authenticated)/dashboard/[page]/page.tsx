@@ -5,13 +5,14 @@ import { useEffect, useState } from "react";
 import { getPageConfigAction } from "../../../actions/pageConfigs";
 import PageNotFound from "@/components/errorPages/PageNotFound";
 import DashboardLayoutTemplate from "@/components/dashboard/DashboardLayoutTemplate";
+import type { PageConfig } from "@dashwise/sdk/data/pageConfig";
 
 export default function DashboardPageFromConfig() {
     const params = useParams();
     const { withAuth } = useAuth();
     const pageName = (params?.page as string) || "home";
 
-    const [config, setConfig] = useState<any | null>(null);
+    const [config, setConfig] = useState<PageConfig | null>(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {

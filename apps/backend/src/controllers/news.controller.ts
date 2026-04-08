@@ -2,6 +2,7 @@ import Parser from "rss-parser";
 import type { Context, Hono } from "hono";
 
 import { getNewsFeed, getNewsFeeds, getNewsSubscriptions, refreshNewsFeed, subscribeNewsFeed, unsubscribeNewsFeed, updateNewsFeed } from "@dashwise/sdk/data/news";
+import type { NewsFeedMetadata, NewsSubscribeInput, NewsUpdateInput } from "@dashwise/sdk/data/news";
 
 import { readAuthToken, readJsonBody, requireAuth, withJson } from "./shared";
 import { createLogger } from "../lib/logger";
@@ -57,7 +58,7 @@ async function normalizeNewsFeedUrl(feedUrl: string) {
   return originalFeedUrl;
 }
 
-async function getFeedMetadata(feedUrl: string) {
+async function getFeedMetadata(feedUrl: string): Promise<NewsFeedMetadata> {
   const normalizedFeedUrl = await normalizeNewsFeedUrl(feedUrl);
 
   if (!normalizedFeedUrl) {
@@ -65,7 +66,7 @@ async function getFeedMetadata(feedUrl: string) {
   }
 
   try {
-    const parser = new Parser<any, any>({
+    const parser = new Parser<Record<string, unknown>, Record<string, unknown>>({
       customFields: {
         feed: ["image", "icon"],
       },
@@ -73,7 +74,8 @@ async function getFeedMetadata(feedUrl: string) {
 
     const feed = await parser.parseURL(normalizedFeedUrl);
     const title = String(feed?.title || "").trim();
-    const icon = String(feed?.image?.url || feed?.icon || "").trim() ||
+    const image = feed?.image && typeof feed.image === "object" ? (feed.image as Record<string, unknown>) : null;
+    const icon = String(image?.url || feed?.icon || "").trim() ||
       `${new URL(feed?.link || normalizedFeedUrl).origin}/favicon.ico`;
 
     return {
@@ -141,8 +143,8 @@ export function registerNewsControllers(app: Hono) {
     return refreshNewsFeed(userId, { feedIds: readRequestedFeedIds(c) });
   }));
   app.post("/api/v1/news/feed-refresh", withJson(async (c) => {
-    const body = await readJsonBody<any>(c);
-    const { userId } = await requireAuth(body?.auth);
+    const body = await readJsonBody<{ auth?: { token?: string | null }; feedIds?: string[]; feedId?: string }>(c);
+    const { userId } = await requireAuth(body?.auth ?? {});
     return refreshNewsFeed(userId, {
       feedIds: Array.isArray(body?.feedIds)
         ? body.feedIds
@@ -152,9 +154,9 @@ export function registerNewsControllers(app: Hono) {
     });
   }));
   app.post("/api/v1/news/feed-subscribe", withJson(async (c) => {
-    const body = await readJsonBody<any>(c);
-    const { userId } = await requireAuth(body?.auth);
-    const sub = body?.sub ?? {};
+    const body = await readJsonBody<{ auth?: { token?: string | null }; sub?: NewsSubscribeInput }>(c);
+    const { userId } = await requireAuth(body?.auth ?? {});
+    const sub: NewsSubscribeInput = body?.sub ?? { feedUrl: "" };
 
     return subscribeNewsFeed(userId, {
       feedUrl: String(sub.feedUrl ?? ""),
@@ -165,13 +167,14 @@ export function registerNewsControllers(app: Hono) {
     });
   }));
   app.post("/api/v1/news/feed-unsubscribe", withJson(async (c) => {
-    const body = await readJsonBody<any>(c);
-    const { userId } = await requireAuth(body?.auth);
+    const body = await readJsonBody<{ auth?: { token?: string | null }; feedUrl?: string }>(c);
+    const { userId } = await requireAuth(body?.auth ?? {});
     return unsubscribeNewsFeed(userId, String(body?.feedUrl ?? ""));
   }));
   app.post("/api/v1/news/feed-update", withJson(async (c) => {
-    const body = await readJsonBody<any>(c);
-    const { userId } = await requireAuth(body?.auth);
-    return updateNewsFeed(userId, body?.payload ?? {});
+    const body = await readJsonBody<{ auth?: { token?: string | null }; payload?: NewsUpdateInput }>(c);
+    const { userId } = await requireAuth(body?.auth ?? {});
+    const payload: NewsUpdateInput = body?.payload ?? { feedUrl: "" };
+    return updateNewsFeed(userId, payload);
   }));
 }

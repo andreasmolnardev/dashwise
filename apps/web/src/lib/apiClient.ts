@@ -447,28 +447,6 @@ const routes: Record<string, RouteConfig> = {
   },
 };
 
-function createApiProxy(pathSegments: string[] = []): any {
-  const callable = () => undefined;
-
-  return new Proxy(callable, {
-    get(_target, key) {
-      if (key === "then" || key === Symbol.toStringTag) return undefined;
-      return createApiProxy([...pathSegments, String(key)]);
-    },
-    apply(_target, _thisArg, args) {
-      if (pathSegments.length < 2) {
-        throw new Error(`Unsupported API action: ${pathSegments.join(".")}`);
-      }
-
-      const actionName = pathSegments[pathSegments.length - 1];
-      const modulePath = pathSegments.slice(0, -1).join(".");
-      return requestRoute(getRoute(modulePath, actionName), args[0]);
-    },
-  });
-}
-
-export const api = createApiProxy() as Record<string, any>;
-
-export async function callApiAction<T = unknown>(modulePath: string, actionName: string, args: unknown[] = []): Promise<T> {
-  return requestRoute<T>(getRoute(modulePath, actionName), args[0]);
+export async function callApiAction<T = unknown>(modulePath: string, actionName: string, input?: unknown): Promise<T> {
+  return requestRoute<T>(getRoute(modulePath, actionName), input);
 }

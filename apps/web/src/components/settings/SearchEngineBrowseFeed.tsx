@@ -85,9 +85,9 @@ export default function SearchEngineBrowseFeedComponent() {
 
     // Build set of existing slugs from config
     const existingSlugs = React.useMemo(() => {
-        const arr = config?.searchEngines ?? [];
+        const arr = user?.searchPreferences?.searchEngines ?? [];
         return new Set(arr.map((e: any) => String(e.slug)));
-    }, [config]);
+    }, [user?.searchPreferences?.searchEngines]);
 
     // availableBangs: only those not already added
     const availableBangs = React.useMemo(() => {
