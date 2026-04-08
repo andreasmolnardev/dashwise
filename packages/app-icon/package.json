@@ -1,0 +1,21 @@
+{
+  "name": "@dashwise/app-icon",
+  "version": "1.0.0",
+  "private": true,
+  "main": "index.ts",
+  "peerDependencies": {
+    "react": ">=19",
+    "react-dom": ">=19"
+  },
+  "dependencies": {
+    "@iconify-icon/react": "^3.0.3"
+  },
+  "exports": {
+    ".": {
+      "types": "./index.ts",
+      "default": "./index.ts"
+    },
+    "./AppIcon": "./AppIcon.tsx"
+  },
+  "types": "index.ts"
+}

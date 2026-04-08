@@ -35,7 +35,7 @@ import {
 } from "@/components/ui/dialog";
 import LinkDetailsForm from "@/components/settings/LinkDetailsForm";
 import IconPickerComponent from "@/components/settings/IconPicker";
-import AppIcon from "@/components/shared/AppIcon";
+import AppIcon, { isMonoIconSource } from "@dashwise/app-icon";
 
 export interface LinkType {
   id?: string;
@@ -387,7 +387,7 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
                       <AppIcon
                         source={folder.icon}
                         alt={folder.name}
-                        className="text-white/90 h-[2rem] text-[2rem] group-hover:text-primary"
+                        className="text-white/90 h-8 text-[2rem] group-hover:text-primary"
                         imageClassName="invert object-contain"
                       />
                     )
@@ -657,6 +657,23 @@ function LinkTile({
   const isDisabled = serverStatus === "disabled";
   const showDot = Boolean(link.statusCheck);
 
+  const renderLocalTintableIcon = (source: string, className: string) => (
+    <span
+      className={className}
+      style={{
+        maskImage: `url(${source})`,
+        WebkitMaskImage: `url(${source})`,
+        maskRepeat: "no-repeat",
+        WebkitMaskRepeat: "no-repeat",
+        maskPosition: "center",
+        WebkitMaskPosition: "center",
+        maskSize: "contain",
+        WebkitMaskSize: "contain",
+      }}
+      aria-hidden
+    />
+  );
+
   return (
     <a
       key={link.id || link.url || itemIdx}
@@ -669,12 +686,19 @@ function LinkTile({
     >
       {link.iconUrl
         ? (
-          <AppIcon
-            source={link.iconUrl}
-            alt={link.title}
-            className="h-8.75 w-8.75 text-foreground transition-colors group-hover:text-primary"
-            imageClassName="object-contain"
-          />
+          isMonoIconSource(link.iconUrl)
+            ? renderLocalTintableIcon(
+              link.iconUrl,
+              "h-8.75 w-8.75 bg-current text-foreground transition-colors group-hover:text-primary"
+            )
+            : (
+              <AppIcon
+                source={link.iconUrl}
+                alt={link.title}
+                className="h-8.75 w-8.75 text-foreground transition-colors group-hover:text-primary"
+                imageClassName="object-contain"
+              />
+            )
         )
         : (
           <div className="h-8.75 w-8.75 flex items-center justify-center">

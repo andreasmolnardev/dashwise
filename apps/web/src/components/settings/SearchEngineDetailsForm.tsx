@@ -250,12 +250,7 @@ export default function SearchEngineDetailsForm({
                             <IconPickerComponent
                                 initialIcons={icons}
                                 onSelect={(iconObj: any) => {
-                                    const ext = iconObj.SVG === "Yes" ? "svg" : "png";
-                                    let variant = "";
-                                    if (iconObj.Light === "Yes") variant = "-light";
-                                    else if (iconObj.Dark === "Yes") variant = "-dark";
-                                    const url = `/icons/${ext}/${iconObj.Reference}${variant}.${ext}`;
-                                    setIcon(url);
+                                    setIcon(iconObj.url ?? "");
                                     setIconEdited(true);
                                     setOpen(false);
                                 }}

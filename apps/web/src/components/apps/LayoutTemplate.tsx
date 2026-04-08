@@ -2,7 +2,7 @@
 
 import { Link, useLocation } from "react-router-dom";
 import { Icon } from "@iconify-icon/react";
-import AppIcon from "@/components/shared/AppIcon";
+import AppIcon from "@dashwise/app-icon";
 import {
     DropdownMenu,
     DropdownMenuContent,

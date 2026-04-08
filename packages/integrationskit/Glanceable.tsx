@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import IntegrationIcon from "./templates/IntegrationIcon";
+import AppIcon from "@dashwise/app-icon";
 import {
   flattenToEnv,
   resolveStringWithCasts,
@@ -47,7 +47,7 @@ export default function Glanceable({
         className={`inline-flex items-center gap-1 ${className ?? ""}`}
       >
         {resolved.icon && (
-          <IntegrationIcon source={resolved.icon} alt="" className="text-lg object-contain shrink-0" />
+          <AppIcon source={resolved.icon} alt="" className="text-lg object-contain shrink-0" />
         )}
         <span>{renderLocalizedText(resolved.text, formatters)}</span>
       </span>
@@ -143,7 +143,7 @@ export default function Glanceable({
       className={`inline-flex items-center gap-1 ${className ?? ""}`}
     >
       {iconSrc && (
-        <IntegrationIcon source={iconSrc} alt="" className="text-lg object-contain shrink-0" />
+        <AppIcon source={iconSrc} alt="" className="text-lg object-contain shrink-0" />
       )}
       <span>{text}</span>
     </span>

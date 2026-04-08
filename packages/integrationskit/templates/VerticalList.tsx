@@ -2,7 +2,7 @@
 
 import { Icon } from "@iconify-icon/react";
 import React from "react";
-import IntegrationIcon from "./IntegrationIcon";
+import AppIcon from "@dashwise/app-icon";
 import type { ResolvedWidget } from "../data/resolveProperties";
 import { renderLocalizedText, type TextFormatters } from "../data/renderText";
 
@@ -23,7 +23,7 @@ export default function VerticalList({ resolved, className, formatters }: Vertic
           href={header.titleAction ?? "#"}
           className="font-medium mb-1 grid grid-cols-[18px_1fr_16px] w-full text-start items-center gap-2"
         >
-          <IntegrationIcon source={header.icon} className="h-4 mx-0.5" alt="" size={16} />
+          <AppIcon source={header.icon} className="h-4 mx-0.5" alt="" size={16} />
           <p className="font-semibold truncate">{renderLocalizedText(header.title, formatters)}</p>
           {header.titleAction && (
             <Icon
@@ -76,7 +76,7 @@ function ListRow({
         />
       ) : item.icon ? (
         <span className="h-8 w-8 flex items-center justify-center shrink-0 text-base">
-          <IntegrationIcon source={item.icon} className="h-5 w-5 object-contain" alt="" size={20} />
+          <AppIcon source={item.icon} className="h-5 w-5 object-contain" alt="" size={20} />
         </span>
       ) : null}
 

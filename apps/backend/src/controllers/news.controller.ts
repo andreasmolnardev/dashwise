@@ -1,5 +1,5 @@
 import Parser from "rss-parser";
-import type { Hono } from "hono";
+import type { Context, Hono } from "hono";
 
 import { getNewsFeed, getNewsFeeds, getNewsSubscriptions, refreshNewsFeed, subscribeNewsFeed, unsubscribeNewsFeed, updateNewsFeed } from "@dashwise/sdk/data/news";
 
@@ -7,6 +7,19 @@ import { readAuthToken, readJsonBody, requireAuth, withJson } from "./shared";
 import { createLogger } from "../lib/logger";
 
 const logger = createLogger("API");
+
+function readRequestedFeedIds(c: Context) {
+  const url = new URL(c.req.url);
+  const feedIds = [
+    ...url.searchParams.getAll("feedIds"),
+    ...url.searchParams.getAll("feedId"),
+  ];
+
+  return feedIds
+    .flatMap((entry) => String(entry || "").split(","))
+    .map((feedId) => feedId.trim())
+    .filter(Boolean);
+}
 
 async function normalizeNewsFeedUrl(feedUrl: string) {
   const originalFeedUrl = String(feedUrl || "").trim();
@@ -125,12 +138,18 @@ export function registerNewsControllers(app: Hono) {
   }));
   app.get("/api/v1/news/feed-refresh", withJson(async (c) => {
     const { userId } = await requireAuth({ token: readAuthToken(c) });
-    return refreshNewsFeed(userId);
+    return refreshNewsFeed(userId, { feedIds: readRequestedFeedIds(c) });
   }));
   app.post("/api/v1/news/feed-refresh", withJson(async (c) => {
     const body = await readJsonBody<any>(c);
     const { userId } = await requireAuth(body?.auth);
-    return refreshNewsFeed(userId);
+    return refreshNewsFeed(userId, {
+      feedIds: Array.isArray(body?.feedIds)
+        ? body.feedIds
+        : body?.feedId
+          ? [String(body.feedId)]
+          : readRequestedFeedIds(c),
+    });
   }));
   app.post("/api/v1/news/feed-subscribe", withJson(async (c) => {
     const body = await readJsonBody<any>(c);

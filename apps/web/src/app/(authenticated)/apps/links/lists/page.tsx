@@ -52,9 +52,6 @@ export default function LinksListsPage() {
         <div className="space-y-4">
             <header className="space-y-1">
                 <h1 className="text-3xl font-semibold tracking-tight">Lists</h1>
-                <p className="max-w-2xl text-sm text-white/60">
-                    Each list gets its own tab so you can browse the bookmarks stored in that collection.
-                </p>
             </header>
 
             {lists.length === 0 ? (

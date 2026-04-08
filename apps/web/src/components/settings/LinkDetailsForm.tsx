@@ -37,9 +37,10 @@ import IconPickerComponent, {
   IconResult,
   getIconifySlugFromUrl,
   getMonoIconReferenceFromUrl,
+  getLocalIconSetFromUrl,
   loadIconCatalog,
 } from "@/components/settings/IconPicker";
-import AppIcon from "@/components/shared/AppIcon";
+import AppIcon from "@dashwise/app-icon";
 import { RadioGroup, RadioGroupItem } from "../ui/radio-group";
 import { Switch } from "@/components/ui/switch";
 import { faEllipsisV, faPaperclip } from "@fortawesome/free-solid-svg-icons";
@@ -241,13 +242,14 @@ export default function LinkDetailsForm({
       setUrl(link.url);
       const iconifySlug = getIconifySlugFromUrl(link.icon);
       const monoReference = getMonoIconReferenceFromUrl(link.icon);
+      const localIconSet = getLocalIconSetFromUrl(link.icon);
 
       setIcon(
         iconifySlug
           ? { url: iconifySlug, iconSet: "custom", name: iconifySlug }
           : {
             url: link.icon,
-            iconSet: monoReference ? "mono" : "custom",
+            iconSet: localIconSet ?? (monoReference ? "mono" : "default"),
           }
       );
       setIconEdited(true);

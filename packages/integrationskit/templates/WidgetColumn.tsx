@@ -2,7 +2,7 @@
 
 import { Icon } from "@iconify-icon/react";
 import React from "react";
-import IntegrationIcon from "./IntegrationIcon";
+import AppIcon from "@dashwise/app-icon";
 
 interface WidgetColumnTemplateProps {
   children: React.ReactNode;
@@ -33,7 +33,7 @@ export default function WidgetColumnTemplate({
           href={url || "#"}
           className="font-medium mb-1 flex w-full text-start items-center gap-1 pl-1"
         >
-          <IntegrationIcon
+          <AppIcon
             source={iconUrl}
             className={`h-4 mx-0.5 ${iconUrl ? "" : "invisible"}`}
             alt=""

@@ -158,12 +158,32 @@ export default function NewsDashboardComponent(
         navigate,
     ]);
 
-    const refreshFeeds = async (targetLabel: string = "all feeds") => {
+    const getRefreshTargetFeedIds = (explicitFeedIds?: string[]) => {
+        if (explicitFeedIds && explicitFeedIds.length > 0) {
+            return explicitFeedIds.map(String).filter(Boolean);
+        }
+
+        if (activeFeedId === "all") {
+            return feeds.map((entry) => entry.id).filter(Boolean);
+        }
+
+        return [activeFeedId].filter(Boolean);
+    };
+
+    const refreshFeeds = async (
+        targetLabel: string = "current feed",
+        explicitFeedIds?: string[],
+    ) => {
         if (!token) return;
+        const targetFeedIds = getRefreshTargetFeedIds(explicitFeedIds);
+        if (!targetFeedIds.length) {
+            return;
+        }
+
         setIsRefreshing(true);
         setRefreshStatus(`Refreshing ${targetLabel}…`);
         try {
-            await withAuth((auth) => refreshNewsFeedAction(auth));
+            await withAuth((auth) => refreshNewsFeedAction(auth, targetFeedIds));
             setRefreshStatus("Fetching latest articles…");
             await loadFeed();
         } catch (err) {
@@ -190,6 +210,7 @@ export default function NewsDashboardComponent(
         await loadSubscriptions();
         await refreshFeeds(
             feed.name || feed.title || feed.feedUrl || feed.url || "new feed",
+            feed.feedIds || [],
         );
     };
 
@@ -202,8 +223,8 @@ export default function NewsDashboardComponent(
 
         await loadSubscriptions();
         await refreshFeeds(
-            subscription.title || subscription.name || subscription.url ||
-                subscription.feedUrl || "feed",
+            subscription.title || subscription.name || subscription.url || subscription.feedUrl || "feed",
+            subscription.feedIds || [],
         );
     };
 
@@ -222,8 +243,8 @@ export default function NewsDashboardComponent(
 
         await loadSubscriptions();
         await refreshFeeds(
-            updatedFeed.name || updatedFeed.title || updatedFeed.feedUrl ||
-                updatedFeed.url || "feed",
+            updatedFeed.name || updatedFeed.title || updatedFeed.feedUrl || updatedFeed.url || "feed",
+            updatedFeed.feedIds || [],
         );
     };
 

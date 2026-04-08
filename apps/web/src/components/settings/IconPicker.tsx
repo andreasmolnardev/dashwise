@@ -26,6 +26,7 @@ export interface IconResult {
 }
 
 type PickerSource = "default" | "mono" | "iconify";
+type LocalIconSet = "default" | "mono";
 
 const ICONIFY_COLLECTIONS = [
     { value: "mdi", label: "Material Design Icons" },
@@ -78,11 +79,24 @@ export function buildIconifyUrl(iconName: string) {
     return `${ICONIFY_API_PREFIX}${iconName}.svg`;
 }
 
-export function getMonoIconReferenceFromUrl(source?: string | null) {
+export function getLocalIconReferenceFromUrl(source?: string | null) {
     if (!source) return null;
 
-    const match = source.match(/^\/icons\/webp\/([^/]+?)(?:-(?:light|dark))?\.webp(?:\?.*)?$/i);
+    const match = source.match(/^\/icons\/(?:svg|png|webp)\/([^/]+?)(?:-(?:light|dark))?\.(?:svg|png|webp)(?:\?.*)?$/i);
     return match?.[1] ?? null;
+}
+
+export function getMonoIconReferenceFromUrl(source?: string | null) {
+    return getLocalIconReferenceFromUrl(source);
+}
+
+export function getLocalIconSetFromUrl(source?: string | null): LocalIconSet | null {
+    if (!source) return null;
+
+    const reference = getLocalIconReferenceFromUrl(source);
+    if (!reference) return null;
+
+    return /-(?:light|dark)\.(?:svg|png|webp)(?:\?.*)?$/i.test(source) ? "mono" : "default";
 }
 
 type IconifySelectionDetail = {
@@ -251,27 +265,67 @@ export default function IconPickerComponent({
     const deferredSearch = useDeferredValue(search.trim().toLowerCase());
     const [iconifyCollection, setIconifyCollection] = useState("mdi");
     const [iconifySelected, setIconifySelected] = useState<string | null>(null);
+    const [selectedIconSet, setSelectedIconSet] = useState<LocalIconSet | null>(null);
     const [iconsLoading, setIconsLoading] = useState(initialIcons.length === 0);
     const [iconsError, setIconsError] = useState<string | null>(null);
     const [visibleCount, setVisibleCount] = useState(ICON_BATCH_SIZE);
 
     useEffect(() => {
-        if (!initialSelection?.url) return;
+        if (!initialSelection?.url) {
+            setSelected(null);
+            setSelectedIconSet(null);
+            setIconifySelected(null);
+            return;
+        }
 
         const iconifySlug = getIconifySlugFromUrl(initialSelection.url);
         if (iconifySlug) {
             setPickerSource("iconify");
             setIconifySelected(iconifySlug);
+            setSelected(null);
+            setSelectedIconSet(null);
             setIconifyCollection(iconifySlug.split(":")[0] || "mdi");
             return;
         }
 
-        const monoReference = getMonoIconReferenceFromUrl(initialSelection.url);
-        if (monoReference) {
-            setPickerSource(initialSelection.iconSet === "mono" ? "mono" : "default");
-            setSelected(monoReference);
+        const localReference = getLocalIconReferenceFromUrl(initialSelection.url);
+        const localIconSet = getLocalIconSetFromUrl(initialSelection.url);
+        if (localReference && localIconSet) {
+            const storedLocalSet = initialSelection.iconSet === "default" || initialSelection.iconSet === "mono"
+                ? initialSelection.iconSet
+                : null;
+            const nextSource = storedLocalSet ?? localIconSet;
+
+            setPickerSource(nextSource);
+            if (!storedLocalSet || storedLocalSet === localIconSet) {
+                setSelected(localReference);
+                setSelectedIconSet(localIconSet);
+            } else {
+                setSelected(null);
+                setSelectedIconSet(null);
+            }
+            setIconifySelected(null);
         }
     }, [initialSelection]);
+
+    useEffect(() => {
+        if (pickerSource === "iconify") {
+            if (selectedIconSet !== null) {
+                setSelected(null);
+                setSelectedIconSet(null);
+            }
+            return;
+        }
+
+        if (selectedIconSet !== null && selectedIconSet !== pickerSource) {
+            setSelected(null);
+            setSelectedIconSet(null);
+        }
+
+        if (iconifySelected) {
+            setIconifySelected(null);
+        }
+    }, [iconifySelected, pickerSource, selectedIconSet]);
 
     useEffect(() => {
         let cancelled = false;
@@ -316,13 +370,9 @@ export default function IconPickerComponent({
 
     const getIconData = (icon: Icon): IconResult => {
         const iconSet = pickerSource === "mono" ? "mono" : "default";
-        let variant = "";
-        if (pickerSource === "mono") {
-            if (icon.Light === "Yes") variant = "light";
-            else if (icon.Dark === "Yes") variant = "dark";
-        }
-
-        const url = `/icons/webp/${icon.Reference}${variant ? `-${variant}` : ""}.webp`;
+        const variant = icon.Light === "Yes" ? "light" : icon.Dark === "Yes" ? "dark" : "";
+        const extension = icon.SVG === "Yes" ? "svg" : "png";
+        const url = `/icons/${extension}/${icon.Reference}${variant ? `-${variant}` : ""}.${extension}`;
 
         return {
             variant: variant || "default",
@@ -349,6 +399,7 @@ export default function IconPickerComponent({
 
     const handleSelect = (value: string) => {
         setSelected(value);
+        setSelectedIconSet(pickerSource === "iconify" ? null : (pickerSource as LocalIconSet));
         const icon = icons.find((i) => i.Reference === value);
         if (onSelect && icon) onSelect(getIconData(icon));
         if (onClose) onClose();
@@ -361,6 +412,8 @@ export default function IconPickerComponent({
             const [collection] = iconName.split(":");
             if (collection) setIconifyCollection(collection);
         }
+        setSelected(null);
+        setSelectedIconSet(null);
 
         if (onSelect) {
             onSelect({

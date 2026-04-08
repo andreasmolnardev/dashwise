@@ -8,11 +8,11 @@
     "react-dom": ">=19"
   },
   "dependencies": {
+    "@dashwise/app-icon": "workspace:*",
     "@dashwise/sdk": "workspace:*"
   },
   "exports": {
     "./AppIcon": "./templates/AppIcon.tsx",
-    "./IntegrationIcon": "./templates/IntegrationIcon.tsx",
     "./Glanceable": "./Glanceable.tsx",
     "./GlanceableComponent": "./Glanceable.tsx",
     "./Widget": "./Widget.tsx",

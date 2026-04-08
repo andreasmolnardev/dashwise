@@ -345,7 +345,11 @@ const routes: Record<string, RouteConfig> = {
   "news.refreshNewsFeedAction": {
     method: "POST",
     path: "/news/feed-refresh",
-    body: (input) => ({ auth: input }),
+    body: (input) => ({
+      auth: input?.auth,
+      feedId: input?.feedId,
+      feedIds: input?.feedIds,
+    }),
   },
   "news.subscribeNewsFeedAction": {
     method: "POST",

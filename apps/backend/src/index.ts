@@ -43,8 +43,23 @@ app.get("/webhook/statusMonitoringRunner", async (c) => {
 });
 
 app.get("/webhook/newsFeedBuilder", async (c) => {
-  const feedId = c.req.query("feedId");
-  await jobsApi.runNewsFeedBuilderJob("webhook", feedId);
+  const url = new URL(c.req.url);
+  const feedIds = [
+    ...url.searchParams.getAll("feedIds"),
+    ...url.searchParams.getAll("feedId"),
+  ]
+    .flatMap((entry) => String(entry || "").split(","))
+    .map((feedId) => feedId.trim())
+    .filter(Boolean);
+
+  if (!feedIds.length) {
+    return c.json({ status: "success", message: "No feed IDs specified" });
+  }
+
+  for (const feedId of feedIds) {
+    await jobsApi.runNewsFeedBuilderJob("webhook", feedId);
+  }
+
   return c.json({ status: "success" });
 });
 

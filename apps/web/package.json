@@ -10,6 +10,7 @@
     "generate:api-types": "openapi-typescript public/openapi.json -o ../../packages/api-types/src/openapi.ts"
   },
   "dependencies": {
+    "@dashwise/app-icon": "workspace:*",
     "@dashwise/integrationskit": "workspace:*",
     "@dashwise/sdk": "workspace:*",
     "@dnd-kit/core": "^6.3.1",

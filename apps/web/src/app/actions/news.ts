@@ -17,8 +17,8 @@ export async function getNewsFeedMetadataAction(auth: ActionAuth, url: string) {
   return api.news.getNewsFeedMetadataAction({ auth, url });
 }
 
-export async function refreshNewsFeedAction(auth: ActionAuth) {
-  return api.news.refreshNewsFeedAction(auth);
+export async function refreshNewsFeedAction(auth: ActionAuth, feedIds?: string[]) {
+  return api.news.refreshNewsFeedAction({ auth, feedIds });
 }
 
 export async function subscribeNewsFeedAction(auth: ActionAuth, sub: { feedUrl: string; name?: string; icon?: string; feedIds?: string[]; newFeedTitles?: string[]; }) {

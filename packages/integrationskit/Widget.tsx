@@ -9,7 +9,7 @@ import { renderLocalizedText, type TextFormatters } from "./data/renderText";
 import WidgetColumnTemplate from "./templates/WidgetColumn";
 import VerticalList from "./templates/VerticalList";
 import IconDetailsCard from "./templates/IconDetailsCard";
-import IntegrationIcon from "./templates/IntegrationIcon";
+import AppIcon from "@dashwise/app-icon";
 import type { ResolvedWidget } from "./data/resolveProperties";
 
 export type WidgetProps = {
@@ -302,7 +302,7 @@ function ColumnCell(
 
 
             {!hasProgress && hasIcon && (
-                <IntegrationIcon
+                    <AppIcon
                     source={col.icon!.file}
                     alt={col.icon!.description ?? ""}
                     size={col.icon!.size ?? 32}

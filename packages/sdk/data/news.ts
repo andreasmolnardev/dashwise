@@ -206,7 +206,7 @@ async function syncSubscriptionFeedRefs(
   subscriptionId: string,
   feedIds: string[] = [],
   newFeedTitles: string[] = [],
-) {
+): Promise<string[]> {
   const feeds = await getNewsFeedsByUserId(userId);
   const selectedIds = new Set(feedIds.map(String).filter(Boolean));
 
@@ -254,6 +254,8 @@ async function syncSubscriptionFeedRefs(
       });
     }
   }
+
+  return Array.from(selectedIds);
 }
 
 async function buildFeedFromSubscriptions(
@@ -362,14 +364,36 @@ export async function getNewsFeeds(userId: string) {
   };
 }
 
-export async function refreshNewsFeed(userId: string) {
+function normalizeRefreshFeedIds(feedIds?: string[] | string | null) {
+  if (Array.isArray(feedIds)) {
+    return Array.from(new Set(feedIds.map((feedId) => String(feedId).trim()).filter(Boolean)));
+  }
+
+  const singleFeedId = String(feedIds || "").trim();
+  return singleFeedId ? [singleFeedId] : [];
+}
+
+export async function refreshNewsFeed(
+  userId: string,
+  options?: { feedId?: string | null; feedIds?: string[] | null },
+) {
   if (!config.jobs_webhook_enabled) {
     return { message: "Jobs webhook is disabled" };
   }
 
-  const url = `${config.jobs_url}/webhook/newsFeedBuilder`;
+  const feedIds = normalizeRefreshFeedIds(options?.feedIds ?? options?.feedId ?? null);
+  if (!feedIds.length) {
+    return { message: "No feed IDs specified" };
+  }
+
+  const url = new URL(`${config.jobs_url}/webhook/newsFeedBuilder`);
+
+  for (const feedId of feedIds) {
+    url.searchParams.append("feedId", feedId);
+  }
+
   const response = await fetch(url, {
-    ...(url.startsWith("https://")
+    ...(url.toString().startsWith("https://")
       ? { tls: { rejectUnauthorized: false } }
       : {}),
   } as any);
@@ -406,7 +430,11 @@ export async function subscribeNewsFeed(
     });
 
     if (existing.id) {
-      await syncSubscriptionFeedRefs(userId, existing.id, sub.feedIds ?? [], sub.newFeedTitles ?? []);
+      const feedIds = await syncSubscriptionFeedRefs(userId, existing.id, sub.feedIds ?? [], sub.newFeedTitles ?? []);
+
+      if (config.jobs_webhook_enabled && feedIds.length > 0) {
+        await refreshNewsFeed(userId, { feedIds });
+      }
     }
   } else {
     const created = await createNewsSubscription({
@@ -416,12 +444,12 @@ export async function subscribeNewsFeed(
     });
 
     if (created?.id) {
-      await syncSubscriptionFeedRefs(userId, created.id, sub.feedIds ?? [], sub.newFeedTitles ?? []);
-    }
-  }
+      const feedIds = await syncSubscriptionFeedRefs(userId, created.id, sub.feedIds ?? [], sub.newFeedTitles ?? []);
 
-  if (config.jobs_webhook_enabled) {
-    await fetch(config.jobs_url + "/webhook/newsFeedBuilder");
+      if (config.jobs_webhook_enabled && feedIds.length > 0) {
+        await refreshNewsFeed(userId, { feedIds });
+      }
+    }
   }
 
   return { message: "Feed successfully subscribed." };

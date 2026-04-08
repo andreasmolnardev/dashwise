@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import IntegrationIcon from "./IntegrationIcon";
+import AppIcon from "@dashwise/app-icon";
 import type { ResolvedWidget } from "../data/resolveProperties";
 import { renderLocalizedText, type TextFormatters } from "../data/renderText";
 
@@ -26,14 +26,14 @@ export default function IconDetailsCard({ resolved, className, formatters }: Ico
           href={header.titleAction ?? "#"}
           className="font-medium mb-2 flex w-full text-start items-center gap-2"
         >
-          <IntegrationIcon source={header.icon} className="h-4 mx-0.5" alt="" size={16} />
+          <AppIcon source={header.icon} className="h-4 mx-0.5" alt="" size={16} />
           <p className="font-semibold truncate">{renderLocalizedText(header.title, formatters)}</p>
         </a>
       )}
 
       <div className="flex items-center gap-x-3 gap-y-1">
         <div className="row-span-2 flex h-12 w-12 items-center justify-center rounded-lg shrink-0">
-          <IntegrationIcon
+          <AppIcon
             source={iconSrc ?? undefined}
             className="h-9 w-9 object-contain"
             alt=""
