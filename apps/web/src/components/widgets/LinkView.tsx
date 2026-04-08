@@ -673,7 +673,7 @@ function LinkTile({
             source={link.iconUrl}
             alt={link.title}
             className="h-8.75 w-8.75"
-            monoClassName="text-foreground transition-colors group-hover:text-primary"
+            monoClassName="bg-foreground transition-colors group-hover:bg-primary"
             imageClassName="object-contain"
           />
         )

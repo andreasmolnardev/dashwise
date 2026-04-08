@@ -135,7 +135,6 @@ export default function AppIcon({
 					maskSize: "contain",
 					WebkitMaskSize: "contain",
 				}}
-				aria-hidden
 			/>
 		);
 	}
