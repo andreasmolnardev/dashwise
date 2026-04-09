@@ -131,7 +131,7 @@ export default function NewsLayout({ children }: { children: ReactNode }) {
                     <Tab
                         key={feed.id}
                         dst={`/apps/news/${feed.id}`}
-                        icon="fa6-solid:layer-group"
+                        icon="solar:document-text-bold"
                         title={feed.title || "Untitled feed"}
                         group="Feeds"
                         dropdownActions={[

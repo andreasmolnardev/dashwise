@@ -6,6 +6,7 @@ export interface LinkList {
     id: string;
     name: string;
     description: string;
+    icon: string;
     user: string;
     type: "user-defined" | "system";
     created: string;
@@ -30,6 +31,7 @@ export interface LinkFolder {
     name: string;
     icon: string;
     parentFolder?: string;
+    tags?: string[];
     created: string;
     updated: string;
 }
@@ -51,6 +53,7 @@ export interface LinkItem {
     description: string;
     collection: string;
     folder?: string;
+    tags?: string[];
     created: string;
     updated: string;
 }
@@ -77,6 +80,7 @@ export async function getLinksCollections(userId: string) {
         id: r.id,
         name: r.name,
         description: r.description,
+        icon: r.icon,
         type: r.type as LinkList["type"],
         created: r.created,
         updated: r.updated,
@@ -95,6 +99,9 @@ export async function getLinksFolders(listId: string) {
         name: r.name,
         icon: r.icon,
         parentFolder: r.parentFolder as string | undefined,
+        tags: Array.isArray((r as any).tags)
+            ? (r as any).tags.map((tag: any) => (typeof tag === "string" ? tag : String(tag?.id ?? ""))).filter(Boolean)
+            : [],
         list: r.list,
     }));
 }
@@ -122,6 +129,11 @@ export async function getLinksItems(listId: string, folderId?: string) {
         description: r.description,
         collection: r.collection,
         folder: r.folder as string | undefined,
+        tags: Array.isArray((r as any).tags)
+            ? (r as any).tags.map((tag: any) => (typeof tag === "string" ? tag : String(tag?.id ?? ""))).filter(Boolean)
+            : [],
+        created: r.created,
+        updated: r.updated,
     }));
 }
 
@@ -136,6 +148,74 @@ export async function getLinksTags() {
         name: r.name,
         color: r.color,
     }));
+}
+
+export async function createLinkTag(
+    userId: string,
+    data: { name: string; color?: string },
+): Promise<{ id: string; name: string; color: string }> {
+    const pb = getServerPB();
+    const normalizedName = String(data.name || "").trim();
+
+    if (!normalizedName) {
+        throw new Error("Tag name is required");
+    }
+
+    void userId;
+
+    const record = await pb.collection("linksTags").create({
+        name: normalizedName,
+        color: data.color ?? "",
+    });
+
+    return {
+        id: record.id,
+        name: record.name,
+        color: record.color,
+    };
+}
+
+export async function updateCollection(
+    userId: string,
+    listId: string,
+    data: { name?: string; description?: string },
+): Promise<{ id: string; name: string; description: string; type: string }> {
+    const pb = getServerPB();
+
+    const list = await pb.collection("linksLists").getOne(listId);
+    if (list.user !== userId) throw new Error("Unauthorized");
+
+    const record = await pb.collection("linksLists").update(listId, {
+        ...(data.name !== undefined && { name: String(data.name).trim() }),
+        ...(data.description !== undefined && { description: data.description ?? "" }),
+    });
+
+    return {
+        id: record.id,
+        name: record.name,
+        description: record.description,
+        type: record.type,
+    };
+}
+
+export async function updateLinkTag(
+    userId: string,
+    tagId: string,
+    data: { name?: string; color?: string },
+): Promise<{ id: string; name: string; color: string }> {
+    const pb = getServerPB();
+    void userId;
+
+    const record = await pb.collection("linksTags").update(tagId, {
+        ...(data.name !== undefined && { name: String(data.name).trim() }),
+        ...(data.color !== undefined && { color: data.color ?? "" }),
+    });
+
+    return {
+        id: record.id,
+        name: record.name,
+        color: record.color,
+    };
 }
 
 // ─── Home links ───────────────────────────────────────────────────────────────
@@ -215,6 +295,9 @@ export async function getHomeLinks(userId: string) {
             folder: nestedFolder?.name ?? "",
             folderId: nestedFolder?.id,
             folderIcon: nestedFolder?.icon ?? "",
+            tags: Array.isArray((r as any).tags)
+                ? (r as any).tags.map((tag: any) => (typeof tag === "string" ? tag : String(tag?.id ?? ""))).filter(Boolean)
+                : [],
         };
     });
 }
@@ -556,8 +639,8 @@ export async function updateHomeLinkItem(
 
 export async function createCollection(
     userId: string,
-    data: { name: string; description?: string },
-): Promise<{ id: string; name: string; description: string; type: string }> {
+    data: { name: string; description?: string; icon?: string },
+): Promise<{ id: string; name: string; description: string; icon: string; type: string }> {
     const pb = getServerPB();
 
     const record = await pb.collection("linksLists").create({
@@ -565,12 +648,14 @@ export async function createCollection(
         type: "user-defined",
         name: data.name,
         description: data.description ?? "",
+        icon: data.icon ?? "",
     });
 
     return {
         id: record.id,
         name: record.name,
         description: record.description,
+        icon: record.icon,
         type: record.type,
     };
 }
@@ -612,17 +697,18 @@ export async function createLinkItem(data: {
     description?: string;
     collection: string;
     folder?: string;
-}): Promise<
-    {
-        id: string;
-        url: string;
-        title: string;
-        iconUrl: string;
-        description: string;
-        collection: string;
-        folder?: string;
-    }
-> {
+    tags?: string[];
+}): Promise<{
+    id: string;
+    url: string;
+    title: string;
+    iconUrl: string;
+    description: string;
+    collection: string;
+    folder?: string;
+    created: string;
+    updated: string;
+}> {
     const pb = getServerPB();
 
     const record = await pb.collection("linkItems").create({
@@ -632,6 +718,7 @@ export async function createLinkItem(data: {
         description: data.description ?? "",
         collection: data.collection,
         folder: data.folder ?? "",
+        tags: Array.isArray(data.tags) ? data.tags : [],
     });
 
     return {
@@ -642,7 +729,41 @@ export async function createLinkItem(data: {
         description: record.description,
         collection: record.collection,
         folder: record.folder || undefined,
+        created: record.created,
+        updated: record.updated,
     };
+}
+
+export async function createCollectionLinkItem(
+    userId: string,
+    data: {
+        url: string;
+        title: string;
+        iconUrl?: string;
+        description?: string;
+        collection: string;
+        folder?: string;
+        tags?: string[];
+    },
+): Promise<{
+    id: string;
+    url: string;
+    title: string;
+    iconUrl: string;
+    description: string;
+    collection: string;
+    folder?: string;
+    created: string;
+    updated: string;
+}> {
+    const pb = getServerPB();
+    const list = await pb.collection("linksLists").getOne(data.collection);
+
+    if (list.user !== userId) {
+        throw new Error("Unauthorized");
+    }
+
+    return createLinkItem(data);
 }
 
 export async function updateLinkItem(

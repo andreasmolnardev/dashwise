@@ -6,12 +6,13 @@ import AppTemplate, { GroupLabel, Sidebar, Tab, Content } from "@/components/app
 import useAuth from "@/context/useAuth";
 import { getLinksCollectionsAction, getLinksTagsAction } from "@/app/actions/links";
 import CreateLinksCollectionDialog from "@/components/links/CreateLinksCollectionDialog";
-import CreateHomeTabDialog from "@/components/links/CreateHomeTabDialog";
+import CreateLinksTagDialog from "@/components/links/CreateLinksTagDialog";
 
 type LinkCollection = {
     id: string;
     name: string;
     description?: string;
+    icon?: string;
     type?: string;
 };
 
@@ -27,7 +28,9 @@ export default function LinksLayout({ children }: { children: ReactNode }) {
     const [collections, setCollections] = useState<LinkCollection[]>([]);
     const [tags, setTags] = useState<LinkTag[]>([]);
     const [createListOpen, setCreateListOpen] = useState(false);
-    const [createTabOpen, setCreateTabOpen] = useState(false);
+    const [createTagOpen, setCreateTagOpen] = useState(false);
+    const [editingCollection, setEditingCollection] = useState<LinkCollection | null>(null);
+    const [editingTag, setEditingTag] = useState<LinkTag | null>(null);
 
     useEffect(() => {
         if (!token) {
@@ -75,7 +78,7 @@ export default function LinksLayout({ children }: { children: ReactNode }) {
     );
 
     return (
-        <AppTemplate title="Bookmarks">
+        <AppTemplate title="Links">
             <Sidebar>
                 <Tab dst="/links/home" icon="fa6-solid:house" title="Home" />
                 <GroupLabel
@@ -83,29 +86,48 @@ export default function LinksLayout({ children }: { children: ReactNode }) {
                     title="Lists"
                     actions={[
                         {
-                            icon: "fa6-solid:folder-plus",
+                            icon: "fa6-solid:plus",
                             title: "Create new list",
-                            action: () => setCreateListOpen(true),
-                        },
-                        {
-                            icon: "fa6-solid:layer-group",
-                            title: "Create new tab",
-                            action: () => setCreateTabOpen(true),
+                            action: () => {
+                                setEditingCollection(null);
+                                setCreateListOpen(true);
+                            },
                         },
                     ]}
                 />
-                <Tab dst="/links/lists" icon="fa6-solid:list" title="Lists" isRoot />
                 {userCollections.map((collection) => (
                     <Tab
                         key={collection.id}
                         dst={`/links/lists/${collection.id}`}
-                        icon="fa6-solid:folder-open"
+                        icon={collection.icon || "fa6-solid:folder-open"}
                         title={collection.name}
                         group="Lists"
+                        dropdownActions={[
+                            {
+                                label: "Edit list",
+                                icon: "fa6-solid:pen-to-square",
+                                action: () => {
+                                    setEditingCollection(collection);
+                                    setCreateListOpen(true);
+                                },
+                            },
+                        ]}
                     />
                 ))}
-                <GroupLabel group="Tags" title="Tags" />
-                <Tab dst="/links/tags" icon="fa6-solid:tag" title="Tags" isRoot />
+                <GroupLabel
+                    group="Tags"
+                    title="Tags"
+                    actions={[
+                        {
+                            icon: "fa6-solid:plus",
+                            title: "Create new tag",
+                            action: () => {
+                                setEditingTag(null);
+                                setCreateTagOpen(true);
+                            },
+                        },
+                    ]}
+                />
                 {tags.map((tag) => (
                     <Tab
                         key={tag.id}
@@ -113,6 +135,16 @@ export default function LinksLayout({ children }: { children: ReactNode }) {
                         icon="fa6-solid:hashtag"
                         title={tag.name}
                         group="Tags"
+                        dropdownActions={[
+                            {
+                                label: "Edit tag",
+                                icon: "fa6-solid:pen-to-square",
+                                action: () => {
+                                    setEditingTag(tag);
+                                    setCreateTagOpen(true);
+                                },
+                            },
+                        ]}
                     />
                 ))}
             </Sidebar>
@@ -121,16 +153,28 @@ export default function LinksLayout({ children }: { children: ReactNode }) {
 
             <CreateLinksCollectionDialog
                 open={createListOpen}
-                onOpenChange={setCreateListOpen}
-                onCreated={(collection) => {
+                onOpenChange={(open) => {
+                    setCreateListOpen(open);
+                    if (!open) setEditingCollection(null);
+                }}
+                collection={editingCollection}
+                onSaved={(collection) => {
                     setCollections((current) => [collection, ...current.filter((item) => item.id !== collection.id)]);
                     navigate(`/links/lists/${collection.id}`);
                 }}
             />
 
-            <CreateHomeTabDialog
-                open={createTabOpen}
-                onOpenChange={setCreateTabOpen}
+            <CreateLinksTagDialog
+                open={createTagOpen}
+                onOpenChange={(open) => {
+                    setCreateTagOpen(open);
+                    if (!open) setEditingTag(null);
+                }}
+                tag={editingTag}
+                onSaved={(tag) => {
+                    setTags((current) => [tag, ...current.filter((item) => item.id !== tag.id)]);
+                    navigate(`/links/tags/${tag.id}`);
+                }}
             />
         </AppTemplate>
     );

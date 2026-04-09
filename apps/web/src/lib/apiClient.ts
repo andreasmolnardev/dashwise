@@ -175,6 +175,12 @@ const routes: Record<string, RouteConfig> = {
     path: "/links/collections",
     body: (input) => input,
   },
+  "links.updateLinksCollectionAction": {
+    method: "PUT",
+    path: "/links/collections/{collectionId}" as any,
+    params: (input) => ({ path: { collectionId: String(input?.collectionId ?? "") } }),
+    body: (input) => ({ auth: input?.auth, data: input?.data }),
+  },
   "links.getHomeLinkGroupsAction": {
     method: "GET",
     path: "/links/home/groups",
@@ -212,6 +218,17 @@ const routes: Record<string, RouteConfig> = {
     method: "GET",
     path: "/links/tags",
     auth: (input) => authToken(input),
+  },
+  "links.createLinksTagAction": {
+    method: "POST",
+    path: "/links/tags",
+    body: (input) => input,
+  },
+  "links.updateLinksTagAction": {
+    method: "PUT",
+    path: "/links/tags/{tagId}" as any,
+    params: (input) => ({ path: { tagId: String(input?.tagId ?? "") } }),
+    body: (input) => ({ auth: input?.auth, data: input?.data }),
   },
   "links.createLinkItemAction": {
     method: "POST",

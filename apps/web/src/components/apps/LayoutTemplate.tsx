@@ -320,9 +320,20 @@ export function Sidebar({ children }: { children: ReactNode }) {
         }
     }
 
-    const groupOrder = Array.from(new Set([
-        ...grouped.map((entry) => entry.group ?? ""),
-    ]));
+    const groupOrder: string[] = [];
+    const seenGroups = new Set<string>();
+    Children.forEach(children, (child) => {
+        if (!isValidElement(child)) return;
+
+        const isSidebarChild = child.type === Tab || child.type === GroupLabel;
+        if (!isSidebarChild) return;
+
+        const groupKey = (child as React.ReactElement<TabProps | GroupLabelProps>).props.group ?? "";
+        if (seenGroups.has(groupKey)) return;
+
+        seenGroups.add(groupKey);
+        groupOrder.push(groupKey);
+    });
 
     const tabsByGroup = new Map<string, React.ReactElement<TabProps>[]>();
     for (const entry of grouped) {
@@ -422,12 +433,21 @@ export default function AppTemplate({
 }) {
     const location = useLocation();
     const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
-    const sidebar = Children.toArray(children).find(
+    const childArray = Children.toArray(children);
+
+    const sidebar = childArray.find(
         (c) => isValidElement(c) && (c as React.ReactElement).type === Sidebar,
     );
 
-    const content = Children.toArray(children).find(
+    const content = childArray.find(
         (c) => isValidElement(c) && (c as React.ReactElement).type === Content,
+    );
+
+    const overlays = childArray.filter(
+        (c) =>
+            isValidElement(c) &&
+            (c as React.ReactElement).type !== Sidebar &&
+            (c as React.ReactElement).type !== Content,
     );
 
     useEffect(() => {
@@ -510,6 +530,8 @@ export default function AppTemplate({
                     </aside>
                 </div>
             </div>
+
+            {overlays}
         </SidebarContext.Provider>
     );
 }

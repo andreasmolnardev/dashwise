@@ -5,8 +5,20 @@ export async function getLinksCollectionsAction(auth: ActionAuth) {
   return callApiAction("links", "getLinksCollectionsAction", auth);
 }
 
-export async function createLinksCollectionAction(auth: ActionAuth, data: { name: string; description?: string }) {
+export async function createLinksCollectionAction(auth: ActionAuth, data: { name: string; description?: string; icon?: string }) {
   return callApiAction("links", "createLinksCollectionAction", { auth, ...data });
+}
+
+export async function updateLinksCollectionAction(auth: ActionAuth, collectionId: string, data: { name: string; description?: string; icon?: string }) {
+  return callApiAction("links", "updateLinksCollectionAction", { auth, collectionId, data });
+}
+
+export async function createLinksTagAction(auth: ActionAuth, data: { name: string; color?: string }) {
+  return callApiAction("links", "createLinksTagAction", { auth, ...data });
+}
+
+export async function updateLinksTagAction(auth: ActionAuth, tagId: string, data: { name: string; color?: string }) {
+  return callApiAction("links", "updateLinksTagAction", { auth, tagId, data });
 }
 
 export async function getHomeLinkGroupsAction(auth: ActionAuth) {
@@ -37,7 +49,7 @@ export async function getLinksTagsAction(auth: ActionAuth) {
   return callApiAction("links", "getLinksTagsAction", auth);
 }
 
-export async function createLinkItemAction(auth: ActionAuth, data: { url: string; title: string; iconUrl?: string; description?: string; linkGroup?: string; folder?: string }) {
+export async function createLinkItemAction(auth: ActionAuth, data: { url: string; title: string; iconUrl?: string; description?: string; linkGroup?: string; folder?: string; collection?: string; tags?: string[] }) {
   return callApiAction("links", "createLinkItemAction", { auth, data });
 }
 

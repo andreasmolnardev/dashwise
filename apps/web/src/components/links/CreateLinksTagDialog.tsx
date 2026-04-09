@@ -6,54 +6,52 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import useAuth from "@/context/useAuth";
-import { createLinksCollectionAction, updateLinksCollectionAction } from "@/app/actions/links";
+import { createLinksTagAction, updateLinksTagAction } from "@/app/actions/links";
 
 type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  collection?: { id: string; name: string; description?: string; icon?: string; type?: string } | null;
-  onSaved?: (collection: { id: string; name: string; description?: string; icon?: string; type?: string }) => void;
+  tag?: { id: string; name: string; color?: string } | null;
+  onSaved?: (tag: { id: string; name: string; color?: string }) => void;
 };
 
-export default function CreateLinksCollectionDialog({ open, onOpenChange, collection, onSaved }: Props) {
+export default function CreateLinksTagDialog({ open, onOpenChange, tag, onSaved }: Props) {
   const { withAuth } = useAuth();
   const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [icon, setIcon] = useState("");
+  const [color, setColor] = useState("#0ea5e9");
   const [alert, setAlert] = useState<{ open: boolean; title: string; description?: string; variant?: "success" | "error" }>({ open: false, title: "", description: "", variant: "success" });
-  const isEditing = Boolean(collection?.id);
+  const isEditing = Boolean(tag?.id);
 
   useEffect(() => {
     if (!open) return;
 
-    setName(collection?.name ?? "");
-    setDescription(collection?.description ?? "");
-    setIcon(collection?.icon ?? "");
+    setName(tag?.name ?? "");
+    setColor(tag?.color || "#0ea5e9");
     setAlert({ open: false, title: "", description: "", variant: "success" });
-  }, [collection, open]);
+  }, [open, tag]);
 
   const handleSave = async () => {
     if (!name.trim()) return;
 
-    const saved = isEditing && collection?.id
-      ? await withAuth((auth) => updateLinksCollectionAction(auth, collection.id, { name: name.trim(), description: description.trim() || undefined, icon: icon.trim() || undefined }))
-      : await withAuth((auth) => createLinksCollectionAction(auth, { name: name.trim(), description: description.trim() || undefined, icon: icon.trim() || undefined }));
+    const saved = isEditing && tag?.id
+      ? await withAuth((auth) => updateLinksTagAction(auth, tag.id, { name: name.trim(), color: color.trim() || undefined }))
+      : await withAuth((auth) => createLinksTagAction(auth, { name: name.trim(), color: color.trim() || undefined }));
 
     setAlert({
       open: true,
-      title: isEditing ? "List updated" : "List created",
-      description: `${isEditing ? "Updated" : "Created"} list "${name.trim()}".`,
+      title: isEditing ? "Tag updated" : "Tag created",
+      description: `${isEditing ? "Updated" : "Created"} tag "${name.trim()}".`,
       variant: "success",
     });
 
-    onSaved?.(saved as { id: string; name: string; description?: string; icon?: string; type?: string });
+    onSaved?.(saved as { id: string; name: string; color?: string });
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="frosted text-foreground">
         <DialogHeader>
-          <DialogTitle>{isEditing ? "Edit list" : "Create new list"}</DialogTitle>
+          <DialogTitle>{isEditing ? "Edit tag" : "Create new tag"}</DialogTitle>
         </DialogHeader>
 
         {alert.open && (
@@ -84,12 +82,12 @@ export default function CreateLinksCollectionDialog({ open, onOpenChange, collec
               await handleSave();
               onOpenChange(false);
               setName("");
-              setDescription("");
+              setColor("#0ea5e9");
             } catch (error) {
               const message = error instanceof Error ? error.message : String(error);
               setAlert({
                 open: true,
-                title: `Failed to ${isEditing ? "update" : "create"} list`,
+                title: `Failed to ${isEditing ? "update" : "create"} tag`,
                 description: message,
                 variant: "error",
               });
@@ -97,42 +95,28 @@ export default function CreateLinksCollectionDialog({ open, onOpenChange, collec
           }}
         >
           <div className="space-y-2">
-            <Label htmlFor="list-name">List name</Label>
+            <Label htmlFor="tag-name">Tag name</Label>
             <input
-              id="list-name"
+              id="tag-name"
               name="name"
               type="text"
               value={name}
               onChange={(event) => setName(event.target.value)}
               className="w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-foreground outline-none transition-colors placeholder:text-white/35 focus:border-primary"
-              placeholder="Design inspiration"
+              placeholder="Urgent"
               required
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="list-description">Description</Label>
-            <textarea
-              id="list-description"
-              name="description"
-              rows={3}
-              value={description}
-              onChange={(event) => setDescription(event.target.value)}
-              className="w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-foreground outline-none transition-colors placeholder:text-white/35 focus:border-primary"
-              placeholder="Optional note about what belongs here"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="list-icon">Icon</Label>
+            <Label htmlFor="tag-color">Color</Label>
             <input
-              id="list-icon"
-              name="icon"
-              type="text"
-              value={icon}
-              onChange={(event) => setIcon(event.target.value)}
-              className="w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-foreground outline-none transition-colors placeholder:text-white/35 focus:border-primary"
-              placeholder="fa6-solid:folder-open or url:https://..."
+              id="tag-color"
+              name="color"
+              type="color"
+              value={color}
+              onChange={(event) => setColor(event.target.value)}
+              className="h-10 w-full cursor-pointer rounded-md border border-white/10 bg-white/5 px-2 py-1"
             />
           </div>
 
@@ -140,7 +124,7 @@ export default function CreateLinksCollectionDialog({ open, onOpenChange, collec
             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit">{isEditing ? "Save changes" : "Create list"}</Button>
+            <Button type="submit">{isEditing ? "Save changes" : "Create tag"}</Button>
           </div>
         </form>
       </DialogContent>

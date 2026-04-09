@@ -31,7 +31,7 @@ export default function NotificationsLayoutComponent(
             const data = await withAuth((auth) =>
                 getNotificationsAction(auth, false, true)
             );
-            setUnreadCount(data.unread || 0);
+            setUnreadCount(data?.unread || 0);
         } catch (err) {
             console.error(err);
         }

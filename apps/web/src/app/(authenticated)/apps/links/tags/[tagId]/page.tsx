@@ -1,22 +1,55 @@
 "use client";
 
-import { Link, useParams } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
+import { useParams } from "react-router-dom";
+import { getLinksCollectionsAction, getLinksFoldersAction, getLinksItemsAction, getLinksTagsAction } from "@/app/actions/links";
+import LinksDetailView, { type LinkFolderRecord, type LinkItemRecord, type LinkTagRecord } from "@/components/links/LinksDetailView";
+import CreateLinksItemDialog from "@/components/links/CreateLinksItemDialog";
 import useAuth from "@/context/useAuth";
-import { getLinksTagsAction } from "@/app/actions/links";
 
-type LinkTag = {
+type LinkCollection = {
     id: string;
     name: string;
-    color?: string;
-    created?: string;
-    updated?: string;
+    description?: string;
+    type?: string;
 };
+
+function normalizeTagIds(value: unknown): string[] {
+    if (!Array.isArray(value)) return [];
+
+    return value
+        .map((entry) => {
+            if (typeof entry === "string") return entry;
+            if (entry && typeof entry === "object" && "id" in entry) {
+                return String((entry as { id?: unknown }).id ?? "");
+            }
+            return "";
+        })
+        .map((entry) => entry.trim())
+        .filter(Boolean);
+}
+
+function hasTag(value: unknown, tagId: string) {
+    return normalizeTagIds(value).includes(tagId);
+}
+
+function includeFolderAncestors(folderId: string | undefined, foldersById: Map<string, LinkFolderRecord>, includedFolderIds: Set<string>) {
+    let currentFolderId = folderId;
+
+    while (currentFolderId && !includedFolderIds.has(currentFolderId)) {
+        includedFolderIds.add(currentFolderId);
+        currentFolderId = foldersById.get(currentFolderId)?.parentFolder;
+    }
+}
 
 export default function LinksTagDetailPage() {
     const { tagId = "" } = useParams();
     const { token, withAuth } = useAuth();
-    const [tags, setTags] = useState<LinkTag[]>([]);
+    const [collections, setCollections] = useState<LinkCollection[]>([]);
+    const [folders, setFolders] = useState<LinkFolderRecord[]>([]);
+    const [items, setItems] = useState<LinkItemRecord[]>([]);
+    const [tags, setTags] = useState<LinkTagRecord[]>([]);
+    const [createLinkOpen, setCreateLinkOpen] = useState(false);
 
     useEffect(() => {
         if (!token || !tagId) return;
@@ -25,12 +58,40 @@ export default function LinksTagDetailPage() {
 
         const load = async () => {
             try {
-                const data = await withAuth((auth) => getLinksTagsAction(auth));
+                const [collectionsData, tagsData] = await Promise.all([
+                    withAuth((auth) => getLinksCollectionsAction(auth)),
+                    withAuth((auth) => getLinksTagsAction(auth)),
+                ]);
+
                 if (!mounted) return;
-                setTags(Array.isArray(data) ? (data as LinkTag[]) : []);
+
+                const collectionRecords = Array.isArray(collectionsData) ? (collectionsData as LinkCollection[]) : [];
+                const collectionPayloads = await Promise.all(collectionRecords.map(async (collection) => {
+                    const [foldersData, itemsData] = await Promise.all([
+                        withAuth((auth) => getLinksFoldersAction(auth, collection.id)),
+                        withAuth((auth) => getLinksItemsAction(auth, collection.id)),
+                    ]);
+
+                    return {
+                        folders: Array.isArray(foldersData) ? (foldersData as LinkFolderRecord[]) : [],
+                        items: Array.isArray(itemsData) ? (itemsData as LinkItemRecord[]) : [],
+                    };
+                }));
+
+                if (!mounted) return;
+
+                setCollections(Array.isArray(collectionRecords) ? collectionRecords : []);
+                setTags(Array.isArray(tagsData) ? (tagsData as LinkTagRecord[]) : []);
+                setFolders(collectionPayloads.flatMap((entry) => entry.folders));
+                setItems(collectionPayloads.flatMap((entry) => entry.items));
             } catch (error) {
                 console.error("Failed to load tag details:", error);
-                if (mounted) setTags([]);
+                if (mounted) {
+                    setCollections([]);
+                    setFolders([]);
+                    setItems([]);
+                    setTags([]);
+                }
             }
         };
 
@@ -45,6 +106,32 @@ export default function LinksTagDetailPage() {
         () => tags.find((entry) => entry.id === tagId) ?? null,
         [tags, tagId],
     );
+
+    const { scopedFolders, scopedItems } = useMemo(() => {
+        if (!tagId) {
+            return { scopedFolders: [] as LinkFolderRecord[], scopedItems: [] as LinkItemRecord[] };
+        }
+
+        const foldersById = new Map(folders.map((folder) => [folder.id, folder]));
+        const includedFolderIds = new Set<string>();
+
+        for (const folder of folders) {
+            if (hasTag(folder.tags, tagId)) {
+                includeFolderAncestors(folder.id, foldersById, includedFolderIds);
+            }
+        }
+
+        const matchingItems = items.filter((item) => hasTag(item.tags, tagId));
+
+        for (const item of matchingItems) {
+            includeFolderAncestors(item.folder, foldersById, includedFolderIds);
+        }
+
+        return {
+            scopedFolders: folders.filter((folder) => includedFolderIds.has(folder.id) || hasTag(folder.tags, tagId)),
+            scopedItems: matchingItems,
+        };
+    }, [folders, items, tagId]);
 
     if (!tagId) {
         return (
@@ -66,36 +153,27 @@ export default function LinksTagDetailPage() {
     }
 
     return (
-        <div className="space-y-6">
-            <header className="space-y-2">
-                <div className="flex flex-wrap items-center gap-3">
-                    <h1 className="text-3xl font-semibold tracking-tight">{tag.name}</h1>
-                    <span
-                        className="h-4 w-4 rounded-full border border-white/20"
-                        style={{ backgroundColor: tag.color || "rgba(255,255,255,0.18)" }}
-                    />
-                </div>
-                <p className="max-w-3xl text-sm text-white/60">
-                    The current database only exposes tag metadata, so this page shows the tag record itself.
-                </p>
-            </header>
+        <>
+            <LinksDetailView
+                title={tag.name}
+                description="Folders and links tagged with this label."
+                folders={scopedFolders}
+                items={scopedItems}
+                tags={tags}
+                onAddLink={() => setCreateLinkOpen(true)}
+            />
 
-            <div className="grid gap-4 md:grid-cols-2">
-                <div className="frosted rounded-2xl border border-white/10 p-4">
-                    <p className="text-xs uppercase tracking-[0.2em] text-white/40">Tag ID</p>
-                    <p className="mt-2 break-all text-sm text-white">{tag.id}</p>
-                </div>
+            <CreateLinksItemDialog
+                open={createLinkOpen}
+                onOpenChange={setCreateLinkOpen}
+                defaultTagIds={[tagId]}
+                onCreated={(link) => {
+                    const createdTagIds = normalizeTagIds(link.tags);
+                    if (!createdTagIds.includes(tagId)) return;
 
-                <div className="frosted rounded-2xl border border-white/10 p-4">
-                    <p className="text-xs uppercase tracking-[0.2em] text-white/40">Color</p>
-                    <p className="mt-2 text-sm text-white">{tag.color || "No color set"}</p>
-                </div>
-            </div>
-
-            <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/55">
-                <span>Use the Tags tab to switch between records.</span>
-                <Link to="/links/tags" className="text-white hover:text-primary">Back to tags</Link>
-            </div>
-        </div>
+                    setItems((current) => [link as LinkItemRecord, ...current.filter((item) => item.id !== link.id)]);
+                }}
+            />
+        </>
     );
 }

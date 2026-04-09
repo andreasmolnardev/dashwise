@@ -1,6 +1,6 @@
 import type { Hono } from "hono";
 
-import { createCollection, createHomeLinkGroup, createHomeLinkItem, deleteLinkItem, getHomeLinkGroups, getHomeLinks, getLinksCollections, getLinksFolders, getLinksItems, getLinksTags, updateHomeLinkFolderIcon, updateHomeLinkItem } from "@dashwise/sdk/data/links";
+import { createCollection, createCollectionLinkItem, createHomeLinkGroup, createHomeLinkItem, createLinkTag, deleteLinkItem, getHomeLinkGroups, getHomeLinks, getLinksCollections, getLinksFolders, getLinksItems, getLinksTags, updateCollection, updateHomeLinkFolderIcon, updateHomeLinkItem, updateLinkTag } from "@dashwise/sdk/data/links";
 
 import { readAuthToken, readJsonBody, requireAuth, withJson } from "./shared";
 
@@ -16,6 +16,11 @@ export function registerLinksControllers(app: Hono) {
       name: String(body?.name ?? ""),
       description: typeof body?.description === "string" ? body.description : undefined,
     });
+  }));
+  app.put("/api/v1/links/collections/:collectionId", withJson(async (c) => {
+    const body = await readJsonBody<any>(c);
+    const { userId } = await requireAuth(body?.auth);
+    return updateCollection(userId, String(c.req.param("collectionId") ?? ""), body?.data ?? {});
   }));
   app.get("/api/v1/links/home/groups", withJson(async (c) => {
     const { userId } = await requireAuth({ token: readAuthToken(c) });
@@ -48,7 +53,13 @@ export function registerLinksControllers(app: Hono) {
   app.post("/api/v1/links/items", withJson(async (c) => {
     const body = await readJsonBody<any>(c);
     const { userId } = await requireAuth(body?.auth);
-    return createHomeLinkItem(userId, body?.data ?? {});
+    const data = body?.data ?? {};
+
+    if (typeof data.collection === "string" && data.collection.trim()) {
+      return createCollectionLinkItem(userId, data);
+    }
+
+    return createHomeLinkItem(userId, data);
   }));
   app.put("/api/v1/links/items/:linkId", withJson(async (c) => {
     const body = await readJsonBody<any>(c);
@@ -64,5 +75,18 @@ export function registerLinksControllers(app: Hono) {
     const { userId } = await requireAuth({ token: readAuthToken(c) });
     void userId;
     return getLinksTags();
+  }));
+  app.post("/api/v1/links/tags", withJson(async (c) => {
+    const body = await readJsonBody<any>(c);
+    const { userId } = await requireAuth(body?.auth);
+    return createLinkTag(userId, {
+      name: String(body?.name ?? ""),
+      color: typeof body?.color === "string" ? body.color : undefined,
+    });
+  }));
+  app.put("/api/v1/links/tags/:tagId", withJson(async (c) => {
+    const body = await readJsonBody<any>(c);
+    const { userId } = await requireAuth(body?.auth);
+    return updateLinkTag(userId, String(c.req.param("tagId") ?? ""), body?.data ?? {});
   }));
 }
