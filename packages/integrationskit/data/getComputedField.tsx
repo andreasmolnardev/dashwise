@@ -4,7 +4,7 @@
 // integration-backed widgets. The helpers here are shared by endpoint loading,
 // computed-field evaluation, and widget rendering.
 
-import getLookupTableValue from "./getLookupTableValue";
+import getLookupTableValue from "./resolvers/lookupTable";
 
 export type ComputedResolutionContext = {
 	env: Record<string, string>;
@@ -52,24 +52,29 @@ export function resolveComputedFieldValue(
 	if (Array.isArray(value)) {
 		return value.map((entry) => resolveComputedFieldValue(entry, context));
 	}
+	if (isPlainObject(value)) {
+		return resolveObjectValue(value, context);
+	}
+	return value;
+}
 
-	if (typeof value === "object") {
-		if (typeof value.iterate_over === "string" || value.iterate_over !== undefined) {
-			return resolveIteratedComputedValue(value, context);
-		}
-
-		if (typeof value.operation === "string") {
-			return resolveOperationValue(value, context);
-		}
-
-		const resolved: Record<string, any> = {};
-		for (const [key, entry] of Object.entries(value)) {
-			resolved[key] = resolveComputedFieldValue(entry, context);
-		}
-		return resolved;
+function resolveObjectValue(
+	value: Record<string, any>,
+	context: ComputedResolutionContext,
+) {
+	if (value.iterate_over !== undefined) {
+		return resolveIteratedComputedValue(value, context);
 	}
 
-	return value;
+	if (typeof value.operation === "string") {
+		return resolveOperationValue(value, context);
+	}
+
+	const resolved: Record<string, any> = {};
+	for (const [key, entry] of Object.entries(value)) {
+		resolved[key] = resolveComputedFieldValue(entry, context);
+	}
+	return resolved;
 }
 
 export function resolveComputedFields(
@@ -454,33 +459,6 @@ function resolveOperationValue(def: Record<string, any>, context: ComputedResolu
 		return result === undefined ? fallback : result;
 	}
 
-	if (operation === "weather_icon") {
-		const weatherCode = resolveComputedFieldValue(def.weather_code ?? def.code ?? def.value, context);
-		const tableName = resolveComputedFieldValue(def.table ?? "weather_code_map", context);
-		let table: any = undefined;
-		if (typeof tableName === "string") {
-			table = getNestedValue(context.scope ?? {}, `lookup_tables.${tableName}`) ?? (context.scope ?? {})[tableName];
-		} else {
-			table = tableName;
-		}
-
-		const entry = getLookupTableValue(table, weatherCode);
-		if (!entry) return fallback;
-
-		const forceNight = Boolean(resolveComputedFieldValue(def.force_night ?? def.forceNight, context));
-		const nightSwap = def.night_swap === undefined ? true : Boolean(resolveComputedFieldValue(def.night_swap, context));
-		const sunrise = resolveComputedFieldValue(def.sunrise, context);
-		const sunset = resolveComputedFieldValue(def.sunset, context);
-		const useNight = forceNight || (nightSwap && isNightTime(sunrise, sunset));
-		const iconDay = entry.iconDay ?? entry.fileDay;
-		const iconNight = entry.iconNight ?? entry.fileNight;
-
-		if (useNight && iconNight !== undefined) return iconNight;
-		if (!useNight && iconDay !== undefined) return iconDay;
-		return iconDay ?? iconNight ?? fallback;
-	}
-
-
 	if (operation === "index_lookup") {
 		const source = resolveComputedFieldValue(def.source, context);
 		const indexValue = resolveComputedFieldValue(def.index, context);
@@ -553,27 +531,6 @@ function parseMaybeJson(value: string) {
 
 function normalizeComputedExpression(expression: string) {
 	return expression.replace(/\bnow\(\)/g, String(Date.now()));
-}
-
-function isNightTime(sunrise: any, sunset: any) {
-	const sunriseTime = parseComparableTime(sunrise);
-	const sunsetTime = parseComparableTime(sunset);
-	if (sunriseTime === undefined && sunsetTime === undefined) return false;
-
-	const currentTime = Date.now();
-	if (sunriseTime !== undefined && currentTime < sunriseTime) return true;
-	if (sunsetTime !== undefined && currentTime >= sunsetTime) return true;
-	return false;
-}
-
-function parseComparableTime(value: any) {
-	if (value === undefined || value === null || value === "") return undefined;
-	if (typeof value === "number" && Number.isFinite(value)) {
-		return value > 1e12 ? value : value * 1000;
-	}
-
-	const parsed = Date.parse(String(value));
-	return Number.isFinite(parsed) ? parsed : undefined;
 }
 
 function humanBytes(value: any) {

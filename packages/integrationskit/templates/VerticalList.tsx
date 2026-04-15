@@ -3,7 +3,7 @@
 import { Icon } from "@iconify-icon/react";
 import React from "react";
 import AppIcon from "@dashwise/app-icon";
-import type { ResolvedWidget } from "../data/resolveProperties";
+import type { ResolvedWidget } from "../types";
 import { renderLocalizedText, type TextFormatters } from "../data/renderText";
 
 interface VerticalListProps {

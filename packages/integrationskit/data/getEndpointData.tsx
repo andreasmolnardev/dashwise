@@ -5,41 +5,25 @@
 // return a normalized response object that computed fields can consume.
 
 import { getNestedValue, resolveComputedFieldValue } from "./getComputedField";
+import type {
+  EndpointRuntimeCacheAdapter,
+  ResolvedEndpointData,
+} from "../types";
+export type { EndpointRuntimeCacheAdapter, ResolvedEndpointData } from "../types";
 
 export type EndpointDefinition = Record<string, any>;
 
-export type ResolvedEndpointData = {
-	id: string | null;
-	name: string | null;
-	method: string;
-	url: string;
-	resolvedUrl: string;
-	requestHeaders: Record<string, string>;
-	requestBody: string | null;
-	rawResponse: unknown;
-	mappedResponse: unknown;
-};
-
 export type EndpointResolutionContext = {
-	env: Record<string, string>;
-	scope?: Record<string, any>;
-	signal?: AbortSignal;
-	cache?: EndpointRuntimeCacheAdapter;
-};
-
-export type EndpointRuntimeCacheAdapter = {
-	get: (endpointId: string) => ResolvedEndpointData | null;
-	set: (
-		endpointId: string,
-		payload: ResolvedEndpointData,
-		expiresAt: number | null,
-	) => void;
+  env: Record<string, string>;
+  scope?: Record<string, any>;
+  signal?: AbortSignal;
+  cache?: EndpointRuntimeCacheAdapter;
 };
 
 const inFlightEndpointRequests = new Map<string, Promise<ResolvedEndpointData>>();
 
 /**
- * Gets all integrations endpoint data
+ * Gets all of an integrations endpoint data
  */
 export async function resolveEndpointCatalog(
 	endpoints: unknown,
@@ -54,72 +38,6 @@ export async function resolveEndpointCatalog(
 	const normalized = normalizeEndpoints(endpoints);
 	const nextEnv = { ...context.env };
 	const resolved: Record<string, ResolvedEndpointData> = {};
-
-	function extractEnvVarsFromValue(value: unknown): Set<string> {
-		const result = new Set<string>();
-		if (value === undefined || value === null) return result;
-		let text = "";
-		if (typeof value === "string") text = value;
-		else {
-			try {
-				text = JSON.stringify(value);
-			} catch {
-				text = String(value);
-			}
-		}
-		const keywordBlacklist = new Set([
-			"if",
-			"else",
-			"and",
-			"or",
-			"not",
-			"contains",
-			"true",
-			"false",
-			"null",
-		]);
-
-		for (const m of text.matchAll(/\$\{([^}]+)\}/g)) {
-			if (!m[1]) continue;
-			const expr = m[1].trim();
-			// If it's a simple variable or dotted path, add both the full ref and the base var
-			if (/^[A-Za-z_][A-Za-z0-9_.\[\]]*$/.test(expr)) {
-				result.add(expr);
-				const base = expr.split(/[.\[]/)[0];
-				if (base) result.add(base);
-				continue;
-			}
-
-			// Otherwise it's likely an expression; extract potential variable tokens
-			for (const tok of expr.matchAll(/[A-Za-z_][A-Za-z0-9_]*/g)) {
-				const name = tok[0];
-				if (!keywordBlacklist.has(name)) result.add(name);
-			}
-		}
-		return result;
-	}
-
-	function endpointReadVars(endpoint: EndpointDefinition) {
-		const vars = new Set<string>();
-		varsFor(endpoint.url, vars);
-		varsFor(endpoint.auth, vars);
-		varsFor(endpoint.method, vars);
-		varsFor(endpoint.body, vars);
-		varsFor(endpoint.headers ?? endpoint.custom_headers, vars);
-		function varsFor(v: unknown, set: Set<string>) {
-			for (const e of extractEnvVarsFromValue(v)) set.add(e);
-		}
-		return vars;
-	}
-
-	function endpointProducedVar(endpoint: EndpointDefinition) {
-		const responseDirective = isPlainObject(endpoint.response)
-			? endpoint.response
-			: null;
-		return typeof responseDirective?.data_set_env === "string"
-			? responseDirective.data_set_env
-			: null;
-	}
 
 	// Worklist: greedy scheduler that runs any endpoint whose read vars are satisfied
 	const work = normalized.slice();
@@ -173,28 +91,125 @@ export async function resolveEndpointCatalog(
 		const key = resolvedEndpoint.id ?? resolvedEndpoint.name;
 		if (key) resolved[key] = resolvedEndpoint;
 
-		const responseDirective = isPlainObject(endpoint.response)
-			? endpoint.response
-			: null;
-		const dataSetEnv = typeof responseDirective?.data_set_env === "string"
-			? responseDirective.data_set_env
-			: null;
-		const dataPath = typeof responseDirective?.data_path === "string"
-			? responseDirective.data_path
-			: undefined;
-
-		if (dataSetEnv) {
-			const nextValue = getNestedValue(
-				resolvedEndpoint.mappedResponse as Record<string, any>,
-				dataPath ?? "",
-			);
-			if (nextValue !== undefined && nextValue !== null) {
-				nextEnv[dataSetEnv] = formatEnvValue(nextValue);
-			}
-		}
+		setEndpointResponseEnv(endpoint, resolvedEndpoint, nextEnv);
 	}
 
 	return { endpoints: resolved, env: nextEnv };
+}
+
+function setEndpointResponseEnv(
+	endpoint: EndpointDefinition,
+	resolvedEndpoint: ResolvedEndpointData,
+	env: Record<string, string>,
+) {
+	const responseDirective = isPlainObject(endpoint.response)
+		? endpoint.response
+		: null;
+	const dataSetEnv = typeof responseDirective?.data_set_env === "string"
+		? responseDirective.data_set_env
+		: null;
+	const dataPath = typeof responseDirective?.data_path === "string"
+		? responseDirective.data_path
+		: undefined;
+
+	if (!dataSetEnv) return;
+
+	const nextValue = getNestedValue(
+		resolvedEndpoint.mappedResponse as Record<string, any>,
+		dataPath ?? "",
+	);
+
+	if (nextValue !== undefined && nextValue !== null) {
+		env[dataSetEnv] = formatEnvValue(nextValue);
+	}
+}
+
+function selectNextEndpointIndex(
+	work: EndpointDefinition[],
+	env: Record<string, string>,
+) {
+	const readyIndex = work.findIndex((endpoint) => {
+		const reads = endpointReadVars(endpoint);
+		return [...reads].every((readVar) => {
+			const val = env[readVar];
+			return val !== undefined && val !== null && String(val) !== "";
+		});
+	});
+
+	if (readyIndex !== -1) return readyIndex;
+
+	const producerIndex = work.findIndex((endpoint) => endpointProducedVar(endpoint) !== null);
+	return producerIndex !== -1 ? producerIndex : 0;
+}
+
+function endpointReadVars(endpoint: EndpointDefinition) {
+	const vars = new Set<string>();
+	collectEnvVars(endpoint.url, vars);
+	collectEnvVars(endpoint.auth, vars);
+	collectEnvVars(endpoint.method, vars);
+	collectEnvVars(endpoint.body, vars);
+	collectEnvVars(endpoint.headers ?? endpoint.custom_headers, vars);
+	return vars;
+}
+
+function collectEnvVars(value: unknown, vars: Set<string>) {
+	for (const envVar of extractEnvVarsFromValue(value)) {
+		vars.add(envVar);
+	}
+}
+
+function endpointProducedVar(endpoint: EndpointDefinition) {
+	const responseDirective = isPlainObject(endpoint.response)
+		? endpoint.response
+		: null;
+	return typeof responseDirective?.data_set_env === "string"
+		? responseDirective.data_set_env
+		: null;
+}
+
+function extractEnvVarsFromValue(value: unknown): Set<string> {
+	const result = new Set<string>();
+	if (value === undefined || value === null) return result;
+
+	let text = "";
+	if (typeof value === "string") {
+		text = value;
+	} else {
+		try {
+			text = JSON.stringify(value);
+		} catch {
+			text = String(value);
+		}
+	}
+
+	const keywordBlacklist = new Set([
+		"if",
+		"else",
+		"and",
+		"or",
+		"not",
+		"contains",
+		"true",
+		"false",
+		"null",
+	]);
+
+	for (const match of text.matchAll(/\$\{([^}]+)\}/g)) {
+		if (!match[1]) continue;
+		const expr = match[1].trim();
+		if (/^[A-Za-z_][A-Za-z0-9_.\[\]]*$/.test(expr)) {
+			result.add(expr);
+			const base = expr.split(/[.\[]/)[0];
+			if (base) result.add(base);
+			continue;
+		}
+
+		for (const tok of expr.matchAll(/[A-Za-z_][A-Za-z0-9_]*/g)) {
+			const name = tok[0];
+			if (!keywordBlacklist.has(name)) result.add(name);
+		}
+	}
+	return result;
 }
 
 function resolveEndpointCacheKey(endpoint: EndpointDefinition): string | null {

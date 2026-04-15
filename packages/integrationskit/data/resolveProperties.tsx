@@ -1,93 +1,121 @@
-// dashwise-integrationskit/data/resolveProperties.tsx
-//
-// Resolves a widget definition (from YAML) + hydrated data into flat, renderable structs.
-// Integration-backed widgets can also resolve their runtime data here so the
-// kit owns the endpoint/computed-field boundary.
-
 import { resolveEndpointCatalog } from "./getEndpointData";
-import type { EndpointRuntimeCacheAdapter } from "./getEndpointData";
+import type {
+  EndpointRuntimeCacheAdapter,
+  ResolvedEndpointData,
+  IntegrationRuntimeProperties,
+  ResolveOptions,
+  RuntimeDataResolution,
+  ResolvedColumn,
+  ResolvedIcon,
+  ResolvedListItem,
+  ResolvedWidget,
+} from "../types";
 import {
   flattenToEnv,
   getNestedValue,
   resolveComputedFields,
 } from "./getComputedField";
-import { encodeTypedText } from "./renderText";
+import {
+  resolveAction,
+  resolveBadge,
+  resolveMappedValue,
+  resolveNumber,
+  resolveSubtitle,
+  resolveValue,
+  resolveStringWithCasts,
+  interpolateString,
+  evaluateCondition,
+} from "./resolvers/operations";
+export { resolveValue, resolveStringWithCasts, interpolateString } from "./resolvers/operations";
 
 // ── Public types ──────────────────────────────────────────────────────────────
 
-export type ResolvedWidget = {
-  header?: {
-    title?: string;
-    icon?: string;
-    titleAction?: string;
-    /** false when show_if evaluated to false */
-    show?: boolean;
+export function getRuntimeEnv(
+  integrationJSON: Record<string, any> | null,
+  baseEnv: Record<string, string> = {},
+): Record<string, string> {
+  const integrationEnv =
+    integrationJSON?.configuration?.environment_variables &&
+    typeof integrationJSON.configuration.environment_variables === "object"
+      ? flattenToEnv(
+          integrationJSON.configuration.environment_variables as Record<
+            string,
+            any
+          >,
+        )
+      : {};
+
+  return {
+    ...integrationEnv,
+    ...baseEnv,
   };
-  /** Populated for template: "columns" */
-  columns?: ResolvedColumn[];
-  /** Populated for template: "vertical-list" */
-  list?: ResolvedListItem[];
-  /** Populated for template: "icon-details-card" */
-  card?: {
-    icon?: string;
-    primary?: string;
-    secondary?: string;
+}
+
+export async function resolveIntegrationRuntimeProperties(
+  opts: {
+    integrationJSON: Record<string, any> | null;
+    env?: Record<string, string>;
+    isPreview?: boolean;
+    endpointCache?: EndpointRuntimeCacheAdapter;
+    allowInsecureEndpoints?: boolean;
+  },
+): Promise<IntegrationRuntimeProperties> {
+  const {
+    integrationJSON,
+    env = {},
+    isPreview = false,
+    endpointCache,
+    allowInsecureEndpoints,
+  } = opts;
+  const runtimeEnv = getRuntimeEnv(integrationJSON, env);
+  const integrationConfig = (integrationJSON?.configuration ?? {}) as Record<
+    string,
+    any
+  >;
+  const lookup_tables = integrationConfig.lookup_tables;
+
+  if (isPreview) {
+    return {
+      endpoints: {},
+      computed: {},
+      lookup_tables,
+      env: runtimeEnv,
+    };
+  }
+
+  const endpointResult = await resolveEndpointCatalog(
+    integrationConfig.endpoints,
+    {
+      env: runtimeEnv,
+      scope: {},
+      cache: endpointCache,
+    },
+    allowInsecureEndpoints,
+  );
+
+  const computed = resolveComputedFields(integrationConfig.computed, {
+    env: endpointResult.env,
+    scope: {
+      endpoints: endpointResult.endpoints,
+      lookup_tables,
+    },
+  });
+
+  const runtimeScope = {
+    endpoints: endpointResult.endpoints,
+    computed,
   };
-  /** The raw properties object, passed through for custom consumers */
-  raw: Record<string, any>;
-};
 
-export type ResolvedColumn = {
-  label?: string;
-  icon?: {
-    type?: string;
-    file?: string;
-    size?: number;
-    description?: string;
-    useFrostedGradient?: boolean;
+  return {
+    endpoints: endpointResult.endpoints,
+    computed,
+    lookup_tables,
+    env: {
+      ...endpointResult.env,
+      ...flattenToEnv(runtimeScope),
+    },
   };
-  primary?: string;
-  secondary?: string;
-  progress?: {
-    type?: string;
-    value?: number;
-    thresholds?: Array<{ min: number; color: string }>;
-    zero_label?: string;
-  };
-  title?: string;
-  titleAction?: string;
-  badge?: { show?: boolean; icon?: string; tooltip?: string };
-  thumbnail?: string;
-};
-
-export type ResolvedIcon = {
-  source?: string;
-  useFrostedGradient?: boolean;
-};
-
-export type ResolvedListItem = {
-  accent?: string;
-  icon?: string;
-  title?: string;
-  titleAction?: string;
-  subtitle?: string | string[];
-  thumbnail?: string;
-  badge?: { show?: boolean; icon?: string; tooltip?: string };
-};
-
-export type ResolveOptions = {
-  widgetJSON: Record<string, any>;
-  integrationJSON: Record<string, any> | null;
-  data: Record<string, any> | null;
-  isPreview: boolean;
-  endpointCache?: EndpointRuntimeCacheAdapter;
-  allowInsecureEndpoints?: boolean;
-};
-
-export type RuntimeDataResolution = {
-  data: Record<string, any> | null;
-  env: Record<string, string>;
-};
+}
 
 type RuntimeDataResolutionOptions = {
   integrationJSON: Record<string, any> | null;
@@ -143,26 +171,19 @@ export function resolveWidgetProperties(opts: ResolveOptions): ResolvedWidget {
 }
 
 function patchIntegrationIcons(res: ResolvedWidget, env: Record<string, any>) {
-  // Helper to replace values like "integrations.someId.details.icon" -> lookup tail on integrationJSON
-  const resolveIfIntegrationRef = (val?: string, env?: Record<string, any>) => {
-    if (!val || typeof val !== "string") return val;
-    return resolveValue(val, env ?? {}) ?? val;
-  };
-
   if (res.header && res.header.icon) {
-    res.header.icon = resolveIfIntegrationRef(res.header.icon, env);
+    res.header.icon = resolveIntegrationIconReference(res.header.icon, env);
   }
 
   if (res.card && res.card.icon) {
-    res.card.icon = resolveIfIntegrationRef(res.card.icon, env);
+    res.card.icon = resolveIntegrationIconReference(res.card.icon, env);
   }
 
   if (res.columns) {
     res.columns = res.columns.map((c) => ({
       ...c,
-      // column.icon.file might be an integration ref stored in the file property
       icon: c.icon
-        ? { ...c.icon, file: resolveIfIntegrationRef(c.icon.file, env) }
+        ? { ...c.icon, file: resolveIntegrationIconReference(c.icon.file, env) }
         : c.icon,
     }));
   }
@@ -170,11 +191,19 @@ function patchIntegrationIcons(res: ResolvedWidget, env: Record<string, any>) {
   if (res.list) {
     res.list = res.list.map((item) => ({
       ...item,
-      icon: resolveIfIntegrationRef(item.icon, env),
+      icon: resolveIntegrationIconReference(item.icon, env),
     }));
   }
 
   return res;
+}
+
+function resolveIntegrationIconReference(
+  value: unknown,
+  env: Record<string, any>,
+): string | undefined {
+  if (!value || typeof value !== "string") return undefined;
+  return resolveValue(value, env) ?? undefined;
 }
 
 export async function resolveWidgetRuntimeData(
@@ -201,25 +230,13 @@ export async function resolveGlanceableRuntimeData(opts: {
   allowInsecureEndpoints?: boolean;
 }): Promise<RuntimeDataResolution> {
   const { integrationJSON, data, isPreview, baseEnv = {}, endpointCache } = opts;
-  const integrationEnv =
-    integrationJSON?.configuration?.environment_variables &&
-    typeof integrationJSON.configuration.environment_variables === "object"
-      ? flattenToEnv(
-          integrationJSON.configuration.environment_variables as Record<
-            string,
-            any
-          >,
-        )
-      : {};
+  const runtimeEnv = getRuntimeEnv(integrationJSON, baseEnv);
 
   return resolveIntegrationRuntimeData({
     integrationJSON,
     data,
     isPreview,
-    env: {
-      ...baseEnv,
-      ...integrationEnv,
-    },
+    env: runtimeEnv,
     endpointCache,
   }, opts.allowInsecureEndpoints);
 }
@@ -238,39 +255,19 @@ async function resolveIntegrationRuntimeData(
     return { data, env };
   }
 
-  const integrationConfig = (integrationJSON?.configuration ?? {}) as Record<
-    string,
-    any
-  >;
-  const endpointResult = await resolveEndpointCatalog(
-    integrationConfig.endpoints,
-    {
-      env,
-      scope: {},
-      cache: endpointCache,
-    },
-    allowInsecureEndpoints
-  );
-
-  const computed = resolveComputedFields(integrationConfig.computed, {
-    env: endpointResult.env,
-    scope: {
-      endpoints: endpointResult.endpoints,
-      lookup_tables: integrationConfig.lookup_tables,
-    },
+  const runtimeProperties = await resolveIntegrationRuntimeProperties({
+    integrationJSON,
+    env,
+    endpointCache,
+    allowInsecureEndpoints,
   });
 
-  const runtimeScope = {
-    endpoints: endpointResult.endpoints,
-    computed,
-  };
-
   return {
-    data: runtimeScope,
-    env: {
-      ...endpointResult.env,
-      ...flattenToEnv(runtimeScope),
+    data: {
+      endpoints: runtimeProperties.endpoints,
+      computed: runtimeProperties.computed,
     },
+    env: runtimeProperties.env,
   };
 }
 
@@ -335,17 +332,7 @@ function resolveColumnItem(
     title: resolveValue(c.title, env),
     titleAction: resolveAction(c.titleAction, env),
     thumbnail: resolveValue(c.thumbnail, env),
-    icon: c.icon
-      ? {
-        type: c.icon.type,
-        file: resolveValue(c.icon.file, env),
-        size: c.icon.size,
-        description: resolveValue(c.icon.description, env),
-        useFrostedGradient: c.icon.useFrostedGradient === undefined
-          ? undefined
-          : Boolean(resolveValue(c.icon.useFrostedGradient, env)),
-      }
-      : undefined,
+    icon: resolveColumnIcon(c.icon, env),
     progress: c.progress
       ? {
         type: c.progress.type,
@@ -358,29 +345,39 @@ function resolveColumnItem(
   };
 }
 
-function resolveCardIcon(
+function resolveColumnIcon(
   def: any,
   env: Record<string, string>,
-): ResolvedIcon | undefined {
-  if (def === undefined || def === null) return undefined;
-
+): ResolvedColumn["icon"] {
+  if (!def) return undefined;
   if (typeof def === "string") {
-    return { source: resolveValue(def, env) };
+    return { file: resolveValue(def, env) };
   }
 
-  if (typeof def === "object") {
-    return {
-      source: resolveValue(
-        def.source ?? def.file ?? def.icon ?? def.value,
-        env,
-      ),
-      useFrostedGradient: def.useFrostedGradient === undefined
-        ? undefined
-        : Boolean(resolveValue(def.useFrostedGradient, env)),
-    };
-  }
+  return {
+    type: def.type,
+    file: resolveValue(def.file, env),
+    size: def.size,
+    description: resolveValue(def.description, env),
+    useFrostedGradient: def.useFrostedGradient === undefined
+      ? undefined
+      : Boolean(resolveValue(def.useFrostedGradient, env)),
+  };
+}
 
-  return { source: resolveValue(def, env) };
+function resolveListItem(
+  prototype: any,
+  env: Record<string, string>,
+): ResolvedListItem {
+  return {
+    accent: resolveMappedValue(prototype.accent, env),
+    icon: resolveMappedValue(prototype.icon, env),
+    title: resolveValue(prototype.title, env),
+    titleAction: resolveAction(prototype.titleAction, env),
+    subtitle: resolveSubtitle(prototype.subtitle, env),
+    thumbnail: resolveValue(prototype.thumbnail, env),
+    badge: prototype.badge ? resolveBadge(prototype.badge, env) : undefined,
+  };
 }
 
 // ── List ──────────────────────────────────────────────────────────────────────
@@ -398,319 +395,8 @@ function resolveList(
 
   return items.slice(0, limit).map((item) => {
     const itemEnv = { ...env, ...flattenToEnv(item) };
-    const p = listDef.prototype;
-    return {
-      accent: resolveMappedValue(p.accent, itemEnv),
-      icon: resolveMappedValue(p.icon, itemEnv),
-      title: resolveValue(p.title, itemEnv),
-      titleAction: resolveAction(p.titleAction, itemEnv),
-      subtitle: resolveSubtitle(p.subtitle, itemEnv),
-      thumbnail: resolveValue(p.thumbnail, itemEnv),
-      badge: p.badge ? resolveBadge(p.badge, itemEnv) : undefined,
-    };
+    return resolveListItem(listDef.prototype, itemEnv);
   });
-}
-
-// ── Value resolution ──────────────────────────────────────────────────────────
-
-/**
- * Resolves any YAML value:
- * - string with ${VAR} and "primary ??? fallback" syntax
- * - number / boolean → stringified
- * - object with operation / fallback → returns fallback stub
- */
-export function resolveValue(
-  val: any,
-  env: Record<string, string>,
-): string | undefined {
-  if (val === undefined || val === null) return undefined;
-  if (typeof val === "number" || typeof val === "boolean") return String(val);
-  if (typeof val === "string") return resolveStringWithFallback(val, env);
-  if (typeof val === "object") {
-    // operation-based field — we can't execute operations here (SDK does that),
-    // so return the fallback if present
-    if (typeof val.fallback === "string") return resolveStringWithFallback(val.fallback, env);
-    if (typeof val.value === "string") {
-      return resolveStringWithFallback(val.value, env);
-    }
-    return undefined;
-  }
-  return String(val);
-}
-
-/**
- * Handles "primary_expr ??? fallback_value" chains.
- * Tries each segment left-to-right; returns first non-empty result.
- */
-function resolveStringWithFallback(
-  template: string,
-  env: Record<string, string>,
-): string {
-  const segments = template.split("???");
-  for (const seg of segments) {
-    const trimmed = seg.trim();
-    const ifResult = resolveInlineIfExpression(trimmed, env);
-    if (ifResult !== undefined) {
-      if (ifResult.trim()) return ifResult;
-      continue;
-    }
-
-    const result = resolveStringWithCasts(trimmed, env);
-    if (result.trim()) return result;
-  }
-  // All segments empty — return the last one as-is (it's the final fallback)
-  return segments[segments.length - 1].trim();
-}
-
-export function resolveStringWithCasts(
-  template: string,
-  env: Record<string, string>,
-): string {
-  return template.replace(/\$\{([^}]+)\}/g, (_, rawKey) => {
-    const { path, cast, castArgs } = parseTypedPlaceholder(String(rawKey));
-    const resolved = interpolateString("${" + path + "}", env);
-
-    if (!cast) {
-      return resolved;
-    }
-
-    if (resolved === undefined || resolved === null || `${resolved}`.trim() === "") {
-      return "";
-    }
-
-    return encodeTypedText(cast, resolved, castArgs);
-  });
-}
-
-function parseTypedPlaceholder(rawKey: string) {
-  const parts = rawKey.split(":").map((part) => part.trim()).filter(Boolean);
-  const path = parts.shift() ?? "";
-  const cast = parts.shift() ?? "";
-  return {
-    path,
-    cast: cast || undefined,
-    castArgs: parts,
-  };
-}
-
-/** Replaces ${KEY} placeholders with env values.
- *  Supports dotted paths: ${WEATHER_LOCATION.name} will JSON-parse
- *  the WEATHER_LOCATION env string and traverse into it. */
-export function interpolateString(
-  template: string,
-  env: Record<string, string>,
-): string {
-  return template.replace(/\$\{([^}]+)\}/g, (_, key) => {
-    const trimmed = key.trim();
-
-    // 1. Direct hit — fast path, no parsing needed
-    if (trimmed in env) return env[trimmed] ?? "";
-
-    // 2. Dotted path: try progressively longer prefixes as the base key
-    //    e.g. "WEATHER_LOCATION.name" → base="WEATHER_LOCATION", rest=["name"]
-    const parts = trimmed.split(".");
-    for (let i = parts.length - 1; i >= 1; i--) {
-      const baseKey = parts.slice(0, i).join(".");
-      if (!(baseKey in env)) continue;
-
-      const raw = env[baseKey];
-      let parsed: unknown;
-      try {
-        parsed = JSON.parse(raw);
-      } catch {
-        continue; // not JSON — try a shorter prefix
-      }
-
-      // Walk the remaining path segments into the parsed object
-      const restPath = parts.slice(i);
-      let cursor: unknown = parsed;
-      for (const segment of restPath) {
-        if (cursor === null || typeof cursor !== "object") {
-          cursor = undefined;
-          break;
-        }
-        cursor = (cursor as Record<string, unknown>)[segment];
-      }
-
-      if (cursor !== undefined && cursor !== null) return String(cursor);
-    }
-
-    return ""; // nothing resolved
-  });
-}
-
-function resolveNumber(
-  val: any,
-  env: Record<string, string>,
-): number | undefined {
-  const str = resolveValue(val, env);
-  if (!str) return undefined;
-  const n = parseFloat(str);
-  return isNaN(n) ? undefined : n;
-}
-
-function resolveAction(
-  raw: string | undefined,
-  env: Record<string, string>,
-): string | undefined {
-  if (!raw) return undefined;
-  const resolved = resolveStringWithFallback(raw, env);
-  return resolved.startsWith("url:")
-    ? resolved.slice(4)
-    : resolved || undefined;
-}
-
-function resolveInlineIfExpression(
-  template: string,
-  env: Record<string, string>,
-): string | undefined {
-  const trimmed = template.trim();
-  const match = trimmed.match(/^if\s*\((.*)\)$/is);
-  if (!match) return undefined;
-
-  const parts = splitTopLevelArguments(match[1]);
-  if (parts.length < 3) return undefined;
-
-  const condition = interpolateString(parts[0].trim(), env).trim();
-  const whenTrue = parts[1].trim();
-  const whenFalse = parts.slice(2).join(",").trim();
-
-  return evaluateCondition(condition, env)
-    ? resolveValue(whenTrue, env)
-    : resolveValue(whenFalse, env);
-}
-
-function splitTopLevelArguments(value: string): string[] {
-  const parts: string[] = [];
-  let current = "";
-  let depth = 0;
-  let quote: string | null = null;
-
-  for (let index = 0; index < value.length; index += 1) {
-    const char = value[index];
-
-    if (quote) {
-      current += char;
-      if (char === "\\" && index + 1 < value.length) {
-        current += value[index + 1];
-        index += 1;
-        continue;
-      }
-      if (char === quote) quote = null;
-      continue;
-    }
-
-    if (char === '"' || char === "'") {
-      quote = char;
-      current += char;
-      continue;
-    }
-
-    if (char === "(") {
-      depth += 1;
-      current += char;
-      continue;
-    }
-
-    if (char === ")") {
-      depth = Math.max(0, depth - 1);
-      current += char;
-      continue;
-    }
-
-    if (char === "," && depth === 0) {
-      parts.push(current.trim());
-      current = "";
-      continue;
-    }
-
-    current += char;
-  }
-
-  if (current.trim()) parts.push(current.trim());
-  return parts;
-}
-
-/**
- * Resolves a value that may be a direct string or a { value, map } object
- * (used for accent color and icon in vertical-list prototypes).
- */
-function resolveMappedValue(
-  def: any,
-  env: Record<string, string>,
-): string | undefined {
-  if (!def) return undefined;
-  if (typeof def === "string") return resolveValue(def, env);
-  if (def.value !== undefined && def.map) {
-    const key = resolveValue(def.value, env) ?? "";
-    return key ? (def.map[key] ?? undefined) : undefined;
-  }
-  return resolveValue(def.value ?? def, env);
-}
-
-function resolveSubtitle(
-  def: any,
-  env: Record<string, string>,
-): string | string[] | undefined {
-  if (!def) return undefined;
-  if (typeof def === "string") return resolveValue(def, env);
-  if (def.type === "list" && def.value) {
-    const val = resolveValue(def.value, env);
-    if (!val) return undefined;
-    try {
-      const parsed = JSON.parse(val);
-      if (Array.isArray(parsed)) return parsed.map(String);
-    } catch {}
-    return val.split(",").map((s) => s.trim()).filter(Boolean);
-  }
-  return resolveValue(def.value ?? def, env);
-}
-
-function resolveBadge(
-  def: Record<string, any>,
-  env: Record<string, string>,
-): ResolvedColumn["badge"] {
-  const show = def.show_if !== undefined
-    ? evaluateCondition(String(def.show_if), env)
-    : true;
-  return {
-    show,
-    icon: def.icon,
-    tooltip: resolveValue(def.tooltip, env),
-  };
-}
-
-// ── Condition evaluation ──────────────────────────────────────────────────────
-
-/**
- * Evaluates simple boolean expressions used in show_if / filter.
- * Supports: "X contains Y", "X not contains Y", plain truthy strings.
- */
-function evaluateCondition(
-  condition: string,
-  env: Record<string, string>,
-): boolean {
-  const resolved = interpolateString(condition, env).trim();
-  if (resolved === "true") return true;
-  if (resolved === "false" || resolved === "") return false;
-
-  const notContains = resolved.match(
-    /^(.+?)\s+not\s+contains\s+'?([^']+)'?\s*$/i,
-  );
-  if (notContains) {
-    const lhs = (resolveValue(notContains[1].trim(), env) ?? notContains[1])
-      .toLowerCase();
-    return !lhs.includes(notContains[2].toLowerCase());
-  }
-
-  const contains = resolved.match(/^(.+?)\s+contains\s+'?([^']+)'?\s*$/i);
-  if (contains) {
-    const lhs = (resolveValue(contains[1].trim(), env) ?? contains[1])
-      .toLowerCase();
-    return lhs.includes(contains[2].toLowerCase());
-  }
-
-  return !!resolved;
 }
 
 // ── Iteration ─────────────────────────────────────────────────────────────────

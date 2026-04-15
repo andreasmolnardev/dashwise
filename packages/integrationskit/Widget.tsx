@@ -10,7 +10,7 @@ import WidgetColumnTemplate from "./templates/WidgetColumn";
 import VerticalList from "./templates/VerticalList";
 import IconDetailsCard from "./templates/IconDetailsCard";
 import AppIcon from "@dashwise/app-icon";
-import type { ResolvedWidget } from "./data/resolveProperties";
+import type { ResolvedWidget } from "./types";
 
 export type WidgetProps = {
     widgetKey: string;
