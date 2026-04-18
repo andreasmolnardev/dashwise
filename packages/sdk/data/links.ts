@@ -106,6 +106,59 @@ export async function getLinksFolders(listId: string) {
     }));
 }
 
+export async function createLinksFolder(
+    userId: string,
+    data: { list: string; name: string; parentFolder?: string; icon?: string },
+) {
+    const pb = getServerPB();
+    const listRecord = await pb.collection("linksLists").getOne(data.list);
+
+    if (listRecord.user !== userId) {
+        throw new Error("Unauthorized");
+    }
+
+    const normalizedName = String(data.name || "").trim();
+    if (!normalizedName) {
+        throw new Error("Folder name is required");
+    }
+
+    const parentFolderId = data.parentFolder ? String(data.parentFolder) : "";
+    const folders = await pb.collection("linksFolders").getFullList({
+        filter: `list = "${data.list}"`,
+    });
+
+    const existing = folders.find((folder: any) => {
+        const sameParent = String(folder.parentFolder || "") === parentFolderId;
+        const sameName = String(folder.name || "").trim().toLowerCase() === normalizedName.toLowerCase();
+        return sameParent && sameName;
+    });
+
+    if (existing) {
+        return {
+            id: existing.id,
+            name: existing.name,
+            icon: existing.icon,
+            parentFolder: existing.parentFolder as string | undefined,
+            list: existing.list,
+        };
+    }
+
+    const record = await pb.collection("linksFolders").create({
+        list: data.list,
+        name: normalizedName,
+        icon: data.icon ?? "",
+        ...(data.parentFolder ? { parentFolder: data.parentFolder } : {}),
+    });
+
+    return {
+        id: record.id,
+        name: record.name,
+        icon: record.icon,
+        parentFolder: record.parentFolder as string | undefined,
+        list: record.list,
+    };
+}
+
 export async function getLinksItems(listId: string, folderId?: string) {
     const pb = getServerPB();
 

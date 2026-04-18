@@ -41,6 +41,10 @@ export async function getLinksFoldersAction(auth: ActionAuth, listId: string) {
   return callApiAction("links", "getLinksFoldersAction", { auth, listId });
 }
 
+export async function createLinksFolderAction(auth: ActionAuth, data: { list: string; name: string; parentFolder?: string }) {
+  return callApiAction("links", "createLinksFolderAction", { auth, ...data });
+}
+
 export async function getLinksItemsAction(auth: ActionAuth, listId: string, folderId?: string) {
   return callApiAction("links", "getLinksItemsAction", { auth, listId, folderId });
 }

@@ -91,10 +91,14 @@ export default function LinksListDetailPage() {
             <LinksDetailView
                 title={list.name}
                 description={list.description || ""}
+                listId={listId}
                 folders={folders}
                 items={items}
                 tags={tags}
                 onAddLink={() => setCreateLinkOpen(true)}
+                onFolderCreated={(folder) => {
+                    setFolders((current) => [folder, ...current.filter((existing) => existing.id !== folder.id)]);
+                }}
             />
 
             <CreateLinksItemDialog

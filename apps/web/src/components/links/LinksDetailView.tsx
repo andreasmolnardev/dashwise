@@ -9,6 +9,7 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import CreateLinksFolderDialog from "@/components/links/CreateLinksFolderDialog";
 import QRCode from "qrcode";
 import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 
@@ -54,10 +55,12 @@ type LinkSortField = "created" | "title";
 export interface LinksDetailViewProps {
     title: string;
     description?: string;
+    listId: string;
     folders: LinkFolderRecord[];
     items: LinkItemRecord[];
     tags: LinkTagRecord[];
     onAddLink?: () => void;
+    onFolderCreated?: (folder: LinkFolderRecord) => void;
 }
 
 function normalizeTagIds(value: unknown): string[] {
@@ -293,7 +296,7 @@ function LinkRow({
 
     return (
         <div
-            className={`group frosted-lite relative flex gap-3 rounded-2xl border border-white/10 bg-white/5 p-4 transition-colors hover:border-white/20 hover:bg-white/10 ${compact ? "" : ""}`}
+            className={`group relative p-1 flex items-center gap-3 rounded-2xl border border-transparent bg-transparent transition-colors hover:border-white/10 hover:bg-white/10 ${compact ? "" : ""}`}
         >
             <div className="shrink-0 pt-0.5">
                 <AppIcon
@@ -386,18 +389,20 @@ function FolderTreeNode({
     collapsedFolders,
     setCollapsedFolders,
     onShare,
+    onCreateFolder,
 }: {
     node: FolderNode;
     tagsById: Map<string, LinkTagRecord>;
     collapsedFolders: Record<string, boolean>;
     setCollapsedFolders: Dispatch<SetStateAction<Record<string, boolean>>>;
     onShare: (item: LinkItemRecord) => void;
+    onCreateFolder?: (parentFolderId: string) => void;
 }) {
     const isCollapsed = collapsedFolders[node.folder.id] ?? false;
     const canCollapse = node.children.length > 0 || node.items.length > 0;
 
     return (
-        <div className="frosted-lite rounded-2xl border border-white/10 bg-white/5 p-4 transition-colors hover:border-white/20 hover:bg-white/10">
+        <div className="group rounded-2xl border border-transparent bg-transparent p-2 transition-color">
             <div className="flex items-start gap-3">
                 <button
                     type="button"
@@ -405,9 +410,9 @@ function FolderTreeNode({
                         ...current,
                         [node.folder.id]: !isCollapsed,
                     })) : undefined}
-                    className="flex min-w-0 flex-1 items-start gap-3 text-left"
+                    className="flex min-w-0 flex-1 items-center gap-3 text-left"
                 >
-                    <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/8 text-white/70">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white/8 text-white/70">
                         <AppIcon
                             source={getFolderIconSource(node.folder)}
                             alt={node.folder.name}
@@ -418,27 +423,40 @@ function FolderTreeNode({
                     </div>
 
                     <div className="min-w-0 flex-1 space-y-2">
-                        <div className="flex flex-wrap items-center gap-2">
-                            {canCollapse ? (
-                                <Icon
-                                    icon="fa6-solid:chevron-right"
-                                    className={`mt-1 text-[10px] text-white/40 transition-transform duration-200 ${isCollapsed ? "rotate-0" : "rotate-90"}`}
-                                />
-                            ) : (
-                                <span className="mt-1 w-3" aria-hidden />
-                            )}
+                        <div className="flex flex-wrap items-center gap-1">
+                           
                             <span className="wrap-break-word text-base font-semibold text-white">{node.folder.name}</span>
                             <span className="text-xs text-white/45">
                                 ({node.totalCount} {node.totalCount === 1 ? "item" : "items"})
                             </span>
                             <TagBadges tagIds={node.folder.tags} tagsById={tagsById} />
+                            {canCollapse ? (
+                                <Icon
+                                    icon="fa6-solid:chevron-right"
+                                    className={`text-[10px] text-white/40 transition-transform duration-200 ${isCollapsed ? "rotate-0" : "rotate-90"}`}
+                                />
+                            ) : (
+                                <span className="mt-1 w-3" aria-hidden />
+                            )}
                         </div>
                     </div>
                 </button>
+
+                {onCreateFolder ? (
+                    <button
+                        type="button"
+                        onClick={() => onCreateFolder(node.folder.id)}
+                        className="ml-auto opacity-0 transition-opacity hover:opacity-100 focus:opacity-100 rounded-full border border-white/10 bg-white/5 p-2 text-white/70 hover:bg-white/10"
+                        aria-label={`Create folder under ${node.folder.name}`}
+                        title="Create subfolder"
+                    >
+                        <Icon icon="fa6-solid:plus" className="text-[11px]" />
+                    </button>
+                ) : null}
             </div>
 
             {!isCollapsed && (
-                <div className="mt-4 space-y-3 border-l border-white/10 pl-4">
+                <div className="space-y-3 border-l border-white/10 pl-4">
                     {node.children.map((child) => (
                         <FolderTreeNode
                             key={child.folder.id}
@@ -447,6 +465,7 @@ function FolderTreeNode({
                             collapsedFolders={collapsedFolders}
                             setCollapsedFolders={setCollapsedFolders}
                             onShare={onShare}
+                            onCreateFolder={onCreateFolder}
                         />
                     ))}
 
@@ -468,10 +487,12 @@ function FolderTreeNode({
 export default function LinksDetailView({
     title,
     description,
+    listId,
     folders,
     items,
     tags,
     onAddLink,
+    onFolderCreated,
 }: LinksDetailViewProps) {
     const [sortField, setSortField] = useState<LinkSortField>("created");
     const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
@@ -480,6 +501,8 @@ export default function LinksDetailView({
     const [shareQrDataUrl, setShareQrDataUrl] = useState("");
     const [shareQrLoading, setShareQrLoading] = useState(false);
     const [shareQrError, setShareQrError] = useState<string | null>(null);
+    const [createFolderOpen, setCreateFolderOpen] = useState(false);
+    const [createFolderParentId, setCreateFolderParentId] = useState<string | null>(null);
 
     const tagsById = useMemo(() => new Map(tags.map((tag) => [tag.id, tag])), [tags]);
 
@@ -489,7 +512,7 @@ export default function LinksDetailView({
     );
 
     const sortedLinks = useMemo(() => {
-        const sorted = [...items].sort((left, right) => {
+        const sorted = [...rootItems].sort((left, right) => {
             if (sortField === "title") {
                 return left.title.localeCompare(right.title);
             }
@@ -500,10 +523,10 @@ export default function LinksDetailView({
         });
 
         return sortDirection === "asc" ? sorted : sorted.reverse();
-    }, [items, sortDirection, sortField]);
+    }, [rootItems, sortDirection, sortField]);
 
     const folderCount = folders.length;
-    const linkCount = items.length;
+    const linkCount = rootItems.length;
 
     useEffect(() => {
         if (!shareItem) {
@@ -565,7 +588,7 @@ export default function LinksDetailView({
     };
 
     return (
-        <div className="relative space-y-8 pb-24">
+        <div className="relative space-y-1 pb-24">
             <header className="space-y-3">
                 <div className="space-y-2">
                     <h1 className="text-4xl font-semibold tracking-tight text-balance text-white">
@@ -585,9 +608,21 @@ export default function LinksDetailView({
                 </div>
             </header>
 
-            <section className="space-y-4">
-                <div className="flex items-center justify-between gap-3">
+            <section className="space-y-1 pt-3">
+                <div className="flex items-center justify-between">
                     <h2 className="text-lg font-medium text-white/90">Folders</h2>
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setCreateFolderParentId(null);
+                            setCreateFolderOpen(true);
+                        }}
+                        className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white transition-colors hover:bg-white/10"
+                        aria-label="Create folder"
+                        title="Create folder"
+                    >
+                        <Icon icon="fa6-solid:plus" className="text-sm" />
+                    </button>
                 </div>
 
                 {roots.length === 0 && rootItems.length === 0 ? (
@@ -595,7 +630,7 @@ export default function LinksDetailView({
                         No folders found.
                     </div>
                 ) : (
-                    <div className="space-y-4">
+                    <div className="space-y-1">
                         {roots.map((node) => (
                             <FolderTreeNode
                                 key={node.folder.id}
@@ -604,14 +639,18 @@ export default function LinksDetailView({
                                 collapsedFolders={collapsedFolders}
                                 setCollapsedFolders={setCollapsedFolders}
                                 onShare={(item) => setShareItem(item)}
+                                onCreateFolder={(parentFolderId) => {
+                                    setCreateFolderParentId(parentFolderId);
+                                    setCreateFolderOpen(true);
+                                }}
                             />
                         ))}
                     </div>
                 )}
             </section>
 
-            <section className="space-y-4">
-                <div className="flex flex-wrap items-center justify-between gap-3">
+            <section className="space-y-1">
+                <div className="flex flex-wrap items-center justify-between">
                     <h2 className="text-lg font-medium text-white/90">Links</h2>
 
                     <div className="flex items-center gap-2 rounded-full text-sm text-white/70">
@@ -671,6 +710,21 @@ export default function LinksDetailView({
                     <Icon icon="fa6-solid:plus" className="text-lg" />
                 </button>
             ) : null}
+
+            <CreateLinksFolderDialog
+                open={createFolderOpen}
+                onOpenChange={(open) => {
+                    setCreateFolderOpen(open);
+                    if (!open) setCreateFolderParentId(null);
+                }}
+                listId={listId}
+                parentFolderId={createFolderParentId ?? undefined}
+                onCreated={(folder) => {
+                    onFolderCreated?.(folder);
+                    setCreateFolderOpen(false);
+                    setCreateFolderParentId(null);
+                }}
+            />
 
             <Dialog open={Boolean(shareItem)} onOpenChange={(open) => !open && setShareItem(null)}>
                 <DialogContent className="frosted text-foreground max-w-md">
