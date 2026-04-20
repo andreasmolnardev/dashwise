@@ -11,6 +11,9 @@ node_modules
 !.yarn/versions
 dist/
 
+# editor settings
+.vscode/    
+
 # testing
 /coverage
 
