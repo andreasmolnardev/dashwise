@@ -2,7 +2,6 @@ import { config } from "../../config/env";
 
 import { monitorHelper, MonitoringRequestAuth } from "./helper";
 import {
-    createMonitoringJobStatusLog,
     getMonitoringJobs,
     getUserConfigsByAssociatedUserId,
     updateMonitoringJob,
@@ -97,13 +96,21 @@ export async function runStatusMonitoringJobsWithOptions(options?: {
             const newStatus = acceptedUpStatusCodes.has(code) ? 'healthy' : 'unhealthy';
 
             if (newStatus !== currentStatus) {
-                // update job
-                await updateMonitoringJob(job.id, { status: newStatus });
+                const existingPings = normalizePings(job.pings);
+                const updatedPings = [
+                    ...existingPings,
+                    {
+                        status: newStatus,
+                        created: new Date().toISOString(),
+                        httpStatus: code,
+                        method,
+                        endpoint,
+                    },
+                ];
 
-                // create log — relation field expects array of related ids in PocketBase
-                await createMonitoringJobStatusLog({
-                    job: [job.id],
+                await updateMonitoringJob(job.id, {
                     status: newStatus,
+                    pings: updatedPings,
                 });
 
                 result.updated++;
@@ -133,10 +140,20 @@ export async function runStatusMonitoringJobsWithOptions(options?: {
 
             try {
                 if (currentStatus !== 'unhealthy') {
-                    await updateMonitoringJob(job.id, { status: 'unhealthy' });
-                    await createMonitoringJobStatusLog({
-                        job: [job.id],
+                    const existingPings = normalizePings(job.pings);
+                    const updatedPings = [
+                        ...existingPings,
+                        {
+                            status: 'unhealthy',
+                            created: new Date().toISOString(),
+                            endpoint,
+                            method,
+                        },
+                    ];
+
+                    await updateMonitoringJob(job.id, {
                         status: 'unhealthy',
+                        pings: updatedPings,
                     });
                     result.updated++;
                     result.logsCreated++;
@@ -225,6 +242,25 @@ function resolveAcceptedUpCodes(rawJobCodes: unknown, fallbackCodes?: number[]):
         defaults.push(code);
     }
     return new Set(defaults);
+}
+
+function normalizePings(raw: unknown): any[] {
+    if (!raw) return [];
+
+    if (Array.isArray(raw)) {
+        return raw;
+    }
+
+    if (typeof raw === "string") {
+        try {
+            const parsed = JSON.parse(raw);
+            return Array.isArray(parsed) ? parsed : [];
+        } catch {
+            return [];
+        }
+    }
+
+    return [];
 }
 
 function parseAcceptedCodeList(raw: unknown): number[] {

@@ -22,6 +22,9 @@ import LinksListsPage from "./app/(authenticated)/apps/links/lists/page";
 import LinksListDetailPage from "./app/(authenticated)/apps/links/lists/[listId]/page";
 import LinksTagsPage from "./app/(authenticated)/apps/links/tags/page";
 import LinksTagDetailPage from "./app/(authenticated)/apps/links/tags/[tagId]/page";
+import MonitoringLayout from "./app/(authenticated)/apps/monitoring/layout";
+import MonitoringPage from "./app/(authenticated)/apps/monitoring/page";
+import MonitoringDetailPage from "./app/(authenticated)/apps/monitoring/[monitorId]/page";
 import SettingsLayout from "./app/(authenticated)/settings/layout";
 import SettingsPage from "./app/(authenticated)/settings/page";
 import SettingsGeneralPage from "./app/(authenticated)/settings/general/page";
@@ -88,6 +91,14 @@ export const appRouter = createBrowserRouter([
               { path: "inbox", element: <NotificationsInboxPage /> },
               { path: "forwarders", element: <NotificationsForwardersPage /> },
               { path: "tokens", element: <NotificationsTokensPage /> },
+            ],
+          },
+          {
+            path: "apps/monitoring",
+            element: <MonitoringLayout />,
+            children: [
+              { index: true, element: <MonitoringPage /> },
+              { path: ":monitorId", element: <MonitoringDetailPage /> },
             ],
           },
           {

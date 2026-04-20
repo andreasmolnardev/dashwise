@@ -1,10 +1,20 @@
 import type { Hono } from "hono";
 
-import { getMonitoringStatus, runMonitoringStatus } from "@dashwise/sdk/data/monitoring";
+import { getMonitoringStatus, getMonitors, getMonitorById, runMonitoringStatus } from "@dashwise/sdk/data/monitoring";
 
 import { readAuthToken, readJsonBody, requireAuth, withJson } from "./shared";
 
 export function registerMonitoringControllers(app: Hono) {
+  app.get("/api/v1/monitors", withJson(async (c) => {
+    const { userId } = await requireAuth({ token: readAuthToken(c) });
+    return getMonitors(userId);
+  }));
+
+  app.get("/api/v1/monitors/:id", withJson(async (c) => {
+    const { userId } = await requireAuth({ token: readAuthToken(c) });
+    return getMonitorById(userId, c.req.param("id") || "");
+  }));
+
   app.get("/api/v1/monitoringStatus", withJson(async (c) => {
     const { userId } = await requireAuth({ token: readAuthToken(c) });
     return getMonitoringStatus(userId, c.req.query("jobId") ?? null);

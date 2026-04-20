@@ -1,7 +1,29 @@
 import config from "../lib/config";
 import { getSuperuserPB } from "@dashwise/sdk/lib/pocketbase";
 
-type JobStatusSummary = {
+type MonitorPing = {
+  status?: string;
+  created?: string;
+  dateChanged?: string;
+  httpStatus?: number;
+  method?: string;
+  endpoint?: string;
+  [key: string]: unknown;
+};
+
+export interface MonitorRecord {
+  id: string;
+  endpoint?: string;
+  status?: string;
+  source?: string;
+  linkId?: string;
+  pings?: MonitorPing[] | string;
+  created?: string;
+  updated?: string;
+  [key: string]: unknown;
+}
+
+type MonitorStatusSummary = {
   status: string;
   dateChanged: string | null;
   durationChanged: number | null;
@@ -9,48 +31,83 @@ type JobStatusSummary = {
 
 function normalizeStatus(rawStatus: unknown): string {
   if (Array.isArray(rawStatus)) {
-    return String(rawStatus[0] || "unhealthy");
+    return String(rawStatus[0] || "initiated");
   }
-  return String(rawStatus || "unhealthy");
+  return String(rawStatus || "initiated");
 }
 
-async function getLatestJobStatus(pb: any, userId: string, job: any): Promise<JobStatusSummary> {
-  const jobLogsResponse = await pb.collection("monitoringJobStatusLogs").getList(1, 2, {
-    filter: `job = "${job.id}" && job.userId = "${userId}"`,
-    sort: "-created",
-  });
+function parsePings(raw: unknown): MonitorPing[] {
+  if (!raw) return [];
 
-  const jobLogs = jobLogsResponse.items;
-  let latestStatus = normalizeStatus(job.status);
+  if (Array.isArray(raw)) {
+    return raw;
+  }
+
+  if (typeof raw === "string") {
+    try {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+
+  return [];
+}
+
+function getLatestMonitorStatus(monitor: any): MonitorStatusSummary {
+  const pings = parsePings(monitor.pings);
+  let latestStatus = normalizeStatus(monitor.status);
   let dateChanged: string | null = null;
   let durationChanged: number | null = null;
 
-  if (jobLogs && jobLogs.length > 0) {
-    const latestLog = jobLogs[0];
-    latestStatus = normalizeStatus(latestLog.status);
-    dateChanged = latestLog.created;
+  if (pings.length > 0) {
+    const latestPing = pings[pings.length - 1];
+    latestStatus = normalizeStatus(latestPing.status);
+    dateChanged = String(latestPing.created || latestPing.dateChanged || null);
 
-    if (jobLogs.length > 1) {
-      const secondLatestLog = jobLogs[1];
-      durationChanged =
-        (new Date(latestLog.created).getTime() - new Date(secondLatestLog.created).getTime()) /
-        1000;
+    if (pings.length > 1) {
+      const prevPing = pings[pings.length - 2];
+      const latestTime = new Date(dateChanged).getTime();
+      const prevTime = new Date(String(prevPing.created || prevPing.dateChanged || "")).getTime();
+
+      if (!Number.isNaN(latestTime) && !Number.isNaN(prevTime)) {
+        durationChanged = (latestTime - prevTime) / 1000;
+      }
     }
+  } else {
+    dateChanged = String(monitor.updated || monitor.created || null);
   }
 
   return { status: latestStatus, dateChanged, durationChanged };
 }
 
+export async function getMonitors(userId: string) {
+  const pb = await getSuperuserPB();
+  return pb.collection("monitors").getFullList({ filter: `userId = "${userId}"` });
+}
+
+export async function getMonitorById(userId: string, monitorId: string) {
+  const pb = await getSuperuserPB();
+
+  try {
+    const monitor = await pb.collection("monitors").getOne(monitorId);
+    return monitor?.userId === userId ? monitor : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function getMonitoringStatus(userId: string, jobId?: string | null) {
   const pb = await getSuperuserPB();
 
-  const monitoringJobs = jobId
+  const monitors = jobId
     ? await pb
-        .collection("monitoringJobs")
+        .collection("monitors")
         .getFullList({ filter: `id = "${jobId}" && userId = "${userId}"` })
-    : await pb.collection("monitoringJobs").getFullList({ filter: `userId = "${userId}"` });
+    : await pb.collection("monitors").getFullList({ filter: `userId = "${userId}"` });
 
-  if (!monitoringJobs || monitoringJobs.length === 0) {
+  if (!monitors || monitors.length === 0) {
     return {};
   }
 
@@ -59,13 +116,14 @@ export async function getMonitoringStatus(userId: string, jobId?: string | null)
     { status: string; dateChanged: string | null; durationChanged: number | null; endpoint?: string }
   > = {};
 
-  for (const job of monitoringJobs) {
-    const statusSummary = await getLatestJobStatus(pb, userId, job);
-    results[job.source] = {
+  for (const monitor of monitors) {
+    const statusSummary = getLatestMonitorStatus(monitor);
+    const key = monitor.linkId || monitor.source || monitor.id;
+    results[key] = {
       status: statusSummary.status,
       dateChanged: statusSummary.dateChanged,
       durationChanged: statusSummary.durationChanged,
-      endpoint: job.endpoint,
+      endpoint: monitor.endpoint,
     };
   }
 
@@ -86,8 +144,8 @@ export async function runMonitoringStatus(userId: string, body: any) {
     ? `id = "${jobId}" && userId = "${userId}"`
     : `source = "link ${linkId}" && userId = "${userId}"`;
 
-  const existingJobs = await pb.collection("monitoringJobs").getFullList({ filter: targetFilter });
-  if (!existingJobs || existingJobs.length === 0) {
+  const existingMonitors = await pb.collection("monitors").getFullList({ filter: targetFilter });
+  if (!existingMonitors || existingMonitors.length === 0) {
     return { _status: 404, error: "Monitoring job not found for this user" };
   }
 
@@ -95,8 +153,8 @@ export async function runMonitoringStatus(userId: string, body: any) {
     return { _status: 400, error: "Jobs webhook is disabled" };
   }
 
-  const targetJob = existingJobs[0];
-  const source = String(targetJob.source || (linkId ? `link ${linkId}` : ""));
+  const targetMonitor = existingMonitors[0];
+  const source = String(targetMonitor.source || (linkId ? `link ${linkId}` : ""));
   const sourceLinkId = source.startsWith("link ") ? source.slice(5) : undefined;
 
   const webhookUrl = `${config.jobs_url}/webhook/statusMonitoringRunner${
@@ -112,17 +170,17 @@ export async function runMonitoringStatus(userId: string, body: any) {
     ? await webhookResponse.json()
     : await webhookResponse.text();
 
-  const refreshedJobs = await pb
-    .collection("monitoringJobs")
-    .getFullList({ filter: `id = "${targetJob.id}" && userId = "${userId}"` });
-  const refreshedJob = refreshedJobs[0] || targetJob;
-  const statusSummary = await getLatestJobStatus(pb, userId, refreshedJob);
+  const refreshedMonitors = await pb
+    .collection("monitors")
+    .getFullList({ filter: `id = "${targetMonitor.id}" && userId = "${userId}"` });
+  const refreshedMonitor = refreshedMonitors[0] || targetMonitor;
+  const statusSummary = getLatestMonitorStatus(refreshedMonitor);
 
   const runnerDetails = typeof webhookData === "object" && webhookData
     ? (webhookData as any)?.result?.details
     : undefined;
   const matchingRunnerDetail = Array.isArray(runnerDetails)
-    ? runnerDetails.find((entry: any) => entry?.jobId === refreshedJob.id) || runnerDetails[0]
+    ? runnerDetails.find((entry: any) => entry?.jobId === refreshedMonitor.id) || runnerDetails[0]
     : undefined;
 
   const normalizedStatus = normalizeStatus(statusSummary.status);
@@ -134,12 +192,12 @@ export async function runMonitoringStatus(userId: string, body: any) {
         : "down";
 
   return {
-    jobId: refreshedJob.id,
+    jobId: refreshedMonitor.id,
     linkId: sourceLinkId,
     source,
     status: statusForUi,
     rawStatus: normalizedStatus,
-    endpoint: refreshedJob.endpoint,
+    endpoint: refreshedMonitor.endpoint,
     checkedAt: new Date().toISOString(),
     dateChanged: statusSummary.dateChanged,
     durationChanged: statusSummary.durationChanged,

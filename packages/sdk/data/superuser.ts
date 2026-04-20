@@ -28,42 +28,62 @@ export async function updateUserConfigRecord(
 	return pb.collection("userConfig").update(configId, payload);
 }
 
-export async function getMonitoringJobsByUserId(
+export async function getMonitorsByUserId(
 	userId: string,
 	batchSize = 2000,
 ) {
 	const pb = await getSuperuserPB();
-	return pb.collection("monitoringJobs").getFullList(batchSize, {
+	return pb.collection("monitors").getFullList(batchSize, {
 		filter: `userId = "${userId}"`,
 	});
 }
 
-export async function getMonitoringJobs(batchSize = 2000, filter?: string) {
+export async function getMonitors(batchSize = 2000, filter?: string) {
 	const pb = await getSuperuserPB();
-	return pb.collection("monitoringJobs").getFullList(
+	return pb.collection("monitors").getFullList(
 		batchSize,
 		filter ? { filter } : undefined,
 	);
 }
 
-export async function createMonitoringJob(payload: Record<string, unknown>) {
+export async function getMonitorById(monitorId: string) {
 	const pb = await getSuperuserPB();
-	return pb.collection("monitoringJobs").create(payload);
+	return pb.collection("monitors").getOne(monitorId);
+}
+
+export async function createMonitor(payload: Record<string, unknown>) {
+	const pb = await getSuperuserPB();
+	return pb.collection("monitors").create(payload);
+}
+
+export async function updateMonitor(
+	monitorId: string,
+	payload: Record<string, unknown>,
+) {
+	const pb = await getSuperuserPB();
+	return pb.collection("monitors").update(monitorId, payload);
+}
+
+export async function getMonitoringJobsByUserId(
+	userId: string,
+	batchSize = 2000,
+) {
+	return getMonitorsByUserId(userId, batchSize);
+}
+
+export async function getMonitoringJobs(batchSize = 2000, filter?: string) {
+	return getMonitors(batchSize, filter);
+}
+
+export async function createMonitoringJob(payload: Record<string, unknown>) {
+	return createMonitor(payload);
 }
 
 export async function updateMonitoringJob(
 	jobId: string,
 	payload: Record<string, unknown>,
 ) {
-	const pb = await getSuperuserPB();
-	return pb.collection("monitoringJobs").update(jobId, payload);
-}
-
-export async function createMonitoringJobStatusLog(
-	payload: Record<string, unknown>,
-) {
-	const pb = await getSuperuserPB();
-	return pb.collection("monitoringJobStatusLogs").create(payload);
+	return updateMonitor(jobId, payload);
 }
 
 export async function getAppInfoRecords(batchSize = 200) {
