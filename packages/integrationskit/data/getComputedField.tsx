@@ -11,13 +11,19 @@ export type ComputedResolutionContext = {
 	scope?: Record<string, any>;
 	current?: Record<string, any>;
 	currentKey?: string;
+	currentField?: string;
+	aliases?: Record<string, any>;
 };
 
-export function getNestedValue(obj: Record<string, any>, path: string): any {
+export function getNestedValue(
+	obj: Record<string, any>,
+	path: string,
+	context?: ComputedResolutionContext,
+): any {
 	if (!path) return undefined;
 
 	const tokens = tokenizePath(path);
-	return walkPath(obj, tokens);
+	return walkPath(obj, tokens, context);
 }
 
 export function flattenToEnv(
@@ -38,8 +44,24 @@ export function flattenToEnv(
 	return out;
 }
 
-export function interpolateString(template: string, env: Record<string, string>): string {
-	return template.replace(/\$\{([^}]+)\}/g, (_, key) => env[key.trim()] ?? "");
+export function interpolateString(
+	template: string,
+	env: Record<string, string>,
+	context?: ComputedResolutionContext,
+): string {
+	return template.replace(/\$\{([^}]+)\}/g, (_, key) => {
+		const trimmed = key.trim();
+		if (Object.prototype.hasOwnProperty.call(env, trimmed)) {
+			return env[trimmed] ?? "";
+		}
+
+		if (context) {
+			const resolved = resolvePathReference(trimmed, context);
+			return resolved === undefined || resolved === null ? "" : String(resolved);
+		}
+
+		return "";
+	});
 }
 
 export function resolveComputedFieldValue(
@@ -62,11 +84,19 @@ function resolveObjectValue(
 	value: Record<string, any>,
 	context: ComputedResolutionContext,
 ) {
+	const operation = typeof value.operation === "string"
+		? value.operation.trim().toLowerCase()
+		: undefined;
+
+	if (operation === "expand" && value.on !== undefined) {
+		return resolveExpandedComputedValue(value, context);
+	}
+
 	if (value.iterate_over !== undefined) {
 		return resolveIteratedComputedValue(value, context);
 	}
 
-	if (typeof value.operation === "string") {
+	if (operation) {
 		return resolveOperationValue(value, context);
 	}
 
@@ -112,6 +142,12 @@ function resolveStringValue(value: string, context: ComputedResolutionContext): 
 			continue;
 		}
 
+		const interpolated = interpolateString(segment, context.env, context).trim();
+		if (interpolated !== "") {
+			const direct = resolvePathReference(interpolated, context);
+			if (direct !== undefined) return direct;
+		}
+
 		const resolved = resolveSegment(segment, context);
 		if (resolved !== undefined && resolved !== null && `${resolved}`.trim() !== "") {
 			return resolved;
@@ -133,7 +169,7 @@ function resolveInlineIfExpression(segment: string, context: ComputedResolutionC
 	const condition = parts[0] ?? "";
 	const whenTrue = parts[1] ?? "";
 	const whenFalse = parts.slice(2).join(",");
-	const resolvedCondition = interpolateString(condition.trim(), context.env).trim();
+	const resolvedCondition = interpolateString(condition.trim(), context.env, context).trim();
 	const result = evaluateInlineCondition(resolvedCondition, context);
 	return result ? resolveSegment(whenTrue, context) : resolveSegment(whenFalse, context);
 }
@@ -242,7 +278,7 @@ function splitTopLevelArguments(value: string) {
 function resolveSegment(segment: string, context: ComputedResolutionContext): any {
 	if (!segment) return "";
 
-	const interpolated = interpolateString(segment, context.env).trim();
+	const interpolated = interpolateString(segment, context.env, context).trim();
 	if (!interpolated) return "";
 
 	const direct = resolvePathReference(interpolated, context);
@@ -264,44 +300,121 @@ function resolvePathReference(path: string, context: ComputedResolutionContext):
 		return undefined;
 	}
 
+	const aliases: Record<string, any> = {
+		...(scope.aliases ?? {}),
+		...(context.aliases ?? {}),
+	};
+
+	for (const [aliasName, aliasValue] of Object.entries(aliases)) {
+		if (
+			normalized === aliasName ||
+			normalized.startsWith(`${aliasName}.`) ||
+			normalized.startsWith(`${aliasName}[`)
+		) {
+			const remainder = normalized.slice(aliasName.length);
+			const lookupPath = remainder.startsWith(".") ? remainder.slice(1) : remainder;
+			return lookupPath
+				? getNestedValue(aliasValue, lookupPath, context)
+				: aliasValue;
+		}
+	}
+
 	if (normalized.startsWith("computed.")) {
-		return getNestedValue(scope.computed ?? {}, normalized.slice("computed.".length));
+		return getNestedValue(scope.computed ?? {}, normalized.slice("computed.".length), context);
 	}
 
 	if (normalized.startsWith("endpoints.")) {
-		return getNestedValue(scope.endpoints ?? {}, normalized.slice("endpoints.".length));
+		return getNestedValue(scope.endpoints ?? {}, normalized.slice("endpoints.".length), context);
 	}
 
 	if (context.current !== undefined) {
-		const currentValue = getNestedValue(context.current, normalized);
+		const currentValue = getNestedValue(context.current, normalized, context);
 		if (currentValue !== undefined) {
 			return currentValue;
 		}
 	}
 
 	if (scope.current !== undefined) {
-		const currentValue = getNestedValue(scope.current, normalized);
+		const currentValue = getNestedValue(scope.current, normalized, context);
 		if (currentValue !== undefined) {
 			return currentValue;
 		}
 	}
 
-	return getNestedValue(scope, normalized);
+	return getNestedValue(scope, normalized, context);
 }
 
 function resolveIteratedComputedValue(
 	def: Record<string, any>,
 	context: ComputedResolutionContext,
-): Record<string, any> {
-	const entries = resolveIterateeEntries(def.iterate_over, context);
-	const resolved: Record<string, any> = {};
+): any {
+	const { entries, alias } = resolveIterateeEntries(def.iterate_over, context);
 	const fieldDefinitions = isPlainObject(def.fields) ? def.fields : {};
+
+	if (def.initial_value !== undefined) {
+		let accumulator = resolveComputedFieldValue(def.initial_value, context);
+		const reductionDef = { ...def, iterate_over: undefined, initial_value: undefined };
+
+		for (const [index, entry] of entries.entries()) {
+			const item = entry.value;
+			const itemKey = entry.key ?? String(index);
+			const itemEnv = isPlainObject(item) ? flattenToEnv(item) : {};
+			let itemAliases = alias
+				? { ...(context.aliases ?? {}), [alias]: item }
+				: context.aliases;
+
+			if (alias && context.currentField && itemAliases?.[alias] && typeof itemAliases[alias] === "object") {
+				itemAliases = {
+					...itemAliases,
+					[alias]: {
+						...(itemAliases[alias] as Record<string, any>),
+						[context.currentField]: accumulator,
+					},
+				};
+			}
+
+			const itemContext: ComputedResolutionContext = {
+				...context,
+				env: {
+					...context.env,
+					...itemEnv,
+				},
+				scope: {
+					...(context.scope ?? {}),
+					current: item,
+					item,
+					currentKey: itemKey,
+					computed: {},
+					aliases: itemAliases,
+				},
+				current: isPlainObject(item) ? item : undefined,
+				currentKey: itemKey,
+				aliases: itemAliases,
+			};
+
+			if (def.filter !== undefined && !evaluateComputedFilter(def.filter, itemContext)) {
+				continue;
+			}
+
+			const nextValue = resolveComputedFieldValue(reductionDef, itemContext);
+			if (nextValue !== undefined && nextValue !== null) {
+				accumulator = nextValue;
+			}
+		}
+
+		return accumulator;
+	}
+
+	const resolved: Record<string, any> = {};
 
 	for (const [index, entry] of entries.entries()) {
 		const item = entry.value;
 		const itemKey = entry.key ?? String(index);
 		const itemEnv = isPlainObject(item) ? flattenToEnv(item) : {};
 		const resolvedFields: Record<string, any> = {};
+		const itemAliases = alias
+			? { ...(context.aliases ?? {}), [alias]: item }
+			: context.aliases;
 		const itemContext: ComputedResolutionContext = {
 			...context,
 			env: {
@@ -314,9 +427,11 @@ function resolveIteratedComputedValue(
 				item,
 				currentKey: itemKey,
 				computed: resolvedFields,
+				aliases: itemAliases,
 			},
 			current: isPlainObject(item) ? item : undefined,
 			currentKey: itemKey,
+			aliases: itemAliases,
 		};
 
 		if (def.filter !== undefined && !evaluateComputedFilter(def.filter, itemContext)) {
@@ -326,9 +441,11 @@ function resolveIteratedComputedValue(
 		for (const [fieldKey, fieldDefinition] of Object.entries(fieldDefinitions)) {
 			resolvedFields[fieldKey] = resolveComputedFieldValue(fieldDefinition, {
 				...itemContext,
+				currentField: fieldKey,
 				scope: {
 					...(itemContext.scope ?? {}),
 					computed: resolvedFields,
+					aliases: itemAliases,
 				},
 			});
 		}
@@ -344,27 +461,100 @@ function resolveIteratedComputedValue(
 	return resolved;
 }
 
+function resolveExpandedComputedValue(
+	def: Record<string, any>,
+	context: ComputedResolutionContext,
+): Record<string, any> {
+	const { entries, alias } = resolveIterateeEntries(def.on, context);
+	const resolved: Record<string, any> = {};
+	const fieldDefinitions = isPlainObject(def.fields) ? def.fields : {};
+
+	for (const [index, entry] of entries.entries()) {
+		const item = entry.value;
+		const itemKey = entry.key ?? String(index);
+		const itemEnv = isPlainObject(item) ? flattenToEnv(item) : {};
+		const resolvedFields: Record<string, any> = {};
+		const itemAliases = alias
+			? { ...(context.aliases ?? {}), [alias]: item }
+			: context.aliases;
+		const itemContext: ComputedResolutionContext = {
+			...context,
+			env: {
+				...context.env,
+				...itemEnv,
+			},
+			scope: {
+				...(context.scope ?? {}),
+				current: item,
+				item,
+				currentKey: itemKey,
+				computed: resolvedFields,
+				aliases: itemAliases,
+			},
+			current: isPlainObject(item) ? item : undefined,
+			currentKey: itemKey,
+			aliases: itemAliases,
+		};
+
+		if (def.filter !== undefined && !evaluateComputedFilter(def.filter, itemContext)) {
+			continue;
+		}
+
+		for (const [fieldKey, fieldDefinition] of Object.entries(fieldDefinitions)) {
+			resolvedFields[fieldKey] = resolveComputedFieldValue(fieldDefinition, {
+				...itemContext,
+				scope: {
+					...(itemContext.scope ?? {}),
+					computed: resolvedFields,
+					aliases: itemAliases,
+				},
+			});
+		}
+
+		const resolvedKey = resolveComputedFieldValue(def.key, itemContext);
+		const stableKey =
+			resolvedKey !== undefined && resolvedKey !== null && String(resolvedKey).trim() !== ""
+				? String(resolvedKey)
+				: itemKey;
+		resolved[stableKey] = isPlainObject(item) ? { ...item, ...resolvedFields } : resolvedFields;
+	}
+
+	return resolved;
+}
+
 function resolveIterateeEntries(
 	path: unknown,
 	context: ComputedResolutionContext,
-): Array<{ key: string; value: any }> {
-	if (path === undefined || path === null) return [];
+): { entries: Array<{ key: string; value: any }>; alias?: string } {
+	if (path === undefined || path === null) return { entries: [] };
 
 	const resolvedPath = typeof path === "string" ? resolveStringValue(path, context) : path;
+	const { path: actualPath, alias } = parseAliasedPath(
+		typeof resolvedPath === "string" ? resolvedPath : "",
+	);
 	const value =
-		typeof resolvedPath === "string"
-			? resolvePathReference(resolvedPath, context) ?? parseMaybeJson(resolvedPath)
-			: resolvedPath;
+		typeof actualPath === "string" && actualPath
+			? resolvePathReference(actualPath, context) ?? parseMaybeJson(actualPath)
+			: actualPath;
 
 	if (Array.isArray(value)) {
-		return value.map((entry, index) => ({ key: String(index), value: entry }));
+		return { entries: value.map((entry, index) => ({ key: String(index), value: entry })), alias };
 	}
 
 	if (value && typeof value === "object") {
-		return Object.entries(value).map(([key, entry]) => ({ key, value: entry }));
+		return {
+			entries: Object.entries(value).map(([key, entry]) => ({ key, value: entry })),
+			alias,
+		};
 	}
 
-	return [];
+	return { entries: [], alias };
+}
+
+function parseAliasedPath(path: string): { path: string; alias?: string } {
+	const match = path.trim().match(/^(.*)\s+as\s+([A-Za-z_$][\w$-]*)$/i);
+	if (!match) return { path };
+	return { path: match[1].trim(), alias: match[2] };
 }
 
 function evaluateComputedFilter(value: any, context: ComputedResolutionContext): boolean {
@@ -375,7 +565,7 @@ function evaluateComputedFilter(value: any, context: ComputedResolutionContext):
 		return Boolean(resolved);
 	}
 
-	const expression = normalizeComputedExpression(interpolateString(value, context.env)).trim();
+	const expression = normalizeComputedExpression(interpolateString(value, context.env, context)).trim();
 	if (!expression) return false;
 
 	try {
@@ -849,17 +1039,22 @@ function coerceComparableValue(value: any) {
 	return value;
 }
 
+type PathToken = string | number | { bracket: string } | "*";
+
 function tokenizePath(path: string) {
-	const tokens: Array<string | number | "*"> = [];
+	const tokens: PathToken[] = [];
 	const pattern = /[^.\[\]]+|\[([^\]]*)\]/g;
 	for (const match of path.matchAll(pattern)) {
-		const token = match[1] ?? match[0];
+		const isBracket = match[1] !== undefined;
+		const token = isBracket ? match[1] : match[0];
 		if (token === "*") {
 			tokens.push("*");
 		} else if (/^\d+$/.test(token)) {
 			tokens.push(Number(token));
 		} else if (token === "") {
 			tokens.push("*");
+		} else if (isBracket) {
+			tokens.push({ bracket: token });
 		} else {
 			tokens.push(token);
 		}
@@ -867,24 +1062,31 @@ function tokenizePath(path: string) {
 	return tokens;
 }
 
-function walkPath(current: any, tokens: Array<string | number | "*">): any {
+function walkPath(current: any, tokens: PathToken[], context?: ComputedResolutionContext): any {
 	if (tokens.length === 0) return current;
 
 	const [token, ...rest] = tokens;
 	if (token === "*") {
 		if (!Array.isArray(current)) return undefined;
-		return current.map((entry) => walkPath(entry, rest));
+		return current.map((entry) => walkPath(entry, rest, context));
 	}
 
 	if (current === null || current === undefined) return undefined;
 
 	if (Array.isArray(current)) {
 		if (typeof token !== "number") return undefined;
-		return walkPath(current[token], rest);
+		return walkPath(current[token], rest, context);
 	}
 
 	if (typeof current !== "object") return undefined;
-	return walkPath((current as Record<string, any>)[String(token)], rest);
+
+	if (typeof token === "object" && "bracket" in token) {
+		const resolvedKey = context ? resolveSegment(token.bracket, context) : token.bracket;
+		if (resolvedKey === undefined || resolvedKey === null) return undefined;
+		return walkPath(current[String(resolvedKey)], rest, context);
+	}
+
+	return walkPath((current as Record<string, any>)[String(token)], rest, context);
 }
 
 function isLikelyPathReference(value: string) {

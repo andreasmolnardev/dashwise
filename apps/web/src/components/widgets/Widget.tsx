@@ -5,9 +5,8 @@ import GlanceableClockWidget from "./dashboard/GlanceableClock";
 import LinkView from "./LinkView";
 import SearchBar from "./SearchBar";
 import Widget from "@dashwise/integrationskit/Widget";
-import useAuth from "@/context/useAuth";
-import { getConsumerDataAction } from "@/app/actions/integrations";
 import { useLocalization } from "@/context/LocalizationContext";
+import { readPageIntegrationConsumer } from "@/lib/pageIntegrationDataCache";
 
 export type WidgetProps = {
   type: string;
@@ -70,62 +69,15 @@ function IntegrationWidget({
   properties?: Record<string, any>;
   isPreview?: boolean;
 }) {
-  const { withAuth } = useAuth();
   const localization = useLocalization();
-  const [consumerPayload, setConsumerPayload] = useState<any>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
+  const consumerPayload = readPageIntegrationConsumer("widget", type, properties);
 
-    const load = async () => {
-      if (!cancelled) {
-        setIsLoading(true);
-        setLoadError(null);
-        setConsumerPayload(null);
-      }
-
-      try {
-        const data = await withAuth((auth) =>
-          getConsumerDataAction(auth, type, properties, {
-            type: "widget",
-            isPreview,
-          })
-        );
-
-        if (cancelled) return;
-
-        if (data?.consumer !== "widget" || !data?.blueprint?.widgetJSON) {
-          throw new Error(`Widget "${type}" could not be loaded.`);
-        }
-
-        setConsumerPayload(data);
-      } catch (error) {
-        if (cancelled) return;
-        setLoadError(error instanceof Error ? error.message : String(error));
-      } finally {
-        if (!cancelled) {
-          setIsLoading(false);
-        }
-      }
-    };
-
-    load();
-    return () => {
-      cancelled = true;
-    };
-  }, [isPreview, properties, type, withAuth]);
-
-  if (isLoading) {
-    return <WidgetLoadingState className="w-full" />;
-  }
-
-  if (loadError || !consumerPayload) {
+  if (!consumerPayload?.blueprint?.widgetJSON) {
     return (
       <WidgetErrorState
         className="w-full"
-        message={loadError ?? `Widget "${type}" could not be loaded.`}
+        message={`Widget "${type}" could not be loaded.`}
       />
     );
   }
@@ -143,27 +95,6 @@ function IntegrationWidget({
         formatDate: localization.formatDate,
       }}
     />
-  );
-}
-
-function WidgetLoadingState({ className }: { className?: string }) {
-  return (
-    <div
-      className={`frosted rounded-xl border border-white/10 bg-white/5 p-3 ${className ?? ""}`}
-      aria-busy="true"
-      aria-live="polite"
-    >
-      <div className="flex items-center gap-2">
-        <div className="h-4 w-4 animate-pulse rounded-full bg-white/20" />
-        <div className="h-3 w-24 animate-pulse rounded-full bg-white/15" />
-      </div>
-
-      <div className="mt-3 space-y-2">
-        <div className="h-3 w-3/4 animate-pulse rounded-full bg-white/15" />
-        <div className="h-3 w-1/2 animate-pulse rounded-full bg-white/10" />
-        <div className="h-3 w-5/6 animate-pulse rounded-full bg-white/10" />
-      </div>
-    </div>
   );
 }
 

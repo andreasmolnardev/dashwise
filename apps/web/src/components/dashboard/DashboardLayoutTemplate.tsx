@@ -9,10 +9,11 @@ import UpdateDetailsDialogComponent from "./UpdateDetailsDialog";
 import QuickLaunchPopover from "./QuickLaunchPopover";
 import useAuth from "@/context/useAuth";
 import { getNotificationsAction } from "@/app/actions/notifications/items";
-import { getIntegrationWithWidgetAction } from "@/app/actions/integrations";
+import { getPageIntegrationDataAction } from "@/app/actions/pageConfigs";
 import { renderWidget } from "../widgets/Widget";
 import Widget from "@dashwise/integrationskit/Widget";
 import PageNotFound from "../errorPages/PageNotFound";
+import { clearPageIntegrationConsumerCache, primePageIntegrationConsumerCache } from "@/lib/pageIntegrationDataCache";
 
 const COLUMN_ORDER = ["left", "middle", "right"] as const;
 type Column = (typeof COLUMN_ORDER)[number];
@@ -31,6 +32,14 @@ const COLUMN_PANEL_IDS: Record<Column, string | undefined> = {
     middle: undefined,
     right: "right-widget-panel",
 };
+
+const FRONTEND_ONLY_WIDGETS = new Set([
+    "placeholder",
+    "main-clock",
+    "glanceable-clock",
+    "search-bar",
+    "link-view",
+]);
 
 function sortWidgetEntries(entries: Record<string, any>) {
     return Object.entries(entries).sort(([leftKey, leftValue], [rightKey, rightValue]) => {
@@ -53,7 +62,7 @@ export default function DashboardLayoutTemplate({
     config: Record<string, any>;
     pageName?: string;
 }) {
-    const { token, withAuth } = useAuth();
+    const { withAuth } = useAuth();
     const [searchParams] = useSearchParams();
     const openFromURL = searchParams.get("search") === "1";
 
@@ -68,6 +77,7 @@ export default function DashboardLayoutTemplate({
     const [measuredHeights, setMeasuredHeights] = useState<
         Record<string, number>
     >({});
+    const [integrationDataReady, setIntegrationDataReady] = useState(false);
 
     if (!config) {
         return <PageNotFound />
@@ -76,7 +86,39 @@ export default function DashboardLayoutTemplate({
     const columns = config.columns as
         | Record<Column, Record<string, any>>
         | undefined;
-    const hasThreeColumns = !!(columns?.left && columns?.right);
+
+    useEffect(() => {
+        let cancelled = false;
+
+        const loadPageIntegrationData = async () => {
+            setIntegrationDataReady(false);
+            clearPageIntegrationConsumerCache();
+
+            try {
+                const payload = await withAuth((auth) =>
+                    getPageIntegrationDataAction(
+                        auth,
+                        pageName,
+                    )
+                );
+                if (cancelled) return;
+                primePageIntegrationConsumerCache(payload as any);
+            } catch {
+                if (cancelled) return;
+                clearPageIntegrationConsumerCache();
+            } finally {
+                if (!cancelled) {
+                    setIntegrationDataReady(true);
+                }
+            }
+        };
+
+        void loadPageIntegrationData();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [config, pageName, withAuth]);
 
     // Scroll to center panel on mobile first render
     useEffect(() => {
@@ -396,7 +438,7 @@ export default function DashboardLayoutTemplate({
                 "
                 style={layoutStyleVars}
             >
-                {COLUMN_ORDER.map(renderColumn)}
+                {integrationDataReady ? COLUMN_ORDER.map(renderColumn) : null}
             </main>
 
             <BottomNavbar
@@ -407,12 +449,32 @@ export default function DashboardLayoutTemplate({
     );
 }
 
-type IntegrationWidgetPayload = {
-    integration: Record<string, any> | null;
-    widgetJSON: Record<string, any> | null;
-};
+function stripFrontendOnlyWidgets(config: Record<string, any>) {
+    const columns = config?.columns;
+    if (!columns || typeof columns !== "object") {
+        return config;
+    }
 
-const integrationWidgetCache = new Map<string, IntegrationWidgetPayload | null>();
+    const nextColumns: Record<string, Record<string, any>> = {};
+    for (const [columnName, entriesRaw] of Object.entries(columns)) {
+        if (!entriesRaw || typeof entriesRaw !== "object") {
+            continue;
+        }
+        const nextEntries: Record<string, any> = {};
+        for (const [widgetKey, widgetConfig] of Object.entries(entriesRaw as Record<string, any>)) {
+            if (FRONTEND_ONLY_WIDGETS.has(widgetKey)) {
+                continue;
+            }
+            nextEntries[widgetKey] = widgetConfig;
+        }
+        nextColumns[columnName] = nextEntries;
+    }
+
+    return {
+        ...config,
+        columns: nextColumns,
+    };
+}
 
 interface BottomNavbarProps {
     activePanel?: number;
@@ -436,8 +498,8 @@ export function BottomNavbar({
             try {
                 const data = await withAuth((auth) =>
                     getNotificationsAction(auth, false, true)
-                );
-                setUnreadCount(data.unread || 0);
+                ) as any;
+                setUnreadCount(data?.unread || 0);
             } catch (err) {
                 console.error(err);
             }

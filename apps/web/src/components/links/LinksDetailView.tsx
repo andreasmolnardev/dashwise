@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import CreateLinksFolderDialog from "@/components/links/CreateLinksFolderDialog";
 import QRCode from "qrcode";
 import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
+import { Badge } from "../ui/badge";
 
 export type LinkTagRecord = {
     id: string;
@@ -426,9 +427,9 @@ function FolderTreeNode({
                         <div className="flex flex-wrap items-center gap-1">
                            
                             <span className="wrap-break-word text-base font-semibold text-white">{node.folder.name}</span>
-                            <span className="text-xs text-white/45">
-                                ({node.totalCount} {node.totalCount === 1 ? "item" : "items"})
-                            </span>
+                            <Badge>
+                                {node.totalCount} {node.totalCount === 1 ? "item" : "items"}
+                            </Badge>
                             <TagBadges tagIds={node.folder.tags} tagsById={tagsById} />
                             {canCollapse ? (
                                 <Icon

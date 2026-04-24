@@ -5,6 +5,16 @@
 # 1. Details Section
 # Basic metadata about the integration.
 # ---------------------------------------------------------
+# Template strings support `${VAR}` interpolation and `primary ??? fallback` semantics.
+# When the interpolated value looks like JSON (`{...}` or `[...]`), it is parsed automatically.
+# Environment lookup is case-insensitive and will fall back from exact name to upper/lower variants.
+#
+# Example:
+#   title: "${name} ??? Untitled"
+#   icon: "${icon} ??? /icons/png/default.png"
+#   action: "url:${URL}/item/${id}"
+#
+# Fallbacks are only used when the primary expression resolves to empty or still contains an unresolved `${...}` token.
 details:
   name: "Example Integration"       # Display name of the integration
   description: "A short summary"    # (Optional) Description

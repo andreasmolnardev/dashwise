@@ -176,7 +176,12 @@ export default function NewsLayout({ children }: { children: ReactNode }) {
                 ))}
             </Sidebar>
 
-            <Content>{children}</Content>
+            <Content>
+                <>
+                {/** <PageTitle> here</PageTitle> here*/}
+                {children}
+                </>
+            </Content>
         </AppTemplate>
     );
 }

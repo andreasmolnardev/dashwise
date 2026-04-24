@@ -1,14 +1,13 @@
 // components/widgets/dashboard/GlanceableClock.tsx
 "use client";
 
-import { useEffect, useState } from "react";
 import ClockWidget from "../ClockWidget";
 import GlanceableComponent from "@dashwise/integrationskit/Glanceable";
 import { usePageConfig } from "@/hooks/usePageConfig";
 import type { WidgetItemProps } from "../Widget";
 import useAuth from "@/context/useAuth";
-import { getConsumerDataAction } from "@/app/actions/integrations";
 import { useLocalization } from "@/context/LocalizationContext";
+import { readPageIntegrationConsumer } from "@/lib/pageIntegrationDataCache";
 
 type ResolvedGlanceablePayload = {
   consumer: "glanceable";
@@ -97,46 +96,11 @@ function ResolvedGlanceable({
   className?: string;
   formatters?: LocalizationFormatters;
 }) {
-  const { withAuth } = useAuth();
   const cacheKey = `${type}:${stableStringify(params ?? {})}`;
-  const [resolved, setResolved] = useState<ResolvedGlanceablePayload | null | undefined>(() => glanceableConsumerCache.get(cacheKey));
-
-  useEffect(() => {
-    let cancelled = false;
-    const cached = glanceableConsumerCache.get(cacheKey);
-
-    if (cached !== undefined) {
-      setResolved(cached);
-      return;
-    }
-
-    const load = async () => {
-      try {
-        const data = await withAuth((auth) =>
-          getConsumerDataAction(auth, type, params, {
-            type: "glanceable",
-          })
-        );
-
-        if (cancelled) return;
-
-        const next = data?.consumer === "glanceable" ? data as ResolvedGlanceablePayload : null;
-        glanceableConsumerCache.set(cacheKey, next);
-        setResolved(next);
-      } catch {
-        if (cancelled) return;
-
-        glanceableConsumerCache.set(cacheKey, null);
-        setResolved(null);
-      }
-    };
-
-    void load();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [cacheKey, params, type, withAuth]);
+  const preloaded = readPageIntegrationConsumer("glanceable", type, params);
+  const resolved = preloaded?.consumer === "glanceable"
+    ? (glanceableConsumerCache.set(cacheKey, preloaded as ResolvedGlanceablePayload), preloaded as ResolvedGlanceablePayload)
+    : glanceableConsumerCache.get(cacheKey);
 
   if (resolved?.blueprint?.glanceableJSON) {
     return (

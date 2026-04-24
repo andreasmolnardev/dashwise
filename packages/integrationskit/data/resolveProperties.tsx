@@ -312,10 +312,12 @@ function resolveColumns(
 
   // iterate_over + prototype pattern
   if (colDef.iterate_over && colDef.prototype) {
-    const items = resolveIteratee(colDef.iterate_over, data, isPreview);
-    return items.map((item) =>
-      resolveColumnItem(colDef.prototype, { ...env, ...flattenToEnv(item) })
-    );
+    const { items, alias } = resolveIteratee(colDef.iterate_over, data, isPreview);
+    return items.map((item) => {
+      const itemEnv = { ...env, ...flattenToEnv(item) };
+      if (alias) itemEnv[alias] = JSON.stringify(item);
+      return resolveColumnItem(colDef.prototype, itemEnv);
+    });
   }
 
   return [];
@@ -390,11 +392,12 @@ function resolveList(
 ): ResolvedListItem[] {
   if (!listDef?.prototype) return [];
 
-  const items = resolveIteratee(listDef.iterate_over, data, isPreview);
+  const { items, alias } = resolveIteratee(listDef.iterate_over, data, isPreview);
   const limit = listDef.max_items ?? listDef.max_visible ?? Infinity;
 
   return items.slice(0, limit).map((item) => {
     const itemEnv = { ...env, ...flattenToEnv(item) };
+    if (alias) itemEnv[alias] = JSON.stringify(item);
     return resolveListItem(listDef.prototype, itemEnv);
   });
 }
@@ -411,19 +414,22 @@ function resolveIteratee(
   path: string | undefined,
   data: Record<string, any> | null,
   isPreview: boolean,
-): Record<string, any>[] {
+): { items: Record<string, any>[]; alias?: string } {
   if (!data) {
-    return isPreview
-      ? [{ name: "Example Item", title: "Example", id: "preview-1" }]
-      : [];
+    return {
+      items: isPreview
+        ? [{ name: "Example Item", title: "Example", id: "preview-1" }]
+        : [],
+    };
   }
 
-  if (!path) return [];
+  if (!path) return { items: [] };
 
   const normalized = path.replace(/^this\./, "");
   const direct = getNestedValue(data, normalized);
-  if (Array.isArray(direct)) return direct;
-  if (direct && typeof direct === "object") return Object.values(direct);
+  const alias = deriveIterateeAlias(normalized);
+  if (Array.isArray(direct)) return { items: direct, alias };
+  if (direct && typeof direct === "object") return { items: Object.values(direct), alias };
 
   // Strip "computed." or "this.endpoints.*.mappedResponse." prefixes as a fallback.
   const stripped = normalized
@@ -431,9 +437,25 @@ function resolveIteratee(
     .replace(/^this\.endpoints\.[^.]+\.mappedResponse\./, "");
 
   const val = getNestedValue(data, stripped);
-  if (Array.isArray(val)) return val;
-  if (val && typeof val === "object") return Object.values(val);
-  return [];
+  if (Array.isArray(val)) return { items: val, alias };
+  if (val && typeof val === "object") return { items: Object.values(val), alias };
+  return { items: [], alias };
+}
+
+function deriveIterateeAlias(path: string): string | undefined {
+  const stripped = path
+    .replace(/^computed\./, "")
+    .replace(/^this\.endpoints\.[^.]+\.mappedResponse\./, "")
+    .replace(/\[.*\]$/g, "");
+
+  const segments = stripped.split(".").filter(Boolean);
+  if (segments.length === 0) return undefined;
+
+  const last = segments[segments.length - 1];
+  if (last.endsWith("s") && last.length > 1) {
+    return last.slice(0, -1);
+  }
+  return last;
 }
 
 // ── Env building ──────────────────────────────────────────────────────────────

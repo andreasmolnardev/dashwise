@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import useAuth from "@/context/useAuth";
 import { Button } from "@/components/ui/button";
 import { Label } from "@radix-ui/react-label";
@@ -520,124 +521,11 @@ export default function LinkDetailsForm({
           </Label>
         </div>
         {statusCheck && (
-          <div className="mt-3 space-y-2 rounded-md frosted p-2">
-            <div className="space-y-1">
-              <Label htmlFor="status-check-endpoint" className="text-sm">Endpoint override</Label>
-              <Input
-                id="status-check-endpoint"
-                className="frosted"
-                placeholder="defaults to link URL"
-                value={statusCheckEndpoint}
-                onChange={(e) => setStatusCheckEndpoint(e.target.value)}
-              />
-            </div>
-
-            <div className="space-y-1">
-              <Label className="text-sm">Method</Label>
-              <Select value={statusCheckMethod} onValueChange={(value) => setStatusCheckMethod(value as StatusCheckMethod)}>
-                <SelectTrigger className="rounded-md bg-white border-0 frosted">
-                  <SelectValue placeholder="Method" />
-                </SelectTrigger>
-                <SelectContent className="frosted text-white">
-                  {(["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"] as StatusCheckMethod[]).map((method) => (
-                    <SelectItem key={method} value={method}>
-                      {method}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-1">
-              <Label className="text-sm">Auth</Label>
-              <Select value={statusCheckAuthType} onValueChange={(value) => setStatusCheckAuthType(value as "none" | "bearer" | "basic" | "header") }>
-                <SelectTrigger className="rounded-md bg-white border-0 frosted">
-                  <SelectValue placeholder="None" />
-                </SelectTrigger>
-                <SelectContent className="frosted text-white">
-                  <SelectItem value="none">None</SelectItem>
-                  <SelectItem value="bearer">Bearer token</SelectItem>
-                  <SelectItem value="basic">Basic auth</SelectItem>
-                  <SelectItem value="header">Custom header</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {statusCheckAuthType === "bearer" && (
-              <div className="space-y-1">
-                <Label htmlFor="status-check-bearer" className="text-sm">Bearer token</Label>
-                <Input
-                  id="status-check-bearer"
-                  className="frosted"
-                  placeholder="token"
-                  value={bearerToken}
-                  onChange={(e) => setBearerToken(e.target.value)}
-                />
-              </div>
-            )}
-
-            {statusCheckAuthType === "basic" && (
-              <div className="grid grid-cols-2 gap-2">
-                <div className="space-y-1">
-                  <Label htmlFor="status-check-basic-user" className="text-sm">Username</Label>
-                  <Input
-                    id="status-check-basic-user"
-                    className="frosted"
-                    placeholder="user"
-                    value={basicUsername}
-                    onChange={(e) => setBasicUsername(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor="status-check-basic-pass" className="text-sm">Password</Label>
-                  <Input
-                    id="status-check-basic-pass"
-                    type="password"
-                    className="frosted"
-                    placeholder="password"
-                    value={basicPassword}
-                    onChange={(e) => setBasicPassword(e.target.value)}
-                  />
-                </div>
-              </div>
-            )}
-
-            {statusCheckAuthType === "header" && (
-              <div className="grid grid-cols-2 gap-2">
-                <div className="space-y-1">
-                  <Label htmlFor="status-check-header-name" className="text-sm">Header name</Label>
-                  <Input
-                    id="status-check-header-name"
-                    className="frosted"
-                    placeholder="X-API-Key"
-                    value={customHeaderName}
-                    onChange={(e) => setCustomHeaderName(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor="status-check-header-value" className="text-sm">Header value</Label>
-                  <Input
-                    id="status-check-header-value"
-                    className="frosted"
-                    placeholder="value"
-                    value={customHeaderValue}
-                    onChange={(e) => setCustomHeaderValue(e.target.value)}
-                  />
-                </div>
-              </div>
-            )}
-
-            <div className="space-y-1">
-              <Label htmlFor="status-check-up-codes" className="text-sm">Show as up (status codes)</Label>
-              <Input
-                id="status-check-up-codes"
-                className="frosted"
-                placeholder="200,201,202,204,301,302,304"
-                value={statusCheckShowAsUpRaw}
-                onChange={(e) => setStatusCheckShowAsUpRaw(e.target.value)}
-              />
-            </div>
-          </div>
+          <p className="text-sm text-muted-foreground pt-1">
+            Visit <Link to="/apps/monitoring" className="underline">
+              monitoring page
+            </Link> to edit this link's monitoring preferences
+          </p>
         )}
       </section>
 

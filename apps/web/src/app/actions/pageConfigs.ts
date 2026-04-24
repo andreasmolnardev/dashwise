@@ -23,3 +23,10 @@ export async function updatePageConfigAction(auth: ActionAuth, pageName: string 
 export async function createHomePageAction(auth: ActionAuth): Promise<CreateHomePageResponse> {
   return callApiAction("pageConfig", "createHomePageAction", { auth }) as Promise<CreateHomePageResponse>;
 }
+
+export async function getPageIntegrationDataAction(
+  auth: ActionAuth,
+  pageName?: string,
+): Promise<unknown> {
+  return callApiAction("pageConfig", "getPageIntegrationDataAction", { auth, pageName }) as Promise<unknown>;
+}

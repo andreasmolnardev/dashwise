@@ -164,6 +164,13 @@ const routes: Record<string, RouteConfig> = {
     path: "/pageConfig",
     body: (input) => input,
   },
+  "pageConfig.getPageIntegrationDataAction": {
+    method: "POST",
+    path: "/pageConfig/integrationData" as any,
+    auth: (input) => authToken(input?.auth),
+    query: (input) => ({ page: input?.pageName }),
+    body: () => undefined,
+  },
 
   "links.getLinksCollectionsAction": {
     method: "GET",
@@ -207,6 +214,11 @@ const routes: Record<string, RouteConfig> = {
     path: "/links/folders",
     auth: (input) => authToken(input?.auth),
     query: (input) => ({ listId: input?.listId }),
+  },
+  "links.createLinksFolderAction": {
+    method: "POST",
+    path: "/links/folders",
+    body: (input) => input,
   },
   "links.getLinksItemsAction": {
     method: "GET",
@@ -340,6 +352,17 @@ const routes: Record<string, RouteConfig> = {
     method: "POST",
     path: "/monitoringStatus",
     body: (input) => input,
+  },
+  "monitoring.getMonitorsAction": {
+    method: "GET",
+    path: "/monitors",
+    auth: (input) => authToken(input?.auth),
+  },
+  "monitoring.getMonitorAction": {
+    method: "GET",
+    path: "/monitors/{id}" as any,
+    auth: (input) => authToken(input?.auth),
+    params: (input) => ({ path: { id: String(input?.monitorId ?? "") } }),
   },
 
   "news.getNewsFeedAction": {

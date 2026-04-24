@@ -88,7 +88,7 @@ export function registerIntegrationsControllers(app: Hono) {
     });
   }));
 
-  const resolveConsumerPost = withJson(async (c) => {
+  app.post("/api/v1/integrations/consumerData", withJson(async (c) => {
     const auth = await requireAuth({ token: readAuthToken(c) });
     const body = await readJsonBody<any>(c);
     const key = String(body?.key ?? "").trim();
@@ -108,10 +108,7 @@ export function registerIntegrationsControllers(app: Hono) {
       properties,
       isPreview,
     });
-  });
-
-  app.post("/api/v1/integration/consumerData", resolveConsumerPost);
-  app.post("/api/v1/integrations/consumerData", resolveConsumerPost);
+  }));
 }
 
 function parseInputQuery(raw: string | null): Record<string, any> {
@@ -140,6 +137,8 @@ async function resolveConsumerData(
     key: string;
     properties: Record<string, any>;
     isPreview: boolean;
+    sharedRuntimeCache?: Map<string, any>;
+    sharedEndpointCache?: Map<string, ResolvedEndpointData>;
   },
 ) {
   const user = await getAuthUserRecord(opts.pb, opts.userId);
@@ -150,6 +149,8 @@ async function resolveConsumerData(
       properties: opts.properties,
       isPreview: opts.isPreview,
       user,
+      sharedEndpointCache: opts.sharedEndpointCache,
+      sharedRuntimeCache: opts.sharedRuntimeCache,
     });
   }
 
@@ -160,6 +161,8 @@ async function resolveConsumerData(
       properties: opts.properties,
       isPreview: opts.isPreview,
       user,
+      sharedEndpointCache: opts.sharedEndpointCache,
+      sharedRuntimeCache: opts.sharedRuntimeCache,
     });
   }
 
@@ -170,6 +173,8 @@ async function resolveConsumerData(
       properties: opts.properties,
       isPreview: opts.isPreview,
       user,
+      sharedEndpointCache: opts.sharedEndpointCache,
+      sharedRuntimeCache: opts.sharedRuntimeCache,
     });
   } catch (error) {
     if (!isApiNotFound(error)) {
@@ -183,6 +188,32 @@ async function resolveConsumerData(
     properties: opts.properties,
     isPreview: opts.isPreview,
     user,
+    sharedEndpointCache: opts.sharedEndpointCache,
+    sharedRuntimeCache: opts.sharedRuntimeCache,
+  });
+}
+
+export type ConsumerDataForRequestResult = ReturnType<typeof resolveConsumerData>;
+
+export async function resolveConsumerDataForRequest(opts: {
+  userId: string;
+  pb: any;
+  type: "widget" | "glanceable";
+  key: string;
+  properties?: Record<string, any>;
+  isPreview?: boolean;
+  sharedRuntimeCache?: Map<string, any>;
+  sharedEndpointCache?: Map<string, ResolvedEndpointData>;
+}): ConsumerDataForRequestResult {
+  return resolveConsumerData({
+    userId: opts.userId,
+    pb: opts.pb,
+    type: opts.type,
+    key: opts.key,
+    properties: isPlainObject(opts.properties) ? opts.properties : {},
+    isPreview: Boolean(opts.isPreview),
+    sharedEndpointCache: opts.sharedEndpointCache,
+    sharedRuntimeCache: opts.sharedRuntimeCache,
   });
 }
 
@@ -192,6 +223,8 @@ async function resolveWidgetConsumer(opts: {
   properties: Record<string, any>;
   isPreview: boolean;
   user: Record<string, any> | null;
+  sharedRuntimeCache?: Map<string, any>;
+  sharedEndpointCache?: Map<string, ResolvedEndpointData>;
 }) {
   const payload = await getIntegrationWithWidget(opts.userId, opts.key);
   if (!payload?.integrationId || !payload?.integration || !payload?.widgetJSON) {
@@ -220,13 +253,16 @@ async function resolveWidgetConsumer(opts: {
     input: mergedInput ?? {},
     integrationJSON,
     cacheConfig,
+    sharedEndpointCache: opts.sharedEndpointCache,
   });
 
+  const runtimeCacheKey = createIntegrationRuntimeCacheKey(payload.integrationId, mergedInput ?? {});
+  const sharedRuntime = runtimeCacheKey && opts.sharedRuntimeCache?.get(runtimeCacheKey);
   const cachedRuntime = cacheContext.getRuntimeSnapshot();
-  let runtimeData = cachedRuntime;
+  let runtimeData = sharedRuntime ?? cachedRuntime;
   let freshRuntime: { data: Record<string, any> | null; env: Record<string, string> } | null = null;
 
-  const shouldResolveFresh = !cachedRuntime || cacheConfig.policy === "cache-first";
+  const shouldResolveFresh = !runtimeData || (!sharedRuntime && cacheConfig.policy === "cache-first");
   if (shouldResolveFresh) {
     freshRuntime = await resolveWidgetRuntimeData({
       widgetJSON,
@@ -253,6 +289,14 @@ async function resolveWidgetConsumer(opts: {
       endpointCache: cacheContext.createEndpointCacheAdapter({ readEnabled: true }),
       allowInsecureEndpoints: config.ALLOW_SSL,
     });
+    cacheContext.setRuntimeSnapshot(runtimeData);
+  }
+
+  if (runtimeCacheKey && opts.sharedRuntimeCache && !opts.sharedRuntimeCache.has(runtimeCacheKey)) {
+    opts.sharedRuntimeCache.set(runtimeCacheKey, runtimeData);
+  }
+
+  if (runtimeData !== cachedRuntime) {
     cacheContext.setRuntimeSnapshot(runtimeData);
   }
 
@@ -314,8 +358,13 @@ async function resolveGlanceableConsumer(opts: {
   properties: Record<string, any>;
   isPreview: boolean;
   user: Record<string, any> | null;
+  sharedRuntimeCache?: Map<string, any>;
+  sharedEndpointCache?: Map<string, ResolvedEndpointData>;
 }) {
-  const payload = await getIntegrationWithGlanceable(opts.userId, opts.key);
+  let payload = await getIntegrationWithGlanceable(opts.userId, opts.key);
+  if ((!payload?.integrationId || !payload?.integration || !payload?.glanceableJSON) && !opts.key.startsWith("local-")) {
+    payload = await getIntegrationWithGlanceable(opts.userId, `local-${opts.key}`);
+  }
   if (!payload?.integrationId || !payload?.integration || !payload?.glanceableJSON) {
     throw new ApiActionError("Glanceable integration not found", 404, {
       error: "Glanceable integration not found",
@@ -342,13 +391,16 @@ async function resolveGlanceableConsumer(opts: {
     input: mergedInput,
     integrationJSON,
     cacheConfig,
+    sharedEndpointCache: opts.sharedEndpointCache,
   });
 
+  const runtimeCacheKey = createIntegrationRuntimeCacheKey(payload.integrationId, mergedInput);
+  const sharedRuntime = runtimeCacheKey && opts.sharedRuntimeCache?.get(runtimeCacheKey);
   const cachedRuntime = cacheContext.getRuntimeSnapshot();
-  let runtimeData = cachedRuntime;
+  let runtimeData = sharedRuntime ?? cachedRuntime;
   let freshRuntime: { data: Record<string, any> | null; env: Record<string, string> } | null = null;
 
-  const shouldResolveFresh = !cachedRuntime || cacheConfig.policy === "cache-first";
+  const shouldResolveFresh = !runtimeData || (!sharedRuntime && cacheConfig.policy === "cache-first");
   if (shouldResolveFresh) {
     freshRuntime = await resolveGlanceableRuntimeData({
       glanceableJSON,
@@ -375,6 +427,14 @@ async function resolveGlanceableConsumer(opts: {
       baseEnv: normalizeInputEnv(mergedInput),
       endpointCache: cacheContext.createEndpointCacheAdapter({ readEnabled: true }),
     });
+    cacheContext.setRuntimeSnapshot(runtimeData);
+  }
+
+  if (runtimeCacheKey && opts.sharedRuntimeCache && !opts.sharedRuntimeCache.has(runtimeCacheKey)) {
+    opts.sharedRuntimeCache.set(runtimeCacheKey, runtimeData);
+  }
+
+  if (runtimeData !== cachedRuntime) {
     cacheContext.setRuntimeSnapshot(runtimeData);
   }
 
@@ -422,6 +482,35 @@ async function resolveGlanceableConsumer(opts: {
       staleReturned: staleServed,
     },
   };
+}
+
+function createIntegrationRuntimeCacheKey(
+  integrationId: string,
+  mergedInput: Record<string, any>,
+) {
+  return `${integrationId}:${stableStringifyAny(mergedInput)}`;
+}
+
+function stableStringifyAny(value: unknown) {
+  return JSON.stringify(sortObject(value));
+}
+
+function sortObject(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map((entry) => sortObject(entry));
+  }
+
+  if (!isPlainObject(value)) {
+    return value;
+  }
+
+  const result: Record<string, unknown> = {};
+  Object.keys(value)
+    .sort()
+    .forEach((key) => {
+      result[key] = sortObject((value as Record<string, unknown>)[key]);
+    });
+  return result;
 }
 
 function parseConsumerType(typeRaw: string | null): ConsumerType | null {
@@ -832,6 +921,7 @@ function createIntegrationCacheContext(opts: {
   input: Record<string, any>;
   integrationJSON: Record<string, any>;
   cacheConfig: IntegrationCacheConfig;
+  sharedEndpointCache?: Map<string, ResolvedEndpointData>;
 }) {
   const root = isPlainObject(opts.localData)
     ? deepClone(opts.localData as Record<string, any>)
@@ -888,6 +978,11 @@ function createIntegrationCacheContext(opts: {
           return null;
         }
 
+        const shared = opts.sharedEndpointCache?.get(createEndpointKey(endpointId));
+        if (shared) {
+          return shared;
+        }
+
         const record = readRecord(createEndpointKey(endpointId));
         if (!record || !isPlainObject(record.value)) {
           return null;
@@ -900,6 +995,8 @@ function createIntegrationCacheContext(opts: {
         if (!Number.isFinite(expires) || expires <= Date.now()) {
           return;
         }
+
+        opts.sharedEndpointCache?.set(createEndpointKey(endpointId), payload);
 
         const ttlSeconds = Math.max(1, Math.floor((expires - Date.now()) / 1000));
         writeRecord(createEndpointKey(endpointId), payload, expires, ttlSeconds);

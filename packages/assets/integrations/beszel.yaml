@@ -78,6 +78,7 @@ configuration:
       response:
         type: json
         data_path: "items"
+      discard_unmapped: true
       response_mapping:
         systems:
           iterate: "items"
@@ -154,100 +155,53 @@ configuration:
               offset: 480
 
   computed:
-    system_health:
-      iterate_over: "this.endpoints.fetch-systems.mappedResponse.systems"
-      key: "${name}"
+    systems:
+      operation: expand
+      on: this.endpoints.fetch-systems.mappedResponse.systems as system
       fields:
-        system_name: "${name}"
-        health_score:
-          operation: compute_health_score
-          inputs:
-            cpu_usage_percent: "usage.cpu_usage_percent"
-            memory_used_percent: "usage.memory_usage_percent"
-            disk_used_percent: "usage.disk_usage_percent"
-            cpu_cores: "info.cpu.cores"
-            load_480min: "this.endpoints.fetch-system-stats.mappedResponse.per_system[${id}].load.480min"
-            status: "info.status"
-            # Thresholds forwarded so compute_health_score uses user-configured values
-            threshold_cpu_warn: "${THRESHOLD_CPU_WARN}"
-            threshold_cpu_critical: "${THRESHOLD_CPU_CRITICAL}"
-            threshold_mem_warn: "${THRESHOLD_MEM_WARN}"
-            threshold_mem_critical: "${THRESHOLD_MEM_CRITICAL}"
-            threshold_disk_warn: "${THRESHOLD_DISK_WARN}"
-            threshold_disk_critical: "${THRESHOLD_DISK_CRITICAL}"
-            threshold_load_warn: "${THRESHOLD_LOAD_WARN}"
-        biggest_minus:
-          operation: compute_biggest_minus
-          inputs:
-            cpu_usage_percent: "usage.cpu_usage_percent"
-            memory_used_percent: "usage.memory_usage_percent"
-            disk_used_percent: "usage.disk_usage_percent"
-            load_480min: "this.endpoints.fetch-system-stats.mappedResponse.per_system[${id}].load.480min"
-            cpu_cores: "info.cpu.cores"
-            threshold_cpu_warn: "${THRESHOLD_CPU_WARN}"
-            threshold_cpu_critical: "${THRESHOLD_CPU_CRITICAL}"
-            threshold_mem_warn: "${THRESHOLD_MEM_WARN}"
-            threshold_mem_critical: "${THRESHOLD_MEM_CRITICAL}"
-            threshold_disk_warn: "${THRESHOLD_DISK_WARN}"
-            threshold_disk_critical: "${THRESHOLD_DISK_CRITICAL}"
-            threshold_load_warn: "${THRESHOLD_LOAD_WARN}"
-        action: "${URL}/system/${id}"
-        details:
-          status: "info.status"
-          load: "this.endpoints.fetch-system-stats.mappedResponse.per_system[${id}].load"
+        health:
+          initial_value: 100
+          iterate_over: lookup_tables.system_properties as prop
+          operation: if
+          condition: system[prop.property] >= prop.threshold_warn # return false when prop is not available for this system
+          then: system.health - (prop.multiplier * system[prop.property])
+        warnings:
+          iterate_over: lookup_tables.system_properties as prop
+          operation: if
+          condition: system[prop.property] >= prop.threshold_warn # return empty string when prop is not available for this system
+          then: "${prop.name} usage high"
 
-    system_warnings:
-      iterate_over: "this.endpoints.fetch-systems.mappedResponse.systems"
-      # Only emit an entry when at least one threshold is breached or system is down
-      filter: >
-        info.status contains 'down'
-        or usage.cpu_usage_percent >= ${THRESHOLD_CPU_WARN}
-        or usage.memory_usage_percent >= ${THRESHOLD_MEM_WARN}
-        or usage.disk_usage_percent >= ${THRESHOLD_DISK_WARN}
-        or (this.endpoints.fetch-system-stats.mappedResponse.per_system[${id}].load.480min
-            >= (info.cpu.cores * ${THRESHOLD_LOAD_WARN}))
-      key: "${name}"
-      fields:
-        system_name: "${name}"
-        action: "${URL}/system/${id}"
-        # Severity: "critical" if any critical threshold is breached or system down,
-        # otherwise "warning"
-        severity:
-          operation: compute_severity
-          inputs:
-            status: "info.status"
-            cpu_usage_percent: "usage.cpu_usage_percent"
-            memory_used_percent: "usage.memory_usage_percent"
-            disk_used_percent: "usage.disk_usage_percent"
-            threshold_cpu_critical: "${THRESHOLD_CPU_CRITICAL}"
-            threshold_mem_critical: "${THRESHOLD_MEM_CRITICAL}"
-            threshold_disk_critical: "${THRESHOLD_DISK_CRITICAL}"
-        # Human-readable list of all active warnings for this system
-        active_warnings:
-          operation: collect_warnings
-          inputs:
-            status: "info.status"
-            cpu_usage_percent: "usage.cpu_usage_percent"
-            memory_used_percent: "usage.memory_usage_percent"
-            disk_used_percent: "usage.disk_usage_percent"
-            load_480min: "this.endpoints.fetch-system-stats.mappedResponse.per_system[${id}].load.480min"
-            cpu_cores: "info.cpu.cores"
-            threshold_cpu_warn: "${THRESHOLD_CPU_WARN}"
-            threshold_cpu_critical: "${THRESHOLD_CPU_CRITICAL}"
-            threshold_mem_warn: "${THRESHOLD_MEM_WARN}"
-            threshold_mem_critical: "${THRESHOLD_MEM_CRITICAL}"
-            threshold_disk_warn: "${THRESHOLD_DISK_WARN}"
-            threshold_disk_critical: "${THRESHOLD_DISK_CRITICAL}"
-            threshold_load_warn: "${THRESHOLD_LOAD_WARN}"
+  lookup_tables:
+    system_properties:
+      - cpu: 
+        multiplier: 2.5
+        property: "usage.cpu_usage_percent"
+        threshold_warn: "${THRESHOLD_CPU_WARN}"
+        threshold_critical: "${THRESHOLD_CPU_CRITICAL}"
+      - memory: 
+        multiplier: 1
+        property: "usage.memory_usage_percent"
+        threshold_warn: "${THRESHOLD_MEM_WARN}"
+        threshold_critical: "${THRESHOLD_MEM_CRITICAL}"
+      - disk: 
+        multiplier: 4
+        property: "usage.disk_usage_percent"
+        threshold_warn: "${THRESHOLD_DISK_WARN}"
+        threshold_critical: "${THRESHOLD_DISK_CRITICAL}"
+      - gpu: 
+        multiplier: 2
 
+      - load_cpu:
+        multiplier: 2.5
+  
   widgets:
     - name: "Beszel System Health"
       key: "beszel-system-health"
       template: "columns"
       depends_on:
-        - "computed.system_health"
+        - "computed.systems"
       data:
-        source: "computed.system_health"
+        source: "computed.systems"
         input:
           URL: "${URL}"
           TOKEN: "${TOKEN}"
@@ -265,9 +219,9 @@ configuration:
           icon: "url:/icons/png/beszel-light.png"
           titleAction: "url:${URL}"
         columns:
-          iterate_over: "computed.system_health"
+          iterate_over: "computed.systems"
           prototype:
-            primary: "${system_name}"
+            primary: "${system.name}"
             secondary: "${biggest_minus} ??? Healthy"
             progress:
               type: "circular"
@@ -291,11 +245,11 @@ configuration:
       key: "beszel-system-warnings"
       template: "vertical-list"
       depends_on:
-        - "computed.system_warnings"
+        - "computed.systems"
       # Hide the widget entirely when there are no warnings
       hide_if_empty: true
       data:
-        source: "computed.system_warnings"
+        source: "computed.systems"
         input:
           URL: "${URL}"
           TOKEN: "${TOKEN}"
@@ -313,7 +267,7 @@ configuration:
           icon: "url:/icons/png/beszel-light.png"
           titleAction: "url:${URL}"
         list:
-          iterate_over: "computed.system_warnings"
+          iterate_over: "computed.systems"
           # Critical entries sort to the top
           sort_by: "severity"
           sort_order: "desc"
@@ -329,8 +283,8 @@ configuration:
               map:
                 critical: "faExclamationCircle"
                 warning: "faExclamation"
-            title: "${system_name} ??? alpha"
-            titleAction: "url:${action}"  
+            title: "${system.name} ??? alpha"
+            titleAction: "url:${action}"
             # Renders each warning string as its own line under the title
             subtitle:
               value: "${active_warnings} ??? CPU usage high"

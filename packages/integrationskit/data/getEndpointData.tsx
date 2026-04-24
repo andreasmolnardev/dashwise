@@ -504,7 +504,13 @@ function mapResponseBody(body: unknown, endpoint: EndpointDefinition) {
 		return body;
 	}
 
-	const mapped: Record<string, any> = { ...(body as Record<string, any>) };
+	const discardUnmapped =
+		endpoint.discard_unmapped === true ||
+		String(endpoint.discard_unmapped).toLowerCase() === "true";
+	const mapped: Record<string, any> = discardUnmapped
+		? {}
+		: { ...(body as Record<string, any>) };
+
 	for (const mapping of mappings) {
 		if (!isPlainObject(mapping)) continue;
 		for (const [target, source] of Object.entries(mapping)) {

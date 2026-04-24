@@ -1083,6 +1083,18 @@ function resolveValue(value: unknown, envMap: Record<string, string>): unknown {
     return value;
 }
 
+/**
+ * Resolve a YAML template string.
+ *
+ * Supported forms:
+ * - "${VAR}" interpolation
+ * - "primary ??? fallback" fallback semantics
+ *
+ * The fallback is used only when the primary side resolves to an empty string
+ * or still contains unresolved `${...}` tokens.
+ *
+ * After interpolation, values that start with `{` or `[` are parsed as JSON.
+ */
 function resolveStringValue(template: string, envMap: Record<string, string>) {
     const fallbackSeparator = template.indexOf("???");
     if (fallbackSeparator === -1) {

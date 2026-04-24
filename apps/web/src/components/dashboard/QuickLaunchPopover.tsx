@@ -20,6 +20,11 @@ const quickLinks = [
     href: "/links",
     label: "Links",
     icon: "fa6-solid:link",
+  },
+  {
+    href: "/apps/monitoring",
+    label: "Monitoring",
+    icon: "fa6-solid:chart-line",
   }
 ];
 
@@ -66,7 +71,6 @@ export default function QuickLaunchPopover() {
                 </div>
                 <div className="space-y-1">
                   <p className="text-sm font-semibold leading-tight">{item.label}</p>
-                  <p className="text-xs leading-snug opacity-70">{item.description}</p>
                 </div>
               </Link>
             </PopoverClose>
