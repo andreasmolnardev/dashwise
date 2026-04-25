@@ -161,7 +161,7 @@ configuration:
               icon: "faPaperclip"
               icon_color: "var(--primary)"
 
-  search_items:
+  shortcuts:
     - my_bookmarks:
         iterate_over: "computed.bookmarks"
         sort_by: "title"

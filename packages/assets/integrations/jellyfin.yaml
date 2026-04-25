@@ -109,7 +109,7 @@ configuration:
             titleAction: "url:${action}"
             subtitle: "${secondary} ??? Movie"
 
-  search_items:
+  shortcuts:
     - my_collection:
         iterate_over: "computed.search_display"
         # Sort alphabetically, matching the original localeCompare sort

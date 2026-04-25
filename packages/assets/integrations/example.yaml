@@ -134,11 +134,11 @@ configuration:
                   color: "#ef4444"
 
 # ---------------------------------------------------------
-# 3. Search Items
+# 3. Shortcuts
 # Defines how the integration contributes to global search.
 # ---------------------------------------------------------
-search_items:
-  - root:
+shortcuts:
+  - main:
       iterate_over: "this.endpoints.fetch-data.mappedResponse.items_list"
       mappingProperties:
         id: "${id}"

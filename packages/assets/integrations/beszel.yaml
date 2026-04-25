@@ -163,8 +163,15 @@ configuration:
           initial_value: 100
           iterate_over: lookup_tables.system_properties as prop
           operation: if
-          condition: system[prop.property] >= prop.threshold_warn # return false when prop is not available for this system
-          then: system.health - (prop.multiplier * system[prop.property])
+          condition: system[prop.property] >= prop.threshold_warn # return false when prop is not available for this system 
+          and: system.info.status == "up" # system is up
+          then: 
+            operation: math # todo: replace with math.js
+            susbtract: prop.multiplier * (system[prop.property] - prop.threshold_warn)
+            from: system.health
+          else: 
+            condition: system.info.status != "up"
+            then: 0
         warnings:
           iterate_over: lookup_tables.system_properties as prop
           operation: if
@@ -222,10 +229,11 @@ configuration:
           iterate_over: "computed.systems"
           prototype:
             primary: "${system.name}"
+            primaryAction: "url:${URL}/system/${system.id}"
             secondary: "${biggest_minus} ??? Healthy"
             progress:
               type: "circular"
-              value: "if(details.status contains 'down', 0, health_score)"
+              value: "${system.health}"
               thresholds:
                 - min: 80
                   color: "#16a34a"
@@ -237,10 +245,6 @@ configuration:
                   color: "#ef4444"
               zero_label: "Down"
             titleAction: "url:${action}"
-            badge:
-              show_if: "biggest_minus not contains 'No'"
-              icon: "faExclamationCircle"
-              tooltip: "${biggest_minus}"
     - name: "Beszel System Warnings"
       key: "beszel-system-warnings"
       template: "vertical-list"
@@ -287,10 +291,10 @@ configuration:
             titleAction: "url:${action}"
             # Renders each warning string as its own line under the title
             subtitle:
-              value: "${active_warnings} ??? CPU usage high"
+              value: "${active_warnings} ?? No active warnings"
               type: "list"
-  search_items:
-    - root:
+  shortcuts:
+    - main:
         iterate_over: "this.endpoints.fetch-systems.mappedResponse.systems"
         mappingProperties:
           id: "${id}"

@@ -224,8 +224,8 @@ configuration:
               transform: "human_bytes(value)"
               fallback: "1.2 TB / 2 TB"
 
-  search_items:
-    - root:
+  shortcuts:
+    - main:
         mappingProperties:
           id: "${URL}"
           name: "${computed.metrics.display_name}"
