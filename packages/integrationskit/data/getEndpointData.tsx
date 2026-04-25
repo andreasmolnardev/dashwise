@@ -288,13 +288,6 @@ export async function getEndpointData(
 		async () => {
 			try {
 				const now = new Date().toLocaleTimeString("en-GB", { hour12: false });
-
-				console.log(`[${now}] Fetching endpoint "${endpointLabel}"`, {
-					method,
-					url: resolvedUrl,
-					headers: requestHeaders,
-					body: requestBody,
-				});
 				const fetchOptions: RequestInit = {
 					method,
 					headers: requestHeaders,
@@ -674,19 +667,20 @@ function resolveMappingProperties(
 }
 
 function resolveMappedString(template: string, context: MappingContext) {
+	const hasTemplatePlaceholders = template.includes("${");
+
+	if (!hasTemplatePlaceholders) {
+		const expr = template.trim();
+		if (!expr) return "";
+		const resolved = resolveMappedPathFromContext(expr, context);
+		return resolved === undefined || resolved === null ? "" : resolved;
+	}
+
 	const interpolated = template.replace(/\$\{([^}]+)\}/g, (_, key) => {
 		const expr = key.trim();
-		if (expr === "_index") return String(context.index ?? 0);
-		const fromCurrent = getNestedValue(
-			context.current as Record<string, any>,
-			expr,
-		);
-		if (fromCurrent !== undefined && fromCurrent !== null) {
-			return String(fromCurrent);
-		}
-		const fromRoot = getNestedValue(context.root, expr);
-		if (fromRoot !== undefined && fromRoot !== null) {
-			return String(fromRoot);
+		const resolved = resolveMappedPathFromContext(expr, context);
+		if (resolved !== undefined && resolved !== null) {
+			return String(resolved);
 		}
 		return "";
 	});
@@ -704,6 +698,48 @@ function resolveMappedString(template: string, context: MappingContext) {
 	if (rootValue !== undefined) return rootValue;
 
 	return trimmed;
+}
+
+function resolveMappedPathFromContext(
+	expr: string,
+	context: MappingContext,
+) {
+	const trimmedExpr = expr.trim();
+	if (!trimmedExpr) return undefined;
+	if (trimmedExpr === "_index") return context.index ?? 0;
+
+	const fromCurrent = getNestedValue(
+		context.current as Record<string, any>,
+		trimmedExpr,
+	);
+	if (fromCurrent !== undefined && fromCurrent !== null) {
+		return fromCurrent;
+	}
+
+	const fromRoot = getNestedValue(context.root, trimmedExpr);
+	if (fromRoot !== undefined && fromRoot !== null) {
+		return fromRoot;
+	}
+
+	// Beszel and some APIs nest compact metric keys under `info`.
+	// If token/path is unresolved at current/root level, try `info.<token>`.
+	if (!trimmedExpr.startsWith("info.")) {
+		const infoExpr = `info.${trimmedExpr}`;
+		const fromCurrentInfo = getNestedValue(
+			context.current as Record<string, any>,
+			infoExpr,
+		);
+		if (fromCurrentInfo !== undefined && fromCurrentInfo !== null) {
+			return fromCurrentInfo;
+		}
+
+		const fromRootInfo = getNestedValue(context.root, infoExpr);
+		if (fromRootInfo !== undefined && fromRootInfo !== null) {
+			return fromRootInfo;
+		}
+	}
+
+	return undefined;
 }
 
 function resolveMappedOperation(

@@ -66,6 +66,7 @@ export function registerPageConfigControllers(app: Hono) {
           properties: consumer.properties,
           consumerKey: consumer.consumerKey,
           success: true,
+          data: payload.data,
           blueprint: payload.blueprint,
         };
       } catch (error) {

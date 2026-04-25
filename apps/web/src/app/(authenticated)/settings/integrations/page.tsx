@@ -4,7 +4,6 @@ import { Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import YAML from "yaml";
 import {
@@ -14,6 +13,7 @@ import {
 } from "@/app/actions/integrations";
 import { AddIntegrationConfigDialog } from "@/components/settings/integrations/AddIntegrationConfigDialog";
 import { TestEndpointDialog } from "@/components/settings/integrations/TestEndpointDialog";
+import { DebugIntegrationDialog } from "@/components/settings/integrations/DebugIntegrationDialog";
 import useAuth from "@/context/useAuth";
 import { EndpointTestResult, EnvDefinition } from "@/lib/integrations/types";
 
@@ -58,8 +58,6 @@ export default function IntegrationsModularSettingsPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [resolveCache, setResolveCache] = useState<Record<string, ResolvedEndpoint[]>>({});
-  const [resolvingId, setResolvingId] = useState<string | null>(null);
 
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [newName, setNewName] = useState("");
@@ -69,7 +67,7 @@ export default function IntegrationsModularSettingsPage() {
   const [formError, setFormError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
 
-  const [detailsSheetOpen, setDetailsSheetOpen] = useState(false);
+  const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
 
   const [testDialogOpen, setTestDialogOpen] = useState(false);
   const [testResult, setTestResult] = useState<EndpointTestResult | null>(null);
@@ -93,40 +91,6 @@ export default function IntegrationsModularSettingsPage() {
     return integrations.find((item) => item.id === selectedId) ?? null;
   }, [integrations, selectedId]);
 
-  const resolvedEndpoints = useMemo(() => {
-    if (!selectedIntegration) {
-      return [] as ResolvedEndpoint[];
-    }
-    return resolveCache[selectedIntegration.id] ?? [];
-  }, [resolveCache, selectedIntegration]);
-
-  const integrationEnvDefinitions = useMemo(() => {
-    if (!selectedIntegration) {
-      return [] as EnvDefinition[];
-    }
-    const config = selectedIntegration.config;
-    if (!isRecord(config)) {
-      return [] as EnvDefinition[];
-    }
-    return buildEnvDefinitions(config);
-  }, [selectedIntegration]);
-
-  const integrationEnvDefinitionMap = useMemo(() => {
-    const map: Record<string, EnvDefinition> = {};
-    for (const definition of integrationEnvDefinitions) {
-      map[definition.key] = definition;
-    }
-    return map;
-  }, [integrationEnvDefinitions]);
-
-  const environmentEntries = useMemo(() => {
-    if (!selectedIntegration) {
-      return [] as [string, string][];
-    }
-    const entries = Object.entries(selectedIntegration.environment ?? {});
-    return entries.filter(([key]) => !integrationEnvDefinitionMap[key]?.userHidden);
-  }, [selectedIntegration, integrationEnvDefinitionMap]);
-
   const visibleEnvFields = useMemo(
     () => envDefinitions.filter((definition) => !definition.userHidden),
     [envDefinitions]
@@ -134,7 +98,11 @@ export default function IntegrationsModularSettingsPage() {
 
   const openIntegrationDetails = (integrationId: string) => {
     setSelectedId(integrationId);
-    setDetailsSheetOpen(true);
+    setDetailsDialogOpen(true);
+  };
+
+  const handleDetailsOpenChange = (open: boolean) => {
+    setDetailsDialogOpen(open);
   };
 
   const triggerEndpointTest = useCallback(
@@ -211,16 +179,15 @@ export default function IntegrationsModularSettingsPage() {
       const response = await withAuth((auth) => getIntegrationsAction(auth));
       const list =
         response && "integrations" in response && Array.isArray(response.integrations)
-          ? response.integrations
-          : [];
-      setIntegrations(list as IntegrationRecord[]);
+          ? (response.integrations as IntegrationRecord[])
+          : ([] as IntegrationRecord[]);
+      setIntegrations(list);
       setSelectedId((current) => {
         if (current && list.some((item: any) => item.id === current)) {
           return current;
         }
         return null;
       });
-      setResolveCache({});
     } catch (err) {
       console.error("Failed to load integrations", err);
       setError("Unable to load integrations right now.");
@@ -229,63 +196,9 @@ export default function IntegrationsModularSettingsPage() {
     }
   }, [token, withAuth]);
 
-  const resolveEndpoints = useCallback(
-    async (integrationId: string) => {
-      if (!token) {
-        setError("Sign in to resolve endpoints.");
-        return [] as ResolvedEndpoint[];
-      }
-
-      setError(null);
-      setResolvingId(integrationId);
-      try {
-        const response = await withAuth((auth) =>
-          getIntegrationsAction(auth, {
-            id: integrationId,
-            resolveEndpoints: true,
-          })
-        );
-        const resolved =
-          response &&
-          "resolvedEndpoints" in response &&
-          Array.isArray(response.resolvedEndpoints)
-            ? response.resolvedEndpoints
-            : [];
-        setResolveCache((prev) => ({
-          ...prev,
-          [integrationId]: resolved,
-        }));
-        return resolved as ResolvedEndpoint[];
-      } catch (err) {
-        console.error("Unable to resolve endpoints", err);
-        setError("Unable to resolve endpoints for this integration.");
-        return [] as ResolvedEndpoint[];
-      } finally {
-        setResolvingId(null);
-      }
-    },
-    [token, withAuth]
-  );
-
   useEffect(() => {
     void fetchIntegrations();
   }, [fetchIntegrations]);
-
-  useEffect(() => {
-    if (!selectedIntegration) {
-      return;
-    }
-    if (resolveCache[selectedIntegration.id]) {
-      return;
-    }
-    void resolveEndpoints(selectedIntegration.id);
-  }, [selectedIntegration, resolveCache, resolveEndpoints]);
-
-  useEffect(() => {
-    if (!selectedIntegration && detailsSheetOpen) {
-      setDetailsSheetOpen(false);
-    }
-  }, [detailsSheetOpen, selectedIntegration]);
 
   useEffect(() => {
     if (!selectedId) {
@@ -293,7 +206,7 @@ export default function IntegrationsModularSettingsPage() {
     }
     if (!integrations.some((item) => item.id === selectedId)) {
       setSelectedId(null);
-      setDetailsSheetOpen(false);
+      setDetailsDialogOpen(false);
     }
   }, [integrations, selectedId]);
 
@@ -347,8 +260,6 @@ export default function IntegrationsModularSettingsPage() {
     visibleEnvFields,
     withAuth,
   ]);
-
-  const endpointCount = getEndpointCount(selectedIntegration?.config);
 
   return (
     <section className="space-y-6">
@@ -416,97 +327,14 @@ export default function IntegrationsModularSettingsPage() {
         </div>
       </div>
 
-      <Sheet open={Boolean(selectedIntegration && detailsSheetOpen)} onOpenChange={setDetailsSheetOpen}>
-        <SheetContent className="max-w-3xl frosted text-(--text-primary) overflow-y-scroll">
-          {selectedIntegration ? (
-            <>
-              <SheetHeader>
-                <SheetTitle className="flex items-center gap-1 text-(--text-primary)">
-                  {selectedIntegration.name ?? "Untitled"}
-                  <Badge>Source: {selectedIntegration.source ?? "manual"}</Badge>
-                </SheetTitle>
-                <SheetDescription className="text-sm text-(--text-primary)">
-                  Manage the integration config and endpoint tests.
-                </SheetDescription>
-              </SheetHeader>
-
-              <div className="space-y-6 px-6 pb-6">
-                <div className="flex items-center justify-between">
-                  <p className="text-xs">Updated {formatDate(selectedIntegration.updated)}</p>
-                </div>
-
-                <section className="space-y-3">
-                  <h3 className="text-sm font-semibold">Environment</h3>
-                  {environmentEntries.length ? (
-                    <div className="grid grid-cols-1 gap-2 text-sm text-foreground md:grid-cols-2">
-                      {environmentEntries.map(([key, value]) => {
-                        const definition = integrationEnvDefinitionMap[key];
-                        const displayValue = definition?.overwriteOnly ? "******" : value;
-                        return (
-                          <div key={key} className="rounded-xl px-3 py-2 frosted">
-                            <p className="text-xs">{key}</p>
-                            <p className="font-mono text-sm">{displayValue}</p>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <p className="text-sm">No explicit overrides stored — defaults are used.</p>
-                  )}
-                </section>
-
-                <section className="space-y-3">
-                  <h3 className="text-sm font-semibold">
-                    Endpoints ({resolvingId === selectedIntegration.id ? "…" : endpointCount})
-                  </h3>
-                  {resolvedEndpoints.length ? (
-                    <div className="space-y-3">
-                      {resolvedEndpoints.map((endpoint) => {
-                        const identifier = endpoint.id ?? endpoint.name;
-                        const testTarget = identifier
-                          ? `${selectedIntegration.id}.${identifier}`
-                          : null;
-
-                        return (
-                          <div
-                            key={endpoint.id ?? endpoint.name ?? `${endpoint.method}-${endpoint.resolvedUrl}`}
-                            className="space-y-1 rounded-2xl frosted p-3 text-sm"
-                          >
-                            <div className="flex items-start justify-between gap-3 text-xs">
-                              <div className="flex flex-col">
-                                <span className="break-words text-[1rem]">
-                                  {endpoint.name ?? endpoint.id ?? "Untitled endpoint"}
-                                </span>
-                                <p className="text-xs">{endpoint.description ?? "No description"}</p>
-                              </div>
-                            </div>
-
-                            <p className="text-xs">
-                              <Badge>{endpoint.method}</Badge> {endpoint.resolvedUrl ?? endpoint.url}
-                            </p>
-                            <div className="text-[0.75rem]">Auth: {endpoint.auth || "none"}</div>
-
-                            <Button
-                              variant="outline"
-                              size="sm" 
-                              onClick={() => void triggerEndpointTest(endpoint)}
-                              disabled={testing && testTarget ? testingTarget === testTarget : false}
-                            >
-                              Test endpoint
-                            </Button>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <p className="text-sm">No endpoints declared in the config, or unable to resolve.</p>
-                  )}
-                </section>
-              </div>
-            </>
-          ) : null}
-        </SheetContent>
-      </Sheet>
+      <DebugIntegrationDialog
+        open={detailsDialogOpen}
+        integration={selectedIntegration}
+        onOpenChange={handleDetailsOpenChange}
+        onTriggerTest={triggerEndpointTest}
+        testing={testing}
+        testTarget={testingTarget}
+      />
 
       <TestEndpointDialog
         open={testDialogOpen}

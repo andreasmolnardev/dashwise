@@ -8,7 +8,10 @@ import { config } from "../config/env";
 import { _d } from "../lib/sdk";
 import { runSearchItemsIndexing } from "./search-indexer";
 import indexStatusMonitoringJobs from "./monitoring/indexer";
-import { runStatusMonitoringJobs, runStatusMonitoringJobsWithOptions } from "./monitoring/runner";
+import {
+  runStatusMonitoringJobs,
+  runStatusMonitoringJobsWithOptions,
+} from "./monitoring/runner";
 import { runVersionComparisonRunner } from "./updates/comparison-runner";
 import { newsFeedBuilder } from "./news/feed-builder";
 import { processQueuedNotifications } from "./notifications/forwarder";
@@ -49,7 +52,10 @@ const runMonitoringIndexerJob = (source: string) =>
     errorMessage: "Status monitoring indexer failed",
   });
 
-const runMonitoringRunnerJob = (source: string, options?: { source?: string; linkId?: string }) =>
+const runMonitoringRunnerJob = (
+  source: string,
+  options?: { source?: string; linkId?: string },
+) =>
   runJob(
     "statusMonitoringRunner",
     () => {
@@ -62,7 +68,7 @@ const runMonitoringRunnerJob = (source: string, options?: { source?: string; lin
       startMessage: `Triggered by ${source}`,
       successMessage: "Status monitoring runner completed",
       errorMessage: "Status monitoring runner failed",
-    }
+    },
   );
 
 const runComparisonJob = (source: string) =>
@@ -74,7 +80,9 @@ const runComparisonJob = (source: string) =>
 
 const runNewsFeedBuilderJob = (source: string, feedId?: string) =>
   runJob("newsFeedBuilder", () => newsFeedBuilder(feedId), {
-    startMessage: `Triggered by ${source}${feedId ? ` for feed ${feedId}` : ""}`,
+    startMessage: `Triggered by ${source}${
+      feedId ? ` for feed ${feedId}` : ""
+    }`,
     successMessage: "News feed builder completed",
     errorMessage: "News feed builder failed",
   });
@@ -97,7 +105,8 @@ export function validateJobsBasicAuth(authorizationHeader: string | undefined) {
   try {
     const decoded = Buffer.from(encoded, "base64").toString("utf-8");
     const [email, password] = decoded.split(":", 2);
-    return email === config.PB_ADMIN_EMAIL && password === config.PB_ADMIN_PASSWORD;
+    return email === config.PB_ADMIN_EMAIL &&
+      password === config.PB_ADMIN_PASSWORD;
   } catch {
     return false;
   }
@@ -105,8 +114,9 @@ export function validateJobsBasicAuth(authorizationHeader: string | undefined) {
 
 export function registerJobsCron() {
   logger.debug("Dashwise SDK app config", _d.getAppConfig());
-    void runSearchItemsJob("cron schedule");
+  void runSearchItemsJob("cron schedule");
 
+  void runSearchItemsJob("server start");
   cron.schedule(config.SEARCHITEMS_SCHEDULE, () => {
     void runSearchItemsJob("cron schedule");
   });

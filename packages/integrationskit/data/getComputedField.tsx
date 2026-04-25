@@ -5,6 +5,7 @@
 // computed-field evaluation, and widget rendering.
 
 import getLookupTableValue from "./resolvers/lookupTable";
+import { ExpressionParser, resolveMathOperation, tokenizeExpression } from "./resolvers/math";
 
 export type ComputedResolutionContext = {
 	env: Record<string, string>;
@@ -49,22 +50,83 @@ export function interpolateString(
 	env: Record<string, string>,
 	context?: ComputedResolutionContext,
 ): string {
-	return template.replace(/\$\{([^}]+)\}/g, (_, key) => {
-		const trimmed = key.trim();
-		if (Object.prototype.hasOwnProperty.call(env, trimmed)) {
-			return env[trimmed] ?? "";
+	let result = template;
+	let passes = 0;
+	const placeholderPattern = /\$\{([^${}]*)\}/g;
+
+	// Resolve innermost placeholders first so nested tokens like
+	// ${system[${prop.property}]} are expanded in two passes.
+	while (passes < 20 && result.includes("${")) {
+		let didReplace = false;
+		result = result.replace(placeholderPattern, (_, key) => {
+			didReplace = true;
+			const trimmed = String(key).trim();
+			if (Object.prototype.hasOwnProperty.call(env, trimmed)) {
+				return env[trimmed] ?? "";
+			}
+
+			if (context) {
+				const resolved = resolvePathReference(trimmed, context);
+				return resolved === undefined || resolved === null ? "" : String(resolved);
+			}
+
+			return "";
+		});
+
+		if (!didReplace) {
+			break;
 		}
 
-		if (context) {
-			const resolved = resolvePathReference(trimmed, context);
-			return resolved === undefined || resolved === null ? "" : String(resolved);
-		}
+		passes += 1;
+	}
 
-		return "";
-	});
+	return result;
 }
 
-export function resolveComputedFieldValue(
+function normalizeComputedExpression(expression: string) {
+	return expression.replace(/\bnow\(\)/g, String(Date.now()));
+}
+
+function isPlainObject(value: unknown): value is Record<string, any> {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function clamp(value: number, min: number, max: number) {
+	return Math.min(max, Math.max(min, value));
+}
+
+function humanBytes(value: any) {
+	const bytes = Number(value);
+	if (!Number.isFinite(bytes)) return value === undefined || value === null ? "" : String(value);
+	const units = ["B", "KB", "MB", "GB", "TB", "PB"];
+	let next = Math.abs(bytes);
+	let unit = 0;
+
+	while (next >= 1024 && unit < units.length - 1) {
+		next /= 1024;
+		unit += 1;
+	}
+
+	const sign = bytes < 0 ? "-" : "";
+	const rounded = next >= 10 ? Math.round(next) : Math.round(next * 10) / 10;
+	return `${sign}${rounded} ${units[unit]}`;
+}
+
+function coerceComparableValue(value: any) {
+	if (typeof value === "number") return value;
+	if (typeof value === "boolean") return value ? 1 : 0;
+	if (value === undefined || value === null) return value;
+
+	const numeric = Number(value);
+	if (Number.isFinite(numeric)) return numeric;
+
+	const parsed = Date.parse(String(value));
+	if (Number.isFinite(parsed)) return parsed;
+
+	return value;
+}
+
+export function  resolveComputedFieldValue(
 	value: any,
 	context: ComputedResolutionContext,
 ): any {
@@ -363,14 +425,17 @@ function resolveIteratedComputedValue(
 				? { ...(context.aliases ?? {}), [alias]: item }
 				: context.aliases;
 
-			if (alias && context.currentField && itemAliases?.[alias] && typeof itemAliases[alias] === "object") {
-				itemAliases = {
-					...itemAliases,
-					[alias]: {
-						...(itemAliases[alias] as Record<string, any>),
-						[context.currentField]: accumulator,
-					},
-				};
+			if (context.currentField && itemAliases) {
+				const patchedAliases: Record<string, any> = { ...itemAliases };
+				for (const [aliasName, aliasValue] of Object.entries(itemAliases)) {
+					if (isPlainObject(aliasValue)) {
+						patchedAliases[aliasName] = {
+							...aliasValue,
+							[context.currentField]: accumulator,
+						};
+					}
+				}
+				itemAliases = patchedAliases;
 			}
 
 			const itemContext: ComputedResolutionContext = {
@@ -378,13 +443,16 @@ function resolveIteratedComputedValue(
 				env: {
 					...context.env,
 					...itemEnv,
+					...(context.currentField
+						? { [context.currentField]: accumulator === undefined || accumulator === null ? "" : String(accumulator) }
+						: {}),
 				},
 				scope: {
 					...(context.scope ?? {}),
 					current: item,
 					item,
 					currentKey: itemKey,
-					computed: {},
+					computed: context.currentField ? { [context.currentField]: accumulator } : {},
 					aliases: itemAliases,
 				},
 				current: isPlainObject(item) ? item : undefined,
@@ -503,6 +571,7 @@ function resolveExpandedComputedValue(
 		for (const [fieldKey, fieldDefinition] of Object.entries(fieldDefinitions)) {
 			resolvedFields[fieldKey] = resolveComputedFieldValue(fieldDefinition, {
 				...itemContext,
+				currentField: fieldKey,
 				scope: {
 					...(itemContext.scope ?? {}),
 					computed: resolvedFields,
@@ -583,15 +652,11 @@ function resolveOperationValue(def: Record<string, any>, context: ComputedResolu
 	const fallback = resolveComputedFieldValue(def.fallback, context);
 
 	if (operation === "if") {
-		const conditionSource = def.condition ?? def.test ?? def.value;
-		const condition =
-			typeof conditionSource === "string"
-				? evaluateComputedFilter(conditionSource, context)
-				: Boolean(resolveComputedFieldValue(conditionSource, context));
+		const condition = evaluateIfCondition(def, context);
 		const trueBranch = def.then ?? def.whenTrue ?? def.true ?? def.valueIfTrue;
 		const falseBranch = def.else ?? def.whenFalse ?? def.false ?? def.valueIfFalse;
 		const selectedBranch = condition ? trueBranch : falseBranch;
-		const result = resolveComputedFieldValue(selectedBranch, context);
+		const result = resolveIfBranch(selectedBranch, context, fallback);
 		return result !== undefined && result !== null ? result : fallback;
 	}
 
@@ -665,6 +730,15 @@ function resolveOperationValue(def: Record<string, any>, context: ComputedResolu
 		return fallback;
 	}
 
+	if (operation === "math") {
+		return resolveMathOperation(def, context, fallback, {
+			resolveComputedFieldValue,
+			resolvePathReference,
+			interpolateString,
+			normalizeComputedExpression,
+		});
+	}
+
 	if (operation === "expr") {
 		const expression = typeof def.expression === "string" ? def.expression : "";
 		if (!expression) return fallback;
@@ -719,324 +793,83 @@ function parseMaybeJson(value: string) {
 	}
 }
 
-function normalizeComputedExpression(expression: string) {
-	return expression.replace(/\bnow\(\)/g, String(Date.now()));
+function evaluateIfCondition(def: Record<string, any>, context: ComputedResolutionContext): boolean {
+	const baseCondition = evaluateConditionSource(def.condition ?? def.test ?? def.value, context);
+	const andCondition = evaluateConditionGroup(def.and, context, true);
+	const orCondition = evaluateConditionGroup(def.or, context, false);
+
+	if (def.or !== undefined) {
+		return (baseCondition && andCondition) || orCondition;
+	}
+
+	return baseCondition && andCondition;
 }
 
-function humanBytes(value: any) {
-	const bytes = Number(value);
-	if (!Number.isFinite(bytes)) return value === undefined || value === null ? "" : String(value);
-	const units = ["B", "KB", "MB", "GB", "TB", "PB"];
-	let next = Math.abs(bytes);
-	let unit = 0;
-
-	while (next >= 1024 && unit < units.length - 1) {
-		next /= 1024;
-		unit += 1;
+function evaluateConditionSource(value: any, context: ComputedResolutionContext): boolean {
+	if (value === undefined || value === null) return false;
+	if (Array.isArray(value)) {
+		return value.every((entry) => evaluateConditionSource(entry, context));
 	}
-
-	const sign = bytes < 0 ? "-" : "";
-	const rounded = next >= 10 ? Math.round(next) : Math.round(next * 10) / 10;
-	return `${sign}${rounded} ${units[unit]}`;
+	if (typeof value === "string") {
+		return evaluateComputedFilter(value, context);
+	}
+	return Boolean(resolveComputedFieldValue(value, context));
 }
 
-function clamp(value: number, min: number, max: number) {
-	return Math.min(max, Math.max(min, value));
+function evaluateConditionGroup(value: any, context: ComputedResolutionContext, defaultValue: boolean): boolean {
+	if (value === undefined || value === null) return defaultValue;
+	if (Array.isArray(value)) {
+		return value.every((entry) => evaluateConditionSource(entry, context));
+	}
+	return evaluateConditionSource(value, context);
 }
 
-function isPlainObject(value: unknown): value is Record<string, any> {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
+function resolveIfBranch(value: any, context: ComputedResolutionContext, fallback: any): any {
+	if (value === undefined || value === null) return fallback;
+
+	if (typeof value === "string") {
+		const expressionResult = tryResolveExpressionString(value, context);
+		return expressionResult !== undefined ? expressionResult : resolveComputedFieldValue(value, context);
+	}
+
+	if (Array.isArray(value)) {
+		return resolveComputedFieldValue(value, context);
+	}
+
+	if (typeof value === "object") {
+		const conditionalKeys = ["condition", "test", "then", "else", "and", "or"];
+		const hasConditionalShape = conditionalKeys.some((key) => Object.prototype.hasOwnProperty.call(value, key));
+		if (hasConditionalShape && value.operation === undefined) {
+			return resolveOperationValue({ ...value, operation: "if" }, context);
+		}
+	}
+
+	return resolveComputedFieldValue(value, context);
 }
 
-type ExpressionToken =
-	| { type: "number"; value: number }
-	| { type: "string"; value: string }
-	| { type: "identifier"; value: string }
-	| { type: "operator"; value: string }
-	| { type: "paren"; value: "(" | ")" }
-	| { type: "eof" };
+function tryResolveExpressionString(
+	value: string,
+	context: ComputedResolutionContext,
+): any {
+	const expression = normalizeComputedExpression(interpolateString(value, context.env, context)).trim();
+	if (!expression) return undefined;
 
-function tokenizeExpression(expression: string): ExpressionToken[] {
-	const tokens: ExpressionToken[] = [];
-	let index = 0;
-
-	while (index < expression.length) {
-		const char = expression[index];
-		if (/\s/.test(char)) {
-			index += 1;
-			continue;
-		}
-
-		if (char === "-" && /\d/.test(expression[index + 1] ?? "")) {
-			let end = index + 1;
-			while (end < expression.length && /[\d.]/.test(expression[end])) {
-				end += 1;
-			}
-			const raw = expression.slice(index, end);
-			tokens.push({ type: "number", value: Number(raw) });
-			index = end;
-			continue;
-		}
-
-		if (/[A-Za-z_$]/.test(char)) {
-			let end = index + 1;
-			let allowHyphen = false;
-			while (end < expression.length) {
-				const current = expression[end];
-				if (/\s/.test(current) || ["(", ")", ">", "<", "=", "!", "&", "|", "+", "*", "/", ","].includes(current)) {
-					break;
-				}
-				if (current === "-") {
-					if (!allowHyphen) break;
-				}
-				if (current === "." || current === "[" || current === "]") {
-					allowHyphen = true;
-				}
-				end += 1;
-			}
-
-			const raw = expression.slice(index, end);
-			const lower = raw.toLowerCase();
-			if (["and", "or", "not", "contains"].includes(lower)) {
-				tokens.push({ type: "operator", value: lower });
-			} else {
-				tokens.push({ type: "identifier", value: raw });
-			}
-			index = end;
-			continue;
-		}
-
-		if (char === "(" || char === ")") {
-			tokens.push({ type: "paren", value: char });
-			index += 1;
-			continue;
-		}
-
-		const twoChar = expression.slice(index, index + 2);
-		if ([">=", "<=", "==", "!=", "&&", "||"].includes(twoChar)) {
-			tokens.push({ type: "operator", value: twoChar });
-			index += 2;
-			continue;
-		}
-
-		if ([">", "<", "+", "*", "/", "!"].includes(char)) {
-			tokens.push({ type: "operator", value: char });
-			index += 1;
-			continue;
-		}
-
-		if (char === "'" || char === '"') {
-			const quote = char;
-			let next = index + 1;
-			let text = "";
-			while (next < expression.length) {
-				const current = expression[next];
-				if (current === "\\" && next + 1 < expression.length) {
-					text += expression[next + 1];
-					next += 2;
-					continue;
-				}
-				if (current === quote) break;
-				text += current;
-				next += 1;
-			}
-			tokens.push({ type: "string", value: text });
-			index = Math.min(expression.length, next + 1);
-			continue;
-		}
-
-		let end = index;
-		while (end < expression.length) {
-			const current = expression[end];
-			if (/\s/.test(current) || ["(", ")", ">", "<", "=", "!", "&", "|", "+", "*", "/", ","].includes(current)) {
-				break;
-			}
-			end += 1;
-		}
-
-		const raw = expression.slice(index, end);
-		const lower = raw.toLowerCase();
-		if (["and", "or", "not", "contains"].includes(lower)) {
-			tokens.push({ type: "operator", value: lower });
-		} else if (/^-?\d+(?:\.\d+)?$/.test(raw)) {
-			tokens.push({ type: "number", value: Number(raw) });
-		} else {
-			tokens.push({ type: "identifier", value: raw });
-		}
-		index = end;
-	}
-
-	tokens.push({ type: "eof" });
-	return tokens;
-}
-
-class ExpressionParser {
-	private readonly tokens: ExpressionToken[];
-	private readonly context: ComputedResolutionContext;
-	private index = 0;
-
-	constructor(tokens: ExpressionToken[], context: ComputedResolutionContext) {
-		this.tokens = tokens;
-		this.context = context;
-	}
-
-	parseExpression(): any {
-		return this.parseOr();
-	}
-
-	private parseOr(): any {
-		let left = this.parseAnd();
-		while (this.matchOperator("or") || this.matchOperator("||")) {
-			this.consume();
-			left = Boolean(left) || Boolean(this.parseAnd());
-		}
-		return left;
-	}
-
-	private parseAnd(): any {
-		let left = this.parseNot();
-		while (this.matchOperator("and") || this.matchOperator("&&")) {
-			this.consume();
-			left = Boolean(left) && Boolean(this.parseNot());
-		}
-		return left;
-	}
-
-	private parseNot(): any {
-		if (this.matchOperator("not") || this.matchOperator("!")) {
-			this.consume();
-			return !Boolean(this.parseNot());
-		}
-		return this.parseComparison();
-	}
-
-	private parseComparison(): any {
-		let left = this.parseAdditive();
-
-		while (true) {
-			if (this.matchOperator("contains")) {
-				this.consume();
-				const right = this.parseAdditive();
-				left = String(left ?? "").toLowerCase().includes(String(right ?? "").toLowerCase());
-				continue;
-			}
-
-			const operator = this.peek();
-			if (operator.type !== "operator" || ![">", "<", ">=", "<=", "==", "!="].includes(operator.value)) {
-				break;
-			}
-			this.consume();
-			const right = this.parseAdditive();
-			left = compareValues(left, right, operator.value);
-		}
-
-		return left;
-	}
-
-	private parseAdditive(): any {
-		let left = this.parseMultiplicative();
-		while (this.matchOperator("+") || this.matchOperator("-")) {
-			const operatorToken = this.consume();
-			if (operatorToken.type !== "operator") break;
-			const operator = operatorToken.value;
-			const right = this.parseMultiplicative();
-			left = operator === "+" ? Number(left) + Number(right) : Number(left) - Number(right);
-		}
-		return left;
-	}
-
-	private parseMultiplicative(): any {
-		let left = this.parsePrimary();
-		while (this.matchOperator("*") || this.matchOperator("/")) {
-			const operatorToken = this.consume();
-			if (operatorToken.type !== "operator") break;
-			const operator = operatorToken.value;
-			const right = this.parsePrimary();
-			left = operator === "*" ? Number(left) * Number(right) : Number(left) / Number(right);
-		}
-		return left;
-	}
-
-	private parsePrimary(): any {
-		const token = this.consume();
-		if (token.type === "number") return token.value;
-		if (token.type === "string") return token.value;
-		if (token.type === "identifier") return resolveOperand(token.value, this.context);
-		if (token.type === "paren" && token.value === "(") {
-			const value = this.parseExpression();
-			this.expectParen(")");
-			return value;
-		}
+	// Only attempt expression parsing for obvious operators; otherwise treat as literal/path.
+	if (!/[+\-*/()<>!=]/.test(expression)) {
 		return undefined;
 	}
 
-	private expectParen(value: ")") {
-		const token = this.consume();
-		if (token.type !== "paren" || token.value !== value) {
-			throw new Error(`Expected ${value}`);
+	try {
+		const tokens = tokenizeExpression(expression);
+		const parser = new ExpressionParser(tokens, context as any);
+		const resolved = parser.parseExpression();
+		if (typeof resolved === "number" && Number.isNaN(resolved)) {
+			return undefined;
 		}
+		return resolved;
+	} catch {
+		return undefined;
 	}
-
-	private matchOperator(...values: string[]) {
-		const token = this.peek();
-		return token.type === "operator" && values.includes(token.value);
-	}
-
-	private peek(): ExpressionToken {
-		return this.tokens[this.index] ?? { type: "eof" };
-	}
-
-	private consume(): ExpressionToken {
-		const token = this.peek();
-		if (token.type !== "eof") this.index += 1;
-		return token;
-	}
-}
-
-function resolveOperand(value: string, context: ComputedResolutionContext): any {
-	const trimmed = value.trim();
-	if (!trimmed) return "";
-	if (trimmed === "true") return true;
-	if (trimmed === "false") return false;
-	if (trimmed === "null") return null;
-	if (/^-?\d+(?:\.\d+)?$/.test(trimmed)) return Number(trimmed);
-
-	const resolved = resolveStringValue(trimmed, context);
-	return resolved === undefined ? trimmed : resolved;
-}
-
-function compareValues(left: any, right: any, operator: string) {
-	const a = coerceComparableValue(left);
-	const b = coerceComparableValue(right);
-
-	switch (operator) {
-		case ">":
-			return a > b;
-		case "<":
-			return a < b;
-		case ">=":
-			return a >= b;
-		case "<=":
-			return a <= b;
-		case "!=":
-			return a !== b;
-		default:
-			return a === b;
-	}
-}
-
-function coerceComparableValue(value: any) {
-	if (typeof value === "number") return value;
-	if (typeof value === "boolean") return value ? 1 : 0;
-	if (value === undefined || value === null) return value;
-
-	const numeric = Number(value);
-	if (Number.isFinite(numeric)) return numeric;
-
-	const parsed = Date.parse(String(value));
-	if (Number.isFinite(parsed)) return parsed;
-
-	return value;
 }
 
 type PathToken = string | number | { bracket: string } | "*";
@@ -1083,7 +916,20 @@ function walkPath(current: any, tokens: PathToken[], context?: ComputedResolutio
 	if (typeof token === "object" && "bracket" in token) {
 		const resolvedKey = context ? resolveSegment(token.bracket, context) : token.bracket;
 		if (resolvedKey === undefined || resolvedKey === null) return undefined;
-		return walkPath(current[String(resolvedKey)], rest, context);
+		const key = String(resolvedKey);
+		const directValue = (current as Record<string, any>)[key];
+		if (directValue !== undefined) {
+			return walkPath(directValue, rest, context);
+		}
+
+		if (typeof resolvedKey === "string" && /[.\[]/.test(resolvedKey)) {
+			const nestedValue = getNestedValue(current as Record<string, any>, resolvedKey, context);
+			if (nestedValue !== undefined) {
+				return walkPath(nestedValue, rest, context);
+			}
+		}
+
+		return undefined;
 	}
 
 	return walkPath((current as Record<string, any>)[String(token)], rest, context);

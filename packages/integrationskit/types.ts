@@ -51,6 +51,7 @@ export type ResolvedColumn = {
     useFrostedGradient?: boolean;
   };
   primary?: string;
+  primaryAction?: string;
   secondary?: string;
   progress?: {
     type?: string;

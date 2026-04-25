@@ -15,6 +15,7 @@
     "./AppIcon": "./templates/AppIcon.tsx",
     "./Glanceable": "./Glanceable.tsx",
     "./GlanceableComponent": "./Glanceable.tsx",
+    "./Shortcuts": "./Shortcuts.tsx",
     "./Widget": "./Widget.tsx",
     "./data/resolveProperties": "./data/resolveProperties.tsx",
     "./data/getEndpointData": "./data/getEndpointData.tsx",

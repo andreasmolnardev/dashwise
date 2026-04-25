@@ -5,6 +5,8 @@ import path from "path";
 import { defaultIntegrationsBlueprint, weatherIntegrationBlueprint } from "@dashwise/assets";
 import { ApiActionError } from "@dashwise/sdk/data/auth";
 import { getSuperuserPB } from "@dashwise/sdk/lib/pocketbase";
+import { resolveIntegrationRuntimeProperties } from "@dashwise/integrationskit/data/resolveProperties";
+import config from "lib/config";
 
 const ENDPOINT_TOKEN_REGEX = /\$\{([A-Za-z0-9_]+)\}/g;
 const METHOD_WITHOUT_BODY = new Set(["GET", "HEAD"]);
@@ -55,7 +57,6 @@ export async function listIntegrations(userId: string) {
         sort: "-updated",
     });
 
-    // add default.yaml and weather.yaml (built-in templates) to the list
     const builtinConfigs = [
         {
             id: "builtin:default",
@@ -106,12 +107,44 @@ export async function getIntegration(
         return { integration };
     }
 
+    const hydratedEnvironment = await resolveEnvVarsViaEndpoints(
+        integration.id,
+        integration.config,
+        integration.environment,
+        pb,
+    );
+    integration.environment = hydratedEnvironment;
+
+    const envMap = buildEnvValueMap(integration.config, integration.environment);
+    const resolvedEndpoints = buildResolvedEndpoints(
+        integration.config,
+        integration.environment,
+    );
+
+    const runtimeProperties = await resolveIntegrationRuntimeProperties({
+        integrationJSON: integration.config,
+        env: envMap,
+        isPreview: false,
+        allowInsecureEndpoints: config.allowInsecureCertsForIntegrationUrls,
+    });
+
+    const resolvedEndpointsWithData = resolvedEndpoints.map((ep) => {
+        const key = ep.id ?? ep.name ?? "";
+        const response = key ? runtimeProperties.endpoints[key] : null;
+        return {
+            ...ep,
+            response: response ?? null,
+        };
+    });
+
+    const resolvedComputed = runtimeProperties.computed ?? {};
+
     return {
         integration,
-        resolvedEndpoints: buildResolvedEndpoints(
-            integration.config,
-            integration.environment,
-        ),
+        resolvedEndpoints: resolvedEndpointsWithData,
+        resolvedComputed: Object.keys(resolvedComputed).length > 0
+            ? resolvedComputed
+            : undefined,
     };
 }
 
@@ -162,6 +195,17 @@ export async function testIntegrationEndpoint(
     }
 
     const integration = mapIntegration(record);
+
+    // Ensure all env vars that can be provided by an endpoint are resolved
+    // before we attempt to call the target endpoint.
+    integration.environment = await resolveEnvVarsViaEndpoints(
+        integration.id,
+        integration.config,
+        integration.environment,
+        pb,
+        endpointKey, // skip this key — it's the one we're about to test
+    );
+
     const resolvedEndpoints = buildResolvedEndpoints(
         integration.config,
         integration.environment,
@@ -529,6 +573,352 @@ export async function getIntegrationWithGlanceable(
     }
 
     return { integrationId: null, integration: null, glanceableJSON: null, localData: null };
+}
+
+function escapeFilter(value: string) {
+    return value.replace(/"/g, '\\"');
+}
+
+function normalizeObject(raw: unknown): Record<string, any> {
+    if (!raw) return {};
+    if (typeof raw === "object" && !Array.isArray(raw)) return raw as Record<string, any>;
+    if (typeof raw !== "string") return {};
+
+    try {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+            return parsed as Record<string, any>;
+        }
+    } catch {
+        // noop
+    }
+
+    try {
+        const decoded = Buffer.from(raw, "base64").toString("utf8");
+        const parsed = JSON.parse(decoded);
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+            return parsed as Record<string, any>;
+        }
+    } catch {
+        // noop
+    }
+
+    return {};
+}
+
+function decodeMaybeBase64(value: string | undefined | null) {
+    if (!value) return "";
+    try {
+        const decoded = Buffer.from(value, "base64").toString("utf8");
+        if (decoded && /[\x20-\x7E]/.test(decoded)) {
+            return decoded;
+        }
+        return value;
+    } catch {
+        return value;
+    }
+}
+// ---------------------------------------------------------------------------
+// resolveEnvVarsViaEndpoints
+//
+// Inspects the current env map and finds env vars that are missing/empty.
+// For each such var, checks whether any endpoint declares `data_set_env` that
+// would fill it.  Those "provider" endpoints are fetched first (in declaration
+// order, so dependencies chain correctly) and their responses are used to
+// update the environment.  The updated environment is persisted to the DB and
+// returned so subsequent callers work with the fully-resolved map.
+//
+// @param skipEndpointKey - optional endpoint key to exclude (e.g. the one
+//   currently being tested so we don't call it twice).
+// ---------------------------------------------------------------------------
+async function resolveEnvVarsViaEndpoints(
+    integrationId: string,
+    config: Record<string, unknown>,
+    environment: Record<string, string>,
+    pb: Awaited<ReturnType<typeof getSuperuserPB>>,
+    skipEndpointKey?: string,
+): Promise<Record<string, string>> {
+    const envMap = buildEnvValueMap(config, environment);
+
+    // Collect every env var that currently has no usable value.
+    const missingVars = new Set<string>(
+        Object.entries(envMap)
+            .filter(([, v]) => !v || !v.trim())
+            .map(([k]) => k),
+    );
+
+    // Also include env vars that are referenced in endpoint URLs/auth/body but
+    // not yet set (they might not appear in the definition at all).
+    collectTokensFromConfig(config).forEach((token) => {
+        if (!envMap[token] || !envMap[token].trim()) {
+            missingVars.add(token);
+        }
+    });
+
+    if (missingVars.size === 0) {
+        return environment; // nothing to resolve
+    }
+
+    // Build a list of endpoints that declare data_set_env for a missing var.
+    const endpointConfigs = normalizeEndpoints(config);
+    const providerEndpoints = endpointConfigs.filter((ep) => {
+        const epKey = typeof ep.id === "string" ? ep.id : typeof ep.name === "string" ? ep.name : null;
+        if (skipEndpointKey && epKey === skipEndpointKey) return false;
+
+        const responseDirective = ep.response as Record<string, unknown> | undefined;
+        const dataSetEnv = typeof responseDirective?.data_set_env === "string"
+            ? responseDirective.data_set_env
+            : null;
+        return dataSetEnv !== null && missingVars.has(dataSetEnv);
+    });
+
+    if (providerEndpoints.length === 0) {
+        return environment; // no endpoint can help
+    }
+
+    // Fetch provider endpoints sequentially so that earlier ones can populate
+    // env vars consumed by later ones (e.g. an auth token endpoint feeding a
+    // data endpoint).
+    let currentEnvironment = { ...environment };
+
+    for (const epConfig of providerEndpoints) {
+        const epKey = typeof epConfig.id === "string"
+            ? epConfig.id
+            : typeof epConfig.name === "string"
+            ? epConfig.name
+            : null;
+
+        const responseDirective = epConfig.response as Record<string, unknown> | undefined;
+        const dataSetEnv = typeof responseDirective?.data_set_env === "string"
+            ? responseDirective.data_set_env
+            : null;
+        const dataPath = typeof responseDirective?.data_path === "string"
+            ? responseDirective.data_path
+            : undefined;
+
+        if (!dataSetEnv) continue;
+
+        // Re-build resolved endpoints each iteration so newly set env vars are
+        // available for the next provider (e.g. TOKEN set by retrieve-token is
+        // used by fetch-systems).
+        const currentEnvMap = buildEnvValueMap(config, currentEnvironment);
+        const [resolvedEp] = buildResolvedEndpointsFromList([epConfig], currentEnvMap);
+
+        if (!resolvedEp) continue;
+
+        const resolvedUrl = resolvedEp.resolvedUrl || resolvedEp.url;
+        if (!resolvedUrl || UNRESOLVED_TOKEN_REGEX.test(resolvedUrl)) {
+            console.warn(
+                `[Integrations] Skipping provider endpoint "${epKey}" — URL still has unresolved tokens: ${resolvedUrl}`,
+            );
+            continue;
+        }
+
+        const method = (typeof resolvedEp.method === "string" ? resolvedEp.method : "GET").toUpperCase();
+        const allowBody = !METHOD_WITHOUT_BODY.has(method);
+
+        const requestHeaders: Record<string, string> = { ...(resolvedEp.resolvedHeaders ?? {}) };
+
+        const resolvedAuth = resolvedEp.resolvedAuth || resolvedEp.auth || "";
+        const hasAuthorizationHeader = Object.keys(requestHeaders).some(
+            (k) => k.toLowerCase() === "authorization",
+        );
+        if (!hasAuthorizationHeader && resolvedAuth && !UNRESOLVED_TOKEN_REGEX.test(resolvedAuth)) {
+            requestHeaders.Authorization = resolvedAuth;
+        }
+
+        let requestBody: string | null = null;
+        if (allowBody && resolvedEp.resolvedBody !== null && resolvedEp.resolvedBody !== undefined) {
+            requestBody = typeof resolvedEp.resolvedBody === "string"
+                ? resolvedEp.resolvedBody
+                : JSON.stringify(resolvedEp.resolvedBody);
+
+            const hasContentType = Object.keys(requestHeaders).some(
+                (k) => k.toLowerCase() === "content-type",
+            );
+            if (!hasContentType) {
+                requestHeaders["content-type"] = "application/json";
+            }
+        }
+
+        console.log(
+            `[Integrations] Fetching provider endpoint "${epKey}" to resolve env var "${dataSetEnv}"`,
+        );
+
+        try {
+            const timeoutController = createTimeoutController(resolveTimeout(resolvedEp.timeout));
+            let responseBody: string;
+
+            try {
+                const response = await fetch(resolvedUrl, {
+                    method,
+                    headers: requestHeaders,
+                    body: requestBody,
+                    signal: timeoutController.signal,
+                    ...(buildTlsOptions(
+                        resolvedEp.allow_insecure_ssl ??
+                            (resolvedEp as any).insecure_skip_verify ??
+                            (resolvedEp as any).allowInsecureSSL,
+                        resolvedUrl,
+                    ) as any),
+                } as any);
+
+                if (!response.ok) {
+                    console.warn(
+                        `[Integrations] Provider endpoint "${epKey}" returned HTTP ${response.status} — skipping`,
+                    );
+                    continue;
+                }
+
+                responseBody = await response.text();
+            } finally {
+                timeoutController.clear();
+            }
+
+            const parsedBody = tryParseJson(responseBody);
+            if (parsedBody === null && responseBody.trim()) {
+                console.warn(
+                    `[Integrations] Provider endpoint "${epKey}" response is not JSON — skipping`,
+                );
+                continue;
+            }
+
+            const resolvedValue = extractValueFromPath(parsedBody, dataPath);
+            if (resolvedValue === undefined || resolvedValue === null) {
+                console.warn(
+                    `[Integrations] Provider endpoint "${epKey}" response did not contain a value at path "${dataPath ?? "(root)"}" — skipping`,
+                );
+                continue;
+            }
+
+            const formattedValue = formatEnvValue(resolvedValue);
+
+            if (currentEnvironment[dataSetEnv] !== formattedValue) {
+                currentEnvironment = { ...currentEnvironment, [dataSetEnv]: formattedValue };
+
+                // Persist immediately so subsequent requests benefit too.
+                await pb.collection("integrations").update(integrationId, {
+                    environment: encodeEnvironment(currentEnvironment),
+                });
+
+                console.log(
+                    `[Integrations] Resolved and persisted env var "${dataSetEnv}" via endpoint "${epKey}"`,
+                );
+            }
+
+            // Remove from missing set so we don't try to resolve it again.
+            missingVars.delete(dataSetEnv);
+        } catch (err) {
+            console.warn(
+                `[Integrations] Failed to fetch provider endpoint "${epKey}":`,
+                err,
+            );
+        }
+    }
+
+    return currentEnvironment;
+}
+
+/**
+ * Collect all ${TOKEN} references used anywhere inside an integration's
+ * endpoint definitions (url, auth, body, headers).
+ */
+function collectTokensFromConfig(config: Record<string, unknown>): Set<string> {
+    const tokens = new Set<string>();
+    const endpointConfigs = normalizeEndpoints(config);
+
+    for (const ep of endpointConfigs) {
+        const candidates = [
+            typeof ep.url === "string" ? ep.url : "",
+            typeof ep.auth === "string" ? ep.auth : "",
+            JSON.stringify(ep.body ?? ""),
+            JSON.stringify(ep.headers ?? ""),
+            JSON.stringify(ep.custom_headers ?? ""),
+        ];
+
+        for (const candidate of candidates) {
+            for (const match of candidate.matchAll(new RegExp(ENDPOINT_TOKEN_REGEX.source, "g"))) {
+                if (match[1]) tokens.add(match[1]);
+            }
+        }
+    }
+
+    return tokens;
+}
+
+/**
+ * Variant of buildResolvedEndpoints that operates on an already-normalised
+ * list of endpoint config objects and a pre-built envMap, so callers can
+ * pass a subset of endpoints without re-parsing the full config.
+ */
+function buildResolvedEndpointsFromList(
+    endpoints: Record<string, unknown>[],
+    envMap: Record<string, string>,
+): ResolvedEndpoint[] {
+    return endpoints.map((endpoint) => {
+        const method = typeof endpoint.method === "string"
+            ? endpoint.method
+            : "GET";
+        const headerSources: Record<string, unknown> = {
+            ...(isPlainObject(endpoint.headers)
+                ? (endpoint.headers as Record<string, unknown>)
+                : {}),
+            ...(isPlainObject(endpoint.custom_headers)
+                ? endpoint.custom_headers
+                : {}),
+        };
+
+        const resolvedHeadersRaw = resolveValue(headerSources, envMap);
+        const resolvedHeaders = isPlainObject(resolvedHeadersRaw)
+            ? Object.fromEntries(
+                Object.entries(resolvedHeadersRaw).map(([key, value]) => [
+                    key,
+                    value === undefined || value === null ? "" : String(value),
+                ]),
+            )
+            : {};
+
+        const resolvedAuthFromHeaders = extractAuthorizationHeader(resolvedHeaders);
+        const interpolatedAuth = interpolateString(
+            typeof endpoint.auth === "string" ? endpoint.auth : "",
+            envMap,
+        );
+        const finalResolvedAuth = interpolatedAuth || resolvedAuthFromHeaders || "";
+        const timeout =
+            typeof endpoint.timeout === "number" || typeof endpoint.timeout === "string"
+                ? endpoint.timeout
+                : endpoint.timeout == null
+                    ? null
+                    : undefined;
+
+        return {
+            id: typeof endpoint.id === "string" ? endpoint.id : (endpoint.name as string) ?? null,
+            name: typeof endpoint.name === "string" ? endpoint.name : null,
+            description: typeof endpoint.description === "string" ? endpoint.description : null,
+            method,
+            url: typeof endpoint.url === "string" ? endpoint.url : "",
+            auth: typeof endpoint.auth === "string" ? endpoint.auth : "",
+            allow_insecure_ssl: endpoint.allow_insecure_ssl ??
+                (endpoint as any).insecure_skip_verify ??
+                (endpoint as any).allowInsecureSSL,
+            timeout,
+            body: endpoint.body ?? null,
+            custom_headers: (endpoint.custom_headers as Record<string, unknown>) ?? {},
+            response_body_types: (endpoint.response_body_types as Record<string, unknown>) ?? {},
+            response_mappings: Array.isArray((endpoint as any).response_mappings)
+                ? (endpoint as any).response_mappings
+                : isPlainObject((endpoint as any).response_mapping)
+                ? [(endpoint as any).response_mapping]
+                : [],
+            resolvedUrl: interpolateString(
+                typeof endpoint.url === "string" ? endpoint.url : "",
+                envMap,
+            ),
+            resolvedAuth: finalResolvedAuth,
+            resolvedHeaders,
+            resolvedBody: resolveValue(endpoint.body ?? null, envMap),
+        };
+    });
 }
 
 function toResponseHeaders(headers: unknown) {
@@ -932,73 +1322,7 @@ export function buildResolvedEndpoints(
 ): ResolvedEndpoint[] {
     const envMap = buildEnvValueMap(config, environment);
     const endpoints = normalizeEndpoints(config);
-
-    return endpoints.map((endpoint) => {
-        const method = typeof endpoint.method === "string"
-            ? endpoint.method
-            : "GET";
-        const headerSources: Record<string, unknown> = {
-            ...(isPlainObject(endpoint.headers)
-                ? (endpoint.headers as Record<string, unknown>)
-                : {}),
-            ...(isPlainObject(endpoint.custom_headers)
-                ? endpoint.custom_headers
-                : {}),
-        };
-
-        const resolvedHeadersRaw = resolveValue(headerSources, envMap);
-        const resolvedHeaders = isPlainObject(resolvedHeadersRaw)
-            ? Object.fromEntries(
-                Object.entries(resolvedHeadersRaw).map(([key, value]) => [
-                    key,
-                    value === undefined || value === null ? "" : String(value),
-                ]),
-            )
-            : {};
-
-        const resolvedAuthFromHeaders = extractAuthorizationHeader(
-            resolvedHeaders,
-        );
-        const interpolatedAuth = interpolateString(
-            typeof endpoint.auth === "string" ? endpoint.auth : "",
-            envMap,
-        );
-        const finalResolvedAuth = interpolatedAuth || resolvedAuthFromHeaders ||
-            "";
-
-        return {
-            id: typeof endpoint.id === "string"
-                ? endpoint.id
-                : endpoint.name ?? null,
-            name: typeof endpoint.name === "string" ? endpoint.name : null,
-            description: typeof endpoint.description === "string"
-                ? endpoint.description
-                : null,
-            method,
-            url: typeof endpoint.url === "string" ? endpoint.url : "",
-            auth: typeof endpoint.auth === "string" ? endpoint.auth : "",
-            allow_insecure_ssl: endpoint.allow_insecure_ssl ??
-                (endpoint as any).insecure_skip_verify ??
-                (endpoint as any).allowInsecureSSL,
-            timeout: endpoint.timeout,
-            body: endpoint.body ?? null,
-            custom_headers: endpoint.custom_headers ?? {},
-            response_body_types: endpoint.response_body_types ?? {},
-            response_mappings:
-                Array.isArray((endpoint as any).response_mappings)
-                    ? (endpoint as any).response_mappings
-                    : isPlainObject((endpoint as any).response_mapping)
-                    ? [(endpoint as any).response_mapping]
-                    : [],
-            resolvedUrl: interpolateString(
-                typeof endpoint.url === "string" ? endpoint.url : "",
-                envMap,
-            ),
-            resolvedAuth: finalResolvedAuth,
-            resolvedHeaders,
-            resolvedBody: resolveValue(endpoint.body ?? null, envMap),
-        };
-    });
+    return buildResolvedEndpointsFromList(endpoints, envMap);
 }
 
 function normalizeEndpoints(config: Record<string, unknown>) {
