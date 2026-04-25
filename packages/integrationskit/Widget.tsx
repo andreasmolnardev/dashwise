@@ -312,9 +312,18 @@ function ColumnCell(
             )}
 
             {col.primary && (
-                <p className="font-semibold text-sm leading-tight text-center">
-                    {renderLocalizedText(col.primary, formatters)}
-                </p>
+                col.primaryAction ? (
+                    <a
+                        href={col.primaryAction}
+                        className="block max-w-full text-sm font-semibold leading-tight text-center hover:text-primary transition-colors truncate"
+                    >
+                        {renderLocalizedText(col.primary, formatters)}
+                    </a>
+                ) : (
+                    <p className="font-semibold text-sm leading-tight text-center">
+                        {renderLocalizedText(col.primary, formatters)}
+                    </p>
+                )
             )}
 
             {col.secondary && (

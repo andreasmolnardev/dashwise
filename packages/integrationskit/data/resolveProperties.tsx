@@ -330,6 +330,7 @@ function resolveColumnItem(
   return {
     label: resolveValue(c.label, env),
     primary: resolveValue(c.primary, env),
+    primaryAction: resolveAction(c.primaryAction, env),
     secondary: resolveValue(c.secondary, env),
     title: resolveValue(c.title, env),
     titleAction: resolveAction(c.titleAction, env),
