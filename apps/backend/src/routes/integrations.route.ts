@@ -1,4 +1,4 @@
-import type { Hono } from "hono";
+import { Hono } from "hono";
 import { randomUUID } from "crypto";
 
 import {
@@ -43,8 +43,8 @@ type CacheRecord = {
   createdAt: number;
 };
 
-export function registerIntegrationsControllers(app: Hono) {
-  app.get("/api/v1/integrations", withJson(async (c) => {
+const integrationsRoute = new Hono();
+  integrationsRoute.get("/api/v1/integrations", withJson(async (c) => {
     const { userId } = await requireAuth({ token: readAuthToken(c) });
     const id = c.req.query("id") ?? undefined;
     const resolveEndpoints = readBool(c.req.query("resolveEndpoints") ?? undefined);
@@ -53,21 +53,21 @@ export function registerIntegrationsControllers(app: Hono) {
     }
     return listIntegrations(userId);
   }));
-  app.post("/api/v1/integrations", withJson(async (c) => {
+  integrationsRoute.post("/api/v1/integrations", withJson(async (c) => {
     const body = await readJsonBody<any>(c);
     const { userId } = await requireAuth(body?.auth);
     return createIntegration(userId, body?.payload ?? {});
   }));
-  app.post("/api/v1/integrations/test-endpoint", withJson(async (c) => {
+  integrationsRoute.post("/api/v1/integrations/test-endpoint", withJson(async (c) => {
     const body = await readJsonBody<any>(c);
     const { userId } = await requireAuth(body?.auth);
     return testIntegrationEndpoint(userId, String(body?.target ?? ""));
   }));
-  app.get("/api/v1/integrations/widget-properties", withJson(async (c) => {
+  integrationsRoute.get("/api/v1/integrations/widget-properties", withJson(async (c) => {
     const { userId } = await requireAuth({ token: readAuthToken(c) });
     return getWidgetProperties(userId, String(c.req.query("widgetSlug") ?? ""));
   }));
-  app.get("/api/v1/integrations/consumerData", withJson(async (c) => {
+  integrationsRoute.get("/api/v1/integrations/consumerData", withJson(async (c) => {
     const auth = await requireAuth({ token: readAuthToken(c) });
     const typeRaw = String(c.req.query("type") ?? "").trim().toLowerCase();
     const key = String(c.req.query("key") ?? "").trim();
@@ -88,7 +88,7 @@ export function registerIntegrationsControllers(app: Hono) {
     });
   }));
 
-  app.post("/api/v1/integrations/consumerData", withJson(async (c) => {
+  integrationsRoute.post("/api/v1/integrations/consumerData", withJson(async (c) => {
     const auth = await requireAuth({ token: readAuthToken(c) });
     const body = await readJsonBody<any>(c);
     const key = String(body?.key ?? "").trim();
@@ -109,7 +109,8 @@ export function registerIntegrationsControllers(app: Hono) {
       isPreview,
     });
   }));
-}
+
+export default integrationsRoute;
 
 function parseInputQuery(raw: string | null): Record<string, any> {
   if (!raw || !raw.trim()) {

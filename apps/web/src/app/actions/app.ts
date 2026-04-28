@@ -1,9 +1,9 @@
-import { callApiAction } from "@/lib/apiClient";
+import { rpcGetAppConfig, rpcGetAppInfo } from "@/lib/rpcClient";
 
 export async function getAppConfigAction() {
-  return callApiAction("app", "getAppConfigAction");
+  return rpcGetAppConfig();
 }
 
 export async function getAppInfoAction(_auth?: { token?: string | null }) {
-  return callApiAction("app", "getAppInfoAction");
+  return rpcGetAppInfo();
 }

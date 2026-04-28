@@ -1,4 +1,4 @@
-import type { Hono } from "hono";
+import { Hono } from "hono";
 
 import {
   getIntegrationWithGlanceable,
@@ -8,29 +8,30 @@ import { getUserGlanceable, getUserWidgets } from "@dashwise/sdk/data/widgets";
 
 import { readAuthToken, requireAuth, withJson } from "./shared";
 
-export function registerWidgetsControllers(app: Hono) {
-  app.get("/api/v1/widgets", withJson(async (c) => {
+const widgetsRoute = new Hono();
+  widgetsRoute.get("/api/v1/widgets", withJson(async (c) => {
     const { userId } = await requireAuth({ token: readAuthToken(c) });
     return getUserWidgets(userId);
   }));
-  app.get("/api/v1/glanceables", withJson(async (c) => {
+  widgetsRoute.get("/api/v1/glanceables", withJson(async (c) => {
     const { userId } = await requireAuth({ token: readAuthToken(c) });
     return getUserGlanceable(userId);
   }));
-  app.get("/api/v1/widgets/glanceable", withJson(async (c) => {
+  widgetsRoute.get("/api/v1/widgets/glanceable", withJson(async (c) => {
     const { userId } = await requireAuth({ token: readAuthToken(c) });
     return getUserGlanceable(userId);
   }));
-  app.get("/api/v1/widgets/glanceables", withJson(async (c) => {
+  widgetsRoute.get("/api/v1/widgets/glanceables", withJson(async (c) => {
     const { userId } = await requireAuth({ token: readAuthToken(c) });
     return getUserGlanceable(userId);
   }));
-  app.get("/api/v1/widgets/by-integration", withJson(async (c) => {
+  widgetsRoute.get("/api/v1/widgets/by-integration", withJson(async (c) => {
     const { userId } = await requireAuth({ token: readAuthToken(c) });
     return getIntegrationWithWidget(userId, String(c.req.query("widgetKey") ?? ""));
   }));
-  app.get("/api/v1/glanceables/by-integration", withJson(async (c) => {
+  widgetsRoute.get("/api/v1/glanceables/by-integration", withJson(async (c) => {
     const { userId } = await requireAuth({ token: readAuthToken(c) });
     return getIntegrationWithGlanceable(userId, String(c.req.query("glanceableType") ?? ""));
   }));
-}
+
+export default widgetsRoute;

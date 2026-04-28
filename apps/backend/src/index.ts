@@ -7,7 +7,9 @@ import { config } from "./config/env";
 import { jobsApi, registerJobsCron } from "./jobs/index";
 import { startPocketbase } from "./pocketbase";
 import { createLogger } from "./lib/logger";
-import { registerRestRoutes } from "./restRoutes";
+import authRoute from "./routes/auth.route";
+import systemRoute from "./routes/system.route";
+import dataRoute from "./routes/data.route";
 
 const app = new Hono();
 const logger = createLogger("API");
@@ -26,7 +28,9 @@ registerJobsCron();
 
 app.use("*", cors({ origin: "*" }));
 
-registerRestRoutes(app);
+app.route("/", authRoute);
+app.route("/", systemRoute);
+app.route("/", dataRoute);
 
 app.get("/health", (c) => c.json({ status: "ok" }));
 

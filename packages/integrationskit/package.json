@@ -8,8 +8,7 @@
     "react-dom": ">=19"
   },
   "dependencies": {
-    "@dashwise/app-icon": "workspace:*",
-    "@dashwise/sdk": "workspace:*"
+    "@dashwise/app-icon": "workspace:*"
   },
   "exports": {
     "./AppIcon": "./templates/AppIcon.tsx",

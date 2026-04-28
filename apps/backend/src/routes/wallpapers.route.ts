@@ -1,9 +1,9 @@
-import type { Hono } from "hono";
+import { Hono } from "hono";
 
 import { uploadWallpaper } from "@dashwise/sdk/data/wallpapers";
 
-export function registerWallpapersControllers(app: Hono) {
-  app.post("/api/v1/wallpapers", async (c) => {
+const wallpapersRoute = new Hono()
+  wallpapersRoute.post("/api/v1/wallpapers", async (c) => {
     const formData = await c.req.formData();
     const image = formData.get("image") as File | null;
     if (!image) {
@@ -14,4 +14,6 @@ export function registerWallpapersControllers(app: Hono) {
 
     return c.json(await uploadWallpaper(token, formData));
   });
-}
+
+
+export default wallpapersRoute;

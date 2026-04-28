@@ -1,5 +1,6 @@
 import Parser from "rss-parser";
-import type { Context, Hono } from "hono";
+import { Hono } from "hono";
+import type { Context } from "hono";
 
 import { getNewsFeed, getNewsFeedRecord, getNewsFeeds, getNewsSubscriptions, refreshNewsFeed, subscribeNewsFeed, unsubscribeNewsFeed, updateNewsFeed, updateNewsFeedRecordForUser } from "@dashwise/sdk/data/news";
 import type { NewsFeedMetadata, NewsFeedRecordUpdateInput, NewsSubscribeInput, NewsUpdateInput } from "@dashwise/sdk/data/news";
@@ -99,8 +100,8 @@ async function getFeedMetadata(feedUrl: string): Promise<NewsFeedMetadata> {
   }
 }
 
-export function registerNewsControllers(app: Hono) {
-  app.get("/api/v1/news", withJson(async (c) => {
+const newsRoute = new Hono();
+  newsRoute.get("/api/v1/news", withJson(async (c) => {
     const { userId } = await requireAuth({ token: readAuthToken(c) });
     const [subscriptions, feeds] = await Promise.all([
       getNewsSubscriptions(userId),
@@ -112,27 +113,27 @@ export function registerNewsControllers(app: Hono) {
       ...feeds,
     };
   }));
-  app.get("/api/v1/news/subscriptions", withJson(async (c) => {
+  newsRoute.get("/api/v1/news/subscriptions", withJson(async (c) => {
     const { userId } = await requireAuth({ token: readAuthToken(c) });
     return getNewsSubscriptions(userId);
   }));
-  app.get("/api/v1/news/feeds", withJson(async (c) => {
+  newsRoute.get("/api/v1/news/feeds", withJson(async (c) => {
     const { userId } = await requireAuth({ token: readAuthToken(c) });
     return getNewsFeeds(userId);
   }));
-  app.get("/api/v1/news/feeds/:id", withJson(async (c) => {
+  newsRoute.get("/api/v1/news/feeds/:id", withJson(async (c) => {
     const { userId } = await requireAuth({ token: readAuthToken(c) });
     return getNewsFeed(userId, c.req.param("id"));
   }));
-  app.get("/api/v1/news/feed", withJson(async (c) => {
+  newsRoute.get("/api/v1/news/feed", withJson(async (c) => {
     const { userId } = await requireAuth({ token: readAuthToken(c) });
     return getNewsFeed(userId, c.req.query("feedId") ?? "all");
   }));
-  app.get("/api/v1/news/feed-records/:id", withJson(async (c) => {
+  newsRoute.get("/api/v1/news/feed-records/:id", withJson(async (c) => {
     const { userId } = await requireAuth({ token: readAuthToken(c) });
     return getNewsFeedRecord(userId, String(c.req.param("id") ?? ""));
   }));
-  app.get("/api/v1/news/feed-metadata", withJson(async (c) => {
+  newsRoute.get("/api/v1/news/feed-metadata", withJson(async (c) => {
     await requireAuth({ token: readAuthToken(c) });
 
     const feedUrl = String(c.req.query("url") ?? "").trim();
@@ -142,11 +143,11 @@ export function registerNewsControllers(app: Hono) {
 
     return getFeedMetadata(feedUrl);
   }));
-  app.get("/api/v1/news/feed-refresh", withJson(async (c) => {
+  newsRoute.get("/api/v1/news/feed-refresh", withJson(async (c) => {
     const { userId } = await requireAuth({ token: readAuthToken(c) });
     return refreshNewsFeed(userId, { feedIds: readRequestedFeedIds(c) });
   }));
-  app.post("/api/v1/news/feed-refresh", withJson(async (c) => {
+  newsRoute.post("/api/v1/news/feed-refresh", withJson(async (c) => {
     const body = await readJsonBody<{ auth?: { token?: string | null }; feedIds?: string[]; feedId?: string }>(c);
     const { userId } = await requireAuth(body?.auth ?? {});
     return refreshNewsFeed(userId, {
@@ -157,7 +158,7 @@ export function registerNewsControllers(app: Hono) {
           : readRequestedFeedIds(c),
     });
   }));
-  app.post("/api/v1/news/feed-subscribe", withJson(async (c) => {
+  newsRoute.post("/api/v1/news/feed-subscribe", withJson(async (c) => {
     const body = await readJsonBody<{ auth?: { token?: string | null }; sub?: NewsSubscribeInput }>(c);
     const { userId } = await requireAuth(body?.auth ?? {});
     const sub: NewsSubscribeInput = body?.sub ?? { feedUrl: "" };
@@ -170,22 +171,23 @@ export function registerNewsControllers(app: Hono) {
       newFeedTitles: Array.isArray(sub.newFeedTitles) ? sub.newFeedTitles : [],
     });
   }));
-  app.post("/api/v1/news/feed-unsubscribe", withJson(async (c) => {
+  newsRoute.post("/api/v1/news/feed-unsubscribe", withJson(async (c) => {
     const body = await readJsonBody<{ auth?: { token?: string | null }; feedUrl?: string }>(c);
     const { userId } = await requireAuth(body?.auth ?? {});
     return unsubscribeNewsFeed(userId, String(body?.feedUrl ?? ""));
   }));
-  app.post("/api/v1/news/feed-update", withJson(async (c) => {
+  newsRoute.post("/api/v1/news/feed-update", withJson(async (c) => {
     const body = await readJsonBody<{ auth?: { token?: string | null }; payload?: NewsUpdateInput }>(c);
     const { userId } = await requireAuth(body?.auth ?? {});
     const payload: NewsUpdateInput = body?.payload ?? { feedUrl: "" };
     return updateNewsFeed(userId, payload);
   }));
-  app.post("/api/v1/news/feed-records/:id", withJson(async (c) => {
+  newsRoute.post("/api/v1/news/feed-records/:id", withJson(async (c) => {
     const body = await readJsonBody<{ auth?: { token?: string | null }; payload?: Partial<NewsFeedRecordUpdateInput> }>(c);
     const { userId } = await requireAuth(body?.auth ?? {});
     const feedId = String(c.req.param("id") ?? body?.payload?.feedId ?? "").trim();
     const payload = body?.payload ?? {};
     return updateNewsFeedRecordForUser(userId, feedId, payload);
   }));
-}
+
+export default newsRoute;

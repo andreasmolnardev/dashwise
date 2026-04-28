@@ -1,9 +1,9 @@
-import type { Hono } from "hono";
+import { Hono } from "hono";
 import { ApiActionError } from "@dashwise/sdk/data/auth";
 
 import { getPageConfigJSON, getUserPages, updatePageConfig } from "@dashwise/sdk/data/pageConfig";
 import type { PageConfig } from "@dashwise/sdk/data/pageConfig";
-import { resolveConsumerDataForRequest } from "./integrations.controller";
+import { resolveConsumerDataForRequest } from "./integrations.route";
 
 import { loadSignupDefaults, normalizePageName, readAuthToken, readJsonBody, requireAuth, withJson } from "./shared";
 
@@ -22,18 +22,18 @@ type PageConsumerCandidate = {
   consumerKey: string;
 };
 
-export function registerPageConfigControllers(app: Hono) {
-  app.get("/api/v1/pageConfig", withJson(async (c) => {
+const pageConfigRoute = new Hono();
+  pageConfigRoute.get("/api/v1/pageConfig", withJson(async (c) => {
     const auth = { token: readAuthToken(c) };
     const { userId } = await requireAuth(auth);
     return getPageConfigJSON(userId, normalizePageName(c.req.query("pageName") ?? undefined));
   }));
-  app.get("/api/v1/pageConfig/user-pages", withJson(async (c) => {
+  pageConfigRoute.get("/api/v1/pageConfig/user-pages", withJson(async (c) => {
     const auth = { token: readAuthToken(c) };
     const { userId } = await requireAuth(auth);
     return getUserPages(userId);
   }));
-  app.post("/api/v1/pageConfig/integrationData", withJson(async (c) => {
+  pageConfigRoute.post("/api/v1/pageConfig/integrationData", withJson(async (c) => {
     const body = await readJsonBody<{ pageName?: string }>(c);
     const auth = await requireAuth({ token: readAuthToken(c) });
     const pageName = normalizePageName(c.req.query("page") ?? body?.pageName ?? undefined);
@@ -87,12 +87,12 @@ export function registerPageConfigControllers(app: Hono) {
       items,
     };
   }));
-  app.put("/api/v1/pageConfig", withJson(async (c) => {
+  pageConfigRoute.put("/api/v1/pageConfig", withJson(async (c) => {
     const body = await readJsonBody<{ auth?: { token?: string | null }; pageName?: string; config?: PageConfig }>(c);
     const { userId } = await requireAuth(body?.auth ?? {});
     return updatePageConfig(userId, normalizePageName(body?.pageName), body?.config ?? {});
   }));
-  app.post("/api/v1/pageConfig/home", withJson(async (c) => {
+  pageConfigRoute.post("/api/v1/pageConfig/home", withJson(async (c) => {
     const body = await readJsonBody<{ auth?: { token?: string | null } }>(c);
     const { userId } = await requireAuth(body?.auth ?? {});
     const existingHomeConfig = await getPageConfigJSON(userId, "home");
@@ -106,7 +106,8 @@ export function registerPageConfigControllers(app: Hono) {
 
     return { success: true, created: true, config: defaultHomeConfig };
   }));
-}
+
+export default pageConfigRoute;
 
 function collectPageConsumers(config: PageConfig): PageConsumerCandidate[] {
   const dedupe = new Set<string>();
