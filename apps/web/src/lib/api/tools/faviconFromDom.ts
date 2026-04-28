@@ -1,1 +1,0 @@
-export { getFaviconFromDOM } from "@dashwise/sdk/lib/api/tools/faviconFromDom";
