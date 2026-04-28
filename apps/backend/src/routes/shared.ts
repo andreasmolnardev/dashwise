@@ -6,7 +6,7 @@ import type { Context } from "hono";
 import { ApiActionError, requireUserAuth } from "@dashwise/sdk/data/auth";
 import { z } from "zod";
 
-import { config } from "../config/env";
+import { config } from "../lib/config";
 
 export type JsonHandler = (c: Context) => Promise<unknown>;
 

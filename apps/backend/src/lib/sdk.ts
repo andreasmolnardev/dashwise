@@ -1,6 +1,6 @@
 import { DashwiseSDKConnector } from "@dashwise/sdk";
 import { registerDashwiseSDKConnector } from "@dashwise/sdk/lib/pocketbase";
-import { config } from "../config/env";
+import { config } from "./config";
 import { createLogger } from "./logger";
 
 const logger = createLogger("SDK");

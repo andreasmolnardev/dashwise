@@ -1,4 +1,4 @@
-import { config } from "../../config/env";
+import { config } from "../../lib/config";
 
 import { monitorHelper, MonitoringRequestAuth } from "./helper";
 import {

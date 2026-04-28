@@ -1,7 +1,7 @@
 import { accessSync, constants, existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { config } from "./config/env";
+import { config } from "./lib/config";
 import { createLogger } from "./lib/logger";
 
 /**

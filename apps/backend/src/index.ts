@@ -3,7 +3,7 @@ import { join, resolve } from "node:path";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 
-import { config } from "./config/env";
+import { config } from "./lib/config";
 import { jobsApi, registerJobsCron } from "./jobs/index";
 import { startPocketbase } from "./pocketbase";
 import { createLogger } from "./lib/logger";

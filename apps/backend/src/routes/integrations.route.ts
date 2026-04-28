@@ -26,7 +26,7 @@ import type {
 } from "@dashwise/integrationskit/data/getEndpointData";
 
 import { readAuthToken, readBool, readJsonBody, requireAuth, withJson } from "./shared";
-import { config } from "src/config/env";
+import { config } from "src/lib/config";
 
 type ConsumerType = "widget" | "glanceable";
 type CachePolicy = "strict" | "cache-first";

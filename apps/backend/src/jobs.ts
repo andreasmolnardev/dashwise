@@ -4,7 +4,7 @@ import { promisify } from "node:util";
 
 import cron from "node-cron";
 import { runJob } from "./jobs/job-logger";
-import { config } from "./config/env";
+import { config } from "./lib/config";
 import { _d } from "./lib/sdk";
 import { runSearchItemsIndexing } from "./jobs/search-indexer";
 import indexStatusMonitoringJobs from "./jobs/monitoring/indexer";
