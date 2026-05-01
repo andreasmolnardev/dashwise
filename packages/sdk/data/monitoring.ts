@@ -17,6 +17,7 @@ export interface MonitorRecord {
   method?: string;
   status?: string;
   source?: string;
+  sourcelinkId?: string;
   linkId?: string;
   endpointAuth?: string;
   responseUpFilter?: {
@@ -169,7 +170,7 @@ export async function getMonitoringStatus(userId: string, jobId?: string | null)
 
   for (const monitor of monitors) {
     const statusSummary = getLatestMonitorStatus(monitor);
-    const key = monitor.linkId || monitor.source || monitor.id;
+    const key = monitor.sourcelinkId || monitor.linkId || monitor.id;
     results[key] = {
       status: statusSummary.status,
       dateChanged: statusSummary.dateChanged,
@@ -205,7 +206,7 @@ export async function createMonitor(userId: string, body: any) {
     userId,
     endpoint,
     method: normalizeMethod(body?.method),
-    source: `link ${linkId}`,
+    sourcelinkId: linkId,
     status: "initiated",
   };
 
@@ -233,7 +234,7 @@ export async function runMonitoringStatus(userId: string, body: any) {
 
   const targetFilter = jobId
     ? `id = "${jobId}" && userId = "${userId}"`
-    : `source = "link ${linkId}" && userId = "${userId}"`;
+    : `sourcelinkId = "${linkId}" && userId = "${userId}"`;
 
   const existingMonitors = await pb.collection("monitors").getFullList({ filter: targetFilter });
   if (!existingMonitors || existingMonitors.length === 0) {
@@ -245,8 +246,7 @@ export async function runMonitoringStatus(userId: string, body: any) {
   }
 
   const targetMonitor = existingMonitors[0];
-  const source = String(targetMonitor.source || (linkId ? `link ${linkId}` : ""));
-  const sourceLinkId = source.startsWith("link ") ? source.slice(5) : undefined;
+  const sourceLinkId = targetMonitor.sourcelinkId || targetMonitor.linkId;
 
   const webhookUrl = `${config.jobs_url}/webhook/statusMonitoringRunner${
     sourceLinkId ? `?linkId=${encodeURIComponent(sourceLinkId)}` : ""
@@ -285,7 +285,6 @@ export async function runMonitoringStatus(userId: string, body: any) {
   return {
     jobId: refreshedMonitor.id,
     linkId: sourceLinkId,
-    source,
     status: statusForUi,
     rawStatus: normalizedStatus,
     endpoint: refreshedMonitor.endpoint,

@@ -34,3 +34,7 @@ export async function createMonitorAction(
 ): Promise<MonitorRecord> {
   return callApiAction("monitoring", "createMonitorAction", { auth, ...data }) as Promise<MonitorRecord>;
 }
+
+export async function deleteMonitorAction(auth: ActionAuth, monitorId: string): Promise<void> {
+  return callApiAction("monitoring", "deleteMonitorAction", { auth, monitorId });
+}

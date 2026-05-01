@@ -57,6 +57,7 @@ type MonitorRecord = {
   id: string;
   endpoint?: string;
   source?: string;
+  sourcelinkId?: string;
   status?: string;
   created?: string;
   updated?: string;

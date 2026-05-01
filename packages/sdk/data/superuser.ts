@@ -86,6 +86,11 @@ export async function updateMonitoringJob(
 	return updateMonitor(jobId, payload);
 }
 
+export async function deleteMonitoringJob(jobId: string) {
+	const pb = await getSuperuserPB();
+	return pb.collection("monitors").delete(jobId);
+}
+
 export async function getAppInfoRecords(batchSize = 200) {
 	const pb = await getSuperuserPB();
 	return pb.collection("appInfo").getFullList(batchSize);
