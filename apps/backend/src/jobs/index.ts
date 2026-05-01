@@ -3,7 +3,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
 import cron from "node-cron";
-import { runJob } from "./lib/job-logger";
+import { runJob } from "./job-logger";
 import { config } from "../lib/config";
 import { _d } from "../lib/sdk";
 import { runSearchItemsIndexing } from "./search-indexer";

@@ -10,6 +10,7 @@
     "generate:api-types": "openapi-typescript public/openapi.json -o ../../packages/api-types/src/openapi.ts"
   },
   "dependencies": {
+    "@dashwise/api-types": "workspace:*",
     "@dashwise/app-icon": "workspace:*",
     "@dashwise/integrationskit": "workspace:*",
     "@dashwise/sdk": "workspace:*",
@@ -58,11 +59,11 @@
     "sharp": "^0.34.3",
     "speakeasy": "^2.0.0",
     "tailwind-merge": "^3.3.1",
+    "ts-caldav": "^0.3.4",
     "use-debounce": "^10.0.6",
     "usehooks-ts": "^3.1.1",
     "uuid": "^11.1.0",
-    "yaml": "^2.8.2",
-    "@dashwise/api-types": "workspace:*"
+    "yaml": "^2.8.2"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
