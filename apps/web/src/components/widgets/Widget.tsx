@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import GlanceableClockWidget from "./dashboard/GlanceableClock";
+import CalendarWeekWidget, { CalendarTodayWidget, CalendarUpcomingWidget } from "@dashwise/integrationskit/static-widgets/CalendarWidgets";
 import LinkView from "./LinkView";
 import SearchBar from "./SearchBar";
 import Widget from "@dashwise/integrationskit/Widget";

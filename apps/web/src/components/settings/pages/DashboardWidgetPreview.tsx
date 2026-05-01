@@ -20,7 +20,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Edit3, GripVertical, PanelLeftDashed, Trash2 } from "lucide-react";
+import { Edit3, Eye, EyeOff, GripVertical, PanelLeftDashed, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import {
@@ -32,6 +32,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { renderWidget } from "@/components/widgets/Widget";
 import {
   ColumnName,
@@ -43,11 +44,17 @@ import {
   moveItem,
 } from "./utils";
 
+type DisplayCustomizations = {
+  order?: string[];
+  hidden?: string[];
+};
+
 type DashboardWidgetPreviewProps = {
   template: TemplateId;
   columns: Record<ColumnName, ColumnWidget[]>;
   setColumns: Dispatch<SetStateAction<Record<ColumnName, ColumnWidget[]>>>;
   onPersistColumns?: (nextColumns: Record<ColumnName, ColumnWidget[]>) => void | Promise<void>;
+  loadWidgetPreviewData?: (widgetKey: string, input?: Record<string, any>) => Promise<Record<string, any> | null>;
   enabledColumns: ColumnName[];
   widgetCatalog: WidgetCatalogItem[];
   widgetCategories: string[];
@@ -60,49 +67,172 @@ function WidgetTile({
   widgetConfig,
   onRemove,
   onUpdateInput,
+  loadWidgetPreviewData,
   isActive,
 }: {
   columnWidget: ColumnWidget;
   widgetConfig?: WidgetCatalogItem;
   onRemove: () => void;
   onUpdateInput: (widgetId: string, input?: ColumnWidget["input"]) => void;
+  loadWidgetPreviewData?: (widgetKey: string, input?: Record<string, any>) => Promise<Record<string, any> | null>;
   isActive?: boolean;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: columnWidget.id,
   });
   const [isDataDialogOpen, setIsDataDialogOpen] = useState(false);
-  const [inputValue, setInputValue] = useState(JSON.stringify(columnWidget.input ?? {}, null, 2));
+  const [activeTab, setActiveTab] = useState<"input" | "displayed">("input");
+  const [inputValue, setInputValue] = useState(JSON.stringify(stripDisplayCustomizations(columnWidget.input ?? {}), null, 2));
   const [dataError, setDataError] = useState<string | null>(null);
+  const [previewResolved, setPreviewResolved] = useState<Record<string, any> | null>(null);
+  const [isPreviewLoading, setIsPreviewLoading] = useState(false);
+  const [displayOrder, setDisplayOrder] = useState<string[]>([]);
+  const [hiddenIds, setHiddenIds] = useState<string[]>([]);
+  const customizationSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+  );
+
+  const supportsUserCustomizations = useMemo(() => {
+    const flags = widgetConfig?.properties?.columns?.user_customizations;
+    return Array.isArray(flags) && flags.some((flag) => flag === "allow_reorder" || flag === "allow_hide");
+  }, [widgetConfig?.properties?.columns?.user_customizations]);
+
+  const supportedCustomizations = useMemo(
+    () => new Set(widgetConfig?.properties?.columns?.user_customizations ?? []),
+    [widgetConfig?.properties?.columns?.user_customizations],
+  );
+
+  const currentCustomizations = useMemo(() => readDisplayCustomizations(columnWidget.input), [columnWidget.input]);
+  const previewColumns = Array.isArray(previewResolved?.blueprint?.resolved?.columns)
+    ? (previewResolved.blueprint.resolved.columns as Array<Record<string, any>>)
+    : [];
+  const previewColumnsById = useMemo<Map<string, Record<string, any>>>(
+    () => new Map(previewColumns.map((column) => [String(column.id), column] as const)),
+    [previewColumns],
+  );
+  const previewRuntimePayload = previewResolved
+    ? {
+        env: previewResolved.env ?? {},
+        data: previewResolved.data ?? null,
+        cache: previewResolved.cache ?? null,
+        fresh: previewResolved.fresh ?? null,
+      }
+    : null;
 
   useEffect(() => {
     if (isDataDialogOpen) return;
-    setInputValue(JSON.stringify(columnWidget.input ?? {}, null, 2));
+    setInputValue(JSON.stringify(stripDisplayCustomizations(columnWidget.input ?? {}), null, 2));
     setDataError(null);
+    setPreviewResolved(null);
+    setDisplayOrder([]);
+    setHiddenIds([]);
+    setActiveTab("input");
   }, [isDataDialogOpen, columnWidget.input]);
+
+  useEffect(() => {
+    if (!isDataDialogOpen || !supportsUserCustomizations || !widgetConfig?.key || !loadWidgetPreviewData) {
+      return;
+    }
+
+    let cancelled = false;
+    setIsPreviewLoading(true);
+
+    void loadWidgetPreviewData(widgetConfig.key, stripDisplayCustomizations(columnWidget.input ?? {}))
+      .then((preview) => {
+        if (cancelled) return;
+        setPreviewResolved(preview);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setPreviewResolved(null);
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsPreviewLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [columnWidget.input, isDataDialogOpen, loadWidgetPreviewData, supportsUserCustomizations, widgetConfig?.key]);
+
+  useEffect(() => {
+    if (!isDataDialogOpen || !supportsUserCustomizations) {
+      return;
+    }
+
+    const previewItems = previewColumns.map((column: any) => String(column.id));
+    if (previewItems.length === 0) {
+      return;
+    }
+
+    const savedOrder = Array.isArray(currentCustomizations.order) ? currentCustomizations.order : [];
+    const savedHidden = Array.isArray(currentCustomizations.hidden) ? currentCustomizations.hidden : [];
+    const orderedIds = [
+      ...savedOrder.filter((id) => previewItems.includes(id)),
+      ...previewItems.filter((id: string) => !savedOrder.includes(id)),
+    ];
+
+    setDisplayOrder(orderedIds);
+    setHiddenIds(savedHidden.filter((id) => previewItems.includes(id)));
+  }, [currentCustomizations.hidden, currentCustomizations.order, isDataDialogOpen, previewColumns, supportsUserCustomizations]);
+
+  const mergedInput = useMemo(() => {
+    const baseInput = parseWidgetInput(inputValue);
+    const customizations = buildDisplayCustomizationsPayload({
+      order: displayOrder,
+      hidden: hiddenIds,
+      supportsReorder: supportedCustomizations.has("allow_reorder"),
+      supportsHide: supportedCustomizations.has("allow_hide"),
+    });
+
+    if (customizations) {
+      return { ...baseInput, display_customizations: customizations };
+    }
+
+    return baseInput;
+  }, [displayOrder, hiddenIds, inputValue, supportedCustomizations]);
 
   const handleSaveData = () => {
     setDataError(null);
-    let parsedInput: Record<string, any> = {};
-    const trimmedInput = inputValue.trim();
-    if (trimmedInput) {
-      try {
-        const parsed = JSON.parse(trimmedInput);
-        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-          setDataError("Input must be a JSON object.");
-          return;
-        }
-        parsedInput = parsed as Record<string, any>;
-      } catch {
-        setDataError("Input must be valid JSON.");
-        return;
-      }
+    const parsedInput = parseWidgetInput(inputValue, setDataError);
+    if (!parsedInput) {
+      return;
     }
-    onUpdateInput(columnWidget.id, Object.keys(parsedInput).length > 0 ? parsedInput : undefined);
+
+    const nextInput = mergePersistedInput(parsedInput, {
+      order: displayOrder,
+      hidden: hiddenIds,
+      supportsReorder: supportedCustomizations.has("allow_reorder"),
+      supportsHide: supportedCustomizations.has("allow_hide"),
+    });
+
+    onUpdateInput(columnWidget.id, Object.keys(nextInput).length > 0 ? nextInput : undefined);
     setIsDataDialogOpen(false);
   };
 
-  const canEditData = hasEditableWidgetData(columnWidget, widgetConfig);
+  const toggleHidden = (id: string) => {
+    setHiddenIds((prev) => prev.includes(id) ? prev.filter((hiddenId) => hiddenId !== id) : [...prev, id]);
+  };
+
+  const handleCustomizationDragEnd = (event: DragEndEvent) => {
+    const activeId = String(event.active.id);
+    const overId = event.over ? String(event.over.id) : null;
+    if (!overId || activeId === overId) return;
+
+    setDisplayOrder((prev) => {
+      const fromIndex = prev.indexOf(activeId);
+      const toIndex = prev.indexOf(overId);
+      if (fromIndex < 0 || toIndex < 0) return prev;
+      const next = [...prev];
+      next.splice(fromIndex, 1);
+      next.splice(toIndex, 0, activeId);
+      return next;
+    });
+  };
+
+  const canEditData = hasEditableWidgetData(columnWidget, widgetConfig) || supportsUserCustomizations;
   const params = {
     ...(widgetConfig?.properties ?? {}),
     ...(columnWidget.input ?? {}),
@@ -114,12 +244,11 @@ function WidgetTile({
       style={{ transform: CSS.Transform.toString(transform), transition }}
       className={`group relative rounded-lg overflow-hidden ${isDragging ? "opacity-40" : "opacity-100"}`}
     >
-      {/* Actual widget preview */}
+      {/* Real widget render */}
       {renderWidget({
         type: columnWidget.type,
         params,
         className: "w-full h-[90px] pointer-events-none frosted",
-        isPreview: true,
       })}
 
       {/* Hover overlay with controls */}
@@ -137,24 +266,93 @@ function WidgetTile({
             </DialogTrigger>
             <DialogContent className="frosted">
               <DialogHeader>
-                <DialogTitle>Edit Widget Input</DialogTitle>
+                <DialogTitle>{supportsUserCustomizations ? "Edit Widget Settings" : "Edit Widget Input"}</DialogTitle>
                 <DialogDescription>
-                  Customize the per-widget input payload used by the preview and saved page config.
+                  {supportsUserCustomizations
+                    ? "Adjust the input payload and displayed items for this widget instance."
+                    : "Customize the per-widget input payload used by the preview and saved page config."}
                 </DialogDescription>
               </DialogHeader>
-              <div className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <Label htmlFor={`widget-data-input-${columnWidget.id}`}>Input JSON</Label>
-                  <textarea
-                    id={`widget-data-input-${columnWidget.id}`}
-                    value={inputValue}
-                    onChange={(event) => setInputValue(event.target.value)}
-                    className="min-h-40 w-full rounded-md border border-white/15 bg-black/20 p-3 text-sm outline-none"
-                    spellCheck={false}
-                  />
+              {supportsUserCustomizations ? (
+                <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "input" | "displayed")} className="py-4">
+                  <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="input">Input</TabsTrigger>
+                    <TabsTrigger value="displayed">Displayed Items</TabsTrigger>
+                  </TabsList>
+
+                  <TabsContent value="input" className="space-y-4 pt-4">
+                    <div className="space-y-2">
+                      <Label htmlFor={`widget-data-input-${columnWidget.id}`}>Input JSON</Label>
+                      <textarea
+                        id={`widget-data-input-${columnWidget.id}`}
+                        value={inputValue}
+                        onChange={(event) => setInputValue(event.target.value)}
+                        className="min-h-40 w-full rounded-md border border-white/15 bg-black/20 p-3 text-sm outline-none"
+                        spellCheck={false}
+                      />
+                    </div>
+                    {dataError ? <p className="text-sm text-red-400">{dataError}</p> : null}
+                  </TabsContent>
+
+                  <TabsContent value="displayed" className="space-y-3 pt-4">
+                    {isPreviewLoading ? (
+                      <p className="text-sm text-white/60">Loading preview items...</p>
+                    ) : previewColumns.length > 0 ? (
+                      <DndContext
+                        collisionDetection={closestCenter}
+                        onDragEnd={handleCustomizationDragEnd}
+                        sensors={customizationSensors}
+                      >
+                        <SortableContext items={displayOrder} strategy={verticalListSortingStrategy}>
+                          <div className="space-y-2">
+                            {displayOrder.map((itemId) => {
+                              const item = previewColumnsById.get(itemId);
+                              if (!item) return null;
+                              return (
+                                <DisplayedItemRow
+                                  key={itemId}
+                                  id={itemId}
+                                  title={String(item.primary ?? item.title ?? item.label ?? itemId)}
+                                  subtitle={String(item.secondary ?? item.thumbnail ?? "")}
+                                  hidden={hiddenIds.includes(itemId)}
+                                  onToggleHidden={() => toggleHidden(itemId)}
+                                />
+                              );
+                            })}
+                          </div>
+                        </SortableContext>
+                      </DndContext>
+                    ) : (
+                      <p className="text-sm text-white/60">This widget has no preview items yet.</p>
+                    )}
+                  </TabsContent>
+                </Tabs>
+              ) : (
+                <div className="space-y-4 py-4">
+                  <div className="space-y-2">
+                    <Label htmlFor={`widget-data-input-${columnWidget.id}`}>Input JSON</Label>
+                    <textarea
+                      id={`widget-data-input-${columnWidget.id}`}
+                      value={inputValue}
+                      onChange={(event) => setInputValue(event.target.value)}
+                      className="min-h-40 w-full rounded-md border border-white/15 bg-black/20 p-3 text-sm outline-none"
+                      spellCheck={false}
+                    />
+                  </div>
+                  {dataError ? <p className="text-sm text-red-400">{dataError}</p> : null}
                 </div>
-                {dataError ? <p className="text-sm text-red-400">{dataError}</p> : null}
-              </div>
+              )}
+              {previewRuntimePayload ? (
+                <section className="space-y-2 rounded-xl border border-white/10 bg-black/20 p-3 text-xs">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="font-semibold uppercase tracking-wide text-white/70">Consumer payload</p>
+                    <p className="text-[0.65rem] text-white/50">Fetched from backend</p>
+                  </div>
+                  <pre className="max-h-56 overflow-auto whitespace-pre-wrap wrap-break-word rounded-lg bg-black/30 p-3 font-mono leading-snug text-white/80">
+                    {JSON.stringify(previewRuntimePayload, null, 2)}
+                  </pre>
+                </section>
+              ) : null}
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => setIsDataDialogOpen(false)}>
                   Cancel
@@ -188,6 +386,170 @@ function WidgetTile({
   );
 }
 
+function DisplayedItemRow({
+  id,
+  title,
+  subtitle,
+  hidden,
+  onToggleHidden,
+}: {
+  id: string;
+  title: string;
+  subtitle?: string;
+  hidden: boolean;
+  onToggleHidden: () => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      className={`flex items-center gap-3 rounded-lg border border-white/10 bg-black/20 px-3 py-2 ${isDragging ? "opacity-50" : "opacity-100"}`}
+    >
+      <button
+        type="button"
+        className="cursor-grab rounded-md p-1.5 text-white/60 active:cursor-grabbing hover:text-white"
+        aria-label={`Drag ${title}`}
+        {...attributes}
+        {...listeners}
+      >
+        <GripVertical className="h-4 w-4" />
+      </button>
+
+      <div className="min-w-0 flex-1">
+        <p className={`truncate text-sm font-medium ${hidden ? "text-white/45 line-through" : "text-white"}`}>
+          {title}
+        </p>
+        {subtitle ? <p className="truncate text-xs text-white/50">{subtitle}</p> : null}
+      </div>
+
+      <button
+        type="button"
+        onClick={onToggleHidden}
+        className="rounded-md p-1.5 text-white/70 hover:bg-white/10 hover:text-white"
+        aria-label={hidden ? `Show ${title}` : `Hide ${title}`}
+      >
+        {hidden ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+      </button>
+    </div>
+  );
+}
+
+function readDisplayCustomizations(input?: ColumnWidget["input"]): DisplayCustomizations {
+  const raw = stripDisplayCustomizations(input);
+  const displayCustomizations = (input as Record<string, any> | undefined)?.display_customizations;
+  const order = Array.isArray(displayCustomizations?.order)
+    ? displayCustomizations.order.filter((value: unknown): value is string => typeof value === "string")
+    : [];
+  const hidden = Array.isArray(displayCustomizations?.hidden)
+    ? displayCustomizations.hidden.filter((value: unknown): value is string => typeof value === "string")
+    : [];
+  if (Object.keys(raw ?? {}).length === 0 && order.length === 0 && hidden.length === 0) {
+    return {};
+  }
+  return { order, hidden };
+}
+
+function stripDisplayCustomizations(input?: ColumnWidget["input"]) {
+  if (!input || typeof input !== "object") return {};
+  const { display_customizations: _displayCustomizations, ...rest } = input as Record<string, any>;
+  return rest;
+}
+
+function parseWidgetInput(value: string, setDataError?: (value: string | null) => void): Record<string, any> | null {
+  const trimmedInput = value.trim();
+  if (!trimmedInput) {
+    return {};
+  }
+
+  try {
+    const parsed = JSON.parse(trimmedInput);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      setDataError?.("Input must be a JSON object.");
+      return null;
+    }
+    return parsed as Record<string, any>;
+  } catch {
+    setDataError?.("Input must be valid JSON.");
+    return null;
+  }
+}
+
+function buildDisplayCustomizationsPayload(opts: {
+  order: string[];
+  hidden: string[];
+  supportsReorder: boolean;
+  supportsHide: boolean;
+}): DisplayCustomizations | null {
+  const order = opts.supportsReorder ? opts.order.filter(Boolean) : [];
+  const hidden = opts.supportsHide ? Array.from(new Set(opts.hidden.filter(Boolean))) : [];
+
+  if (order.length === 0 && hidden.length === 0) {
+    return null;
+  }
+
+  return {
+    order: order.length > 0 ? order : undefined,
+    hidden: hidden.length > 0 ? hidden : undefined,
+  };
+}
+
+function mergePersistedInput(
+  baseInput: Record<string, any>,
+  opts: {
+    order: string[];
+    hidden: string[];
+    supportsReorder: boolean;
+    supportsHide: boolean;
+  },
+) {
+  const nextInput = { ...baseInput };
+  const customizations = buildDisplayCustomizationsPayload(opts);
+
+  if (customizations) {
+    nextInput.display_customizations = customizations;
+  } else {
+    delete nextInput.display_customizations;
+  }
+
+  return nextInput;
+}
+
+function normalizeWidgetInput(
+  input: ColumnWidget["input"] | undefined,
+  defaultInput: Record<string, any>,
+) {
+  const baseInput = stripDisplayCustomizations(input);
+  const customizations = (input as Record<string, any> | undefined)?.display_customizations;
+  const hasBaseInput = Object.keys(baseInput).length > 0;
+  const matchesDefault = hasBaseInput
+    ? JSON.stringify(baseInput) === JSON.stringify(defaultInput)
+    : false;
+
+  const nextInput: Record<string, any> = hasBaseInput && !matchesDefault ? { ...baseInput } : {};
+
+  if (isDisplayCustomizations(customizations)) {
+    nextInput.display_customizations = customizations;
+  }
+
+  return Object.keys(nextInput).length > 0 ? nextInput : undefined;
+}
+
+function isDisplayCustomizations(value: unknown): value is DisplayCustomizations {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return false;
+  }
+
+  const candidate = value as Record<string, unknown>;
+  const order = candidate.order;
+  const hidden = candidate.hidden;
+  return (
+    (order === undefined || Array.isArray(order))
+    && (hidden === undefined || Array.isArray(hidden))
+  );
+}
+
 function ColumnDropZone({
   id,
   children,
@@ -218,10 +580,10 @@ function LibraryItem({ item }: { item: WidgetCatalogItem }) {
     id: draggableId,
   });
 
-  const previewParams = item.preview.properties ?? item.properties ?? {};
-  const mergedPreviewParams = item.input ? { ...previewParams, input: item.input } : previewParams;
-  const isIntegrationPreview = item.category.startsWith("integration-");
-  const previewTemplate = isIntegrationPreview ? item.preview.template : undefined;
+  const widgetParams = {
+    ...(item.properties ?? {}),
+    ...(item.input ?? {}),
+  };
 
   return (
     <div
@@ -232,10 +594,8 @@ function LibraryItem({ item }: { item: WidgetCatalogItem }) {
     >
       {renderWidget({
         type: item.key,
-        params: mergedPreviewParams,
+        params: widgetParams,
         className: "h-[110px] w-full",
-        isPreview: true,
-        previewTemplate,
       })}
     </div>
   );
@@ -405,7 +765,7 @@ export function DashboardWidgetPreview({
                   return (
                     <div
                       key={column}
-                      className={`min-h-[260px] border-white/20 p-3 ${
+                      className={`min-h-65 border-white/20 p-3 ${
                         !isMiddle ? "border-r" : template === "main" ? "border-r" : ""
                       }`}
                     >
@@ -421,7 +781,7 @@ export function DashboardWidgetPreview({
                             <div key={widget.id}>
                               {/* Drop preview indicator */}
                               {dragOver?.zone === column && dragOver.index === i && (
-                                <div className="mb-2 h-[90px] rounded-lg border-2 border-dashed border-blue-400/60 bg-blue-500/10" />
+                                <div className="mb-2 h-22.5 rounded-lg border-2 border-dashed border-blue-400/60 bg-blue-500/10" />
                               )}
                               <WidgetTile
                                 columnWidget={widget}
@@ -434,12 +794,8 @@ export function DashboardWidgetPreview({
                                     [column]: prev[column].map((item) => {
                                       if (item.id !== widgetId) return item;
                                       const source = widgetCatalog.find((w) => w.key === item.type);
-                                      const hasInput = input && Object.keys(input).length > 0;
-                                      const inputMatchesDefault = hasInput
-                                        ? JSON.stringify(input) === JSON.stringify(source?.input ?? {})
-                                        : false;
-                                      const nextInput = hasInput && !inputMatchesDefault ? input : undefined;
-                                      return { ...item, input: nextInput };
+                                      const persistedInput = normalizeWidgetInput(input, source?.input ?? {});
+                                      return { ...item, input: persistedInput };
                                     }),
                                   }));
                                 }}
@@ -448,7 +804,7 @@ export function DashboardWidgetPreview({
                           ))}
                           {/* Drop preview at end of list */}
                           {dragOver?.zone === column && dragOver.index === columns[column].length && (
-                            <div className="h-[90px] rounded-lg border-2 border-dashed border-blue-400/60 bg-blue-500/10" />
+                            <div className="h-22.5 rounded-lg border-2 border-dashed border-blue-400/60 bg-blue-500/10" />
                           )}
                         </SortableContext>
                       </ColumnDropZone>
@@ -515,7 +871,7 @@ export function DashboardWidgetPreview({
             };
             return (
               <div className="w-48 rounded-lg overflow-hidden shadow-2xl opacity-90 rotate-1 scale-105">
-                {renderWidget({ type, params, className: "h-[90px] w-full", isPreview: true })}
+                {renderWidget({ type, params, className: "h-[90px] w-full" })}
               </div>
             );
           })()}
