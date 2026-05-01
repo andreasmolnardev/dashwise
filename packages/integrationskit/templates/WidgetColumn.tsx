@@ -26,7 +26,7 @@ export default function WidgetColumnTemplate({
    const count = React.Children.count(children);
   return (
     <div
-      className={`rounded-lg p-2 justify-center frosted ${className} flex-col`}
+      className={`rounded-lg p-2 justify-center ${className} flex-col`}
     >
       {(title || iconUrl) && (
         <a

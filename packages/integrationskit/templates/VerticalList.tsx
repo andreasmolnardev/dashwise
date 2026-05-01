@@ -23,7 +23,7 @@ export default function VerticalList(
       {header?.show !== false && header?.title && (
         <a
           href={header.titleAction ?? "#"}
-          className="font-medium mb-1 grid grid-cols-[18px_1fr_16px] w-full text-start items-center gap-2"
+          className="font-medium mb-1 flex w-full text-start items-center gap-1 pl-1"
         >
           <AppIcon
             source={header.icon}
