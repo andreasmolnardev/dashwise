@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import useAuth from "@/context/useAuth";
-import { getMonitorAction, type MonitorRecord, type MonitorPing } from "@/app/actions/monitoring";
+import { deleteMonitorAction, getMonitorAction, type MonitorRecord, type MonitorPing } from "@/app/actions/monitoring";
 
 function parsePings(raw: any): MonitorPing[] {
     if (!raw) {
@@ -34,10 +34,12 @@ function formatTimestamp(value: string | undefined | null) {
 
 export default function MonitoringDetailPage() {
     const { monitorId = "" } = useParams();
+    const navigate = useNavigate();
     const { token, withAuth } = useAuth();
     const [monitor, setMonitor] = useState<MonitorRecord | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [deleting, setDeleting] = useState(false);
 
     useEffect(() => {
         if (!token || !monitorId) {
@@ -116,23 +118,43 @@ export default function MonitoringDetailPage() {
                 <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                     <div>
                         <h1 className="text-3xl font-semibold tracking-tight">
-                            {monitor.endpoint || monitor.source || monitor.id}
+                            {monitor.endpoint || monitor.sourcelinkId || monitor.source || monitor.id}
                         </h1>
                         <p className="mt-2 text-sm text-white/60">
                             Monitor ID: {monitor.id}
                         </p>
                     </div>
-                    <div className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-3 py-1 text-sm font-medium text-white/90">
-                        <span className={
-                            `mr-2 h-2.5 w-2.5 rounded-full ${
-                                monitor.status === "healthy"
-                                    ? "bg-emerald-400"
-                                    : monitor.status === "disabled"
-                                        ? "bg-slate-400"
-                                        : "bg-rose-400"
-                            }`
-                        } />
-                        {monitor.status || "unknown"}
+                    <div className="flex items-center gap-3">
+                        <div className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-3 py-1 text-sm font-medium text-white/90">
+                            <span className={
+                                `mr-2 h-2.5 w-2.5 rounded-full ${
+                                    monitor.status === "healthy"
+                                        ? "bg-emerald-400"
+                                        : monitor.status === "disabled"
+                                            ? "bg-slate-400"
+                                            : "bg-rose-400"
+                                }`
+                            } />
+                            {monitor.status || "unknown"}
+                        </div>
+                        <button
+                            onClick={async () => {
+                                if (!confirm("Are you sure you want to delete this monitor?")) return;
+                                setDeleting(true);
+                                try {
+                                    await withAuth((auth) => deleteMonitorAction(auth, monitorId));
+                                    navigate("/apps/monitoring");
+                                } catch (err) {
+                                    console.error("Failed to delete monitor:", err);
+                                    setError("Failed to delete monitor");
+                                    setDeleting(false);
+                                }
+                            }}
+                            disabled={deleting}
+                            className="rounded-full border border-red-500/30 bg-red-500/10 px-3 py-1 text-sm font-medium text-red-300 hover:bg-red-500/20 disabled:opacity-50"
+                        >
+                            {deleting ? "Deleting..." : "Delete"}
+                        </button>
                     </div>
                 </div>
 
