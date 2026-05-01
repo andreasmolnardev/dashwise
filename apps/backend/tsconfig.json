@@ -20,7 +20,7 @@
       "@dashwise/sdk": ["../../packages/sdk/index.ts"],
       "@dashwise/sdk/index": ["../../packages/sdk/index.ts"],
       "@dashwise/sdk/lib/*": ["../../packages/sdk/lib/*"],
-      "@dashwise/sdk/data/*": ["../../packages/sdk/src/data/*"]
+      "@dashwise/sdk/data/*": ["../../packages/sdk/data/*"]
     },
     "outDir": "./dist"
   },
