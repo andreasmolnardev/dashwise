@@ -118,7 +118,7 @@ function WidgetTile({
       {renderWidget({
         type: columnWidget.type,
         params,
-        className: "w-full h-[90px] pointer-events-none",
+        className: "w-full h-[90px] pointer-events-none frosted",
         isPreview: true,
       })}
 
