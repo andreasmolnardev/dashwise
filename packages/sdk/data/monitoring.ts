@@ -14,9 +14,15 @@ type MonitorPing = {
 export interface MonitorRecord {
   id: string;
   endpoint?: string;
+  method?: string;
   status?: string;
   source?: string;
   linkId?: string;
+  endpointAuth?: string;
+  responseUpFilter?: {
+    acceptStatusCodes?: unknown;
+    acceptBodyProperties?: unknown;
+  } | string | null;
   pings?: MonitorPing[] | string;
   created?: string;
   updated?: string;
@@ -53,6 +59,51 @@ function parsePings(raw: unknown): MonitorPing[] {
   }
 
   return [];
+}
+
+function normalizeMethod(rawMethod?: unknown): string {
+  const method = String(rawMethod || "GET").trim().toUpperCase();
+  const allowed = new Set(["GET", "POST", "PUT", "DELETE", "PATCH"]);
+  return allowed.has(method) ? method : "GET";
+}
+
+function normalizeResponseUpFilter(rawFilter: unknown, fallbackStatusCodes?: unknown) {
+  const normalized: Record<string, unknown> = {};
+
+  const source = parseFilterValue(rawFilter);
+  if (source && typeof source === "object" && !Array.isArray(source)) {
+    if ((source as any).acceptStatusCodes !== undefined) {
+      normalized.acceptStatusCodes = (source as any).acceptStatusCodes;
+    }
+    if ((source as any).acceptBodyProperties !== undefined) {
+      normalized.acceptBodyProperties = (source as any).acceptBodyProperties;
+    }
+  }
+
+  if (normalized.acceptStatusCodes === undefined && fallbackStatusCodes !== undefined) {
+    normalized.acceptStatusCodes = fallbackStatusCodes;
+  }
+
+  return Object.keys(normalized).length > 0 ? normalized : undefined;
+}
+
+function parseFilterValue(raw: unknown): unknown {
+  if (raw === undefined || raw === null || raw === "") {
+    return undefined;
+  }
+
+  if (typeof raw === "string") {
+    const trimmed = raw.trim();
+    if (!trimmed) return undefined;
+
+    try {
+      return JSON.parse(trimmed);
+    } catch {
+      return trimmed;
+    }
+  }
+
+  return raw;
 }
 
 function getLatestMonitorStatus(monitor: any): MonitorStatusSummary {
@@ -128,6 +179,46 @@ export async function getMonitoringStatus(userId: string, jobId?: string | null)
   }
 
   return results;
+}
+
+export async function createMonitor(userId: string, body: any) {
+  const pb = await getSuperuserPB();
+
+  const endpoint = String(body?.endpoint ?? "").trim();
+  if (!endpoint) {
+    throw new Error("Endpoint is required");
+  }
+
+  const resourceType = String(body?.resourceType ?? "link");
+  if (resourceType === "system") {
+    throw new Error("System monitors are not supported yet");
+  }
+
+  const linkId = String(body?.linkId ?? "").trim();
+  if (!linkId) {
+    throw new Error("Link selection is required");
+  }
+
+  const responseUpFilter = normalizeResponseUpFilter(body?.responseUpFilter, body?.acceptedUpStatusCodes);
+
+  const payload: Record<string, unknown> = {
+    userId,
+    endpoint,
+    method: normalizeMethod(body?.method),
+    source: `link ${linkId}`,
+    status: "initiated",
+  };
+
+  const endpointAuth = parseFilterValue(body?.endpointAuth);
+  if (endpointAuth !== undefined) {
+    payload.endpointAuth = endpointAuth;
+  }
+
+  if (responseUpFilter !== undefined) {
+    payload.responseUpFilter = responseUpFilter;
+  }
+
+  return pb.collection("monitors").create(payload);
 }
 
 export async function runMonitoringStatus(userId: string, body: any) {

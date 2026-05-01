@@ -1,15 +1,31 @@
 "use client";
 
-import { Outlet } from "react-router-dom";
+import { Outlet, useSearchParams } from "react-router-dom";
 import { useEffect, useState } from "react";
 import AppTemplate, { Content, GroupLabel, Sidebar, Tab } from "@/components/apps/LayoutTemplate";
 import useAuth from "@/context/useAuth";
 import { getMonitorsAction } from "@/app/actions/monitoring";
 import type { MonitorRecord } from "@/app/actions/monitoring";
+import AddMonitoringResourceDialog from "@/components/monitoring/AddMonitoringResourceDialog";
 
 export default function MonitoringRootLayout() {
     const { token, withAuth } = useAuth();
     const [monitors, setMonitors] = useState<MonitorRecord[]>([]);
+    const [searchParams, setSearchParams] = useSearchParams();
+
+    const monitorDialogOpen = searchParams.get("newMonitor") === "true";
+
+    const openMonitorDialog = () => {
+        const next = new URLSearchParams(searchParams);
+        next.set("newMonitor", "true");
+        setSearchParams(next);
+    };
+
+    const closeMonitorDialog = () => {
+        const next = new URLSearchParams(searchParams);
+        next.delete("newMonitor");
+        setSearchParams(next);
+    };
 
     useEffect(() => {
         if (!token) {
@@ -52,6 +68,7 @@ export default function MonitoringRootLayout() {
                 <GroupLabel
                     group="Monitors"
                     title="Monitors"
+                    actions={[{ icon: "fa6-solid:plus", title: "Add Monitor", action: openMonitorDialog }]}
                 />
 
                 {monitors.map((monitor) => (
@@ -69,6 +86,21 @@ export default function MonitoringRootLayout() {
             <Content>
                 <Outlet />
             </Content>
+
+            <AddMonitoringResourceDialog
+                open={monitorDialogOpen}
+                onOpenChange={(open) => {
+                    if (!open) {
+                        closeMonitorDialog();
+                    } else {
+                        openMonitorDialog();
+                    }
+                }}
+                onCreated={(monitor) => {
+                    setMonitors((current) => [monitor, ...current.filter((existing) => existing.id !== monitor.id)]);
+                    closeMonitorDialog();
+                }}
+            />
         </AppTemplate>
     );
 }

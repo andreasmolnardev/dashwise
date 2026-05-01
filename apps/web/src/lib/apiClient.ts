@@ -355,7 +355,7 @@ const routes: Record<string, RouteConfig> = {
   },
   "monitoring.getMonitorsAction": {
     method: "GET",
-    path: "/monitors",
+    path: "/monitors" as any,
     auth: (input) => authToken(input?.auth),
   },
   "monitoring.getMonitorAction": {
@@ -364,6 +364,11 @@ const routes: Record<string, RouteConfig> = {
     auth: (input) => authToken(input?.auth),
     params: (input) => ({ path: { id: String(input?.monitorId ?? "") } }),
   },
+    "monitoring.createMonitorAction": {
+      method: "POST",
+      path: "/monitors" as any,
+      body: (input) => input,
+    },
 
   "news.getNewsFeedAction": {
     method: "GET",

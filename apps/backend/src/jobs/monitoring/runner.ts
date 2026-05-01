@@ -20,6 +20,11 @@ type LinkCheckConfig = {
     statusCheckShowAsUp?: number[];
 };
 
+type ResponseUpFilter = {
+    acceptStatusCodes?: unknown;
+    acceptBodyProperties?: unknown;
+} | string | null | undefined;
+
 const logger = createLogger("Monitoring");
 
 export async function runStatusMonitoringJobs(): Promise<{
@@ -67,8 +72,8 @@ export async function runStatusMonitoringJobsWithOptions(options?: {
             continue;
         }
 
-        const method = normalizeMethod(linkConfig?.statusCheckMethod);
-        const acceptedUpStatusCodes = resolveAcceptedUpCodes(job.acceptedUpStatusCodes, linkConfig?.statusCheckShowAsUp);
+        const method = normalizeMethod(job.method || linkConfig?.statusCheckMethod);
+        const responseUpFilter = resolveResponseUpFilter(job.responseUpFilter as ResponseUpFilter, job.acceptedUpStatusCodes, linkConfig?.statusCheckShowAsUp);
         const auth = resolveEndpointAuth(job.endpointAuth, linkConfig?.statusCheckAuth);
         const currentStatus = normalizeStatus(job.status);
 
@@ -92,8 +97,10 @@ export async function runStatusMonitoringJobsWithOptions(options?: {
                 monitorInput.auth = auth;
             }
 
-            const code = await monitorHelper(monitorInput);
-            const newStatus = acceptedUpStatusCodes.has(code) ? 'healthy' : 'unhealthy';
+            const resultData = await monitorHelper(monitorInput);
+            const statusAccepted = responseUpFilter.acceptStatusCodes.has(resultData.status);
+            const bodyAccepted = matchesExpectedBody(responseUpFilter.acceptBodyProperties, resultData.body, resultData.contentType);
+            const newStatus = statusAccepted && bodyAccepted ? 'healthy' : 'unhealthy';
 
             if (newStatus !== currentStatus) {
                 const existingPings = normalizePings(job.pings);
@@ -102,7 +109,7 @@ export async function runStatusMonitoringJobsWithOptions(options?: {
                     {
                         status: newStatus,
                         created: new Date().toISOString(),
-                        httpStatus: code,
+                        httpStatus: resultData.status,
                         method,
                         endpoint,
                     },
@@ -119,7 +126,7 @@ export async function runStatusMonitoringJobsWithOptions(options?: {
                     jobId: job.id,
                     oldStatus: currentStatus,
                     newStatus,
-                    httpStatus: code,
+                    httpStatus: resultData.status,
                     endpoint,
                     method,
                 });
@@ -128,7 +135,7 @@ export async function runStatusMonitoringJobsWithOptions(options?: {
                     jobId: job.id,
                     action: 'no_change',
                     status: currentStatus,
-                    httpStatus: code,
+                    httpStatus: resultData.status,
                     endpoint,
                     method,
                 });
@@ -166,6 +173,40 @@ export async function runStatusMonitoringJobsWithOptions(options?: {
         }
     }
     return result;
+}
+
+function resolveResponseUpFilter(rawJobFilter: ResponseUpFilter, legacyStatusCodes: unknown, fallbackCodes?: number[]) {
+    const parsedFromJob = parseResponseUpFilter(rawJobFilter);
+    const acceptStatusCodes = parsedFromJob?.acceptStatusCodes ?? legacyStatusCodes;
+    const resolvedStatusCodes = resolveAcceptedUpCodes(acceptStatusCodes, fallbackCodes);
+
+    return {
+        acceptStatusCodes: resolvedStatusCodes,
+        acceptBodyProperties: parsedFromJob?.acceptBodyProperties,
+    };
+}
+
+function parseResponseUpFilter(raw: ResponseUpFilter): { acceptStatusCodes?: unknown; acceptBodyProperties?: unknown } | undefined {
+    if (!raw) return undefined;
+
+    let parsed: any = raw;
+    if (typeof raw === 'string') {
+        const trimmed = raw.trim();
+        if (!trimmed) return undefined;
+
+        try {
+            parsed = JSON.parse(trimmed);
+        } catch {
+            return { acceptStatusCodes: trimmed };
+        }
+    }
+
+    if (!parsed || typeof parsed !== 'object') return undefined;
+
+    return {
+        acceptStatusCodes: parsed.acceptStatusCodes,
+        acceptBodyProperties: parsed.acceptBodyProperties,
+    };
 }
 
 async function getLinkConfigById(
@@ -268,7 +309,7 @@ function parseAcceptedCodeList(raw: unknown): number[] {
 
     if (Array.isArray(raw)) {
         return raw
-            .map((entry) => Number(entry))
+            .flatMap((entry) => parseStatusCodeEntry(entry))
             .filter((code) => Number.isInteger(code) && code >= 100 && code <= 599);
     }
 
@@ -281,7 +322,7 @@ function parseAcceptedCodeList(raw: unknown): number[] {
             const parsed = JSON.parse(trimmed);
             if (Array.isArray(parsed)) {
                 return parsed
-                    .map((entry) => Number(entry))
+                    .flatMap((entry) => parseStatusCodeEntry(entry))
                     .filter((code) => Number.isInteger(code) && code >= 100 && code <= 599);
             }
         } catch {
@@ -291,8 +332,88 @@ function parseAcceptedCodeList(raw: unknown): number[] {
 
     return trimmed
         .split(',')
-        .map((entry) => Number(entry.trim()))
+        .flatMap((entry) => parseStatusCodeEntry(entry.trim()))
         .filter((code) => Number.isInteger(code) && code >= 100 && code <= 599);
+}
+
+function parseStatusCodeEntry(entry: unknown): number[] {
+    const text = String(entry ?? '').trim();
+    if (!text) return [];
+
+    const rangeMatch = text.match(/^(\d{3})-(\d{3})$/);
+    if (rangeMatch) {
+        const start = Number(rangeMatch[1]);
+        const end = Number(rangeMatch[2]);
+        if (start <= end) {
+            const values: number[] = [];
+            for (let code = start; code <= end; code++) {
+                values.push(code);
+            }
+            return values;
+        }
+    }
+
+    const code = Number(text);
+    return Number.isInteger(code) ? [code] : [];
+}
+
+function matchesExpectedBody(expected: unknown, rawBody: string, contentType?: string): boolean {
+    const parsedExpected = parseExpectedBody(expected);
+    if (parsedExpected === undefined) return true;
+
+    if (typeof parsedExpected === 'string') {
+        return rawBody.trim() === parsedExpected.trim();
+    }
+
+    const actualBody = parseActualBody(rawBody, contentType);
+    if (actualBody === undefined) return false;
+
+    return isExpectedSubset(parsedExpected, actualBody);
+}
+
+function parseExpectedBody(expected: unknown): unknown {
+    if (expected === undefined || expected === null || expected === '') return undefined;
+    if (typeof expected === 'string') {
+        const trimmed = expected.trim();
+        if (!trimmed) return undefined;
+        try {
+            return JSON.parse(trimmed);
+        } catch {
+            return trimmed;
+        }
+    }
+    return expected;
+}
+
+function parseActualBody(rawBody: string, contentType?: string): unknown {
+    const trimmed = rawBody.trim();
+    if (!trimmed) return '';
+    if (!contentType?.includes('json') && !(trimmed.startsWith('{') || trimmed.startsWith('['))) {
+        return trimmed;
+    }
+
+    try {
+        return JSON.parse(trimmed);
+    } catch {
+        return trimmed;
+    }
+}
+
+function isExpectedSubset(expected: unknown, actual: unknown): boolean {
+    if (Array.isArray(expected)) {
+        if (!Array.isArray(actual) || expected.length !== actual.length) return false;
+        return expected.every((entry, index) => isExpectedSubset(entry, actual[index]));
+    }
+
+    if (expected && typeof expected === 'object') {
+        if (!actual || typeof actual !== 'object' || Array.isArray(actual)) return false;
+
+        return Object.entries(expected as Record<string, unknown>).every(([key, value]) =>
+            isExpectedSubset(value, (actual as Record<string, unknown>)[key]),
+        );
+    }
+
+    return Object.is(expected, actual);
 }
 
 function resolveEndpointAuth(rawJobAuth: unknown, fallbackAuth?: unknown): MonitoringRequestAuth | undefined {

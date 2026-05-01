@@ -12,6 +12,12 @@ export interface MonitoringRequestOptions {
     auth?: MonitoringRequestAuth;
 }
 
+export interface MonitoringRequestResult {
+    status: number;
+    body: string;
+    contentType: string;
+}
+
 /**
  * Monitor a single endpoint.
  * @param url URL to check
@@ -23,7 +29,7 @@ export async function monitorHelper({
     allowSSL,
     method = 'GET',
     auth,
-}: MonitoringRequestOptions): Promise<number> {
+}: MonitoringRequestOptions): Promise<MonitoringRequestResult> {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 10_000);
 
@@ -50,7 +56,11 @@ export async function monitorHelper({
                 : {}),
         });
 
-        return res.status;
+        return {
+            status: res.status,
+            body: await res.text(),
+            contentType: res.headers.get("content-type") || "",
+        };
     } finally {
         clearTimeout(timeout);
     }
