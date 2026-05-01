@@ -17,3 +17,20 @@ export async function getMonitorsAction(auth: ActionAuth): Promise<MonitorRecord
 export async function getMonitorAction(auth: ActionAuth, monitorId: string): Promise<MonitorRecord | null> {
   return callApiAction("monitoring", "getMonitorAction", { auth, monitorId }) as Promise<MonitorRecord | null>;
 }
+
+export async function createMonitorAction(
+  auth: ActionAuth,
+  data: {
+    resourceType?: "link" | "system";
+    linkId: string;
+    endpoint: string;
+    method?: string;
+    endpointAuth?: unknown;
+    responseUpFilter?: {
+      acceptStatusCodes?: string;
+      acceptBodyProperties?: unknown;
+    };
+  },
+): Promise<MonitorRecord> {
+  return callApiAction("monitoring", "createMonitorAction", { auth, ...data }) as Promise<MonitorRecord>;
+}
