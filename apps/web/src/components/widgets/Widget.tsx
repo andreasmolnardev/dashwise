@@ -84,6 +84,7 @@ function IntegrationWidget({
 
   return (
     <Widget
+    className="frosted"
       isPreview={isPreview ?? false}
       widgetKey={type}
       widgetJSON={consumerPayload.blueprint.widgetJSON}
