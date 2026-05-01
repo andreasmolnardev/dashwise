@@ -273,7 +273,7 @@ function ColumnsWidget({
             url={header?.titleAction ?? ""}
             iconUrl={header?.icon ?? ""}
         >
-            {columns.map((col, i) => <ColumnCell key={i} col={col} formatters={formatters} />)}
+            {columns.map((col) => <ColumnCell key={col.id} col={col} formatters={formatters} />)}
         </WidgetColumnTemplate>
     );
 }
