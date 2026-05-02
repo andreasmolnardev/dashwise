@@ -45,6 +45,7 @@ type UserSearchItem = {
 type IntegrationRecord = {
     id: string;
     name?: string | null;
+    type?: "plugin" | "caldav";
     source?: string | null;
     config?: unknown;
     environment?: unknown;
@@ -55,7 +56,7 @@ export type SearchItem = {
     name: string;
     icon: string;
     secondaryInfo: string;
-    type: "link" | "app" | "karakeepBookmark" | "jellyfinItem" | "beszelItem" | "dashdotItem";
+    type: "link" | "app" | "karakeepBookmark" | "jellyfinItem" | "beszelItem" | "dashdotItem" | "caldavItem";
     action: string;
     tags?: string[];
     parentId?: string;

@@ -25,6 +25,7 @@ const dateFormatter = new Intl.DateTimeFormat(undefined, {
 type IntegrationRecord = {
   id: string;
   name: string | null;
+  type?: "plugin" | "caldav";
   source: string | null;
   config: Record<string, unknown>;
   environment: Record<string, string>;
@@ -61,6 +62,7 @@ export default function IntegrationsModularSettingsPage() {
 
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [newName, setNewName] = useState("");
+  const [newType, setNewType] = useState<"plugin" | "caldav">("plugin");
   const [newConfig, setNewConfig] = useState("");
   const [envDefinitions, setEnvDefinitions] = useState<EnvDefinition[]>([]);
   const [environmentOverrides, setEnvironmentOverrides] = useState<Record<string, string>>({});
@@ -217,7 +219,7 @@ export default function IntegrationsModularSettingsPage() {
     }
 
     const parsedConfig = parseConfigValue(newConfig);
-    if (!isRecord(parsedConfig)) {
+    if (newType === "plugin" && !isRecord(parsedConfig)) {
       setFormError("Config JSON or YAML is invalid.");
       return;
     }
@@ -235,6 +237,7 @@ export default function IntegrationsModularSettingsPage() {
       await withAuth((auth) =>
         createIntegrationAction(auth, {
           name: newName.trim() || undefined,
+          type: newType,
           source: "manual",
           config: parsedConfig,
           environment: environmentOverrides,
@@ -243,6 +246,7 @@ export default function IntegrationsModularSettingsPage() {
 
       setAddDialogOpen(false);
       setNewName("");
+      setNewType("plugin");
       setNewConfig("");
       await fetchIntegrations();
     } catch (err) {
@@ -350,6 +354,8 @@ export default function IntegrationsModularSettingsPage() {
         onOpenChange={setAddDialogOpen}
         newName={newName}
         onNewNameChange={setNewName}
+        newType={newType}
+        onNewTypeChange={setNewType}
         newConfig={newConfig}
         onNewConfigChange={setNewConfig}
         visibleEnvFields={visibleEnvFields}

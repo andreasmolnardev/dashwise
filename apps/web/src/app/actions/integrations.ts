@@ -38,3 +38,7 @@ export async function getConsumerDataAction(
     isPreview: options?.isPreview,
   });
 }
+
+export async function getIntegrationCalendarEventsAction(auth: ActionAuth, integrationId?: string) {
+  return callApiAction("integrations", "getIntegrationCalendarEventsAction", { auth, integrationId });
+}

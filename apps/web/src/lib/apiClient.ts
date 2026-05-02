@@ -329,6 +329,12 @@ const routes: Record<string, RouteConfig> = {
       isPreview: input?.isPreview,
     }),
   },
+  "integrations.getIntegrationCalendarEventsAction": {
+    method: "GET",
+    path: "/integrations/caldav/events",
+    auth: (input) => authToken(input?.auth),
+    query: (input) => ({ integrationId: input?.integrationId }),
+  },
 
   "misc.getLocationsAction": {
     method: "GET",
@@ -368,6 +374,12 @@ const routes: Record<string, RouteConfig> = {
       method: "POST",
       path: "/monitors" as any,
       body: (input) => input,
+    },
+    "monitoring.deleteMonitorAction": {
+      method: "DELETE",
+      path: "/monitors/{id}" as any,
+      auth: (input) => authToken(input?.auth),
+      params: (input) => ({ path: { id: String(input?.monitorId ?? "") } }),
     },
 
   "news.getNewsFeedAction": {

@@ -27,6 +27,7 @@ import type {
 
 import { readAuthToken, readBool, readJsonBody, requireAuth, withJson } from "./shared";
 import { config } from "src/lib/config";
+import { getUpcomingEvents } from "src/lib/calendar";
 
 type ConsumerType = "widget" | "glanceable";
 type CachePolicy = "strict" | "cache-first";
@@ -109,6 +110,50 @@ const integrationsRoute = new Hono();
       isPreview,
     });
   }));
+
+integrationsRoute.get("/api/v1/integrations/caldav/events", withJson(async (c) => {
+  const { userId, pb } = await requireAuth({ token: readAuthToken(c) });
+  const integrationId = c.req.query("integrationId") ?? undefined;
+
+  const updateLocalData = async (integrationId: string, localData: Record<string, unknown>) => {
+    await pb.collection("integrations").update(integrationId, { localData });
+  };
+
+  if (integrationId) {
+    const integration = await getIntegration(userId, integrationId);
+    if (!integration) {
+      throw new ApiActionError("Integration not found", 404, { error: "Not found" });
+    }
+    console.log("[caldav] Fetching with integration env:", JSON.stringify(integration.environment));
+    const events = await getUpcomingEvents(
+      integration.environment,
+      integration.localData,
+      (ld) => updateLocalData(integrationId, ld)
+    );
+    return { events };
+  }
+
+  const { integrations } = await listIntegrations(userId);
+  const caldavIntegrations = integrations.filter((i) => i.type === "caldav");
+
+  if (caldavIntegrations.length === 0) {
+    return { events: [] };
+  }
+
+  const allEvents = await Promise.all(
+    caldavIntegrations.map(async (integration) => {
+      const events = await getUpcomingEvents(
+        integration.environment,
+        integration.localData,
+        (ld) => updateLocalData(integration.id, ld)
+      );
+      return events;
+    })
+  );
+
+  const mergedEvents = allEvents.flat();
+  return { events: mergedEvents };
+}));
 
 export default integrationsRoute;
 
