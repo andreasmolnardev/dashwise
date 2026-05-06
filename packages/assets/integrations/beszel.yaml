@@ -227,6 +227,9 @@ configuration:
           titleAction: "url:${URL}"
         columns:
           iterate_over: "computed.systems"
+          user_customizations:
+            - allow_reorder
+            - allow_hide
           prototype:
             primary: "${system.name}"
             primaryAction: "url:${URL}/system/${system.id}"
