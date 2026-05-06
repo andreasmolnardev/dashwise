@@ -11,7 +11,6 @@ import useAuth from "@/context/useAuth";
 import { getNotificationsAction } from "@/app/actions/notifications/items";
 import { getPageIntegrationDataAction } from "@/app/actions/pageConfigs";
 import { renderWidget } from "../widgets/Widget";
-import Widget from "@dashwise/integrationskit/Widget";
 import PageNotFound from "../errorPages/PageNotFound";
 import { clearPageIntegrationConsumerCache, primePageIntegrationConsumerCache } from "@/lib/pageIntegrationDataCache";
 
@@ -449,33 +448,6 @@ export default function DashboardLayoutTemplate({
     );
 }
 
-function stripFrontendOnlyWidgets(config: Record<string, any>) {
-    const columns = config?.columns;
-    if (!columns || typeof columns !== "object") {
-        return config;
-    }
-
-    const nextColumns: Record<string, Record<string, any>> = {};
-    for (const [columnName, entriesRaw] of Object.entries(columns)) {
-        if (!entriesRaw || typeof entriesRaw !== "object") {
-            continue;
-        }
-        const nextEntries: Record<string, any> = {};
-        for (const [widgetKey, widgetConfig] of Object.entries(entriesRaw as Record<string, any>)) {
-            if (FRONTEND_ONLY_WIDGETS.has(widgetKey)) {
-                continue;
-            }
-            nextEntries[widgetKey] = widgetConfig;
-        }
-        nextColumns[columnName] = nextEntries;
-    }
-
-    return {
-        ...config,
-        columns: nextColumns,
-    };
-}
-
 interface BottomNavbarProps {
     activePanel?: number;
     setScreensaverActive?: (active: boolean) => void;
@@ -483,7 +455,7 @@ interface BottomNavbarProps {
     columns?: Record<string, any>;
 }
 
-export function BottomNavbar({
+function BottomNavbar({
     activePanel = 1,
     setScreensaverActive,
     showPages = true,
