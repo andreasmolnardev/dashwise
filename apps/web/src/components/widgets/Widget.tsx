@@ -8,6 +8,9 @@ import SearchBar from "./SearchBar";
 import Widget from "@dashwise/integrationskit/Widget";
 import { useLocalization } from "@/context/LocalizationContext";
 import { readPageIntegrationConsumer } from "@/lib/pageIntegrationDataCache";
+import useAuth from "@/context/useAuth";
+import { getIntegrationCalendarEventsAction } from "@/app/actions/integrations";
+import { getIntegrationsAction } from "@/app/actions/integrations";
 
 export type WidgetProps = {
   type: string;
@@ -24,7 +27,7 @@ export type WidgetItemProps = Pick<WidgetProps, "params" | "className">;
 function stripWidgetIndex(params?: Record<string, any>) {
   if (!params || typeof params !== "object") return params;
 
-  const { index: _index, ...rest } = params;
+  const { index: _index, _rev: _rev, ...rest } = params;
   return rest;
 }
 
@@ -49,6 +52,15 @@ export function renderWidget({
         </div>
       );
 
+    case "calendar-week":
+      return <CalendarWeekWidget className={className} {...renderParams} />;
+
+    case "calendar-today":
+      return <CalendarTodayWidget className={className} {...renderParams} />;
+
+    case "calendar-upcoming":
+      return <CalendarUpcomingWidgetWrapper className={className} {...renderParams} />;
+
     case "link-view": return (<LinkView/>);
 
     case "placeholder":
@@ -56,28 +68,146 @@ export function renderWidget({
 
     default:
       return (
-        <IntegrationWidget type={type} isPreview={isPreview} properties={renderParams} />
+        <IntegrationWidget type={type} isPreview={isPreview} properties={renderParams} className={className} />
       );
   }
+}
+
+function CalendarUpcomingWidgetWrapper({
+  className,
+  integrationId,
+  maxItems = 5,
+}: {
+  className?: string;
+  integrationId?: string;
+  maxItems?: number;
+}) {
+  const { withAuth } = useAuth();
+  const [events, setEvents] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const fetchEvents = async () => {
+      if (!integrationId) {
+        if (!withAuth) return;
+        try {
+          if (!cancelled) {
+            const eventsData = await withAuth((auth) =>
+              getIntegrationCalendarEventsAction(auth) // todo: take calendarId as param to fetch events for specific calendar
+            ) as any;
+            setEvents(eventsData?.events ?? []);
+          }
+        } catch (err) {
+          console.error("Failed to fetch calendar events", err);
+        } finally {
+          if (!cancelled) setLoading(false);
+        }
+        return;
+      }
+
+      try {
+        const eventsData = await withAuth((auth) =>
+          getIntegrationCalendarEventsAction(auth, integrationId)
+        ) as any;
+        if (!cancelled) {
+          setEvents(eventsData?.events ?? []);
+        }
+      } catch (err) {
+        console.error("Failed to fetch calendar events", err);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    void fetchEvents();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [integrationId, withAuth]);
+
+  if (loading) {
+    return (
+      <div className={`rounded-lg p-2 flex flex-col ${className}`}>
+        <div className="text-sm opacity-50 py-4 text-center text-foreground">Loading...</div>
+      </div>
+    );
+  }
+
+  return (
+    <CalendarUpcomingWidget
+      className={className}
+      items={events}
+      maxItems={maxItems}
+    />
+  );
 }
 
 function IntegrationWidget({
   type,
   properties,
   isPreview,
+  className,
 }: {
   type: string;
   properties?: Record<string, any>;
   isPreview?: boolean;
+  className?: string;
 }) {
   const localization = useLocalization();
+  const { withAuth } = useAuth();
+  const [localPayload, setLocalPayload] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
 
-  const consumerPayload = readPageIntegrationConsumer("widget", type, properties);
+  const consumerPayload = readPageIntegrationConsumer("widget", type, properties) || localPayload;
+
+  useEffect(() => {
+    if (consumerPayload?.blueprint?.widgetJSON || loading) {
+      return;
+    }
+
+    let cancelled = false;
+    setLoading(true);
+
+    void withAuth((auth) =>
+      getConsumerDataAction(auth, type, properties ?? {}, {
+        type: "widget",
+        isPreview,
+      })
+    )
+      .then((payload) => {
+        if (cancelled) return;
+        const casted = payload as any;
+        if (casted?.success) {
+          setLocalPayload(casted);
+        }
+      })
+      .catch((err) => {
+        console.error(`Failed to fetch widget data for ${type}`, err);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [type, properties, isPreview, withAuth, consumerPayload, loading]);
+
+  if (loading) {
+    return (
+      <div className={`rounded-xl p-3 flex items-center justify-center min-h-[100px] ${className ?? "frosted"}`}>
+        <div className="text-xs text-white/50 animate-pulse">Loading widget...</div>
+      </div>
+    );
+  }
 
   if (!consumerPayload?.blueprint?.widgetJSON) {
     return (
       <WidgetErrorState
-        className="w-full"
+        className={className}
         message={`Widget "${type}" could not be loaded.`}
       />
     );
@@ -85,7 +215,7 @@ function IntegrationWidget({
 
   return (
     <Widget
-    className="frosted"
+      className={className ?? "frosted"}
       isPreview={isPreview ?? false}
       widgetKey={type}
       widgetJSON={consumerPayload.blueprint.widgetJSON}

@@ -103,21 +103,8 @@ function WidgetTile({
   );
 
   const currentCustomizations = useMemo(() => readDisplayCustomizations(columnWidget.input), [columnWidget.input]);
-  const previewColumns = Array.isArray(previewResolved?.blueprint?.resolved?.columns)
-    ? (previewResolved.blueprint.resolved.columns as Array<Record<string, any>>)
-    : [];
-  const previewColumnsById = useMemo<Map<string, Record<string, any>>>(
-    () => new Map(previewColumns.map((column) => [String(column.id), column] as const)),
-    [previewColumns],
-  );
-  const previewRuntimePayload = previewResolved
-    ? {
-        env: previewResolved.env ?? {},
-        data: previewResolved.data ?? null,
-        cache: previewResolved.cache ?? null,
-        fresh: previewResolved.fresh ?? null,
-      }
-    : null;
+  const previewColumns = Array.isArray(previewResolved?.columns) ? previewResolved.columns : [];
+  const previewColumnsById = useMemo(() => new Map(previewColumns.map((column: any) => [String(column.id), column] as const)), [previewColumns]);
 
   useEffect(() => {
     if (isDataDialogOpen) return;
@@ -171,7 +158,7 @@ function WidgetTile({
     const savedHidden = Array.isArray(currentCustomizations.hidden) ? currentCustomizations.hidden : [];
     const orderedIds = [
       ...savedOrder.filter((id) => previewItems.includes(id)),
-      ...previewItems.filter((id: string) => !savedOrder.includes(id)),
+      ...previewItems.filter((id) => !savedOrder.includes(id)),
     ];
 
     setDisplayOrder(orderedIds);
@@ -244,26 +231,33 @@ function WidgetTile({
       style={{ transform: CSS.Transform.toString(transform), transition }}
       className={`group relative rounded-lg overflow-hidden ${isDragging ? "opacity-40" : "opacity-100"}`}
     >
-      {/* Real widget render */}
+      {/* Actual widget preview */}
       {renderWidget({
         type: columnWidget.type,
         params,
         className: "w-full h-[90px] pointer-events-none frosted",
+        isPreview: true,
       })}
 
       {/* Hover overlay with controls */}
-      <div className="absolute inset-0 flex items-center justify-center gap-1 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg">
-        {canEditData && (
-          <Dialog open={isDataDialogOpen} onOpenChange={setIsDataDialogOpen}>
-            <DialogTrigger asChild>
-              <button
-                type="button"
-                aria-label={`Edit input for ${columnWidget.type}`}
-                className="rounded-full bg-white/10 p-2 hover:bg-white/20 backdrop-blur"
-              >
-                <Edit3 className="h-4 w-4" />
-              </button>
-            </DialogTrigger>
+      <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg backdrop-blur-[2px]">
+        {widgetConfig?.name && (
+          <p className="font-bold py-0.5 text-sm">
+            {widgetConfig.name}
+          </p>
+        )}
+        <div className="flex items-center justify-center gap-1">
+          {canEditData && (
+            <Dialog open={isDataDialogOpen} onOpenChange={setIsDataDialogOpen}>
+              <DialogTrigger asChild>
+                <button
+                  type="button"
+                  aria-label={`Edit input for ${columnWidget.type}`}
+                  className="rounded-full bg-white/10 p-2 hover:bg-white/20 backdrop-blur"
+                >
+                  <Edit3 className="h-4 w-4" />
+                </button>
+              </DialogTrigger>
             <DialogContent className="frosted">
               <DialogHeader>
                 <DialogTitle>{supportsUserCustomizations ? "Edit Widget Settings" : "Edit Widget Input"}</DialogTitle>
@@ -342,17 +336,6 @@ function WidgetTile({
                   {dataError ? <p className="text-sm text-red-400">{dataError}</p> : null}
                 </div>
               )}
-              {previewRuntimePayload ? (
-                <section className="space-y-2 rounded-xl border border-white/10 bg-black/20 p-3 text-xs">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="font-semibold uppercase tracking-wide text-white/70">Consumer payload</p>
-                    <p className="text-[0.65rem] text-white/50">Fetched from backend</p>
-                  </div>
-                  <pre className="max-h-56 overflow-auto whitespace-pre-wrap wrap-break-word rounded-lg bg-black/30 p-3 font-mono leading-snug text-white/80">
-                    {JSON.stringify(previewRuntimePayload, null, 2)}
-                  </pre>
-                </section>
-              ) : null}
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => setIsDataDialogOpen(false)}>
                   Cancel
@@ -383,7 +366,8 @@ function WidgetTile({
         </button>
       </div>
     </div>
-  );
+  </div>
+);
 }
 
 function DisplayedItemRow({
@@ -580,10 +564,10 @@ function LibraryItem({ item }: { item: WidgetCatalogItem }) {
     id: draggableId,
   });
 
-  const widgetParams = {
-    ...(item.properties ?? {}),
-    ...(item.input ?? {}),
-  };
+  const previewParams = item.preview.properties ?? item.properties ?? {};
+  const mergedPreviewParams = item.input ? { ...previewParams, input: item.input } : previewParams;
+  const isIntegrationPreview = item.category.startsWith("integration-");
+  const previewTemplate = isIntegrationPreview ? item.preview.template : undefined;
 
   return (
     <div
@@ -594,8 +578,10 @@ function LibraryItem({ item }: { item: WidgetCatalogItem }) {
     >
       {renderWidget({
         type: item.key,
-        params: widgetParams,
+        params: mergedPreviewParams,
         className: "h-[110px] w-full",
+        isPreview: true,
+        previewTemplate,
       })}
     </div>
   );
@@ -871,7 +857,7 @@ export function DashboardWidgetPreview({
             };
             return (
               <div className="w-48 rounded-lg overflow-hidden shadow-2xl opacity-90 rotate-1 scale-105">
-                {renderWidget({ type, params, className: "h-[90px] w-full" })}
+                {renderWidget({ type, params, className: "h-[90px] w-full", isPreview: true })}
               </div>
             );
           })()}

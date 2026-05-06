@@ -1,15 +1,15 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePageConfig } from "@/hooks/usePageConfig";
-import { getPageIntegrationDataAction, updatePageConfigAction } from "@/app/actions/pageConfigs";
+import { updatePageConfigAction } from "@/app/actions/pageConfigs";
 import { getConsumerDataAction } from "@/app/actions/integrations";
 import { getUserGlanceableAction, getUserWidgetsAction } from "@/app/actions/widgets";
+import { updatePageIntegrationConsumerCache } from "@/lib/pageIntegrationDataCache";
 import useAuth from "@/context/useAuth";
 import { PageSelectTabs } from "@/components/settings/pages/PageSelectTabs";
 import { TemplateOptions } from "@/components/settings/pages/TemplateOptions";
 import { EditGlanceablesView } from "@/components/settings/pages/EditGlanceablesView";
 import { DashboardWidgetPreview } from "@/components/settings/pages/DashboardWidgetPreview";
-import { clearPageIntegrationConsumerCache, primePageIntegrationConsumerCache } from "@/lib/pageIntegrationDataCache";
 import {
   buildPageConfigPatch,
   enabledColumnsFromTemplate,
@@ -281,14 +281,22 @@ export default function SettingsPagesPage() {
           type: "widget",
           isPreview: true,
         }),
-      );
+      ) as any;
 
-      return (payload as Record<string, any> | null | undefined) ?? null;
+      if (payload?.success) {
+        updatePageIntegrationConsumerCache({
+          ...payload,
+          consumer: "widget",
+          key: widgetKey,
+          properties: input ?? {},
+          consumerKey: `widget:${widgetKey}:${JSON.stringify(input ?? {})}`,
+        });
+      }
+
+      return payload?.blueprint?.resolved ?? null;
     },
     [withAuth],
   );
-
-  const [hasLoadedIntegrationData, setHasLoadedIntegrationData] = useState(false);
 
   useEffect(() => {
     if (!hasLoadedConfigRef.current) {
@@ -305,15 +313,7 @@ export default function SettingsPagesPage() {
 
     saveTimerRef.current = setTimeout(() => {
       saveTimerRef.current = null;
-      void handleSave().then(() => {
-        // Refetch integration data to populate cache so the widgets render correctly with new params
-        void withAuth((auth) => getPageIntegrationDataAction(auth, selectedPage))
-          .then((payload) => {
-            primePageIntegrationConsumerCache(payload as any);
-            setHasLoadedIntegrationData((prev) => !prev); // Toggle to trigger re-renders
-          })
-          .catch((err) => console.error("Failed to load updated integration data:", err));
-      });
+      void handleSave();
     }, 350);
 
     return () => {
@@ -322,28 +322,7 @@ export default function SettingsPagesPage() {
         saveTimerRef.current = null;
       }
     };
-  }, [handleSave, pageConfigSignature, selectedPage, withAuth]);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    const loadPageIntegrationData = async () => {
-      try {
-        const payload = await withAuth((auth) => getPageIntegrationDataAction(auth, selectedPage));
-        if (cancelled) return;
-        primePageIntegrationConsumerCache(payload as any);
-        setHasLoadedIntegrationData((prev) => !prev);
-      } catch (err) {
-        console.error("Failed to load page integration data for preview:", err);
-      }
-    };
-
-    void loadPageIntegrationData();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedPage, withAuth]);
+  }, [handleSave, pageConfigSignature]);
 
   return (
     <div className="space-y-6">
@@ -377,7 +356,6 @@ export default function SettingsPagesPage() {
       ) : null}
 
       <DashboardWidgetPreview
-        integrationDataRevision={hasLoadedIntegrationData}
         template={template}
         columns={columns}
         setColumns={setColumns}
