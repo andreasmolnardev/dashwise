@@ -200,7 +200,7 @@ function SidebarGroupHeader({
     dropdownActions: DropdownAction[];
 }) {
     return (
-        <div className="relative rounded-sm frosted-lite flex items-center justify-between px-2 mt-1">
+        <div className="group relative rounded-sm frosted-lite flex items-center justify-between px-2 mt-1">
             <button
                 type="button"
                 onClick={collapsible ? onToggle : undefined}
@@ -220,7 +220,7 @@ function SidebarGroupHeader({
                 <span className="truncate w-full">{title}</span>
             </button>
 
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
                 {actions.map((action, index) => (
                     <button
                         key={`${groupKey}-action-${index}`}

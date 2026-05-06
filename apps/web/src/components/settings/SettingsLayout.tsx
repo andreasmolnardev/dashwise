@@ -10,7 +10,7 @@ const navItems = [
   { href: "/settings/account", label: "Account", icon: faCircleUser },
   { href: "/settings/appearance", label: "Appearance", icon: faBrush },
   { href: "/settings/pages", label: "Pages", icon: faGripLines },
-  { href: "/settings/screensaver", label: "Screensaver", icon: faDisplay },
+  { href: "/settings/screensaver", label: "Smart Frame", icon: faDisplay },
   { href: "/settings/search", label: "Search", icon: faMagnifyingGlass },
   { href: "/settings/integrations", label: "Integrations", icon: faPuzzlePiece },
   { href: "/settings/general", label: "General", icon: faSliders },
