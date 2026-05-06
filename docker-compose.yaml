@@ -1,34 +1,19 @@
-version: "3.8"
-
 services:
   dashwise:
-    image: andreasmolnardev/dashwise:stable
+    build:
+      context: .
+      dockerfile: Dockerfile
     ports:
       - "3016:3000"
+      - "8090:8090"
     restart: unless-stopped
     environment:
       PB_ADMIN_EMAIL: default@dashwise.local
       PB_ADMIN_PASSWORD: DashwiseIsAwesome
-      PB_URL: http://pocketbase:8090
-      NEXT_PUBLIC_PB_URL: http://pocketbase:8090
-      START_POCKETBASE: "false"
-  pocketbase:
-    image: andreasmolnardev/dashwise-pb:stable
+      PB_URL: http://127.0.0.1:8090
+      NEXT_PUBLIC_PB_URL: http://127.0.0.1:8090
+      START_POCKETBASE: "true"
+      PB_BINARY_PATH: /usr/local/bin/pocketbase
     volumes:
-      - ./pocketbase:/app/pb_data
-    ports:
-      - "8092:8090"
-    restart: unless-stopped
-    environment:
-      PB_ADMIN_EMAIL: default@dashwise.local
-      PB_ADMIN_PASSWORD: DashwiseIsAwesome
-  jobs:
-    image: andreasmolnardev/dashwise-jobs:stable
-    ports:
-        - "3001:3001"
-    environment:
-      PB_URL: http://pocketbase:8090
-      DASHWISE_URL: http://dashwise:3000
-      PB_ADMIN_EMAIL: default@dashwise.local
-      PB_ADMIN_PASSWORD: DashwiseIsAwesome  
-    restart: unless-stopped
+      - ./pocketbase/pb_data:/app/pocketbase/pb_data
+      - ./pocketbase/migrations:/app/pocketbase/migrations

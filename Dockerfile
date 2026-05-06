@@ -22,6 +22,9 @@ COPY apps/backend/package.json ./apps/backend/
 COPY apps/web/package.json ./apps/web/
 COPY packages/integrationskit/package.json ./packages/integrationskit/
 COPY packages/sdk/package.json ./packages/sdk/
+COPY packages/app-icon/package.json ./packages/app-icon/
+COPY packages/assets/package.json ./packages/assets/
+COPY packages/api-types/package.json ./packages/api-types/
 RUN bun install --frozen-lockfile
 
 COPY . .
@@ -35,5 +38,5 @@ ENV PB_BINARY_PATH=/usr/local/bin/pocketbase
 
 COPY --from=build /app /app
 
-EXPOSE 3000
+EXPOSE 3000 8090
 CMD ["bun", "run", "apps/backend/src/index.ts"]

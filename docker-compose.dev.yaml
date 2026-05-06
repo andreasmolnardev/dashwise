@@ -4,15 +4,19 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: dashwise-app-live
-    command: sh -lc "bun install --frozen-lockfile && bun --cwd apps/backend --hot src/index.ts & cd apps/web && exec bunx vite --host 0.0.0.0 --port 5173"
+    command: sh -lc "bun install --frozen-lockfile && bun run dev"
     ports:
       - "3000:3000"
       - "5173:5173"
+      - "8090:8090"
     environment:
       PB_ADMIN_EMAIL: default@dashwise.local
       PB_ADMIN_PASSWORD: dashwiseIsAwesome
       PB_URL: http://127.0.0.1:8090
+      NEXT_PUBLIC_PB_URL: http://127.0.0.1:8090
       NODE_ENV: development
+      START_POCKETBASE: "true"
+      PB_BINARY_PATH: /usr/local/bin/pocketbase
     volumes:
       - .:/app
       - app-node-modules:/app/node_modules
@@ -21,7 +25,7 @@ services:
       - integrationskit-node-modules:/app/packages/integrationskit/node_modules
       - sdk-node-modules:/app/packages/sdk/node_modules
       - ./pocketbase/pb_data:/app/pocketbase/pb_data
-      - ./pocketbase/pb_migrations:/app/pocketbase/pb_migrations
+      - ./pocketbase/migrations:/app/pocketbase/migrations
     networks:
       - dashwise-default
     restart: unless-stopped
@@ -38,6 +42,5 @@ volumes:
   app-node-modules:
   backend-node-modules:
   web-node-modules:
-  jobs-node-modules:
   integrationskit-node-modules:
   sdk-node-modules:

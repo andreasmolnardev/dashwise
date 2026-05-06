@@ -16,6 +16,8 @@
     "./GlanceableComponent": "./Glanceable.tsx",
     "./Shortcuts": "./Shortcuts.tsx",
     "./Widget": "./Widget.tsx",
+    "./templates/WidgetColumn": "./templates/WidgetColumn.tsx",
+    "./static-widgets/CalendarWidgets": "./static-widgets/CalendarWidgets.tsx",
     "./data/resolveProperties": "./data/resolveProperties.tsx",
     "./data/getEndpointData": "./data/getEndpointData.tsx",
     "./data/getComputedField": "./data/getComputedField.tsx",
