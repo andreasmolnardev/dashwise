@@ -2,6 +2,7 @@
 
 import React from "react";
 import WidgetColumnTemplate from "../templates/WidgetColumn";
+import VerticalList from "../templates/VerticalList";
 
 interface WidgetItemProps {
   className?: string;
@@ -102,14 +103,14 @@ export interface CalendarUpcomingWidgetProps extends WidgetItemProps {
 
 export function CalendarUpcomingWidget({ items = [], maxItems = 5, className = "" }: CalendarUpcomingWidgetProps) {
   const upcoming = items
-    .filter((item) => new Date(item.start) >= new Date())
+    .filter((item) => new Date(item.start).getTime() >= new Date().setHours(0, 0, 0, 0)) // Show today's events too
     .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime())
     .slice(0, maxItems);
 
   const formatTime = (dateStr: string) => {
     const date = new Date(dateStr);
     return date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-  }; 
+  };
 
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
@@ -119,41 +120,26 @@ export function CalendarUpcomingWidget({ items = [], maxItems = 5, className = "
 
     if (date.toDateString() === today.toDateString()) return "Today";
     if (date.toDateString() === tomorrow.toDateString()) return "Tomorrow";
+
     return date.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
   };
 
-  return (
-    <div className={`rounded-lg p-2 flex flex-col ${className}`}>
-      <div className="grid grid-cols-1 gap-1 overflow-y-auto max-h-48 scrollbar-hidden">
-        {upcoming.length === 0 ? (
-          <div className="text-sm opacity-50 py-4 text-center text-foreground">No upcoming events</div>
-        ) : (
-          upcoming.map((item) => (
-            <div
-              key={item.id}
-              className="flex items-start gap-2 px-2 py-2 rounded-md hover:bg-white/5 transition-colors"
-            >
-              <div className="flex flex-col items-center min-w-12 text-center">
-                <span className="text-xs font-medium text-primary">
-                  {formatTime(item.start)}
-                </span>
-                {!item.isAllDay && item.end && (
-                  <span className="text-[10px] opacity-50">
-                    {formatTime(item.end)}
-                  </span>
-                )}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate text-foreground">{item.title}</p>
-                <p className="text-xs opacity-60 truncate text-foreground">
-                  {item.isAllDay ? "All day" : formatDate(item.start)}
-                  {item.location && ` · ${item.location}`}
-                </p>
-              </div>
-            </div>
-          ))
-        )}
-      </div>
-    </div>
-  );
+  const resolved = {
+    header: {
+      title: "Upcoming Events",
+      show: true,
+      icon: "fa6-solid:calendar-days",
+    },
+    list: upcoming.map((item) => ({
+      title: item.title,
+      subtitle: [
+        item.isAllDay ? "All day" : formatTime(item.start),
+        item.location,
+      ].filter(Boolean) as string[],
+      group: formatDate(item.start),
+    })),
+    raw: {},
+  };
+
+  return <VerticalList resolved={resolved} className={className} />;
 }
