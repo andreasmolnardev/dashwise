@@ -9,6 +9,7 @@ import { renderLocalizedText, type TextFormatters } from "./data/renderText";
 import WidgetColumnTemplate from "./templates/WidgetColumn";
 import VerticalList from "./templates/VerticalList";
 import IconDetailsCard from "./templates/IconDetailsCard";
+import IFrameTemplate from "./templates/IFrame";
 import AppIcon from "@dashwise/app-icon";
 import type { ResolvedWidget } from "./types";
 
@@ -176,6 +177,15 @@ export default function Widget({
         case "icon-details-card":
             return (
                 <IconDetailsCard
+                    resolved={resolved}
+                    className={className}
+                    formatters={formatters}
+                />
+            );
+
+        case "iframe":
+            return (
+                <IFrameTemplate
                     resolved={resolved}
                     className={className}
                     formatters={formatters}

@@ -27,6 +27,8 @@ export type ResolvedWidget = {
     /** false when show_if evaluated to false */
     show?: boolean;
   };
+  /** Optional widget-level customization flags declared by the YAML */
+  user_customizations?: Array<"allow_reorder" | "allow_hide">;
   /** Populated for template: "columns" */
   columns?: ResolvedColumn[];
   /** Populated for template: "vertical-list" */
@@ -37,11 +39,18 @@ export type ResolvedWidget = {
     primary?: string;
     secondary?: string;
   };
+  /** Populated for template: "iframe" */
+  iframe?: {
+    url?: string;
+    minHeight?: number;
+    maxHeight?: number;
+  };
   /** The raw properties object, passed through for custom consumers */
   raw: Record<string, any>;
 };
 
 export type ResolvedColumn = {
+  id: string;
   label?: string;
   icon?: {
     type?: string;
@@ -78,6 +87,7 @@ export type ResolvedListItem = {
   subtitle?: string | string[];
   thumbnail?: string;
   badge?: { show?: boolean; icon?: string; tooltip?: string };
+  group?: string;
 };
 
 export type ResolveOptions = {

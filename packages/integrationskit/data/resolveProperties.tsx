@@ -129,16 +129,21 @@ type RuntimeDataResolutionOptions = {
 
 export function resolveWidgetProperties(opts: ResolveOptions): ResolvedWidget {
   const { widgetJSON, data, isPreview, integrationJSON } = opts;
-  const props: Record<string, any> = widgetJSON.properties ?? {};
+  const props: Record<string, any> = {
+    ...(widgetJSON.properties ?? {}),
+    ...(widgetJSON.data?.input ?? {}),
+  };
   const env = buildEnv(opts);
   const template: string = widgetJSON.template ?? "columns";
 
   const header = props.header ? resolveHeader(props.header, env) : undefined;
 
   if (template === "columns") {
+    const columns = resolveColumns(props.columns, env, data, isPreview);
     const result: ResolvedWidget = {
       header,
-      columns: resolveColumns(props.columns, env, data, isPreview),
+      user_customizations: props.columns?.user_customizations,
+      columns: applyColumnCustomizations(columns, widgetJSON),
       raw: props,
     };
     return patchIntegrationIcons(result, env);
@@ -147,7 +152,8 @@ export function resolveWidgetProperties(opts: ResolveOptions): ResolvedWidget {
   if (template === "vertical-list") {
     const result: ResolvedWidget = {
       header,
-      list: resolveList(props.list, env, data, isPreview),
+      user_customizations: props.list?.user_customizations,
+        list: resolveList(props.list, env, data, isPreview),
       raw: props,
     };
     return patchIntegrationIcons(result, env);
@@ -160,6 +166,19 @@ export function resolveWidgetProperties(opts: ResolveOptions): ResolvedWidget {
         icon: resolveValue(props.icon.file, env),
         primary: resolveValue(props.primary, env),
         secondary: resolveValue(props.secondary, env),
+      },
+      raw: props,
+    };
+    return patchIntegrationIcons(result, env);
+  }
+
+  if (template === "iframe") {
+    const result: ResolvedWidget = {
+      header,
+      iframe: {
+        url: resolveValue(props.url, env),
+        minHeight: resolveNumber(props.min_height ?? props.minHeight, env),
+        maxHeight: resolveNumber(props.max_height ?? props.maxHeight, env),
       },
       raw: props,
     };
@@ -307,16 +326,16 @@ function resolveColumns(
         ? evaluateCondition(String(c.show_if), env)
         : true)
       )
-      .map((c) => resolveColumnItem(c, env));
+      .map((c, index) => resolveColumnItem(c, env, index));
   }
 
   // iterate_over + prototype pattern
   if (colDef.iterate_over && colDef.prototype) {
     const { items, alias } = resolveIteratee(colDef.iterate_over, data, isPreview);
-    return items.map((item) => {
+    return items.map((item, index) => {
       const itemEnv = { ...env, ...flattenToEnv(item) };
       if (alias) itemEnv[alias] = JSON.stringify(item);
-      return resolveColumnItem(colDef.prototype, itemEnv);
+      return resolveColumnItem(colDef.prototype, itemEnv, index, item);
     });
   }
 
@@ -326,8 +345,12 @@ function resolveColumns(
 function resolveColumnItem(
   c: Record<string, any>,
   env: Record<string, string>,
+  index = 0,
+  sourceItem?: Record<string, any>,
 ): ResolvedColumn {
+  const fallbackId = resolveColumnId(c, sourceItem, index);
   return {
+    id: fallbackId,
     label: resolveValue(c.label, env),
     primary: resolveValue(c.primary, env),
     primaryAction: resolveAction(c.primaryAction, env),
@@ -345,6 +368,99 @@ function resolveColumnItem(
       }
       : undefined,
     badge: c.badge ? resolveBadge(c.badge, env) : undefined,
+  };
+}
+
+function resolveColumnId(
+  item: Record<string, any>,
+  sourceItem: Record<string, any> | undefined,
+  index: number,
+): string {
+  if (typeof item.id === "string" && item.id.trim()) {
+    return item.id.trim();
+  }
+
+  if (sourceItem) {
+    const sourceId = sourceItem.id ?? sourceItem.key ?? sourceItem.name;
+    if (typeof sourceId === "string" && sourceId.trim()) {
+      return sourceId.trim();
+    }
+  }
+
+  const label = [item.label, item.primary, item.title, item.thumbnail]
+    .find((value) => typeof value === "string" && value.trim());
+
+  if (typeof label === "string") {
+    return `${label.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${index}`;
+  }
+
+  return `column-${index}`;
+}
+
+function applyColumnCustomizations(
+  columns: ResolvedColumn[],
+  widgetJSON: Record<string, any>,
+): ResolvedColumn[] {
+  const customizations = readColumnCustomizations(widgetJSON);
+  if (!customizations) {
+    return columns;
+  }
+
+  const supportsReorder = customizations.allow_reorder;
+  const supportsHide = customizations.allow_hide;
+  if (!supportsReorder && !supportsHide) {
+    return columns;
+  }
+
+  const hiddenIds = supportsHide ? new Set(customizations.hiddenIds) : new Set<string>();
+  const visibleColumns = supportsHide
+    ? columns.filter((column) => !hiddenIds.has(column.id))
+    : [...columns];
+
+  if (!supportsReorder || customizations.orderIds.length === 0) {
+    return visibleColumns;
+  }
+
+  const byId = new Map(visibleColumns.map((column) => [column.id, column] as const));
+  const ordered = customizations.orderIds
+    .map((id) => byId.get(id))
+    .filter((column): column is ResolvedColumn => Boolean(column));
+  const remaining = visibleColumns.filter((column) => !customizations.orderIds.includes(column.id));
+
+  return [...ordered, ...remaining];
+}
+
+function readColumnCustomizations(widgetJSON: Record<string, any>): {
+  allow_reorder: boolean;
+  allow_hide: boolean;
+  orderIds: string[];
+  hiddenIds: string[];
+} | null {
+  const columns = widgetJSON?.properties?.columns;
+  const userCustomizations = Array.isArray(columns?.user_customizations)
+    ? columns.user_customizations
+    : [];
+
+  const allow_reorder = userCustomizations.includes("allow_reorder");
+  const allow_hide = userCustomizations.includes("allow_hide");
+  if (!allow_reorder && !allow_hide) {
+    return null;
+  }
+
+  const input = widgetJSON?.data?.input;
+  const rawCustomizations = isPlainObject(input) ? input.display_customizations : null;
+  const orderIds = Array.isArray(rawCustomizations?.order)
+    ? rawCustomizations.order.filter((value: unknown): value is string => typeof value === "string")
+    : [];
+  const hiddenIds = Array.isArray(rawCustomizations?.hidden)
+    ? rawCustomizations.hidden.filter((value: unknown): value is string => typeof value === "string")
+    : [];
+
+  return {
+    allow_reorder,
+    allow_hide,
+    orderIds,
+    hiddenIds,
   };
 }
 
@@ -479,6 +595,9 @@ function buildEnv(opts: ResolveOptions): Record<string, string> {
 
   const input: Record<string, any> = widgetJSON?.data?.input ?? {};
   for (const [k, v] of Object.entries(input)) {
+    if (k === "display_customizations") {
+      continue;
+    }
     const raw = String(v ?? "");
     const resolved = interpolateString(raw, env).trim();
 

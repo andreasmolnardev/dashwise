@@ -32,6 +32,15 @@ configuration:
       key: "calendar-upcoming"
       template: "calendar-upcoming"
       category: "Calendar"
+    - name: "Iframe"
+      key: "iframe"
+      template: "iframe"
+      category: "Tools"
+      data:
+        input:
+          url: "https://www.wikipedia.org"
+          min_height: 300
+          max_height: 600
   glanceables:
     - name: "Date"
       icon: none
