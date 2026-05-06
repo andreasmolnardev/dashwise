@@ -34,6 +34,7 @@ import SettingsPagesPage from "./app/(authenticated)/settings/pages/page";
 import SettingsIntegrationsPage from "./app/(authenticated)/settings/integrations/page";
 import SettingsSearchPage from "./app/(authenticated)/settings/search/page";
 import SettingsScreensaverPage from "./app/(authenticated)/settings/screensaver/page";
+import FramePage from "./app/(authenticated)/frame/page";
 
 export const appRouter = createBrowserRouter([
   {
@@ -115,6 +116,7 @@ export const appRouter = createBrowserRouter([
               { path: "screensaver", element: <SettingsScreensaverPage /> },
             ],
           },
+          { path: "frame", element: <FramePage /> },
           { path: "onboarding", element: <OnboardingPage /> },
           { path: ":page", element: <DynamicPage /> },
         ],

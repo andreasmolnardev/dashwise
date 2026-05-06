@@ -14,6 +14,7 @@ const UNRESOLVED_TOKEN_REGEX = /\$\{[A-Za-z0-9_]+\}/;
 
 type IntegrationRecord = {
     id: string;
+    type?: "plugin" | "caldav";
     name: string | null;
     source: string | null;
     userId: string | null;
@@ -44,6 +45,7 @@ type ResolvedEndpoint = {
 };
 
 export type CreateIntegrationPayload = {
+    type?: "plugin" | "caldav";
     name?: string;
     source?: string;
     config: unknown;
@@ -154,7 +156,7 @@ export async function createIntegration(
 ) {
     const pb = await getSuperuserPB();
 
-    const record = await pb.collection("integrations").create({
+    const createData: Record<string, unknown> = {
         name: typeof payload.name === "string"
             ? payload.name.trim() || null
             : null,
@@ -162,7 +164,13 @@ export async function createIntegration(
         config: normalizeConfig(payload.config),
         environment: encodeEnvironment(payload.environment),
         user: userId,
-    });
+    };
+
+    if (payload.type === "caldav" || payload.type === "plugin") {
+        createData.type = payload.type;
+    }
+
+    const record = await pb.collection("integrations").create(createData);
 
     return { integration: mapIntegration(record) };
 }
@@ -1292,8 +1300,15 @@ function mapIntegration(record: any): IntegrationRecord {
         ? (localDataRaw as Record<string, unknown>)
         : {};
 
+    const recordType = record.type;
+    const type: "plugin" | "caldav" | undefined =
+        recordType === "plugin" || recordType === "caldav"
+            ? recordType
+            : undefined;
+
     return {
         id: record.id,
+        type,
         name: typeof record.name === "string" ? record.name : null,
         source: typeof record.source === "string" ? record.source : null,
         userId: typeof record.user === "string"

@@ -6,7 +6,7 @@ import type { PageConfig } from "@dashwise/sdk/data/pageConfig";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useCallback, useEffect, useMemo, useState, type SetStateAction } from "react";
 
-const nonPageSegments = new Set(["settings", "notifications", "onboarding", "screensaver", "auth"]);
+const nonPageSegments = new Set(["settings", "notifications", "onboarding", "screensaver", "auth", "frame"]);
 
 export function resolveRequestedPageName(pathname: string | null): string {
   const firstSegment = pathname?.split("/").filter(Boolean)[0] ?? "home";
