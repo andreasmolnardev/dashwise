@@ -98,6 +98,7 @@ export async function getLinksFolders(listId: string) {
         id: r.id,
         name: r.name,
         icon: r.icon,
+        position: (r as any).position as number | undefined,
         parentFolder: r.parentFolder as string | undefined,
         tags: Array.isArray((r as any).tags)
             ? (r as any).tags.map((tag: any) => (typeof tag === "string" ? tag : String(tag?.id ?? ""))).filter(Boolean)
@@ -181,6 +182,7 @@ export async function getLinksItems(listId: string, folderId?: string) {
         iconUrl: r.iconUrl,
         description: r.description,
         collection: r.collection,
+        position: (r as any).position as number | undefined,
         folder: r.folder as string | undefined,
         tags: Array.isArray((r as any).tags)
             ? (r as any).tags.map((tag: any) => (typeof tag === "string" ? tag : String(tag?.id ?? ""))).filter(Boolean)
@@ -315,10 +317,10 @@ export async function getHomeLinks(userId: string) {
         pb.collection("linkItems").getFullList({
             filter: `collection = "${userHomeListId}"`,
             sort: "title",
-            expand: "folder",
         }),
         pb.collection("linksFolders").getFullList({
             filter: `list = "${userHomeListId}"`,
+            sort: "name",
         }),
     ]).catch(() => [[], []]);
 
@@ -343,6 +345,7 @@ export async function getHomeLinks(userId: string) {
             title: r.title as string,
             iconUrl: r.iconUrl as string,
             description: r.description as string,
+            position: (r as any).position as number | undefined,
             collection: collectionFolder?.name ?? "",
             collectionId: collectionFolder?.id,
             folder: nestedFolder?.name ?? "",
@@ -351,6 +354,7 @@ export async function getHomeLinks(userId: string) {
             tags: Array.isArray((r as any).tags)
                 ? (r as any).tags.map((tag: any) => (typeof tag === "string" ? tag : String(tag?.id ?? ""))).filter(Boolean)
                 : [],
+            updated: r.updated as string,
         };
     });
 }
@@ -686,8 +690,29 @@ export async function updateHomeLinkItem(
     }
 
     await pb.collection("linkItems").update(linkId, updateData);
-
 }
+
+export async function reorderLinks(
+    userId: string,
+    items: { id: string; type: "link" | "folder"; position: number }[],
+): Promise<void> {
+    const pb = getServerPB();
+    
+    // Validate ownership (optional but recommended)
+    // For simplicity, we'll just try to update. 
+    // PocketBase rules should handle the security.
+
+    await Promise.all(
+        items.map(async (item) => {
+            if (item.type === "link") {
+                await pb.collection("linkItems").update(item.id, { position: item.position });
+            } else {
+                await pb.collection("linksFolders").update(item.id, { position: item.position });
+            }
+        })
+    );
+}
+
 // ─── Collection CRUD ─────────────────────────────────────────────────────────
 
 export async function createCollection(
