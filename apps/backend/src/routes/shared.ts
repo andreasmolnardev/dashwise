@@ -7,6 +7,7 @@ import { ApiActionError, requireUserAuth } from "@dashwise/sdk/data/auth";
 import { z } from "zod";
 
 import { config } from "../lib/config";
+import { defaultHomeConfig } from "@dashwise/assets";
 
 export type JsonHandler = (c: Context) => Promise<unknown>;
 
@@ -18,22 +19,8 @@ export function normalizePageName(pageName?: string | null) {
 }
 
 export async function loadSignupDefaults(filename: string) {
-  const candidatePaths = [
-    resolve(process.cwd(), "apps", "web", "dist", "defaults", filename),
-    resolve(process.cwd(), "apps", "web", "public", "defaults", filename),
-    resolve(process.cwd(), "..", "web", "dist", "defaults", filename),
-    resolve(process.cwd(), "..", "web", "public", "defaults", filename),
-  ];
-
-  for (const filePath of candidatePaths) {
-    try {
-      const fileText = await fs.readFile(filePath, "utf8");
-      return JSON.parse(fileText);
-    } catch {
-      continue;
-    }
-  }
-
+  const defaultPage = await defaultHomeConfig;
+  return defaultPage;
   throw new Error(`Unable to load signup defaults file: ${filename}`);
 }
 
