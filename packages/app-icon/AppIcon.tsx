@@ -98,6 +98,26 @@ export default function AppIcon({
 			) : null;
 		}
 
+		// If the resolved path is a mono icon (e.g. beszel-light.png), use mask rendering
+		if (isMonoIconSource(imageSource)) {
+			return (
+				<span
+					className={combineClassNames("bg-foreground inline-block shrink-0", className, monoClassName)}
+					style={{
+						maskImage: `url('${imageSource}')`,
+						WebkitMaskImage: `url('${imageSource}')`,
+						maskRepeat: "no-repeat",
+						WebkitMaskRepeat: "no-repeat",
+						maskPosition: "center",
+						WebkitMaskPosition: "center",
+						maskSize: "contain",
+						WebkitMaskSize: "contain",
+						...(size ? { width: size, height: size } : {}),
+					}}
+				/>
+			);
+		}
+
 		return <UrlImageIcon source={imageSource} alt={alt} className={className} imageClassName={imageClassName} fallbackSource={fallbackSource} size={size} />;
 	}
 
@@ -124,16 +144,17 @@ export default function AppIcon({
 	if (isMonoIconSource(source)) {
 		return (
 			<span
-				className={combineClassNames("bg-current", className, monoClassName)}
+				className={combineClassNames("bg-foreground inline-block shrink-0", className, monoClassName)}
 				style={{
-					maskImage: `url(${source})`,
-					WebkitMaskImage: `url(${source})`,
+					maskImage: `url('${source}')`,
+					WebkitMaskImage: `url('${source}')`,
 					maskRepeat: "no-repeat",
 					WebkitMaskRepeat: "no-repeat",
 					maskPosition: "center",
 					WebkitMaskPosition: "center",
 					maskSize: "contain",
 					WebkitMaskSize: "contain",
+					...(size ? { width: size, height: size } : {}),
 				}}
 			/>
 		);
