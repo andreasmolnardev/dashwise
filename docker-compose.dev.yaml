@@ -3,6 +3,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    image: dashwise:dev
     container_name: dashwise-app-live
     command: sh -lc "bun install --frozen-lockfile && bun run dev"
     ports:

@@ -333,154 +333,6 @@ export interface paths {
         };
         trace?: never;
     };
-    "/config": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get config */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                200: components["responses"]["JsonOk"];
-            };
-        };
-        /** Replace config */
-        put: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: components["requestBodies"]["JsonBody"];
-            responses: {
-                200: components["responses"]["JsonOk"];
-            };
-        };
-        /** Create config */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: components["requestBodies"]["JsonBody"];
-            responses: {
-                200: components["responses"]["JsonOk"];
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        /** Patch config */
-        patch: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: components["requestBodies"]["JsonBody"];
-            responses: {
-                200: components["responses"]["JsonOk"];
-            };
-        };
-        trace?: never;
-    };
-    "/config/delete-unused-linkgroups": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Delete unused link groups */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: components["requestBodies"]["JsonBody"];
-            responses: {
-                200: components["responses"]["JsonOk"];
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/config/migrate-legacy-page-config": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Migrate legacy page config */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: components["requestBodies"]["JsonBody"];
-            responses: {
-                200: components["responses"]["JsonOk"];
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/config/move-arrayitems": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Move config array items */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: components["requestBodies"]["JsonBody"];
-            responses: {
-                200: components["responses"]["JsonOk"];
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/integrations/beszel": {
         parameters: {
             query?: never;
@@ -689,39 +541,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/integrations/consumerData": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get integration consumer data */
-        get: {
-            parameters: {
-                query?: {
-                    type?: "widget" | "glanceable";
-                    key?: string;
-                    input?: string;
-                };
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                200: components["responses"]["JsonOk"];
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/widgets/by-integration": {
+    "/integrations/with-widget": {
         parameters: {
             query?: never;
             header?: never;
@@ -1147,90 +967,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/news/subscriptions": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get news subscriptions */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                200: components["responses"]["JsonOk"];
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/news/feeds": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get news feeds */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                200: components["responses"]["JsonOk"];
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/news/feeds/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get news feed */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                200: components["responses"]["JsonOk"];
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/news/feed": {
         parameters: {
             query?: never;
@@ -1440,9 +1176,6 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            security?: {
-                bearerAuth: never[];
-            }[];
             requestBody?: components["requestBodies"]["JsonBody"];
             responses: {
                 200: components["responses"]["JsonOk"];
@@ -1736,33 +1469,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/pageConfig/home": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody: components["requestBodies"]["JsonBody"];
-            responses: {
-                200: components["responses"]["JsonOk"];
-            };
-        };
-        get?: never;
-        put?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/pageConfig/user-pages": {
         parameters: {
             query?: never;
@@ -1857,6 +1563,15 @@ export interface paths {
                         fileName?: string;
                         /** @description Convert the uploaded image to WebP before storing */
                         convertToWebp?: boolean;
+                    };
+                    "application/json": {
+                        contentBase64: string;
+                        fileName?: string;
+                        mimeType?: string;
+                        convertToWebp?: boolean;
+                        auth?: {
+                            token?: string;
+                        };
                     };
                 };
             };
@@ -1954,64 +1669,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/glanceables": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get user glanceables */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                200: components["responses"]["JsonOk"];
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/glanceables/by-integration": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get glanceable integration payload */
-        get: {
-            parameters: {
-                query?: {
-                    glanceableType?: string;
-                };
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                200: components["responses"]["JsonOk"];
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/weather": {
         parameters: {
             query?: never;
@@ -2090,12 +1747,6 @@ export interface components {
     };
     headers: never;
     pathItems: never;
-    securitySchemes: {
-        bearerAuth: {
-            type: "http";
-            scheme: "bearer";
-        };
-    };
 }
 export type $defs = Record<string, never>;
 export type operations = Record<string, never>;

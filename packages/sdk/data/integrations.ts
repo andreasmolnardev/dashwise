@@ -175,6 +175,30 @@ export async function createIntegration(
     return { integration: mapIntegration(record) };
 }
 
+export async function updateIntegration(
+    userId: string,
+    integrationId: string,
+    payload: Partial<CreateIntegrationPayload> & { localData?: any },
+) {
+    const pb = await getSuperuserPB();
+    const record = await pb.collection("integrations").getOne(integrationId);
+
+    if (!ownsIntegration(record, userId)) {
+        throw new ApiActionError("Not found", 404, { error: "Not found" });
+    }
+
+    const updateData: Record<string, unknown> = {};
+    if (payload.name !== undefined) updateData.name = payload.name;
+    if (payload.config !== undefined) updateData.config = normalizeConfig(payload.config);
+    if (payload.environment !== undefined) updateData.environment = encodeEnvironment(payload.environment);
+    if (payload.localData !== undefined) updateData.localData = payload.localData;
+
+    const updated = await pb.collection("integrations").update(integrationId, updateData);
+
+    return { integration: mapIntegration(updated) };
+}
+
+
 export async function testIntegrationEndpoint(
     userId: string,
     rawTarget: string,

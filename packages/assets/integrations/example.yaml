@@ -21,6 +21,7 @@ details:
   author: "Author Name"             # (Optional)
   version: "1.0.0"                  # Version string
   repository: "https://github..."   # (Optional)
+  source: "https://..."
   icon: "/icons/png/example.png"    # Path to the icon image
   links:                            # (Optional) External links
     website: ""

@@ -9,6 +9,7 @@ import {
   getWidgetProperties,
   listIntegrations,
   testIntegrationEndpoint,
+  updateIntegration,
 } from "@dashwise/sdk/data/integrations";
 import { ApiActionError } from "@dashwise/sdk/data/auth";
 import { getSuperuserPB } from "@dashwise/sdk/lib/pocketbase";
@@ -59,6 +60,12 @@ const integrationsRoute = new Hono();
     const { userId } = await requireAuth(body?.auth);
     return createIntegration(userId, body?.payload ?? {});
   }));
+  integrationsRoute.put("/api/v1/integrations/:id", withJson(async (c) => {
+    const id = c.req.param("id")!;
+    const body = await readJsonBody<any>(c);
+    const { userId } = await requireAuth(body?.auth);
+    return updateIntegration(userId, id, body?.payload ?? {});
+  }));
   integrationsRoute.post("/api/v1/integrations/test-endpoint", withJson(async (c) => {
     const body = await readJsonBody<any>(c);
     const { userId } = await requireAuth(body?.auth);
@@ -78,15 +85,20 @@ const integrationsRoute = new Hono();
       throw new ApiActionError("Missing key", 400, { error: "Missing key" });
     }
 
-    const type = parseConsumerType(typeRaw || null);
-    return resolveConsumerData({
-      userId: auth.userId,
-      pb: auth.pb,
-      type,
-      key,
-      properties,
-      isPreview: false,
-    });
+    try {
+      const type = parseConsumerType(typeRaw || null);
+      return await resolveConsumerData({
+        userId: auth.userId,
+        pb: auth.pb,
+        type,
+        key,
+        properties,
+        isPreview: false,
+      });
+    } catch (e) {
+      console.error("[integrations/consumerData] GET Error:", e);
+      throw e;
+    }
   }));
 
   integrationsRoute.post("/api/v1/integrations/consumerData", withJson(async (c) => {
@@ -101,14 +113,19 @@ const integrationsRoute = new Hono();
       throw new ApiActionError("Missing key", 400, { error: "Missing key" });
     }
 
-    return resolveConsumerData({
-      userId: auth.userId,
-      pb: auth.pb,
-      type: parseConsumerType(typeRaw),
-      key,
-      properties,
-      isPreview,
-    });
+    try {
+      return await resolveConsumerData({
+        userId: auth.userId,
+        pb: auth.pb,
+        type: parseConsumerType(typeRaw),
+        key,
+        properties,
+        isPreview,
+      });
+    } catch (e) {
+      console.error("[integrations/consumerData] POST Error:", e);
+      throw e;
+    }
   }));
 
 integrationsRoute.get("/api/v1/integrations/caldav/events", withJson(async (c) => {
@@ -124,10 +141,10 @@ integrationsRoute.get("/api/v1/integrations/caldav/events", withJson(async (c) =
     if (!integration) {
       throw new ApiActionError("Integration not found", 404, { error: "Not found" });
     }
-    console.log("[caldav] Fetching with integration env:", JSON.stringify(integration.environment));
+    console.log("[caldav] Fetching with integration env:", JSON.stringify((integration as any).environment));
     const events = await getUpcomingEvents(
-      integration.environment,
-      integration.localData,
+      (integration as any).environment,
+      (integration as any).localData,
       (ld) => updateLocalData(integrationId, ld)
     );
     return { events };

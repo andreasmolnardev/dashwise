@@ -9,7 +9,7 @@ import { renderLocalizedText, type TextFormatters } from "./data/renderText";
 import WidgetColumnTemplate from "./templates/WidgetColumn";
 import VerticalList from "./templates/VerticalList";
 import IconDetailsCard from "./templates/IconDetailsCard";
-import IFrameTemplate from "./templates/IFrame";
+import IframeTemplate from "./templates/IFrame";
 import AppIcon from "@dashwise/app-icon";
 import type { ResolvedWidget } from "./types";
 
@@ -51,7 +51,7 @@ export default function Widget({
             (w: Record<string, any>) => w.key === widgetKey,
         ) ??
         null;
-        
+
     const widgetWithInput = useMemo(
         () =>
             effectiveWidgetJSON
@@ -183,15 +183,6 @@ export default function Widget({
                 />
             );
 
-        case "iframe":
-            return (
-                <IFrameTemplate
-                    resolved={resolved}
-                    className={className}
-                    formatters={formatters}
-                />
-            );
-
         default:
             return null;
     }
@@ -206,9 +197,8 @@ function WidgetErrorState({
 }) {
     return (
         <div
-            className={`frosted rounded-xl border border-red-500/30 bg-red-500/10 p-3 ${
-                className ?? ""
-            }`}
+            className={`frosted rounded-xl border border-red-500/30 bg-red-500/10 p-3 ${className ?? ""
+                }`}
         >
             <p className="text-sm font-semibold text-red-200">
                 Widget failed to load
@@ -312,7 +302,7 @@ function ColumnCell(
 
 
             {!hasProgress && hasIcon && (
-                    <AppIcon
+                <AppIcon
                     source={col.icon!.file}
                     alt={col.icon!.description ?? ""}
                     size={col.icon!.size ?? 32}

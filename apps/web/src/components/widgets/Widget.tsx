@@ -5,12 +5,12 @@ import GlanceableClockWidget from "./dashboard/GlanceableClock";
 import CalendarWeekWidget, { CalendarTodayWidget, CalendarUpcomingWidget } from "@dashwise/integrationskit/static-widgets/CalendarWidgets";
 import LinkView from "./LinkView";
 import SearchBar from "./SearchBar";
+import IframeTemplate from "@dashwise/integrationskit/templates/IFrame";
 import Widget from "@dashwise/integrationskit/Widget";
 import { useLocalization } from "@/context/LocalizationContext";
 import { readPageIntegrationConsumer } from "@/lib/pageIntegrationDataCache";
 import useAuth from "@/context/useAuth";
-import { getIntegrationCalendarEventsAction } from "@/app/actions/integrations";
-import { getIntegrationsAction } from "@/app/actions/integrations";
+import { getIntegrationCalendarEventsAction, getConsumerDataAction } from "@/app/actions/integrations";
 
 export type WidgetProps = {
   type: string;
@@ -39,6 +39,7 @@ export function renderWidget({
   defaultOpen,
 }: WidgetProps): ReactNode {
   const renderParams = stripWidgetIndex(params);
+  const finalClassName = `${className ?? ""} frosted`.trim();
 
   switch (type) {
     case "main-clock":
@@ -47,28 +48,31 @@ export function renderWidget({
 
     case "search-bar":
       return (
-        <div className={className}>
+        <div className={finalClassName}>
           <SearchBar useRedirect={false} defaultOpen={defaultOpen} />
         </div>
       );
 
     case "calendar-week":
-      return <CalendarWeekWidget className={className} {...renderParams} />;
+      return <CalendarWeekWidget className={finalClassName} {...renderParams} />;
 
     case "calendar-today":
-      return <CalendarTodayWidget className={className} {...renderParams} />;
+      return <CalendarTodayWidget className={finalClassName} {...renderParams} />;
 
     case "calendar-upcoming":
-      return <CalendarUpcomingWidgetWrapper className={className} {...renderParams} />;
+      return <CalendarUpcomingWidgetWrapper className={finalClassName} {...renderParams} />;
 
-    case "link-view": return (<LinkView/>);
+    case "link-view": return (<LinkView />);
 
     case "placeholder":
       return <div className={`${className ?? ""}`} />;
 
+    case "iframe":
+      return <IframeWidget className={finalClassName} params={renderParams} />;
+
     default:
       return (
-        <IntegrationWidget type={type} isPreview={isPreview} properties={renderParams} className={className} />
+        <IntegrationWidget type={type} isPreview={isPreview} properties={renderParams} className={finalClassName} />
       );
   }
 }
@@ -141,6 +145,43 @@ function CalendarUpcomingWidgetWrapper({
       className={className}
       items={events}
       maxItems={maxItems}
+    />
+  );
+}
+
+function IframeWidget({
+  className,
+  params,
+}: {
+  className?: string;
+  params?: Record<string, any>;
+}) {
+  const localization = useLocalization();
+  const { url, min_height, max_height, title, icon, title_action } = params ?? {};
+
+  const resolved = {
+    header: {
+      title: title || "",
+      show: !!title,
+      icon: icon || "",
+      titleAction: title_action || "",
+    },
+    iframe: {
+      url: url || "",
+      minHeight: min_height,
+      maxHeight: max_height,
+    },
+  };
+
+  return (
+    <IframeTemplate
+      resolved={resolved as any}
+      className={className}
+      formatters={{
+        formatTemperature: localization.formatTemperature,
+        formatTime: localization.formatTime,
+        formatDate: localization.formatDate,
+      }}
     />
   );
 }

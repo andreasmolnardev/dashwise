@@ -6,17 +6,17 @@ import { Icon } from "@iconify-icon/react";
 import type { ResolvedWidget } from "../types";
 import { renderLocalizedText, type TextFormatters } from "../data/renderText";
 
-interface IFrameTemplateProps {
+interface IframeTemplateProps {
   resolved: ResolvedWidget;
   className?: string;
   formatters?: TextFormatters;
 }
 
-export default function IFrameTemplate({
+export default function IframeTemplate({
   resolved,
   className = "",
   formatters,
-}: IFrameTemplateProps) {
+}: IframeTemplateProps) {
   const { header, iframe } = resolved;
   const title = header?.show !== false ? renderLocalizedText(header?.title ?? "", formatters) : "";
   const url = header?.titleAction ?? "";

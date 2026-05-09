@@ -259,6 +259,11 @@ const routes: Record<string, RouteConfig> = {
     params: (input) => ({ path: { linkId: String(input?.linkId ?? "") } }),
     body: (input) => ({ auth: input?.auth }),
   },
+  "links.updateLinksOrderAction": {
+    method: "POST",
+    path: "/links/reorder" as any,
+    body: (input) => input,
+  },
 
   "widgets.getUserWidgetsAction": {
     method: "GET",
@@ -307,6 +312,13 @@ const routes: Record<string, RouteConfig> = {
     path: "/integrations",
     body: (input) => input,
   },
+  "integrations.updateIntegrationAction": {
+    method: "PUT",
+    path: "/integrations/{id}" as any,
+    params: (input) => ({ path: { id: String(input?.id ?? "") } }),
+    body: (input) => input,
+  },
+
   "integrations.testIntegrationEndpointAction": {
     method: "POST",
     path: "/integrations/test-endpoint",

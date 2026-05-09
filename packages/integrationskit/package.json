@@ -16,6 +16,16 @@
     "./GlanceableComponent": "./Glanceable.tsx",
     "./Shortcuts": "./Shortcuts.tsx",
     "./Widget": "./Widget.tsx",
+    "./templates/IFrame": {
+      "import": "./templates/IFrame.tsx",
+      "default": "./templates/IFrame.tsx"
+    },
+    "./templates/iframe": {
+      "types": "./templates/IFrame.tsx",
+      "import": "./templates/IFrame.tsx",
+      "default": "./templates/IFrame.tsx"
+    },
+    "./templates/*": "./templates/*.tsx",
     "./templates/WidgetColumn": "./templates/WidgetColumn.tsx",
     "./static-widgets/CalendarWidgets": "./static-widgets/CalendarWidgets.tsx",
     "./data/resolveProperties": "./data/resolveProperties.tsx",

@@ -64,3 +64,7 @@ export async function updateHomeLinkItemAction(auth: ActionAuth, linkId: string,
 export async function deleteLinkItemAction(auth: ActionAuth, linkId: string) {
   return callApiAction("links", "deleteLinkItemAction", { auth, linkId });
 }
+
+export async function updateLinksOrderAction(auth: ActionAuth, items: { id: string; type: "link" | "folder"; position: number }[]) {
+  return callApiAction("links", "updateLinksOrderAction", { auth, items });
+}

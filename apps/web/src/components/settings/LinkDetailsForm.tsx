@@ -668,10 +668,11 @@ async function getIcon(
   const testImage = (src: string): Promise<boolean> =>
     new Promise((resolve) => {
       if (!src) return resolve(false);
+      const cleanSrc = src.replace("url:", "").replace("'", "").replace("'", "")
       const img = new Image();
       img.onload = () => resolve(true);
       img.onerror = () => resolve(false);
-      img.src = src;
+      img.src = cleanSrc;
     });
 
   const normalizeUrl = (raw?: string) => {
@@ -687,7 +688,7 @@ async function getIcon(
   if (name) {
     const safeName = name.trim().replace(/\s+/g, "-").toLowerCase();
     if (safeName) {
-      const autoIcon = `/icons/svg/${safeName}-light.svg`;
+      const autoIcon = `url:/icons/svg/${safeName}-light.svg`;
       if (await testImage(autoIcon)) {
         return { iconSet: "mono", url: autoIcon };
       }

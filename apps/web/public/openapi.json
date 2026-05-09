@@ -656,6 +656,24 @@
 								},
 								"required": ["image"]
 							}
+						},
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"contentBase64": { "type": "string" },
+									"fileName": { "type": "string" },
+									"mimeType": { "type": "string" },
+									"convertToWebp": { "type": "boolean" },
+									"auth": {
+										"type": "object",
+										"properties": {
+											"token": { "type": "string" }
+										}
+									}
+								},
+								"required": ["contentBase64"]
+							}
 						}
 					}
 				},

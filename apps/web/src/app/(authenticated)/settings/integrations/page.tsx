@@ -10,8 +10,10 @@ import {
   createIntegrationAction,
   getIntegrationsAction,
   testIntegrationEndpointAction,
+  updateIntegrationAction,
 } from "@/app/actions/integrations";
 import { AddIntegrationConfigDialog } from "@/components/settings/integrations/AddIntegrationConfigDialog";
+import { UpdateIntegrationDialog } from "@/components/settings/integrations/UpdateIntegrationDialog";
 import { TestEndpointDialog } from "@/components/settings/integrations/TestEndpointDialog";
 import { DebugIntegrationDialog } from "@/components/settings/integrations/DebugIntegrationDialog";
 import useAuth from "@/context/useAuth";
@@ -31,6 +33,11 @@ type IntegrationRecord = {
   environment: Record<string, string>;
   created: string;
   updated: string;
+  localData?: {
+    updateAvailable?: boolean;
+    remoteVersion?: string;
+    remoteConfig?: string;
+  };
 };
 
 type ResolvedEndpoint = {
@@ -76,6 +83,10 @@ export default function IntegrationsModularSettingsPage() {
   const [testError, setTestError] = useState<string | null>(null);
   const [testing, setTesting] = useState(false);
   const [testingTarget, setTestingTarget] = useState<string | null>(null);
+  
+  const [updateDialogOpen, setUpdateDialogOpen] = useState(false);
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [isUpdating, setIsUpdating] = useState(false);
 
   const handleTestDialogOpenChange = (open: boolean) => {
     if (!open) {
@@ -265,6 +276,40 @@ export default function IntegrationsModularSettingsPage() {
     withAuth,
   ]);
 
+  const handleUpdate = useCallback(async () => {
+    if (!token || !updatingId) return;
+
+    const integration = integrations.find((i) => i.id === updatingId);
+    if (!integration || !integration.localData?.remoteConfig) return;
+
+    setIsUpdating(true);
+    try {
+      const remoteConfig = YAML.parse(integration.localData.remoteConfig);
+      await withAuth((auth) =>
+        updateIntegrationAction(auth, updatingId, {
+          config: remoteConfig,
+          localData: {
+            ...integration.localData,
+            updateAvailable: false,
+          },
+        })
+      );
+      setUpdateDialogOpen(false);
+      setUpdatingId(null);
+      await fetchIntegrations();
+    } catch (err) {
+      console.error("Failed to update integration", err);
+    } finally {
+      setIsUpdating(false);
+    }
+  }, [token, updatingId, integrations, withAuth, fetchIntegrations]);
+
+  const openUpdateDialog = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    setUpdatingId(id);
+    setUpdateDialogOpen(true);
+  };
+
   return (
     <section className="space-y-6">
       <header className="flex flex-col items-center gap-3 md:flex-row md:items-center md:justify-between">
@@ -323,7 +368,23 @@ export default function IntegrationsModularSettingsPage() {
                     <p className="text-xs">
                       {getEndpointCount(integration.config)} endpoints · Updated {formatDate(integration.updated)}
                     </p>
+                    {integration.localData?.updateAvailable && (
+                      <div className="mt-2 flex items-center justify-between">
+                        <Badge variant="secondary" className="bg-amber-500/10 text-amber-500 border-amber-500/20">
+                          Update Available ({integration.localData.remoteVersion})
+                        </Badge>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs"
+                          onClick={(e) => openUpdateDialog(e, integration.id)}
+                        >
+                          Update
+                        </Button>
+                      </div>
+                    )}
                   </button>
+
                 );
               })}
             </div>
@@ -371,7 +432,19 @@ export default function IntegrationsModularSettingsPage() {
         onCancel={() => setAddDialogOpen(false)}
         onCreate={() => void createIntegration()}
       />
+
+      <UpdateIntegrationDialog
+        open={updateDialogOpen}
+        onOpenChange={setUpdateDialogOpen}
+        integrationName={integrations.find((i) => i.id === updatingId)?.name ?? ""}
+        currentConfig={YAML.stringify(integrations.find((i) => i.id === updatingId)?.config ?? {})}
+        newConfig={integrations.find((i) => i.id === updatingId)?.localData?.remoteConfig ?? ""}
+        newVersion={integrations.find((i) => i.id === updatingId)?.localData?.remoteVersion ?? ""}
+        onConfirm={() => void handleUpdate()}
+        loading={isUpdating}
+      />
     </section>
+
   );
 }
 

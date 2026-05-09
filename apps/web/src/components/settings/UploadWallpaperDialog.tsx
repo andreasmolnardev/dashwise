@@ -24,7 +24,7 @@ export default function UploadWallpaperDialog({
   open,
   onOpenChange,
 }: UploadWallpaperDialogProps) {
-  const { updateUserProperty, withAuth } = useAuth();
+  const { user, updateUserProperty, withAuth } = useAuth();
 
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);

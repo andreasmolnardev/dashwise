@@ -9,6 +9,11 @@ export async function createIntegrationAction(auth: ActionAuth, payload: { name?
   return callApiAction("integrations", "createIntegrationAction", { auth, payload });
 }
 
+export async function updateIntegrationAction(auth: ActionAuth, id: string, payload: { name?: string; config?: unknown; environment?: unknown; localData?: any }) {
+  return callApiAction("integrations", "updateIntegrationAction", { auth, id, payload });
+}
+
+
 export async function testIntegrationEndpointAction(auth: ActionAuth, target: string) {
   return callApiAction("integrations", "testIntegrationEndpointAction", { auth, target });
 }

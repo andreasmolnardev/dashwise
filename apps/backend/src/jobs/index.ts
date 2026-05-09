@@ -13,6 +13,7 @@ import {
   runStatusMonitoringJobsWithOptions,
 } from "./monitoring/runner";
 import { runVersionComparisonRunner } from "./updates/comparison-runner";
+import { runIntegrationUpdaterJob } from "./updates/integration-updater";
 import { newsFeedBuilder } from "./news/feed-builder";
 import { processQueuedNotifications } from "./notifications/forwarder";
 import { createLogger } from "../lib/logger";
@@ -78,6 +79,13 @@ const runComparisonJob = (source: string) =>
     errorMessage: "Comparison runner failed",
   });
 
+const runIntegrationUpdateJob = (source: string) =>
+  runJob("integrationUpdater", runIntegrationUpdaterJob, {
+    startMessage: `Triggered by ${source}`,
+    successMessage: "Integration updater completed",
+    errorMessage: "Integration updater failed",
+  });
+
 const runNewsFeedBuilderJob = (source: string, feedId?: string) =>
   runJob("newsFeedBuilder", () => newsFeedBuilder(feedId), {
     startMessage: `Triggered by ${source}${
@@ -114,7 +122,6 @@ export function validateJobsBasicAuth(authorizationHeader: string | undefined) {
 
 export function registerJobsCron() {
   logger.debug("Dashwise SDK app config", _d.getAppConfig());
-  void runSearchItemsJob("cron schedule");
 
   void runSearchItemsJob("server start");
   cron.schedule(config.SEARCHITEMS_SCHEDULE, () => {
@@ -136,8 +143,10 @@ export function registerJobsCron() {
   });
 
   void runComparisonJob("initial run");
+  void runIntegrationUpdateJob("initial run");
   cron.schedule(config.UPDATE_CHECK_SCHEDULE, () => {
     void runComparisonJob("scheduled run");
+    void runIntegrationUpdateJob("scheduled run");
   });
 
   void runNewsFeedBuilderJob("initial run");
@@ -155,6 +164,8 @@ export const jobsApi = {
   runPullIconsJob,
   runMonitoringIndexerJob,
   runMonitoringRunnerJob,
+  runComparisonJob,
+  runIntegrationUpdateJob,
   runNewsFeedBuilderJob,
   runNotificationForwarderJob,
 };

@@ -461,8 +461,26 @@ function BottomNavbar({
     showPages = true,
     columns,
 }: BottomNavbarProps) {
-    const { token, withAuth } = useAuth();
+    const { user, token, withAuth } = useAuth();
     const [unreadCount, setUnreadCount] = useState<number>(0);
+    const [showSmartFrameButton, setShowSmartFrameButton] = useState(false);
+
+    useEffect(() => {
+        const checkConfig = () => {
+            const local = localStorage.getItem("dashwise_screensaver_local");
+            const localConfig = local ? JSON.parse(local) : null;
+            const globalConfig = user?.screensaverPreferences as any;
+            
+            const showLocal = localConfig?.showButton === true;
+            const showGlobal = globalConfig?.showButton === true;
+            
+            setShowSmartFrameButton(showLocal || showGlobal);
+        };
+
+        checkConfig();
+        window.addEventListener("dashwise_local_config_updated", checkConfig);
+        return () => window.removeEventListener("dashwise_local_config_updated", checkConfig);
+    }, [user?.screensaverPreferences]);
 
     useEffect(() => {
         const fetchNotifications = async () => {
@@ -522,6 +540,20 @@ function BottomNavbar({
             </div>
 
             <ul className="grid grid-flow-col auto-cols-max items-center justify-end gap-3">
+                {showSmartFrameButton && (
+                    <li>
+                        <Link
+                            to="../frame"
+                            className="frosted p-2 rounded-full group transition-colors duration-200 aspect-square flex items-center justify-center"
+                            title="Open Smart Frame"
+                        >
+                            <Icon
+                                icon="fa6-solid:expand"
+                                className="text-foreground group-hover:text-primary transition-colors duration-200"
+                            />
+                        </Link>
+                    </li>
+                )}
                 <li className="relative">
                     <Link
                         to="/notifications"

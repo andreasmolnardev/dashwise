@@ -6,8 +6,8 @@ import { usePageConfig } from "@/hooks/usePageConfig";
 import useAuth from "@/context/useAuth";
 import { Separator } from '../ui/separator';
 import { DialogTitle } from '@radix-ui/react-dialog';
-import { cn } from '@/lib/utils';
-import { Icon as Iconify } from '@iconify-icon/react';
+import { Icon as IconifyIcon } from '@iconify-icon/react';
+import AppIcon from '@dashwise/app-icon';
 
 // --- Types ---
 
@@ -230,9 +230,9 @@ export default function CommandBar({ open, setOpen, searchItems, config }: Comma
     if (currentAppId) {
       items.unshift({
         id: "__app_back__",
-        name: "Back to root",
+        name: "Back",
         url: '__app_back__',
-        icon: '/icons/faGlobe.svg',
+        icon: 'fa6-solid:arrow-left',
         linkGroup: 'Dashwise',
         type: 'App',
       } as LinkItem);
@@ -457,9 +457,15 @@ export default function CommandBar({ open, setOpen, searchItems, config }: Comma
               >
                 <div className={`w-6 h-6 rounded-md flex items-center justify-center bg-white/20`}>
                   {item.icon ? (
-                    <Icon src={item.icon} size={4} />
+                    <AppIcon
+                      source={item.icon}
+                      size={16}
+                      className="w-4 h-4"
+                      imageClassName="w-4 h-4 object-contain"
+                      iconClassName="text-sm"
+                    />
                   ) : isValidUrl(item.url) ? (
-                    <Iconify icon="fa6-solid:globe" className="text-xs" />
+                    <IconifyIcon icon="fa6-solid:globe" className="text-xs" />
                   ) : (
                     <div className="w-4 h-4 bg-gray-300 rounded-sm" />
                   )}
@@ -491,44 +497,6 @@ export default function CommandBar({ open, setOpen, searchItems, config }: Comma
       </DialogContent>
     </Dialog>
   );
-}
-type IconProps = {
-  src?: string;       // URL of the icon
-  size?: number;      // optional size in pixels, default is 24
-  className?: string; // optional CSS classes
-};
-
-export function Icon({ src, size = 24, className }: IconProps) {
-  if (!src) {
-    // No icon URL provided → render a placeholder
-    return <div className={`w-${size} h-${size} bg-gray-300 ${className}`} />;
-  }
-
-  // Check if we should use a CSS mask
-  // Example condition: URL ends with "-light.<any extension>"
-  const shouldMask = /-light\.\w+$/.test(src);
-
-  if (shouldMask) {
-    return (
-      <div
-        className={`w-${size} h-${size} ${className}`}
-        style={{
-          backgroundColor: 'var(--primary)',
-          maskImage: `url(${src})`,
-          WebkitMaskImage: `url(${src})`,
-          maskRepeat: 'no-repeat',
-          WebkitMaskRepeat: 'no-repeat',
-          maskPosition: 'center',
-          WebkitMaskPosition: 'center',
-          maskSize: 'contain',
-          WebkitMaskSize: 'contain',
-        }}
-      />
-    );
-  }
-
-  // Default: render a normal <img> tag
-  return <img src={src} alt="" className={cn("h-4", className)} />;
 }
 
 function isValidUrl(url?: string) {

@@ -1,7 +1,6 @@
 import { getHomeLinks } from "@dashwise/sdk/data/links";
 import config from "@dashwise/sdk/lib/config";
 import { getSuperuserPB } from "@dashwise/sdk/lib/pocketbase";
-import { raw } from "hono/html";
 
 type SearchItemRow = {
   name: string;
@@ -10,6 +9,8 @@ type SearchItemRow = {
   action: string;
   app: string;
   tags: string[];
+  sourceId?: string;
+  sourceUpdated?: string;
 };
 
 type SearchIndexIntegrationRecord = {
@@ -48,19 +49,19 @@ function normalizeObject(raw: unknown): Record<string, any> {
     // noop
   }
 
+
   return {};
 }
 
-function decodeMaybeBase64(value: string | undefined | null) {
-  if (!value) return "";
+function parseTags(value: unknown) {
+  if (!value) return [] as unknown[];
+  if (Array.isArray(value)) return value;
+  if (typeof value !== "string") return [] as unknown[];
   try {
-    const decoded = Buffer.from(value, "base64").toString("utf8");
-    if (decoded && /[\x20-\x7E]/.test(decoded)) {
-      return decoded;
-    }
-    return value;
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
   } catch {
-    return value;
+    return [] as unknown[];
   }
 }
 
@@ -83,7 +84,7 @@ function resolveStoredEnvironmentVariables(
   const encoded = normalizeObject(rawEnvironment);
 
   const resolved: Record<string, string> = {};
-  for (const [name, definition] of Object.entries(envDefinitions)) {
+  for (const [name] of Object.entries(envDefinitions)) {
     const current = encoded[name];
     if (current !== undefined && current !== null && String(current).trim() !== "") {
       resolved[name] = current;
@@ -94,19 +95,6 @@ function resolveStoredEnvironmentVariables(
   return resolved;
 }
 
-function uniqueRows(rows: SearchItemRow[]) {
-  const seen = new Set<string>();
-  const result: SearchItemRow[] = [];
-
-  for (const row of rows) {
-    const key = `${row.app}::${row.action}::${row.name}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    result.push(row);
-  }
-
-  return result;
-}
 
 async function getEnabledIntegrationsMap(pb: any, userId: string) {
   const pageConfigs = await pb
@@ -192,6 +180,8 @@ async function buildIntegrationSearchRows(
     action: item.action,
     app: appId,
     tags: item.tags,
+    sourceId: integration.id,
+    sourceUpdated: (integration as any).updated as string,
   }));
 
   return [
@@ -202,6 +192,8 @@ async function buildIntegrationSearchRows(
       action: `app:${appId}`,
       app: "",
       tags: [integrationName, "integration"],
+      sourceId: integration.id,
+      sourceUpdated: (integration as any).updated as string,
     },
     ...rows,
   ];
@@ -210,27 +202,109 @@ async function buildIntegrationSearchRows(
 async function rebuildUserSearchItems(pb: any, userId: string, rows: SearchItemRow[]) {
   const existing = await pb.collection("searchItems").getFullList(1000, {
     filter: `user="${escapeFilter(userId)}"`,
-    fields: "id",
   });
 
+  const existingBySource = new Map<string, any[]>();
   for (const record of existing) {
-    await pb.collection("searchItems").delete(record.id).catch((error: any) => {
-      if (error?.status === 404) return;
-      throw error;
-    });
+    const sid = record.sourceId || "legacy";
+    if (!existingBySource.has(sid)) existingBySource.set(sid, []);
+    existingBySource.get(sid)!.push(record);
   }
 
-  const sortedRows = uniqueRows(rows).sort((left, right) => left.name.localeCompare(right.name));
-  for (const row of sortedRows) {
-    await pb.collection("searchItems").create({
-      user: userId,
-      name: row.name,
-      icon: row.icon,
-      secondary: row.secondary,
-      action: row.action,
-      app: row.app || null,
-      tags: JSON.stringify(row.tags ?? []),
-    });
+  const newBySource = new Map<string, SearchItemRow[]>();
+  for (const row of rows) {
+    const sid = row.sourceId || "unknown";
+    if (!newBySource.has(sid)) newBySource.set(sid, []);
+    newBySource.get(sid)!.push(row);
+  }
+
+  // 1. Clean up search items whose sources no longer exist
+  for (const [sid, records] of existingBySource.entries()) {
+    if (sid === "legacy") {
+      for (const r of records) await pb.collection("searchItems").delete(r.id).catch(() => {});
+      continue;
+    }
+    if (!newBySource.has(sid)) {
+      for (const r of records) await pb.collection("searchItems").delete(r.id).catch(() => {});
+    }
+  }
+
+  // 2. Process new rows
+  for (const [sid, newRows] of newBySource.entries()) {
+    const existingRecords = existingBySource.get(sid) || [];
+
+    // Determine if it's a link or integration
+    const isLink = newRows.length === 1 && newRows[0].app === "" && newRows[0].action.startsWith("url:");
+    
+    if (isLink) {
+      const newRow = newRows[0];
+      const existingRecord = existingRecords[0];
+
+      if (existingRecord) {
+        // "check if the parent link has been updated since the search item has lastly been updated. if yes replace, else discard"
+        const sourceUpdated = new Date(newRow.sourceUpdated || 0).getTime();
+        const itemUpdated = new Date(existingRecord.updated).getTime();
+
+        if (sourceUpdated <= itemUpdated) {
+          // Discard (keep existing)
+          continue;
+        }
+        
+        // Replace
+        await pb.collection("searchItems").delete(existingRecord.id).catch(() => {});
+      }
+
+      await pb.collection("searchItems").create({
+        user: userId,
+        name: newRow.name,
+        icon: newRow.icon,
+        secondary: newRow.secondary,
+        action: newRow.action,
+        app: newRow.app || null,
+        tags: JSON.stringify(newRow.tags ?? []),
+        sourceId: sid,
+        sourceUpdated: newRow.sourceUpdated,
+      });
+    } else {
+      // Integration logic: "regenerate every time and check whether the output differs"
+      const existingData = existingRecords.map(r => ({
+        name: r.name,
+        icon: r.icon,
+        secondary: r.secondary,
+        action: r.action,
+        app: r.app,
+        tags: parseTags(r.tags),
+      })).sort((a, b) => a.action.localeCompare(b.action));
+
+      const newData = newRows.map(r => ({
+        name: r.name,
+        icon: r.icon,
+        secondary: r.secondary,
+        action: r.action,
+        app: r.app,
+        tags: r.tags,
+      })).sort((a, b) => a.action.localeCompare(b.action));
+
+      if (JSON.stringify(existingData) === JSON.stringify(newData)) {
+        continue;
+      }
+
+      // Replace all for this source
+      for (const r of existingRecords) await pb.collection("searchItems").delete(r.id).catch(() => {});
+      for (const row of newRows) {
+        await pb.collection("searchItems").create({
+          user: userId,
+          name: row.name,
+          icon: row.icon,
+          secondary: row.secondary,
+          action: row.action,
+          app: row.app || null,
+          tags: JSON.stringify(row.tags ?? []),
+          sourceId: sid,
+          sourceUpdated: row.sourceUpdated,
+        });
+      }
+    }
   }
 }
 
@@ -264,6 +338,8 @@ export async function runSearchItemsIndexing() {
           String(link?.folder || ""),
           ...(Array.isArray(link?.tags) ? link.tags.map((tag: unknown) => String(tag)) : []),
         ].filter((tag): tag is string => tag.trim().length > 0),
+        sourceId: link.id,
+        sourceUpdated: link.updated,
       });
     }
 

@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 
-import { createCollection, createCollectionLinkItem, createHomeLinkGroup, createHomeLinkItem, createLinkTag, createLinksFolder, deleteLinkItem, getHomeLinkGroups, getHomeLinks, getLinksCollections, getLinksFolders, getLinksItems, getLinksTags, updateCollection, updateHomeLinkFolderIcon, updateHomeLinkItem, updateLinkTag } from "@dashwise/sdk/data/links";
+import { createCollection, createCollectionLinkItem, createHomeLinkGroup, createHomeLinkItem, createLinkTag, createLinksFolder, deleteLinkItem, getHomeLinkGroups, getHomeLinks, getLinksCollections, getLinksFolders, getLinksItems, getLinksTags, reorderLinks, updateCollection, updateHomeLinkFolderIcon, updateHomeLinkItem, updateLinkTag } from "@dashwise/sdk/data/links";
 
 import { readAuthToken, readJsonBody, requireAuth, withJson } from "./shared";
 
@@ -79,6 +79,11 @@ const linksRoute = new Hono();
     const body = await readJsonBody<any>(c);
     const { userId } = await requireAuth(body?.auth);
     return deleteLinkItem(userId, String(c.req.param("linkId") ?? ""));
+  }));
+  linksRoute.post("/api/v1/links/reorder", withJson(async (c) => {
+    const body = await readJsonBody<any>(c);
+    const { userId } = await requireAuth(body?.auth);
+    return reorderLinks(userId, body?.items ?? []);
   }));
   linksRoute.get("/api/v1/links/tags", withJson(async (c) => {
     const { userId } = await requireAuth({ token: readAuthToken(c) });
