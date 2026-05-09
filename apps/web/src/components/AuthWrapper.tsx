@@ -3,6 +3,7 @@ import { ReactNode, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import useAuth from "@/context/useAuth";
 import { cn } from "@/lib/utils";
+import { fetchWallpaperBlob } from "@/lib/apiClient";
 import { LocalizationProvider } from "@/context/LocalizationContext";
 
 type AuthWrapperProps = {
@@ -79,11 +80,7 @@ export default function AuthWrapper({ children }: AuthWrapperProps) {
           imgUrl.includes(window.location.host)
         ) {
           if (!tokenToUse) return;
-          const res = await fetch(imgUrl, {
-            headers: { Authorization: `Bearer ${tokenToUse}` },
-          });
-          if (!res.ok) throw new Error("Failed to fetch wallpaper with auth");
-          const blob = await res.blob();
+          const blob = await fetchWallpaperBlob(imgUrl, tokenToUse);
           finalUrl = URL.createObjectURL(blob);
           revokeUrl = finalUrl;
         }

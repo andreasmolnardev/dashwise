@@ -4,11 +4,16 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { loadFont } from "@/lib/loadFont";
 import useAuth from "@/context/useAuth";
 import { renderWidget } from "../widgets/Widget";
+import AppIcon from "@dashwise/app-icon";
 
-export default function Screensaver({ active, onExit }: { active: boolean; onExit: () => void }) {
+export default function Screensaver(
+  { active, onExit }: { active: boolean; onExit: () => void },
+) {
   const { user } = useAuth();
   const [fonts, setFonts] = useState<{ name: string; path: string }[]>([]);
-  const [screensaverConfig, setScreensaverConfig] = useState<any>(user?.screensaverPreferences);
+  const [screensaverConfig, setScreensaverConfig] = useState<any>(
+    user?.screensaverPreferences,
+  );
   const [isHovering, setIsHovering] = useState(false);
   const [activeFrameIndex, setActiveFrameIndex] = useState(0);
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -29,7 +34,8 @@ export default function Screensaver({ active, onExit }: { active: boolean; onExi
 
     checkLocal();
     window.addEventListener("dashwise_local_config_updated", checkLocal);
-    return () => window.removeEventListener("dashwise_local_config_updated", checkLocal);
+    return () =>
+      window.removeEventListener("dashwise_local_config_updated", checkLocal);
   }, [user?.screensaverPreferences]);
 
   useEffect(() => {
@@ -53,7 +59,10 @@ export default function Screensaver({ active, onExit }: { active: boolean; onExi
 
       document.addEventListener("visibilitychange", handleVisibilityChange);
       return () => {
-        document.removeEventListener("visibilitychange", handleVisibilityChange);
+        document.removeEventListener(
+          "visibilitychange",
+          handleVisibilityChange,
+        );
         if (wakeLock) {
           wakeLock.release().catch(() => undefined);
         }
@@ -62,11 +71,18 @@ export default function Screensaver({ active, onExit }: { active: boolean; onExi
   }, [active]);
 
   const useHomePageStyle = screensaverConfig?.useHomePageStyle ?? true;
-  const homePageFont = user?.appearancePreferences?.clock?.defaultFont || "MomoTrustDisplay";
+  const homePageFont = user?.appearancePreferences?.clock?.defaultFont ||
+    "MomoTrustDisplay";
 
-  const clockFont = useHomePageStyle ? homePageFont : screensaverConfig?.clockFont || homePageFont;
-  const clockFontWeight = useHomePageStyle ? "font-normal" : screensaverConfig?.clockFontWeight || "font-normal";
-  const color = useHomePageStyle ? "rgba(255, 255, 255, 0.8)" : screensaverConfig?.color || "rgba(255, 255, 255, 0.8)";
+  const clockFont = useHomePageStyle
+    ? homePageFont
+    : screensaverConfig?.clockFont || homePageFont;
+  const clockFontWeight = useHomePageStyle
+    ? "font-normal"
+    : screensaverConfig?.clockFontWeight || "font-normal";
+  const color = useHomePageStyle
+    ? "rgba(255, 255, 255, 0.8)"
+    : screensaverConfig?.color || "rgba(255, 255, 255, 0.8)";
   const size = useHomePageStyle ? 5 : screensaverConfig?.size || 9;
 
   useEffect(() => {
@@ -79,7 +95,10 @@ export default function Screensaver({ active, onExit }: { active: boolean; onExi
   }, [clockFont, fonts]);
 
   const frames = useMemo(() => {
-    if (Array.isArray(screensaverConfig?.frames) && screensaverConfig.frames.length > 0) {
+    if (
+      Array.isArray(screensaverConfig?.frames) &&
+      screensaverConfig.frames.length > 0
+    ) {
       return screensaverConfig.frames;
     }
 
@@ -89,7 +108,9 @@ export default function Screensaver({ active, onExit }: { active: boolean; onExi
         type: "main-clock",
         params: {
           font: clockFont,
-          weight: clockFontWeight.startsWith("font-") ? clockFontWeight.split("-")[1] : clockFontWeight,
+          weight: clockFontWeight.startsWith("font-")
+            ? clockFontWeight.split("-")[1]
+            : clockFontWeight,
           color,
           fontSize: `${size}rem`,
         },
@@ -128,9 +149,16 @@ export default function Screensaver({ active, onExit }: { active: boolean; onExi
         style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
         onScroll={handleScroll}
       >
-        <style dangerouslySetInnerHTML={{ __html: ".hide-scrollbar::-webkit-scrollbar { display: none; }" }} />
+        <style
+          dangerouslySetInnerHTML={{
+            __html: ".hide-scrollbar::-webkit-scrollbar { display: none; }",
+          }}
+        />
         {frames.map((frame: any) => (
-          <div key={frame.id} className="min-w-full h-full flex items-center justify-center snap-center relative">
+          <div
+            key={frame.id}
+            className="min-w-full h-full flex items-center justify-center snap-center relative"
+          >
             <div className="scale-150 transform origin-center">
               {renderWidget({
                 type: frame.type,
@@ -153,7 +181,9 @@ export default function Screensaver({ active, onExit }: { active: boolean; onExi
               <button
                 key={idx}
                 className={`w-2.5 h-2.5 rounded-full transition-all ${
-                  idx === activeFrameIndex ? "bg-white scale-125" : "bg-white/40 hover:bg-white/60"
+                  idx === activeFrameIndex
+                    ? "bg-white scale-125"
+                    : "bg-white/40 hover:bg-white/60"
                 }`}
                 onClick={() => scrollToFrame(idx)}
               />
@@ -163,17 +193,15 @@ export default function Screensaver({ active, onExit }: { active: boolean; onExi
       </div>
 
       <div
-        className={`absolute bottom-8 right-8 transition-opacity duration-300 ${
+        className={`absolute bottom-8 right-8 transition-opacity duration-300 group ${
           isHovering ? "opacity-100" : "opacity-0"
         }`}
+        onClick={onExit}
       >
-        <button
-          onClick={onExit}
-          className="w-12 h-12 bg-black/40 hover:bg-black/60 backdrop-blur-md rounded-full flex items-center justify-center text-white border border-white/10 transition-all pointer-events-auto"
-          title="Close Smart frame"
-        >
-          X
-        </button>
+        <AppIcon
+          source="fa6-solid:xmark"
+          className="w-12 h-12 bg-black/40 hover:bg-black/60 backdrop-blur-md rounded-full flex items-center justify-center text-white border border-white/10 transition-all pointer-events-auto group-hover:text-primary"
+        />
       </div>
     </div>
   );

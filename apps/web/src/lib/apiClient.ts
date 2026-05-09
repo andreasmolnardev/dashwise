@@ -98,6 +98,39 @@ async function requestRoute<T = unknown>(route: RouteConfig, input?: any): Promi
   return response?.data as T;
 }
 
+function isWallpaperApiUrl(url: URL) {
+  return url.pathname === "/api/v1/wallpapers" || url.pathname.endsWith("/api/v1/wallpapers");
+}
+
+export async function fetchWallpaperBlob(imageUrl: string, token?: string): Promise<Blob> {
+  const url = new URL(imageUrl, getBaseUrl());
+
+  if (!isWallpaperApiUrl(url)) {
+    const response = await fetch(url.toString(), {
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to fetch wallpaper");
+    }
+
+    return response.blob();
+  }
+
+  const query = Object.fromEntries(url.searchParams.entries());
+  const response = await apiClient.GET("/wallpapers" as any, {
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    params: { query } as any,
+    parseAs: "blob",
+  } as any);
+
+  if (response?.error) {
+    throw new Error(stringifyError(response.error));
+  }
+
+  return response.data as Blob;
+}
+
 function getRoute(modulePath: string, actionName: string) {
   const route = routes[`${modulePath}.${actionName}`];
 
