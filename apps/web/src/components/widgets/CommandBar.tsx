@@ -115,6 +115,7 @@ export default function CommandBar({ open, setOpen, searchItems, config }: Comma
     searchEngines.find((se) => se.status !== 'disabled') ||
     searchEngines[0];
 
+  const [clipboardText, setClipboardText] = React.useState('');
   const [query, setQuery] = React.useState('');
   const [filtered, setFiltered] = React.useState<LinkItem[]>(links);
   const [currentAppId, setCurrentAppId] = React.useState<string | null>(null);
@@ -131,11 +132,19 @@ export default function CommandBar({ open, setOpen, searchItems, config }: Comma
   React.useEffect(() => {
     if (open) {
       setTimeout(() => inputRef.current?.focus(), 10);
+      try {
+        navigator.clipboard?.readText?.().then(text => {
+          if (text && text.trim().length > 0) {
+            setClipboardText(text.trim());
+          }
+        }).catch(() => { /* ignore */ });
+      } catch (e) { /* ignore */ }
     } else {
       setQuery('');
       setFiltered(links);
       setCurrentAppId(null);
       setHighlightIndex(0);
+      setClipboardText('');
     }
   }, [open, links]);
 
@@ -325,6 +334,11 @@ export default function CommandBar({ open, setOpen, searchItems, config }: Comma
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     const actionsCount = actions.length;
+    if (e.key === 'Tab' && !query && clipboardText) {
+      e.preventDefault();
+      setQuery(clipboardText);
+      return;
+    }
     if (e.key === 'ArrowDown') {
       e.preventDefault();
       setHighlightIndex((i) => (i + 1) % actionsCount);
@@ -430,15 +444,23 @@ export default function CommandBar({ open, setOpen, searchItems, config }: Comma
       <DialogTitle className='hidden'>Search Bar</DialogTitle>
       <DialogContent className="min-w-[50vw] mx-auto frosted backdrop-blur-md rounded-lg p-0 shadow-lg text-foreground grid-rows-[auto_35vh_auto] gap-1">
         <div>
-          <input
-            ref={inputRef}
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Search your links, integrations, or press Enter to search the web..."
-            className="w-full flex-1 mx-3 mt-3 pt-1 rounded border border-none focus:outline-none"
-            aria-label="Command search"
-          />
+          <div className="relative flex mx-3 mt-3 pt-1 items-center">
+            <input
+              ref={inputRef}
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder={clipboardText && !query ? "" : "Search your links, integrations, or press Enter to search the web..."}
+              className="w-full flex-1 rounded border border-none bg-transparent focus:outline-none relative z-10"
+              aria-label="Command search"
+            />
+            {!query && clipboardText && (
+              <div className="absolute inset-y-0 left-0 flex items-center pointer-events-none text-muted-foreground opacity-50 z-0">
+                <span className="truncate max-w-[40vw]">{clipboardText}</span>
+                <span className="ml-2 text-[10px] border border-muted-foreground/50 rounded px-1.5 py-0.5">Tab</span>
+              </div>
+            )}
+          </div>
           <Separator className='my-2 bg-(--text-primary)/20' />
         </div>
 
