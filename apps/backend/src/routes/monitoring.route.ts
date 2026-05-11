@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 
-import { createMonitor, getMonitoringStatus, getMonitors, getMonitorById, runMonitoringStatus } from "@dashwise/sdk/data/monitoring";
+import { createMonitor, getMonitoringStatus, getMonitors, getMonitorById, runMonitoringStatus, updateMonitor } from "@dashwise/sdk/data/monitoring";
 import { deleteMonitoringJob } from "@dashwise/sdk/data/superuser";
 
 import { readAuthToken, readJsonBody, requireAuth, withJson } from "./shared";
@@ -20,6 +20,17 @@ const monitoringRoute = new Hono();
   monitoringRoute.get("/api/v1/monitors/:id", withJson(async (c) => {
     const { userId } = await requireAuth({ token: readAuthToken(c) });
     return getMonitorById(userId, c.req.param("id") || "");
+  }));
+
+  monitoringRoute.put("/api/v1/monitors/:id", withJson(async (c) => {
+    const body = await readJsonBody<any>(c);
+    const { userId } = await requireAuth(body?.auth);
+    const monitorId = c.req.param("id") || "";
+    const updated = await updateMonitor(userId, monitorId, body?.data ?? {});
+    if (!updated) {
+      return { _status: 404, error: "Monitor not found" };
+    }
+    return updated;
   }));
 
   monitoringRoute.delete("/api/v1/monitors/:id", withJson(async (c) => {
