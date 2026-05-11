@@ -73,6 +73,120 @@ interface GroupLabelProps {
     dropdownActions?: DropdownAction[];
 }
 
+// ─── AppTemplate ──────────────────────────────────────────────────────────────
+
+export default function AppTemplate({
+    title,
+    children,
+}: {
+    title: string;
+    children: ReactNode;
+}) {
+    const location = useLocation();
+    const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+    const childArray = Children.toArray(children);
+
+    const sidebar = childArray.find(
+        (c) => isValidElement(c) && (c as React.ReactElement).type === Sidebar,
+    );
+
+    const content = childArray.find(
+        (c) => isValidElement(c) && (c as React.ReactElement).type === Content,
+    );
+
+    const overlays = childArray.filter(
+        (c) =>
+            isValidElement(c) &&
+            (c as React.ReactElement).type !== Sidebar &&
+            (c as React.ReactElement).type !== Content,
+    );
+
+    useEffect(() => {
+        setMobileSidebarOpen(false);
+    }, [location.pathname, location.search]);
+
+    return (
+        <SidebarContext.Provider value={{
+            pathname: location.pathname,
+            search: location.search,
+            closeMobileSidebar: () => setMobileSidebarOpen(false),
+        }}>
+            <div className="relative flex h-dvh overflow-hidden bg-(--surface) text-white backdrop-blur-[5px] backdrop-brightness-85">
+                <div className="hidden md:flex w-65 shrink-0 flex-col p-4 pr-0">
+                    <h1 className="text-4xl font-bold tracking-tight text-balance mb-1 shrink-0">
+                        {title}
+                    </h1>
+                    <div className="flex-1 min-h-0 pr-4">{sidebar}</div>
+                </div>
+
+                <div className="flex min-w-0 flex-1 flex-col p-4 md:pl-0 gap-4 overflow-y-scroll">
+                    <div className="flex items-center justify-between gap-3 md:hidden shrink-0">
+                        <button
+                            type="button"
+                            onClick={() => setMobileSidebarOpen(true)}
+                            className="frosted-lite inline-flex h-10 w-10 items-center justify-center rounded-full text-white/80 transition-colors hover:text-white"
+                            aria-label="Open sidebar"
+                            title="Open sidebar"
+                        >
+                            <Icon icon="fa6-solid:bars" className="text-sm" />
+                        </button>
+
+                        <h1 className="min-w-0 truncate text-xl font-semibold tracking-tight">
+                            {title}
+                        </h1>
+
+                        <div className="h-10 w-10" aria-hidden />
+                    </div>
+
+                    <div className="min-h-0 flex-1">{content}</div>
+                </div>
+
+                <div
+                    className={`fixed inset-0 z-40 md:hidden transition-opacity duration-200 ${
+                        mobileSidebarOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"
+                    }`}
+                    aria-hidden={!mobileSidebarOpen}
+                >
+                    <button
+                        type="button"
+                        aria-label="Close sidebar"
+                        className="absolute inset-0 bg-black/55"
+                        onClick={() => setMobileSidebarOpen(false)}
+                        tabIndex={mobileSidebarOpen ? 0 : -1}
+                    />
+
+                    <aside
+                        className={`frosted absolute left-0 top-0 h-full w-[min(84vw,19rem)] border-r border-white/10 bg-(--surface) p-4 shadow-2xl transition-transform duration-250 ease-out ${
+                            mobileSidebarOpen ? "translate-x-0" : "-translate-x-full"
+                        }`}
+                    >
+                        <div className="flex h-full min-h-0 flex-col">
+                            <div className="mb-4 flex items-center justify-between gap-3 shrink-0">
+                                <h1 className="min-w-0 truncate text-3xl font-bold tracking-tight">
+                                    {title}
+                                </h1>
+                                <button
+                                    type="button"
+                                    onClick={() => setMobileSidebarOpen(false)}
+                                    className="frosted-lite inline-flex h-10 w-10 items-center justify-center rounded-full text-white/80 transition-colors hover:text-white"
+                                    aria-label="Close sidebar"
+                                    title="Close sidebar"
+                                >
+                                    <Icon icon="fa6-solid:xmark" className="text-sm" />
+                                </button>
+                            </div>
+
+                            <div className="min-h-0 flex-1 overflow-hidden">{sidebar}</div>
+                        </div>
+                    </aside>
+                </div>
+            </div>
+
+            {overlays}
+        </SidebarContext.Provider>
+    );
+}
+
 // ─── Tab ─────────────────────────────────────────────────────────────────────
 
 export function Tab({ dst, icon, title, group, isRoot, fallbackIcon, badge, dropdownActions }: TabProps) {
@@ -420,118 +534,4 @@ export function Sidebar({ children }: { children: ReactNode }) {
 
 export function Content({ children }: { children: ReactNode }) {
     return <div className="flex-1 overflow-y-auto">{children}</div>;
-}
-
-// ─── AppTemplate ──────────────────────────────────────────────────────────────
-
-export default function AppTemplate({
-    title,
-    children,
-}: {
-    title: string;
-    children: ReactNode;
-}) {
-    const location = useLocation();
-    const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
-    const childArray = Children.toArray(children);
-
-    const sidebar = childArray.find(
-        (c) => isValidElement(c) && (c as React.ReactElement).type === Sidebar,
-    );
-
-    const content = childArray.find(
-        (c) => isValidElement(c) && (c as React.ReactElement).type === Content,
-    );
-
-    const overlays = childArray.filter(
-        (c) =>
-            isValidElement(c) &&
-            (c as React.ReactElement).type !== Sidebar &&
-            (c as React.ReactElement).type !== Content,
-    );
-
-    useEffect(() => {
-        setMobileSidebarOpen(false);
-    }, [location.pathname, location.search]);
-
-    return (
-        <SidebarContext.Provider value={{
-            pathname: location.pathname,
-            search: location.search,
-            closeMobileSidebar: () => setMobileSidebarOpen(false),
-        }}>
-            <div className="relative flex h-dvh overflow-hidden bg-(--surface) text-white backdrop-blur-[5px] backdrop-brightness-85">
-                <div className="hidden md:flex w-65 shrink-0 flex-col p-4 pr-0">
-                    <h1 className="text-4xl font-bold tracking-tight text-balance mb-1 shrink-0">
-                        {title}
-                    </h1>
-                    <div className="flex-1 min-h-0 pr-4">{sidebar}</div>
-                </div>
-
-                <div className="flex min-w-0 flex-1 flex-col p-4 md:pl-0 gap-4">
-                    <div className="flex items-center justify-between gap-3 md:hidden shrink-0">
-                        <button
-                            type="button"
-                            onClick={() => setMobileSidebarOpen(true)}
-                            className="frosted-lite inline-flex h-10 w-10 items-center justify-center rounded-full text-white/80 transition-colors hover:text-white"
-                            aria-label="Open sidebar"
-                            title="Open sidebar"
-                        >
-                            <Icon icon="fa6-solid:bars" className="text-sm" />
-                        </button>
-
-                        <h1 className="min-w-0 truncate text-xl font-semibold tracking-tight">
-                            {title}
-                        </h1>
-
-                        <div className="h-10 w-10" aria-hidden />
-                    </div>
-
-                    <div className="min-h-0 flex-1">{content}</div>
-                </div>
-
-                <div
-                    className={`fixed inset-0 z-40 md:hidden transition-opacity duration-200 ${
-                        mobileSidebarOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"
-                    }`}
-                    aria-hidden={!mobileSidebarOpen}
-                >
-                    <button
-                        type="button"
-                        aria-label="Close sidebar"
-                        className="absolute inset-0 bg-black/55"
-                        onClick={() => setMobileSidebarOpen(false)}
-                        tabIndex={mobileSidebarOpen ? 0 : -1}
-                    />
-
-                    <aside
-                        className={`frosted absolute left-0 top-0 h-full w-[min(84vw,19rem)] border-r border-white/10 bg-(--surface) p-4 shadow-2xl transition-transform duration-250 ease-out ${
-                            mobileSidebarOpen ? "translate-x-0" : "-translate-x-full"
-                        }`}
-                    >
-                        <div className="flex h-full min-h-0 flex-col">
-                            <div className="mb-4 flex items-center justify-between gap-3 shrink-0">
-                                <h1 className="min-w-0 truncate text-3xl font-bold tracking-tight">
-                                    {title}
-                                </h1>
-                                <button
-                                    type="button"
-                                    onClick={() => setMobileSidebarOpen(false)}
-                                    className="frosted-lite inline-flex h-10 w-10 items-center justify-center rounded-full text-white/80 transition-colors hover:text-white"
-                                    aria-label="Close sidebar"
-                                    title="Close sidebar"
-                                >
-                                    <Icon icon="fa6-solid:xmark" className="text-sm" />
-                                </button>
-                            </div>
-
-                            <div className="min-h-0 flex-1 overflow-hidden">{sidebar}</div>
-                        </div>
-                    </aside>
-                </div>
-            </div>
-
-            {overlays}
-        </SidebarContext.Provider>
-    );
 }
