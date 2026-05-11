@@ -7,11 +7,13 @@ import useAuth from "@/context/useAuth";
 import { getMonitorsAction } from "@/app/actions/monitoring";
 import type { MonitorRecord } from "@/app/actions/monitoring";
 import AddMonitoringResourceDialog from "@/components/monitoring/AddMonitoringResourceDialog";
+import { useMonitoringLinkLookup } from "@/components/monitoring/useMonitoringLinkLookup";
 
 export default function MonitoringRootLayout() {
     const { token, withAuth } = useAuth();
     const [monitors, setMonitors] = useState<MonitorRecord[]>([]);
     const [searchParams, setSearchParams] = useSearchParams();
+    const { entryById } = useMonitoringLinkLookup();
 
     const monitorDialogOpen = searchParams.get("newMonitor") === "true";
 
@@ -72,14 +74,19 @@ export default function MonitoringRootLayout() {
                 />
 
                 {monitors.map((monitor) => (
+                    (() => {
+                        const entry = entryById.get(String(monitor.sourcelinkId || monitor.linkId || ""));
+                        return (
                     <Tab
                         key={monitor.id}
                         dst={`/apps/monitoring/${monitor.id}`}
                         icon="fa6-solid:server"
-                        title={monitor.endpoint || monitor.sourcelinkId || monitor.source || monitor.id}
+                        title={entry?.title || monitor.endpoint || monitor.sourcelinkId || monitor.source || monitor.id}
                         group="Monitors"
                         badge={monitor.status ? monitor.status : undefined}
                     />
+                        );
+                    })()
                 ))}
             </Sidebar>
 
