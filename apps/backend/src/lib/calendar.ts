@@ -1,4 +1,5 @@
 import { CalDAVClient } from "ts-caldav";
+import { config } from "./config";
 
 const CACHE_TTL_MS = 5 * 60 * 1000;
 
@@ -50,7 +51,8 @@ export async function getUpcomingEvents(
         type: "basic",
         username,
         password,
-      }, //todo: allow self signed certs
+      },
+      rejectUnauthorized: !config.ALLOW_SSL,
     });
 
     const calendars = await client.getCalendars();
