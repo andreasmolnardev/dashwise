@@ -25,6 +25,25 @@ type ResponseUpFilter = {
     acceptBodyProperties?: unknown;
 } | string | null | undefined;
 
+type OutlierThreshold = {
+    type: "absolute" | "relative";
+    value: number;
+};
+
+type PingOutlier = {
+    created: string;
+    latencyMs: number;
+    threshold: OutlierThreshold;
+    baselineMs?: number;
+    deltaMs?: number;
+    deltaPercent?: number;
+};
+
+type AvgLatencyInfo = {
+    avgMs: number;
+    samples: number;
+};
+
 const logger = createLogger("Monitoring");
 
 export async function runStatusMonitoringJobs(): Promise<{
@@ -101,6 +120,16 @@ export async function runStatusMonitoringJobsWithOptions(options?: {
             const statusAccepted = responseUpFilter.acceptStatusCodes.has(resultData.status);
             const bodyAccepted = matchesExpectedBody(responseUpFilter.acceptBodyProperties, resultData.body, resultData.contentType);
             const newStatus = statusAccepted && bodyAccepted ? 'healthy' : 'unhealthy';
+            const pingTimestamp = new Date().toISOString();
+            const latencyUpdate = buildLatencyUpdate(job, resultData.latencyMs, pingTimestamp);
+
+            if (latencyUpdate.isOutlier) {
+                logger.info("Response time outlier detected", {
+                    jobId: job.id,
+                    latencyMs: resultData.latencyMs,
+                    threshold: job?.pingOutlierThreshold || config.MONITORING_OUTLIER_THRESHOLD_VALUE,
+                });
+            }
 
             if (newStatus !== currentStatus) {
                 const existingPings = normalizePings(job.pings);
@@ -108,16 +137,18 @@ export async function runStatusMonitoringJobsWithOptions(options?: {
                     ...existingPings,
                     {
                         status: newStatus,
-                        created: new Date().toISOString(),
+                        created: pingTimestamp,
                         httpStatus: resultData.status,
                         method,
                         endpoint,
+                        latencyMs: resultData.latencyMs,
                     },
                 ];
 
                 await updateMonitoringJob(job.id, {
                     status: newStatus,
                     pings: updatedPings,
+                    ...latencyUpdate.payload,
                 });
 
                 result.updated++;
@@ -131,6 +162,9 @@ export async function runStatusMonitoringJobsWithOptions(options?: {
                     method,
                 });
             } else {
+                await updateMonitoringJob(job.id, {
+                    ...latencyUpdate.payload,
+                });
                 result.details.push({
                     jobId: job.id,
                     action: 'no_change',
@@ -302,6 +336,149 @@ function normalizePings(raw: unknown): any[] {
     }
 
     return [];
+}
+
+function normalizeOutliers(raw: unknown): PingOutlier[] {
+    if (!raw) return [];
+
+    if (Array.isArray(raw)) {
+        return raw as PingOutlier[];
+    }
+
+    if (typeof raw === "string") {
+        try {
+            const parsed = JSON.parse(raw);
+            return Array.isArray(parsed) ? (parsed as PingOutlier[]) : [];
+        } catch {
+            return [];
+        }
+    }
+
+    return [];
+}
+
+function parseOutlierThreshold(raw: unknown, fallback: OutlierThreshold): OutlierThreshold {
+    if (!raw) return fallback;
+
+    if (typeof raw === "number" && Number.isFinite(raw)) {
+        return { type: "absolute", value: raw };
+    }
+
+    if (typeof raw === "string") {
+        const trimmed = raw.trim();
+        if (!trimmed) return fallback;
+
+        if (trimmed.endsWith("%")) {
+            const value = Number(trimmed.slice(0, -1));
+            return Number.isFinite(value) ? { type: "relative", value } : fallback;
+        }
+
+        try {
+            const parsed = JSON.parse(trimmed);
+            return parseOutlierThreshold(parsed, fallback);
+        } catch {
+            const value = Number(trimmed);
+            return Number.isFinite(value) ? { type: "absolute", value } : fallback;
+        }
+    }
+
+    if (typeof raw === "object" && raw) {
+        const type = (raw as any).type === "absolute" ? "absolute" : (raw as any).type === "relative" ? "relative" : fallback.type;
+        const value = Number((raw as any).value);
+        if (Number.isFinite(value)) {
+            return { type, value };
+        }
+    }
+
+    return fallback;
+}
+
+function parseAvgLatency(raw: unknown): AvgLatencyInfo {
+    if (!raw) return { avgMs: 0, samples: 0 };
+
+    if (typeof raw === "number" && Number.isFinite(raw)) {
+        return { avgMs: raw, samples: 0 };
+    }
+
+    if (typeof raw === "string") {
+        try {
+            const parsed = JSON.parse(raw);
+            return parseAvgLatency(parsed);
+        } catch {
+            const value = Number(raw);
+            if (Number.isFinite(value)) {
+                return { avgMs: value, samples: 0 };
+            }
+        }
+    }
+
+    if (typeof raw === "object" && raw) {
+        const avgMs = Number((raw as any).avgMs);
+        const samples = Number((raw as any).samples);
+        return {
+            avgMs: Number.isFinite(avgMs) ? avgMs : 0,
+            samples: Number.isFinite(samples) ? Math.max(0, Math.floor(samples)) : 0,
+        };
+    }
+
+    return { avgMs: 0, samples: 0 };
+}
+
+function buildLatencyUpdate(job: any, latencyMs: number, created: string) {
+    const fallback: OutlierThreshold = {
+        type: config.MONITORING_OUTLIER_THRESHOLD_TYPE,
+        value: config.MONITORING_OUTLIER_THRESHOLD_VALUE,
+    };
+    const threshold = parseOutlierThreshold(job?.pingOutlierThreshold, fallback);
+    const shouldPersistThreshold = !job?.pingOutlierThreshold;
+    const avgInfo = parseAvgLatency(job?.pingAvgLatency);
+    const newSamples = avgInfo.samples + 1;
+    const newAvg = avgInfo.samples > 0
+        ? (avgInfo.avgMs * avgInfo.samples + latencyMs) / newSamples
+        : latencyMs;
+    const normalizedAvg = Number(newAvg.toFixed(2));
+
+    const payload: Record<string, unknown> = {
+        pingAvgLatency: JSON.stringify({ avgMs: normalizedAvg, samples: newSamples }),
+    };
+
+    if (shouldPersistThreshold) {
+        payload.pingOutlierThreshold = threshold;
+    }
+
+    let isOutlier = false;
+    let deltaMs: number | undefined;
+    let deltaPercent: number | undefined;
+    const baselineMs = avgInfo.samples > 0 ? avgInfo.avgMs : undefined;
+
+    if (threshold.type === "absolute") {
+        isOutlier = latencyMs > threshold.value;
+        if (isOutlier) {
+            deltaMs = latencyMs - threshold.value;
+        }
+    } else if (baselineMs && baselineMs > 0) {
+        const limit = baselineMs * (1 + threshold.value / 100);
+        isOutlier = latencyMs > limit;
+        if (isOutlier) {
+            deltaMs = latencyMs - baselineMs;
+            deltaPercent = (deltaMs / baselineMs) * 100;
+        }
+    }
+
+    if (isOutlier) {
+        const updatedOutliers = normalizeOutliers(job?.pingOutliers);
+        updatedOutliers.push({
+            created,
+            latencyMs,
+            threshold,
+            baselineMs,
+            deltaMs: deltaMs !== undefined ? Number(deltaMs.toFixed(2)) : undefined,
+            deltaPercent: deltaPercent !== undefined ? Number(deltaPercent.toFixed(2)) : undefined,
+        });
+        payload.pingOutliers = updatedOutliers;
+    }
+
+    return { payload, isOutlier };
 }
 
 function parseAcceptedCodeList(raw: unknown): number[] {

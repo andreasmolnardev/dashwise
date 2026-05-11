@@ -16,6 +16,7 @@ export interface MonitoringRequestResult {
     status: number;
     body: string;
     contentType: string;
+    latencyMs: number;
 }
 
 /**
@@ -32,6 +33,7 @@ export async function monitorHelper({
 }: MonitoringRequestOptions): Promise<MonitoringRequestResult> {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 10_000);
+    const start = Date.now();
 
     try {
         const headers: Record<string, string> = {};
@@ -56,10 +58,14 @@ export async function monitorHelper({
                 : {}),
         });
 
+        const body = await res.text();
+        const latencyMs = Date.now() - start;
+
         return {
             status: res.status,
-            body: await res.text(),
+            body,
             contentType: res.headers.get("content-type") || "",
+            latencyMs,
         };
     } finally {
         clearTimeout(timeout);
