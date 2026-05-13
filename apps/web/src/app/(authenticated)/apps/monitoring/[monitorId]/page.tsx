@@ -309,9 +309,14 @@ export default function MonitoringDetailPage() {
         [pings, monitor?.status, latestPing?.status],
     );
     const avgLatency = parsePingAvgLatency(monitor?.pingAvgLatency);
-    const outliers = useMemo(() => parseOutliers(monitor?.pingOutliers), [
-        monitor?.pingOutliers,
-    ]);
+    const outliers = useMemo(() => {
+        const parsed = parseOutliers(monitor?.pingOutliers);
+        return [...parsed].sort((a, b) => {
+            const aTime = a.created ? new Date(a.created).getTime() : 0;
+            const bTime = b.created ? new Date(b.created).getTime() : 0;
+            return bTime - aTime;
+        });
+    }, [monitor?.pingOutliers]);
     const statusChanges = useMemo(() => buildStatusChanges(pings), [pings]);
 
     useEffect(() => {
@@ -371,255 +376,246 @@ export default function MonitoringDetailPage() {
     const changeLabel = formatStatusLabel(currentStatus);
 
     return (
-        <div className="space-y-2">
-            <div className="space-y-5">
-                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                    <div className="min-w-0 space-y-3">
-                        <div className="flex flex-wrap items-start gap-3">
-                            <div className="min-w-0 space-y-2">
-                                <div className="flex flex-wrap items-center gap-2">
-                                    <h1 className="text-3xl font-semibold text-balance">
-                                        {monitorTitle}
-                                    </h1>
-                                    {linkEntry &&
-                                            linkEntry.sourceType !== "home" &&
-                                            linkEntry.collectionId
-                                        ? (
-                                            <button
-                                                type="button"
-                                                onClick={() =>
-                                                    navigate(
-                                                        `/links/lists/${linkEntry.collectionId}`,
-                                                    )}
-                                                className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-transparent text-white/75 transition-colors hover:bg-white/10 hover:backdrop-blur-md hover:text-white"
-                                                aria-label="Open parent collection"
-                                                title="Open parent collection"
-                                            >
-                                                <Icon
-                                                    icon="fa6-solid:folder-open"
-                                                    className="text-sm"
-                                                />
-                                            </button>
-                                        )
-                                        : null}
-                                    {linkEntry?.url
-                                        ? (
-                                            <button
-                                                type="button"
-                                                onClick={() =>
-                                                    window.open(
-                                                        linkEntry.url,
-                                                        "_blank",
-                                                        "noopener,noreferrer",
-                                                    )}
-                                                className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-transparent text-white/75 transition-colors hover:bg-white/10 hover:backdrop-blur-md hover:text-white"
-                                                aria-label="Open monitored URL"
-                                                title="Open monitored URL"
-                                            >
-                                                <Icon
-                                                    icon="fa6-solid:globe"
-                                                    className="text-sm"
-                                                />
-                                            </button>
-                                        )
-                                        : null}
-                                </div>
+        <div className="space-y-4">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                <div className="min-w-0 space-y-3">
+                    <div className="flex flex-wrap items-start gap-3">
+                        <div className="min-w-0 space-y-2">
+                            <div className="flex flex-wrap items-center gap-2">
+                                <h1 className="text-3xl font-semibold text-balance">
+                                    {monitorTitle}
+                                </h1>
+                                {linkEntry &&
+                                        linkEntry.sourceType !== "home" &&
+                                        linkEntry.collectionId
+                                    ? (
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                navigate(
+                                                    `/links/lists/${linkEntry.collectionId}`,
+                                                )}
+                                            className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-transparent text-white/75 transition-colors hover:bg-white/10 hover:backdrop-blur-md hover:text-white"
+                                            aria-label="Open parent collection"
+                                            title="Open parent collection"
+                                        >
+                                            <Icon
+                                                icon="fa6-solid:folder-open"
+                                                className="text-sm"
+                                            />
+                                        </button>
+                                    )
+                                    : null}
+                                {linkEntry?.url
+                                    ? (
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            onClick={() =>
+                                                // todo: follow user tan open behavior settings (new tab vs same tab)
+                                                window.open(
+                                                    linkEntry.url,
+                                                    "_blank",
+                                                    "noopener,noreferrer",
+                                                )}
+                                            aria-label="Open monitored URL"
+                                            title="Open monitored URL"
+                                            className="rounded-full p-2 h-min"
+                                        >
+                                            <Icon
+                                                icon="fa6-solid:globe"
+                                                className="text-sm"
+                                            />
+                                        </Button>
+                                    )
+                                    : null}
+                            </div>
 
-                                <div className="flex flex-wrap items-center gap-2 text-sm text-white/70">
-                                    <span className="inline-flex items-center rounded-full border border-white/10 bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-white/90">
-                                        {method}
-                                    </span>
-                                    <span className="max-w-full wrap-break-word text-sm text-white/70">
-                                        {monitoredUrl}
-                                    </span>
-                                </div>
+                            <div className="flex flex-wrap items-center gap-2 text-sm text-white/70">
+                                <span className="inline-flex items-center rounded-full border border-white/10 bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-white/90">
+                                    {method}
+                                </span>
+                                <span className="max-w-full wrap-break-word text-sm text-white/70">
+                                    {monitoredUrl}
+                                </span>
                             </div>
                         </div>
                     </div>
-
-                    <div className="flex items-center gap-2 self-start lg:justify-end">
-                        <button
-                            type="button"
-                            onClick={() => setEditOpen(true)}
-                            className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-transparent text-white/75 transition-colors hover:bg-white/10 hover:backdrop-blur-md hover:text-white"
-                            aria-label="Edit monitor"
-                            title="Edit monitor"
-                        >
-                            <Icon icon="fa6-solid:pen" className="text-sm" />
-                        </button>
-
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                                <button
-                                    type="button"
-                                    className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-transparent text-white/75 transition-colors hover:bg-white/10 hover:backdrop-blur-md hover:text-white"
-                                    aria-label="More actions"
-                                    title="More actions"
-                                >
-                                    <Icon
-                                        icon="fa6-solid:ellipsis-vertical"
-                                        className="text-sm"
-                                    />
-                                </button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent
-                                align="end"
-                                className="min-w-48 text-foreground"
-                            >
-                                <DropdownMenuItem
-                                    variant="destructive"
-                                    onSelect={(event) => {
-                                        event.preventDefault();
-                                        if (
-                                            !confirm(
-                                                "Are you sure you want to delete this monitor?",
-                                            )
-                                        ) return;
-                                        void (async () => {
-                                            setDeleting(true);
-                                            try {
-                                                await withAuth((auth) =>
-                                                    deleteMonitorAction(
-                                                        auth,
-                                                        monitorId,
-                                                    )
-                                                );
-                                                navigate("/apps/monitoring");
-                                            } catch (err) {
-                                                console.error(
-                                                    "Failed to delete monitor:",
-                                                    err,
-                                                );
-                                                setError(
-                                                    "Failed to delete monitor",
-                                                );
-                                                setDeleting(false);
-                                            }
-                                        })();
-                                    }}
-                                    className="cursor-pointer"
-                                >
-                                    <Icon
-                                        icon="fa6-solid:trash"
-                                        className="text-sm"
-                                    />
-                                    {deleting
-                                        ? "Deleting..."
-                                        : "Delete monitor"}
-                                </DropdownMenuItem>
-                            </DropdownMenuContent>
-                        </DropdownMenu>
-                    </div>
                 </div>
 
-                <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-                    <div className="space-y-2">
-                        <div className="text-3xl font-semibold text-white">
-                            <span
-                                className={currentStatus === "healthy"
-                                    ? "text-emerald-300"
-                                    : currentStatus === "disabled"
-                                    ? "text-slate-300"
-                                    : "text-rose-300"}
-                            >
-                                {changeLabel}
-                            </span>{" "}
-                            since {formatTimestamp(lastChangeAt)}
-                        </div>
-                    </div>
+                <div className="flex items-center gap-2 self-start lg:justify-end">
+                    <button
+                        type="button"
+                        onClick={() => setEditOpen(true)}
+                        className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-transparent text-white/75 transition-colors hover:bg-white/10 hover:backdrop-blur-md hover:text-white"
+                        aria-label="Edit monitor"
+                        title="Edit monitor"
+                    >
+                        <Icon icon="fa6-solid:pen" className="text-sm" />
+                    </button>
 
-                    <div className="text-right">
-                        <div className="text-3xl font-semibold text-white">
-                            {uptimeScore.toFixed(2)}% Uptime
-                        </div>
-                    </div>
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <button
+                                type="button"
+                                className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-transparent text-white/75 transition-colors hover:bg-white/10 hover:backdrop-blur-md hover:text-white"
+                                aria-label="More actions"
+                                title="More actions"
+                            >
+                                <Icon
+                                    icon="fa6-solid:ellipsis-vertical"
+                                    className="text-sm"
+                                />
+                            </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent
+                            align="end"
+                            className="min-w-48 text-foreground"
+                        >
+                            <DropdownMenuItem
+                                variant="destructive"
+                                onSelect={(event) => {
+                                    event.preventDefault();
+                                    if (
+                                        !confirm(
+                                            "Are you sure you want to delete this monitor?",
+                                        )
+                                    ) return;
+                                    void (async () => {
+                                        setDeleting(true);
+                                        try {
+                                            await withAuth((auth) =>
+                                                deleteMonitorAction(
+                                                    auth,
+                                                    monitorId,
+                                                )
+                                            );
+                                            navigate("/apps/monitoring");
+                                        } catch (err) {
+                                            console.error(
+                                                "Failed to delete monitor:",
+                                                err,
+                                            );
+                                            setError(
+                                                "Failed to delete monitor",
+                                            );
+                                            setDeleting(false);
+                                        }
+                                    })();
+                                }}
+                                className="cursor-pointer"
+                            >
+                                <Icon
+                                    icon="fa6-solid:trash"
+                                    className="text-sm"
+                                />
+                                {deleting ? "Deleting..." : "Delete monitor"}
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
                 </div>
             </div>
 
-            {/* timeline */}
-            <div className="space-y-5">
+            <section className="frosted rounded-xl p-3 space-y-3">
+                <div className="grid grid-cols-[1fr_auto]">
+                    <div className="text-2xl font-semibold text-white">
+                        <span
+                            className={currentStatus === "healthy"
+                                ? "text-emerald-300"
+                                : currentStatus === "disabled"
+                                ? "text-slate-300"
+                                : "text-rose-300"}
+                        >
+                            {changeLabel}
+                        </span>{" "}
+                        since {formatTimestamp(lastChangeAt)}
+                    </div>
+                    <div className="text-2xl font-semibold text-white">
+                        {uptimeScore.toFixed(2)}% Uptime
+                    </div>
+                </div>
+                <span className="text-sm text-white/70">
+                    Last checked at {formatTimestamp(latestPing?.created)}
+                </span>
+
+                {/* timeline */}
                 <MonitoringTimeline
                     status={monitor.status}
                     dateChanged={latestPing?.created ?? monitor.updated ??
                         monitor.created ?? null}
                     durationChanged={latestChangeDurationSeconds}
                 />
-
+            </section>
+            <section className="frosted rounded-xl p-3 space-y-3">
                 <div className="grid grid-cols-[auto_1fr] text-2xl font-semibold text-white">
                     Average response time
                     <span className="justify-self-end">
                         {formatLatency(avgLatency)}
                     </span>
                 </div>
-            </div>
+                {/* Outliers */}
+                <h2 className="text-xl font-semibold m-0">
+                    Outliers (+{formatThresholdValue(outliers[0]) ||
+                        "No threshold"})
+                </h2>
 
-            {/* Outliers */}
-            <h2 className="text-2xl font-semibold pt-3 m-0">
-                Outliers (+{formatThresholdValue(outliers[0]) ||
-                    "No threshold"})
-            </h2>
+                {outliers.length === 0
+                    ? (
+                        <div className="py-2 text-sm text-white/60">
+                            No response-time outliers have been recorded yet.
+                        </div>
+                    )
+                    : (
+                        <div className="space-y-0.5">
+                            {outliers.slice(0, visibleOutliers).map(
+                                (outlier, index) => {
+                                    return (
+                                        <div
+                                            key={`${outlier.created}-${index}`}
+                                            className="py-2"
+                                        >
+                                            <div className="text-base font-semibold text-white">
+                                                {formatTimestamp(
+                                                    outlier.created,
+                                                )}
+                                            </div>
+                                            <div className="mt-1 text-sm text-white/65">
+                                                {formatThresholdLabel(outlier)}
+                                            </div>
+                                        </div>
+                                    );
+                                },
+                            )}
 
-            {outliers.length === 0
-                ? (
-                    <div className="py-2 text-sm text-white/60">
-                        No response-time outliers have been recorded yet.
-                    </div>
-                )
-                : (
-                    <div className="space-y-0.5">
-                        {outliers.slice(0, visibleOutliers).map(
-                            (outlier, index) => {
-                                return (
-                                    <div
-                                        key={`${outlier.created}-${index}`}
-                                        className="py-2"
-                                    >
-                                        <div className="text-base font-semibold text-white">
-                                            {formatTimestamp(outlier.created)}
-                                        </div>
-                                        <div className="mt-1 text-sm text-white/65">
-                                            {formatThresholdLabel(outlier)}
-                                        </div>
+                            {outliers.length > visibleOutliers
+                                ? (
+                                    <div className="pt-1 flex w-full justify-center">
+                                        <Button
+                                            variant="ghost"
+                                            onClick={() =>
+                                                setVisibleOutliers((current) =>
+                                                    current + 20
+                                                )}
+                                        >
+                                            <AppIcon source="fa6-solid:chevron-down" />
+                                            Show more outliers
+                                        </Button>
                                     </div>
-                                );
-                            },
-                        )}
-
-                        {outliers.length > visibleOutliers
-                            ? (
-                                <div className="pt-1 flex w-full justify-center">
-                                    <Button
-                                        variant="ghost"
-                                        onClick={() =>
-                                            setVisibleOutliers((current) =>
-                                                current + 20
-                                            )}
-                                    >
-                                        <AppIcon source="fa6-solid:chevron-down"/>
-                                        Show more outliers
-                                    </Button>
-                                </div>
-                            )
-                            : null}
-                    </div>
-                )}
-
-            {/* Status changes */}
-            <div className="space-y-4">
-                <div className="flex items-start justify-between gap-4">
-                    <div>
-                        <h2 className="text-2xl font-semibold">
-                            Status changes
-                        </h2>
-                        <p className="mt-2 text-sm text-white/60">
-                            Rendered from the monitor ping history in the same
-                            style as the dialog timeline.
-                        </p>
-                    </div>
+                                )
+                                : null}
+                        </div>
+                    )}
+            </section>
+            <section className="frosted p-4 space-y-3 rounded-xl">
+                {/* Status changes */}
+                <div className="flex justify-between items-center">
+                    <h2 className="text-2xl font-semibold">
+                        Status changes
+                    </h2>
                     <button
                         type="button"
                         onClick={() => setNotificationsOpen(true)}
-                        className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-transparent text-white/75 transition-colors hover:bg-white/10 hover:backdrop-blur-md hover:text-white"
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-transparent text-white/75 transition-colors hover:bg-white/10 hover:backdrop-blur-md hover:text-white"
                         aria-label="Notification settings"
                         title="Notification settings"
                     >
@@ -646,8 +642,8 @@ export default function MonitoringDetailPage() {
                                         {formatStatusLabel(entry.status)}
                                     </div>
                                     <div className="text-sm text-white/65">
-                                        {formatTimestamp(entry.created)}
-                                        {" "}After{" "}
+                                        {formatTimestamp(entry.created)} After
+                                        {" "}
                                         {formatCompactDuration(entry.lastedMs)}
                                         {" "}
                                         of {formatStatusLabel(
@@ -667,7 +663,7 @@ export default function MonitoringDetailPage() {
                                                     current + 20
                                                 )}
                                         >
-                                            <AppIcon source="fa6-solid:chevron-down"/>
+                                            <AppIcon source="fa6-solid:chevron-down" />
                                             Show more changes
                                         </Button>
                                     </div>
@@ -675,7 +671,9 @@ export default function MonitoringDetailPage() {
                                 : null}
                         </div>
                     )}
-            </div>
+            </section>
+
+            <div className="spacer h-3"></div>
 
             <EditMonitorDialog
                 open={editOpen}

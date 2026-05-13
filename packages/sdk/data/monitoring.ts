@@ -1,14 +1,20 @@
 import config from "../lib/config";
 import { getSuperuserPB } from "@dashwise/sdk/lib/pocketbase";
 
-type MonitorPing = {
+export type MonitorPing = {
   status?: string;
   created?: string;
   dateChanged?: string;
   httpStatus?: number;
   method?: string;
   endpoint?: string;
+  latencyMs?: number;
   [key: string]: unknown;
+};
+
+type OutlierThreshold = {
+  type: "absolute" | "relative";
+  value: number;
 };
 
 export interface MonitorRecord {
@@ -25,6 +31,11 @@ export interface MonitorRecord {
     acceptBodyProperties?: unknown;
   } | string | null;
   pings?: MonitorPing[] | string;
+  pingAvgLatency?: string;
+  pingOutliers?: unknown;
+  pingOutlierThreshold?: OutlierThreshold | string | null;
+  notifyOnStatusChange?: boolean;
+  notifyTopicId?: string;
   created?: string;
   updated?: string;
   [key: string]: unknown;
@@ -105,6 +116,16 @@ function parseFilterValue(raw: unknown): unknown {
   }
 
   return raw;
+}
+
+function getDefaultOutlierThreshold(): OutlierThreshold {
+  const rawType = process.env.MONITORING_OUTLIER_THRESHOLD_TYPE;
+  const rawValue = process.env.MONITORING_OUTLIER_THRESHOLD_VALUE;
+  const type = rawType === "absolute" ? "absolute" : "relative";
+  const parsedValue = Number(rawValue);
+  const fallbackValue = type === "absolute" ? 500 : 50;
+  const value = Number.isFinite(parsedValue) && parsedValue > 0 ? parsedValue : fallbackValue;
+  return { type, value };
 }
 
 function getLatestMonitorStatus(monitor: any): MonitorStatusSummary {
@@ -201,6 +222,7 @@ export async function createMonitor(userId: string, body: any) {
   }
 
   const responseUpFilter = normalizeResponseUpFilter(body?.responseUpFilter, body?.acceptedUpStatusCodes);
+  const defaultOutlierThreshold = getDefaultOutlierThreshold();
 
   const payload: Record<string, unknown> = {
     userId,
@@ -208,6 +230,11 @@ export async function createMonitor(userId: string, body: any) {
     method: normalizeMethod(body?.method),
     sourcelinkId: linkId,
     status: "initiated",
+    pingAvgLatency: JSON.stringify({ avgMs: 0, samples: 0 }),
+    pingOutliers: [],
+    pingOutlierThreshold: body?.pingOutlierThreshold ?? defaultOutlierThreshold,
+    notifyOnStatusChange: false,
+    notifyTopicId: "",
   };
 
   const endpointAuth = parseFilterValue(body?.endpointAuth);
@@ -220,6 +247,53 @@ export async function createMonitor(userId: string, body: any) {
   }
 
   return pb.collection("monitors").create(payload);
+}
+
+export async function updateMonitor(userId: string, monitorId: string, body: any) {
+  const pb = await getSuperuserPB();
+
+  const monitor = await pb.collection("monitors").getOne(monitorId).catch(() => null);
+  if (!monitor || monitor.userId !== userId) {
+    return null;
+  }
+
+  const payload: Record<string, unknown> = {};
+
+  if (body?.endpoint !== undefined) {
+    const endpoint = String(body?.endpoint ?? "").trim();
+    if (!endpoint) {
+      throw new Error("Endpoint is required");
+    }
+    payload.endpoint = endpoint;
+  }
+
+  if (body?.method !== undefined) {
+    payload.method = normalizeMethod(body?.method);
+  }
+
+  if (body?.endpointAuth !== undefined) {
+    const endpointAuth = parseFilterValue(body?.endpointAuth);
+    payload.endpointAuth = endpointAuth ?? "";
+  }
+
+  if (body?.responseUpFilter !== undefined || body?.acceptedUpStatusCodes !== undefined) {
+    const responseUpFilter = normalizeResponseUpFilter(body?.responseUpFilter, body?.acceptedUpStatusCodes);
+    payload.responseUpFilter = responseUpFilter ?? "";
+  }
+
+  if (body?.pingOutlierThreshold !== undefined) {
+    payload.pingOutlierThreshold = body?.pingOutlierThreshold;
+  }
+
+  if (body?.notifyOnStatusChange !== undefined) {
+    payload.notifyOnStatusChange = Boolean(body?.notifyOnStatusChange);
+  }
+
+  if (body?.notifyTopicId !== undefined) {
+    payload.notifyTopicId = String(body?.notifyTopicId ?? "");
+  }
+
+  return pb.collection("monitors").update(monitorId, payload);
 }
 
 export async function runMonitoringStatus(userId: string, body: any) {

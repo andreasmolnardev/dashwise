@@ -183,7 +183,7 @@ export default function EditMonitorDialog({ open, onOpenChange, monitor, onUpdat
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[min(720px,95%)] text-foreground">
+      <DialogContent className="w-[min(720px,95%)] text-foreground frosted">
         <DialogHeader>
           <DialogTitle>Edit monitor</DialogTitle>
         </DialogHeader>
