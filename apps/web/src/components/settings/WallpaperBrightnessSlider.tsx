@@ -25,7 +25,9 @@ export default function WallpaperBrightnessSliderComponent({ className }: { clas
   function handlePreview(value: number) {
     const appearance = user?.appearancePreferences || config?.appearance;
     const blur = appearance?.wallpaperFilters?.blur ?? 3;
-    document.body.style.backdropFilter = `brightness(${value}%) blur(${blur}px)`;
+    const darkModeBrightness = appearance?.wallpaperFilters?.darkModeBrightness ?? 0;
+    const appliedBrightness = Math.max(0, value - darkModeBrightness);
+    document.body.style.backdropFilter = `brightness(${appliedBrightness}%) blur(${blur}px)`;
   }
 
   async function handleSave(value: number) {
@@ -72,6 +74,7 @@ export default function WallpaperBrightnessSliderComponent({ className }: { clas
             setPercent(v);
             const newValue = Math.round((v / 100) * (150 - 50) + 50);
             handlePreview(newValue);
+            handleSave(newValue);
           }}
           onValueCommit={([v]) => {
             const newValue = Math.round((v / 100) * (150 - 50) + 50);
@@ -101,6 +104,14 @@ export function WallpaperBrightnessDarkModeSliderComponent({ className }: { clas
     }
     setPercent(0);
   }, [user, config]);
+
+  function handlePreview(value: number) {
+    const appearance = user?.appearancePreferences || config?.appearance;
+    const blur = appearance?.wallpaperFilters?.blur ?? 3;
+    const brightness = appearance?.wallpaperFilters?.brightness ?? 85;
+    const appliedBrightness = Math.max(0, brightness - value);
+    document.body.style.backdropFilter = `brightness(${appliedBrightness}%) blur(${blur}px)`;
+  }
 
   async function handleSave(value: number) {
     setSaving(true);
@@ -143,6 +154,8 @@ export function WallpaperBrightnessDarkModeSliderComponent({ className }: { clas
           disabled={saving}
           onValueChange={([v]) => {
             setPercent(v);
+            handlePreview(v);
+            handleSave(v);
           }}
           onValueCommit={([v]) => {
             handleSave(v);

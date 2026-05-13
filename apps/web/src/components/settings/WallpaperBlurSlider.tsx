@@ -76,6 +76,7 @@ export default function WallpaperBlurSliderComponent({ className }: { className?
             setPercent(v);
             const newValue = Math.round((v / 100) * (25 - 1) + 1);
             handlePreview(newValue);
+            handleSave(newValue);
           }}
 
           onValueCommit={([v]) => {
