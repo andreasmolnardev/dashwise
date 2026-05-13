@@ -2,13 +2,27 @@ import Parser from "rss-parser";
 import { Hono } from "hono";
 import type { Context } from "hono";
 
-import { getNewsFeed, getNewsFeedRecord, getNewsFeeds, getNewsSubscriptions, refreshNewsFeed, subscribeNewsFeed, unsubscribeNewsFeed, updateNewsFeed, updateNewsFeedRecordForUser } from "@dashwise/sdk/data/news";
+import { getNewsFeed, getNewsFeedRecord, getNewsFeeds, getNewsSubscriptions, subscribeNewsFeed, unsubscribeNewsFeed, updateNewsFeed, updateNewsFeedRecordForUser } from "@dashwise/sdk/data/news";
 import type { NewsFeedMetadata, NewsFeedRecordUpdateInput, NewsSubscribeInput, NewsUpdateInput } from "@dashwise/sdk/data/news";
 
 import { readAuthToken, readJsonBody, requireAuth, withJson } from "./shared";
 import { createLogger } from "../lib/logger";
+import { jobsApi } from "../jobs/index";
 
 const logger = createLogger("API");
+
+async function refreshNewsFeed(userId: string, options: { feedIds: string[] }) {
+  const { feedIds } = options;
+  if (!feedIds.length) {
+    return { status: "success", message: "No feed IDs specified" };
+  }
+
+  for (const feedId of feedIds) {
+    await jobsApi.runNewsFeedBuilderJob("api", feedId);
+  }
+
+  return { status: "success" };
+}
 
 function readRequestedFeedIds(c: Context) {
   const url = new URL(c.req.url);
@@ -53,6 +67,14 @@ async function normalizeNewsFeedUrl(feedUrl: string) {
       } catch {
         // Fallback to the original URL below.
       }
+    }
+  }
+
+  if (originalFeedUrl.includes("reddit.com/r/")) {
+    const url = new URL(originalFeedUrl);
+    if (!url.pathname.endsWith(".rss") && !url.pathname.endsWith(".rss/")) {
+      url.pathname = url.pathname.replace(/\/$/, "") + ".rss";
+      return url.toString();
     }
   }
 
@@ -163,13 +185,15 @@ const newsRoute = new Hono();
     const { userId } = await requireAuth(body?.auth ?? {});
     const sub: NewsSubscribeInput = body?.sub ?? { feedUrl: "" };
 
-    return subscribeNewsFeed(userId, {
-      feedUrl: String(sub.feedUrl ?? ""),
+    const result = await subscribeNewsFeed(userId, {
+      feedUrl: await normalizeNewsFeedUrl(sub.feedUrl),
       name: sub.name,
       icon: sub.icon,
       feedIds: Array.isArray(sub.feedIds) ? sub.feedIds : [],
       newFeedTitles: Array.isArray(sub.newFeedTitles) ? sub.newFeedTitles : [],
     });
+
+    return result;
   }));
   newsRoute.post("/api/v1/news/feed-unsubscribe", withJson(async (c) => {
     const body = await readJsonBody<{ auth?: { token?: string | null }; feedUrl?: string }>(c);

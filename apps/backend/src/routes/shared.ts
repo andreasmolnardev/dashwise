@@ -9,7 +9,7 @@ import { z } from "zod";
 import { config } from "../lib/config";
 import { defaultHomeConfig } from "@dashwise/assets";
 
-export type JsonHandler = (c: Context) => Promise<unknown>;
+export type JsonHandler<C extends (import("hono").Context<any, any, any>) = import("hono").Context> = (c: C) => Promise<unknown> | unknown;
 
 export const authInput = z.object({ token: z.string().nullable().optional() });
 
@@ -40,8 +40,8 @@ export function jsonErrorBody(error: unknown) {
   return { status: 500, body: { error: "Internal Server Error" } };
 }
 
-export function withJson(handler: JsonHandler) {
-  return async (c: Context) => {
+export function withJson<C extends (import("hono").Context<any, any, any>) = import("hono").Context>(handler: JsonHandler<C>) {
+  return async (c: C) => {
     try {
       return c.json(await handler(c));
     } catch (error) {
