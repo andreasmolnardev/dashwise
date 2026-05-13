@@ -17,6 +17,19 @@ export default function Screensaver(
   const [isHovering, setIsHovering] = useState(false);
   const [activeFrameIndex, setActiveFrameIndex] = useState(0);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    if (isHovering) {
+      if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+      hoverTimeoutRef.current = setTimeout(() => {
+        setIsHovering(false);
+      }, 3000);
+    }
+    return () => {
+      if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+    };
+  }, [isHovering]);
 
   useEffect(() => {
     fetch("/fonts/index.json")
