@@ -10,6 +10,7 @@ import {
   listIntegrations,
   testIntegrationEndpoint,
   updateIntegration,
+  deleteIntegration,
 } from "@dashwise/sdk/data/integrations";
 import { ApiActionError } from "@dashwise/sdk/data/auth";
 import { getSuperuserPB } from "@dashwise/sdk/lib/pocketbase";
@@ -65,6 +66,11 @@ const integrationsRoute = new Hono();
     const body = await readJsonBody<any>(c);
     const { userId } = await requireAuth(body?.auth);
     return updateIntegration(userId, id, body?.payload ?? {});
+  }));
+  integrationsRoute.delete("/api/v1/integrations/:id", withJson(async (c) => {
+    const id = c.req.param("id")!;
+    const { userId } = await requireAuth({ token: readAuthToken(c) });
+    return deleteIntegration(userId, id);
   }));
   integrationsRoute.post("/api/v1/integrations/test-endpoint", withJson(async (c) => {
     const body = await readJsonBody<any>(c);

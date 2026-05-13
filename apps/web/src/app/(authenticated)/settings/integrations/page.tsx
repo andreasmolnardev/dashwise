@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import YAML from "yaml";
 import {
   createIntegrationAction,
+  deleteIntegrationAction,
   getIntegrationsAction,
   testIntegrationEndpointAction,
   updateIntegrationAction,
@@ -16,6 +17,22 @@ import { AddIntegrationConfigDialog } from "@/components/settings/integrations/A
 import { UpdateIntegrationDialog } from "@/components/settings/integrations/UpdateIntegrationDialog";
 import { TestEndpointDialog } from "@/components/settings/integrations/TestEndpointDialog";
 import { DebugIntegrationDialog } from "@/components/settings/integrations/DebugIntegrationDialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Label } from "@/components/ui/label";
+import { MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import useAuth from "@/context/useAuth";
 import { EndpointTestResult, EnvDefinition } from "@/lib/integrations/types";
 
@@ -87,6 +104,11 @@ export default function IntegrationsModularSettingsPage() {
   const [updateDialogOpen, setUpdateDialogOpen] = useState(false);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
+
+  const [editConfigDialogOpen, setEditConfigDialogOpen] = useState(false);
+  const [editingConfigId, setEditingConfigId] = useState<string | null>(null);
+  const [editConfigValue, setEditConfigValue] = useState("");
+  const [isSavingConfig, setIsSavingConfig] = useState(false);
 
   const handleTestDialogOpenChange = (open: boolean) => {
     if (!open) {
@@ -304,10 +326,57 @@ export default function IntegrationsModularSettingsPage() {
     }
   }, [token, updatingId, integrations, withAuth, fetchIntegrations]);
 
-  const openUpdateDialog = (e: React.MouseEvent, id: string) => {
+  const openUpdateDialog = (e: React.MouseEvent | React.KeyboardEvent, id: string) => {
     e.stopPropagation();
     setUpdatingId(id);
     setUpdateDialogOpen(true);
+  };
+
+  const handleDeleteIntegration = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    if (!token || !confirm("Are you sure you want to remove this integration?")) return;
+
+    try {
+      await withAuth((auth) => deleteIntegrationAction(auth, id));
+      await fetchIntegrations();
+    } catch (err) {
+      console.error("Failed to delete integration", err);
+      alert("Failed to remove integration.");
+    }
+  };
+
+  const openEditConfig = (e: React.MouseEvent, integration: IntegrationRecord) => {
+    e.stopPropagation();
+    setEditingConfigId(integration.id);
+    setEditConfigValue(YAML.stringify(integration.config));
+    setEditConfigDialogOpen(true);
+  };
+
+  const handleSaveConfig = async () => {
+    if (!token || !editingConfigId) return;
+
+    const parsed = parseConfigValue(editConfigValue);
+    if (!isRecord(parsed)) {
+      alert("Invalid JSON or YAML configuration.");
+      return;
+    }
+
+    setIsSavingConfig(true);
+    try {
+      await withAuth((auth) =>
+        updateIntegrationAction(auth, editingConfigId, {
+          config: parsed,
+        })
+      );
+      setEditConfigDialogOpen(false);
+      setEditingConfigId(null);
+      await fetchIntegrations();
+    } catch (err) {
+      console.error("Failed to update integration config", err);
+      alert("Failed to save configuration.");
+    } finally {
+      setIsSavingConfig(false);
+    }
   };
 
   return (
@@ -350,23 +419,50 @@ export default function IntegrationsModularSettingsPage() {
               {integrations.map((integration) => {
                 const isSelected = integration.id === selectedIntegration?.id;
                 return (
-                  <button
+                  <div
                     key={integration.id}
-                    type="button"
-                    onClick={() => openIntegrationDetails(integration.id)}
                     className={cn(
-                      "flex w-full flex-col gap-2 rounded-2xl border p-4 text-left transition frosted group",
+                      "flex w-full flex-col gap-2 rounded-2xl border p-4 text-left transition frosted group relative",
                       isSelected ? "border-primary bg-primary/10" : ""
                     )}
+                    onClick={() => openIntegrationDetails(integration.id)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        openIntegrationDetails(integration.id);
+                      }
+                    }}
                   >
                     <div className="flex items-center justify-between">
                       <p className="text-sm font-semibold group-hover:text-(--primary)">
                         {integration.name ?? "Unnamed"}
                       </p>
-                      <span className="text-xs">{integration.source ?? "manual"}</span>
+                      <div className="flex items-center gap-2">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={(e) => openEditConfig(e, integration)}>
+                              <Pencil className="mr-2 h-4 w-4" />
+                              Edit Config
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              variant="destructive"
+                              onClick={(e) => handleDeleteIntegration(e, integration.id)}
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Remove
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
                     </div>
                     <p className="text-xs">
-                      {getEndpointCount(integration.config)} endpoints · Updated {formatDate(integration.updated)}
+                      {getEndpointCount(integration.config)} endpoints · Updated {formatDate(integration.updated)} · <span className="opacity-70">{integration.source ?? "manual"}</span>
                     </p>
                     {integration.localData?.updateAvailable && (
                       <div className="mt-2 flex items-center justify-between">
@@ -383,7 +479,7 @@ export default function IntegrationsModularSettingsPage() {
                         </Button>
                       </div>
                     )}
-                  </button>
+                  </div>
 
                 );
               })}
@@ -443,6 +539,38 @@ export default function IntegrationsModularSettingsPage() {
         onConfirm={() => void handleUpdate()}
         loading={isUpdating}
       />
+
+      <Dialog open={editConfigDialogOpen} onOpenChange={setEditConfigDialogOpen}>
+        <DialogContent className="frosted text-(--text-primary) w-[60vw] max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Edit Integration Config</DialogTitle>
+            <DialogDescription>
+              Manually update the integration configuration. Supports JSON and YAML.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-config">Config JSON or YAML</Label>
+              <textarea
+                id="edit-config"
+                value={editConfigValue}
+                onChange={(e) => setEditConfigValue(e.target.value)}
+                rows={15}
+                className="w-full rounded-xl border border-input bg-background/70 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditConfigDialogOpen(false)} disabled={isSavingConfig}>
+              Cancel
+            </Button>
+            <Button onClick={() => void handleSaveConfig()} disabled={isSavingConfig}>
+              {isSavingConfig && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </section>
 
   );

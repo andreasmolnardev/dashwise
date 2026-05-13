@@ -32,6 +32,7 @@ interface SubscriptionDetailsFormProps {
   feeds: FeedOption[];
   onClose?: () => void | Promise<void>;
   onSave?: (feed: NewsFeedDraft) => Promise<void> | void;
+  onDelete?: (feedId: string) => Promise<void> | void;
   resolveFeedMetadata?: (feedUrl: string) => Promise<{ title?: string; icon?: string } | null | undefined>;
 }
 
@@ -40,11 +41,16 @@ export default function SubscriptionDetailsForm({
   feeds,
   onClose,
   onSave,
+  onDelete,
   resolveFeedMetadata,
 }: SubscriptionDetailsFormProps) {
   const [feedUrl, setFeedUrl] = useState<string>(() => feed?.feedUrl || "");
   const [name, setName] = useState<string>(() => feed?.name || "");
   const [icon, setIcon] = useState<string>(() => feed?.icon || "");
+  const [fallbackThumbnailUrl, setFallbackThumbnailUrl] = useState<string>(() => feed?.fallbackThumbnailUrl || "");
+  const initialReplaceRuleKey = feed?.linkReplaceRule ? Object.keys(feed.linkReplaceRule)[0] || "" : "";
+  const [replaceSearch, setReplaceSearch] = useState<string>(initialReplaceRuleKey);
+  const [replaceWith, setReplaceWith] = useState<string>(initialReplaceRuleKey ? String(feed?.linkReplaceRule?.[initialReplaceRuleKey] || "") : "");
   const [selectedFeedIds, setSelectedFeedIds] = useState<string[]>(() => feed?.feedIds || []);
   const [newFeedTitles, setNewFeedTitles] = useState<string[]>(() => feed?.newFeedTitles || []);
   const [open, setOpen] = useState(false);
@@ -65,33 +71,43 @@ export default function SubscriptionDetailsForm({
 
   // Github state
   const [githubRepo, setGithubRepo] = useState("");
-  const [githubFeedType, setGithubFeedType] = useState<"issues" | "pulls" | "releases" | "releases_stable">("releases");
-
-  // Youtube state
-  const [youtubeId, setYoutubeId] = useState("");
+  const [githubFeedType, setGithubFeedType] = useState<"updates" | "prs" | "commits" | "issues" | "issue_updates">("updates");
+  const [githubBranch, setGithubBranch] = useState("");
+  const [githubIssueId, setGithubIssueId] = useState("");
 
   const isEditing = Boolean(feed?.id);
 
-  // Auto-generate feedUrl based on selected type
+  // Auto-detect subscription type from URL
   useEffect(() => {
-    if (isEditing) return;
-
-    if (subscriptionType === "reddit" && redditName) {
-      setFeedUrl(`https://www.reddit.com/${redditType === "subreddit" ? "r" : "user"}/${redditName}/.rss`);
-    } else if (subscriptionType === "github" && githubRepo) {
-      let suffix = "releases.atom";
-      if (githubFeedType === "issues") suffix = "issues.atom";
-      if (githubFeedType === "pulls") suffix = "pulls.atom";
-      if (githubFeedType === "releases_stable") suffix = "releases.atom"; // stable filtering might require backend support, but URL is the same
-      setFeedUrl(`https://github.com/${githubRepo}/${suffix}`);
-    } else if (subscriptionType === "youtube" && youtubeId) {
-      if (youtubeId.startsWith("UC")) {
-        setFeedUrl(`https://www.youtube.com/feeds/videos.xml?channel_id=${youtubeId}`);
-      } else {
-        setFeedUrl(`https://www.youtube.com/feeds/videos.xml?user=${youtubeId}`);
-      }
+    const url = feedUrl.toLowerCase();
+    if (url.includes("youtube.com") || url.includes("youtu.be")) {
+      setSubscriptionType("youtube");
+    } else if (url.includes("reddit.com")) {
+      setSubscriptionType("reddit");
+    } else if (url.includes("github.com")) {
+      setSubscriptionType("github");
+      // Try to extract repo
+      const match = feedUrl.match(/github\.com\/([^/]+\/[^/]+)/);
+      if (match) setGithubRepo(match[1]);
+    } else {
+      setSubscriptionType("rss");
     }
-  }, [subscriptionType, redditType, redditName, githubRepo, githubFeedType, youtubeId, isEditing]);
+  }, [feedUrl]);
+
+  // Auto-generate feedUrl based on GitHub options
+  useEffect(() => {
+    if (subscriptionType === "github" && githubRepo) {
+      let url = `https://github.com/${githubRepo}`;
+      if (githubFeedType === "updates") url += "/releases.atom";
+      else if (githubFeedType === "prs") url += "/pulls.atom";
+      else if (githubFeedType === "commits") url += `/commits/${githubBranch || "main"}.atom`;
+      else if (githubFeedType === "issues") url += "/issues.atom";
+      else if (githubFeedType === "issue_updates" && githubIssueId) url += `/issues/${githubIssueId}.atom`;
+      else return; // Don't update if incomplete
+
+      setFeedUrl(url);
+    }
+  }, [subscriptionType, githubRepo, githubFeedType, githubBranch, githubIssueId]);
 
   useEffect(() => {
     nameRef.current = name;
@@ -227,16 +243,26 @@ export default function SubscriptionDetailsForm({
         throw new Error("Feed URL is required");
       }
 
-      if (!selectedFeedIds.length && !selectedNewTitles.length) {
-        throw new Error("Add the feed to at least one feed bucket");
+      let currentSelectedFeedIds = [...selectedFeedIds];
+      let currentSelectedNewTitles = [...selectedNewTitles];
+
+      if (!currentSelectedFeedIds.length && !currentSelectedNewTitles.length) {
+        currentSelectedNewTitles = ["Unsorted"];
+      }
+
+      let linkReplaceRule: Record<string, string> | undefined = undefined;
+      if (replaceSearch.trim() && replaceWith.trim()) {
+        linkReplaceRule = { [replaceSearch.trim()]: replaceWith.trim() };
       }
 
       const payload: NewsFeedDraft = {
         feedUrl: feedUrl.trim(),
-        name: name.trim() || feedUrl.trim(),
+        title: name.trim() || feedUrl.trim(),
         icon: icon.trim(),
-        feedIds: selectedFeedIds,
-        newFeedTitles: selectedNewTitles,
+        feedIds: currentSelectedFeedIds,
+        newFeedTitles: currentSelectedNewTitles,
+        fallbackThumbnailUrl: fallbackThumbnailUrl.trim() || undefined,
+        linkReplaceRule,
       };
 
       if (feed?.id) {
@@ -259,43 +285,34 @@ export default function SubscriptionDetailsForm({
     }
   };
 
-  return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      {!isEditing && (
-        <div className="flex flex-wrap gap-2 mb-4">
-          <Badge
-            variant={subscriptionType === "rss" ? "default" : "secondary"}
-            className="cursor-pointer"
-            onClick={() => setSubscriptionType("rss")}
-          >
-            <Icon icon="fa6-solid:rss" className="mr-1.5" /> Generic RSS
-          </Badge>
-          <Badge
-            variant={subscriptionType === "youtube" ? "default" : "secondary"}
-            className="cursor-pointer"
-            onClick={() => setSubscriptionType("youtube")}
-          >
-            <Icon icon="fa6-brands:youtube" className="mr-1.5" /> YouTube
-          </Badge>
-          <Badge
-            variant={subscriptionType === "reddit" ? "default" : "secondary"}
-            className="cursor-pointer"
-            onClick={() => setSubscriptionType("reddit")}
-          >
-            <Icon icon="fa6-brands:reddit" className="mr-1.5" /> Reddit
-          </Badge>
-          <Badge
-            variant={subscriptionType === "github" ? "default" : "secondary"}
-            className="cursor-pointer"
-            onClick={() => setSubscriptionType("github")}
-          >
-            <Icon icon="fa6-brands:github" className="mr-1.5" /> GitHub
-          </Badge>
-        </div>
-      )}
+  const handleIconClick = () => {
+    const url = window.prompt("Enter icon URL:", icon);
+    if (url !== null) {
+      lastAutoIconRef.current = "";
+      setIcon(url);
+    }
+  };
 
-      {subscriptionType === "rss" && (
-        <div>
+  const handleDelete = async () => {
+    if (!feed?.id || !onDelete) return;
+    if (!window.confirm("Are you sure you want to unsubscribe from this feed?")) return;
+
+    setLoading(true);
+    setError(null);
+    try {
+      await onDelete(feed.id);
+      if (onClose) await onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-5">
+      <div className="flex gap-3 items-end">
+        <div className="flex-1">
           <Label htmlFor="feed-url">Feed URL *</Label>
           <Input
             id="feed-url"
@@ -303,228 +320,238 @@ export default function SubscriptionDetailsForm({
             placeholder="https://example.com/feed.xml"
             value={feedUrl}
             onChange={(event) => setFeedUrl(event.target.value)}
-            disabled={loading || isEditing}
-          />
-          {metadataLoading && (
-            <p className="mt-1 text-xs text-white/50">Looking up feed title and icon...</p>
-          )}
-        </div>
-      )}
-
-      {subscriptionType === "reddit" && !isEditing && (
-        <div className="flex gap-2">
-          <div className="w-1/3">
-            <Label>Type</Label>
-            <Select value={redditType} onValueChange={(v: any) => setRedditType(v)}>
-              <SelectTrigger className="frosted mt-1">
-                <SelectValue placeholder="Select type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="subreddit">Subreddit</SelectItem>
-                <SelectItem value="user">User</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="w-2/3">
-            <Label htmlFor="reddit-name">{redditType === "subreddit" ? "Subreddit Name" : "Username"}</Label>
-            <Input
-              id="reddit-name"
-              className="frosted mt-1"
-              placeholder={redditType === "subreddit" ? "e.g. selfhosted" : "e.g. spez"}
-              value={redditName}
-              onChange={(e) => setRedditName(e.target.value)}
-            />
-          </div>
-        </div>
-      )}
-
-      {subscriptionType === "github" && !isEditing && (
-        <div className="flex gap-2">
-          <div className="w-1/2">
-            <Label htmlFor="github-repo">User / Repo</Label>
-            <Input
-              id="github-repo"
-              className="frosted mt-1"
-              placeholder="e.g. octocat/Hello-World"
-              value={githubRepo}
-              onChange={(e) => setGithubRepo(e.target.value)}
-            />
-          </div>
-          <div className="w-1/2">
-            <Label>Include</Label>
-            <Select value={githubFeedType} onValueChange={(v: any) => setGithubFeedType(v)}>
-              <SelectTrigger className="frosted mt-1">
-                <SelectValue placeholder="Select content" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="issues">New Issues</SelectItem>
-                <SelectItem value="pulls">Pull Requests</SelectItem>
-                <SelectItem value="releases">Releases</SelectItem>
-                <SelectItem value="releases_stable">Releases (Stable Only)</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-      )}
-
-      {subscriptionType === "youtube" && !isEditing && (
-        <div>
-          <Label htmlFor="youtube-id">Channel ID or Username</Label>
-          <Input
-            id="youtube-id"
-            className="frosted mt-1"
-            placeholder="e.g. UCX6OQ3DkcsbYNE6H8uQQuVA or user_name"
-            value={youtubeId}
-            onChange={(e) => setYoutubeId(e.target.value)}
-          />
-        </div>
-      )}
-
-      {subscriptionType !== "rss" && !isEditing && (
-        <div>
-          <Label htmlFor="generated-feed-url">Generated Feed URL</Label>
-          <Input
-            id="generated-feed-url"
-            className="frosted mt-1 opacity-70"
-            value={feedUrl}
-            onChange={(e) => setFeedUrl(e.target.value)}
             disabled={loading}
           />
         </div>
+
+        <div className="w-[200px]">
+          <Label>Add to Feed</Label>
+          <Popover open={open} onOpenChange={setOpen}>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                className="frosted mt-1 flex w-full h-10 items-center justify-between rounded-md px-3 text-left"
+                disabled={loading}
+              >
+                <span className="truncate text-sm text-white/70">
+                  {allSelectedLabels.length ? allSelectedLabels[0] + (allSelectedLabels.length > 1 ? ` (+${allSelectedLabels.length - 1})` : "") : "Select feeds"}
+                </span>
+                <Icon icon="fa6-solid:chevron-down" className="text-xs text-white/50 shrink-0 ml-1" />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent className="frosted w-80 p-0 text-foreground" align="end">
+              <Command>
+                <CommandInput
+                  placeholder="Search feeds"
+                  value={query}
+                  onValueChange={setQuery}
+                />
+                <CommandList>
+                  <CommandEmpty>No feeds found.</CommandEmpty>
+                  <CommandGroup heading="Existing feeds">
+                    {filteredFeeds.map((entry) => {
+                      const isSelected = selectedFeedIds.includes(entry.id);
+                      return (
+                        <CommandItem
+                          key={entry.id}
+                          onSelect={() => toggleFeed(entry.id)}
+                        >
+                          <Icon
+                            icon={isSelected ? "fa6-solid:check" : "fa6-regular:square"}
+                            className="mr-2 text-sm"
+                          />
+                          {entry.title}
+                        </CommandItem>
+                      );
+                    })}
+                  </CommandGroup>
+                  {normalizedQuery && !exactFeedMatch && (
+                    <CommandGroup heading="Create new">
+                      <CommandItem onSelect={createFeed}>
+                        <Icon icon="fa6-solid:plus" className="mr-2 text-sm" />
+                        Create "{normalizedQuery}"
+                      </CommandItem>
+                    </CommandGroup>
+                  )}
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
+        </div>
+      </div>
+
+      <p className="text-xs text-white/60">
+        All RSS and Atom feed URLs as well as YouTube, GitHub, and Reddit links work.
+      </p>
+
+      {subscriptionType === "github" && (
+        <div className="space-y-3 p-3 rounded-xl bg-white/5 border border-white/10">
+          <Label className="text-xs uppercase tracking-wider opacity-50">GitHub Subscription Options</Label>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              {[
+                { id: "updates", label: "Releases / Updates" },
+                { id: "prs", label: "Pull Requests" },
+                { id: "commits", label: "Commits" },
+                { id: "issues", label: "New Issues" },
+                { id: "issue_updates", label: "Issue Updates" },
+              ].map((opt) => (
+                <div key={opt.id} className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    id={`gh-${opt.id}`}
+                    name="githubFeedType"
+                    checked={githubFeedType === opt.id}
+                    onChange={() => setGithubFeedType(opt.id as any)}
+                    className="w-4 h-4 accent-blue-500"
+                  />
+                  <label htmlFor={`gh-${opt.id}`} className="text-sm cursor-pointer">{opt.label}</label>
+                </div>
+              ))}
+            </div>
+            <div className="space-y-4">
+              {githubFeedType === "commits" && (
+                <div>
+                  <Label htmlFor="gh-branch" className="text-xs">Branch</Label>
+                  <Input
+                    id="gh-branch"
+                    placeholder="main"
+                    value={githubBranch}
+                    onChange={(e) => setGithubBranch(e.target.value)}
+                    className="h-8 text-sm frosted mt-1"
+                  />
+                </div>
+              )}
+              {githubFeedType === "issue_updates" && (
+                <div>
+                  <Label htmlFor="gh-issue" className="text-xs">Issue ID</Label>
+                  <Input
+                    id="gh-issue"
+                    placeholder="123"
+                    value={githubIssueId}
+                    onChange={(e) => setGithubIssueId(e.target.value)}
+                    className="h-8 text-sm frosted mt-1"
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       )}
 
-      <div>
-        <Label htmlFor="feed-name">Feed Name</Label>
-        <Input
-          id="feed-name"
-          className="frosted mt-1"
-          placeholder="My Feed"
-          value={name}
-          onChange={(event) => {
-            lastAutoNameRef.current = "";
-            setName(event.target.value);
-          }}
-          disabled={loading}
-        />
+      <hr className="border-white/10" />
+
+      <div className="flex gap-3">
+        <button
+          type="button"
+          onClick={handleIconClick}
+          className="w-12 h-10 rounded-md frosted flex items-center justify-center hover:bg-white/10 transition-colors shrink-0 overflow-hidden border border-white/10"
+          title="Change icon"
+        >
+          {icon ? (
+            <img src={icon} alt="" className="w-6 h-6 object-contain" />
+          ) : (
+            <Icon icon="fa6-solid:rss" className="text-lg opacity-50" />
+          )}
+        </button>
+
+        <div className="flex-1">
+          <Input
+            id="feed-name"
+            className="frosted w-full"
+            placeholder="Feed Name"
+            value={name}
+            onChange={(event) => {
+              lastAutoNameRef.current = "";
+              setName(event.target.value);
+            }}
+            disabled={loading}
+          />
+        </div>
       </div>
 
-      <div>
-        <Label htmlFor="feed-icon">Icon URL</Label>
-        <Input
-          id="feed-icon"
-          className="frosted mt-1"
-          placeholder="https://example.com/icon.png"
-          value={icon}
-          onChange={(event) => {
-            lastAutoIconRef.current = "";
-            setIcon(event.target.value);
-          }}
-          disabled={loading}
-        />
-        <p className="mt-1 text-xs text-white/60">
-          Leave empty to let the backend choose a default icon.
-        </p>
+      <div className="mt-2 flex flex-wrap gap-2">
+        {selectedNewTitles.map((title) => (
+          <button
+            key={title}
+            type="button"
+            onClick={() => removeNewFeedTitle(title)}
+            className="frosted inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs text-white/80 hover:bg-white/10"
+          >
+            <span>{title}</span>
+            <Icon icon="fa6-solid:xmark" className="text-[10px]" />
+          </button>
+        ))}
       </div>
 
-      <div>
-        <Label>Add to Feed</Label>
-        <Popover open={open} onOpenChange={setOpen}>
-          <PopoverTrigger asChild>
-            <button
-              type="button"
-              className="frosted mt-1 flex w-full min-h-10 items-center justify-between rounded-md px-3 text-left"
+      <div className="space-y-3 p-3 rounded-xl bg-white/5 border border-white/10 mt-4">
+        <Label className="text-xs opacity-50">Advanced</Label>
+        
+        <div>
+          <Label htmlFor="fallback-thumbnail" className="text-xs">Fallback Thumbnail URL</Label>
+          <Input
+            id="fallback-thumbnail"
+            className="h-8 text-sm frosted mt-1"
+            placeholder="https://example.com/image.png"
+            value={fallbackThumbnailUrl}
+            onChange={(e) => setFallbackThumbnailUrl(e.target.value)}
+            disabled={loading}
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <Label htmlFor="replace-search" className="text-xs">Link Replace: Search</Label>
+            <Input
+              id="replace-search"
+              className="h-8 text-sm frosted mt-1"
+              placeholder="old-domain.com"
+              value={replaceSearch}
+              onChange={(e) => setReplaceSearch(e.target.value)}
               disabled={loading}
-            >
-              <span className={allSelectedLabels.length ? "text-white" : "text-white/50"}>
-                {allSelectedLabels.length ? allSelectedLabels.join(", ") : "Search feeds or create one"}
-              </span>
-              <Icon icon="fa6-solid:chevron-down" className="text-xs text-white/50" />
-            </button>
-          </PopoverTrigger>
-          <PopoverContent className="frosted w-80 p-0 text-foreground" align="start">
-            <Command>
-              <CommandInput
-                placeholder="Search feeds"
-                value={query}
-                onValueChange={setQuery}
-              />
-              <CommandList>
-                <CommandEmpty>No feeds found.</CommandEmpty>
-                <CommandGroup heading="Existing feeds">
-                  {filteredFeeds.map((entry) => {
-                    const isSelected = selectedFeedIds.includes(entry.id);
-                    return (
-                      <CommandItem
-                        key={entry.id}
-                        onSelect={() => toggleFeed(entry.id)}
-                      >
-                        <Icon
-                          icon={isSelected ? "fa6-solid:check" : "fa6-regular:square"}
-                          className="mr-2 text-sm"
-                        />
-                        {entry.title}
-                      </CommandItem>
-                    );
-                  })}
-                </CommandGroup>
-                {normalizedQuery && !exactFeedMatch && (
-                  <CommandGroup heading="Create new">
-                    <CommandItem onSelect={createFeed}>
-                      <Icon icon="fa6-solid:plus" className="mr-2 text-sm" />
-                      Create "{normalizedQuery}"
-                    </CommandItem>
-                  </CommandGroup>
-                )}
-              </CommandList>
-            </Command>
-          </PopoverContent>
-        </Popover>
-
-        <div className="mt-2 flex flex-wrap gap-2">
-          {selectedFeedIds.map((feedId) => {
-            const selected = availableFeeds.find((entry) => entry.id === feedId);
-            if (!selected) return null;
-
-            return (
-              <button
-                key={feedId}
-                type="button"
-                onClick={() => removeFeedId(feedId)}
-                className="frosted inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs text-white/80 hover:bg-white/10"
-              >
-                <span>{selected.title}</span>
-                <Icon icon="fa6-solid:xmark" className="text-[10px]" />
-              </button>
-            );
-          })}
-          {selectedNewTitles.map((title) => (
-            <button
-              key={title}
-              type="button"
-              onClick={() => removeNewFeedTitle(title)}
-              className="frosted inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs text-white/80 hover:bg-white/10"
-            >
-              <span>{title}</span>
-              <Icon icon="fa6-solid:xmark" className="text-[10px]" />
-            </button>
-          ))}
+            />
+          </div>
+          <div>
+            <Label htmlFor="replace-with" className="text-xs">Link Replace: With</Label>
+            <Input
+              id="replace-with"
+              className="h-8 text-sm frosted mt-1"
+              placeholder="new-domain.com"
+              value={replaceWith}
+              onChange={(e) => setReplaceWith(e.target.value)}
+              disabled={loading}
+            />
+          </div>
         </div>
       </div>
 
       <div className="pt-2">
-        <div className="flex justify-end gap-3">
-          <Button type="button" variant="outline" onClick={onClose} disabled={loading}>
-            Cancel
-          </Button>
-          <Button type="submit" disabled={loading}>
-            {loading
-              ? isEditing
-                ? "Saving..."
-                : "Subscribing..."
-              : isEditing
-                ? "Save"
-                : "Subscribe"}
-          </Button>
+        <div className="flex justify-between gap-3">
+          {isEditing && onDelete ? (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleDelete}
+              disabled={loading}
+              className="hover:bg-red-500/20 text-red-500 border-red-500/20"
+            >
+              Unsubscribe
+            </Button>
+          ) : <div />}
+          <div className="flex gap-3">
+            <Button type="button" variant="outline" onClick={onClose} disabled={loading}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={loading}>
+              {loading
+                ? isEditing
+                  ? "Saving..."
+                  : "Subscribing..."
+                : isEditing
+                  ? "Save"
+                  : "Subscribe"}
+            </Button>
+          </div>
         </div>
       </div>
 

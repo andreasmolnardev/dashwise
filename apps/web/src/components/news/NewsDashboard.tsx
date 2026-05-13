@@ -559,6 +559,15 @@ export default function NewsDashboardComponent(
                                 console.error("Failed to save feed:", err);
                             }
                         }}
+                        onDelete={async (feedId) => {
+                            try {
+                                await unsubscribeFeed({ id: feedId } as any);
+                                setAddOpen(false);
+                                setEditingFeed(null);
+                            } catch (err) {
+                                console.error("Failed to delete feed:", err);
+                            }
+                        }}
                     />
                 </DialogContent>
             </Dialog>
