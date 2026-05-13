@@ -121,7 +121,13 @@ export async function newsFeedBuilder(feedId?: string): Promise<{
       }
 
       try {
-        const feedItems = await getFeedItems({ feedUrl, maxItems: maxItemsPerFeed, feedName: subscriptionRecord?.title || feedUrl }) as FeedItem[];
+        const feedItems = await getFeedItems({ 
+          feedUrl, 
+          maxItems: maxItemsPerFeed, 
+          feedName: subscriptionRecord?.title || feedUrl,
+          linkReplaceRule: subscriptionRecord?.linkReplaceRule as Record<string, string> | undefined,
+          fallbackThumbnailUrl: subscriptionRecord?.fallbackThumbnailUrl,
+        }) as FeedItem[];
         return {
           action: 'success',
           feedUrl,

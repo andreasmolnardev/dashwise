@@ -34,10 +34,14 @@ export async function getFeedItems({
     feedUrl,
     maxItems = 100,
     feedName,
+    linkReplaceRule,
+    fallbackThumbnailUrl,
 }: {
     feedUrl: string;
     maxItems?: number;
     feedName?: string;
+    linkReplaceRule?: Record<string, string>;
+    fallbackThumbnailUrl?: string;
 }): Promise<FeedItem[]> {
     const logger = createLogger("NewsFeedBuilder");
 
@@ -61,14 +65,21 @@ export async function getFeedItems({
         return feed.items
             .map((item: ParserItem) => {
                 const pubDate = new Date(item.isoDate || item.pubDate || "");
+                
+                let link = item.link || "";
+                if (linkReplaceRule) {
+                    for (const [search, replace] of Object.entries(linkReplaceRule)) {
+                        link = link.replace(new RegExp(search, "g"), replace);
+                    }
+                }
 
                 return {
                     title: stripHtml(item.title) || "No Title",
-                    link: item.link || "",
+                    link,
                     description: getBestDescription(item),
                     content: getContent(item),
                     pubDate,
-                    thumbnailUrl: getThumbnail(item, feed?.image?.url),
+                    thumbnailUrl: getThumbnail(item, fallbackThumbnailUrl || feed?.image?.url),
                     author: item.author || (item as any).creator,
                     source: feedName,
                 } as FeedItem;
