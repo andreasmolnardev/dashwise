@@ -1,13 +1,13 @@
-import React from 'react';
-import type { SyntheticEvent } from 'react';
+import React from "react";
+import type { SyntheticEvent } from "react";
 
-import { Dialog, DialogContent } from '../ui/dialog';
+import { Dialog, DialogContent } from "../ui/dialog";
 import { usePageConfig } from "@/hooks/usePageConfig";
 import useAuth from "@/context/useAuth";
-import { Separator } from '../ui/separator';
-import { DialogTitle } from '@radix-ui/react-dialog';
-import { Icon as IconifyIcon } from '@iconify-icon/react';
-import AppIcon from '@dashwise/app-icon';
+import { Separator } from "../ui/separator";
+import { DialogTitle } from "@radix-ui/react-dialog";
+import { Icon as IconifyIcon } from "@iconify-icon/react";
+import AppIcon from "@dashwise/app-icon";
 
 // --- Types ---
 
@@ -54,69 +54,76 @@ type CommandBarProps = {
   open: boolean;
   setOpen: React.Dispatch<React.SetStateAction<boolean>>;
   searchItems: IncomingSearchItem[];
-  config: Record<string, any>,
+  config: Record<string, any>;
 };
-
 
 function normalizeConfigLinks(input: IncomingSearchItem[] = []): LinkItem[] {
   return input
-    .filter((it) => !it.type || it.type === 'link' || it.type === 'app' || it.type === 'karakeepBookmark' || it.type === 'jellyfinItem' || it.type === 'beszelItem' || it.type === 'dashdotItem')
+    .filter((it) =>
+      !it.type || it.type === "link" || it.type === "app" ||
+      it.type === "karakeepBookmark" || it.type === "jellyfinItem" ||
+      it.type === "beszelItem" || it.type === "dashdotItem"
+    )
     .map((it) => {
-      const action = (it.action || '').toString().trim();
-      let url = '';
+      const action = (it.action || "").toString().trim();
+      let url = "";
 
-      if (action.startsWith('url:')) {
+      if (action.startsWith("url:")) {
         url = action.slice(4);
-      } else if (action.startsWith('command:')) {
+      } else if (action.startsWith("command:")) {
         url = action; // keep command: prefix
       } else {
-        url = action || (it.url || '');
+        url = action || (it.url || "");
       }
 
       let type;
 
-      if (it.type === 'karakeepBookmark') {
-        type = 'Karakeep';
-      } else if (it.type === 'jellyfinItem') {
-        type = 'Jellyfin';
-      } else if (it.type === 'app') {
-        type = 'App';
-      } else if (it.type === 'beszelItem') {
-        type = 'Beszel';
-      } else if (it.type === 'dashdotItem') {
-        type = 'Dashdot';
+      if (it.type === "karakeepBookmark") {
+        type = "Karakeep";
+      } else if (it.type === "jellyfinItem") {
+        type = "Jellyfin";
+      } else if (it.type === "app") {
+        type = "App";
+      } else if (it.type === "beszelItem") {
+        type = "Beszel";
+      } else if (it.type === "dashdotItem") {
+        type = "Dashdot";
       } else {
-        type = "Link"
+        type = "Link";
       }
 
       return {
         id: it.id,
         parentId: (it as any).parentId,
-        name: it.name || '',
+        name: it.name || "",
         icon: it.icon || undefined,
-        linkGroup: it.secondaryInfo || it.linkGroup || '',
-        tags: it.tags || '',
+        linkGroup: it.secondaryInfo || it.linkGroup || "",
+        tags: it.tags || "",
         type,
         url,
       } as LinkItem;
     });
 }
 
-
-export default function CommandBar({ open, setOpen, searchItems, config }: CommandBarProps) {
+export default function CommandBar(
+  { open, setOpen, searchItems, config }: CommandBarProps,
+) {
   const { user } = useAuth();
   const searchPreferences = user?.searchPreferences ?? {};
-  const searchEngines: SearchEngine[] = (searchPreferences.searchEngines || []) as SearchEngine[];
+  const searchEngines: SearchEngine[] =
+    (searchPreferences.searchEngines || []) as SearchEngine[];
 
-  const links: LinkItem[] = React.useMemo(() => normalizeConfigLinks(searchItems || []), [searchItems]);
+  const links: LinkItem[] = React.useMemo(
+    () => normalizeConfigLinks(searchItems || []),
+    [searchItems],
+  );
 
-  const defaultEngine =
-    searchEngines.find((se) => se.status === 'default') ||
-    searchEngines.find((se) => se.status !== 'disabled') ||
+  const defaultEngine = searchEngines.find((se) => se.status === "default") ||
+    searchEngines.find((se) => se.status !== "disabled") ||
     searchEngines[0];
 
-  const [clipboardText, setClipboardText] = React.useState('');
-  const [query, setQuery] = React.useState('');
+  const [clipboardText, setClipboardText] = React.useState("");
+  const [query, setQuery] = React.useState("");
   const [filtered, setFiltered] = React.useState<LinkItem[]>(links);
   const [currentAppId, setCurrentAppId] = React.useState<string | null>(null);
   const [highlightIndex, setHighlightIndex] = React.useState(0);
@@ -133,22 +140,22 @@ export default function CommandBar({ open, setOpen, searchItems, config }: Comma
     if (open) {
       setTimeout(() => inputRef.current?.focus(), 10);
       try {
-        navigator.clipboard?.readText?.().then(text => {
+        navigator.clipboard?.readText?.().then((text) => {
           if (text && text.trim().length > 0) {
             setClipboardText(text.trim());
           }
-        }).catch(() => { /* ignore */ });
+        }).catch(() => {/* ignore */});
       } catch (e) { /* ignore */ }
     } else {
-      setQuery('');
+      setQuery("");
       setFiltered(links);
       setCurrentAppId(null);
       setHighlightIndex(0);
-      setClipboardText('');
+      setClipboardText("");
     }
   }, [open, links]);
 
-  //item filtering 
+  //item filtering
   React.useEffect(() => {
     const visibleLinks = currentAppId
       ? links.filter((item) => item.parentId === currentAppId)
@@ -162,7 +169,7 @@ export default function CommandBar({ open, setOpen, searchItems, config }: Comma
     }
 
     const minMatchRatio = 0.5;
-    const matchMode = 'prefix';
+    const matchMode = "prefix";
 
     const queryWords = q.split(/\s+/).filter(Boolean);
 
@@ -170,20 +177,22 @@ export default function CommandBar({ open, setOpen, searchItems, config }: Comma
       .map((item) => {
         // turn tags into words: split on non-word chars so "foo-bar" -> ["foo","bar"]
         const tagWords = (item.tags || [])
-          .flatMap(t => String(t).toLowerCase().split(/\W+/).filter(Boolean));
+          .flatMap((t) => String(t).toLowerCase().split(/\W+/).filter(Boolean));
 
         // for each query word, find if it matches any tag word (count each query word at most once)
         let matchedQueryCount = 0;
         for (const qw of queryWords) {
-          const matched = tagWords.some(tw => {
+          const matched = tagWords.some((tw) => {
             //if (matchMode === 'whole') return tw === qw;
-            if (matchMode === 'prefix') return tw.startsWith(qw);
+            if (matchMode === "prefix") return tw.startsWith(qw);
             return tw === qw;
           });
           if (matched) matchedQueryCount += 1;
         }
 
-        const matchRatio = queryWords.length > 0 ? matchedQueryCount / queryWords.length : 0;
+        const matchRatio = queryWords.length > 0
+          ? matchedQueryCount / queryWords.length
+          : 0;
 
         return { item, matchedQueryCount, matchRatio };
       })
@@ -203,13 +212,13 @@ export default function CommandBar({ open, setOpen, searchItems, config }: Comma
   // open on cmd/ctrl + k
   React.useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
-        setOpen(prev => !prev);
+        setOpen((prev) => !prev);
       }
     };
-    window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
   }, [setOpen]);
 
   // parse bang: returns {slug, rest} or null
@@ -219,12 +228,18 @@ export default function CommandBar({ open, setOpen, searchItems, config }: Comma
 
     const leadingMatch = trimmed.match(/^!(\w+)\s*(.*)$/s);
     if (leadingMatch) {
-      return { slug: leadingMatch[1].toLowerCase(), rest: (leadingMatch[2] || '').trim() };
+      return {
+        slug: leadingMatch[1].toLowerCase(),
+        rest: (leadingMatch[2] || "").trim(),
+      };
     }
 
     const trailingMatch = trimmed.match(/^(.*\S)\s*!([A-Za-z0-9_]+)\s*$/s);
     if (trailingMatch) {
-      return { slug: trailingMatch[2].toLowerCase(), rest: (trailingMatch[1] || '').trim() };
+      return {
+        slug: trailingMatch[2].toLowerCase(),
+        rest: (trailingMatch[1] || "").trim(),
+      };
     }
 
     return null;
@@ -240,10 +255,10 @@ export default function CommandBar({ open, setOpen, searchItems, config }: Comma
       items.unshift({
         id: "__app_back__",
         name: "Back",
-        url: '__app_back__',
-        icon: 'fa6-solid:arrow-left',
-        linkGroup: 'Dashwise',
-        type: 'App',
+        url: "__app_back__",
+        icon: "fa6-solid:arrow-left",
+        linkGroup: "Dashwise",
+        type: "App",
       } as LinkItem);
     }
 
@@ -251,22 +266,31 @@ export default function CommandBar({ open, setOpen, searchItems, config }: Comma
     if (!currentAppId && isValidUrl(trimmedQuery)) {
       items.unshift({
         name: `Go to ${trimmedQuery}`,
-        url: trimmedQuery.startsWith('http') ? trimmedQuery : `https://${trimmedQuery}`,
-        icon: '/icons/faGlobe.svg', // globe icon
-        linkGroup: 'URL',
-        type: 'Go to URL',
+        url: trimmedQuery.startsWith("http")
+          ? trimmedQuery
+          : `https://${trimmedQuery}`,
+        icon: "/icons/faGlobe.svg", // globe icon
+        linkGroup: "URL",
+        type: "Go to URL",
       } as LinkItem);
     }
 
     // --- 2. Bang search ---
     const parsed = parseBang(trimmedQuery);
     if (!currentAppId && parsed) {
-      const engine = searchEngines.find((se) => (se.slug || '').toLowerCase() === parsed.slug);
-      const fallbackEngine = searchEngines.find((se) => (se.slug || '').toLowerCase() == searchPreferences.searchEngineShortcutFallback)
+      const engine = searchEngines.find((se) =>
+        (se.slug || "").toLowerCase() === parsed.slug
+      );
+      const fallbackEngine = searchEngines.find((se) =>
+        (se.slug || "").toLowerCase() ==
+          searchPreferences.searchEngineShortcutFallback
+      );
       if (engine) {
         items.unshift({
-          name: `Search with ${engine.name} (${engine.slug ? '!' + engine.slug : ''})`,
-          url: '__bang_search__',
+          name: `Search with ${engine.name} (${
+            engine.slug ? "!" + engine.slug : ""
+          })`,
+          url: "__bang_search__",
           icon: engine.icon,
           linkGroup: engine.name,
           isBangAction: true,
@@ -276,7 +300,7 @@ export default function CommandBar({ open, setOpen, searchItems, config }: Comma
       } else if (fallbackEngine) {
         items.unshift({
           name: `Forward shortcut to ${fallbackEngine?.name}`,
-          url: '__forward_search__',
+          url: "__forward_search__",
           icon: fallbackEngine?.icon,
           linkGroup: "Dashwise",
           isBangAction: true,
@@ -287,26 +311,33 @@ export default function CommandBar({ open, setOpen, searchItems, config }: Comma
     }
 
     // --- 3. Default search engine (only once) ---
-    if (!currentAppId && (!parsed || !searchEngines.find((se) => (se.slug || '').toLowerCase() === parsed.slug))) {
+    if (
+      !currentAppId && (!parsed || !searchEngines.find((se) =>
+        (se.slug || "").toLowerCase() === parsed.slug
+      ))
+    ) {
       items.push({
-        name: `Search ${defaultEngine?.name || 'web'}`,
-        url: '__search_action__',
+        name: `Search ${defaultEngine?.name || "web"}`,
+        url: "__search_action__",
         icon: defaultEngine?.icon,
-        linkGroup: defaultEngine?.name || 'web',
-        type: 'Search',
+        linkGroup: defaultEngine?.name || "web",
+        type: "Search",
       } as LinkItem);
     }
 
     // --- 4. All other engines except default ---
     (!currentAppId ? (searchEngines || []) : [])
-      .filter((se) => (se.status || '').toLowerCase() !== 'disabled' && se.slug !== defaultEngine?.slug)
+      .filter((se) =>
+        (se.status || "").toLowerCase() !== "disabled" &&
+        se.slug !== defaultEngine?.slug
+      )
       .forEach((se) => {
         items.push({
-          name: `${se.name}${se.slug ? ` (!${se.slug})` : ''}`,
+          name: `${se.name}${se.slug ? ` (!${se.slug})` : ""}`,
           url: `__engine_search__:${se.slug}`,
           icon: se.icon,
           linkGroup: se.name,
-          type: 'Search',
+          type: "Search",
           isSearchEngine: true,
           engineSlug: se.slug,
         } as LinkItem);
@@ -326,7 +357,11 @@ export default function CommandBar({ open, setOpen, searchItems, config }: Comma
     if (!el || !listRef.current) return;
 
     try {
-      el.scrollIntoView({ behavior: 'smooth', block: 'end', inline: 'nearest' });
+      el.scrollIntoView({
+        behavior: "smooth",
+        block: "end",
+        inline: "nearest",
+      });
     } catch {
       el.scrollIntoView(false);
     }
@@ -334,21 +369,21 @@ export default function CommandBar({ open, setOpen, searchItems, config }: Comma
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     const actionsCount = actions.length;
-    if (e.key === 'Tab' && !query && clipboardText) {
+    if (e.key === "Tab" && !query && clipboardText) {
       e.preventDefault();
       setQuery(clipboardText);
       return;
     }
-    if (e.key === 'ArrowDown') {
+    if (e.key === "ArrowDown") {
       e.preventDefault();
       setHighlightIndex((i) => (i + 1) % actionsCount);
-    } else if (e.key === 'ArrowUp') {
+    } else if (e.key === "ArrowUp") {
       e.preventDefault();
       setHighlightIndex((i) => (i - 1 + actionsCount) % actionsCount);
-    } else if (e.key === 'Enter') {
+    } else if (e.key === "Enter") {
       e.preventDefault();
       triggerAction(highlightIndex);
-    } else if (e.key === 'Escape') {
+    } else if (e.key === "Escape") {
       e.preventDefault();
       setOpen(false);
     }
@@ -357,35 +392,38 @@ export default function CommandBar({ open, setOpen, searchItems, config }: Comma
   function triggerAction(index: number) {
     const a = actions[index];
     if (!a) return;
-    if (a.url === '__app_back__') {
+    if (a.url === "__app_back__") {
       setCurrentAppId(null);
-      setQuery('');
-    } else if (a.url?.startsWith('app:')) {
+      setQuery("");
+    } else if (a.url?.startsWith("app:")) {
       const appId = a.url.slice(4);
       setCurrentAppId(appId || null);
-      setQuery('');
+      setQuery("");
       setHighlightIndex(0);
-    } else if (a.url === '__bang_search__') {
+    } else if (a.url === "__bang_search__") {
       openBangSearch(query, a.bangEngineSlug);
-    } else if (a.url === '__forward_search__') {
-      openBangSearch(`!${a.bangEngineSlug + '' + query}`, a.bangEngineSlug);
-    } else if (a.url === '__search_action__') {
+    } else if (a.url === "__forward_search__") {
+      openBangSearch(`!${a.bangEngineSlug + "" + query}`, a.bangEngineSlug);
+    } else if (a.url === "__search_action__") {
       openSearch(query);
-    } else if (a.url.startsWith('__engine_search__:')) {
-      const slug = a.url.split(':', 2)[1];
+    } else if (a.url.startsWith("__engine_search__:")) {
+      const slug = a.url.split(":", 2)[1];
       openEngineSearch(slug, query);
-    } else if (a.url.startsWith('command:')) {
+    } else if (a.url.startsWith("command:")) {
       openCommandClient(a.url);
     } else {
       openUrl(a.url, config?.global?.linkOpenBehaviour);
     }
   }
 
-  function openUrl(url: string, method: 'newtab' | 'sametab' | null = 'sametab') {
+  function openUrl(
+    url: string,
+    method: "newtab" | "sametab" | null = "sametab",
+  ) {
     if (!url) return;
-    let target: '_self' | '_blank' = '_self';
-    if (method === 'newtab') {
-      target = '_blank';
+    let target: "_self" | "_blank" = "_self";
+    if (method === "newtab") {
+      target = "_blank";
     }
     window.open(url, target);
     setOpen(false);
@@ -394,37 +432,48 @@ export default function CommandBar({ open, setOpen, searchItems, config }: Comma
   function openSearch(q: string) {
     const engine = defaultEngine;
     if (!engine) return;
-    const template = engine.url_params || engine.url_home || '';
-    const searchUrl = template.replace('%s', encodeURIComponent(q || ''));
+    const template = engine.url_params || engine.url_home || "";
+    const searchUrl = template.replace("%s", encodeURIComponent(q || ""));
     if (!searchUrl) return;
-    openUrl(searchUrl, config?.global?.linkOpenBehaviour ?? 'sametab');
+    openUrl(searchUrl, config?.global?.linkOpenBehaviour ?? "sametab");
   }
 
   function openBangSearch(q: string, slug?: string) {
     if (!slug) return;
     const parsed = parseBang(q);
-    const terms = parsed ? parsed.rest : '';
-    const engine = searchEngines.find((se) => (se.slug || '').toLowerCase() === (slug || '').toLowerCase());
+    const terms = parsed ? parsed.rest : "";
+    const engine = searchEngines.find((se) =>
+      (se.slug || "").toLowerCase() === (slug || "").toLowerCase()
+    );
     if (!engine) return;
-    const template = engine.url_params || engine.url_home || '';
-    const searchUrl = template.replace('%s', encodeURIComponent(terms || ''));
+    const template = engine.url_params || engine.url_home || "";
+    const searchUrl = template.replace("%s", encodeURIComponent(terms || ""));
     if (!searchUrl) return;
-    openUrl(searchUrl, config?.global?.linkOpenBehaviour ?? 'sametab');
+    openUrl(searchUrl, config?.global?.linkOpenBehaviour ?? "sametab");
   }
 
   function openEngineSearch(slug?: string, q?: string) {
     if (!slug) return;
-    const engine = searchEngines.find((se) => (se.slug || '').toLowerCase() === (slug || '').toLowerCase());
+    const engine = searchEngines.find((se) =>
+      (se.slug || "").toLowerCase() === (slug || "").toLowerCase()
+    );
     if (!engine) return;
-    const template = engine.url_params || engine.url_home || '';
-    const searchUrl = template.replace('%s', encodeURIComponent((q || '').trim()));
+    const template = engine.url_params || engine.url_home || "";
+    const searchUrl = template.replace(
+      "%s",
+      encodeURIComponent((q || "").trim()),
+    );
     if (!searchUrl) return;
-    openUrl(searchUrl, config?.global?.linkOpenBehaviour ?? 'sametab');
+    openUrl(searchUrl, config?.global?.linkOpenBehaviour ?? "sametab");
   }
 
   function openCommandClient(url: string) {
     try {
-      const schemeUrl = url.startsWith('command://') ? url : url.startsWith('command:') ? url.replace('command:', 'client://') : url;
+      const schemeUrl = url.startsWith("command://")
+        ? url
+        : url.startsWith("command:")
+        ? url.replace("command:", "client://")
+        : url;
       window.location.href = schemeUrl;
     } catch {
       // noop
@@ -441,7 +490,7 @@ export default function CommandBar({ open, setOpen, searchItems, config }: Comma
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTitle className='hidden'>Search Bar</DialogTitle>
+      <DialogTitle className="hidden">Search Bar</DialogTitle>
       <DialogContent className="min-w-[50vw] mx-auto frosted backdrop-blur-md rounded-lg p-0 shadow-lg text-foreground grid-rows-[auto_35vh_auto] gap-1">
         <div>
           <div className="relative flex mx-3 mt-3 pt-1 items-center">
@@ -450,47 +499,63 @@ export default function CommandBar({ open, setOpen, searchItems, config }: Comma
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder={clipboardText && !query ? "" : "Search your links, integrations, or press Enter to search the web..."}
+              placeholder={clipboardText && !query
+                ? ""
+                : "Search your links, integrations, or press Enter to search the web..."}
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck={false}
               className="w-full flex-1 rounded border border-none bg-transparent focus:outline-none relative z-10"
               aria-label="Command search"
             />
             {!query && clipboardText && (
               <div className="absolute inset-y-0 left-0 flex items-center pointer-events-none text-muted-foreground opacity-50 z-0">
                 <span className="truncate max-w-[40vw]">{clipboardText}</span>
-                <span className="ml-2 text-[10px] border border-muted-foreground/50 rounded px-1.5 py-0.5">Tab</span>
+                <span className="ml-2 text-[10px] border border-muted-foreground/50 rounded px-1.5 py-0.5">
+                  Tab
+                </span>
               </div>
             )}
           </div>
-          <Separator className='my-2 bg-(--text-primary)/20' />
+          <Separator className="my-2 bg-(--text-primary)/20" />
         </div>
 
         <div ref={listRef} className="max-h-full overflow-auto  mx-3">
           {actions.map((item, index) => {
-            const isSearchAction = item.url === '__search_action__';
-            const isBangAction = item.url === '__bang_search__' || item.isBangAction;
-            const isCommand = !isSearchAction && !isBangAction && item.url?.startsWith('command:');
+            const isSearchAction = item.url === "__search_action__";
+            const isBangAction = item.url === "__bang_search__" ||
+              item.isBangAction;
+            const isCommand = !isSearchAction && !isBangAction &&
+              item.url?.startsWith("command:");
             const isHighlighted = highlightIndex === index;
             return (
               <button
-                ref={(el) => { itemRefs.current[index] = el; }}
+                ref={(el) => {
+                  itemRefs.current[index] = el;
+                }}
                 key={item.url + item.name + index}
                 onClick={(e) => onClickLink(e, item)}
-                className={`w-full text-left px-2 py-2 flex items-center gap-3 rounded ${isHighlighted ? 'bg-white/20 text-white' : 'hover:bg-white/10'}`}
+                className={`w-full text-left px-2 py-2 flex items-center gap-3 rounded ${
+                  isHighlighted ? "bg-white/20 text-white" : "hover:bg-white/10"
+                }`}
               >
-                <div className={`w-6 h-6 rounded-md flex items-center justify-center bg-white/20`}>
-                  {item.icon ? (
-                    <AppIcon
-                      source={item.icon}
-                      size={16}
-                      className="w-4 h-4"
-                      imageClassName="w-4 h-4 object-contain"
-                      iconClassName="text-sm"
-                    />
-                  ) : isValidUrl(item.url) ? (
-                    <IconifyIcon icon="fa6-solid:globe" className="text-xs" />
-                  ) : (
-                    <div className="w-4 h-4 bg-gray-300 rounded-sm" />
-                  )}
+                <div
+                  className={`w-6 h-6 rounded-md flex items-center justify-center bg-white/20`}
+                >
+                  {item.icon
+                    ? (
+                      <AppIcon
+                        source={item.icon}
+                        size={16}
+                        className="w-4 h-4"
+                        imageClassName="w-4 h-4 object-contain"
+                        iconClassName="text-sm"
+                      />
+                    )
+                    : isValidUrl(item.url)
+                    ? <IconifyIcon icon="fa6-solid:globe" className="text-xs" />
+                    : <div className="w-4 h-4 bg-gray-300 rounded-sm" />}
                 </div>
                 <div className="flex-1 flex items-center min-w-0">
                   <div className="flex-1 min-w-0 flex gap-2 items-center overflow-hidden">
@@ -504,7 +569,9 @@ export default function CommandBar({ open, setOpen, searchItems, config }: Comma
                   </div>
 
                   <div className="ml-3 text-xs text-muted-foreground whitespace-nowrap">
-                    {isCommand ? <span className="italic">use client</span> : <span>{item.type}</span>}
+                    {isCommand
+                      ? <span className="italic">use client</span>
+                      : <span>{item.type}</span>}
                   </div>
                 </div>
               </button>
@@ -512,9 +579,12 @@ export default function CommandBar({ open, setOpen, searchItems, config }: Comma
           })}
         </div>
         <div>
-          <Separator className='bg-(--text-primary)/20 my-2' />
+          <Separator className="bg-(--text-primary)/20 my-2" />
 
-          <div className="text-xs text-gray-400  mx-3 mb-3">Use ↑ ↓ to navigate · Press escape to close searchbar · Click or press Enter to open</div>
+          <div className="text-xs text-gray-400  mx-3 mb-3">
+            Use ↑ ↓ to navigate · Press escape to close searchbar · Click or
+            press Enter to open
+          </div>
         </div>
       </DialogContent>
     </Dialog>
@@ -535,7 +605,7 @@ function isValidUrl(url?: string) {
     const parsed = new URL(withScheme);
 
     // hostname must exist and contain at least one dot (e.g., example.com)
-    if (!parsed.hostname || !parsed.hostname.includes('.')) return false;
+    if (!parsed.hostname || !parsed.hostname.includes(".")) return false;
 
     return true;
   } catch {
