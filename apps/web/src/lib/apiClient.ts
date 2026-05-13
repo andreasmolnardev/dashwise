@@ -351,6 +351,12 @@ const routes: Record<string, RouteConfig> = {
     params: (input) => ({ path: { id: String(input?.id ?? "") } }),
     body: (input) => input,
   },
+  "integrations.deleteIntegrationAction": {
+    method: "DELETE",
+    path: "/integrations/{id}" as any,
+    auth: (input) => authToken(input?.auth),
+    params: (input) => ({ path: { id: String(input?.id ?? "") } }),
+  },
 
   "integrations.testIntegrationEndpointAction": {
     method: "POST",
@@ -414,6 +420,12 @@ const routes: Record<string, RouteConfig> = {
     path: "/monitors/{id}" as any,
     auth: (input) => authToken(input?.auth),
     params: (input) => ({ path: { id: String(input?.monitorId ?? "") } }),
+  },
+  "monitoring.updateMonitorAction": {
+    method: "PUT",
+    path: "/monitors/{id}" as any,
+    params: (input) => ({ path: { id: String(input?.monitorId ?? "") } }),
+    body: (input) => input,
   },
     "monitoring.createMonitorAction": {
       method: "POST",
