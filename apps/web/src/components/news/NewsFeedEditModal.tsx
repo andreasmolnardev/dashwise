@@ -103,7 +103,7 @@ export default function NewsFeedEditModal({
             const normalizedTitle = title.trim();
             const payload: NewsFeedRecordUpdateInput = {
                 feedId: feed.id,
-                title: isAllFeed ? "All feed" : normalizedTitle || String(feed.title || ""),
+                title: isAllFeed ? "All" : normalizedTitle || String(feed.title || ""),
                 subscriptionRefs: isAllFeed
                     ? sortedSubscriptions.map((entry) => entry.id)
                     : selectedSubscriptionIds,
@@ -139,7 +139,7 @@ export default function NewsFeedEditModal({
                         <Input
                             id="news-feed-title"
                             className="frosted mt-1"
-                            value={isAllFeed ? "All feed" : title}
+                            value={isAllFeed ? "All" : title}
                             onChange={(event) => setTitle(event.target.value)}
                             disabled={saving || loading || isAllFeed}
                         />

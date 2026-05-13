@@ -115,7 +115,7 @@ export default function NewsLayout({ children }: { children: ReactNode }) {
                 <Tab
                     dst="/apps/news"
                     icon="fa6-solid:newspaper"
-                    title="All feed"
+                    title="All"
                     group="Feeds"
                     isRoot={true}
                     dropdownActions={[

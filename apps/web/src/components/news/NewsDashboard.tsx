@@ -328,7 +328,7 @@ export default function NewsDashboardComponent(
     const selectedSource = selectedSubscription?.title ||
         selectedSubscription?.url || selectedFeed?.title || null;
     const selectedCategory = activeFeedId === "all"
-        ? "All feed"
+        ? "All"
         : selectedFeed?.title || "Feed";
 
     const getIconUrl = (name: string) => {
