@@ -13,6 +13,10 @@ export async function updateIntegrationAction(auth: ActionAuth, id: string, payl
   return callApiAction("integrations", "updateIntegrationAction", { auth, id, payload });
 }
 
+export async function deleteIntegrationAction(auth: ActionAuth, id: string) {
+  return callApiAction("integrations", "deleteIntegrationAction", { auth, id });
+}
+
 
 export async function testIntegrationEndpointAction(auth: ActionAuth, target: string) {
   return callApiAction("integrations", "testIntegrationEndpointAction", { auth, target });
