@@ -198,6 +198,21 @@ export async function updateIntegration(
     return { integration: mapIntegration(updated) };
 }
 
+export async function deleteIntegration(
+    userId: string,
+    integrationId: string,
+) {
+    const pb = await getSuperuserPB();
+    const record = await pb.collection("integrations").getOne(integrationId);
+
+    if (!ownsIntegration(record, userId)) {
+        throw new ApiActionError("Not found", 404, { error: "Not found" });
+    }
+
+    await pb.collection("integrations").delete(integrationId);
+    return { success: true };
+}
+
 
 export async function testIntegrationEndpoint(
     userId: string,

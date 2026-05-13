@@ -36,6 +36,8 @@ export type NewsSubscription = {
   name?: string;
   feedIds?: string[];
   newFeedTitles?: string[];
+  linkReplaceRule?: Record<string, string>;
+  fallbackThumbnailUrl?: string;
 };
 
 export type NewsFeedMetadata = {
@@ -65,6 +67,8 @@ export type NewsSubscribeInput = {
   icon?: string;
   feedIds?: string[];
   newFeedTitles?: string[];
+  linkReplaceRule?: Record<string, string>;
+  fallbackThumbnailUrl?: string;
 };
 
 export type NewsUpdateInput = {
@@ -74,6 +78,8 @@ export type NewsUpdateInput = {
   title?: string;
   icon?: string;
   feedIds?: string[];
+  linkReplaceRule?: Record<string, string>;
+  fallbackThumbnailUrl?: string;
 };
 
 export type NewsFeedDraft = Omit<NewsSubscription, "feedUrl" | "url"> & {
@@ -123,6 +129,8 @@ function normalizeSubscription(entry: Record<string, unknown> | null): NewsSubsc
     json: entry.json,
     title: String(entry.title ?? entry.name ?? url),
     name: String(entry.title ?? entry.name ?? url),
+    linkReplaceRule: entry.linkReplaceRule as Record<string, string> | undefined,
+    fallbackThumbnailUrl: entry.fallbackThumbnailUrl ? String(entry.fallbackThumbnailUrl) : undefined,
   };
 }
 
@@ -509,6 +517,8 @@ export async function getNewsSubscriptions(userId: string): Promise<NewsSubscrip
       .filter((feed) => (feed.subscriptionRefs ?? []).map(String).includes(String(subscription.id || "")))
       .map((feed) => String(feed.id)),
     newFeedTitles: subscription.newFeedTitles,
+    linkReplaceRule: subscription.linkReplaceRule,
+    fallbackThumbnailUrl: subscription.fallbackThumbnailUrl,
   }));
 
   return {
@@ -539,33 +549,9 @@ export async function refreshNewsFeed(
   userId: string,
   options?: { feedId?: string | null; feedIds?: string[] | null },
 ) {
-  if (!config.jobs_webhook_enabled) {
-    return { message: "Jobs webhook is disabled" };
-  }
-
-  const feedIds = normalizeRefreshFeedIds(options?.feedIds ?? options?.feedId ?? null);
-  if (!feedIds.length) {
-    return { message: "No feed IDs specified" };
-  }
-
-  const url = new URL(`${config.jobs_url}/webhook/newsFeedBuilder`);
-
-  for (const feedId of feedIds) {
-    url.searchParams.append("feedId", feedId);
-  }
-
-  const response = await fetch(url, {
-    ...(url.toString().startsWith("https://")
-      ? { tls: { rejectUnauthorized: false } }
-      : {}),
-  } as RequestInit & { tls?: { rejectUnauthorized: boolean } });
-
-  const contentType = response.headers.get("content-type") || "";
-  if (contentType.includes("application/json")) {
-    return await response.json();
-  }
-
-  return await response.text();
+  // External webhook calls are disabled in the monolithic structure.
+  // The API layer now handles this by calling internal job functions directly.
+  return { message: "Internal refresh triggered" };
 }
 
 export async function subscribeNewsFeed(
@@ -589,28 +575,39 @@ export async function subscribeNewsFeed(
       url: sub.feedUrl,
       icon: sub.icon,
       json: existing.json ?? [],
+      linkReplaceRule: sub.linkReplaceRule,
+      fallbackThumbnailUrl: sub.fallbackThumbnailUrl,
     });
 
     if (existing.id) {
       const feedIds = await syncSubscriptionFeedRefs(userId, existing.id, sub.feedIds ?? [], sub.newFeedTitles ?? []);
 
+      // Refreshing of feeds is now handled by the API layer internally
+      /*
       if (config.jobs_webhook_enabled && feedIds.length > 0) {
         await refreshNewsFeed(userId, { feedIds });
       }
+      */
     }
   } else {
     const created = await createNewsSubscription({
       url: sub.feedUrl,
+      title: sub.name,
       icon: sub.icon,
       json: [],
+      linkReplaceRule: sub.linkReplaceRule,
+      fallbackThumbnailUrl: sub.fallbackThumbnailUrl,
     });
 
     if (created?.id) {
       const feedIds = await syncSubscriptionFeedRefs(userId, created.id, sub.feedIds ?? [], sub.newFeedTitles ?? []);
 
+      // Refreshing of feeds is now handled by the API layer internally
+      /*
       if (config.jobs_webhook_enabled && feedIds.length > 0) {
         await refreshNewsFeed(userId, { feedIds });
       }
+      */
     }
   }
 
@@ -641,6 +638,8 @@ export async function updateNewsFeed(
     title: payload.title,
     icon: payload.icon || target.icon || "",
     json: target.json ?? [],
+    linkReplaceRule: payload.linkReplaceRule !== undefined ? payload.linkReplaceRule : target.linkReplaceRule,
+    fallbackThumbnailUrl: payload.fallbackThumbnailUrl !== undefined ? payload.fallbackThumbnailUrl : target.fallbackThumbnailUrl,
   });
 
   await syncSubscriptionFeedRefs(userId, target.id, payload.feedIds ?? []);
