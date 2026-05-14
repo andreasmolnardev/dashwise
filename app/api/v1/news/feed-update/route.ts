@@ -88,7 +88,7 @@ export async function POST(req: NextRequest) {
 }
 
 function escapeFilter(str: string) {
-  return str.replace(/"/g, '\\"');
+  return str.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 }
 
 async function validateBody(req: NextRequest): Promise<UpdateRequestBody> {
