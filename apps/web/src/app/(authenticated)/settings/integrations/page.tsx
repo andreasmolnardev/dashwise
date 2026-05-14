@@ -448,7 +448,7 @@ export default function IntegrationsModularSettingsPage() {
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem onClick={(e) => openEditConfig(e, integration)}>
                               <Pencil className="mr-2 h-4 w-4" />
-                              Edit Config
+                              Update manually
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               variant="destructive"
@@ -543,7 +543,7 @@ export default function IntegrationsModularSettingsPage() {
       <Dialog open={editConfigDialogOpen} onOpenChange={setEditConfigDialogOpen}>
         <DialogContent className="frosted text-(--text-primary) w-[60vw] max-w-3xl">
           <DialogHeader>
-            <DialogTitle>Edit Integration Config</DialogTitle>
+            <DialogTitle>Update Integration manually</DialogTitle>
             <DialogDescription>
               Manually update the integration configuration. Supports JSON and YAML.
             </DialogDescription>
