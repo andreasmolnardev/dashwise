@@ -40,6 +40,40 @@ References can use runtime paths such as:
 - `computed.<id>.<field>`
 - `lookup_tables.<table>.<key>`
 
+## Endpoints
+
+Endpoints define HTTP calls to fetch data from external services. Each endpoint includes configuration for the request and `response_mapping` to transform the response into structured data.
+
+### Response mapping with `iterate`
+
+The `iterate` property in `response_mapping` specifies which array to iterate over when mapping endpoint responses:
+
+- **Nested array**: When the response is an object containing an array at a specific key, use `iterate: "<key>"`:
+  ```yaml
+  response:
+    type: json
+  response_mapping:
+    entries:
+      iterate: "items"  # Response is { "items": [...] }
+      mappingProperties:
+        id: "id"
+        name: "name"
+  ```
+
+- **Direct array response**: When the endpoint returns an array directly (not nested), use `iterate: "response"`:
+  ```yaml
+  response:
+    type: json
+  response_mapping:
+    entries:
+      iterate: "response"  # Response is [...] directly
+      mappingProperties:
+        id: "entryId"
+        name: "name"
+  ```
+
+**Example**: For a response like `[{ "entryId": 1, "name": "server" }, { "entryId": 5, "name": "backup" }]`, use `iterate: "response"` to iterate over the array directly.
+
 ## Key files
 
 - `apps/backend/src/controllers/pageConfig.controller.ts`
