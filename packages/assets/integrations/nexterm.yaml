@@ -1,0 +1,326 @@
+# Dashwise Integration YAML
+details:
+  name: Nexterm
+  description: "Open source server management software for SSH, VNC & RDP"
+  author: ""
+  version: 1.0.0
+  repository: "https://github.com/gnmyt/Nexterm"
+  icon: "/icons/png/nexterm-light.png"
+  links:
+    website: "https://nexterm.dev"
+    documentation: "https://docs.nexterm.dev"
+    support: "https://dc.gnmyt.dev"
+  categories:
+    - Remote Access
+    - Monitoring
+
+configuration:
+  environment_variables:
+    TOKEN:
+      required: false
+      user_hidden: true
+    URL:
+      required: true
+      description: "Base URL of your Nexterm instance (e.g. https://nexterm.example.com)"
+    NT_USER:
+      required: true
+      edit: "overwrite-only"
+      description: "Nexterm username"
+    NT_PASS:
+      required: true
+      edit: "overwrite-only"
+      description: "Nexterm password"
+    SHOW_RECENT_COUNT:
+      required: false
+      default: 5
+      description: "Number of recent connections to display in the widget"
+
+  endpoints:
+    retrieve-token:
+      method: POST
+      url: "${URL}/api/auth/login"
+      body:
+        username: "${NT_USER}"
+        password: "${NT_PASS}"
+      response:
+        type: json
+        data_path: "token"
+        data_set_env: "TOKEN"
+        invalidate:
+          after: 86400 # 1 day
+
+    server-connections:
+      method: GET
+      url: "${URL}/api/entries/recent"
+      auth: "Bearer ${TOKEN}"
+      insecure_skip_verify: true
+      response:
+        type: json
+      discard_unmapped: true
+      response_mapping:
+        entries:
+          iterate: "response"
+          mappingProperties:
+            id: "entryId"
+            name: "name"
+            type: "type"
+
+    fetch-folders:
+      method: GET
+      url: "${URL}/api/folder/list"
+      auth: "Bearer ${TOKEN}"
+      insecure_skip_verify: true
+      response:
+        type: json
+      discard_unmapped: true
+      response_mapping:
+        folders:
+          iterate: "items"
+          mappingProperties:
+            id: "id"
+            name: "name"
+            position: "position"
+
+    fetch-monitoring:
+      method: GET
+      url: "${URL}/api/monitoring"
+      auth: "Bearer ${TOKEN}"
+      insecure_skip_verify: true
+      response:
+        type: json
+      discard_unmapped: true
+      response_mapping:
+        servers:
+          iterate: "items"
+          mappingProperties:
+            id: "id"
+            name: "name"
+            status: "status"        # online | offline | unknown
+            cpu_percent: "cpu"
+            memory_percent: "memory"
+            disk_percent: "disk"
+            uptime_seconds: "uptime"
+            last_seen: "lastSeen"
+
+    fetch-active-sessions:
+      method: GET
+      url: "${URL}/api/session/list"
+      auth: "Bearer ${TOKEN}"
+      insecure_skip_verify: true
+      response:
+        type: json
+      discard_unmapped: true
+      response_mapping:
+        sessions:
+          iterate: "items"
+          mappingProperties:
+            id: "id"
+            entry_id: "entryId"
+            entry_name: "entryName"
+            type: "type"
+            started_at: "startedAt"
+
+  computed:
+    servers:
+      operation: expand
+      on: this.endpoints.fetch-monitoring.mappedResponse.servers as server
+      fields:
+        health:
+          initial_value: 100
+          iterate_over: lookup_tables.server_metrics as metric
+          operation: if
+          condition: server[metric.property] >= metric.threshold_warn
+          and: server.status == "online"
+          then:
+            operation: math
+            subtract: metric.multiplier * (server[metric.property] - metric.threshold_warn)
+            from: server.health
+          else:
+            condition: server.status != "online"
+            then: 0
+        warnings:
+          iterate_over: lookup_tables.server_metrics as metric
+          operation: if
+          condition: server[metric.property] >= metric.threshold_warn
+          then: "${metric.name} usage high"
+
+  lookup_tables:
+    server_metrics:
+      - name: CPU
+        multiplier: 2.5
+        property: "cpu_percent"
+        threshold_warn: 70
+        threshold_critical: 90
+      - name: Memory
+        multiplier: 1.5
+        property: "memory_percent"
+        threshold_warn: 80
+        threshold_critical: 95
+      - name: Disk
+        multiplier: 4
+        property: "disk_percent"
+        threshold_warn: 75
+        threshold_critical: 90
+
+    connection_type_icons:
+      ssh: "faTerminal"
+      rdp: "faDesktop"
+      vnc: "faTv"
+
+    status_colors:
+      online: "#16a34a"
+      offline: "#ef4444"
+      unknown: "#6b7280"
+
+  widgets:
+    - name: "Nexterm Recent Connections"
+      key: "nexterm-recent-connections"
+      template: "vertical-list"
+      depends_on:
+        - "this.endpoints.fetch-recent"
+      data:
+        source: "this.endpoints.fetch-recent.mappedResponse.recent"
+        input:
+          URL: "${URL}"
+          TOKEN: "${TOKEN}"
+      properties:
+        header:
+          title: "Recent Connections"
+          icon: "url:/icons/png/nexterm-light.png"
+          titleAction: "url:${URL}"
+        list:
+          iterate_over: "this.endpoints.fetch-recent.mappedResponse.recent"
+          limit: "${SHOW_RECENT_COUNT}"
+          prototype:
+            icon:
+              value: "type"
+              map:
+                ssh: "faTerminal"
+                rdp: "faDesktop"
+                vnc: "faTv"
+            title: "${entry.name}"
+            titleAction: "url:${URL}"
+            subtitle: "${entry.host}:${entry.port} · ${entry.type|upper}"
+
+    - name: "Nexterm Server Health"
+      key: "nexterm-server-health"
+      template: "columns"
+      depends_on:
+        - "computed.servers"
+      data:
+        source: "computed.servers"
+        input:
+          URL: "${URL}"
+          TOKEN: "${TOKEN}"
+      properties:
+        header:
+          title: "Nexterm Server Health"
+          icon: "url:/icons/png/nexterm-light.png"
+          titleAction: "url:${URL}"
+        columns:
+          iterate_over: "computed.servers"
+          user_customizations:
+            - allow_reorder
+            - allow_hide
+          prototype:
+            primary: "${server.name}"
+            primaryAction: "url:${URL}"
+            secondary: "${server.host}"
+            progress:
+              type: "circular"
+              value: "${server.health}"
+              thresholds:
+                - min: 80
+                  color: "#16a34a"
+                - min: 60
+                  color: "#f59e0b"
+                - min: 40
+                  color: "#f97316"
+                - min: 0
+                  color: "#ef4444"
+              zero_label: "Offline"
+
+    - name: "Nexterm Server Warnings"
+      key: "nexterm-server-warnings"
+      template: "vertical-list"
+      depends_on:
+        - "computed.servers"
+      hide_if_empty: true
+      data:
+        source: "computed.servers"
+        input:
+          URL: "${URL}"
+          TOKEN: "${TOKEN}"
+      properties:
+        header:
+          title: "Nexterm Server Warnings"
+          icon: "url:/icons/png/nexterm-light.png"
+          titleAction: "url:${URL}"
+        list:
+          iterate_over: "computed.servers"
+          sort_by: "severity"
+          sort_order: "desc"
+          prototype:
+            accent:
+              value: "severity"
+              map:
+                critical: "#ef4444"
+                warning: "#f59e0b"
+            icon:
+              value: "severity"
+              map:
+                critical: "faExclamationCircle"
+                warning: "faExclamation"
+            title: "${server.name}"
+            titleAction: "url:${URL}"
+            subtitle:
+              value: "${active_warnings}"
+              type: "list"
+
+    - name: "Nexterm Active Sessions"
+      key: "nexterm-active-sessions"
+      template: "vertical-list"
+      depends_on:
+        - "this.endpoints.fetch-active-sessions"
+      hide_if_empty: true
+      data:
+        source: "this.endpoints.fetch-active-sessions.mappedResponse.sessions"
+        input:
+          URL: "${URL}"
+          TOKEN: "${TOKEN}"
+      properties:
+        header:
+          title: "Active Sessions"
+          icon: "url:/icons/png/nexterm-light.png"
+          titleAction: "url:${URL}"
+        list:
+          iterate_over: "this.endpoints.fetch-active-sessions.mappedResponse.sessions"
+          sort_by: "started_at"
+          sort_order: "desc"
+          prototype:
+            icon:
+              value: "session.type"
+              map:
+                ssh: "faTerminal"
+                rdp: "faDesktop"
+                vnc: "faTv"
+            title: "${session.entry_name}"
+            titleAction: "url:${URL}"
+            subtitle: "${session.type|upper} · Connected ${session.started_at|relative}"
+
+  shortcuts:
+    - main:
+        iterate_over: "this.endpoints.server-connections.mappedResponse.entries"
+        mappingProperties:
+          id: "${id}"
+          name: "${name}"
+          icon: "url:/icons/png/nexterm-light.png"
+          secondaryInfo: "${type}"
+          type: "nextermEntry"
+          action: "url:${URL}"
+          tags:
+            - "Nexterm"
+            - "Servers"
+            - "Remote Access"
+            - "${type|upper}"
+            - "${name}"
