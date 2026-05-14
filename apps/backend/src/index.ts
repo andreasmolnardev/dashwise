@@ -12,9 +12,10 @@ import systemRoute from "./routes/system.route";
 import dataRoute from "./routes/data.route";
 
 const app = new Hono();
+
+const { process: pbProcess } = await startPocketbase();
 const logger = createLogger("API");
 
-const pbProcess = await startPocketbase();
 
 const shutdown = () => {
   logger.info("Shutting down");

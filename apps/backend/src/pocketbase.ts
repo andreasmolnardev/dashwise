@@ -1,14 +1,22 @@
 import { accessSync, constants, existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { getSuperuserPB } from "@dashwise/sdk/lib/pocketbase";
 import { config } from "./lib/config";
-import { createLogger } from "./lib/logger";
+import { createLogger, setPocketBaseLogger } from "./lib/logger";
 
 /**
  * Resolve current file directory (ESM-safe)
  */
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 const logger = createLogger("PocketBase");
+
+type PocketBaseClient = Awaited<ReturnType<typeof getSuperuserPB>>;
+
+export type PocketBaseStartResult = {
+  process: Bun.Subprocess | null;
+  pb: PocketBaseClient;
+};
 
 /**
  * Walk up until we find monorepo root (pnpm workspace marker)
@@ -82,14 +90,19 @@ async function waitForPocketBaseReady(healthUrl: string, pb?: Bun.Subprocess) {
   throw new Error(`Timed out waiting for PocketBase readiness at ${healthUrl}`);
 }
 
-export async function startPocketbase() {
+export async function startPocketbase(): Promise<PocketBaseStartResult> {
   const healthUrl = new URL("/api/health", config.PB_URL).toString();
 
   if (!config.START_POCKETBASE) {
     logger.info(`Using configured PocketBase at ${config.PB_URL}`);
     await waitForPocketBaseReady(healthUrl);
     logger.info(`Connection to PocketBase at ${config.PB_URL} succeeded`);
-    return null;
+    const pb = await getSuperuserPB();
+    const pbLogger = (pb as { logger?: () => Parameters<typeof setPocketBaseLogger>[0] }).logger?.();
+    if (pbLogger) {
+      setPocketBaseLogger(pbLogger);
+    }
+    return { process: null, pb };
   }
 
   const monorepoRoot = findRepoRoot(__dirname);
@@ -153,5 +166,11 @@ export async function startPocketbase() {
   await waitForPocketBaseReady(healthUrl, pb);
   logger.info(`Connection to PocketBase at ${config.PB_URL} succeeded`);
 
-  return pb;
+  const pbClient = await getSuperuserPB();
+  const pbLogger = (pbClient as { logger?: () => Parameters<typeof setPocketBaseLogger>[0] }).logger?.();
+  if (pbLogger) {
+    setPocketBaseLogger(pbLogger);
+  }
+
+  return { process: pb, pb: pbClient };
 }
