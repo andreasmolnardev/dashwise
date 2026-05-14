@@ -21,6 +21,65 @@ type SearchIndexIntegrationRecord = {
   environment?: unknown;
 };
 
+export async function runSearchItemsIndexing() {
+  console.log("Starting search items indexing job...");
+  const pb = await getSuperuserPB();
+  const users = await pb.collection("users").getFullList<{ id: string }>(500, {
+    fields: "id",
+  });
+
+  for (const user of users) {
+    const userId = user.id;
+    if (!userId) continue;
+
+    const rows: SearchItemRow[] = [];
+    const links = await getHomeLinks(userId).catch(() => [] as any[]);
+    for (const link of links) {
+      const name = String(link?.title ?? "").trim();
+      const url = String(link?.url ?? "").trim();
+      if (!name || !url) continue;
+
+      rows.push({
+        name,
+        icon: String(link?.iconUrl || link?.folderIcon || "/icons/faGlobe.svg"),
+        secondary: String(link?.collection || link?.folder || "Link"),
+        action: url.startsWith("url:") ? url : `url:${url}`,
+        app: "",
+        tags: [
+          name,
+          String(link?.collection || ""),
+          String(link?.folder || ""),
+          ...(Array.isArray(link?.tags) ? link.tags.map((tag: unknown) => String(tag)) : []),
+        ].filter((tag): tag is string => tag.trim().length > 0),
+        sourceId: link.id,
+        sourceUpdated: link.updated,
+      });
+    }
+
+    const enabledIntegrations = await getEnabledIntegrationsMap(pb, userId);
+    const integrations = await pb.collection("integrations").getFullList<SearchIndexIntegrationRecord>(500, {
+      filter: `user=\"${userId.replace(/"/g, '\\\"')}\"`,
+      sort: "-updated",
+    });
+
+    for (const integration of integrations) {
+      if (!isIntegrationEnabled(integration, enabledIntegrations)) {
+        continue;
+      }
+      try {
+        const integrationRows = await buildIntegrationSearchRows(integration);
+        rows.push(...integrationRows);
+      } catch {
+        // If one integration fails to resolve endpoints/search mappings,
+        // continue indexing remaining integrations for the user.
+        continue;
+      }
+    }
+
+    await rebuildUserSearchItems(pb, userId, rows);
+  }
+}
+
 function escapeFilter(value: string) {
   return value.replace(/"/g, '\\"');
 }
@@ -305,65 +364,5 @@ async function rebuildUserSearchItems(pb: any, userId: string, rows: SearchItemR
         });
       }
     }
-  }
-}
-
-export async function runSearchItemsIndexing() {
-  console.log("Starting search items indexing job...");
-  const pb = await getSuperuserPB();
-  const users = await pb.collection("users").getFullList<{ id: string }>(500, {
-    fields: "id",
-  });
-
-  for (const user of users) {
-    const userId = user.id;
-    if (!userId) continue;
-
-    const rows: SearchItemRow[] = [];
-    const links = await getHomeLinks(userId).catch(() => [] as any[]);
-    for (const link of links) {
-      const name = String(link?.title ?? "").trim();
-      const url = String(link?.url ?? "").trim();
-      if (!name || !url) continue;
-
-      rows.push({
-        name,
-        icon: String(link?.iconUrl || link?.folderIcon || "/icons/faGlobe.svg"),
-        secondary: String(link?.collection || link?.folder || "Link"),
-        action: url.startsWith("url:") ? url : `url:${url}`,
-        app: "",
-        tags: [
-          name,
-          String(link?.collection || ""),
-          String(link?.folder || ""),
-          ...(Array.isArray(link?.tags) ? link.tags.map((tag: unknown) => String(tag)) : []),
-        ].filter((tag): tag is string => tag.trim().length > 0),
-        sourceId: link.id,
-        sourceUpdated: link.updated,
-      });
-    }
-
-    const enabledIntegrations = await getEnabledIntegrationsMap(pb, userId);
-    const integrations = await pb.collection("integrations").getFullList<SearchIndexIntegrationRecord>(500, {
-      filter: `user=\"${userId.replace(/"/g, '\\\"')}\"`,
-      sort: "-updated",
-    });
-
-    for (const integration of integrations) {
-      if (!isIntegrationEnabled(integration, enabledIntegrations)) {
-        continue;
-      }
-      try {
-        const integrationRows = await buildIntegrationSearchRows(integration);
-        console.log(`Adding ${integrationRows.length} search items for integration ${integration.name || integration.id}`);
-        rows.push(...integrationRows);
-      } catch {
-        // If one integration fails to resolve endpoints/search mappings,
-        // continue indexing remaining integrations for the user.
-        continue;
-      }
-    }
-
-    await rebuildUserSearchItems(pb, userId, rows);
   }
 }
