@@ -186,7 +186,7 @@ export default function SearchBar({ useRedirect, defaultOpen }: SearchBarProps) 
         />
 
         {/* Pass fetched items into CommandBar */}
-        <CommandBar open={open} setOpen={setOpen} searchItems={searchItems} config={user.searchPreferences}/>
+        <CommandBar open={open} setOpen={setOpen} searchItems={searchItems} config={user?.searchPreferences ?? {}}/>
       </div>
     </>
   );

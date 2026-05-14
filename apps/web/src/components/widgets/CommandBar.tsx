@@ -8,6 +8,7 @@ import { Separator } from "../ui/separator";
 import { DialogTitle } from "@radix-ui/react-dialog";
 import { Icon as IconifyIcon } from "@iconify-icon/react";
 import AppIcon from "@dashwise/app-icon";
+import QRCode from "qrcode";
 
 // --- Types ---
 
@@ -25,6 +26,7 @@ type LinkItem = {
   bangEngineName?: string;
   isSearchEngine?: boolean;
   engineSlug?: string;
+  isQrAction?: boolean;
 };
 
 type SearchEngine = {
@@ -127,6 +129,9 @@ export default function CommandBar(
   const [filtered, setFiltered] = React.useState<LinkItem[]>(links);
   const [currentAppId, setCurrentAppId] = React.useState<string | null>(null);
   const [highlightIndex, setHighlightIndex] = React.useState(0);
+  const [qrCodeDataUrl, setQrCodeDataUrl] = React.useState("");
+  const [qrCodeLoading, setQrCodeLoading] = React.useState(false);
+  const [qrCodeError, setQrCodeError] = React.useState<string | null>(null);
   const inputRef = React.useRef<HTMLInputElement | null>(null);
 
   // Ref for the scrollable list container
@@ -209,6 +214,59 @@ export default function CommandBar(
     setHighlightIndex(0);
   }, [query, links, currentAppId]);
 
+  const normalizedUrl = React.useMemo(() => {
+    const trimmedQuery = query.trim();
+    if (!trimmedQuery || currentAppId || !isValidUrl(trimmedQuery)) {
+      return "";
+    }
+
+    return trimmedQuery.startsWith("http")
+      ? trimmedQuery
+      : `https://${trimmedQuery}`;
+  }, [currentAppId, query]);
+
+  React.useEffect(() => {
+    if (!normalizedUrl) {
+      setQrCodeDataUrl("");
+      setQrCodeLoading(false);
+      setQrCodeError(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    setQrCodeLoading(true);
+    setQrCodeError(null);
+
+    void QRCode.toDataURL(normalizedUrl, {
+      errorCorrectionLevel: "M",
+      margin: 2,
+      scale: 8,
+    })
+      .then((dataUrl) => {
+        if (!cancelled) {
+          setQrCodeDataUrl(dataUrl);
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setQrCodeError(
+            error instanceof Error ? error.message : String(error),
+          );
+          setQrCodeDataUrl("");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setQrCodeLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [normalizedUrl]);
+
   // open on cmd/ctrl + k
   React.useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
@@ -273,6 +331,15 @@ export default function CommandBar(
         linkGroup: "URL",
         type: "Go to URL",
       } as LinkItem);
+
+      items.splice(1, 0, {
+        name: `Generate QR code for ${trimmedQuery}`,
+        url: "__qr_action__",
+        icon: "fa6-solid:qrcode",
+        linkGroup: "URL",
+        type: "QR Code",
+        isQrAction: true,
+      } as LinkItem);
     }
 
     // --- 2. Bang search ---
@@ -312,9 +379,11 @@ export default function CommandBar(
 
     // --- 3. Default search engine (only once) ---
     if (
-      !currentAppId && (!parsed || !searchEngines.find((se) =>
-        (se.slug || "").toLowerCase() === parsed.slug
-      ))
+      !currentAppId &&
+      (!parsed ||
+        !searchEngines.find((se) =>
+          (se.slug || "").toLowerCase() === parsed.slug
+        ))
     ) {
       items.push({
         name: `Search ${defaultEngine?.name || "web"}`,
@@ -345,6 +414,11 @@ export default function CommandBar(
 
     return items;
   }, [filtered, defaultEngine, query, searchEngines]);
+
+  const selectedAction = actions[highlightIndex];
+  const showQrPreview = Boolean(
+    selectedAction?.url === "__qr_action__" || selectedAction?.isQrAction,
+  );
 
   // Keep itemRefs array length in sync with actions length
   React.useEffect(() => {
@@ -406,6 +480,8 @@ export default function CommandBar(
       openBangSearch(`!${a.bangEngineSlug + "" + query}`, a.bangEngineSlug);
     } else if (a.url === "__search_action__") {
       openSearch(query);
+    } else if (a.url === "__qr_action__") {
+      return;
     } else if (a.url.startsWith("__engine_search__:")) {
       const slug = a.url.split(":", 2)[1];
       openEngineSearch(slug, query);
@@ -491,12 +567,15 @@ export default function CommandBar(
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTitle className="hidden">Search Bar</DialogTitle>
-      <DialogContent className="min-w-[50vw] mx-auto frosted backdrop-blur-md rounded-lg p-0 shadow-lg text-foreground grid-rows-[auto_35vh_auto] gap-1">
+      <DialogContent className="min-w-[50vw] min-h-[50vh] mx-auto frosted backdrop-blur-md grid grid-rows-[auto_1fr_auto] rounded-lg p-0 shadow-lg text-foreground">
         <div>
           <div className="relative flex mx-3 mt-3 pt-1 items-center">
             <input
               ref={inputRef}
               value={query}
+              type="search"
+              name="dashwise-search"
+              data-form-type="other"
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder={clipboardText && !query
@@ -518,74 +597,143 @@ export default function CommandBar(
               </div>
             )}
           </div>
-          <Separator className="my-2 bg-(--text-primary)/20" />
+          <Separator className="mt-2 bg-(--text-primary)/20" />
         </div>
 
-        <div ref={listRef} className="max-h-full overflow-auto  mx-3">
-          {actions.map((item, index) => {
-            const isSearchAction = item.url === "__search_action__";
-            const isBangAction = item.url === "__bang_search__" ||
-              item.isBangAction;
-            const isCommand = !isSearchAction && !isBangAction &&
-              item.url?.startsWith("command:");
-            const isHighlighted = highlightIndex === index;
-            return (
-              <button
-                ref={(el) => {
-                  itemRefs.current[index] = el;
-                }}
-                key={item.url + item.name + index}
-                onClick={(e) => onClickLink(e, item)}
-                className={`w-full text-left px-2 py-2 flex items-center gap-3 rounded ${
-                  isHighlighted ? "bg-white/20 text-white" : "hover:bg-white/10"
-                }`}
-              >
-                <div
-                  className={`w-6 h-6 rounded-md flex items-center justify-center bg-white/20`}
+        <div
+          className={`grid min-h-0 gap-3 px-3 pb-3 ${
+            showQrPreview
+              ? "lg:grid-cols-[minmax(0,1fr)_14rem]"
+              : "lg:grid-cols-1"
+          }`}
+        >
+          <div ref={listRef} className="max-h-[35vh] overflow-auto">
+            {actions.map((item, index) => {
+              const isSearchAction = item.url === "__search_action__";
+              const isBangAction = item.url === "__bang_search__" ||
+                item.isBangAction;
+              const isQrAction = item.url === "__qr_action__" ||
+                item.isQrAction;
+              const isCommand = !isSearchAction && !isBangAction &&
+                item.url?.startsWith("command:");
+              const isHighlighted = highlightIndex === index;
+              return (
+                <button
+                  ref={(el) => {
+                    itemRefs.current[index] = el;
+                  }}
+                  key={item.url + item.name + index}
+                  onClick={(e) => onClickLink(e, item)}
+                  className={`w-full text-left px-2 py-2 flex items-center gap-3 rounded ${
+                    isHighlighted
+                      ? "bg-white/20 text-white"
+                      : "hover:bg-white/10"
+                  }`}
                 >
-                  {item.icon
-                    ? (
-                      <AppIcon
-                        source={item.icon}
-                        size={16}
-                        className="w-4 h-4"
-                        imageClassName="w-4 h-4 object-contain"
-                        iconClassName="text-sm"
-                      />
-                    )
-                    : isValidUrl(item.url)
-                    ? <IconifyIcon icon="fa6-solid:globe" className="text-xs" />
-                    : <div className="w-4 h-4 bg-gray-300 rounded-sm" />}
-                </div>
-                <div className="flex-1 flex items-center min-w-0">
-                  <div className="flex-1 min-w-0 flex gap-2 items-center overflow-hidden">
-                    <div className="text-sm font-medium truncate shrink min-w-0">
-                      {item.name}
+                  <div
+                    className={`w-6 h-6 rounded-md flex items-center justify-center bg-white/20`}
+                  >
+                    {item.icon
+                      ? (
+                        <AppIcon
+                          source={item.icon}
+                          size={16}
+                          className="w-4 h-4"
+                          imageClassName="w-4 h-4 object-contain"
+                          iconClassName="text-sm"
+                        />
+                      )
+                      : isQrAction
+                      ? (
+                        <IconifyIcon
+                          icon="fa6-solid:qrcode"
+                          className="text-xs"
+                        />
+                      )
+                      : isValidUrl(item.url)
+                      ? (
+                        <IconifyIcon
+                          icon="fa6-solid:globe"
+                          className="text-xs"
+                        />
+                      )
+                      : <div className="w-4 h-4 bg-gray-300 rounded-sm" />}
+                  </div>
+                  <div className="flex-1 flex items-center min-w-0">
+                    <div className="flex-1 min-w-0 flex gap-2 items-center overflow-hidden">
+                      <div className="text-sm font-medium truncate shrink min-w-0">
+                        {item.name}
+                      </div>
+
+                      <span className="text-xs text-muted-foreground truncate shrink-0 max-w-[30%]">
+                        {item.linkGroup || ""}
+                      </span>
                     </div>
 
-                    <span className="text-xs text-muted-foreground truncate shrink-0 max-w-[30%]">
-                      {item.linkGroup || ""}
-                    </span>
+                    <div className="ml-3 text-xs text-muted-foreground whitespace-nowrap">
+                      {isCommand
+                        ? <span className="italic">use client</span>
+                        : <span>{item.type}</span>}
+                    </div>
                   </div>
+                </button>
+              );
+            })}
+          </div>
 
-                  <div className="ml-3 text-xs text-muted-foreground whitespace-nowrap">
-                    {isCommand
-                      ? <span className="italic">use client</span>
-                      : <span>{item.type}</span>}
+          {showQrPreview
+            ? (
+              <aside className="min-h-56 p-0">
+                <div className="mb-3">
+                  <div className="text-sm font-medium text-white">
+                    Generated QR Code
+                  </div>
+                  <div className="text-xs text-white/45">
+                    {normalizedUrl}
                   </div>
                 </div>
-              </button>
-            );
-          })}
+
+                <div className="flex min-h-40 items-center justify-center p-0">
+                  {qrCodeLoading
+                    ? (
+                      <div className="text-sm text-white/55">
+                        Generating QR code...
+                      </div>
+                    )
+                    : qrCodeError
+                    ? (
+                      <div className="max-w-xs text-center text-sm text-red-300">
+                        {qrCodeError}
+                      </div>
+                    )
+                    : qrCodeDataUrl
+                    ? (
+                      <img
+                        src={qrCodeDataUrl}
+                        alt={`QR code for ${normalizedUrl}`}
+                        className="h-48 w-48 rounded-xl bg-white p-3"
+                      />
+                    )
+                    : (
+                      <div className="max-w-xs text-center text-sm text-white/45">
+                        The QR code will appear here after you enter a valid
+                        link.
+                      </div>
+                    )}
+                </div>
+              </aside>
+            )
+            : null}
         </div>
-        <div>
+
+        <section>
           <Separator className="bg-(--text-primary)/20 my-2" />
 
           <div className="text-xs text-gray-400  mx-3 mb-3">
             Use ↑ ↓ to navigate · Press escape to close searchbar · Click or
             press Enter to open
           </div>
-        </div>
+        </section>
       </DialogContent>
     </Dialog>
   );
