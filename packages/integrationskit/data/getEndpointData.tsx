@@ -493,7 +493,19 @@ function mapResponseBody(body: unknown, endpoint: EndpointDefinition) {
 		? [endpoint.response_mapping]
 		: [];
 
-	if (mappings.length === 0 || !isPlainObject(body)) {
+	if (mappings.length === 0) {
+		return body;
+	}
+
+	// Handle direct array responses: if the endpoint returns an array directly
+	// (not nested in an object), wrap it so response_mapping can work.
+	// This allows iterate: "response" to work with direct array responses.
+	// Example: [{ id: 1, name: "server" }] is wrapped as { response: [...] }
+	const wrappedBody = Array.isArray(body)
+		? { response: body }
+		: body;
+
+	if (!isPlainObject(wrappedBody)) {
 		return body;
 	}
 
@@ -502,14 +514,14 @@ function mapResponseBody(body: unknown, endpoint: EndpointDefinition) {
 		String(endpoint.discard_unmapped).toLowerCase() === "true";
 	const mapped: Record<string, any> = discardUnmapped
 		? {}
-		: { ...(body as Record<string, any>) };
+		: { ...(wrappedBody as Record<string, any>) };
 
 	for (const mapping of mappings) {
 		if (!isPlainObject(mapping)) continue;
 		for (const [target, source] of Object.entries(mapping)) {
 			mapped[target] = resolveMappedNode(source, {
-				root: body as Record<string, any>,
-				current: body as Record<string, any>,
+				root: wrappedBody as Record<string, any>,
+				current: wrappedBody as Record<string, any>,
 				groupBy: typeof endpoint.group_by === "string"
 					? endpoint.group_by
 					: undefined,
@@ -550,6 +562,10 @@ function resolveMappedNode(node: any, context: MappingContext): any {
 
 	if (!isPlainObject(node)) return node;
 
+	// Handle iterate: for mapping array responses
+	// - iterate: "items" looks for an "items" key in the response: { items: [...] }
+	// - iterate: "response" works with direct array responses: [...] (automatically wrapped)
+	// See packages/assets/integrations/ for integration examples
 	if (
 		typeof node.iterate === "string" ||
 		typeof node.iterate_over === "string"
