@@ -11,6 +11,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
+import { Input } from "@/components/ui/input";
 import { GlanceableSide } from "./utils";
 import { useLocalization } from "@/context/LocalizationContext";
 
@@ -197,27 +198,23 @@ export function EditGlanceablesView({
               {selectedClockType === "date" && (
                 <div className="space-y-2">
                   <p className="text-xs text-white/70">Date format</p>
-                  <Select
-                    value={String(clockGlanceables[selectedClockType]?.format ?? "MMM/DD")}
-                    onValueChange={(value) => {
+                  <Input
+                    value={String(clockGlanceables[selectedClockType]?.format ?? "mmm/DD")}
+                    onChange={(e) => {
                       setClockGlanceables((prev) => ({
                         ...prev,
                         [selectedClockType]: {
                           ...(prev[selectedClockType] ?? {}),
-                          format: value,
+                          format: e.target.value,
                         },
                       }));
                     }}
-                  >
-                    <SelectTrigger className="h-9 min-w-32 rounded-full border-white/20">
-                      <SelectValue placeholder="MMM/DD" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="MMM/DD">mmm/dd</SelectItem>
-                      <SelectItem value="MM/DD/YYYY">mm/dd/yyyy</SelectItem>
-                      <SelectItem value="DD/MM/YYYY">dd/mm/yyyy</SelectItem>
-                    </SelectContent>
-                  </Select>
+                    placeholder="e.g. YYYY-MM-DD"
+                    className="h-9 min-w-32 rounded-full border-white/20 px-3 bg-transparent text-sm"
+                  />
+                  <div className="text-xs text-white/50 mt-1">
+                    Use date format strings (e.g. <code>YYYY-MM-DD</code>, <code>mmmm</code>, <code>mmm</code>)
+                  </div>
                 </div>
               )}
 

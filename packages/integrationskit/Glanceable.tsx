@@ -298,6 +298,8 @@ function formatDate(input?: Date | string | number, overrideFormat?: string, for
 
   const day = String(date.getDate()).padStart(2, "0");
   const month = String(date.getMonth() + 1).padStart(2, "0");
+  const monthShort = new Intl.DateTimeFormat(undefined, { month: "short" }).format(date);
+  const monthLong = new Intl.DateTimeFormat(undefined, { month: "long" }).format(date);
   const year = String(date.getFullYear());
 
   const weekdayShort = new Intl.DateTimeFormat(undefined, { weekday: "short" }).format(date);
@@ -306,6 +308,8 @@ function formatDate(input?: Date | string | number, overrideFormat?: string, for
   return pattern
     .replace("dddd", weekdayLong)
     .replace("ddd", weekdayShort)
+    .replace("mmmm", monthLong)
+    .replace("mmm", monthShort)
     .replace("DD", day)
     .replace("MM", month)
     .replace("YYYY", year)

@@ -100,6 +100,8 @@ export function LocalizationProvider({ children }: { children: ReactNode }) {
 
       const day = String(date.getDate()).padStart(2, "0");
       const month = String(date.getMonth() + 1).padStart(2, "0");
+      const monthShort = new Intl.DateTimeFormat(locale, { month: "short" }).format(date);
+      const monthLong = new Intl.DateTimeFormat(locale, { month: "long" }).format(date);
       const year = String(date.getFullYear());
 
       const weekdayShort = new Intl.DateTimeFormat(locale, { weekday: "short" }).format(date);
@@ -108,6 +110,8 @@ export function LocalizationProvider({ children }: { children: ReactNode }) {
       return pattern
         .replace("dddd", weekdayLong)
         .replace("ddd", weekdayShort)
+        .replace("mmmm", monthLong)
+        .replace("mmm", monthShort)
         .replace("DD", day)
         .replace("MM", month)
         .replace("YYYY", year)
