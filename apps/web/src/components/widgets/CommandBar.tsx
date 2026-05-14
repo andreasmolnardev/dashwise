@@ -9,6 +9,7 @@ import { DialogTitle } from "@radix-ui/react-dialog";
 import { Icon as IconifyIcon } from "@iconify-icon/react";
 import AppIcon from "@dashwise/app-icon";
 import QRCode from "qrcode";
+import { getFrequentlyUsedSearchItemsAction, logSearchItemUsageAction } from "@/app/actions/searchItems";
 
 // --- Types ---
 
@@ -27,6 +28,8 @@ type LinkItem = {
   isSearchEngine?: boolean;
   engineSlug?: string;
   isQrAction?: boolean;
+  isPinned?: boolean;
+  _section?: string;
 };
 
 type SearchEngine = {
@@ -50,6 +53,7 @@ type IncomingSearchItem = {
   url?: string;
   linkGroup?: string;
   tags?: string[];
+  isPinned?: boolean;
 };
 
 type CommandBarProps = {
@@ -103,6 +107,7 @@ function normalizeConfigLinks(input: IncomingSearchItem[] = []): LinkItem[] {
         tags: it.tags || "",
         type,
         url,
+        isPinned: it.isPinned,
       } as LinkItem;
     });
 }
@@ -110,7 +115,7 @@ function normalizeConfigLinks(input: IncomingSearchItem[] = []): LinkItem[] {
 export default function CommandBar(
   { open, setOpen, searchItems, config }: CommandBarProps,
 ) {
-  const { user } = useAuth();
+  const { user, token } = useAuth();
   const searchPreferences = user?.searchPreferences ?? {};
   const searchEngines: SearchEngine[] =
     (searchPreferences.searchEngines || []) as SearchEngine[];
@@ -132,7 +137,25 @@ export default function CommandBar(
   const [qrCodeDataUrl, setQrCodeDataUrl] = React.useState("");
   const [qrCodeLoading, setQrCodeLoading] = React.useState(false);
   const [qrCodeError, setQrCodeError] = React.useState<string | null>(null);
+  const [frequentlyUsedIds, setFrequentlyUsedIds] = React.useState<string[]>([]);
   const inputRef = React.useRef<HTMLInputElement | null>(null);
+
+  // Fetch frequently used items
+  React.useEffect(() => {
+    if (!user?.id || !token) {
+      return;
+    }
+
+    void getFrequentlyUsedSearchItemsAction({ token })
+      .then((data) => {
+        if (Array.isArray(data)) {
+          setFrequentlyUsedIds(data.map((item: any) => item.id));
+        }
+      })
+      .catch(() => {
+        // ignore failures
+      });
+  }, [user?.id, token]);
 
   // Ref for the scrollable list container
   const listRef = React.useRef<HTMLDivElement | null>(null);
@@ -168,7 +191,23 @@ export default function CommandBar(
 
     const q = query.trim().toLowerCase();
     if (!q) {
-      setFiltered(visibleLinks);
+      // Group: Pinned, Frequently Used, others
+      const pinned = visibleLinks.filter((l) => l.isPinned);
+      const frequentlyUsed = visibleLinks.filter(
+        (l) => !l.isPinned && l.id && frequentlyUsedIds.includes(l.id)
+      );
+      const others = visibleLinks.filter(
+        (l) => !l.isPinned && (!l.id || !frequentlyUsedIds.includes(l.id))
+      );
+
+      // We'll mark them with a transient section name for rendering
+      const grouped = [
+        ...pinned.map((l) => ({ ...l, _section: "Pinned" })),
+        ...frequentlyUsed.map((l) => ({ ...l, _section: "Frequently Used" })),
+        ...others.map((l) => ({ ...l, _section: "All" })),
+      ];
+
+      setFiltered(grouped);
       setHighlightIndex(0);
       return;
     }
@@ -212,7 +251,7 @@ export default function CommandBar(
 
     setFiltered(results);
     setHighlightIndex(0);
-  }, [query, links, currentAppId]);
+  }, [query, links, currentAppId, frequentlyUsedIds]);
 
   const normalizedUrl = React.useMemo(() => {
     const trimmedQuery = query.trim();
@@ -466,6 +505,7 @@ export default function CommandBar(
   function triggerAction(index: number) {
     const a = actions[index];
     if (!a) return;
+
     if (a.url === "__app_back__") {
       setCurrentAppId(null);
       setQuery("");
@@ -486,10 +526,17 @@ export default function CommandBar(
       const slug = a.url.split(":", 2)[1];
       openEngineSearch(slug, query);
     } else if (a.url.startsWith("command:")) {
+      logSearchItemUsage(a);
       openCommandClient(a.url);
     } else {
+      logSearchItemUsage(a);
       openUrl(a.url, config?.global?.linkOpenBehaviour);
     }
+  }
+
+  function logSearchItemUsage(item?: LinkItem) {
+    if (!token || !item?.id) return;
+    void logSearchItemUsageAction({ token }, item.id, new Date().toISOString()).catch(() => {});
   }
 
   function openUrl(
@@ -617,22 +664,31 @@ export default function CommandBar(
               const isCommand = !isSearchAction && !isBangAction &&
                 item.url?.startsWith("command:");
               const isHighlighted = highlightIndex === index;
+
+              const showSectionHeader = !query && item._section &&
+                (index === 0 || actions[index - 1]?._section !== item._section);
+
               return (
-                <button
-                  ref={(el) => {
-                    itemRefs.current[index] = el;
-                  }}
-                  key={item.url + item.name + index}
-                  onClick={(e) => onClickLink(e, item)}
-                  className={`w-full text-left px-2 py-2 flex items-center gap-3 rounded ${
-                    isHighlighted
-                      ? "bg-white/20 text-white"
-                      : "hover:bg-white/10"
-                  }`}
-                >
-                  <div
-                    className={`w-6 h-6 rounded-md flex items-center justify-center bg-white/20`}
+                <React.Fragment key={item.url + item.name + index}>
+                  {showSectionHeader && (
+                    <div className="px-2 py-1 mt-1 text-xs font-semibold text-muted-foreground">
+                      {item._section}
+                    </div>
+                  )}
+                  <button
+                    ref={(el) => {
+                      itemRefs.current[index] = el;
+                    }}
+                    onClick={(e) => onClickLink(e, item)}
+                    className={`w-full text-left px-2 py-2 flex items-center gap-3 rounded ${
+                      isHighlighted
+                        ? "bg-white/20 text-white"
+                        : "hover:bg-white/10"
+                    }`}
                   >
+                    <div
+                      className={`w-6 h-6 rounded-md flex items-center justify-center bg-white/20`}
+                    >
                     {item.icon
                       ? (
                         <AppIcon
@@ -676,7 +732,8 @@ export default function CommandBar(
                         : <span>{item.type}</span>}
                     </div>
                   </div>
-                </button>
+                  </button>
+                </React.Fragment>
               );
             })}
           </div>

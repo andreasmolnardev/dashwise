@@ -46,6 +46,8 @@ export async function getSearchItems(userId: string) {
       type: action.startsWith("app:") ? "app" : "link",
       action,
       tags: parseTags(record.tags),
+      isPinned: Boolean(record.isPinned),
+      usageStats: record.usageStats,
     };
   });
 }

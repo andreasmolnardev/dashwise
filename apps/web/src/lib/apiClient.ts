@@ -189,7 +189,7 @@ const routes: Record<string, RouteConfig> = {
   },
   "pageConfig.createHomePageAction": {
     method: "POST",
-    path: "/pageConfig/home",
+    path: "/pageConfig/home" as any,
     body: (input) => input,
   },
   "pageConfig.updatePageConfigAction": {
@@ -305,7 +305,7 @@ const routes: Record<string, RouteConfig> = {
   },
   "widgets.getUserGlanceableAction": {
     method: "GET",
-    path: "/widgets/glanceable",
+    path: "/widgets/glanceable" as any,
     auth: (input) => authToken(input),
   },
   "widgets.getUserGlanceablesAction": {
@@ -315,18 +315,18 @@ const routes: Record<string, RouteConfig> = {
   },
   "glanceables.getUserGlanceablesAction": {
     method: "GET",
-    path: "/glanceables",
+    path: "/glanceables" as any,
     auth: (input) => authToken(input),
   },
   "widgets.getIntegrationWithWidgetAction": {
     method: "GET",
-    path: "/widgets/by-integration",
+    path: "/widgets/by-integration" as any,
     auth: (input) => authToken(input?.auth),
     query: (input) => ({ widgetKey: input?.widgetKey }),
   },
   "glanceables.getIntegrationWithGlanceableAction": {
     method: "GET",
-    path: "/glanceables/by-integration",
+    path: "/glanceables/by-integration" as any,
     auth: (input) => authToken(input?.auth),
     query: (input) => ({ glanceableType: input?.glanceableType }),
   },
@@ -371,7 +371,7 @@ const routes: Record<string, RouteConfig> = {
   },
   "integrations.getConsumerDataAction": {
     method: "POST",
-    path: "/integrations/consumerData",
+    path: "/integrations/consumerData" as any,
     auth: (input) => authToken(input?.auth),
     body: (input) => ({
       key: input?.key,
@@ -382,7 +382,7 @@ const routes: Record<string, RouteConfig> = {
   },
   "integrations.getIntegrationCalendarEventsAction": {
     method: "GET",
-    path: "/integrations/caldav/events",
+    path: "/integrations/caldav/events" as any,
     auth: (input) => authToken(input?.auth),
     query: (input) => ({ integrationId: input?.integrationId }),
   },
@@ -459,12 +459,12 @@ const routes: Record<string, RouteConfig> = {
   },
   "news.getNewsSubscriptionsAction": {
     method: "GET",
-    path: "/news/subscriptions",
+    path: "/news/subscriptions" as any,
     auth: (input) => authToken(input),
   },
   "news.getNewsFeedsAction": {
     method: "GET",
-    path: "/news/feeds",
+    path: "/news/feeds" as any,
     auth: (input) => authToken(input),
   },
   "news.refreshNewsFeedAction": {
@@ -570,6 +570,17 @@ const routes: Record<string, RouteConfig> = {
     method: "GET",
     path: "/searchItems",
     auth: (input) => authToken(input),
+  },
+  "searchItems.getFrequentlyUsedAction": {
+    method: "GET",
+    path: "/searchItems/frequentlyUsed" as any,
+    auth: (input) => authToken(input),
+  },
+  "searchItems.logSearchItemUsageAction": {
+    method: "POST",
+    path: "/searchItems/usageStats" as any,
+    auth: (input) => authToken(input?.auth),
+    body: (input) => ({ id: input?.id, timestamp: input?.timestamp }),
   },
   "wallpapers.uploadWallpaperAction": {
     method: "POST",
