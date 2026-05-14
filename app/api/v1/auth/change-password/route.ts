@@ -1,6 +1,8 @@
 import { getServerPB } from "@/lib/pb";
+import { ChangePasswordRequest, ChangePasswordResponse } from "@/packages/sdk/types/auth/change-password";
 import { NextResponse } from "next/server";
 
+/** Changes the authenticated user's password and reissues a token when re-auth succeeds. */
 export async function POST(request: Request): Promise<NextResponse<ChangePasswordResponse>> {
   try {
     const body = (await request.json().catch(() => ({}))) as ChangePasswordRequest;
@@ -81,21 +83,3 @@ export async function POST(request: Request): Promise<NextResponse<ChangePasswor
     return NextResponse.json({ error: errorMsg }, { status: 500 });
   }
 }
-
-export interface ChangePasswordRequest {
-  email?: string;
-  oldPassword: string;
-  newPassword: string;
-  confirmPassword: string;
-}
-
-export interface ChangePasswordSuccess {
-  message: string;
-  token?: string | null;
-}
-
-export interface ChangePasswordError {
-  error: string;
-}
-
-export type ChangePasswordResponse = ChangePasswordSuccess | ChangePasswordError;

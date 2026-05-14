@@ -1,39 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
 import { getServerPB } from "@/lib/pb";
-
-export async function GET(req: NextRequest) {
-    try {
-        const pb = getServerPB();
-
-        // --- 1. Require Bearer auth
-        const authHeader = req.headers.get("authorization");
-        if (!authHeader?.startsWith("Bearer ")) {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-        }
-
-        const token = authHeader.split(" ")[1];
-        pb.authStore.save(token, null);
-
-        // refresh to validate token & get user ID
-        const authModel = await pb.collection("users").authRefresh();
-        const userId = authModel?.record?.id;
-        if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-        // --- 2. Get notification topics for this user
-        const topics = await pb.collection("notificationTopics").getFullList({
-            filter: `userId="${userId}"`,
-        });
-
-        // Return empty array if no topics found
-        return NextResponse.json({ items: topics.map(t => ({ id: t.id, title: t.title })) });
-    } catch (err: any) {
-        console.error("Error in GET /notificationTopics", err);
-        return NextResponse.json(
-            { error: "Internal Server Error", details: err.message },
-            { status: 500 }
-        );
-    }
-}
+import { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
 
 type NotificationTopic = {
   id: string;
@@ -41,6 +8,38 @@ type NotificationTopic = {
   userId: string;
 };
 
+/** Returns notification topics for the authenticated user for selector UIs. */
+export async function GET(req: NextRequest) {
+  try {
+    const pb = getServerPB();
+    const authHeader = req.headers.get("authorization");
+
+    if (!authHeader?.startsWith("Bearer ")) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const token = authHeader.split(" ")[1];
+    pb.authStore.save(token, null);
+
+    const authModel = await pb.collection("users").authRefresh();
+    const userId = authModel?.record?.id;
+    if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const topics = await pb.collection("notificationTopics").getFullList({
+      filter: `userId="${userId}"`,
+    });
+
+    return NextResponse.json({ items: topics.map((t) => ({ id: t.id, title: t.title })) });
+  } catch (err: any) {
+    console.error("Error in GET /notificationTopics", err);
+    return NextResponse.json(
+      { error: "Internal Server Error", details: err.message },
+      { status: 500 }
+    );
+  }
+}
+
+/** Creates a topic when needed and seeds it with an initial system notification. */
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -51,8 +50,6 @@ export async function POST(req: NextRequest) {
     }
 
     const pb = getServerPB();
-
-    // --- Require Bearer auth
     const authHeader = req.headers.get("authorization");
     if (!authHeader?.startsWith("Bearer ")) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -61,12 +58,10 @@ export async function POST(req: NextRequest) {
     const token = authHeader.split(" ")[1];
     pb.authStore.save(token, null);
 
-    // Refresh to validate token & get user ID
     const authModel = await pb.collection("users").authRefresh();
     const userId = authModel?.record?.id;
     if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    // --- Check if topic already exists
     let existingTopic: NotificationTopic | null = null;
     try {
       existingTopic = await pb
@@ -80,14 +75,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, topicId: existingTopic.id });
     }
 
-    // --- Create new topic
     const created: NotificationTopic = await pb.collection("notificationTopics").create({
       title,
       userId,
       priority: 1,
     });
 
-    // --- Create initial "topic created" notification
     await pb.collection("notificationItems").create({
       topicId: created.id,
       content: "Topic has been created",

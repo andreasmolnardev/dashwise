@@ -24,7 +24,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome"
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert"
-import { ChangePasswordError, ChangePasswordRequest, ChangePasswordSuccess } from "@/app/api/v1/auth/change-password/route"
+import { ChangePasswordRequest } from "@/packages/sdk/types/auth/change-password"
 import { useRouter } from "next/navigation"
 import { postAuthChangePassword } from "@/lib/apiClient";
 import { DialogDescription } from "@radix-ui/react-dialog"
