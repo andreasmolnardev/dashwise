@@ -67,12 +67,9 @@ export default function UploadWallpaperDialog({
     formData.append("fileName", file.name);
     formData.append("convertToWebp", convertToWebp ? "true" : "false");
     try {
-      // 1) Upload the image
       const body: any = await withAuth((auth) => uploadWallpaperAction(auth, formData));
-
       const wallpaperPath = body.path as string;
 
-      // 2) Patch the appearance config
       const updatedAppearance = {
         ...(user?.appearancePreferences ?? {}),
         backgroundImageUrl: wallpaperPath,
@@ -81,8 +78,8 @@ export default function UploadWallpaperDialog({
 
       setMessage("Upload complete — wallpaper updated.");
 
-      // 3) Close dialog
       onOpenChange(false);
+      window.location.reload();
     } catch (err: unknown) {
       console.error(err);
       if (err instanceof Error) {
