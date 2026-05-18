@@ -35,6 +35,7 @@ import SettingsIntegrationsPage from "./app/(authenticated)/settings/integration
 import SettingsSearchPage from "./app/(authenticated)/settings/search/page";
 import SettingsScreensaverPage from "./app/(authenticated)/settings/screensaver/page";
 import FramePage from "./app/(authenticated)/frame/page";
+import MigratePage from "./app/(authenticated)/migrate/page";
 
 export const appRouter = createBrowserRouter([
   {
@@ -118,6 +119,7 @@ export const appRouter = createBrowserRouter([
           },
           { path: "frame", element: <FramePage /> },
           { path: "onboarding", element: <OnboardingPage /> },
+          { path: "migrate", element: <MigratePage /> },
           { path: ":page", element: <DynamicPage /> },
         ],
       },

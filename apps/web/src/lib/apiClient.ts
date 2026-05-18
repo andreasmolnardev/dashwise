@@ -192,6 +192,12 @@ const routes: Record<string, RouteConfig> = {
     path: "/pageConfig/home" as any,
     body: (input) => input,
   },
+  "pageConfig.migrateLegacyAction": {
+    method: "POST",
+    path: "/pageConfig/migrate-legacy",
+    auth: (input) => authToken(input?.auth),
+    body: (input) => input,
+  },
   "pageConfig.updatePageConfigAction": {
     method: "PUT",
     path: "/pageConfig",

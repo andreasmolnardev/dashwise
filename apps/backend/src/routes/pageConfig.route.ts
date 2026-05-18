@@ -1,7 +1,7 @@
 import { Hono } from "hono";
-import { ApiActionError } from "@dashwise/sdk/data/auth";
 
 import { getPageConfigJSON, getUserPages, updatePageConfig } from "@dashwise/sdk/data/pageConfig";
+import { migrateLegacyPageConfig } from "@dashwise/sdk/data/config";
 import type { PageConfig } from "@dashwise/sdk/data/pageConfig";
 import { resolveConsumerDataForRequest } from "./integrations.route";
 
@@ -105,6 +105,18 @@ const pageConfigRoute = new Hono();
     await updatePageConfig(userId, "home", defaultHomeConfig);
 
     return { success: true, created: true, config: defaultHomeConfig };
+  }));
+
+  pageConfigRoute.post("/api/v1/pageConfig/migrate-legacy", withJson(async (c) => {
+    const body = await readJsonBody<{ auth?: { token?: string | null } }>(c);
+    const { userId } = await requireAuth(body?.auth ?? {});
+
+    try {
+      const result = await migrateLegacyPageConfig(userId);
+      return { success: true, result };
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : String(err) };
+    }
   }));
 
 export default pageConfigRoute;

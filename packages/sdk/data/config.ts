@@ -743,6 +743,70 @@ export async function moveConfigArrayItems(userId: string, path: string, src: nu
   };
 }
 
+function migrateWidgetsConfig(legacyConfig: Record<string, any>) {
+  const widgets: Array<Array<{ id: string; type: string; properties: Record<string, any> }>> =
+    Array.isArray(legacyConfig.widgets) ? legacyConfig.widgets : [[], [], []]
+
+  const glanceables: Array<{ type: string; properties: Record<string, any> }> =
+    Array.isArray(legacyConfig.glanceables) ? legacyConfig.glanceables : []
+
+  const [leftWidgets = [], middleWidgets = [], rightWidgets = []] = widgets
+
+  function buildColumnWidgets(
+    columnWidgets: Array<{ id: string; type: string; properties: Record<string, any> }>
+  ) {
+    const typeCounts = new Map<string, number>()
+    for (const w of columnWidgets) {
+      typeCounts.set(w.type, (typeCounts.get(w.type) ?? 0) + 1)
+    }
+
+    const typeSeenCount = new Map<string, number>()
+    const result: Record<string, { height: string; [key: string]: any }> = {}
+
+    for (const widget of columnWidgets) {
+      const isDuplicate = (typeCounts.get(widget.type) ?? 0) > 1
+      typeSeenCount.set(widget.type, (typeSeenCount.get(widget.type) ?? 0) + 1)
+      const key = isDuplicate ? widget.id : widget.type
+
+      result[key] = {
+        height: "$main-clock",
+        ...widget.properties,
+      }
+    }
+
+    return result
+  }
+
+  const glanceablesMapped = Object.fromEntries(
+    glanceables.map((g) => [g.type, g.properties ?? {}])
+  )
+
+  const middleExtra = middleWidgets.reduce(
+    (acc, widget, i) => {
+      const isDuplicate = middleWidgets.filter((w) => w.type === widget.type).length > 1
+      const key = isDuplicate ? widget.id : widget.type
+      acc[key] = { index: i + 3, ...widget.properties }
+      return acc
+    },
+    {} as Record<string, any>
+  )
+
+  return {
+    template: "main",
+    columns: {
+      left: buildColumnWidgets(leftWidgets),
+      middle: {
+        "main-clock": { index: 0, glanceables: glanceablesMapped },
+        "search-bar": { index: 1 },
+        "link-view": { index: 2 },
+        ...middleExtra,
+      },
+      right: buildColumnWidgets(rightWidgets),
+    },
+  }
+
+}
+
 export async function migrateLegacyPageConfig(userId: string) {
   const pb = await getSuperuserPB();
 
@@ -770,10 +834,14 @@ export async function migrateLegacyPageConfig(userId: string) {
   );
 
   const pageOnlyConfig = stripMigratedSectionsFromConfig(legacyConfig);
+  const migratedWidgetsConfig = migrateWidgetsConfig(legacyConfig);
 
   await pb.collection("pageConfig").update(legacy.id, {
     pageName: "home",
-    config: pageOnlyConfig,
+    config: {
+      ...pageOnlyConfig,
+      ...migratedWidgetsConfig,
+    },
   });
 
   return {
