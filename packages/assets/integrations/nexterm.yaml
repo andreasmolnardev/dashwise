@@ -65,22 +65,6 @@ configuration:
             name: "name"
             type: "type"
 
-    fetch-folders:
-      method: GET
-      url: "${URL}/api/folder/list"
-      auth: "Bearer ${TOKEN}"
-      insecure_skip_verify: true
-      response:
-        type: json
-      discard_unmapped: true
-      response_mapping:
-        folders:
-          iterate: "items"
-          mappingProperties:
-            id: "id"
-            name: "name"
-            position: "position"
-
     fetch-monitoring:
       method: GET
       url: "${URL}/api/monitoring"
@@ -101,24 +85,6 @@ configuration:
             disk_percent: "disk"
             uptime_seconds: "uptime"
             last_seen: "lastSeen"
-
-    fetch-active-sessions:
-      method: GET
-      url: "${URL}/api/session/list"
-      auth: "Bearer ${TOKEN}"
-      insecure_skip_verify: true
-      response:
-        type: json
-      discard_unmapped: true
-      response_mapping:
-        sessions:
-          iterate: "items"
-          mappingProperties:
-            id: "id"
-            entry_id: "entryId"
-            entry_name: "entryName"
-            type: "type"
-            started_at: "startedAt"
 
   computed:
     servers:
@@ -276,38 +242,6 @@ configuration:
             subtitle:
               value: "${active_warnings}"
               type: "list"
-
-    - name: "Nexterm Active Sessions"
-      key: "nexterm-active-sessions"
-      template: "vertical-list"
-      depends_on:
-        - "this.endpoints.fetch-active-sessions"
-      hide_if_empty: true
-      data:
-        source: "this.endpoints.fetch-active-sessions.mappedResponse.sessions"
-        input:
-          URL: "${URL}"
-          TOKEN: "${TOKEN}"
-      properties:
-        header:
-          title: "Active Sessions"
-          icon: "url:/icons/png/nexterm-light.png"
-          titleAction: "url:${URL}"
-        list:
-          iterate_over: "this.endpoints.fetch-active-sessions.mappedResponse.sessions"
-          sort_by: "started_at"
-          sort_order: "desc"
-          prototype:
-            icon:
-              value: "session.type"
-              map:
-                ssh: "faTerminal"
-                rdp: "faDesktop"
-                vnc: "faTv"
-            title: "${session.entry_name}"
-            titleAction: "url:${URL}"
-            subtitle: "${session.type|upper} · Connected ${session.started_at|relative}"
-
   shortcuts:
     - main:
         iterate_over: "this.endpoints.server-connections.mappedResponse.entries"
