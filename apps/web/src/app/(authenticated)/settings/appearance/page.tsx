@@ -12,11 +12,18 @@ import ThemeSelectComponent from "@/components/settings/ThemeSelect";
 import WallpaperBlurSliderComponent from "@/components/settings/WallpaperBlurSlider";
 import ClockFontSelectionCarousel from "@/components/settings/ClockFontSelectionCarousel";
 import WallpaperBrightnessSliderComponent, { WallpaperBrightnessDarkModeSliderComponent } from "@/components/settings/WallpaperBrightnessSlider";
+import WallpaperSourceControl from "@/components/settings/WallpaperSourceControl";
+import useAuth from "@/context/useAuth";
+import config from "@/lib/config";
 
 export default function AppearanceSettingsPage() {
+  const { user } = useAuth();
   const [value, setValue] = useState("current");
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [urlDialogOpen, setUrlDialogOpen] = useState(false);
+
+  const imageUrl = user?.appearancePreferences?.backgroundImageUrl || "";
+  const showSourceControl = !imageUrl.includes(config.app_base_url) && !imageUrl.startsWith("/api");
 
   return (
     <>
@@ -31,7 +38,7 @@ export default function AppearanceSettingsPage() {
             if (v === "upload") setUploadDialogOpen(true);
             if (v === "add-url") setUrlDialogOpen(true);
           }}
-          className="grid gap-4 grid-cols-[repeat(auto-fit,minmax(150px,1fr))] px-2"
+          className="grid gap-4 grid-cols-[repeat(auto-fit,minmax(150px,1fr))] px-2 mb-4"
         >
           <div>
             <RadioGroupItem id="r1" value="current" className="peer sr-only" />
@@ -91,6 +98,14 @@ export default function AppearanceSettingsPage() {
           }}
           configKey="settings/appearance"
         />
+
+        {showSourceControl && (
+          <>
+            <h3 className="text-lg font-medium">Source Control</h3>
+            <WallpaperSourceControl />
+          </>
+        )}
+
 
         <h3 className="text-lg font-medium">Wallpaper Filters</h3>
 
