@@ -49,11 +49,7 @@ export default function QuickLaunchPopover() {
         sideOffset={12}
         className="w-[min(20rem,calc(100vw-1rem))] border border-white/10 frosted p-3 text-foreground shadow-2xl"
       >
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <div>
-            <h2 className="text-lg font-semibold">Apps menu</h2>
-          </div>
-        </div>
+        <h2 className="text-lg font-semibold">Apps menu</h2>
 
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
           {quickLinks.map((item) => (
@@ -75,6 +71,27 @@ export default function QuickLaunchPopover() {
               </Link>
             </PopoverClose>
           ))}
+        </div>
+
+        <h2 className="text-lg font-semibold">Tools</h2>
+<div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            <PopoverClose asChild>
+              <Link
+                to="/migrate"
+                className="group grid min-h-24 justify-items-center justify-center items-center rounded-2xl p-3 transition hover:-translate-y-0.5 hover:bg-white/10"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <Icon
+                    icon="fa6-solid:link"
+                    width={24}
+                    className="text-foreground/80 transition-colors group-hover:text-(--primary)"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <p className="text-sm font-semibold leading-tight">Migrations</p>
+                </div>
+              </Link>
+            </PopoverClose>
         </div>
       </PopoverContent>
     </Popover>
