@@ -417,7 +417,7 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
             type="button"
             variant="ghost"
             size="icon"
-            className="frosted rounded-full"
+            className="frosted rounded-full hover:text-primary"
             onClick={() => setIsAddDialogOpen(true)}
             title="Add link"
             aria-label="Add link"
