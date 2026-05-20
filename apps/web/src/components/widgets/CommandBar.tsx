@@ -648,7 +648,7 @@ export default function CommandBar(
         </div>
 
         <div
-          className={`grid min-h-0 gap-3 px-3 pb-3 ${
+          className={`grid min-h-0 gap-3 px-2 pb-2 ${
             showQrPreview
               ? "lg:grid-cols-[minmax(0,1fr)_14rem]"
               : "lg:grid-cols-1"
