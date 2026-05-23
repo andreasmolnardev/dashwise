@@ -12,6 +12,10 @@ import systemRoute from "./routes/system.route";
 import dataRoute from "./routes/data.route";
 
 const app = new Hono();
+const assetRoots = {
+  defaults: resolve(process.cwd(), "../../packages/assets/defaults"),
+  integrations: resolve(process.cwd(), "../../packages/assets/integrations"),
+} as const;
 
 const { process: pbProcess } = await startPocketbase();
 const logger = createLogger("API");
@@ -72,6 +76,37 @@ app.post("/api/forward-notifications", async (c) => {
   await jobsApi.runNotificationForwarderJob("api");
   return c.json({ status: "success" });
 });
+
+async function serveWorkspaceAsset(scope: keyof typeof assetRoots, requestPath: string) {
+  const prefix = `/${scope}`;
+  const relativePath = requestPath.slice(prefix.length).replace(/^\/+/, "");
+
+  if (!relativePath) {
+    return new Response("Specify an asset path.", { status: 404 });
+  }
+
+  const assetPath = resolve(assetRoots[scope], relativePath);
+  const rootPath = `${assetRoots[scope]}/`;
+  console.log(`Serving asset: ${assetPath}`);
+
+  if (assetPath !== assetRoots[scope] && !assetPath.startsWith(rootPath)) {
+    return new Response("Not found", { status: 404 });
+  }
+
+
+  const assetFile = Bun.file(assetPath);
+
+  if (!(await assetFile.exists())) {
+    return new Response("Not found", { status: 404 });
+  }
+
+  return new Response(assetFile);
+}
+
+app.get("/defaults", (c) => serveWorkspaceAsset("defaults", new URL(c.req.url).pathname));
+app.get("/defaults/*", (c) => serveWorkspaceAsset("defaults", new URL(c.req.url).pathname));
+app.get("/integrations", (c) => serveWorkspaceAsset("integrations", new URL(c.req.url).pathname));
+app.get("/integrations/*", (c) => serveWorkspaceAsset("integrations", new URL(c.req.url).pathname));
 
 const publicDir = resolve(process.cwd(), "apps/backend/dist/public");
 
