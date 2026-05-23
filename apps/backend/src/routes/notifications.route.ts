@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 
 import { createForwarder, deleteForwarder, getForwarders, updateForwarder } from "@dashwise/sdk/data/notifications/forwarders";
-import { createNotificationTopic, getNotificationTopics, getNotifications, markNotificationsAsRead } from "@dashwise/sdk/data/notifications/items";
+import { createNotificationTopic, getNotificationTopics, getNotifications, markNotificationsAsRead, sendTestNotification } from "@dashwise/sdk/data/notifications/items";
 import { createTopicToken, deleteTopicToken, listTopicTokens } from "@dashwise/sdk/data/notifications/topicTokens";
 
 import { readAuthToken, readJsonBody, readBool, requireAuth, withJson } from "./shared";
@@ -25,6 +25,11 @@ const notificationsRoute = new Hono();
     const body = await readJsonBody<any>(c);
     const { userId } = await requireAuth(body?.auth);
     return markNotificationsAsRead(userId, Array.isArray(body?.ids) ? body.ids : []);
+  }));
+  notificationsRoute.post("/api/v1/notifications/test", withJson(async (c) => {
+    const body = await readJsonBody<any>(c);
+    const { userId } = await requireAuth(body?.auth);
+    return sendTestNotification(userId, String(body?.topicId ?? ""));
   }));
   notificationsRoute.post("/api/v1/notifications/:topic", withJson(async () => ({ ok: true })));
   notificationsRoute.get("/api/v1/notifications/topicTokens", withJson(async (c) => {

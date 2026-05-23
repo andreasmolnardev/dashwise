@@ -6,6 +6,10 @@ import {
     getUserConfigsByAssociatedUserId,
     updateMonitoringJob,
 } from "@dashwise/sdk/data/superuser";
+import {
+    createNotificationByTopicId,
+    queueNotificationForForwarding,
+} from "@dashwise/sdk/data/notifications/publish";
 import { createLogger } from "../../lib/logger";
 
 type StatusCheckMethod = "GET" | "HEAD" | "POST" | "PUT" | "PATCH" | "DELETE" | "OPTIONS";
@@ -151,6 +155,16 @@ export async function runStatusMonitoringJobsWithOptions(options?: {
                     ...latencyUpdate.payload,
                 });
 
+                if (job.notifyOnStatusChange && job.notifyTopicId) {
+                    try {
+                        const content = `Monitor "${job.title || job.endpoint || job.source || 'Unnamed'}" changed from ${currentStatus} to ${newStatus}`;
+                        const { itemId } = await createNotificationByTopicId(job.notifyTopicId, content, 'monitoring');
+                        await queueNotificationForForwarding(itemId);
+                    } catch (err: any) {
+                        logger.error("Failed to send notification for monitor status change", { jobId: job.id, error: err.message });
+                    }
+                }
+
                 result.updated++;
                 result.logsCreated++;
                 result.details.push({
@@ -196,6 +210,17 @@ export async function runStatusMonitoringJobsWithOptions(options?: {
                         status: 'unhealthy',
                         pings: updatedPings,
                     });
+
+                    if (job.notifyOnStatusChange && job.notifyTopicId) {
+                        try {
+                            const content = `Monitor "${job.title || job.endpoint || job.source || 'Unnamed'}" changed from ${currentStatus} to unhealthy (fetch error)`;
+                            const { itemId } = await createNotificationByTopicId(job.notifyTopicId, content, 'monitoring');
+                            await queueNotificationForForwarding(itemId);
+                        } catch (nerr: any) {
+                            logger.error("Failed to send notification for monitor status change (error)", { jobId: job.id, error: nerr.message });
+                        }
+                    }
+
                     result.updated++;
                     result.logsCreated++;
                     result.details.push({ jobId: job.id, oldStatus: currentStatus, newStatus: 'unhealthy', note: 'network/fetch error' });

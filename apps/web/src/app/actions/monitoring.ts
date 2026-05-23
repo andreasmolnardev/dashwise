@@ -1,5 +1,5 @@
 import type { ActionAuth } from "@dashwise/sdk/data/auth";
-import type { MonitorRecord } from "@dashwise/sdk/data/monitoring";
+export type { MonitorRecord } from "@dashwise/sdk/data/monitoring";
 import { callApiAction } from "@/lib/apiClient";
 
 export async function getMonitoringStatusAction(auth: ActionAuth, jobId?: string | null) {

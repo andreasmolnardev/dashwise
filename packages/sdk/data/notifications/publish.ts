@@ -67,6 +67,26 @@ export async function createNotificationForUserTopic(input: PublishToUserTopicIn
   };
 }
 
+export async function createNotificationByTopicId(
+  topicId: string,
+  content: unknown,
+  source = "system",
+) {
+  const pb = await getSuperuserPB();
+  const notificationItem = await pb.collection("notificationItems").create({
+    topicId,
+    content,
+    status: "sent",
+    source,
+    forwardStatus: "none",
+  });
+
+  return {
+    topicId,
+    itemId: notificationItem.id,
+  };
+}
+
 export async function queueNotificationForForwarding(itemId: string) {
   const pb = await getSuperuserPB();
   await pb.collection("notificationItems").update(itemId, {

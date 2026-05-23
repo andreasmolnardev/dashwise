@@ -514,6 +514,12 @@ const routes: Record<string, RouteConfig> = {
     params: (input) => ({ path: { id: String(input?.feedId ?? "all") } }),
     body: (input) => input,
   },
+  "news.fixMissingTitlesAction": {
+    method: "POST",
+    path: "/news/fix-missing-titles",
+    auth: (input) => authToken(input?.auth),
+    body: () => undefined,
+  },
 
   "notifications.items.getNotificationsAction": {
     method: "GET",
@@ -534,6 +540,11 @@ const routes: Record<string, RouteConfig> = {
   "notifications.items.markNotificationsAsReadAction": {
     method: "POST",
     path: "/notifications/markAsRead",
+    body: (input) => input,
+  },
+  "notifications.items.sendTestNotificationAction": {
+    method: "POST",
+    path: "/notifications/test",
     body: (input) => input,
   },
   "notifications.topicTokens.listTopicTokensAction": {

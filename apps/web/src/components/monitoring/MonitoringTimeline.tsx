@@ -26,7 +26,7 @@ function formatDate(date: Date) {
 }
 
 function normalizeState(status?: string | null): "up" | "down" {
-  return status === "healthy" ? "up" : "down";
+  return status == "healthy" ? "up" : "down";
 }
 
 function formatStateLabel(status?: "up" | "down") {

@@ -7,6 +7,7 @@ import useAuth from "@/context/useAuth";
 import {
     deleteMonitorAction,
     getMonitorAction,
+    updateMonitoringStatusAction,
 } from "@/app/actions/monitoring";
 import type { MonitorPing, MonitorRecord } from "@dashwise/sdk/data/monitoring";
 import { Button } from "@/components/ui/button";
@@ -239,6 +240,7 @@ export default function MonitoringDetailPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [deleting, setDeleting] = useState(false);
+    const [rechecking, setRechecking] = useState(false);
     const [editOpen, setEditOpen] = useState(false);
     const [notificationsOpen, setNotificationsOpen] = useState(false);
     const [visibleOutliers, setVisibleOutliers] = useState(4);
@@ -279,6 +281,26 @@ export default function MonitoringDetailPage() {
             mounted = false;
         };
     }, [monitorId, token, withAuth]);
+
+    const handleRecheck = async () => {
+        if (!token || !monitorId || rechecking) return;
+        setRechecking(true);
+        try {
+            await withAuth((auth) =>
+                updateMonitoringStatusAction(auth, {
+                    body: { jobId: monitorId },
+                })
+            );
+            const data = await withAuth((auth) =>
+                getMonitorAction(auth, monitorId)
+            );
+            if (data) setMonitor(data);
+        } catch (err) {
+            console.error("Failed to recheck monitor:", err);
+        } finally {
+            setRechecking(false);
+        }
+    };
 
     const linkEntry = monitor
         ? entryById.get(String(monitor.sourcelinkId || monitor.linkId || ""))
@@ -446,6 +468,20 @@ export default function MonitoringDetailPage() {
                 <div className="flex items-center gap-2 self-start lg:justify-end">
                     <button
                         type="button"
+                        onClick={handleRecheck}
+                        disabled={rechecking}
+                        className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-transparent text-white/75 transition-colors hover:bg-white/10 hover:backdrop-blur-md hover:text-white disabled:opacity-50"
+                        aria-label="Recheck now"
+                        title="Recheck now"
+                    >
+                        <Icon
+                            icon="fa6-solid:arrows-rotate"
+                            className={`text-sm ${rechecking ? "animate-spin" : ""}`}
+                        />
+                    </button>
+
+                    <button
+                        type="button"
                         onClick={() => setEditOpen(true)}
                         className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-transparent text-white/75 transition-colors hover:bg-white/10 hover:backdrop-blur-md hover:text-white"
                         aria-label="Edit monitor"
@@ -535,7 +571,7 @@ export default function MonitoringDetailPage() {
                     </div>
                 </div>
                 <span className="text-sm text-white/70">
-                    Last checked at {formatTimestamp(latestPing?.created)}
+                    Last checked at {formatTimestamp(monitor.updated)}
                 </span>
 
                 {/* timeline */}

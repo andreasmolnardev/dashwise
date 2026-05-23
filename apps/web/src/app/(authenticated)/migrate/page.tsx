@@ -1,6 +1,11 @@
 import { useState } from "react";
-import { callApiAction } from "@/lib/apiClient";
+import { Link } from "react-router-dom";
 import useAuth from "@/context/useAuth";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import AppIcon from "@dashwise/app-icon";
+import { migrateLegacyPageConfigAction } from "@/app/actions/pageConfigs";
+import { fixMissingTitlesAction } from "@/app/actions/news";
 
 export default function MigratePage() {
   const [loading, setLoading] = useState(false);
@@ -16,7 +21,25 @@ export default function MigratePage() {
     setLoading(true);
     setResult(null);
     try {
-      const res = await callApiAction("pageConfig", "migrateLegacyAction", { auth: { token } });
+      const res = await migrateLegacyPageConfigAction({ token });
+      setResult(JSON.stringify(res, null, 2));
+    } catch (err) {
+      setResult(String(err));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const runFixMissingTitles = async () => {
+    if (!token) {
+      setResult("Missing auth token");
+      return;
+    }
+
+    setLoading(true);
+    setResult(null);
+    try {
+      const res = await fixMissingTitlesAction({ token });
       setResult(JSON.stringify(res, null, 2));
     } catch (err) {
       setResult(String(err));
@@ -26,15 +49,43 @@ export default function MigratePage() {
   };
 
   return (
-    <div style={{ padding: 16 }}>
-      <h1>Run Legacy Config Migration</h1>
-      <p>Trigger migration that converts legacy per-user config into new pageConfig and user prefs.</p>
-      <button onClick={runMigration} disabled={loading}>
-        {loading ? "Running migration…" : "Run migration for my account"}
-      </button>
-      {result && (
-        <pre style={{ marginTop: 12, whiteSpace: "pre-wrap" }}>{result}</pre>
-      )}
+    <div style={{ padding: 16, width: "50vw", marginInline: "auto" }} className="space-y-2">
+      <h1 className="text-2xl font-bold">Migrations</h1>
+      <p>Sometimes data doesn't persist fully across version updates.</p>
+      <Card className="p-2 frosted">
+        <h2 className="text-xl font-semibold">
+          Legacy per-user config migration
+        </h2>
+        <p>
+          Trigger migration that converts legacy per-user config into new
+          pageConfig and user prefs.
+        </p>
+        <Button onClick={runMigration} disabled={loading} className="w-min ml-auto">
+          <AppIcon source="solar:play-bold"/>
+          {loading ? "Running migration…" : "Run migration"}
+        </Button>
+        {result && (
+          <pre style={{ marginTop: 12, whiteSpace: "pre-wrap" }}>{result}</pre>
+        )}
+      </Card>
+      <Card className="frosted p-2">
+        <h2 className="text-xl font-semibold">
+          News subscription add missing titles
+        </h2>
+        <p>
+         Add subscription titles for those subscriptions where they're missing
+        </p>
+        <Button onClick={runFixMissingTitles} disabled={loading} className="w-min ml-auto">
+          <AppIcon source="solar:play-bold"/>
+          {loading ? "Running migration…" : "Run migration"}
+        </Button>
+      </Card>
+      <Link to="/home">
+        <Button variant={"ghost"} className="cursor-pointer">
+          <AppIcon source="fa6-solid:arrow-left"/>
+          Back to dashboard
+        </Button>
+      </Link>
     </div>
   );
 }

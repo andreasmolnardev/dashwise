@@ -103,6 +103,36 @@ export async function createNotificationTopic(userId: string, title: string) {
   return { ok: true, topicId: created.id };
 }
 
+export async function sendTestNotification(userId: string, topicId: string) {
+  const pb = await getSuperuserPB();
+  
+  const topic = await pb.collection("notificationTopics").getOne(topicId);
+  if (topic.userId !== userId) {
+    throw new Error("Unauthorized");
+  }
+
+  const item = await pb.collection("notificationItems").create({
+    topicId,
+    content: "This is a test notification from Dashwise.",
+    status: "sent",
+    source: "test",
+    forwardStatus: "queued",
+  });
+
+  try {
+    const jobsUrl = process.env.JOBS_WEBHOOK_URL || "http://jobs:3000/api/forward-notifications";
+    await fetch(jobsUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ trigger: "notification-queued", itemId: item.id }),
+    });
+  } catch {
+    // Ignore error
+  }
+
+  return { ok: true, itemId: item.id };
+}
+
 export async function markNotificationsAsRead(userId: string, ids: string[]) {
   const pb = await getSuperuserPB();
   let targetIds = ids;

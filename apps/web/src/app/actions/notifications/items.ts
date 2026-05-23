@@ -16,3 +16,7 @@ export async function createNotificationTopicAction(auth: ActionAuth, title: str
 export async function markNotificationsAsReadAction(auth: ActionAuth, ids: string[]) {
   return callApiAction("notifications.items", "markNotificationsAsReadAction", { auth, ids });
 }
+
+export async function sendTestNotificationAction(auth: ActionAuth, topicId: string) {
+  return callApiAction("notifications.items", "sendTestNotificationAction", { auth, topicId });
+}
