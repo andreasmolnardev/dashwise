@@ -4,8 +4,7 @@ import { randomUUID } from "crypto";
 import {
   createIntegration,
   getIntegration,
-  getIntegrationWithGlanceable,
-  getIntegrationWithWidget,
+  getIntegrationWithConsumer,
   getWidgetProperties,
   listIntegrations,
   testIntegrationEndpoint,
@@ -209,7 +208,7 @@ async function resolveConsumerData(
     sharedRuntimeCache?: Map<string, any>;
     sharedEndpointCache?: Map<string, ResolvedEndpointData>;
   },
-) {
+): Promise<any> {
   const user = await getAuthUserRecord(opts.pb, opts.userId);
   if (opts.type === "widget") {
     return resolveWidgetConsumer({
@@ -295,7 +294,7 @@ async function resolveWidgetConsumer(opts: {
   sharedRuntimeCache?: Map<string, any>;
   sharedEndpointCache?: Map<string, ResolvedEndpointData>;
 }) {
-  const payload = await getIntegrationWithWidget(opts.userId, opts.key);
+  const payload = await getIntegrationWithConsumer(opts.userId, { widgetKey: opts.key });
   if (!payload?.integrationId || !payload?.integration || !payload?.widgetJSON) {
     throw new ApiActionError("Widget integration not found", 404, {
       error: "Widget integration not found",
@@ -303,8 +302,9 @@ async function resolveWidgetConsumer(opts: {
   }
 
   const cacheConfig = resolveIntegrationCacheConfig(payload.integration);
+  const integrationConfig = payload.integration as Record<string, any>;
   const envWithStatefulHiddenVars = resolveStatefulEnvironmentVariables({
-    envValues: toEnvValueMap(payload.integration?.configuration?.environment_variables),
+    envValues: toEnvValueMap(integrationConfig?.configuration?.environment_variables),
     envDefinitions: payload?.environmentDefinitions,
     localData: payload.localData,
     retentionSeconds: cacheConfig.retentionSeconds,
@@ -430,9 +430,9 @@ async function resolveGlanceableConsumer(opts: {
   sharedRuntimeCache?: Map<string, any>;
   sharedEndpointCache?: Map<string, ResolvedEndpointData>;
 }) {
-  let payload = await getIntegrationWithGlanceable(opts.userId, opts.key);
+  let payload = await getIntegrationWithConsumer(opts.userId, { glanceableType: opts.key });
   if ((!payload?.integrationId || !payload?.integration || !payload?.glanceableJSON) && !opts.key.startsWith("local-")) {
-    payload = await getIntegrationWithGlanceable(opts.userId, `local-${opts.key}`);
+    payload = await getIntegrationWithConsumer(opts.userId, { glanceableType: `local-${opts.key}` });
   }
   if (!payload?.integrationId || !payload?.integration || !payload?.glanceableJSON) {
     throw new ApiActionError("Glanceable integration not found", 404, {
@@ -441,8 +441,9 @@ async function resolveGlanceableConsumer(opts: {
   }
 
   const cacheConfig = resolveIntegrationCacheConfig(payload.integration);
+  const integrationConfig = payload.integration as Record<string, any>;
   const envWithStatefulHiddenVars = resolveStatefulEnvironmentVariables({
-    envValues: toEnvValueMap(payload.integration?.configuration?.environment_variables),
+    envValues: toEnvValueMap(integrationConfig?.configuration?.environment_variables),
     envDefinitions: payload?.environmentDefinitions,
     localData: payload.localData,
     retentionSeconds: cacheConfig.retentionSeconds,

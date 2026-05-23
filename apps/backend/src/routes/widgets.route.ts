@@ -1,8 +1,7 @@
 import { Hono } from "hono";
 
 import {
-  getIntegrationWithGlanceable,
-  getIntegrationWithWidget,
+  getIntegrationWithConsumer,
 } from "@dashwise/sdk/data/integrations";
 import { getUserGlanceable, getUserWidgets } from "@dashwise/sdk/data/widgets";
 
@@ -27,11 +26,11 @@ const widgetsRoute = new Hono();
   }));
   widgetsRoute.get("/api/v1/widgets/by-integration", withJson(async (c) => {
     const { userId } = await requireAuth({ token: readAuthToken(c) });
-    return getIntegrationWithWidget(userId, String(c.req.query("widgetKey") ?? ""));
+    return getIntegrationWithConsumer(userId, { widgetKey: String(c.req.query("widgetKey") ?? "") });
   }));
   widgetsRoute.get("/api/v1/glanceables/by-integration", withJson(async (c) => {
     const { userId } = await requireAuth({ token: readAuthToken(c) });
-    return getIntegrationWithGlanceable(userId, String(c.req.query("glanceableType") ?? ""));
+    return getIntegrationWithConsumer(userId, { glanceableType: String(c.req.query("glanceableType") ?? "") });
   }));
 
 export default widgetsRoute;
