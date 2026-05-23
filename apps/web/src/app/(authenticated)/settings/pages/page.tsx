@@ -347,6 +347,7 @@ export default function SettingsPagesPage() {
           selectedClockPart={selectedClockPart}
           setSelectedClockPart={setSelectedClockPart}
           clockSelection={clockSelection}
+          setClockSelection={setClockSelection}
           clockGlanceables={clockGlanceables}
           setClockGlanceables={setClockGlanceables}
           clockStyle={clockStyle}
