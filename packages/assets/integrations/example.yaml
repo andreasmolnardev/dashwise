@@ -151,3 +151,20 @@ shortcuts:
         tags:
           - "Example"
           - "${name}"
+
+# ---------------------------------------------------------
+# 4. Glanceables
+# Defines compact summary items shown in glanceable slots.
+# See weather.yaml for a richer example with computed fields and icon rendering.
+# ---------------------------------------------------------
+  glanceables:
+    - name: "Example Glanceable"
+      key: "example-glanceable"
+      properties:
+        label: "${name}"
+        value: "${value}"
+      icon:
+        file: "${icon} ??? fa6-solid:sun"
+        size: 16
+        description: "${description}"
+      text: "${value} ??? No data"
