@@ -25,6 +25,10 @@ export async function createHomePageAction(auth: ActionAuth): Promise<CreateHome
   return callApiAction("pageConfig", "createHomePageAction", { auth }) as Promise<CreateHomePageResponse>;
 }
 
+export async function migrateLegacyPageConfigAction(auth: ActionAuth): Promise<unknown> {
+  return callApiAction("pageConfig", "migrateLegacyAction", { auth }) as Promise<unknown>;
+}
+
 export async function getPageIntegrationDataAction(
   auth: ActionAuth,
   pageName?: string,
