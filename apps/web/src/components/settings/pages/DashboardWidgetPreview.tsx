@@ -242,7 +242,7 @@ function WidgetTile({
       {/* Hover overlay with controls */}
       <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg backdrop-blur-[2px]">
         {widgetConfig?.name && (
-          <p className="font-bold py-0.5 text-sm">
+          <p className="font-bold py-0.5 text-sm text-center">
             {widgetConfig.name}
           </p>
         )}
