@@ -1,8 +1,11 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import GlanceableClockWidget from "./dashboard/GlanceableClock";
-import CalendarWeekWidget, { CalendarTodayWidget, CalendarUpcomingWidget } from "@dashwise/integrationskit/static-widgets/CalendarWidgets";
+import CalendarWeekWidget, {
+  CalendarTodayWidget,
+  CalendarUpcomingWidget,
+} from "@dashwise/integrationskit/static-widgets/CalendarWidgets";
 import LinkView from "./LinkView";
 import SearchBar from "./SearchBar";
 import IframeTemplate from "@dashwise/integrationskit/templates/IFrame";
@@ -10,7 +13,10 @@ import Widget from "@dashwise/integrationskit/Widget";
 import { useLocalization } from "@/context/LocalizationContext";
 import { readPageIntegrationConsumer } from "@/lib/pageIntegrationDataCache";
 import useAuth from "@/context/useAuth";
-import { getIntegrationCalendarEventsAction, getConsumerDataAction } from "@/app/actions/integrations";
+import {
+  getConsumerDataAction,
+  getIntegrationCalendarEventsAction,
+} from "@/app/actions/integrations";
 
 export type WidgetProps = {
   type: string;
@@ -44,25 +50,34 @@ export function renderWidget({
   switch (type) {
     case "main-clock":
     case "glanceable-clock":
-      return <GlanceableClockWidget className={className} params={renderParams} />;
-
-    case "search-bar":
       return (
-        <div className={finalClassName}>
-          <SearchBar useRedirect={false} defaultOpen={defaultOpen} />
-        </div>
+        <GlanceableClockWidget className={className} params={renderParams} />
       );
 
+    case "search-bar":
+      return <SearchBar useRedirect={false} defaultOpen={defaultOpen} />;
+
     case "calendar-week":
-      return <CalendarWeekWidget className={finalClassName} {...renderParams} />;
+      return <CalendarWeekWidget
+        className={finalClassName}
+        {...renderParams}
+      />;
 
     case "calendar-today":
-      return <CalendarTodayWidget className={finalClassName} {...renderParams} />;
+      return (
+        <CalendarTodayWidget className={finalClassName} {...renderParams} />
+      );
 
     case "calendar-upcoming":
-      return <CalendarUpcomingWidgetWrapper className={finalClassName} {...renderParams} />;
+      return (
+        <CalendarUpcomingWidgetWrapper
+          className={finalClassName}
+          {...renderParams}
+        />
+      );
 
-    case "link-view": return (<LinkView />);
+    case "link-view":
+      return <LinkView />;
 
     case "placeholder":
       return <div className={`${className ?? ""}`} />;
@@ -72,7 +87,12 @@ export function renderWidget({
 
     default:
       return (
-        <IntegrationWidget type={type} isPreview={isPreview} properties={renderParams} className={finalClassName} />
+        <IntegrationWidget
+          type={type}
+          isPreview={isPreview}
+          properties={renderParams}
+          className={finalClassName}
+        />
       );
   }
 }
@@ -239,8 +259,14 @@ function IntegrationWidget({
 
   if (loading) {
     return (
-      <div className={`rounded-xl p-3 flex items-center justify-center min-h-[100px] ${className ?? "frosted"}`}>
-        <div className="text-xs text-white/50 animate-pulse">Loading widget...</div>
+      <div
+        className={`rounded-xl p-3 flex items-center justify-center min-h-[100px] ${
+          className ?? "frosted"
+        }`}
+      >
+        <div className="text-xs text-white/50 animate-pulse">
+          Loading widget...
+        </div>
       </div>
     );
   }
