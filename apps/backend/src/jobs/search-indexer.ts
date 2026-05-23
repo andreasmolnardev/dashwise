@@ -1,3 +1,4 @@
+import { defaultShortcutsManifest } from "@dashwise/assets";
 import { getHomeLinks } from "@dashwise/sdk/data/links";
 import config from "@dashwise/sdk/lib/config";
 import { getSuperuserPB } from "@dashwise/sdk/lib/pocketbase";
@@ -21,6 +22,15 @@ type SearchIndexIntegrationRecord = {
   environment?: unknown;
 };
 
+type ShortcutDefaultsRow = {
+  name?: unknown;
+  icon?: unknown;
+  secondary?: unknown;
+  secondaryInfo?: unknown;
+  action?: unknown;
+  tags?: unknown;
+};
+
 export async function runSearchItemsIndexing() {
   console.log("Starting search items indexing job...");
   const pb = await getSuperuserPB();
@@ -32,7 +42,7 @@ export async function runSearchItemsIndexing() {
     const userId = user.id;
     if (!userId) continue;
 
-    const rows: SearchItemRow[] = [];
+    const rows: SearchItemRow[] = buildDefaultShortcutSearchRows();
     const links = await getHomeLinks(userId).catch(() => [] as any[]);
     for (const link of links) {
       const name = String(link?.title ?? "").trim();
@@ -78,6 +88,34 @@ export async function runSearchItemsIndexing() {
 
     await rebuildUserSearchItems(pb, userId, rows);
   }
+}
+
+function buildDefaultShortcutSearchRows(): SearchItemRow[] {
+  const shortcuts = Array.isArray(defaultShortcutsManifest)
+    ? (defaultShortcutsManifest as ShortcutDefaultsRow[])
+    : [];
+
+  const rows: SearchItemRow[] = [];
+  for (const shortcut of shortcuts) {
+    const name = String(shortcut?.name ?? "").trim();
+    const action = String(shortcut?.action ?? "").trim();
+    if (!name || !action) continue;
+
+    rows.push({
+      name,
+      icon: String(shortcut?.icon ?? "/icons/faGlobe.svg"),
+      secondary: String(shortcut?.secondaryInfo ?? shortcut?.secondary ?? "Dashwise"),
+      action,
+      app: "",
+      tags: [
+        name,
+        ...(Array.isArray(shortcut?.tags) ? shortcut.tags.map((tag: unknown) => String(tag)) : []),
+      ].filter((tag): tag is string => tag.trim().length > 0),
+      sourceId: `default-shortcut:${normalizeKey(action)}:${normalizeKey(name)}`,
+    });
+  }
+
+  return rows;
 }
 
 function escapeFilter(value: string) {
