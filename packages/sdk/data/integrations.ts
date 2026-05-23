@@ -376,21 +376,22 @@ export async function getIntegrationWithConsumer(userId: string, options: { widg
 async function ensureBuiltinIntegrations(userId: string, pb: Awaited<ReturnType<typeof getSuperuserPB>>) {
     const seeds = await loadBuiltinSeeds();
     if (seeds.length === 0) return;
-    console.log(`[Integrations] Ensuring ${seeds.length} built-in integrations for user ${userId}`);
 
     const existing = await pb.collection("integrations").getFullList({ filter: `user="${escapeFilter(userId)}"` });
 
     for (const seed of seeds) {
-        const match = existing.find((r) => r.source === seed.source);
-        if (match) {
-            const normalized = normalizeConfig(match.config);
+        // Try matching by source first (most specific)
+        const matchBySource = existing.find((r) => r.source === seed.source);
+
+        if (matchBySource) {
+            const normalized = normalizeConfig(matchBySource.config);
             const hydrated = Array.isArray(
                 (normalized?.configuration as Record<string, unknown> | undefined)?.widgets
             ) || Array.isArray(
                 (normalized?.configuration as Record<string, unknown> | undefined)?.glanceables
             );
             if (!hydrated) {
-                await pb.collection("integrations").update(match.id, {
+                await pb.collection("integrations").update(matchBySource.id, {
                     name: seed.name,
                     source: seed.source,
                     config: normalizeConfig(seed.config),
@@ -398,6 +399,14 @@ async function ensureBuiltinIntegrations(userId: string, pb: Awaited<ReturnType<
                 });
             }
         } else {
+            // If no source match, check if an integration with the same name already exists
+            if (seed.name) {
+                const matchByName = existing.find((r) => r.name === seed.name);
+                if (matchByName) {
+                    continue;
+                }
+            }
+
             await pb.collection("integrations").create({
                 user: userId,
                 name: seed.name,
