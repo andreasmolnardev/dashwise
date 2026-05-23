@@ -787,8 +787,7 @@ export default function CommandBar(
           <Separator className="bg-(--text-primary)/20 my-2" />
 
           <div className="text-xs text-gray-400  mx-3 mb-3">
-            Use ↑ ↓ to navigate · Press escape to close searchbar · Click or
-            press Enter to open
+            <code>esc</code> Close searchbar · <code>Enter</code> Open shortcut
           </div>
         </section>
       </DialogContent>
