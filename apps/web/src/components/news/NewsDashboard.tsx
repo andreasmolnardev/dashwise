@@ -220,6 +220,17 @@ export default function NewsDashboardComponent(
         setLoadingFeedRecord(false);
     };
 
+    const currentSubscription = subscriptions?.find((subscription) =>
+        subscription.id === activeFeedId || subscription.url === activeFeedId
+    ) ?? null;
+
+    const openCurrentSubscriptionEditor = () => {
+        if (!currentSubscription) return;
+
+        setEditingFeed(currentSubscription);
+        setAddOpen(true);
+    };
+
     const getRefreshTargetFeedIds = (explicitFeedIds?: string[]) => {
         if (explicitFeedIds && explicitFeedIds.length > 0) {
             return explicitFeedIds.map(String).filter(Boolean);
@@ -366,6 +377,18 @@ export default function NewsDashboardComponent(
                     {selectedSource || selectedCategory || "All feed"}
                 </h2>
                 <div className="flex items-center gap-2">
+                    <button
+                        onClick={openCurrentSubscriptionEditor}
+                        disabled={!currentSubscription || isRefreshing}
+                        className={`
+                            flex items-center justify-center h-9 rounded-full frosted gap-2
+                            transition-all duration-300 hover:bg-white/10 px-2
+                            ${!currentSubscription || isRefreshing ? "opacity-50" : "opacity-80 hover:opacity-100"}
+                        `}
+                        title={currentSubscription ? "Edit subscription" : "No subscription to edit"}
+                    >
+                        <Icon icon="fa6-solid:pen-to-square" />
+                    </button>
                     <button
                         onClick={() => refreshFeeds()}
                         disabled={isRefreshing}
@@ -516,7 +539,7 @@ export default function NewsDashboardComponent(
                     if (!v) setEditingFeed(null);
                 }}
             >
-                <DialogContent className="frosted text-foreground">
+                <DialogContent className="frosted text-foreground max-h-[90vh] overflow-hidden">
                     <DialogHeader>
                         <DialogTitle>
                             {editingFeed
@@ -525,50 +548,52 @@ export default function NewsDashboardComponent(
                         </DialogTitle>
                     </DialogHeader>
 
-                    <SubscriptionDetailsForm
-                        feed={editingFeed
-                            ? {
-                                id: editingFeed.id,
-                                feedUrl: String(editingFeed.feedUrl ?? editingFeed.url ?? ""),
-                                name: String(editingFeed.name ?? editingFeed.title ?? editingFeed.url ?? ""),
-                                icon: editingFeed.icon,
-                                feedIds: editingFeed.feedIds || [],
-                            }
-                            : undefined}
-                        feeds={feeds}
-                        resolveFeedMetadata={(feedUrl) =>
-                            withAuth((auth) => getNewsFeedMetadataAction(auth, feedUrl))
-                        }
-                        onClose={() => {
-                            setAddOpen(false);
-                            setEditingFeed(null);
-                        }}
-                        onSave={async (feed: any) => {
-                            try {
-                                if (editingFeed) {
-                                    await updateFeed(
-                                        String(editingFeed.id ?? editingFeed.url ?? ""),
-                                        feed,
-                                    );
-                                } else {
-                                    await subscribeFeed(feed);
+                    <div className="max-h-[calc(90vh-6rem)] overflow-y-auto pr-2">
+                        <SubscriptionDetailsForm
+                            feed={editingFeed
+                                ? {
+                                    id: editingFeed.id,
+                                    feedUrl: String(editingFeed.feedUrl ?? editingFeed.url ?? ""),
+                                    name: String(editingFeed.name ?? editingFeed.title ?? editingFeed.url ?? ""),
+                                    icon: editingFeed.icon,
+                                    feedIds: editingFeed.feedIds || [],
                                 }
+                                : undefined}
+                            feeds={feeds}
+                            resolveFeedMetadata={(feedUrl) =>
+                                withAuth((auth) => getNewsFeedMetadataAction(auth, feedUrl))
+                            }
+                            onClose={() => {
                                 setAddOpen(false);
                                 setEditingFeed(null);
-                            } catch (err) {
-                                console.error("Failed to save feed:", err);
-                            }
-                        }}
-                        onDelete={async (feedId) => {
-                            try {
-                                await unsubscribeFeed({ id: feedId } as any);
-                                setAddOpen(false);
-                                setEditingFeed(null);
-                            } catch (err) {
-                                console.error("Failed to delete feed:", err);
-                            }
-                        }}
-                    />
+                            }}
+                            onSave={async (feed: any) => {
+                                try {
+                                    if (editingFeed) {
+                                        await updateFeed(
+                                            String(editingFeed.id ?? editingFeed.url ?? ""),
+                                            feed,
+                                        );
+                                    } else {
+                                        await subscribeFeed(feed);
+                                    }
+                                    setAddOpen(false);
+                                    setEditingFeed(null);
+                                } catch (err) {
+                                    console.error("Failed to save feed:", err);
+                                }
+                            }}
+                            onDelete={async (feedId) => {
+                                try {
+                                    await unsubscribeFeed({ id: feedId } as any);
+                                    setAddOpen(false);
+                                    setEditingFeed(null);
+                                } catch (err) {
+                                    console.error("Failed to delete feed:", err);
+                                }
+                            }}
+                        />
+                    </div>
                 </DialogContent>
             </Dialog>
 
