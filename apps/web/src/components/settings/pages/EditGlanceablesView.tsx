@@ -1,6 +1,6 @@
 "use client";
 
-import { type Dispatch, type SetStateAction } from "react";
+import { type Dispatch, type SetStateAction, useEffect, useState } from "react";
 import ClockWidget from "@/components/widgets/ClockWidget";
 import GlanceableComponent from "@dashwise/integrationskit/Glanceable";
 import {
@@ -14,6 +14,8 @@ import { Separator } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
 import { GlanceableSide } from "./utils";
 import { useLocalization } from "@/context/LocalizationContext";
+import useAuth from "@/context/useAuth";
+import { getIntegrationWithGlanceableAction } from "@/app/actions/widgets";
 
 type GlanceableCatalogItem = {
   type: string;
@@ -27,6 +29,7 @@ type EditGlanceablesViewProps = {
   selectedClockPart: GlanceableSide | "clock";
   setSelectedClockPart: (part: GlanceableSide | "clock") => void;
   clockSelection: Record<GlanceableSide, string>;
+  setClockSelection: Dispatch<SetStateAction<Record<GlanceableSide, string>>>;
   clockGlanceables: Record<string, any>;
   setClockGlanceables: Dispatch<SetStateAction<Record<string, any>>>;
   clockStyle: Record<string, any>;
@@ -40,6 +43,7 @@ export function EditGlanceablesView({
   selectedClockPart,
   setSelectedClockPart,
   clockSelection,
+  setClockSelection,
   clockGlanceables,
   setClockGlanceables,
   clockStyle,
@@ -47,18 +51,41 @@ export function EditGlanceablesView({
   fonts,
 }: EditGlanceablesViewProps) {
   const localization = useLocalization();
+  const { withAuth } = useAuth();
   const selectedClockSide: GlanceableSide = selectedClockPart === "right"
     ? "right"
     : "left";
   const selectedClockType = clockSelection[selectedClockSide];
 
+  const [integrationInfo, setIntegrationInfo] = useState<{
+    environmentDefinitions?: Record<string, { description?: string; required?: boolean; default?: string }>;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!selectedClockType || ["date", "greeting", "local-timezone", "world-clock"].includes(selectedClockType)) {
+      setIntegrationInfo(null);
+      return;
+    }
+
+    void withAuth((auth) => getIntegrationWithGlanceableAction(auth, selectedClockType))
+      .then((data: any) => {
+        setIntegrationInfo(data ?? null);
+      })
+      .catch(() => setIntegrationInfo(null));
+  }, [selectedClockType, withAuth]);
+
   const setGlanceableForSide = (side: GlanceableSide, type: string) => {
+    setClockSelection((prev) => ({
+      ...prev,
+      [side]: type,
+    }));
     setClockGlanceables((prev) => {
       const leftType = side === "left" ? type : clockSelection.left;
       const rightType = side === "right" ? type : clockSelection.right;
       return {
-        [leftType]: prev[leftType] ?? null,
-        [rightType]: prev[rightType] ?? null,
+        ...prev,
+        [leftType]: prev[leftType] ?? {},
+        [rightType]: prev[rightType] ?? {},
       };
     });
   };
@@ -244,7 +271,33 @@ export function EditGlanceablesView({
                 </div>
               )}
 
-              {!["date", "weather"].includes(selectedClockType) && (
+              {integrationInfo?.environmentDefinitions &&
+                Object.entries(integrationInfo.environmentDefinitions).map(([key, def]) => (
+                  <div key={key} className="space-y-2">
+                    <p className="text-xs text-white/70">
+                      {key} {def.required ? <span className="text-destructive">*</span> : ""}
+                    </p>
+                    <Input
+                      value={String(clockGlanceables[selectedClockType]?.[key] ?? "")}
+                      onChange={(e) => {
+                        setClockGlanceables((prev) => ({
+                          ...prev,
+                          [selectedClockType]: {
+                            ...(prev[selectedClockType] ?? {}),
+                            [key]: e.target.value,
+                          },
+                        }));
+                      }}
+                      placeholder={def.description ?? `Override ${key}`}
+                      className="h-9 min-w-32 rounded-full border-white/20 px-3 bg-transparent text-sm"
+                    />
+                    {def.description && (
+                      <p className="text-[10px] text-white/40">{def.description}</p>
+                    )}
+                  </div>
+                ))}
+
+              {!["date", "weather"].includes(selectedClockType) && !integrationInfo?.environmentDefinitions && (
                 <p className="text-xs italic text-white/50">
                   No configurable properties for this glanceable.
                 </p>
