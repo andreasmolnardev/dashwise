@@ -22,6 +22,57 @@ export type EndpointResolutionContext = {
 
 const inFlightEndpointRequests = new Map<string, Promise<ResolvedEndpointData>>();
 
+export type EndpointCurlRequest = {
+	url: string;
+	method: string;
+	headers: Record<string, string>;
+	body: string | null;
+};
+
+export function getEndpointCurl(request: EndpointCurlRequest) {
+	const tokens: { text: string; quoted: boolean }[] = [{
+		text: "curl",
+		quoted: false,
+	}];
+
+	const method = (request.method || "GET").toUpperCase();
+	if (method && method !== "GET") {
+		tokens.push({ text: "-X", quoted: false });
+		tokens.push({ text: method, quoted: true });
+	}
+
+	for (const [key, value] of Object.entries(request.headers || {})) {
+		if (value === undefined || value === null) {
+			continue;
+		}
+		tokens.push({ text: "-H", quoted: false });
+		tokens.push({ text: `${key}: ${value}`, quoted: true });
+	}
+
+	if (request.body !== null && request.body !== undefined) {
+		tokens.push({ text: "-d", quoted: false });
+		tokens.push({ text: request.body, quoted: true });
+	}
+
+	tokens.push({ text: request.url, quoted: true });
+
+	return tokens
+		.map((token) => (token.quoted ? quoteShellArg(token.text) : token.text))
+		.join(" ");
+}
+
+function quoteShellArg(value: string) {
+	const escaped = value
+		.replace(/\\/g, "\\\\")
+		.replace(/"/g, '\\"')
+		.replace(/\$/g, "\\$")
+		.replace(/`/g, "\\`")
+		.replace(/\n/g, "\\n")
+		.replace(/\r/g, "\\r")
+		.replace(/\t/g, "\\t");
+	return `"${escaped}"`;
+}
+
 /**
  * Gets all of an integrations endpoint data
  */
@@ -95,6 +146,119 @@ export async function resolveEndpointCatalog(
 	}
 
 	return { endpoints: resolved, env: nextEnv };
+}
+
+export async function getEndpointData(
+	endpoint: EndpointDefinition,
+	context: EndpointResolutionContext,
+	allowSsl?: boolean,
+): Promise<ResolvedEndpointData> {
+	const method = String(endpoint.method ?? "GET").toUpperCase();
+	const resolvedUrl = resolveStringValue(String(endpoint.url ?? ""), context);
+	const requestHeaders = resolveHeaders(endpoint, context);
+	const requestBody = resolveBody(endpoint, context, method);
+	const requestKey = createEndpointRequestKey({
+		method,
+		resolvedUrl,
+		requestHeaders,
+		requestBody,
+		allowSsl: allowSsl === true,
+	});
+
+	// If we have a request body but no Content-Type header, default to JSON
+	const hasContentType = Object.keys(requestHeaders).some((k) =>
+		k.toLowerCase() === "content-type"
+	);
+	if (requestBody !== null && !hasContentType) {
+		requestHeaders["content-type"] = "application/json";
+	}
+	const endpointLabel = typeof endpoint.name === "string"
+		? endpoint.name
+		: typeof endpoint.id === "string"
+		? endpoint.id
+		: "endpoint";
+
+	if (!resolvedUrl) {
+		return {
+			id: typeof endpoint.id === "string" ? endpoint.id : null,
+			name: typeof endpoint.name === "string" ? endpoint.name : null,
+			method,
+			url: typeof endpoint.url === "string" ? endpoint.url : "",
+			resolvedUrl: "",
+			requestHeaders,
+			requestBody,
+			rawResponse: null,
+			mappedResponse: null,
+		};
+	}
+
+	const endpointPromise = getOrCreateEndpointFetchPromise(
+		requestKey,
+		async () => {
+			try {
+				const now = new Date().toLocaleTimeString("en-GB", { hour12: false });
+				const fetchOptions: RequestInit = {
+					method,
+					headers: requestHeaders,
+					body: requestBody,
+				};
+
+				if (allowSsl) {
+					(fetchOptions as any).tls = {
+						rejectUnauthorized: false,
+					};
+				}
+
+				const response = await fetch(resolvedUrl, fetchOptions);
+				const contentType = response.headers.get("content-type") ?? "";
+				const rawResponse = contentType.includes("application/json")
+					? await response.json().catch(async () => await response.text())
+					: await response.text();
+
+				if (!response.ok) {
+					const responseSummary = typeof rawResponse === "string"
+						? rawResponse.trim()
+						: JSON.stringify(rawResponse);
+					const suffix = responseSummary ? ` - ${responseSummary}` : "";
+					console.error(
+						`Non-OK response for endpoint "${endpointLabel}" (${method} ${resolvedUrl}):`,
+						{
+							status: response.status,
+							statusText: response.statusText,
+							body: rawResponse,
+						},
+					);
+					throw new Error(
+						`Failed to fetch endpoint "${endpointLabel}" (${method} ${resolvedUrl}): ${response.status} ${response.statusText}${suffix}`,
+					);
+				}
+
+				return {
+					id: typeof endpoint.id === "string" ? endpoint.id : null,
+					name: typeof endpoint.name === "string" ? endpoint.name : null,
+					method,
+					url: typeof endpoint.url === "string" ? endpoint.url : "",
+					resolvedUrl,
+					requestHeaders,
+					requestBody,
+					rawResponse,
+					mappedResponse: mapResponseBody(rawResponse, endpoint),
+				};
+			} catch (error) {
+				console.error(
+					`Error fetching endpoint "${endpointLabel}" (${method} ${resolvedUrl}):`,
+					error,
+				);
+				throw new Error(
+					`Failed to fetch endpoint "${endpointLabel}" (${method} ${resolvedUrl}): ${
+						getErrorMessage(error)
+					}`,
+				);
+			}
+		},
+	);
+
+	return await waitForEndpointFetch(endpointPromise, context.signal);
 }
 
 function setEndpointResponseEnv(
@@ -237,119 +401,6 @@ function resolveInvalidateAfterSeconds(
 		return null;
 	}
 	return parsed;
-}
-
-export async function getEndpointData(
-	endpoint: EndpointDefinition,
-	context: EndpointResolutionContext,
-	allowSsl?: boolean,
-): Promise<ResolvedEndpointData> {
-	const method = String(endpoint.method ?? "GET").toUpperCase();
-	const resolvedUrl = resolveStringValue(String(endpoint.url ?? ""), context);
-	const requestHeaders = resolveHeaders(endpoint, context);
-	const requestBody = resolveBody(endpoint, context, method);
-	const requestKey = createEndpointRequestKey({
-		method,
-		resolvedUrl,
-		requestHeaders,
-		requestBody,
-		allowSsl: allowSsl === true,
-	});
-
-	// If we have a request body but no Content-Type header, default to JSON
-	const hasContentType = Object.keys(requestHeaders).some((k) =>
-		k.toLowerCase() === "content-type"
-	);
-	if (requestBody !== null && !hasContentType) {
-		requestHeaders["content-type"] = "application/json";
-	}
-	const endpointLabel = typeof endpoint.name === "string"
-		? endpoint.name
-		: typeof endpoint.id === "string"
-		? endpoint.id
-		: "endpoint";
-
-	if (!resolvedUrl) {
-		return {
-			id: typeof endpoint.id === "string" ? endpoint.id : null,
-			name: typeof endpoint.name === "string" ? endpoint.name : null,
-			method,
-			url: typeof endpoint.url === "string" ? endpoint.url : "",
-			resolvedUrl: "",
-			requestHeaders,
-			requestBody,
-			rawResponse: null,
-			mappedResponse: null,
-		};
-	}
-
-	const endpointPromise = getOrCreateEndpointFetchPromise(
-		requestKey,
-		async () => {
-			try {
-				const now = new Date().toLocaleTimeString("en-GB", { hour12: false });
-				const fetchOptions: RequestInit = {
-					method,
-					headers: requestHeaders,
-					body: requestBody,
-				};
-
-				if (allowSsl) {
-					(fetchOptions as any).tls = {
-						rejectUnauthorized: false,
-					};
-				}
-
-				const response = await fetch(resolvedUrl, fetchOptions);
-				const contentType = response.headers.get("content-type") ?? "";
-				const rawResponse = contentType.includes("application/json")
-					? await response.json().catch(async () => await response.text())
-					: await response.text();
-
-				if (!response.ok) {
-					const responseSummary = typeof rawResponse === "string"
-						? rawResponse.trim()
-						: JSON.stringify(rawResponse);
-					const suffix = responseSummary ? ` - ${responseSummary}` : "";
-					console.error(
-						`Non-OK response for endpoint "${endpointLabel}" (${method} ${resolvedUrl}):`,
-						{
-							status: response.status,
-							statusText: response.statusText,
-							body: rawResponse,
-						},
-					);
-					throw new Error(
-						`Failed to fetch endpoint "${endpointLabel}" (${method} ${resolvedUrl}): ${response.status} ${response.statusText}${suffix}`,
-					);
-				}
-
-				return {
-					id: typeof endpoint.id === "string" ? endpoint.id : null,
-					name: typeof endpoint.name === "string" ? endpoint.name : null,
-					method,
-					url: typeof endpoint.url === "string" ? endpoint.url : "",
-					resolvedUrl,
-					requestHeaders,
-					requestBody,
-					rawResponse,
-					mappedResponse: mapResponseBody(rawResponse, endpoint),
-				};
-			} catch (error) {
-				console.error(
-					`Error fetching endpoint "${endpointLabel}" (${method} ${resolvedUrl}):`,
-					error,
-				);
-				throw new Error(
-					`Failed to fetch endpoint "${endpointLabel}" (${method} ${resolvedUrl}): ${
-						getErrorMessage(error)
-					}`,
-				);
-			}
-		},
-	);
-
-	return await waitForEndpointFetch(endpointPromise, context.signal);
 }
 
 function getOrCreateEndpointFetchPromise(
