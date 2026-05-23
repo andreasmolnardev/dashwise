@@ -48,6 +48,7 @@ export default function SubscriptionDetailsForm({
   const [name, setName] = useState<string>(() => feed?.name || "");
   const [icon, setIcon] = useState<string>(() => feed?.icon || "");
   const [fallbackThumbnailUrl, setFallbackThumbnailUrl] = useState<string>(() => feed?.fallbackThumbnailUrl || "");
+  const [thumbnailOverwriteUrl, setThumbnailOverwriteUrl] = useState<string>(() => feed?.thumbnailOverwriteUrl || "");
   const initialReplaceRuleKey = feed?.linkReplaceRule ? Object.keys(feed.linkReplaceRule)[0] || "" : "";
   const [replaceSearch, setReplaceSearch] = useState<string>(initialReplaceRuleKey);
   const [replaceWith, setReplaceWith] = useState<string>(initialReplaceRuleKey ? String(feed?.linkReplaceRule?.[initialReplaceRuleKey] || "") : "");
@@ -262,6 +263,7 @@ export default function SubscriptionDetailsForm({
         feedIds: currentSelectedFeedIds,
         newFeedTitles: currentSelectedNewTitles,
         fallbackThumbnailUrl: fallbackThumbnailUrl.trim() || undefined,
+        thumbnailOverwriteUrl: thumbnailOverwriteUrl.trim() || undefined,
         linkReplaceRule,
       };
 
@@ -324,7 +326,7 @@ export default function SubscriptionDetailsForm({
           />
         </div>
 
-        <div className="w-[200px]">
+        <div style={{ width: 200 }}>
           <Label>Add to Feed</Label>
           <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger asChild>
@@ -495,6 +497,18 @@ export default function SubscriptionDetailsForm({
             placeholder="https://example.com/image.png"
             value={fallbackThumbnailUrl}
             onChange={(e) => setFallbackThumbnailUrl(e.target.value)}
+            disabled={loading}
+          />
+        </div>
+
+        <div>
+          <Label htmlFor="thumbnail-overwrite" className="text-xs">Thumbnail Overwrite URL</Label>
+          <Input
+            id="thumbnail-overwrite"
+            className="h-8 text-sm frosted mt-1"
+            placeholder="https://example.com/thumbnail.png"
+            value={thumbnailOverwriteUrl}
+            onChange={(e) => setThumbnailOverwriteUrl(e.target.value)}
             disabled={loading}
           />
         </div>

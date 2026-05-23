@@ -2,7 +2,7 @@ import Parser from "rss-parser";
 import { Hono } from "hono";
 import type { Context } from "hono";
 
-import { getNewsFeed, getNewsFeedRecord, getNewsFeeds, getNewsSubscriptions, subscribeNewsFeed, unsubscribeNewsFeed, updateNewsFeed, updateNewsFeedRecordForUser } from "@dashwise/sdk/data/news";
+import { getNewsFeed, getNewsFeedRecord, getNewsFeeds, getNewsSubscriptions, subscribeNewsFeed, unsubscribeNewsFeed, updateNewsFeed, updateNewsFeedRecordForUser, getNewsFeedMetadata, updateNewsSubscription } from "@dashwise/sdk/data/news";
 import type { NewsFeedMetadata, NewsFeedRecordUpdateInput, NewsSubscribeInput, NewsUpdateInput } from "@dashwise/sdk/data/news";
 
 import { readAuthToken, readJsonBody, requireAuth, withJson } from "./shared";
@@ -122,6 +122,31 @@ async function getFeedMetadata(feedUrl: string): Promise<NewsFeedMetadata> {
   }
 }
 
+async function addMissingSubscriptionTitles(userId: string) {
+  const subscriptions = await getNewsSubscriptions(userId);
+
+  const missing = subscriptions.subscriptions.filter(
+    (sub) => !sub.title || sub.title === sub.feedUrl
+  );
+
+  let updatedCount = 0;
+  for (const sub of missing) {
+    if (!sub.id || !sub.feedUrl) continue;
+    try {
+      const metadata = await getNewsFeedMetadata(sub.feedUrl);
+      const titleToUse = metadata.title || new URL(sub.feedUrl).hostname;
+      if (titleToUse) {
+        await updateNewsSubscription(sub.id, { title: titleToUse });
+        updatedCount++;
+      }
+    } catch (err) {
+      logger.error(`Failed to update subscription title for ${sub.feedUrl}`, err);
+    }
+  }
+
+  return { success: true, updatedCount };
+}
+
 const newsRoute = new Hono();
   newsRoute.get("/api/v1/news", withJson(async (c) => {
     const { userId } = await requireAuth({ token: readAuthToken(c) });
@@ -191,6 +216,9 @@ const newsRoute = new Hono();
       icon: sub.icon,
       feedIds: Array.isArray(sub.feedIds) ? sub.feedIds : [],
       newFeedTitles: Array.isArray(sub.newFeedTitles) ? sub.newFeedTitles : [],
+      linkReplaceRule: sub.linkReplaceRule,
+      fallbackThumbnailUrl: sub.fallbackThumbnailUrl,
+      thumbnailOverwriteUrl: sub.thumbnailOverwriteUrl,
     });
 
     return result;
@@ -212,6 +240,10 @@ const newsRoute = new Hono();
     const feedId = String(c.req.param("id") ?? body?.payload?.feedId ?? "").trim();
     const payload = body?.payload ?? {};
     return updateNewsFeedRecordForUser(userId, feedId, payload);
+  }));
+  newsRoute.post("/api/v1/news/fix-missing-titles", withJson(async (c) => {
+    const { userId } = await requireAuth({ token: readAuthToken(c) });
+    return addMissingSubscriptionTitles(userId);
   }));
 
 export default newsRoute;

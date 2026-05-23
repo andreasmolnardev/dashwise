@@ -51,3 +51,7 @@ export async function updateNewsFeedAction(auth: ActionAuth, payload: NewsUpdate
 export async function updateNewsFeedRecordAction(auth: ActionAuth, payload: NewsFeedRecordUpdateInput) {
   return callApiAction("news", "updateNewsFeedRecordAction", { auth, payload, feedId: payload.feedId });
 }
+
+export async function fixMissingTitlesAction(auth: ActionAuth): Promise<unknown> {
+  return callApiAction("news", "fixMissingTitlesAction", { auth }) as Promise<unknown>;
+}

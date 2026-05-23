@@ -277,6 +277,9 @@ export default function NewsDashboardComponent(
                 icon: String(feed.icon ?? ""),
                 feedIds: feed.feedIds ?? [],
                 newFeedTitles: feed.newFeedTitles ?? [],
+                linkReplaceRule: feed.linkReplaceRule,
+                fallbackThumbnailUrl: feed.fallbackThumbnailUrl,
+                thumbnailOverwriteUrl: feed.thumbnailOverwriteUrl,
             })
         );
 
@@ -311,6 +314,9 @@ export default function NewsDashboardComponent(
                 title: String(updatedFeed.name ?? updatedFeed.title ?? ""),
                 icon: String(updatedFeed.icon ?? ""),
                 feedIds: updatedFeed.feedIds ?? [],
+                linkReplaceRule: updatedFeed.linkReplaceRule,
+                fallbackThumbnailUrl: updatedFeed.fallbackThumbnailUrl,
+                thumbnailOverwriteUrl: updatedFeed.thumbnailOverwriteUrl,
             })
         );
 
@@ -557,6 +563,9 @@ export default function NewsDashboardComponent(
                                     name: String(editingFeed.name ?? editingFeed.title ?? editingFeed.url ?? ""),
                                     icon: editingFeed.icon,
                                     feedIds: editingFeed.feedIds || [],
+                                    linkReplaceRule: editingFeed.linkReplaceRule,
+                                    fallbackThumbnailUrl: editingFeed.fallbackThumbnailUrl,
+                                    thumbnailOverwriteUrl: editingFeed.thumbnailOverwriteUrl,
                                 }
                                 : undefined}
                             feeds={feeds}

@@ -35,12 +35,14 @@ export async function getFeedItems({
     maxItems = 100,
     feedName,
     linkReplaceRule,
+    thumbnailOverwriteUrl,
     fallbackThumbnailUrl,
 }: {
     feedUrl: string;
     maxItems?: number;
     feedName?: string;
     linkReplaceRule?: Record<string, string>;
+    thumbnailOverwriteUrl?: string;
     fallbackThumbnailUrl?: string;
 }): Promise<FeedItem[]> {
     const logger = createLogger("NewsFeedBuilder");
@@ -79,7 +81,7 @@ export async function getFeedItems({
                     description: getBestDescription(item),
                     content: getContent(item),
                     pubDate,
-                    thumbnailUrl: getThumbnail(item, fallbackThumbnailUrl || feed?.image?.url),
+                    thumbnailUrl: getThumbnail(item, thumbnailOverwriteUrl, fallbackThumbnailUrl || feed?.image?.url),
                     author: item.author || (item as any).creator,
                     source: feedName,
                 } as FeedItem;
@@ -182,8 +184,13 @@ function firstImageSrc(html: string): string | undefined {
 
 export function getThumbnail(
     item: ParserItem,
+    overwrite?: string,
     fallback?: string,
 ): string | undefined {
+    if (overwrite && /^https?:\/\//i.test(overwrite)) {
+        return overwrite;
+    }
+
     const mediaThumbnail =
         item["media:thumbnail"] ||
         item["media:group"]?.["media:thumbnail"];

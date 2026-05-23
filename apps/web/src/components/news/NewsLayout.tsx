@@ -70,8 +70,12 @@ export default function NewsLayout({ children }: { children: ReactNode }) {
     const subscriptionTabs = useMemo(
         () => subscriptions
             .slice()
+            .filter((sub) => {
+                if (!feedId || feedId === "all") return true;
+                return Array.isArray(sub.feedIds) ? sub.feedIds.includes(feedId) : false;
+            })
             .sort((left, right) => String(left.title || left.url).localeCompare(String(right.title || right.url))),
-        [subscriptions],
+        [subscriptions, feedId],
     );
 
     const encodeSubscriptionRouteId = (subscription: Subscription) => {

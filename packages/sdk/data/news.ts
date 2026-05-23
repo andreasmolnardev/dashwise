@@ -38,6 +38,7 @@ export type NewsSubscription = {
   newFeedTitles?: string[];
   linkReplaceRule?: Record<string, string>;
   fallbackThumbnailUrl?: string;
+  thumbnailOverwriteUrl?: string;
 };
 
 export type NewsFeedMetadata = {
@@ -69,6 +70,7 @@ export type NewsSubscribeInput = {
   newFeedTitles?: string[];
   linkReplaceRule?: Record<string, string>;
   fallbackThumbnailUrl?: string;
+  thumbnailOverwriteUrl?: string;
 };
 
 export type NewsUpdateInput = {
@@ -80,6 +82,7 @@ export type NewsUpdateInput = {
   feedIds?: string[];
   linkReplaceRule?: Record<string, string>;
   fallbackThumbnailUrl?: string;
+  thumbnailOverwriteUrl?: string;
 };
 
 export type NewsFeedDraft = Omit<NewsSubscription, "feedUrl" | "url"> & {
@@ -131,6 +134,7 @@ function normalizeSubscription(entry: Record<string, unknown> | null): NewsSubsc
     name: String(entry.title ?? entry.name ?? url),
     linkReplaceRule: entry.linkReplaceRule as Record<string, string> | undefined,
     fallbackThumbnailUrl: entry.fallbackThumbnailUrl ? String(entry.fallbackThumbnailUrl) : undefined,
+    thumbnailOverwriteUrl: entry.thumbnailOverwriteUrl ? String(entry.thumbnailOverwriteUrl) : undefined,
   };
 }
 
@@ -519,6 +523,7 @@ export async function getNewsSubscriptions(userId: string): Promise<NewsSubscrip
     newFeedTitles: subscription.newFeedTitles,
     linkReplaceRule: subscription.linkReplaceRule,
     fallbackThumbnailUrl: subscription.fallbackThumbnailUrl,
+    thumbnailOverwriteUrl: subscription.thumbnailOverwriteUrl,
   }));
 
   return {
@@ -577,6 +582,7 @@ export async function subscribeNewsFeed(
       json: existing.json ?? [],
       linkReplaceRule: sub.linkReplaceRule,
       fallbackThumbnailUrl: sub.fallbackThumbnailUrl,
+      thumbnailOverwriteUrl: sub.thumbnailOverwriteUrl,
     });
 
     if (existing.id) {
@@ -597,6 +603,7 @@ export async function subscribeNewsFeed(
       json: [],
       linkReplaceRule: sub.linkReplaceRule,
       fallbackThumbnailUrl: sub.fallbackThumbnailUrl,
+      thumbnailOverwriteUrl: sub.thumbnailOverwriteUrl,
     });
 
     if (created?.id) {
@@ -640,9 +647,13 @@ export async function updateNewsFeed(
     json: target.json ?? [],
     linkReplaceRule: payload.linkReplaceRule !== undefined ? payload.linkReplaceRule : target.linkReplaceRule,
     fallbackThumbnailUrl: payload.fallbackThumbnailUrl !== undefined ? payload.fallbackThumbnailUrl : target.fallbackThumbnailUrl,
+    thumbnailOverwriteUrl: payload.thumbnailOverwriteUrl !== undefined ? payload.thumbnailOverwriteUrl : target.thumbnailOverwriteUrl,
   });
 
   await syncSubscriptionFeedRefs(userId, target.id, payload.feedIds ?? []);
 
   return { message: "Subscription updated" };
 }
+
+export { updateNewsSubscription };
+
