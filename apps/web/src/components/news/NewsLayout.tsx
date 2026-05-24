@@ -72,6 +72,8 @@ export default function NewsLayout({ children }: { children: ReactNode }) {
             .slice()
             .filter((sub) => {
                 if (!feedId || feedId === "all") return true;
+                const isSelected = sub.id === feedId || sub.url === feedId;
+                if (isSelected) return true;
                 return Array.isArray(sub.feedIds) ? sub.feedIds.includes(feedId) : false;
             })
             .sort((left, right) => String(left.title || left.url).localeCompare(String(right.title || right.url))),
