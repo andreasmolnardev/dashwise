@@ -149,7 +149,7 @@ export default function Widget({
     }
 
     if (isResolving && !preResolved) {
-        return <WidgetLoadingState className={className} />;
+        return <WidgetLoadingState className={className} label={resolveWidgetLabel(widgetKey, integrationJSON)} />;
     }
 
     if (resolutionError && !isPreview) {
@@ -162,7 +162,7 @@ export default function Widget({
     }
 
     if (!resolved) {
-        return <WidgetLoadingState className={className} />;
+        return <WidgetLoadingState className={className} label={resolveWidgetLabel(widgetKey, integrationJSON)} />;
     }
 
     const template = effectiveWidgetJSON.template ?? "columns";
@@ -210,7 +210,13 @@ function WidgetErrorState({
     );
 }
 
-function WidgetLoadingState({ className }: { className?: string }) {
+function WidgetLoadingState({
+    className,
+    label,
+}: {
+    className?: string;
+    label?: string;
+}) {
     return (
         <div
             className={`frosted rounded-xl border border-white/10 bg-white/5 p-3 ${className ?? ""}`}
@@ -222,6 +228,12 @@ function WidgetLoadingState({ className }: { className?: string }) {
                 <div className="h-3 w-24 animate-pulse rounded-full bg-white/15" />
             </div>
 
+            {label ? (
+                <p className="mt-2 text-xs text-white/50">
+                    Loading widget from {label}...
+                </p>
+            ) : null}
+
             <div className="mt-3 space-y-2">
                 <div className="h-3 w-3/4 animate-pulse rounded-full bg-white/15" />
                 <div className="h-3 w-1/2 animate-pulse rounded-full bg-white/10" />
@@ -229,6 +241,22 @@ function WidgetLoadingState({ className }: { className?: string }) {
             </div>
         </div>
     );
+}
+
+function resolveWidgetLabel(widgetKey: string, integrationJSON?: Record<string, any> | null) {
+    const integrationDetails = integrationJSON?.integration?.details;
+    const integrationName =
+        (integrationDetails && typeof integrationDetails.name === "string" && integrationDetails.name.trim())
+            ? integrationDetails.name.trim()
+            : (integrationJSON?.details && typeof integrationJSON.details.name === "string" && integrationJSON.details.name.trim())
+                ? integrationJSON.details.name.trim()
+                : (integrationJSON?.integration && typeof integrationJSON.integration.name === "string" && integrationJSON.integration.name.trim())
+                    ? integrationJSON.integration.name.trim()
+                    : (integrationJSON && typeof integrationJSON.name === "string" && integrationJSON.name.trim())
+                        ? integrationJSON.name.trim()
+                        : "";
+
+    return integrationName || widgetKey;
 }
 
 function applyWidgetInput(

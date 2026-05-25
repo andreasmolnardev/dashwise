@@ -560,9 +560,8 @@ function mapResponseBody(body: unknown, endpoint: EndpointDefinition) {
 		return body;
 	}
 
-	const discardUnmapped =
-		endpoint.discard_unmapped === true ||
-		String(endpoint.discard_unmapped).toLowerCase() === "true";
+	const discardFlag = String(endpoint.discard_unmapped).toLowerCase();
+	const discardUnmapped = discardFlag === "false" ? false : true;
 	const mapped: Record<string, any> = discardUnmapped
 		? {}
 		: { ...(wrappedBody as Record<string, any>) };

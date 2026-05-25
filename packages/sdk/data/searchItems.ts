@@ -33,7 +33,8 @@ export async function getSearchItems(userId: string) {
   });
 
   return records.map((record) => {
-    const action = String(record.action ?? "").trim();
+    const action = parseAction(record.action);
+    const actionString = typeof action === "string" ? action : "";
     return {
       id: record.id,
       parentId:
@@ -43,11 +44,48 @@ export async function getSearchItems(userId: string) {
       name: String(record.name ?? ""),
       icon: String(record.icon ?? ""),
       secondaryInfo: String(record.secondary ?? ""),
-      type: action.startsWith("app:") ? "app" : "link",
+      type: actionString.startsWith("app:") ? "app" : "link",
       action,
       tags: parseTags(record.tags),
       isPinned: Boolean(record.isPinned),
       usageStats: record.usageStats,
     };
   });
+}
+
+type SearchItemAction = string | {
+  type: string;
+  url?: string;
+  proxy?: boolean;
+};
+
+function parseAction(raw: unknown): SearchItemAction {
+  if (typeof raw !== "string") return "";
+  const trimmed = raw.trim();
+  if (!trimmed) return "";
+
+  if (trimmed.toLowerCase().startsWith("post:")) {
+    const url = trimmed.slice(5).trim();
+    return { type: "post", url, proxy: true };
+  }
+
+  if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        const type = String((parsed as any).type ?? "").trim().toLowerCase();
+        if (type) {
+          const url = typeof (parsed as any).url === "string" ? (parsed as any).url : undefined;
+          if (type === "post") {
+            return { type: "post", url, proxy: true };
+          }
+          return { type, url };
+        }
+      }
+    } catch {
+      // fall through to raw string
+    }
+  }
+
+  return trimmed;
 }

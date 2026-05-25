@@ -1,13 +1,21 @@
 import { flattenToEnv, getNestedValue, resolveComputedFieldValue } from "./data/getComputedField";
 import { resolveIntegrationRuntimeProperties } from "./data/resolveProperties";
 
+export type ShortcutActionObject = {
+	type: string;
+	url?: string;
+	auth?: string;
+	headers?: Record<string, string>;
+	body?: unknown;
+};
+
 export type ShortcutItem = {
 	id: string;
 	name: string;
 	icon: string;
 	secondaryInfo: string;
 	type: string;
-	action: string;
+	action: string | ShortcutActionObject;
 	tags: string[];
 };
 
@@ -192,11 +200,18 @@ export default async function Shortcuts({
 
 				const item = candidate as Record<string, any>;
 				const name = String(item.name ?? "").trim();
-				const action = String(item.action ?? "").trim();
-				if (!name || !action) continue;
+				const actionValue = item.action;
+				const action = typeof actionValue === "string"
+					? actionValue.trim()
+					: actionValue;
+				if (!name || !isValidShortcutAction(action)) continue;
  
+				const fallbackId = typeof action === "string"
+					? `${action}:${name}`
+					: `${action.type}:${action.url ?? name}`;
+
 				rows.push({
-					id: String(item.id ?? `${action}:${name}`),
+					id: String(item.id ?? fallbackId),
 					name,
 					icon: String(item.icon ?? ""),
 					secondaryInfo: String(item.secondaryInfo ?? item.secondary ?? ""),
@@ -209,4 +224,15 @@ export default async function Shortcuts({
 	}
 
 	return rows;
+}
+
+function isValidShortcutAction(action: unknown): action is string | ShortcutActionObject {
+	if (typeof action === "string") {
+		return action.trim().length > 0;
+	}
+	if (!action || typeof action !== "object" || Array.isArray(action)) {
+		return false;
+	}
+	const type = String((action as ShortcutActionObject).type ?? "").trim();
+	return type.length > 0;
 }

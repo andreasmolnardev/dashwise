@@ -1,6 +1,7 @@
 import { Loader2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -62,12 +63,18 @@ type DebugIntegrationDialogProps = {
   open: boolean;
   integration: IntegrationRecord | null;
   onOpenChange: (open: boolean) => void;
+  onTriggerTest?: (endpoint: ResolvedEndpoint) => void | Promise<void>;
+  testing?: boolean;
+  testTarget?: string | null;
 };
 
 export function DebugIntegrationDialog({
   open,
   integration,
   onOpenChange,
+  onTriggerTest,
+  testing = false,
+  testTarget = null,
 }: DebugIntegrationDialogProps) {
   const { withAuth } = useAuth();
   const [selectedInspectTab, setSelectedInspectTab] = useState<string | null>(
@@ -368,6 +375,16 @@ export function DebugIntegrationDialog({
                                         </p>
                                       </div>
                                       <div className="flex items-center gap-2">
+                                        {onTriggerTest && (
+                                          <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => void onTriggerTest(endpoint)}
+                                            disabled={testing && testTarget === `${integration.id}.${key}`}
+                                          >
+                                            {testing && testTarget === `${integration.id}.${key}` ? "Testing…" : "Test"}
+                                          </Button>
+                                        )}
                                         {hasResponse && (
                                           <Badge
                                             variant={resp.rawResponse
@@ -582,6 +599,16 @@ export function DebugIntegrationDialog({
                                           "No description"}
                                       </p>
                                     </div>
+                                      {onTriggerTest && (
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          onClick={() => void onTriggerTest(endpoint)}
+                                          disabled={testing && testTarget === `${integration.id}.${endpoint.id ?? endpoint.name ?? `${endpoint.method}-${endpoint.resolvedUrl}`}`}
+                                        >
+                                          {testing && testTarget === `${integration.id}.${endpoint.id ?? endpoint.name ?? `${endpoint.method}-${endpoint.resolvedUrl}`}` ? "Testing…" : "Test"}
+                                        </Button>
+                                      )}
                                     {hasResponse && (
                                       <Badge
                                         variant={resp.rawResponse

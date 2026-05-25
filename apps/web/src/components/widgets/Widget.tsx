@@ -223,8 +223,10 @@ function IntegrationWidget({
   const { phase, version } = usePageIntegrationStream();
   const [localPayload, setLocalPayload] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+  const [localError, setLocalError] = useState<string | null>(null);
 
   const consumerPayload = readPageIntegrationConsumer("widget", type, properties) || localPayload;
+  const loadingLabel = resolveWidgetLabel(type, consumerPayload);
 
   const hasStreamError = consumerPayload?.success === false;
   const shouldStreamLoad =
@@ -238,6 +240,7 @@ function IntegrationWidget({
 
     let cancelled = false;
     setLoading(true);
+    setLocalError(null);
 
     void withAuth((auth) =>
       getConsumerDataAction(auth, type, properties ?? {}, {
@@ -248,12 +251,23 @@ function IntegrationWidget({
       .then((payload) => {
         if (cancelled) return;
         const casted = payload as any;
-        if (casted?.success) {
+        if (casted?.success === false) {
           setLocalPayload(casted);
+          setLocalError(
+            typeof casted?.error === "string"
+              ? casted.error
+              : "Widget data request failed.",
+          );
+          return;
         }
+
+        setLocalPayload(casted);
       })
       .catch((err) => {
         console.error(`Failed to fetch widget data for ${type}`, err);
+        setLocalError(
+          err instanceof Error ? err.message : "Widget data request failed.",
+        );
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -272,9 +286,26 @@ function IntegrationWidget({
         }`}
       >
         <div className="text-xs text-white/50 animate-pulse">
-          Loading widget...
+          Loading widget from {loadingLabel}...
         </div>
       </div>
+    );
+  }
+
+  const consumerError =
+    consumerPayload?.success === false
+      ? typeof consumerPayload?.error === "string"
+        ? consumerPayload.error
+        : `Widget "${type}" data failed to load.`
+      : null;
+  const errorMessage = localError ?? consumerError;
+
+  if (errorMessage) {
+    return (
+      <WidgetErrorState
+        className={className}
+        message={errorMessage}
+      />
     );
   }
 
@@ -302,6 +333,20 @@ function IntegrationWidget({
       }}
     />
   );
+}
+
+function resolveWidgetLabel(widgetKey: string, payload?: any) {
+  const widgetJSON = payload?.blueprint?.widgetJSON;
+  const widgetName =
+    typeof widgetJSON?.name === "string" && widgetJSON.name.trim()
+      ? widgetJSON.name.trim()
+      : typeof widgetJSON?.details?.name === "string" && widgetJSON.details.name.trim()
+        ? widgetJSON.details.name.trim()
+        : typeof widgetJSON?.label === "string" && widgetJSON.label.trim()
+          ? widgetJSON.label.trim()
+          : "";
+
+  return widgetName || widgetKey;
 }
 
 function WidgetErrorState({

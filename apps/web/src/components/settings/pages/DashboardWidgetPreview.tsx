@@ -82,7 +82,7 @@ function WidgetTile({
   });
   const [isDataDialogOpen, setIsDataDialogOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"input" | "displayed">("input");
-  const [inputValue, setInputValue] = useState(JSON.stringify(stripDisplayCustomizations(columnWidget.input ?? {}), null, 2));
+  const [inputDraft, setInputDraft] = useState<Record<string, any>>({});
   const [dataError, setDataError] = useState<string | null>(null);
   const [previewResolved, setPreviewResolved] = useState<Record<string, any> | null>(null);
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
@@ -108,13 +108,19 @@ function WidgetTile({
 
   useEffect(() => {
     if (isDataDialogOpen) return;
-    setInputValue(JSON.stringify(stripDisplayCustomizations(columnWidget.input ?? {}), null, 2));
+    const baseInput = {
+      ...(columnWidget.properties ?? {}),
+      ...stripDisplayCustomizations(columnWidget.input ?? {}),
+    };
+    const defaultInput = stripDisplayCustomizations(widgetConfig?.input ?? {});
+    const mergedInput = { ...defaultInput, ...baseInput };
+    setInputDraft(mergedInput);
     setDataError(null);
     setPreviewResolved(null);
     setDisplayOrder([]);
     setHiddenIds([]);
     setActiveTab("input");
-  }, [isDataDialogOpen, columnWidget.input]);
+  }, [isDataDialogOpen, columnWidget.input, columnWidget.properties, widgetConfig?.input]);
 
   useEffect(() => {
     if (!isDataDialogOpen || !supportsUserCustomizations || !widgetConfig?.key || !loadWidgetPreviewData) {
@@ -124,7 +130,11 @@ function WidgetTile({
     let cancelled = false;
     setIsPreviewLoading(true);
 
-    void loadWidgetPreviewData(widgetConfig.key, stripDisplayCustomizations(columnWidget.input ?? {}))
+    const previewInput = {
+      ...(columnWidget.properties ?? {}),
+      ...stripDisplayCustomizations(columnWidget.input ?? {}),
+    };
+    void loadWidgetPreviewData(widgetConfig.key, previewInput)
       .then((preview) => {
         if (cancelled) return;
         setPreviewResolved(preview);
@@ -142,7 +152,7 @@ function WidgetTile({
     return () => {
       cancelled = true;
     };
-  }, [columnWidget.input, isDataDialogOpen, loadWidgetPreviewData, supportsUserCustomizations, widgetConfig?.key]);
+  }, [columnWidget.input, columnWidget.properties, isDataDialogOpen, loadWidgetPreviewData, supportsUserCustomizations, widgetConfig?.key]);
 
   useEffect(() => {
     if (!isDataDialogOpen || !supportsUserCustomizations) {
@@ -166,7 +176,7 @@ function WidgetTile({
   }, [currentCustomizations.hidden, currentCustomizations.order, isDataDialogOpen, previewColumns, supportsUserCustomizations]);
 
   const mergedInput = useMemo(() => {
-    const baseInput = parseWidgetInput(inputValue);
+    const baseInput = inputDraft ?? {};
     const customizations = buildDisplayCustomizationsPayload({
       order: displayOrder,
       hidden: hiddenIds,
@@ -179,16 +189,11 @@ function WidgetTile({
     }
 
     return baseInput;
-  }, [displayOrder, hiddenIds, inputValue, supportedCustomizations]);
+  }, [displayOrder, hiddenIds, inputDraft, supportedCustomizations]);
 
   const handleSaveData = () => {
     setDataError(null);
-    const parsedInput = parseWidgetInput(inputValue, setDataError);
-    if (!parsedInput) {
-      return;
-    }
-
-    const nextInput = mergePersistedInput(parsedInput, {
+    const nextInput = mergePersistedInput(inputDraft ?? {}, {
       order: displayOrder,
       hidden: hiddenIds,
       supportsReorder: supportedCustomizations.has("allow_reorder"),
@@ -222,6 +227,7 @@ function WidgetTile({
   const canEditData = hasEditableWidgetData(columnWidget, widgetConfig) || supportsUserCustomizations;
   const params = {
     ...(widgetConfig?.properties ?? {}),
+    ...(columnWidget.properties ?? {}),
     ...(columnWidget.input ?? {}),
   };
 
@@ -275,16 +281,13 @@ function WidgetTile({
                   </TabsList>
 
                   <TabsContent value="input" className="space-y-4 pt-4">
-                    <div className="space-y-2">
-                      <Label htmlFor={`widget-data-input-${columnWidget.id}`}>Input JSON</Label>
-                      <textarea
-                        id={`widget-data-input-${columnWidget.id}`}
-                        value={inputValue}
-                        onChange={(event) => setInputValue(event.target.value)}
-                        className="min-h-40 w-full rounded-md border border-white/15 bg-black/20 p-3 text-sm outline-none"
-                        spellCheck={false}
-                      />
-                    </div>
+                    <WidgetInputEditor
+                      widgetId={columnWidget.id}
+                      inputDraft={inputDraft}
+                      onChange={setInputDraft}
+                      dataError={dataError}
+                      setDataError={setDataError}
+                    />
                     {dataError ? <p className="text-sm text-red-400">{dataError}</p> : null}
                   </TabsContent>
 
@@ -323,16 +326,13 @@ function WidgetTile({
                 </Tabs>
               ) : (
                 <div className="space-y-4 py-4">
-                  <div className="space-y-2">
-                    <Label htmlFor={`widget-data-input-${columnWidget.id}`}>Input JSON</Label>
-                    <textarea
-                      id={`widget-data-input-${columnWidget.id}`}
-                      value={inputValue}
-                      onChange={(event) => setInputValue(event.target.value)}
-                      className="min-h-40 w-full rounded-md border border-white/15 bg-black/20 p-3 text-sm outline-none"
-                      spellCheck={false}
-                    />
-                  </div>
+                  <WidgetInputEditor
+                    widgetId={columnWidget.id}
+                    inputDraft={inputDraft}
+                    onChange={setInputDraft}
+                    dataError={dataError}
+                    setDataError={setDataError}
+                  />
                   {dataError ? <p className="text-sm text-red-400">{dataError}</p> : null}
                 </div>
               )}
@@ -368,6 +368,116 @@ function WidgetTile({
     </div>
   </div>
 );
+}
+
+function WidgetInputEditor({
+  widgetId,
+  inputDraft,
+  onChange,
+  dataError,
+  setDataError,
+}: {
+  widgetId: string;
+  inputDraft: Record<string, any>;
+  onChange: (next: Record<string, any>) => void;
+  dataError: string | null;
+  setDataError: (value: string | null) => void;
+}) {
+  const inputEntries = Object.entries(inputDraft ?? {});
+  if (inputEntries.length === 0) {
+    return <p className="text-sm text-white/60">No input properties for this widget.</p>;
+  }
+
+  return (
+    <div className="space-y-3">
+      {inputEntries.map(([key, value]) => {
+        const inputId = `widget-input-${widgetId}-${key}`;
+        const isBoolean = typeof value === "boolean";
+        const isNumber = typeof value === "number" && Number.isFinite(value);
+        const isText = typeof value === "string" || value === null || value === undefined;
+
+        if (isBoolean) {
+          return (
+            <label key={key} htmlFor={inputId} className="flex items-center justify-between gap-3 rounded-md border border-white/10 bg-black/20 px-3 py-2">
+              <span className="text-sm text-white">{key}</span>
+              <input
+                id={inputId}
+                type="checkbox"
+                checked={Boolean(value)}
+                onChange={(event) => {
+                  setDataError(null);
+                  onChange({ ...inputDraft, [key]: event.target.checked });
+                }}
+                className="h-4 w-4 accent-white"
+              />
+            </label>
+          );
+        }
+
+        if (isNumber) {
+          return (
+            <div key={key} className="space-y-1.5">
+              <Label htmlFor={inputId}>{key}</Label>
+              <input
+                id={inputId}
+                type="number"
+                value={value}
+                onChange={(event) => {
+                  const nextValue = event.target.value;
+                  setDataError(null);
+                  onChange({
+                    ...inputDraft,
+                    [key]: nextValue === "" ? null : Number(nextValue),
+                  });
+                }}
+                className="w-full rounded-md border border-white/15 bg-black/20 px-3 py-2 text-sm outline-none"
+              />
+            </div>
+          );
+        }
+
+        if (isText) {
+          return (
+            <div key={key} className="space-y-1.5">
+              <Label htmlFor={inputId}>{key}</Label>
+              <input
+                id={inputId}
+                type="text"
+                value={value ?? ""}
+                onChange={(event) => {
+                  setDataError(null);
+                  onChange({ ...inputDraft, [key]: event.target.value });
+                }}
+                className="w-full rounded-md border border-white/15 bg-black/20 px-3 py-2 text-sm outline-none"
+              />
+            </div>
+          );
+        }
+
+        return (
+          <div key={key} className="space-y-1.5">
+            <Label htmlFor={inputId}>{key}</Label>
+            <textarea
+              id={inputId}
+              value={JSON.stringify(value, null, 2)}
+              onChange={(event) => {
+                try {
+                  const parsed = JSON.parse(event.target.value);
+                  setDataError(null);
+                  onChange({ ...inputDraft, [key]: parsed });
+                } catch {
+                  setDataError("Input must be valid JSON.");
+                }
+              }}
+              className="min-h-24 w-full rounded-md border border-white/15 bg-black/20 p-3 text-sm outline-none"
+              spellCheck={false}
+            />
+            {dataError ? <p className="text-xs text-red-400">{dataError}</p> : null}
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
 function DisplayedItemRow({
@@ -502,21 +612,13 @@ function mergePersistedInput(
 
 function normalizeWidgetInput(
   input: ColumnWidget["input"] | undefined,
-  defaultInput: Record<string, any>,
+  _defaultInput: Record<string, any>,
 ) {
-  const baseInput = stripDisplayCustomizations(input);
-  const customizations = (input as Record<string, any> | undefined)?.display_customizations;
-  const hasBaseInput = Object.keys(baseInput).length > 0;
-  const matchesDefault = hasBaseInput
-    ? JSON.stringify(baseInput) === JSON.stringify(defaultInput)
-    : false;
-
-  const nextInput: Record<string, any> = hasBaseInput && !matchesDefault ? { ...baseInput } : {};
-
-  if (isDisplayCustomizations(customizations)) {
-    nextInput.display_customizations = customizations;
+  if (!input || typeof input !== "object") {
+    return undefined;
   }
 
+  const nextInput = { ...(input as Record<string, any>) };
   return Object.keys(nextInput).length > 0 ? nextInput : undefined;
 }
 
@@ -853,6 +955,7 @@ export function DashboardWidgetPreview({
               : widgetCatalog.find((i) => i.key === type);
             const params = {
               ...(catalogItem?.properties ?? {}),
+              ...("properties" in activeWidget ? (activeWidget as ColumnWidget).properties : {}),
               ...((activeWidget as ColumnWidget).input ?? {}),
             };
             return (

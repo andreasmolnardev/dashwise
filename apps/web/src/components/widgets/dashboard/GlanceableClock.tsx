@@ -114,7 +114,7 @@ function ResolvedGlanceable({
 
   if (phase === "streaming" && !resolved?.blueprint?.glanceableJSON) {
     return (
-      <div className={`frosted rounded-md px-2 py-1 text-xs text-white/60 ${className ?? ""}`}>
+      <div className={`rounded-md px-2 py-1 text-xs text-white/60 ${className ?? ""}`}>
         Loading...
       </div>
     );

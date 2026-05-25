@@ -381,10 +381,15 @@ export function buildPageConfigPatch(
         widgetProps["clock-style"] = { ...clockStyle };
       }
 
+      const widgetPayload = {
+        ...widgetProps,
+        ...(widget.input ?? {}),
+      };
+
       nextColumnsObject[column][widget.type] =
-        widget.input && Object.keys(widget.input).length > 0
-          ? { index, ...widget.input }
-          : { index, ...widgetProps };
+        Object.keys(widgetPayload).length > 0
+          ? { index, ...widgetPayload }
+          : { index };
     });
   });
 
