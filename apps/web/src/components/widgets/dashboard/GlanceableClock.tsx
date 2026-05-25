@@ -8,6 +8,7 @@ import type { WidgetItemProps } from "../Widget";
 import useAuth from "@/context/useAuth";
 import { useLocalization } from "@/context/LocalizationContext";
 import { readPageIntegrationConsumer } from "@/lib/pageIntegrationDataCache";
+import { usePageIntegrationStream } from "@/context/PageIntegrationStreamContext";
 
 type ResolvedGlanceablePayload = {
   consumer: "glanceable";
@@ -96,11 +97,28 @@ function ResolvedGlanceable({
   className?: string;
   formatters?: LocalizationFormatters;
 }) {
+  const { phase } = usePageIntegrationStream();
   const cacheKey = `${type}:${stableStringify(params ?? {})}`;
   const preloaded = readPageIntegrationConsumer("glanceable", type, params);
   const resolved = preloaded?.consumer === "glanceable"
     ? (glanceableConsumerCache.set(cacheKey, preloaded as ResolvedGlanceablePayload), preloaded as ResolvedGlanceablePayload)
     : glanceableConsumerCache.get(cacheKey);
+
+  if (preloaded?.success === false) {
+    return (
+      <div className={`frosted rounded-md px-2 py-1 text-xs text-red-200 ${className ?? ""}`}>
+        Glanceable failed to load
+      </div>
+    );
+  }
+
+  if (phase === "streaming" && !resolved?.blueprint?.glanceableJSON) {
+    return (
+      <div className={`frosted rounded-md px-2 py-1 text-xs text-white/60 ${className ?? ""}`}>
+        Loading...
+      </div>
+    );
+  }
 
   if (resolved?.blueprint?.glanceableJSON) {
     return (
