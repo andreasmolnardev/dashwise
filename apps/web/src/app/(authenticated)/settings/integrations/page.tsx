@@ -1,5 +1,6 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Editor from "@monaco-editor/react";
 import { Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -14,6 +15,7 @@ import {
   updateIntegrationAction,
 } from "@/app/actions/integrations";
 import { AddIntegrationConfigDialog } from "@/components/settings/integrations/AddIntegrationConfigDialog";
+import { EditIntegrationEnvironmentDialog } from "@/components/settings/integrations/EditIntegrationEnvironmentDialog";
 import { UpdateIntegrationDialog } from "@/components/settings/integrations/UpdateIntegrationDialog";
 import { TestEndpointDialog } from "@/components/settings/integrations/TestEndpointDialog";
 import { DebugIntegrationDialog } from "@/components/settings/integrations/DebugIntegrationDialog";
@@ -32,7 +34,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
-import { MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import { MoreHorizontal, Pencil, SlidersHorizontal, Trash2 } from "lucide-react";
 import useAuth from "@/context/useAuth";
 import { EndpointTestResult, EnvDefinition } from "@/lib/integrations/types";
 
@@ -109,6 +111,12 @@ export default function IntegrationsModularSettingsPage() {
   const [editingConfigId, setEditingConfigId] = useState<string | null>(null);
   const [editConfigValue, setEditConfigValue] = useState("");
   const [isSavingConfig, setIsSavingConfig] = useState(false);
+
+  const [editEnvironmentDialogOpen, setEditEnvironmentDialogOpen] = useState(false);
+  const [editingEnvironmentId, setEditingEnvironmentId] = useState<string | null>(null);
+  const [editingEnvironmentValues, setEditingEnvironmentValues] = useState<Record<string, string>>({});
+  const [editEnvironmentError, setEditEnvironmentError] = useState<string | null>(null);
+  const [isSavingEnvironment, setIsSavingEnvironment] = useState(false);
 
   const handleTestDialogOpenChange = (open: boolean) => {
     if (!open) {
@@ -212,10 +220,9 @@ export default function IntegrationsModularSettingsPage() {
 
     try {
       const response = await withAuth((auth) => getIntegrationsAction(auth));
-      const list =
-        response && "integrations" in response && Array.isArray(response.integrations)
-          ? (response.integrations as IntegrationRecord[])
-          : ([] as IntegrationRecord[]);
+      const list = Array.isArray((response as { integrations?: unknown })?.integrations)
+        ? ((response as { integrations: IntegrationRecord[] }).integrations ?? [])
+        : ([] as IntegrationRecord[]);
       setIntegrations(list);
       setSelectedId((current) => {
         if (current && list.some((item: any) => item.id === current)) {
@@ -352,6 +359,55 @@ export default function IntegrationsModularSettingsPage() {
     setEditConfigDialogOpen(true);
   };
 
+  const openEditEnvironment = (e: React.MouseEvent, integration: IntegrationRecord) => {
+    e.stopPropagation();
+    setEditingEnvironmentId(integration.id);
+    setEditingEnvironmentValues({ ...(integration.environment ?? {}) });
+    setEditEnvironmentError(null);
+    setEditEnvironmentDialogOpen(true);
+  };
+
+  const handleEditEnvironmentOpenChange = (open: boolean) => {
+    setEditEnvironmentDialogOpen(open);
+    if (!open) {
+      setEditingEnvironmentId(null);
+      setEditingEnvironmentValues({});
+      setEditEnvironmentError(null);
+    }
+  };
+
+  const handleSaveEnvironment = async () => {
+    if (!token || !editingEnvironmentId) return;
+
+    const integration = integrations.find((item) => item.id === editingEnvironmentId);
+    if (!integration) return;
+
+    const visibleFields = buildEnvDefinitions(integration.config).filter((definition) => !definition.userHidden);
+    for (const field of visibleFields) {
+      if (field.required && !editingEnvironmentValues[field.key]?.trim()) {
+        setEditEnvironmentError(`${field.key} is required.`);
+        return;
+      }
+    }
+
+    setIsSavingEnvironment(true);
+    setEditEnvironmentError(null);
+    try {
+      await withAuth((auth) =>
+        updateIntegrationAction(auth, editingEnvironmentId, {
+          environment: editingEnvironmentValues,
+        })
+      );
+      handleEditEnvironmentOpenChange(false);
+      await fetchIntegrations();
+    } catch (err) {
+      console.error("Failed to update integration environment", err);
+      setEditEnvironmentError("Failed to save environment variables.");
+    } finally {
+      setIsSavingEnvironment(false);
+    }
+  };
+
   const handleSaveConfig = async () => {
     if (!token || !editingConfigId) return;
 
@@ -435,7 +491,7 @@ export default function IntegrationsModularSettingsPage() {
                     }}
                   >
                     <div className="flex items-center justify-between">
-                      <p className="text-sm font-semibold group-hover:text-(--primary)">
+                      <p className="text-sm font-semibold group-hover:text-primary">
                         {integration.name ?? "Unnamed"}
                       </p>
                       <div className="flex items-center gap-2">
@@ -446,6 +502,10 @@ export default function IntegrationsModularSettingsPage() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={(e) => openEditEnvironment(e, integration)}>
+                              <SlidersHorizontal className="mr-2 h-4 w-4" />
+                              Edit environment
+                            </DropdownMenuItem>
                             <DropdownMenuItem onClick={(e) => openEditConfig(e, integration)}>
                               <Pencil className="mr-2 h-4 w-4" />
                               Update manually
@@ -551,13 +611,25 @@ export default function IntegrationsModularSettingsPage() {
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label htmlFor="edit-config">Config JSON or YAML</Label>
-              <textarea
-                id="edit-config"
-                value={editConfigValue}
-                onChange={(e) => setEditConfigValue(e.target.value)}
-                rows={15}
-                className="w-full rounded-xl border border-input bg-background/70 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2"
-              />
+              <div className="overflow-hidden rounded-xl border border-input bg-background/70">
+                <Editor
+                  height="360px"
+                  language="yaml"
+                  theme="vs-dark"
+                  value={editConfigValue}
+                  onChange={(value) => setEditConfigValue(value ?? "")}
+                  options={{
+                    minimap: { enabled: false },
+                    fontSize: 13,
+                    lineNumbersMinChars: 3,
+                    scrollBeyondLastLine: false,
+                    wordWrap: "on",
+                    tabSize: 2,
+                    renderLineHighlight: "none",
+                    padding: { top: 10, bottom: 10 },
+                  }}
+                />
+              </div>
             </div>
           </div>
           <DialogFooter>
@@ -571,6 +643,25 @@ export default function IntegrationsModularSettingsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <EditIntegrationEnvironmentDialog
+        open={editEnvironmentDialogOpen}
+        onOpenChange={handleEditEnvironmentOpenChange}
+        integrationName={integrations.find((item) => item.id === editingEnvironmentId)?.name ?? "integration"}
+        visibleEnvFields={buildEnvDefinitions(
+          integrations.find((item) => item.id === editingEnvironmentId)?.config ?? {}
+        ).filter((definition) => !definition.userHidden)}
+        environmentValues={editingEnvironmentValues}
+        onEnvironmentValueChange={(key, value) =>
+          setEditingEnvironmentValues((prev) => ({
+            ...prev,
+            [key]: value,
+          }))
+        }
+        onSave={() => void handleSaveEnvironment()}
+        saving={isSavingEnvironment}
+        error={editEnvironmentError}
+      />
     </section>
 
   );

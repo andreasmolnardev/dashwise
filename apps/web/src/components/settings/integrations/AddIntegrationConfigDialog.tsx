@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Editor from "@monaco-editor/react";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -121,16 +122,25 @@ export function AddIntegrationConfigDialog({
                   <Label htmlFor="integration-config">
                     Config JSON or YAML
                   </Label>
-                  <textarea
-                    id="integration-config"
-                    value={newConfig}
-                    onChange={(event) =>
-                      onNewConfigChange(event.target.value)
-                    }
-                    rows={6}
-                    className="w-full rounded-xl border border-input bg-background/70 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2"
-                    placeholder='{ "configuration": { "endpoints": [] } }'
-                  />
+                  <div className="overflow-hidden rounded-xl border border-input bg-background/70">
+                    <Editor
+                      height="240px"
+                      language="yaml"
+                      theme="vs-dark"
+                      value={newConfig}
+                      onChange={(value) => onNewConfigChange(value ?? "")}
+                      options={{
+                        minimap: { enabled: false },
+                        fontSize: 13,
+                        lineNumbersMinChars: 3,
+                        scrollBeyondLastLine: false,
+                        wordWrap: "on",
+                        tabSize: 2,
+                        renderLineHighlight: "none",
+                        padding: { top: 10, bottom: 10 },
+                      }}
+                    />
+                  </div>
                 </div>
               )}
 
