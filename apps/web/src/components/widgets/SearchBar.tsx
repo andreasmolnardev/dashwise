@@ -9,6 +9,12 @@ type SearchBarProps = {
   defaultOpen?: boolean;
 };
 
+type ProxyAction = {
+  type: string;
+  url?: string;
+  proxy?: boolean;
+};
+
 type SearchItem = {
   id?: string;
   parentId?: string;
@@ -16,7 +22,7 @@ type SearchItem = {
   icon: string;
   secondaryInfo: string;
   type: 'link' | 'app' | 'karakeepBookmark' | 'jellyfinItem' | 'beszelItem' | 'dashdotItem';
-  action: string;
+  action: string | ProxyAction;
   tags?: string[];
 };
 

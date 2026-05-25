@@ -10,6 +10,7 @@ import { Icon as IconifyIcon } from "@iconify-icon/react";
 import AppIcon from "@dashwise/app-icon";
 import QRCode from "qrcode";
 import { getFrequentlyUsedSearchItemsAction, logSearchItemUsageAction } from "@/app/actions/searchItems";
+import { proxyIntegrationAction } from "@/app/actions/integrations";
 
 // --- Types ---
 
@@ -29,6 +30,7 @@ type LinkItem = {
   engineSlug?: string;
   isQrAction?: boolean;
   isPinned?: boolean;
+  proxyAction?: boolean;
   _section?: string;
 };
 
@@ -49,11 +51,17 @@ type IncomingSearchItem = {
   icon?: string;
   secondaryInfo?: string;
   type?: string;
-  action?: string;
+  action?: string | ProxyAction;
   url?: string;
   linkGroup?: string;
   tags?: string[];
   isPinned?: boolean;
+};
+
+type ProxyAction = {
+  type: string;
+  url?: string;
+  proxy?: boolean;
 };
 
 type CommandBarProps = {
@@ -71,15 +79,31 @@ function normalizeConfigLinks(input: IncomingSearchItem[] = []): LinkItem[] {
       it.type === "beszelItem" || it.type === "dashdotItem"
     )
     .map((it) => {
-      const action = (it.action || "").toString().trim();
+      const actionValue = it.action;
       let url = "";
+      let proxyAction = false;
 
-      if (action.startsWith("url:")) {
-        url = action.slice(4);
-      } else if (action.startsWith("command:")) {
-        url = action; // keep command: prefix
+      if (actionValue && typeof actionValue === "object") {
+        const actionType = String((actionValue as ProxyAction).type ?? "").trim().toLowerCase();
+        if (actionType === "post") {
+          url = "__proxy_action__";
+          proxyAction = true;
+        } else if (actionType === "url") {
+          url = String((actionValue as ProxyAction).url ?? "").trim();
+        }
       } else {
-        url = action || (it.url || "");
+        const action = (actionValue || "").toString().trim();
+
+        if (action.toLowerCase().startsWith("post:")) {
+          url = "__proxy_action__";
+          proxyAction = true;
+        } else if (action.startsWith("url:")) {
+          url = action.slice(4);
+        } else if (action.startsWith("command:")) {
+          url = action; // keep command: prefix
+        } else {
+          url = action || (it.url || "");
+        }
       }
 
       let type;
@@ -107,6 +131,7 @@ function normalizeConfigLinks(input: IncomingSearchItem[] = []): LinkItem[] {
         tags: it.tags || "",
         type,
         url,
+        proxyAction,
         isPinned: it.isPinned,
       } as LinkItem;
     });
@@ -522,6 +547,9 @@ export default function CommandBar(
       openSearch(query);
     } else if (a.url === "__qr_action__") {
       return;
+    } else if (a.url === "__proxy_action__") {
+      logSearchItemUsage(a);
+      void triggerProxyAction(a);
     } else if (a.url.startsWith("__engine_search__:")) {
       const slug = a.url.split(":", 2)[1];
       openEngineSearch(slug, query);
@@ -537,6 +565,21 @@ export default function CommandBar(
   function logSearchItemUsage(item?: LinkItem) {
     if (!token || !item?.id) return;
     void logSearchItemUsageAction({ token }, item.id, new Date().toISOString()).catch(() => {});
+  }
+
+  async function triggerProxyAction(item: LinkItem) {
+    if (!token || !item?.id) {
+      setOpen(false);
+      return;
+    }
+
+    try {
+      await proxyIntegrationAction({ token }, item.id);
+    } catch (err) {
+      console.error("Failed to run proxy action", err);
+    } finally {
+      setOpen(false);
+    }
   }
 
   function openUrl(
