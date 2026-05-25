@@ -5,17 +5,20 @@ import { loadFont } from "@/lib/loadFont";
 import useAuth from "@/context/useAuth";
 import { renderWidget } from "../widgets/Widget";
 import AppIcon from "@dashwise/app-icon";
+import { fetchWallpaperBlob } from "@/lib/apiClient";
 
 export default function Screensaver(
   { active, onExit }: { active: boolean; onExit: () => void },
 ) {
-  const { user } = useAuth();
+  const { user, token } = useAuth();
   const [fonts, setFonts] = useState<{ name: string; path: string }[]>([]);
   const [screensaverConfig, setScreensaverConfig] = useState<any>(
     user?.screensaverPreferences,
   );
   const [isHovering, setIsHovering] = useState(false);
   const [activeFrameIndex, setActiveFrameIndex] = useState(0);
+  const [frameBackgrounds, setFrameBackgrounds] = useState<Record<string, string>>({});
+  const [scrollLeft, setScrollLeft] = useState(0);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -131,12 +134,61 @@ export default function Screensaver(
     ];
   }, [screensaverConfig, clockFont, clockFontWeight, color, size]);
 
+  useEffect(() => {
+    let cancelled = false;
+    const revokeUrls: string[] = [];
+
+    const resolveBackgrounds = async () => {
+      const nextBackgrounds: Record<string, string> = {};
+
+      await Promise.all(
+        frames.map(async (frame: any) => {
+          const source = String(frame?.params?.backgroundSource ?? "");
+          if (source === "none") return;
+
+          const rawUrl = source === "current"
+            ? String(user?.appearancePreferences?.backgroundImageUrl ?? "")
+            : String(frame?.params?.backgroundImageUrl ?? "");
+          if (!rawUrl) return;
+
+          if (
+            rawUrl.startsWith("/api/v1/wallpapers") ||
+            rawUrl.includes(window.location.host)
+          ) {
+            if (!token) return;
+            try {
+              const blob = await fetchWallpaperBlob(rawUrl, token);
+              const objectUrl = URL.createObjectURL(blob);
+              revokeUrls.push(objectUrl);
+              nextBackgrounds[frame.id] = objectUrl;
+            } catch (err) {
+              console.error("Failed to load frame background", err);
+            }
+            return;
+          }
+
+          nextBackgrounds[frame.id] = rawUrl;
+        })
+      );
+
+      if (!cancelled) setFrameBackgrounds(nextBackgrounds);
+    };
+
+    void resolveBackgrounds();
+
+    return () => {
+      cancelled = true;
+      revokeUrls.forEach((url) => URL.revokeObjectURL(url));
+    };
+  }, [frames, token, user?.appearancePreferences?.backgroundImageUrl]);
+
   const handleScroll = (event: React.UIEvent<HTMLDivElement>) => {
     const target = event.currentTarget;
     const index = Math.round(target.scrollLeft / target.clientWidth);
     if (index !== activeFrameIndex) {
       setActiveFrameIndex(index);
     }
+    setScrollLeft(target.scrollLeft);
   };
 
   const scrollToFrame = (index: number) => {
@@ -167,20 +219,55 @@ export default function Screensaver(
             __html: ".hide-scrollbar::-webkit-scrollbar { display: none; }",
           }}
         />
-        {frames.map((frame: any) => (
-          <div
-            key={frame.id}
-            className="min-w-full h-full flex items-center justify-center snap-center relative"
-          >
-            <div className="scale-150 transform origin-center">
-              {renderWidget({
-                type: frame.type,
-                params: frame.params || {},
-                className: "overflow-visible",
-              })}
+        {frames.map((frame: any, idx: number) => {
+          const containerWidth = scrollRef.current?.clientWidth ?? 1;
+          const distance = Math.abs(scrollLeft - idx * containerWidth) / containerWidth;
+          const clamped = Math.min(1, Math.max(0, distance));
+          const scale = 1 - 0.1 * clamped;
+          const showRadius = clamped > 0.001;
+          const filters = frame.params?.backgroundFilters as Record<string, any> | undefined;
+          const fallbackFilters = user?.appearancePreferences?.wallpaperFilters;
+          const blurValue = typeof filters?.blur === "number"
+            ? filters.blur
+            : typeof fallbackFilters?.blur === "number"
+              ? fallbackFilters.blur
+              : 3;
+          const brightnessValue = typeof filters?.brightness === "number"
+            ? filters.brightness
+            : typeof fallbackFilters?.brightness === "number"
+              ? fallbackFilters.brightness
+              : 85;
+          const backgroundUrl = frameBackgrounds[frame.id];
+
+          return (
+            <div
+              key={frame.id}
+              className={`min-w-full h-full flex items-center justify-center snap-center relative overflow-hidden border border-white/10 transition-transform duration-200 ease-out ${
+                showRadius ? "rounded-3xl" : "rounded-none"
+              }`}
+              style={{ transform: `scale(${scale})` }}
+            >
+              {backgroundUrl && (
+                <div
+                  className="absolute inset-0 z-0"
+                  style={{
+                    backgroundImage: `url('${backgroundUrl}')`,
+                    backgroundSize: "cover",
+                    backgroundPosition: "center",
+                    filter: `blur(${blurValue}px) brightness(${brightnessValue}%)`,
+                  }}
+                />
+              )}
+              <div className="relative z-10 scale-150 transform origin-center">
+                {renderWidget({
+                  type: frame.type,
+                  params: frame.params || {},
+                  className: "overflow-visible",
+                })}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       <div
