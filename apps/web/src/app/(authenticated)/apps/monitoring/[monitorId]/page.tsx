@@ -673,8 +673,9 @@ export default function MonitoringDetailPage() {
                             ) => (
                                 <div
                                     key={`${entry.created}-${index}`}
+                                    className="group"
                                 >
-                                    <div className="text-base font-semibold text-white">
+                                    <div className="text-base font-semibold text-white group-hover:text-primary">
                                         {formatStatusLabel(entry.status)}
                                     </div>
                                     <div className="text-sm text-white/65">
