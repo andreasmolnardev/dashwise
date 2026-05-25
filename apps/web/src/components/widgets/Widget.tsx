@@ -13,6 +13,7 @@ import Widget from "@dashwise/integrationskit/Widget";
 import { useLocalization } from "@/context/LocalizationContext";
 import { readPageIntegrationConsumer } from "@/lib/pageIntegrationDataCache";
 import useAuth from "@/context/useAuth";
+import { usePageIntegrationStream } from "@/context/PageIntegrationStreamContext";
 import {
   getConsumerDataAction,
   getIntegrationCalendarEventsAction,
@@ -219,13 +220,19 @@ function IntegrationWidget({
 }) {
   const localization = useLocalization();
   const { withAuth } = useAuth();
+  const { phase, version } = usePageIntegrationStream();
   const [localPayload, setLocalPayload] = useState<any>(null);
   const [loading, setLoading] = useState(false);
 
   const consumerPayload = readPageIntegrationConsumer("widget", type, properties) || localPayload;
 
+  const hasStreamError = consumerPayload?.success === false;
+  const shouldStreamLoad =
+    phase === "streaming" && !consumerPayload?.blueprint?.widgetJSON && !hasStreamError;
+  const allowLocalFetch = phase === "idle" || phase === "error" || isPreview;
+
   useEffect(() => {
-    if (consumerPayload?.blueprint?.widgetJSON || loading) {
+    if (!allowLocalFetch || consumerPayload?.blueprint?.widgetJSON || loading) {
       return;
     }
 
@@ -255,9 +262,9 @@ function IntegrationWidget({
     return () => {
       cancelled = true;
     };
-  }, [type, properties, isPreview, withAuth, consumerPayload, loading]);
+  }, [type, properties, isPreview, withAuth, consumerPayload, loading, allowLocalFetch, version]);
 
-  if (loading) {
+  if (shouldStreamLoad || loading) {
     return (
       <div
         className={`rounded-xl p-3 flex items-center justify-center min-h-[100px] ${

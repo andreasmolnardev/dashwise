@@ -34,7 +34,7 @@ export function primePageIntegrationConsumerCache(response: PageIntegrationDataR
   }
 
   response.items.forEach((item) => {
-    if (!item?.success || !item?.blueprint || typeof item?.consumerKey !== "string") {
+    if (!item || typeof item.consumerKey !== "string") {
       return;
     }
     consumerCache.set(item.consumerKey, item);
@@ -55,7 +55,7 @@ export function primePageIntegrationConsumerCache(response: PageIntegrationDataR
 }
 
 export function updatePageIntegrationConsumerCache(item: CachedConsumerPayload | null | undefined) {
-  if (!item || !item.success || !item.blueprint || typeof item.consumerKey !== "string") {
+  if (!item || typeof item.consumerKey !== "string") {
     return;
   }
 
@@ -64,7 +64,7 @@ export function updatePageIntegrationConsumerCache(item: CachedConsumerPayload |
     buildConsumerCacheKey(item.consumer, item.key, item.properties),
     item,
   );
-  
+
   if (item.consumer === "glanceable") {
     const aliasKey = item.key.startsWith("local-")
       ? item.key.slice("local-".length)

@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { upgradeWebSocket } from "hono/bun";
 
 import { getPageConfigJSON, getUserPages, updatePageConfig } from "@dashwise/sdk/data/pageConfig";
 import { migrateLegacyPageConfig } from "@dashwise/sdk/data/config";
@@ -87,6 +88,153 @@ const pageConfigRoute = new Hono();
       items,
     };
   }));
+  pageConfigRoute.get(
+    "/api/v1/pageConfig/integrationData",
+    upgradeWebSocket((c) => {
+      let closed = false;
+      let currentStreamId = 0;
+      let currentToken = readAuthToken(c) ?? c.req.query("token") ?? null;
+      let currentPageName = normalizePageName(
+        c.req.query("page") ?? c.req.query("pageName") ?? undefined,
+      );
+
+      const sendJson = (ws: { send: (data: string) => void }, payload: unknown) => {
+        try {
+          ws.send(JSON.stringify(payload));
+        } catch {
+          // Ignore send errors from closing sockets.
+        }
+      };
+
+      const streamPageData = async (
+        ws: { send: (data: string) => void },
+        pageName: string,
+        token: string | null,
+        streamId: number,
+      ) => {
+        if (!token) {
+          sendJson(ws, { type: "error", error: "Unauthorized" });
+          return;
+        }
+
+        let auth: Awaited<ReturnType<typeof requireAuth>> | null = null;
+        try {
+          auth = await requireAuth({ token });
+        } catch (err) {
+          sendJson(ws, {
+            type: "error",
+            pageName,
+            error: err instanceof Error ? err.message : String(err),
+          });
+          return;
+        }
+
+        const pageConfig = (await getPageConfigJSON(auth.userId, pageName)) ?? {};
+        const consumers = collectPageConsumers(pageConfig);
+
+        if (closed || streamId !== currentStreamId) return;
+
+        sendJson(ws, { type: "start", pageName, total: consumers.length });
+
+        if (consumers.length === 0) {
+          sendJson(ws, { type: "complete", pageName });
+          return;
+        }
+
+        const sharedRuntimeCache = new Map<string, any>();
+        await Promise.all(
+          consumers.map(async (consumer) => {
+            const baseItem = {
+              consumer: consumer.consumer,
+              key: consumer.key,
+              properties: consumer.properties,
+              consumerKey: consumer.consumerKey,
+            };
+
+            try {
+              const payload = await resolveConsumerDataForRequest({
+                userId: auth.userId,
+                pb: auth.pb,
+                type: consumer.consumer,
+                key: consumer.key,
+                properties: consumer.properties,
+                isPreview: false,
+                sharedRuntimeCache,
+              });
+
+              if (closed || streamId !== currentStreamId) return;
+              sendJson(ws, {
+                type: "consumer",
+                pageName,
+                item: {
+                  ...baseItem,
+                  success: true,
+                  data: payload.data,
+                  blueprint: payload.blueprint,
+                },
+              });
+            } catch (error) {
+              if (closed || streamId !== currentStreamId) return;
+              sendJson(ws, {
+                type: "consumer",
+                pageName,
+                item: {
+                  ...baseItem,
+                  success: false,
+                  error: error instanceof Error ? error.message : String(error),
+                },
+              });
+            }
+          }),
+        );
+
+        if (closed || streamId !== currentStreamId) return;
+        sendJson(ws, { type: "complete", pageName });
+      };
+
+      const startStream = (ws: { send: (data: string) => void }, pageName: string) => {
+        currentStreamId += 1;
+        const streamId = currentStreamId;
+        void streamPageData(ws, pageName, currentToken, streamId);
+      };
+
+      return {
+        onOpen: (_event, ws) => {
+          if (!currentToken) {
+            sendJson(ws, { type: "error", error: "Unauthorized" });
+            ws.close(1008, "Unauthorized");
+            return;
+          }
+          startStream(ws, currentPageName);
+        },
+        onMessage: (event, ws) => {
+          const raw = event.data;
+          const text = typeof raw === "string"
+            ? raw
+            : new TextDecoder().decode(raw as ArrayBuffer);
+
+          let parsed: any = null;
+          try {
+            parsed = JSON.parse(text);
+          } catch {
+            return;
+          }
+
+          if (!parsed || parsed.type !== "subscribe") return;
+          if (typeof parsed.token === "string" && parsed.token.trim()) {
+            currentToken = parsed.token.trim();
+          }
+
+          const nextPageName = normalizePageName(parsed.pageName ?? parsed.page ?? undefined);
+          currentPageName = nextPageName;
+          startStream(ws, nextPageName);
+        },
+        onClose: () => {
+          closed = true;
+        },
+      };
+    }),
+  );
   pageConfigRoute.put("/api/v1/pageConfig", withJson(async (c) => {
     const body = await readJsonBody<{ auth?: { token?: string | null }; pageName?: string; config?: PageConfig }>(c);
     const { userId } = await requireAuth(body?.auth ?? {});

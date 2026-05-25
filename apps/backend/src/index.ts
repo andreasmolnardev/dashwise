@@ -1,6 +1,7 @@
 import { join, resolve } from "node:path";
 
 import { Hono } from "hono";
+import { websocket } from "hono/bun";
 import { cors } from "hono/cors";
 
 import { config } from "./lib/config";
@@ -128,6 +129,7 @@ Bun.serve({
   hostname: "0.0.0.0",
   port,
   fetch: app.fetch,
+  websocket,
 });
 
 logger.info(`Running on 0.0.0.0:${port}`);

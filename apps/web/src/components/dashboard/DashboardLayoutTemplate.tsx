@@ -9,10 +9,11 @@ import UpdateDetailsDialogComponent from "./UpdateDetailsDialog";
 import QuickLaunchPopover from "./QuickLaunchPopover";
 import useAuth from "@/context/useAuth";
 import { getNotificationsAction } from "@/app/actions/notifications/items";
-import { getPageIntegrationDataAction } from "@/app/actions/pageConfigs";
 import { renderWidget } from "../widgets/Widget";
 import PageNotFound from "../errorPages/PageNotFound";
-import { clearPageIntegrationConsumerCache, primePageIntegrationConsumerCache } from "@/lib/pageIntegrationDataCache";
+import { clearPageIntegrationConsumerCache, updatePageIntegrationConsumerCache } from "@/lib/pageIntegrationDataCache";
+import { subscribePageIntegrationSocket } from "@/lib/pageIntegrationSocket";
+import { PageIntegrationStreamProvider } from "@/context/PageIntegrationStreamContext";
 
 const COLUMN_ORDER = ["left", "middle", "right"] as const;
 type Column = (typeof COLUMN_ORDER)[number];
@@ -61,7 +62,7 @@ export default function DashboardLayoutTemplate({
     config: Record<string, any>;
     pageName?: string;
 }) {
-    const { withAuth } = useAuth();
+    const { token } = useAuth();
     const [searchParams] = useSearchParams();
     const openFromURL = searchParams.get("search") === "1";
 
@@ -76,7 +77,10 @@ export default function DashboardLayoutTemplate({
     const [measuredHeights, setMeasuredHeights] = useState<
         Record<string, number>
     >({});
-    const [integrationDataReady, setIntegrationDataReady] = useState(false);
+    const [integrationStreamPhase, setIntegrationStreamPhase] = useState<
+        "idle" | "streaming" | "complete" | "error"
+    >("idle");
+    const [integrationStreamVersion, setIntegrationStreamVersion] = useState(0);
 
     if (!config) {
         return <PageNotFound />
@@ -89,35 +93,53 @@ export default function DashboardLayoutTemplate({
     useEffect(() => {
         let cancelled = false;
 
-        const loadPageIntegrationData = async () => {
-            setIntegrationDataReady(false);
+        if (!token) {
             clearPageIntegrationConsumerCache();
+            setIntegrationStreamPhase("idle");
+            return () => {
+                cancelled = true;
+            };
+        }
 
-            try {
-                const payload = await withAuth((auth) =>
-                    getPageIntegrationDataAction(
-                        auth,
-                        pageName,
-                    )
-                );
+        clearPageIntegrationConsumerCache();
+        setIntegrationStreamPhase("streaming");
+        setIntegrationStreamVersion((v) => v + 1);
+
+        const unsubscribe = subscribePageIntegrationSocket(
+            token,
+            pageName,
+            (message) => {
                 if (cancelled) return;
-                primePageIntegrationConsumerCache(payload as any);
-            } catch {
-                if (cancelled) return;
-                clearPageIntegrationConsumerCache();
-            } finally {
-                if (!cancelled) {
-                    setIntegrationDataReady(true);
+
+                if (message.type === "consumer") {
+                    updatePageIntegrationConsumerCache(message.item as any);
+                    setIntegrationStreamVersion((v) => v + 1);
+                    return;
                 }
-            }
-        };
 
-        void loadPageIntegrationData();
+                if (message.type === "start") {
+                    setIntegrationStreamPhase("streaming");
+                    return;
+                }
+
+                if (message.type === "complete") {
+                    setIntegrationStreamPhase("complete");
+                    setIntegrationStreamVersion((v) => v + 1);
+                    return;
+                }
+
+                if (message.type === "error") {
+                    setIntegrationStreamPhase("error");
+                    setIntegrationStreamVersion((v) => v + 1);
+                }
+            },
+        );
 
         return () => {
             cancelled = true;
+            unsubscribe();
         };
-    }, [config, pageName, withAuth]);
+    }, [config, pageName, token]);
 
     // Scroll to center panel on mobile first render
     useEffect(() => {
@@ -427,24 +449,32 @@ export default function DashboardLayoutTemplate({
     };
 
     return (
-        <div className="grid grid-rows-[minmax(0,1fr)_36px] h-dvh pt-5 md:p-3.5 p-0 overflow-x-hidden text-(--surface-foreground) bg-(--surface)">
-            <main
-                id="page-content-container"
-                ref={containerRef}
-                className="
+        <PageIntegrationStreamProvider
+            value={{
+                phase: integrationStreamPhase,
+                version: integrationStreamVersion,
+                pageName,
+            }}
+        >
+            <div className="grid grid-rows-[minmax(0,1fr)_36px] h-dvh pt-5 md:p-3.5 p-0 overflow-x-hidden text-(--surface-foreground) bg-(--surface)">
+                <main
+                    id="page-content-container"
+                    ref={containerRef}
+                    className="
                     flex snap-x snap-mandatory overflow-x-auto touch-pan-x overflow-y-auto scrollbar-hidden md:scrollbar-auto md:overflow-x-hidden
                     md:grid md:grid-cols-[25%_1fr_25%] min-h-0 overscroll-none
                 "
-                style={layoutStyleVars}
-            >
-                {integrationDataReady ? COLUMN_ORDER.map(renderColumn) : null}
-            </main>
+                    style={layoutStyleVars}
+                >
+                    {COLUMN_ORDER.map(renderColumn)}
+                </main>
 
-            <BottomNavbar
-                activePanel={activePanel}
-                columns={columns}
-            />
-        </div>
+                <BottomNavbar
+                    activePanel={activePanel}
+                    columns={columns}
+                />
+            </div>
+        </PageIntegrationStreamProvider>
     );
 }
 
