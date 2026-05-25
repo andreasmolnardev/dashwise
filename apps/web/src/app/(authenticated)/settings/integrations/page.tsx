@@ -37,6 +37,7 @@ import { Label } from "@/components/ui/label";
 import { MoreHorizontal, Pencil, SlidersHorizontal, Trash2 } from "lucide-react";
 import useAuth from "@/context/useAuth";
 import { EndpointTestResult, EnvDefinition } from "@/lib/integrations/types";
+import AppIcon from "@dashwise/app-icon";
 
 const dateFormatter = new Intl.DateTimeFormat(undefined, {
   dateStyle: "medium",
@@ -48,7 +49,7 @@ type IntegrationRecord = {
   name: string | null;
   type?: "plugin" | "caldav";
   source: string | null;
-  config: Record<string, unknown>;
+  config: Record<string, any>;
   environment: Record<string, string>;
   created: string;
   updated: string;
@@ -478,7 +479,7 @@ export default function IntegrationsModularSettingsPage() {
                   <div
                     key={integration.id}
                     className={cn(
-                      "flex w-full flex-col gap-2 rounded-2xl border p-4 text-left transition frosted group relative",
+                      "grid grid-cols-[auto_1fr] items-center w-full gap-1 rounded-2xl border p-4 text-left transition frosted group relative",
                       isSelected ? "border-primary bg-primary/10" : ""
                     )}
                     onClick={() => openIntegrationDetails(integration.id)}
@@ -490,6 +491,7 @@ export default function IntegrationsModularSettingsPage() {
                       }
                     }}
                   >
+                    <AppIcon source={integration?.config?.details?.icon} fallbackSource="fa6-solid:puzzle" alt={integration.name ?? ""} className="h-8 w-8 text-[1.5rem] row-span-2" />
                     <div className="flex items-center justify-between">
                       <p className="text-sm font-semibold group-hover:text-primary">
                         {integration.name ?? "Unnamed"}

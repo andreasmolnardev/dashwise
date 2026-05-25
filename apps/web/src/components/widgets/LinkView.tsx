@@ -402,12 +402,12 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
       {/* Collection filter chips */}
       {collections.length > 0 && (
         <div className="flex items-center justify-between gap-2">
-          <div className="flex gap-2 flex-wrap">
+          <div className="flex gap-1.5 flex-wrap">
             {collections.map((col) => (
               <button
                 key={col}
                 onClick={() => setActiveCollection(col)}
-                className={`px-3 py-1 rounded-lg font-medium text-sm transition-colors frosted hover:text-primary ${
+                className={`px-3.5 py-2 rounded-xl font-medium text-sm transition-colors frosted hover:text-primary ${
                   activeCollection === col
                     ? " text-white outline-1 outline-primary"
                     : " text-white/70 hover:text-white"

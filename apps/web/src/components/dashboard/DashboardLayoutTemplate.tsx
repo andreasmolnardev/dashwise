@@ -20,11 +20,11 @@ type Column = (typeof COLUMN_ORDER)[number];
 
 const COLUMN_CLASSNAME: Record<Column, string> = {
     left:
-        "flex-shrink-0 w-screen snap-start md:w-auto md:basis-auto space-y-3.5 overflow-y-visible min-w-0 min-h-0 h-fit p-1",
+        "flex-shrink-0 w-screen snap-start md:w-auto md:basis-auto space-y-2 overflow-y-visible min-w-0 min-h-0 h-fit p-1",
     middle:
-        "flex-shrink-0 w-screen snap-start md:w-auto md:basis-auto space-y-3.5 overflow-x-hidden min-w-0 min-h-0 h-fit p-1",
+        "flex-shrink-0 w-screen snap-start md:w-auto md:basis-auto space-y-2 overflow-x-hidden min-w-0 min-h-0 h-fit p-1",
     right:
-        "flex-shrink-0 w-screen snap-start md:w-auto md:basis-auto space-y-3.5 overflow-y-visible min-w-0 min-h-0 h-fit p-1",
+        "flex-shrink-0 w-screen snap-start md:w-auto md:basis-auto space-y-2 overflow-y-visible min-w-0 min-h-0 h-fit p-1",
 };
 
 const COLUMN_PANEL_IDS: Record<Column, string | undefined> = {
@@ -354,7 +354,7 @@ export default function DashboardLayoutTemplate({
         entryIndex: number,
     ) => {  
         const cfg = entryConfig ?? {};
-        const wrapperClass = ["mb-3.5", cfg.className].filter(Boolean).join(
+        const wrapperClass = ["mb-3", cfg.className].filter(Boolean).join(
             " ",
         );
         const baseKey = `${columnName}-${entryKey}-${entryIndex}`;
@@ -456,7 +456,7 @@ export default function DashboardLayoutTemplate({
                 pageName,
             }}
         >
-            <div className="grid grid-rows-[minmax(0,1fr)_36px] h-dvh pt-5 md:p-3.5 p-0 overflow-x-hidden text-(--surface-foreground) bg-(--surface)">
+            <div className="grid grid-rows-[minmax(0,1fr)_36px] h-dvh pt-5 md:p-2.5 p-0 overflow-x-hidden text-(--surface-foreground) bg-(--surface)">
                 <main
                     id="page-content-container"
                     ref={containerRef}
@@ -534,7 +534,7 @@ function BottomNavbar({
 
     return (
         <div
-            className="grid grid-cols-[1fr_auto_1fr] items-center px-3 md:px-0"
+            className="grid grid-cols-[1fr_auto_1fr] items-center px-3 md:px-0 mx-2 mb-2"
             id="page-footer"
         >
             <div id="app-details" className="flex items-center gap-2">
@@ -569,12 +569,12 @@ function BottomNavbar({
                 </div>
             </div>
 
-            <ul className="grid grid-flow-col auto-cols-max items-center justify-end gap-3">
+            <ul className="grid grid-flow-col auto-cols-max items-center justify-end gap-2">
                 {showSmartFrameButton && (
                     <li>
                         <Link
                             to="../frame"
-                            className="frosted p-2 rounded-full group transition-colors duration-200 aspect-square flex items-center justify-center"
+                            className="frosted p-2.5 rounded-full group transition-colors duration-200 aspect-square flex items-center justify-center"
                             title="Open Smart Frame"
                         >
                             <Icon
@@ -587,7 +587,7 @@ function BottomNavbar({
                 <li className="relative">
                     <Link
                         to="/notifications"
-                        className="frosted p-2 rounded-full group transition-colors duration-200 aspect-square flex items-center justify-center"
+                        className="frosted p-2.5 rounded-full group transition-colors duration-200 aspect-square flex items-center justify-center"
                     >
                         <Icon
                             icon="fa6-solid:bell"
@@ -603,7 +603,7 @@ function BottomNavbar({
                 <li>
                     <Link
                         to="/settings/appearance"
-                        className="frosted p-2 rounded-full group transition-colors duration-200 aspect-square flex items-center justify-center"
+                        className="frosted p-2.5 rounded-full group transition-colors duration-200 aspect-square flex items-center justify-center"
                     >
                         <Icon
                             icon="fa6-solid:gear"

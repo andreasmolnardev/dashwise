@@ -178,14 +178,14 @@ export default function SearchBar({ useRedirect, defaultOpen }: SearchBarProps) 
   return (
     <>
       <div
-        className={`flex items-center justify-center border frosted rounded-md
+        className={`flex items-center justify-center border frosted rounded-lg
         focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500
         transition-transform duration-300 ${redirecting ? 'scale-105 opacity-70' : 'scale-100 opacity-100'}`}
       >
         <input
           type="text"
           data-slot="input"
-          className="w-full bg-transparent px-2 py-1.5 text-sm text-gray-900 dark:text-white placeholder-(--text-on-frosted) hover:placeholder-(--text-color) 
+          className="w-full bg-transparent px-3 py-2 text-[0.875rem] font-medium text-gray dark:text-white placeholder-(--text-on-frosted) hover:placeholder-(--text-color)
                focus:outline-none"
           placeholder="Search..."
           onFocus={handleFocus}

@@ -152,7 +152,7 @@ export function PaginatedCarouselViewComponent({
       <div
         ref={containerRef}
         onScroll={onScroll}
-        className="flex overflow-x-auto scrollbar-hide snap-x snap-mandatory gap-2"
+        className="flex overflow-x-auto scrollbar-hide snap-x snap-mandatory gap-1.5"
         style={{
           touchAction: "pan-x",
           scrollSnapStop: "always",
@@ -161,7 +161,7 @@ export function PaginatedCarouselViewComponent({
         {pages.map((page, pi) => (
           <div key={pi} className="flex-none w-full snap-center">
             <div
-              className="grid gap-2"
+              className="grid gap-1"
               style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}
             >
               {page}
