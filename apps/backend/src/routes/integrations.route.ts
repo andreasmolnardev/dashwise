@@ -76,6 +76,58 @@ const integrationsRoute = new Hono();
     const { userId } = await requireAuth(body?.auth);
     return testIntegrationEndpoint(userId, String(body?.target ?? ""));
   }));
+  integrationsRoute.post("/api/v1/integrations/proxyAction", withJson(async (c) => {
+    const body = await readJsonBody<any>(c);
+    const { userId } = await requireAuth(body?.auth);
+    const searchItemId = String(body?.searchItemId ?? body?.id ?? "").trim();
+
+    if (!searchItemId) {
+      throw new ApiActionError("Missing searchItemId", 400, { error: "Missing searchItemId" });
+    }
+
+    const pb = await getSuperuserPB();
+    const record = await pb.collection("searchItems").getOne(searchItemId);
+    if (!record || record.user !== userId) {
+      throw new ApiActionError("Unauthorized", 403, { error: "Unauthorized" });
+    }
+
+    const action = parseProxyAction(record.action);
+    if (!action || !action.url) {
+      throw new ApiActionError("Unsupported proxy action", 400, { error: "Unsupported proxy action" });
+    }
+
+    const headers: Record<string, string> = {};
+    for (const [key, value] of Object.entries(action.headers ?? {})) {
+      headers[key] = String(value ?? "");
+    }
+
+    if (action.auth && !Object.keys(headers).some((k) => k.toLowerCase() === "authorization")) {
+      headers.Authorization = action.auth;
+    }
+
+    let requestBody: string | undefined;
+    if (action.body !== undefined && action.body !== null) {
+      requestBody = typeof action.body === "string" ? action.body : JSON.stringify(action.body);
+      if (!Object.keys(headers).some((k) => k.toLowerCase() === "content-type")) {
+        headers["content-type"] = "application/json";
+      }
+    }
+
+    const response = await fetch(action.url, {
+      method: "POST",
+      headers,
+      body: requestBody,
+      ...(config.ALLOW_SSL ? ({ tls: { rejectUnauthorized: false } } as any) : {}),
+    } as any);
+
+    const responseBody = await response.text();
+    return {
+      ok: response.ok,
+      status: response.status,
+      statusText: response.statusText,
+      body: responseBody,
+    };
+  }));
   integrationsRoute.get("/api/v1/integrations/widget-properties", withJson(async (c) => {
     const { userId } = await requireAuth({ token: readAuthToken(c) });
     return getWidgetProperties(userId, String(c.req.query("widgetSlug") ?? ""));
@@ -194,6 +246,47 @@ function parseInputQuery(raw: string | null): Record<string, any> {
     throw new ApiActionError("Invalid input", 400, {
       error: "input must be valid JSON object",
     });
+  }
+}
+
+type ProxyActionDefinition = {
+  type: "post";
+  url?: string;
+  auth?: string;
+  headers?: Record<string, string>;
+  body?: unknown;
+};
+
+function parseProxyAction(raw: unknown): ProxyActionDefinition | null {
+  if (typeof raw !== "string") return null;
+  const trimmed = raw.trim();
+
+  if (trimmed.toLowerCase().startsWith("post:")) {
+    const url = trimmed.slice(5).trim();
+    return { type: "post", url };
+  }
+
+  if (!trimmed.startsWith("{")) return null;
+
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (!isPlainObject(parsed)) return null;
+    const type = String(parsed.type ?? "").trim().toLowerCase();
+    if (type !== "post") return null;
+
+    const headers = isPlainObject(parsed.headers)
+      ? (parsed.headers as Record<string, string>)
+      : undefined;
+
+    return {
+      type: "post",
+      url: typeof parsed.url === "string" ? parsed.url : undefined,
+      auth: typeof parsed.auth === "string" ? parsed.auth : undefined,
+      headers,
+      body: parsed.body,
+    };
+  } catch {
+    return null;
   }
 }
 
