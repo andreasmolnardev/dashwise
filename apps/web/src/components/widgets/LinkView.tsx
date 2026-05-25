@@ -37,18 +37,18 @@ import LinkDetailsForm from "@/components/settings/LinkDetailsForm";
 import IconPickerComponent from "@/components/settings/IconPicker";
 import AppIcon from "@dashwise/app-icon";
 import {
-  DndContext,
   closestCenter,
+  DndContext,
+  DragEndEvent,
   KeyboardSensor,
   PointerSensor,
   useSensor,
   useSensors,
-  DragEndEvent,
 } from "@dnd-kit/core";
 import {
-  SortableContext,
   arrayMove,
   rectSortingStrategy,
+  SortableContext,
   sortableKeyboardCoordinates,
   useSortable,
 } from "@dnd-kit/sortable";
@@ -68,34 +68,27 @@ export interface LinkType {
   statusCheck?: boolean;
 }
 
-const FOLDER_ICON_CONTENTS_KEY = "dashwise_folder_icon_show_contents";
-
 export default function LinkView({ links = [] }: { links?: LinkType[] }) {
   const { pageConfig } = usePageConfig();
   const { token, withAuth } = useAuth();
   const [localLinks, setLocalLinks] = useState<LinkType[]>(links);
-  const [showFolderContents, setShowFolderContents] = useState(false);
 
-  useEffect(() => {
-    try {
-      setShowFolderContents(
-        window.localStorage.getItem(FOLDER_ICON_CONTENTS_KEY) === "1",
-      );
-    } catch {
-      setShowFolderContents(false);
-    }
-  }, []);
+  const [folderPreviewRev, setFolderPreviewRev] = useState(0);
 
-  useEffect(() => {
+  const toggleFolderPreview = React.useCallback((folderId: string) => {
+    if (!folderId) return;
     try {
-      window.localStorage.setItem(
-        FOLDER_ICON_CONTENTS_KEY,
-        showFolderContents ? "1" : "0",
-      );
+      const key = `folderPreviewMode#${folderId}`;
+      if (window.localStorage.getItem(key) === "preview-first") {
+        window.localStorage.removeItem(key); // back to normal
+      } else {
+        window.localStorage.setItem(key, "preview-first");
+      }
     } catch {
       // ignore storage failures
     }
-  }, [showFolderContents]);
+    setFolderPreviewRev((v) => v + 1); // force re-render so previewFirstFolderIcons reads fresh
+  }, []);
 
   useEffect(() => {
     const fetchLinks = async () => {
@@ -347,22 +340,30 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
     }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
-    })
+    }),
   );
 
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
 
     if (over && active.id !== over.id) {
-      const oldIndex = items.findIndex((item) => (item.type === 'link' ? item.link.id : item.key) === active.id);
-      const newIndex = items.findIndex((item) => (item.type === 'link' ? item.link.id : item.key) === over.id);
+      const oldIndex = items.findIndex((item) =>
+        (item.type === "link" ? item.link.id : item.key) === active.id
+      );
+      const newIndex = items.findIndex((item) =>
+        (item.type === "link" ? item.link.id : item.key) === over.id
+      );
 
       if (oldIndex !== -1 && newIndex !== -1) {
         const newItems = arrayMove(items, oldIndex, newIndex);
-        
+
         // Re-construct localLinks from newItems order
         const reorderedLinks: LinkType[] = [];
-        const payload: { id: string; type: "link" | "folder"; position: number }[] = [];
+        const payload: {
+          id: string;
+          type: "link" | "folder";
+          position: number;
+        }[] = [];
 
         newItems.forEach((item, index) => {
           if (item.type === "link") {
@@ -373,7 +374,11 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
           } else {
             reorderedLinks.push(...item.links);
             if (item.recordId) {
-              payload.push({ id: item.recordId, type: "folder", position: index });
+              payload.push({
+                id: item.recordId,
+                type: "folder",
+                position: index,
+              });
             }
           }
         });
@@ -444,33 +449,67 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
 
           // folder tile (Popover)
           const folder = item;
+          const folderId = folder.recordId || folder.key;
+          const isPreview = previewFirstFolderIcons(folderId);
           return (
             <Popover key={folder.key}>
               <PopoverTrigger asChild>
                 <button
                   type="button"
-                  className="group flex flex-col items-center justify-between space-y-2 frosted rounded-2xl p-2 hover:text-(primary) transition-colors min-h-18 w-full"
+                  className="group flex flex-col items-center justify-between space-y-2 frosted rounded-2xl p-2 hover:text-(primary) transition-colors min-h-18 w-full group/folderdiv"
                   aria-label={`Open folder ${folder.name}`}
                   title={folder.name}
                 >
-                  {folder.icon
+                  {isPreview && folder.links.length > 0
+                    ? (
+                      <div className="flex items-center justify-center gap-1">
+                        {folder.links.slice(0, 2).map((child, childIdx) => (
+                          <div
+                            key={child.id || childIdx}
+                            className="frosted w-12 aspect-square rounded-lg flex items-center justify-center text-2xl group/icon cursor-pointer"
+                            onClick={() =>
+                              child.url &&
+                              window.open(
+                                child.url,
+                                "_blank",
+                                "noopener,noreferrer",
+                              )}
+                          >
+                            <AppIcon
+                              source={child.iconUrl}
+                              alt={child.title || ""}
+                              className="p-1 h-5 w-5 bg-white group-hover/icon:bg-primary"
+                            />
+                          </div>
+                        ))}
+                        <div className="frosted w-12 aspect-square rounded-lg flex items-center justify-center text-2xl group/icon cursor-pointer">
+                          <AppIcon
+                            source="fa6-solid:plus"
+                            alt={folder.name}
+                            className="text-white/90 text-[1rem] group-hover/icon:text-primary"
+                            imageClassName="object-contain"
+                          />
+                        </div>
+                      </div>
+                    )
+                    : folder.icon
                     ? (
                       <AppIcon
                         source={folder.icon}
                         alt={folder.name}
-                        className="text-white/90 h-8 text-[2rem] group-hover:text-primary"
+                        className="text-white/90 h-6text-[2rem] group-hover:text-primary"
                         imageClassName="invert object-contain"
                       />
                     )
                     : (
                       <Icon
                         icon="fa6-solid:folder"
-                        className="h-5 w-5 text-white/30 group-hover:text-primary"
+                        className="h-6 w-6 text-[1.5rem] pt-2 group-hover:text-primary"
                       />
                     )}
 
                   <div className="flex items-center w-full justify-center">
-                    <span className="text-sm text-white truncate px-1">
+                    <span className="text-sm text-white truncate px-1 group-hover/folderdiv:text-primary">
                       {folder.name}
                     </span>
                   </div>
@@ -516,22 +555,19 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
                   <div className="flex items-center gap-1">
                     <button
                       type="button"
-                      onClick={() =>
-                        setShowFolderContents((current) => !current)}
+                      onClick={() => toggleFolderPreview(folderId)}
                       className={`flex h-8 w-8 items-center justify-center rounded-lg  transition-colors`}
-                      aria-pressed={showFolderContents}
-                      aria-label={showFolderContents
+                      aria-pressed={isPreview}
+                      aria-label={isPreview
                         ? "Hide folder contents preview"
                         : "Show folder contents preview"}
-                      title={showFolderContents
+                      title={isPreview
                         ? "Hide folder contents preview"
                         : "Show folder contents preview"}
                     >
                       <AppIcon
                         source="glyphs:columns-2-bold"
-                        className={`h-4 w-4 ${
-                          showFolderContents ? "text-primary" : ""
-                        }`}
+                        className={`h-4 w-4 ${isPreview ? "text-primary" : ""}`}
                       />
                     </button>
                     <PopoverClose asChild>
@@ -645,15 +681,20 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
           {editingFolder && (
             <div className="space-y-3">
               <div className="flex items-center gap-3 rounded-xl py-2">
-                {editingFolder.icon ? (
+                {editingFolder.icon
+                  ? (
                     <AppIcon
                       source={editingFolder.icon}
                       alt={editingFolder.name}
                       className="text-white/90 h-5 w-5"
                       imageClassName="invert object-contain"
                     />
-                  ) : (
-                      <Icon icon="fa6-solid:folder" className="h-5 w-5 text-white/30" />
+                  )
+                  : (
+                    <Icon
+                      icon="fa6-solid:folder"
+                      className="h-5 w-5 text-white/30"
+                    />
                   )}
                 <div className="min-w-0">
                   <p className="truncate font-medium">{editingFolder.name}</p>
@@ -704,6 +745,17 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
   );
 }
 
+function previewFirstFolderIcons(folderId: string): boolean {
+  if (!folderId) return false;
+  try {
+    const mode = window.localStorage.getItem(`folderPreviewMode#${folderId}`);
+    if (!mode) return false; // not set → normal show folder icon
+    return mode === "preview-first";
+  } catch {
+    return false;
+  }
+}
+
 interface LinkTileProps {
   link: LinkType;
   monitoringDetails: any;
@@ -736,16 +788,15 @@ function LinkTile({
       rel={user?.global?.linkOpenBehaviour === "newtab"
         ? "noopener noreferrer"
         : undefined}
-      className="group relative flex flex-col items-center justify-between space-y-2 frosted rounded-2xl p-2 hover:text-(primary) transition-colors min-h-18 w-full"
+      className="group relative flex flex-col items-center justify-between gap-1 frosted rounded-2xl p-2 hover:text-(primary) transition-colors min-h-18 w-full"
     >
       {link.iconUrl
         ? (
           <AppIcon
             source={link.iconUrl}
             alt={link.title}
-            className="h-8.75 w-8.75"
+            className="aspect-square w-8.75 m-2"
             monoClassName="bg-foreground transition-colors group-hover:bg-primary"
-            imageClassName="object-contain"
           />
         )
         : (
@@ -808,8 +859,17 @@ function LinkTile({
   );
 }
 
-function SortableItem({ id, children }: { id: string; children: React.ReactNode }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+function SortableItem(
+  { id, children }: { id: string; children: React.ReactNode },
+) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -822,146 +882,5 @@ function SortableItem({ id, children }: { id: string; children: React.ReactNode 
     <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
       {children}
     </div>
-  );
-}
-
-function FolderTile({
-  folder,
-  editingFolder,
-  setEditingFolder,
-  showFolderContents,
-  setShowFolderContents,
-  monitoringDetails,
-  setOpenDialogFor,
-  setEditingLink,
-}: {
-  folder: any;
-  editingFolder: any;
-  setEditingFolder: any;
-  showFolderContents: boolean;
-  setShowFolderContents: any;
-  monitoringDetails: any;
-  setOpenDialogFor: any;
-  setEditingLink: any;
-}) {
-  return (
-    <Popover key={folder.key}>
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          className="group flex flex-col items-center justify-between space-y-2 frosted rounded-2xl p-2 hover:text-(primary) transition-colors min-h-18 w-full"
-          aria-label={`Open folder ${folder.name}`}
-          title={folder.name}
-          onPointerDown={(e) => e.stopPropagation()} // Allow dragging the tile itself
-        >
-          {folder.icon
-            ? (
-              <AppIcon
-                source={folder.icon}
-                alt={folder.name}
-                className="text-white/90 h-8 text-[2rem] group-hover:text-primary"
-                imageClassName="invert object-contain"
-              />
-            )
-            : (
-              <Icon
-                icon="fa6-solid:folder"
-                className="h-5 w-5 text-white/30 group-hover:text-primary"
-              />
-            )}
-
-          <div className="flex items-center w-full justify-center">
-            <span className="text-sm text-white truncate px-1">
-              {folder.name}
-            </span>
-          </div>
-        </button>
-      </PopoverTrigger>
-
-      <PopoverContent className="w-87.5 frosted text-foreground space-y-2" onPointerDown={(e) => e.stopPropagation()}>
-        <header className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 min-w-0">
-            <button
-              type="button"
-              disabled={!folder.recordId}
-              onClick={() => {
-                if (!folder.recordId) return;
-                setEditingFolder({
-                  id: folder.recordId,
-                  name: folder.name,
-                  icon: folder?.icon,
-                });
-              }}
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/5 transition-colors hover:bg-white/10"
-              title={`Change icon for ${folder.name}`}
-              aria-label={`Change icon for ${folder.name}`}
-            >
-              {folder.icon
-                ? (
-                  <AppIcon
-                    source={folder.icon}
-                    alt={folder.name}
-                    className="text-white/90 h-5 w-5"
-                    imageClassName="invert object-contain"
-                  />
-                )
-                : (
-                  <Icon
-                    icon="fa6-solid:folder"
-                    className="h-5 w-5 text-white/30"
-                  />
-                )}
-            </button>
-            <h4 className="font-semibold truncate">{folder.name}</h4>
-          </div>
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={() =>
-                setShowFolderContents((current: boolean) => !current)}
-              className={`flex h-8 w-8 items-center justify-center rounded-lg  transition-colors`}
-              aria-pressed={showFolderContents}
-              aria-label={showFolderContents
-                ? "Hide folder contents preview"
-                : "Show folder contents preview"}
-              title={showFolderContents
-                ? "Hide folder contents preview"
-                : "Show folder contents preview"}
-            >
-              <AppIcon
-                source="glyphs:columns-2-bold"
-                className={`h-4 w-4 ${
-                  showFolderContents ? "text-primary" : ""
-                }`}
-              />
-            </button>
-            <PopoverClose asChild>
-              <Button variant="ghost" className="h-8 w-8 p-0">
-                <Icon icon="fa6-solid:xmark" />
-              </Button>
-            </PopoverClose>
-          </div>
-        </header>
-        <div
-          className="grid gap-3"
-          style={{
-            gridTemplateColumns:
-              "repeat(auto-fill, minmax(120px, 1fr))",
-          }}
-        >
-          {folder.links.map((child: any, childIdx: number) => {
-            return (
-              <LinkTile
-                key={child.id || child.url || childIdx}
-                link={child}
-                monitoringDetails={monitoringDetails}
-                setOpenDialogFor={setOpenDialogFor}
-                setEditingLink={setEditingLink}
-              />
-            );
-          })}
-        </div>
-      </PopoverContent>
-    </Popover>
   );
 }

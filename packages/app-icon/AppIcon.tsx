@@ -18,54 +18,6 @@ export type AppIconProps = {
 	iconClassName?: string;
 };
 
-function combineClassNames(...classNames: Array<string | undefined | null>) {
-	return classNames.filter(Boolean).join(" ");
-}
-
-export function isIconifySource(source?: string | null) {
-	return Boolean(source && (
-		source.startsWith(ICONIFY_API_PREFIX)
-		|| source.startsWith("url:")
-		|| (source.includes(":") && !source.startsWith("http://") && !source.startsWith("https://"))
-	));
-}
-
-export function getIconifySlugFromSource(source?: string | null) {
-	if (!source) return null;
-
-	if (source.startsWith(ICONIFY_API_PREFIX)) {
-		try {
-			const parsed = new URL(source);
-			return parsed.pathname.replace(/^\//, "").replace(/\.svg$/, "");
-		} catch {
-			return null;
-		}
-	}
-
-	if (source.startsWith("url:")) {
-		return null;
-	}
-
-	return isIconifySource(source) ? source : null;
-}
-
-export function isMonoIconSource(source?: string | null) {
-	if (!source) return false;
-
-	return /^\/icons\/(?:webp|png|svg)\/[^/]+?-(?:light|dark)\.(?:webp|png|svg)(?:\?.*)?$/i.test(source);
-}
-
-function resolveImageSource(source: string, fallbackPrefix: string) {
-	if (
-		source.startsWith("/") || source.startsWith("data:") ||
-		source.startsWith("blob:") || source.startsWith("http://") ||
-		source.startsWith("https://")
-	) {
-		return source;
-	}
-
-	return fallbackPrefix ? `${fallbackPrefix}${source}` : source;
-}
 
 export default function AppIcon({
 	source,
@@ -81,46 +33,11 @@ export default function AppIcon({
 }: AppIconProps) {
 	if (!source) return null;
 
-	if (source.startsWith("url:")) {
-		const imageSource = source.slice(4).trim();
-		if (!imageSource) {
-			return fallbackSource ? (
-				<AppIcon
-					source={fallbackSource}
-					alt={alt}
-					className={className}
-					monoClassName={monoClassName}
-					imageClassName={imageClassName}
-					fallbackPrefix={fallbackPrefix}
-					useFrostedGradient={useFrostedGradient}
-					iconClassName={iconClassName}
-				/>
-			) : null;
-		}
+	// normalize url:
+	const normalized =
+		source.startsWith("url:") ? source.slice(4).trim() : source;
 
-		// If the resolved path is a mono icon (e.g. beszel-light.png), use mask rendering
-		if (isMonoIconSource(imageSource)) {
-			return (
-				<span
-					className={combineClassNames("bg-foreground inline-block shrink-0", className, monoClassName)}
-					style={{
-						maskImage: `url('${imageSource}')`,
-						WebkitMaskImage: `url('${imageSource}')`,
-						maskRepeat: "no-repeat",
-						WebkitMaskRepeat: "no-repeat",
-						maskPosition: "center",
-						WebkitMaskPosition: "center",
-						maskSize: "contain",
-						WebkitMaskSize: "contain",
-						...(size ? { width: size, height: size } : {}),
-					}}
-				/>
-			);
-		}
-
-		return <UrlImageIcon source={imageSource} alt={alt} className={className} imageClassName={imageClassName} fallbackSource={fallbackSource} size={size} />;
-	}
-
+	// Iconify
 	const iconifySlug = getIconifySlugFromSource(source);
 	if (iconifySlug) {
 		return (
@@ -141,32 +58,148 @@ export default function AppIcon({
 		);
 	}
 
-	if (isMonoIconSource(source)) {
+	// Mono icon
+	if (isMonoIconSource(normalized)) {
 		return (
-			<span
-				className={combineClassNames("bg-foreground inline-block shrink-0", className, monoClassName)}
-				style={{
-					maskImage: `url('${source}')`,
-					WebkitMaskImage: `url('${source}')`,
-					maskRepeat: "no-repeat",
-					WebkitMaskRepeat: "no-repeat",
-					maskPosition: "center",
-					WebkitMaskPosition: "center",
-					maskSize: "contain",
-					WebkitMaskSize: "contain",
-					...(size ? { width: size, height: size } : {}),
-				}}
+			<MaskedIcon
+				source={normalized}
+				size={size}
+				className={combineClassNames(className, monoClassName)}
 			/>
 		);
 	}
 
+	// URL image
+	if (source.startsWith("url:")) {
+		const imageSource = normalized;
+
+		if (!imageSource) {
+			return fallbackSource ? (
+				<AppIcon
+					source={fallbackSource}
+					alt={alt}
+					className={className}
+					imageClassName={imageClassName}
+					fallbackPrefix={fallbackPrefix}
+					size={size}
+				/>
+			) : null;
+		}
+
+		if (isMonoIconSource(imageSource)) {
+			return (
+				<MaskedIcon
+					source={imageSource}
+					size={size}
+					className={combineClassNames(className, monoClassName)}
+				/>
+			);
+		}
+
+		return (
+			<UrlImageIcon
+				source={imageSource}
+				alt={alt}
+				className={className}
+				imageClassName={imageClassName}
+				fallbackSource={fallbackSource}
+				size={size}
+			/>
+		);
+	}
+
+	// Fallback image
 	return (
 		<img
-			src={resolveImageSource(source, fallbackPrefix)}
+			src={resolveUrlSource(source, fallbackPrefix)}
 			alt={alt ?? ""}
 			width={size}
 			height={size}
 			className={combineClassNames(className, imageClassName)}
+		/>
+	);
+}
+
+function combineClassNames(...classNames: Array<string | undefined | null>) {
+	return classNames.filter(Boolean).join(" ");
+}
+
+export function isIconifySource(source?: string | null) {
+	return Boolean(
+		source &&
+			(source.startsWith(ICONIFY_API_PREFIX) ||
+				source.startsWith("url:") ||
+				(source.includes(":") &&
+					!source.startsWith("http://") &&
+					!source.startsWith("https://")))
+	);
+}
+
+export function getIconifySlugFromSource(source?: string | null) {
+	if (!source) return null;
+
+	if (source.startsWith(ICONIFY_API_PREFIX)) {
+		try {
+			const parsed = new URL(source);
+			return parsed.pathname.replace(/^\//, "").replace(/\.svg$/, "");
+		} catch {
+			return null;
+		}
+	}
+
+	if (source.startsWith("url:")) return null;
+
+	return isIconifySource(source) ? source : null;
+}
+
+export function isMonoIconSource(source?: string | null) {
+	if (!source) return false;
+
+	return /^\/icons\/(?:webp|png|svg)\/[^/]+?-(?:light|dark)\.(?:webp|png|svg)(?:\?.*)?$/i.test(
+		source
+	);
+}
+
+function resolveUrlSource(source: string, fallbackPrefix: string) {
+	if (
+		source.startsWith("/") ||
+		source.startsWith("data:") ||
+		source.startsWith("blob:") ||
+		source.startsWith("http://") ||
+		source.startsWith("https://")
+	) {
+		return source;
+	}
+
+	return fallbackPrefix ? `${fallbackPrefix}${source}` : source;
+}
+
+function MaskedIcon({
+	source,
+	size,
+	className,
+}: {
+	source: string;
+	size?: number;
+	className?: string;
+}) {
+	return (
+		<span
+			className={combineClassNames(
+				"bg-current inline-block shrink-0",
+				className
+			)}
+			style={{
+				maskImage: `url('${source}')`,
+				WebkitMaskImage: `url('${source}')`,
+				maskRepeat: "no-repeat",
+				WebkitMaskRepeat: "no-repeat",
+				maskPosition: "center",
+				WebkitMaskPosition: "center",
+				maskSize: "contain",
+				WebkitMaskSize: "contain",
+				...(size ? { width: size, height: size } : {}),
+			}}
 		/>
 	);
 }
