@@ -278,7 +278,9 @@ function collectPageConsumers(config: PageConfig): PageConsumerCandidate[] {
     key: string,
     properties: Record<string, any> | null | undefined,
   ) => {
-    const normalizedProps = isPlainObject(properties) ? (properties as Record<string, any>) : {};
+    const normalizedProps = isPlainObject(properties)
+      ? stripWidgetIndex(properties as Record<string, any>)
+      : {};
     const consumerKey = `${consumer}:${key}:${stableStringify(normalizedProps)}`;
     if (dedupe.has(consumerKey)) return;
     dedupe.add(consumerKey);
@@ -341,6 +343,11 @@ function stableStringify(value: Record<string, any>) {
       return acc;
     }, {});
   return JSON.stringify(sorted);
+}
+
+function stripWidgetIndex(value: Record<string, any>) {
+  const { index: _index, _rev: _rev, ...rest } = value;
+  return rest;
 }
 
 function isPlainObject(value: unknown): value is Record<string, any> {
