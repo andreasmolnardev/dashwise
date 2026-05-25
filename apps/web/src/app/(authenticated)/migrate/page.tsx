@@ -64,9 +64,6 @@ export default function MigratePage() {
           <AppIcon source="solar:play-bold"/>
           {loading ? "Running migration…" : "Run migration"}
         </Button>
-        {result && (
-          <pre style={{ marginTop: 12, whiteSpace: "pre-wrap" }}>{result}</pre>
-        )}
       </Card>
       <Card className="frosted p-2">
         <h2 className="text-xl font-semibold">
@@ -80,6 +77,14 @@ export default function MigratePage() {
           {loading ? "Running migration…" : "Run migration"}
         </Button>
       </Card>
+
+      {result && (
+        <Card className="p-2 frosted">
+          <h2 className="text-xl font-semibold">Result</h2>
+          <pre style={{ marginTop: 12, whiteSpace: "pre-wrap" }}>{result}</pre>
+        </Card>
+      )}
+
       <Link to="/home">
         <Button variant={"ghost"} className="cursor-pointer">
           <AppIcon source="fa6-solid:arrow-left"/>
