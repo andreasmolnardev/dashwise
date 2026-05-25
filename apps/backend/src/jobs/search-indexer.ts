@@ -274,7 +274,7 @@ async function buildIntegrationSearchRows(
     name: item.name,
     icon: item.icon || integrationIcon,
     secondary: item.secondaryInfo || integrationName,
-    action: item.action,
+    action: serializeShortcutAction(item.action),
     app: appId,
     tags: item.tags,
     sourceId: integration.id,
@@ -403,4 +403,18 @@ async function rebuildUserSearchItems(pb: any, userId: string, rows: SearchItemR
       }
     }
   }
+}
+
+function serializeShortcutAction(action: unknown): string {
+  if (typeof action === "string") {
+    return action.trim();
+  }
+  if (action && typeof action === "object") {
+    try {
+      return JSON.stringify(action);
+    } catch {
+      return "";
+    }
+  }
+  return "";
 }
