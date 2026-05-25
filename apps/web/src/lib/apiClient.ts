@@ -194,7 +194,7 @@ const routes: Record<string, RouteConfig> = {
   },
   "pageConfig.migrateLegacyAction": {
     method: "POST",
-    path: "/pageConfig/migrate-legacy",
+    path: "/pageConfig/migrate-legacy" as any,
     auth: (input) => authToken(input?.auth),
     body: (input) => input,
   },
@@ -392,6 +392,11 @@ const routes: Record<string, RouteConfig> = {
     auth: (input) => authToken(input?.auth),
     query: (input) => ({ integrationId: input?.integrationId }),
   },
+  "integrations.proxyIntegrationAction": {
+    method: "POST",
+    path: "/integrations/proxyAction" as any,
+    body: (input) => input,
+  },
 
   "misc.getLocationsAction": {
     method: "GET",
@@ -516,7 +521,7 @@ const routes: Record<string, RouteConfig> = {
   },
   "news.fixMissingTitlesAction": {
     method: "POST",
-    path: "/news/fix-missing-titles",
+    path: "/news/fix-missing-titles" as any,
     auth: (input) => authToken(input?.auth),
     body: () => undefined,
   },
@@ -544,7 +549,7 @@ const routes: Record<string, RouteConfig> = {
   },
   "notifications.items.sendTestNotificationAction": {
     method: "POST",
-    path: "/notifications/test",
+    path: "/notifications/test" as any,
     body: (input) => input,
   },
   "notifications.topicTokens.listTopicTokensAction": {
