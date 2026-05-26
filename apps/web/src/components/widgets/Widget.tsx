@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import GlanceableClockWidget from "./dashboard/GlanceableClock";
 import CalendarWeekWidget, {
   CalendarTodayWidget,
@@ -224,9 +224,26 @@ function IntegrationWidget({
   const [localPayload, setLocalPayload] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
+  const loadingStartedAtRef = useRef<number | null>(null);
+  const loadingTimeoutRef = useRef<number | null>(null);
 
   const consumerPayload = readPageIntegrationConsumer("widget", type, properties) || localPayload;
   const loadingLabel = resolveWidgetLabel(type, consumerPayload);
+  const MIN_LOADING_MS = 750;
+
+  const scheduleLoadingStop = () => {
+    if (!loading) return;
+    if (loadingTimeoutRef.current !== null) return;
+
+    const startedAt = loadingStartedAtRef.current ?? Date.now();
+    const elapsed = Date.now() - startedAt;
+    const remaining = Math.max(0, MIN_LOADING_MS - elapsed);
+
+    loadingTimeoutRef.current = window.setTimeout(() => {
+      loadingTimeoutRef.current = null;
+      setLoading(false);
+    }, remaining);
+  };
 
   const hasStreamError = consumerPayload?.success === false;
   const shouldStreamLoad =
@@ -234,11 +251,22 @@ function IntegrationWidget({
   const allowLocalFetch = phase === "idle" || phase === "error" || isPreview;
 
   useEffect(() => {
+    if (consumerPayload?.blueprint?.widgetJSON && loading) {
+      scheduleLoadingStop();
+      setLocalError(null);
+      return;
+    }
+
     if (!allowLocalFetch || consumerPayload?.blueprint?.widgetJSON || loading) {
       return;
     }
 
     let cancelled = false;
+    loadingStartedAtRef.current = Date.now();
+    if (loadingTimeoutRef.current !== null) {
+      window.clearTimeout(loadingTimeoutRef.current);
+      loadingTimeoutRef.current = null;
+    }
     setLoading(true);
     setLocalError(null);
 
@@ -270,7 +298,7 @@ function IntegrationWidget({
         );
       })
       .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) scheduleLoadingStop();
       });
 
     return () => {
@@ -278,10 +306,18 @@ function IntegrationWidget({
     };
   }, [type, properties, isPreview, withAuth, consumerPayload, loading, allowLocalFetch, version]);
 
+  useEffect(() => {
+    return () => {
+      if (loadingTimeoutRef.current !== null) {
+        window.clearTimeout(loadingTimeoutRef.current);
+      }
+    };
+  }, []);
+
   if (shouldStreamLoad || loading) {
     return (
       <div
-        className={`rounded-xl p-3 flex items-center justify-center min-h-[100px] ${
+        className={`rounded-xl p-3 flex items-center justify-center min-h-25 ${
           className ?? "frosted"
         }`}
       >
@@ -319,19 +355,21 @@ function IntegrationWidget({
   }
 
   return (
-    <Widget
-      className={className ?? "frosted"}
-      isPreview={isPreview ?? false}
-      widgetKey={type}
-      widgetJSON={consumerPayload.blueprint.widgetJSON}
-      data={consumerPayload.data}
-      resolved={consumerPayload.blueprint.resolved}
-      formatters={{
-        formatTemperature: localization.formatTemperature,
-        formatTime: localization.formatTime,
-        formatDate: localization.formatDate,
-      }}
-    />
+    <div className="animate-in fade-in-0 slide-in-from-bottom-2 duration-200">
+      <Widget
+        className={className ?? "frosted"}
+        isPreview={isPreview ?? false}
+        widgetKey={type}
+        widgetJSON={consumerPayload.blueprint.widgetJSON}
+        data={consumerPayload.data}
+        resolved={consumerPayload.blueprint.resolved}
+        formatters={{
+          formatTemperature: localization.formatTemperature,
+          formatTime: localization.formatTime,
+          formatDate: localization.formatDate,
+        }}
+      />
+    </div>
   );
 }
 
