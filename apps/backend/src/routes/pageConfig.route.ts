@@ -16,6 +16,13 @@ const FRONTEND_ONLY_WIDGETS = new Set([
   "link-view",
 ]);
 
+const FRONTEND_ONLY_GLANCEABLES = new Set([
+  "date",
+  "greeting",
+  "local-timezone",
+  "world-clock",
+]);
+
 type PageConsumerCandidate = {
   consumer: "widget" | "glanceable";
   key: string;
@@ -278,6 +285,10 @@ function collectPageConsumers(config: PageConfig): PageConsumerCandidate[] {
     key: string,
     properties: Record<string, any> | null | undefined,
   ) => {
+    if (consumer === "glanceable" && FRONTEND_ONLY_GLANCEABLES.has(key)) {
+      return;
+    }
+
     const normalizedProps = isPlainObject(properties)
       ? stripWidgetIndex(properties as Record<string, any>)
       : {};
@@ -326,6 +337,7 @@ function collectMainClockGlanceables(widgetConfigRaw: unknown) {
   for (const [key, propertiesRaw] of Object.entries(glanceables as Record<string, unknown>)) {
     const normalizedKey = String(key ?? "").trim();
     if (!normalizedKey) continue;
+    if (FRONTEND_ONLY_GLANCEABLES.has(normalizedKey)) continue;
     result.push({
       key: normalizedKey,
       properties: isPlainObject(propertiesRaw) ? (propertiesRaw as Record<string, any>) : {},
