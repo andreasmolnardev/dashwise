@@ -100,7 +100,8 @@ export default function Glanceable({
         if (!cancelled) {
           setResolvedRuntimeData(runtimeData.data);
         }
-      } catch {
+      } catch (err) {
+        console.error("Failed to load glanceable runtime data", err);
         if (!cancelled) {
           setResolvedRuntimeData(null);
         }
