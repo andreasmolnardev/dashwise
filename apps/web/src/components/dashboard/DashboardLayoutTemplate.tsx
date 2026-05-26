@@ -33,14 +33,6 @@ const COLUMN_PANEL_IDS: Record<Column, string | undefined> = {
     right: "right-widget-panel",
 };
 
-const FRONTEND_ONLY_WIDGETS = new Set([
-    "placeholder",
-    "main-clock",
-    "glanceable-clock",
-    "search-bar",
-    "link-view",
-]);
-
 function sortWidgetEntries(entries: Record<string, any>) {
     return Object.entries(entries).sort(([leftKey, leftValue], [rightKey, rightValue]) => {
         const leftIndex = typeof leftValue?.index === "number" && Number.isFinite(leftValue.index)
@@ -111,14 +103,14 @@ export default function DashboardLayoutTemplate({
             (message) => {
                 if (cancelled) return;
 
-                if (message.type === "consumer") {
-                    updatePageIntegrationConsumerCache(message.item as any);
-                    setIntegrationStreamVersion((v) => v + 1);
+                if (message.type === "start") {
+                    setIntegrationStreamPhase("streaming");
                     return;
                 }
 
-                if (message.type === "start") {
-                    setIntegrationStreamPhase("streaming");
+                if (message.type === "consumer") {
+                    updatePageIntegrationConsumerCache(message.item as any);
+                    setIntegrationStreamVersion((v) => v + 1);
                     return;
                 }
 
