@@ -29,6 +29,7 @@ type CreateForwarderDialogProps = {
   onOpenChange: (open: boolean) => void;
   topics: Topic[];
   onForwarderCreated?: (newItem: ForwarderItem) => void;
+  initialTopic?: Topic | null;
 };
 
 export default function CreateForwarderDialogComponent({
@@ -36,6 +37,7 @@ export default function CreateForwarderDialogComponent({
   onOpenChange,
   topics,
   onForwarderCreated,
+  initialTopic = null,
 }: CreateForwarderDialogProps) {
   const [selectedTopic, setSelectedTopic] = useState<Topic | null>(null);
   const [target, setTarget] = useState("");
@@ -43,6 +45,14 @@ export default function CreateForwarderDialogComponent({
   const [creating, setCreating] = useState(false);
 
   const { token, withAuth } = useAuth();
+
+  useEffect(() => {
+    if (!open) return;
+
+    setSelectedTopic(initialTopic);
+    setTarget("");
+    setIsActive(true);
+  }, [open, initialTopic]);
 
   const handleTopicChange = (topic: Topic) => {
     setSelectedTopic(topic);

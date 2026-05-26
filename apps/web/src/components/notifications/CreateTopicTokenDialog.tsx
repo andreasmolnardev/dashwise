@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import useAuth from "@/context/useAuth";
 import {
   Dialog,
@@ -22,6 +22,7 @@ type NewTokenDialogProps = {
   onOpenChange: (open: boolean) => void;
   topics: Topic[];
   onTokenCreated?: (newItem: TokenItem) => void;
+  initialTopic?: Topic | null;
 };
 
 export default function CreateTopicTokenDialogComponent({
@@ -29,6 +30,7 @@ export default function CreateTopicTokenDialogComponent({
   onOpenChange,
   topics,
   onTokenCreated,
+  initialTopic = null,
 }: NewTokenDialogProps) {
   const [selectedTopic, setSelectedTopic] = useState<Topic | null>(null);
   const [creating, setCreating] = useState(false);
@@ -39,6 +41,17 @@ export default function CreateTopicTokenDialogComponent({
     d.setMonth(d.getMonth() + 1);
     return d.toISOString().split("T")[0];
   });
+
+  useEffect(() => {
+    if (!open) return;
+
+    setSelectedTopic(initialTopic);
+    setExpiryMode("never");
+    setInDays(30);
+    const d = new Date();
+    d.setMonth(d.getMonth() + 1);
+    setOnDate(d.toISOString().split("T")[0]);
+  }, [open, initialTopic]);
 
   const expiryLabel = () => {
     if (expiryMode === "never") return "Never";

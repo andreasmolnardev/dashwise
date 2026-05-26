@@ -103,6 +103,31 @@ export async function createNotificationTopic(userId: string, title: string) {
   return { ok: true, topicId: created.id };
 }
 
+export async function deleteNotificationTopic(userId: string, topicId: string) {
+  const pb = await getSuperuserPB();
+
+  const topicRecord = await pb.collection("notificationTopics").getOne(topicId);
+  if (!topicRecord || topicRecord.userId !== userId) {
+    throw new Error("Topic not found or not owned by user");
+  }
+
+  const [items, tokens, forwarders] = await Promise.all([
+    pb.collection("notificationItems").getFullList({ filter: `topicId="${topicId}"` }),
+    pb.collection("notificationTopicTokens").getFullList({ filter: `topic="${topicId}"` }),
+    pb.collection("notificationForwarders").getFullList({ filter: `topic="${topicId}"` }),
+  ]);
+
+  await Promise.allSettled([
+    ...items.map((item) => pb.collection("notificationItems").delete(item.id)),
+    ...tokens.map((token) => pb.collection("notificationTopicTokens").delete(token.id)),
+    ...forwarders.map((forwarder) => pb.collection("notificationForwarders").delete(forwarder.id)),
+  ]);
+
+  await pb.collection("notificationTopics").delete(topicId);
+
+  return { success: true };
+}
+
 export async function sendTestNotification(userId: string, topicId: string) {
   const pb = await getSuperuserPB();
   

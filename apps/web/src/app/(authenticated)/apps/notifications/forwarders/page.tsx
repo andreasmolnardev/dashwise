@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import {
     DropdownMenu,
@@ -31,6 +32,7 @@ import {
 export default function NotificationForwardersPage() {
     const [items, setItems] = useState<ForwarderItem[]>([]);
     const [topics, setTopics] = useState<{ id: string; title?: string }[]>([]);
+    const [searchParams] = useSearchParams();
     const [activeTopic, setActiveTopic] = useState<string | null>(null);
     const [newForwarderDialogVisible, setNewForwarderDialogVisible] = useState(false);
     const [editingForwarder, setEditingForwarder] = useState<ForwarderItem | null>(null);
@@ -55,6 +57,13 @@ export default function NotificationForwardersPage() {
 
         load();
     }, [token, withAuth]);
+
+    useEffect(() => {
+        const topicFromQuery = searchParams.get("topic");
+        if (topicFromQuery) {
+            setActiveTopic(topicFromQuery);
+        }
+    }, [searchParams]);
 
     const filtered = activeTopic
         ? items.filter((i) => i.topic?.id === activeTopic)
@@ -143,7 +152,7 @@ export default function NotificationForwardersPage() {
                         className={cn(
                             "px-4 py-2 rounded-xl text-sm transition whitespace-nowrap",
                             activeTopic === null
-                                ? "bg-white/20 backdrop-blur-md text-white border border-(--primary)"
+                                ? "bg-white/20 backdrop-blur-md text-white border border-primary"
                                 : "bg-white/10 text-gray-100 hover:bg-white/20"
                         )}
                     >
@@ -157,7 +166,7 @@ export default function NotificationForwardersPage() {
                             className={cn(
                                 "px-4 py-2 rounded-xl text-sm transition whitespace-nowrap",
                                 activeTopic === t.id
-                                    ? "bg-white/20 backdrop-blur-md text-white border border-(--primary)"
+                                    ? "bg-white/20 backdrop-blur-md text-white border border-primary"
                                     : "bg-white/10 text-gray-100 hover:bg-white/20"
                             )}
                         >

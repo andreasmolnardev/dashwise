@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import {
     DropdownMenu,
@@ -26,6 +27,7 @@ export type TokenItem = {
 
 export default function NotificationTokensPage() {
     const { token, withAuth } = useAuth();
+    const [searchParams] = useSearchParams();
     const [items, setItems] = useState<TokenItem[]>([]);
     const [topics, setTopics] = useState<{ id: string; title: string }[]>([]);
     const [activeTopic, setActiveTopic] = useState<string | null>(null);
@@ -70,6 +72,13 @@ export default function NotificationTokensPage() {
         fetchTokens();
         fetchTopics();
     }, []);
+
+    useEffect(() => {
+        const topicFromQuery = searchParams.get("topic");
+        if (topicFromQuery) {
+            setActiveTopic(topicFromQuery);
+        }
+    }, [searchParams]);
 
     const filtered = activeTopic
         ? items.filter((i) => i.topic?.id === activeTopic)

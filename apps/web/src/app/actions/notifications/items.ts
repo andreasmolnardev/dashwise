@@ -13,6 +13,10 @@ export async function createNotificationTopicAction(auth: ActionAuth, title: str
   return callApiAction("notifications.items", "createNotificationTopicAction", { auth, title });
 }
 
+export async function deleteNotificationTopicAction(auth: ActionAuth, topicId: string) {
+  return callApiAction("notifications.items", "deleteNotificationTopicAction", { auth, topicId });
+}
+
 export async function markNotificationsAsReadAction(auth: ActionAuth, ids: string[]) {
   return callApiAction("notifications.items", "markNotificationsAsReadAction", { auth, ids });
 }

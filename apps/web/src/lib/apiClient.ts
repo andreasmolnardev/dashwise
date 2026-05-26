@@ -542,6 +542,11 @@ const routes: Record<string, RouteConfig> = {
     path: "/notifications/topics",
     body: (input) => input,
   },
+  "notifications.items.deleteNotificationTopicAction": {
+    method: "DELETE",
+    path: "/notifications/topics",
+    body: (input) => input,
+  },
   "notifications.items.markNotificationsAsReadAction": {
     method: "POST",
     path: "/notifications/markAsRead",
