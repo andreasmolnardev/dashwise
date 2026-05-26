@@ -22,6 +22,12 @@ type ResolvedGlanceablePayload = {
 
 const glanceableConsumerCache = new Map<string, ResolvedGlanceablePayload | null>();
 type LocalizationFormatters = Pick<ReturnType<typeof useLocalization>, "formatTemperature" | "formatTime" | "formatDate">;
+const LOCAL_ONLY_GLANCEABLES = new Set([
+  "date",
+  "greeting",
+  "local-timezone",
+  "world-clock",
+]);
 
 export default function GlanceableClockWidget({ className, params }: WidgetItemProps) {
   const { pageConfig } = usePageConfig();
@@ -112,7 +118,7 @@ function ResolvedGlanceable({
     );
   }
 
-  if (phase === "streaming" && !resolved?.blueprint?.glanceableJSON) {
+  if (phase === "streaming" && !resolved?.blueprint?.glanceableJSON && !LOCAL_ONLY_GLANCEABLES.has(type)) {
     return (
       <div className={`rounded-md px-2 py-1 text-xs text-white/60 ${className ?? ""}`}>
         Loading...
