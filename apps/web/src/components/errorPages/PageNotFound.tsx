@@ -43,21 +43,38 @@ export default function PageNotFound({ pageName }: PageNotFoundProps) {
 
 				<div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
 					{isHomePage ? (
-						<button
-							onClick={handleCreateHomePage}
-							disabled={creatingHomePage}
-							style={{
-								padding: "10px 16px",
-								background: "#0b5fff",
-								color: "#fff",
-								border: "1px solid #0b5fff",
-								borderRadius: 6,
-								cursor: creatingHomePage ? "wait" : "pointer",
-								opacity: creatingHomePage ? 0.8 : 1
-							}}
-						>
-							{creatingHomePage ? "Creating..." : "Create Home Page"}
-						</button>
+						<>
+							<button
+								onClick={handleCreateHomePage}
+								disabled={creatingHomePage}
+								style={{
+									padding: "10px 16px",
+									background: "#0b5fff",
+									color: "#fff",
+									border: "1px solid #0b5fff",
+									borderRadius: 6,
+									cursor: creatingHomePage ? "wait" : "pointer",
+									opacity: creatingHomePage ? 0.8 : 1
+								}}
+							>
+								{creatingHomePage ? "Creating..." : "Create Home Page"}
+							</button>
+
+							<Link
+								to="/migrate"
+								style={{
+									display: "inline-block",
+									padding: "10px 16px",
+									background: "transparent",
+									color: "#0b5fff",
+									border: "1px solid #0b5fff",
+									borderRadius: 6,
+									textDecoration: "none"
+								}}
+							>
+								Go to Migrate
+							</Link>
+						</>
 					) : (
 						<Link
 							to="/"
