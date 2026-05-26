@@ -13,8 +13,6 @@ import NewsLayout from "./components/news/NewsLayout";
 import NotificationsLayout from "./app/(authenticated)/apps/notifications/layout";
 import NotificationsPage from "./app/(authenticated)/apps/notifications/page";
 import NotificationsInboxPage from "./app/(authenticated)/apps/notifications/inbox/page";
-import NotificationsForwardersPage from "./app/(authenticated)/apps/notifications/forwarders/page";
-import NotificationsTokensPage from "./app/(authenticated)/apps/notifications/tokens/page";
 import LinksLayout from "./app/(authenticated)/apps/links/layout";
 import LinksPage from "./app/(authenticated)/apps/links/page";
 import LinksHomePage from "./app/(authenticated)/apps/links/home/page";
@@ -91,8 +89,6 @@ export const appRouter = createBrowserRouter([
             children: [
               { index: true, element: <NotificationsPage /> },
               { path: "inbox", element: <NotificationsInboxPage /> },
-              { path: "forwarders", element: <NotificationsForwardersPage /> },
-              { path: "tokens", element: <NotificationsTokensPage /> },
             ],
           },
           {
