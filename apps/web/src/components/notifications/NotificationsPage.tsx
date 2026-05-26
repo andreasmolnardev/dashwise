@@ -167,14 +167,6 @@ export default function NotificationsPage() {
                 <h1 className="text-3xl font-semibold">Notifications</h1>
                 <div className="flex items-center gap-2">
                     <Button
-                        variant="outline"
-                        onClick={() => setCreateTopicOpen(true)}
-                        className="gap-2"
-                    >
-                        <Plus className="h-4 w-4" />
-                        Create new topic
-                    </Button>
-                    <Button
                         variant="ghost"
                         size="sm"
                         onClick={(e) => {
@@ -209,7 +201,7 @@ export default function NotificationsPage() {
                             <button
                                 onClick={() => setActiveTopic(topic.id)}
                                 className={cn(
-                                    "px-4 py-2 rounded-xl text-sm font-medium transition whitespace-nowrap",
+                                    "px-4 py-2 rounded-l-xl rounded-r-sm text-sm font-medium transition whitespace-nowrap",
                                     activeTopic === topic.id
                                         ? "bg-white/20 backdrop-blur-md text-white border border-primary"
                                         : "bg-white/10 text-gray-100 hover:bg-white/20"
@@ -220,7 +212,7 @@ export default function NotificationsPage() {
 
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
-                                    <Button variant="ghost" size="sm" className="h-9 w-9 rounded-xl bg-white/10 hover:bg-white/20">
+                                    <Button variant="ghost" size="sm" className="h-9 w-9 rounded-r-xl rounded-l-sm bg-white/10 hover:bg-white/20">
                                         <MoreHorizontal className="h-4 w-4" />
                                     </Button>
                                 </DropdownMenuTrigger>
@@ -250,6 +242,17 @@ export default function NotificationsPage() {
                             </DropdownMenu>
                         </div>
                     ))}
+
+                    <span className="w-full"></span>
+
+                    <Button
+                        variant="ghost"
+                        onClick={() => setCreateTopicOpen(true)}
+                        className="gap-2 frosted-lite"
+                    >
+                        <Plus className="h-4 w-4" />
+                        Create new topic
+                    </Button>
                 </div>
 
                 {filteredNotifications.length === 0 ? (
