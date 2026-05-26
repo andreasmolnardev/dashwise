@@ -122,25 +122,42 @@ async function getUserRecord(pb: any, userId: string): Promise<Record<string, an
 }
 
 async function getOrCreateHomeList(pb: any, userId: string): Promise<PBRecord> {
-  const existing = await pb.collection("linksLists").getFullList(1, {
+  const byType = await pb.collection("linksLists").getFullList(1, {
+    filter: `user=\"${userId}\" && type=\"home\"`,
+  });
+  if (byType[0]) return byType[0];
+
+  const byName = await pb.collection("linksLists").getFullList(1, {
     filter: `user=\"${userId}\" && name=\"Home\"`,
   });
-
-  if (existing[0]) return existing[0];
+  if (byName[0]) {
+    const currentType = String((byName[0] as any).type ?? "").trim();
+    if (currentType !== "home") {
+      return pb.collection("linksLists").update(byName[0].id, { type: "home" });
+    }
+    return byName[0];
+  }
 
   return pb.collection("linksLists").create({
     name: "Home",
     description: "Migrated from page config",
+    type: "home",
     user: userId,
   });
 }
 
 async function getLinksPayloadFromTables(pb: any, userId: string) {
-  const homeLists = await pb.collection("linksLists").getFullList(1, {
-    filter: `user=\"${userId}\" && name=\"Home\"`,
+  const homeByType = await pb.collection("linksLists").getFullList(1, {
+    filter: `user=\"${userId}\" && type=\"home\"`,
   });
+  const homeByName =
+    homeByType[0]
+      ? []
+      : await pb.collection("linksLists").getFullList(1, {
+          filter: `user=\"${userId}\" && name=\"Home\"`,
+        });
 
-  const homeList = homeLists[0];
+  const homeList = homeByType[0] ?? homeByName[0];
   if (!homeList) {
     return null;
   }
@@ -213,25 +230,61 @@ async function replaceHomeLinksFromLegacyConfig(
     ])
   );
 
-  const folderIdByGroup = new Map<string, string>();
-  for (const group of groupNames) {
+  const folderIdByPath = new Map<string, string>();
+
+  async function getOrCreateFolderId(
+    name: string,
+    parentFolderId?: string,
+    position?: number
+  ) {
+    const normalized = String(name ?? "").trim();
+    if (!normalized) return undefined;
+
+    const cacheKey = `${String(parentFolderId ?? "")}|${normalized.toLowerCase()}`;
+    const cached = folderIdByPath.get(cacheKey);
+    if (cached) return cached;
+
     const createdFolder = await pb.collection("linksFolders").create({
       list: homeList.id,
-      name: group,
+      name: normalized,
+      icon: "",
+      position,
+      ...(parentFolderId ? { parentFolder: parentFolderId } : {}),
     });
-    folderIdByGroup.set(group, createdFolder.id);
+    folderIdByPath.set(cacheKey, createdFolder.id);
+    return createdFolder.id as string;
   }
 
-  for (const link of links) {
+  const topFolderIdByGroup = new Map<string, string>();
+  for (const [index, group] of groupNames.entries()) {
+    const createdId = await getOrCreateFolderId(group, undefined, index);
+    if (createdId) {
+      topFolderIdByGroup.set(group, createdId);
+    }
+  }
+
+  for (const [index, link] of links.entries()) {
     const groupName = String(link?.linkGroup ?? "").trim();
-    const folderId = groupName ? folderIdByGroup.get(groupName) : undefined;
+    const childFolderName = String(link?.folder ?? "").trim();
+
+    let folderId = groupName ? topFolderIdByGroup.get(groupName) : undefined;
+
+    if (childFolderName) {
+      folderId = await getOrCreateFolderId(childFolderName, folderId);
+    }
+
+    const title = String(link?.name ?? link?.title ?? "").trim();
+    const url = String(link?.url ?? "").trim();
+    const iconUrl = String(link?.icon ?? link?.iconUrl ?? "").trim();
+
     await pb.collection("linkItems").create({
-      url: link?.url || "",
-      title: link?.name || link?.title || "",
-      iconUrl: link?.icon || link?.iconUrl || "",
+      url,
+      title,
+      iconUrl,
       description: link?.description || "",
       collection: homeList.id,
       folder: folderId,
+      position: index,
     });
   }
 }
