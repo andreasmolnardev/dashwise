@@ -34,10 +34,18 @@ const enableJobsWebhook =
   !!env.NEXT_PUBLIC_JOBS_URL ||
   false;
 
-const backendUrl = env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:3000";
+let backend_url = 'http://localhost:3000';
+
+if (!isDev){
+  if (env.NEXT_PUBLIC_BACKEND_URL) {
+    backend_url = env.NEXT_PUBLIC_BACKEND_URL;
+  } else {
+    backend_url = window.location.origin;
+  }
+}
 
 const config: Config = {
-  backend_url: backendUrl,
+  backend_url: backend_url,
 
   pb_url: env.NEXT_PUBLIC_PB_URL || "http://127.0.0.1:8090",
 
