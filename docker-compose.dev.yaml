@@ -10,14 +10,8 @@ services:
       - "3000:3000"
       - "5173:5173"
       - "8090:8090"
-    environment:
-      PB_ADMIN_EMAIL: default@dashwise.local
-      PB_ADMIN_PASSWORD: dashwiseIsAwesome
-      PB_URL: http://127.0.0.1:8090
-      NEXT_PUBLIC_PB_URL: http://127.0.0.1:8090
-      NODE_ENV: development
-      START_POCKETBASE: "true"
-      PB_BINARY_PATH: /usr/local/bin/pocketbase
+    env_file:
+      - .env.dev
     volumes:
       - .:/app
       - app-node-modules:/app/node_modules
