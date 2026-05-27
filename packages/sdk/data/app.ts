@@ -1,5 +1,6 @@
 import config from "../lib/config";
 import { getDashwiseSDKConnector, getServerPB } from "@dashwise/sdk/lib/pocketbase";
+import type { AppInfoResponse } from "@dashwise/types";
 
 export async function getAppConfig() {
   return getDashwiseSDKConnector().getAppConfig();
@@ -14,7 +15,7 @@ export async function getAppInfo() {
     skipTotal: true,
   }).catch(() => ({ items: [] }));
 
-  const record = result.items[0];
+  const record = result.items[0] as AppInfoResponse | undefined;
 
   return {
     updateAvailable: record?.updateAvailable || false,

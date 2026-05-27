@@ -14,14 +14,13 @@ import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
 import { Button } from "../ui/button";
 import { createTopicTokenAction } from "@/app/actions/notifications/topicTokens";
-import { TokenItem } from "@/app/(authenticated)/apps/notifications/tokens/page";
 import TopicCombobox, { type Topic } from "./TopicCombobox";
 
 type NewTokenDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   topics: Topic[];
-  onTokenCreated?: (newItem: TokenItem) => void;
+  onTokenCreated?: (newItem: any) => void;
   initialTopic?: Topic | null;
 };
 

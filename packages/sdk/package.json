@@ -10,6 +10,7 @@
   "license": "ISC",
   "dependencies": {
     "@dashwise/assets": "workspace:*",
+    "@dashwise/types": "workspace:*",
     "pocketbase": "^0.26.8",
     "rss-parser": "^3.12.0",
     "sharp": "^0.34.3",

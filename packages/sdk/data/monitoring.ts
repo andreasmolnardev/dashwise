@@ -1,5 +1,6 @@
 import config from "../lib/config";
 import { getSuperuserPB } from "@dashwise/sdk/lib/pocketbase";
+import type { MonitorsResponse } from "@dashwise/types";
 
 export type MonitorPing = {
   status?: string;
@@ -17,27 +18,26 @@ type OutlierThreshold = {
   value: number;
 };
 
-export interface MonitorRecord {
-  id: string;
-  endpoint?: string;
+export interface MonitorRecord extends Pick<
+  MonitorsResponse<unknown, unknown, unknown, unknown>,
+  | "id"
+  | "endpoint"
+  | "endpointAuth"
+  | "notifyOnStatusChange"
+  | "notifyTopicId"
+  | "pingAvgLatency"
+  | "pingOutlierThreshold"
+  | "pingOutliers"
+  | "pings"
+  | "responseUpFilter"
+  | "source"
+  | "sourcelinkId"
+  | "status"
+  | "created"
+  | "updated"
+> {
   method?: string;
-  status?: string;
-  source?: string;
-  sourcelinkId?: string;
   linkId?: string;
-  endpointAuth?: string;
-  responseUpFilter?: {
-    acceptStatusCodes?: unknown;
-    acceptBodyProperties?: unknown;
-  } | string | null;
-  pings?: MonitorPing[] | string;
-  pingAvgLatency?: string;
-  pingOutliers?: unknown;
-  pingOutlierThreshold?: OutlierThreshold | string | null;
-  notifyOnStatusChange?: boolean;
-  notifyTopicId?: string;
-  created?: string;
-  updated?: string;
   [key: string]: unknown;
 }
 

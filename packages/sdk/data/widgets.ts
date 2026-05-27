@@ -4,6 +4,7 @@ import { defaultIntegrationsBlueprint, weatherIntegrationBlueprint } from "@dash
 import { readFile } from "fs/promises";
 import path from "path";
 import YAML from "yaml";
+import type { IntegrationsResponse } from "@dashwise/types";
 
 type WidgetPreviewData = {
     template?: string;
@@ -241,10 +242,10 @@ async function getDefaultGlanceables(): Promise<GlanceableCatalogItem[]> {
 
 async function getIntegrationGlanceables(userId: string): Promise<GlanceableCatalogItem[]> {
     const pb = await getSuperuserPB();
-    const list = await pb.collection("integrations").getFullList({
+    const list = (await pb.collection("integrations").getFullList({
         filter: `user="${userId}"`,
         sort: "-updated",
-    });
+    })) as Array<IntegrationsResponse<Record<string, unknown>, Record<string, string>, Record<string, unknown>>>;
 
     const glanceables: GlanceableCatalogItem[] = [];
 
@@ -271,10 +272,10 @@ export async function getUserWidgets(userId: string) {
         merged["integration-weather"] = defaultWeatherWidgets;
     }
 
-    const list = await pb.collection("integrations").getFullList({
+    const list = (await pb.collection("integrations").getFullList({
         filter: `user=\"${userId}\"`,
         sort: "-updated",
-    });
+    })) as Array<IntegrationsResponse<Record<string, unknown>, Record<string, string>, Record<string, unknown>>>;
 
     for (const record of list) {
         const config = record?.config;

@@ -15,8 +15,8 @@
   },
   "dependencies": {
     "@dashwise/assets": "workspace:*",
+    "@dashwise/types": "workspace:*",
     "@dashwise/sdk": "workspace:*",
-    "@hono/zod-validator": "^0.2.2",
     "dotenv": "^17.2.3",
     "hono": "^4.6.14",
     "rss-parser": "^3.12.0",

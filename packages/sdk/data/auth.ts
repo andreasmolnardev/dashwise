@@ -1,5 +1,6 @@
 import { ClientResponseError, getServerPB } from "@dashwise/sdk/lib/pocketbase";
 import { defaultHomeConfig } from "@dashwise/assets";
+import type { UsersResponse } from "@dashwise/types";
 
 import speakeasy from "speakeasy";
 import config from "../lib/config";
@@ -75,17 +76,30 @@ export type UserSearchPreferences = {
   [key: string]: unknown;
 };
 
-export type AuthUserRecord = {
-  id?: string;
-  email?: string;
+export type AuthUserRecord = Partial<
+  Pick<
+    UsersResponse<
+      UserAppearancePreferences,
+      UserLocalizationPreferences,
+      Record<string, unknown>,
+      UserSearchPreferences
+    >,
+    | "id"
+    | "email"
+    | "emailVisibility"
+    | "name"
+    | "appearancePreferences"
+    | "localizationPreferences"
+    | "screensaverPreferences"
+    | "searchPreferences"
+    | "verified"
+    | "created"
+    | "updated"
+  >
+> & {
   global?: {
     linkOpenBehaviour?: string;
   };
-  name?: string;
-  appearancePreferences?: UserAppearancePreferences;
-  localizationPreferences?: UserLocalizationPreferences;
-  screensaverPreferences?: Record<string, unknown>;
-  searchPreferences?: UserSearchPreferences;
   totpSecret?: string;
   [key: string]: unknown;
 };

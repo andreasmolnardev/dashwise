@@ -1,10 +1,11 @@
 import { getSuperuserPB } from "@dashwise/sdk/lib/pocketbase";
+import type { NotificationForwardersResponse, NotificationTopicsResponse } from "@dashwise/types";
 
 export async function getForwarders(userId: string) {
   const pb = await getSuperuserPB();
-  const forwarders = await pb.collection("notificationForwarders").getFullList({
+  const forwarders = (await pb.collection("notificationForwarders").getFullList({
     filter: `topic.userId = "${userId}"`,
-  });
+  })) as Array<NotificationForwardersResponse>;
 
   return {
     items: forwarders.map((forwarder: any) => ({
@@ -22,16 +23,16 @@ export async function createForwarder(userId: string, body: any) {
   const pb = await getSuperuserPB();
   const { topic, target, isActive } = body;
 
-  const topicRecord = await pb.collection("notificationTopics").getOne(topic);
+  const topicRecord = (await pb.collection("notificationTopics").getOne(topic)) as NotificationTopicsResponse;
   if (!topicRecord || topicRecord.userId !== userId) {
     throw new Error("Topic not found or not owned by user");
   }
 
-  const created = await pb.collection("notificationForwarders").create({
+  const created = (await pb.collection("notificationForwarders").create({
     topic: topicRecord.id,
     target,
     isActive: isActive !== false,
-  });
+  })) as NotificationForwardersResponse;
 
   return {
     item: {
@@ -45,8 +46,8 @@ export async function updateForwarder(userId: string, body: any) {
   const pb = await getSuperuserPB();
   const { forwarderId, target, isActive } = body;
 
-  const forwarderRecord = await pb.collection("notificationForwarders").getOne(forwarderId);
-  const topicRecord = await pb.collection("notificationTopics").getOne(forwarderRecord.topic);
+  const forwarderRecord = (await pb.collection("notificationForwarders").getOne(forwarderId)) as NotificationForwardersResponse;
+  const topicRecord = (await pb.collection("notificationTopics").getOne(forwarderRecord.topic)) as NotificationTopicsResponse;
   if (!topicRecord || topicRecord.userId !== userId) {
     throw new Error("Forwarder not found or not owned by user");
   }
@@ -62,8 +63,8 @@ export async function updateForwarder(userId: string, body: any) {
 export async function deleteForwarder(userId: string, forwarderId: string) {
   const pb = await getSuperuserPB();
 
-  const forwarderRecord = await pb.collection("notificationForwarders").getOne(forwarderId);
-  const topicRecord = await pb.collection("notificationTopics").getOne(forwarderRecord.topic);
+  const forwarderRecord = (await pb.collection("notificationForwarders").getOne(forwarderId)) as NotificationForwardersResponse;
+  const topicRecord = (await pb.collection("notificationTopics").getOne(forwarderRecord.topic)) as NotificationTopicsResponse;
   if (!topicRecord || topicRecord.userId !== userId) {
     throw new Error("Forwarder not found or not owned by user");
   }

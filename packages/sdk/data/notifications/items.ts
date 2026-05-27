@@ -1,11 +1,17 @@
 import { getSuperuserPB } from "@dashwise/sdk/lib/pocketbase";
+import type {
+  NotificationForwardersResponse,
+  NotificationItemsResponse,
+  NotificationTopicsResponse,
+  NotificationTopicTokensResponse,
+} from "@dashwise/types";
 
 export async function getNotifications(userId: string, unread = false, count = false) {
   const pb = await getSuperuserPB();
 
-  const topics = await pb.collection("notificationTopics").getFullList({
+  const topics = (await pb.collection("notificationTopics").getFullList({
     filter: `userId="${userId}"`,
-  });
+  })) as Array<NotificationTopicsResponse>;
   const topicIds = topics.map((topic) => topic.id);
 
   if (topicIds.length === 0) {
@@ -17,11 +23,11 @@ export async function getNotifications(userId: string, unread = false, count = f
     filter = `(${filter}) && status!="read"`;
   }
 
-  const items = await pb.collection("notificationItems").getFullList({
+  const items = (await pb.collection("notificationItems").getFullList({
     filter,
     expand: "topicId",
     sort: "-created",
-  });
+  })) as Array<NotificationItemsResponse<any>>;
 
   if (count) {
     return {
@@ -49,14 +55,14 @@ export async function getNotifications(userId: string, unread = false, count = f
 
   return {
     items: items.map((item) => {
-      const topicId = typeof item.topicId === "string" ? item.topicId : item.topicId?.id ?? null;
+      const topicId = typeof item.topicId === "string" ? item.topicId : null;
       return {
         id: item.id,
         content: item.content,
         status: item.status,
         created: item.created,
         topicId,
-        topicName: topicMap[topicId] ?? null,
+        topicName: topicId ? topicMap[topicId] ?? null : null,
       };
     }),
   };
@@ -74,7 +80,7 @@ export async function getNotificationTopics(userId: string) {
 export async function createNotificationTopic(userId: string, title: string) {
   const pb = await getSuperuserPB();
 
-  let existingTopic: any = null;
+  let existingTopic: NotificationTopicsResponse | null = null;
   try {
     existingTopic = await pb
       .collection("notificationTopics")
@@ -87,11 +93,11 @@ export async function createNotificationTopic(userId: string, title: string) {
     return { ok: true, topicId: existingTopic.id };
   }
 
-  const created = await pb.collection("notificationTopics").create({
+  const created = (await pb.collection("notificationTopics").create({
     title,
     userId,
     priority: 1,
-  });
+  })) as NotificationTopicsResponse;
 
   await pb.collection("notificationItems").create({
     topicId: created.id,
@@ -106,16 +112,16 @@ export async function createNotificationTopic(userId: string, title: string) {
 export async function deleteNotificationTopic(userId: string, topicId: string) {
   const pb = await getSuperuserPB();
 
-  const topicRecord = await pb.collection("notificationTopics").getOne(topicId);
+  const topicRecord = (await pb.collection("notificationTopics").getOne(topicId)) as NotificationTopicsResponse;
   if (!topicRecord || topicRecord.userId !== userId) {
     throw new Error("Topic not found or not owned by user");
   }
 
-  const [items, tokens, forwarders] = await Promise.all([
+  const [items, tokens, forwarders] = (await Promise.all([
     pb.collection("notificationItems").getFullList({ filter: `topicId="${topicId}"` }),
     pb.collection("notificationTopicTokens").getFullList({ filter: `topic="${topicId}"` }),
     pb.collection("notificationForwarders").getFullList({ filter: `topic="${topicId}"` }),
-  ]);
+  ])) as [Array<NotificationItemsResponse>, Array<NotificationTopicTokensResponse>, Array<NotificationForwardersResponse>];
 
   await Promise.allSettled([
     ...items.map((item) => pb.collection("notificationItems").delete(item.id)),
@@ -131,7 +137,7 @@ export async function deleteNotificationTopic(userId: string, topicId: string) {
 export async function sendTestNotification(userId: string, topicId: string) {
   const pb = await getSuperuserPB();
   
-  const topic = await pb.collection("notificationTopics").getOne(topicId);
+  const topic = (await pb.collection("notificationTopics").getOne(topicId)) as NotificationTopicsResponse;
   if (topic.userId !== userId) {
     throw new Error("Unauthorized");
   }
@@ -163,9 +169,9 @@ export async function markNotificationsAsRead(userId: string, ids: string[]) {
   let targetIds = ids;
 
   if (targetIds.length === 0) {
-    const topics = await pb.collection("notificationTopics").getFullList({
+    const topics = (await pb.collection("notificationTopics").getFullList({
       filter: `userId="${userId}"`,
-    });
+      })) as Array<NotificationTopicsResponse>;
     const topicIds = topics.map((topic) => topic.id);
 
     if (topicIds.length === 0) {
@@ -173,7 +179,7 @@ export async function markNotificationsAsRead(userId: string, ids: string[]) {
     }
 
     const filter = topicIds.map((id) => `topicId="${id}"`).join(" || ");
-    const items = await pb.collection("notificationItems").getFullList({ filter, sort: "-created" });
+    const items = (await pb.collection("notificationItems").getFullList({ filter, sort: "-created" })) as Array<NotificationItemsResponse>;
     targetIds = items.filter((item) => item.status !== "read").map((item) => item.id);
 
     if (targetIds.length === 0) {

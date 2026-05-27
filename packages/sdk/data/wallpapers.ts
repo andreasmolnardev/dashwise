@@ -1,5 +1,6 @@
 import sharp from "sharp";
 import { getServerPB } from "@dashwise/sdk/lib/pocketbase";
+import type { WallpaperStoreResponse } from "@dashwise/types";
 
 const MAX_WIDTH = 3840;
 const MAX_HEIGHT = 2160;
@@ -64,14 +65,18 @@ export async function getWallpaperByFileName(userToken: string, fileName: string
   const pb = getServerPB();
   pb.authStore.save(userToken, null);
 
-  let record;
+  let record: WallpaperStoreResponse | null = null;
   try {
     record = await pb.collection("wallpaperStore").getFirstListItem(`fileName="${fileName}"`);
   } catch {
     return null;
   }
 
-  const fileUrl = pb.files.getURL(record, (record as any).image);
+  if (!record) {
+    return null;
+  }
+
+  const fileUrl = pb.files.getURL(record, record.image ?? "");
   const fileResponse = await fetch(fileUrl, {
     headers: { Authorization: `Bearer ${userToken}` },
   });

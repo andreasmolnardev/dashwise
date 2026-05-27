@@ -1,19 +1,20 @@
 import { getSuperuserPB } from "@dashwise/sdk/lib/pocketbase";
 import crypto from "crypto";
+import type { NotificationTopicsResponse, NotificationTopicTokensResponse } from "@dashwise/types";
 
 export async function listTopicTokens(userId: string) {
   const pb = await getSuperuserPB();
 
-  const topics = await pb.collection("notificationTopics").getFullList({
+  const topics = (await pb.collection("notificationTopics").getFullList({
     filter: `userId="${userId}"`,
-  });
+  })) as Array<NotificationTopicsResponse>;
   if (topics.length === 0) {
     return { items: [] };
   }
 
-  const tokens = await pb.collection("notificationTopicTokens").getFullList({
+  const tokens = (await pb.collection("notificationTopicTokens").getFullList({
     filter: `topic.userId = "${userId}"`,
-  });
+  })) as Array<NotificationTopicTokensResponse>;
 
   const now = new Date();
   for (const token of tokens) {
@@ -41,9 +42,9 @@ export async function createTopicToken(userId: string, body: any) {
   const pb = await getSuperuserPB();
   const { topicId, topicName, expires } = body;
 
-  let topicRecord: any = null;
+  let topicRecord: NotificationTopicsResponse | null = null;
   if (topicId) {
-    topicRecord = await pb.collection("notificationTopics").getOne(topicId);
+    topicRecord = (await pb.collection("notificationTopics").getOne(topicId)) as NotificationTopicsResponse;
     if (!topicRecord || topicRecord.userId !== userId) {
       throw new Error("Topic not found or not owned by user");
     }
@@ -52,7 +53,7 @@ export async function createTopicToken(userId: string, body: any) {
     const topics = await pb
       .collection("notificationTopics")
       .getFullList({ filter: `userId="${userId}" && title="${safeName}"` });
-    topicRecord = topics[0] ?? null;
+    topicRecord = (topics[0] as NotificationTopicsResponse | undefined) ?? null;
   }
 
   if (!topicRecord) {
@@ -72,7 +73,7 @@ export async function createTopicToken(userId: string, body: any) {
     }
   }
 
-  const created = await pb.collection("notificationTopicTokens").create(payload);
+  const created = (await pb.collection("notificationTopicTokens").create(payload)) as NotificationTopicTokensResponse;
 
   return {
     item: {
@@ -86,8 +87,8 @@ export async function createTopicToken(userId: string, body: any) {
 export async function deleteTopicToken(userId: string, tokenId: string) {
   const pb = await getSuperuserPB();
 
-  const tokenRecord = await pb.collection("notificationTopicTokens").getOne(tokenId);
-  const topicRecord = await pb.collection("notificationTopics").getOne(tokenRecord.topic);
+  const tokenRecord = (await pb.collection("notificationTopicTokens").getOne(tokenId)) as NotificationTopicTokensResponse;
+  const topicRecord = (await pb.collection("notificationTopics").getOne(tokenRecord.topic)) as NotificationTopicsResponse;
   if (!topicRecord || topicRecord.userId !== userId) {
     throw new Error("Token not found or not owned by user");
   }
@@ -98,9 +99,9 @@ export async function deleteTopicToken(userId: string, tokenId: string) {
 
 export async function resolveTopicToken(token: string) {
   const pb = await getSuperuserPB();
-  const records = await pb.collection("notificationTopicTokens").getFullList({
+  const records = (await pb.collection("notificationTopicTokens").getFullList({
     filter: `token="${token}"`,
-  });
+  })) as Array<NotificationTopicTokensResponse>;
   
   const tokenRecord = records[0];
   if (!tokenRecord) {
@@ -112,7 +113,7 @@ export async function resolveTopicToken(token: string) {
     return null;
   }
 
-  const topicRecord = await pb.collection("notificationTopics").getOne(tokenRecord.topic);
+  const topicRecord = (await pb.collection("notificationTopics").getOne(tokenRecord.topic)) as NotificationTopicsResponse;
   if (!topicRecord) {
     return null;
   }

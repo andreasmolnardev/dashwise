@@ -48,6 +48,7 @@ import { faEllipsisV, faPaperclip } from "@fortawesome/free-solid-svg-icons";
 import { Icon as Iconify } from "@iconify-icon/react";
 import { Check, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
+import type { LinkType, StatusCheckAuth, StatusCheckMethod } from "@dashwise/types";
 
 interface Icon {
   Name: string;
@@ -59,29 +60,8 @@ interface Icon {
   Category: string;
 }
 
-type StatusCheckMethod = "GET" | "HEAD" | "POST" | "PUT" | "PATCH" | "DELETE" | "OPTIONS";
-
-type StatusCheckAuth =
-  | { type: "bearer"; token: string }
-  | { type: "basic"; username: string; password: string }
-  | { type: "header"; name: string; value: string };
-
-export interface LinkObject {
-  id?: string;
-  icon?: string;
-  linkGroup?: string;
-  folder?: string;
-  name?: string;
-  url?: string;
-  statusCheck?: boolean;
-  statusCheckEndpoint?: string;
-  statusCheckMethod?: StatusCheckMethod;
-  statusCheckAuth?: StatusCheckAuth;
-  statusCheckShowAsUp?: number[];
-}
-
 interface LinkDetailsFormProps {
-  link?: LinkObject;
+  link?: LinkType;
   onClose?: () => void | Promise<void>;
   preselectOpenedGroup?: string;
   onOptimisticSave?: (
@@ -115,7 +95,7 @@ export default function LinkDetailsForm({
   const [linkId, setLinkId] = useState(() => link?.id || generateRandomId());
   const [url, setUrl] = useState("");
   const [icon, setIcon] = useState<IconResult | null>(null);
-  const [linkGroup, setLinkGroup] = useState(() => preselectOpenedGroup || link?.linkGroup || "");
+  const [linkGroup, setLinkGroup] = useState(() => preselectOpenedGroup || link?.linkGroup || link?.collection || "");
   const [folder, setFolder] = useState(() => link?.folder || "");
   const [statusCheck, setStatusCheck] = useState(false);
   const [statusCheckEndpoint, setStatusCheckEndpoint] = useState("");
@@ -238,18 +218,21 @@ export default function LinkDetailsForm({
   };
 
   useEffect(() => {
-    if (link?.name && link?.url && link?.icon) {
-      setName(link.name);
+    const initialName = link?.name || link?.title;
+    const initialIcon = link?.icon || link?.iconUrl;
+
+    if (initialName && link?.url && initialIcon) {
+      setName(initialName);
       setUrl(link.url);
-      const iconifySlug = getIconifySlugFromUrl(link.icon);
-      const monoReference = getMonoIconReferenceFromUrl(link.icon);
-      const localIconSet = getLocalIconSetFromUrl(link.icon);
+      const iconifySlug = getIconifySlugFromUrl(initialIcon);
+      const monoReference = getMonoIconReferenceFromUrl(initialIcon);
+      const localIconSet = getLocalIconSetFromUrl(initialIcon);
 
       setIcon(
         iconifySlug
           ? { url: iconifySlug, iconSet: "custom", name: iconifySlug }
           : {
-            url: link.icon,
+            url: initialIcon,
             iconSet: localIconSet ?? (monoReference ? "mono" : "default"),
           }
       );

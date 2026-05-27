@@ -10,6 +10,7 @@ import {
 } from "@/app/actions/links";
 import { PaginatedCarouselViewComponent } from "./PaginatedCarouselView";
 import MonitoringDialog, { JobEntry } from "./MonitoringDialog";
+import type { LinkType } from "@dashwise/types";
 import {
   Popover,
   PopoverContent,
@@ -54,19 +55,6 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { updateLinksOrderAction } from "@/app/actions/links";
-
-export interface LinkType {
-  id?: string;
-  title?: string;
-  url?: string;
-  iconUrl?: string;
-  collection?: string;
-  collectionId?: string;
-  folder?: string;
-  folderId?: string;
-  folderIcon?: string;
-  statusCheck?: boolean;
-}
 
 export default function LinkView({ links = [] }: { links?: LinkType[] }) {
   const { pageConfig } = usePageConfig();

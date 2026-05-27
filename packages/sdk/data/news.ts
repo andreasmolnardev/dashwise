@@ -2,6 +2,7 @@ import Parser from 'rss-parser';
 import { channelId } from "@gonetone/get-youtube-id-by-url";
 import config from "../lib/config";
 import { getFaviconFromDOM } from "../lib/api/tools/faviconFromDom";
+import type { NewsFeedsRecord, NewsSubscriptionsRecord } from "@dashwise/types";
 import {
   deleteNewsSubscription,
   getAllNewsFeeds,
@@ -90,19 +91,14 @@ export type NewsFeedDraft = Omit<NewsSubscription, "feedUrl" | "url"> & {
   url?: string;
 };
 
-export type NewsFeedRecord = {
-  id: string;
-  title?: string;
-  subscriptionRefs?: string[];
-  excludedSubscriptionRefs?: string[];
-};
+export type NewsFeedRecord = Pick<
+  NewsFeedsRecord,
+  "id" | "title" | "subscriptionRefs" | "excludedSubscriptionRefs"
+>;
 
 export type NewsFeedRecordUpdateInput = {
   feedId: string;
-  title?: string;
-  subscriptionRefs?: string[];
-  excludedSubscriptionRefs?: string[];
-};
+} & Pick<NewsFeedsRecord, "title" | "subscriptionRefs" | "excludedSubscriptionRefs">;
 
 function escapeFilter(value: string) {
   return value.replace(/"/g, '\\"');
@@ -271,7 +267,7 @@ export async function getNewsFeedRecord(userId: string, feedId: string): Promise
   if (!normalizedFeedId) return null;
 
   if (normalizedFeedId === "all") {
-    const allFeedRecord = await getNewsFeedByTitle(userId, "All feed").catch(() => null);
+    const allFeedRecord = (await getNewsFeedByTitle(userId, "All feed").catch(() => null)) as NewsFeedRecord | null;
     if (allFeedRecord) {
       return normalizeFeedRecord(allFeedRecord as Record<string, unknown>);
     }
@@ -284,7 +280,7 @@ export async function getNewsFeedRecord(userId: string, feedId: string): Promise
     };
   }
 
-  const feedRecord = await getNewsFeedById(normalizedFeedId).catch(() => null);
+  const feedRecord = (await getNewsFeedById(normalizedFeedId).catch(() => null)) as NewsFeedRecord | null;
   if (!feedRecord) return null;
 
   const ownerId = String((feedRecord as Record<string, unknown>).userId ?? "").trim();
@@ -310,7 +306,7 @@ export async function updateNewsFeedRecordForUser(
   );
 
   if (normalizedFeedId === "all") {
-    const existingFeed = await getNewsFeedByTitle(userId, "All feed").catch(() => null);
+    const existingFeed = (await getNewsFeedByTitle(userId, "All feed").catch(() => null)) as NewsFeedRecord | null;
     if (existingFeed?.id) {
       return updateNewsFeedRecord(String(existingFeed.id), {
         title: title || "All feed",
@@ -331,7 +327,7 @@ export async function updateNewsFeedRecordForUser(
     });
   }
 
-  const feedRecord = await getNewsFeedById(normalizedFeedId).catch(() => null);
+  const feedRecord = (await getNewsFeedById(normalizedFeedId).catch(() => null)) as NewsFeedRecord | null;
   if (!feedRecord) return null;
 
   const ownerId = String((feedRecord as Record<string, unknown>).userId ?? "").trim();
@@ -381,19 +377,19 @@ async function syncSubscriptionFeedRefs(
     const title = String(rawTitle || "").trim();
     if (!title) continue;
 
-    const existingFeed = await getNewsFeedByTitle(userId, title).catch(() => null);
+    const existingFeed = (await getNewsFeedByTitle(userId, title).catch(() => null)) as NewsFeedRecord | null;
 
     if (existingFeed?.id) {
       selectedIds.add(String(existingFeed.id));
       continue;
     }
 
-    const createdFeed = await createNewsFeedRecord({
+    const createdFeed = (await createNewsFeedRecord({
       userId,
       title,
       subscriptionRefs: [subscriptionId],
       excludedSubscriptionRefs: [],
-    });
+    })) as NewsFeedRecord;
     selectedIds.add(String(createdFeed.id));
   }
 
@@ -483,7 +479,7 @@ export async function getNewsFeed(userId: string, feedId?: string | null): Promi
   const subscriptionIds = await getUserSubscriptionIdsFromFeeds(feeds);
   const excludedIds = await getUserExcludedSubscriptionIdsFromFeeds(feeds);
 
-  const allSubscriptions = (await getAllNewsSubscriptions(2000)) as Array<Record<string, unknown>>;
+  const allSubscriptions = (await getAllNewsSubscriptions(2000)) as Array<NewsSubscriptionsRecord>;
   const subscriptions = allSubscriptions
     .map(normalizeSubscription)
     .filter((entry: NewsSubscription | null): entry is NewsSubscription => Boolean(entry));
@@ -500,7 +496,7 @@ export async function getNewsSubscriptions(userId: string): Promise<NewsSubscrip
   const feeds = await getUserFeeds(userId);
   const subscriptionIds = await getUserSubscriptionIdsFromFeeds(feeds);
 
-  const allSubscriptions = (await getAllNewsSubscriptions(2000)) as Array<Record<string, unknown>>;
+  const allSubscriptions = (await getAllNewsSubscriptions(2000)) as Array<NewsSubscriptionsRecord>;
   const subscriptions = allSubscriptions
     .map(normalizeSubscription)
     .filter((entry: NewsSubscription | null): entry is NewsSubscription => Boolean(entry));
@@ -573,10 +569,11 @@ export async function subscribeNewsFeed(
 
   sub.icon = sub.icon?.trim() || (await getFaviconFromDOM(sub.feedUrl, true)) || "";
 
-  const existing = await getNewsSubscriptionByUrl(sub.feedUrl).catch(() => null);
+  const existing = (await getNewsSubscriptionByUrl(sub.feedUrl).catch(() => null)) as NewsSubscription | null;
 
   if (existing) {
-    await updateNewsSubscription(existing.id, {
+    const subscriptionId = existing.id as string;
+    await updateNewsSubscription(subscriptionId, {
       url: sub.feedUrl,
       icon: sub.icon,
       json: existing.json ?? [],
@@ -585,8 +582,8 @@ export async function subscribeNewsFeed(
       thumbnailOverwriteUrl: sub.thumbnailOverwriteUrl,
     });
 
-    if (existing.id) {
-      const feedIds = await syncSubscriptionFeedRefs(userId, existing.id, sub.feedIds ?? [], sub.newFeedTitles ?? []);
+    if (subscriptionId) {
+      const feedIds = await syncSubscriptionFeedRefs(userId, subscriptionId, sub.feedIds ?? [], sub.newFeedTitles ?? []);
 
       // Refreshing of feeds is now handled by the API layer internally
       /*
@@ -596,7 +593,7 @@ export async function subscribeNewsFeed(
       */
     }
   } else {
-    const created = await createNewsSubscription({
+    const created = (await createNewsSubscription({
       url: sub.feedUrl,
       title: sub.name,
       icon: sub.icon,
@@ -604,7 +601,7 @@ export async function subscribeNewsFeed(
       linkReplaceRule: sub.linkReplaceRule,
       fallbackThumbnailUrl: sub.fallbackThumbnailUrl,
       thumbnailOverwriteUrl: sub.thumbnailOverwriteUrl,
-    });
+    })) as NewsSubscription;
 
     if (created?.id) {
       const feedIds = await syncSubscriptionFeedRefs(userId, created.id, sub.feedIds ?? [], sub.newFeedTitles ?? []);
@@ -630,17 +627,19 @@ export async function updateNewsFeed(
   userId: string,
   payload: NewsUpdateInput
 ): Promise<{ message: string } | { _status: number; error: string }> {
-  const target = payload.subscriptionId
+  const target = (payload.subscriptionId
     ? await getNewsSubscriptionById(payload.subscriptionId)
     : payload.oldFeedUrl
       ? await getNewsSubscriptionByUrl(payload.oldFeedUrl)
-      : null;
+      : null) as NewsSubscription | null;
 
   if (!target) {
     return { _status: 404, error: "Subscription not found" };
   }
 
-  await updateNewsSubscription(target.id, {
+  const subscriptionId = target.id as string;
+
+  await updateNewsSubscription(subscriptionId, {
     url: payload.feedUrl,
     title: payload.title,
     icon: payload.icon || target.icon || "",
@@ -650,7 +649,7 @@ export async function updateNewsFeed(
     thumbnailOverwriteUrl: payload.thumbnailOverwriteUrl !== undefined ? payload.thumbnailOverwriteUrl : target.thumbnailOverwriteUrl,
   });
 
-  await syncSubscriptionFeedRefs(userId, target.id, payload.feedIds ?? []);
+  await syncSubscriptionFeedRefs(userId, subscriptionId, payload.feedIds ?? []);
 
   return { message: "Subscription updated" };
 }

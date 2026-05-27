@@ -1,4 +1,5 @@
 import { getSuperuserPB } from "@dashwise/sdk/lib/pocketbase";
+import type { SearchItemsResponse } from "@dashwise/types";
 
 function parseTags(value: unknown): string[] {
   if (Array.isArray(value)) {
@@ -27,10 +28,10 @@ function parseTags(value: unknown): string[] {
 
 export async function getSearchItems(userId: string) {
   const pb = await getSuperuserPB();
-  const records = await pb.collection("searchItems").getFullList(1000, {
+  const records = (await pb.collection("searchItems").getFullList(1000, {
     filter: `user=\"${userId.replace(/"/g, '\\"')}\"`,
     sort: "name",
-  });
+  })) as Array<SearchItemsResponse>;
 
   return records.map((record) => {
     const action = parseAction(record.action);

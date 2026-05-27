@@ -1,5 +1,6 @@
 import { getServerPB, getSuperuserPB } from "@dashwise/sdk/lib/pocketbase";
 import { resolveTopicToken } from "@dashwise/sdk/data/notifications/topicTokens";
+import type { NotificationItemsResponse, NotificationTopicsResponse } from "@dashwise/types";
 
 type PublishToUserTopicInput = {
   userId: string;
@@ -15,13 +16,13 @@ export async function createNotificationWithTopicToken(topicToken: string, conte
   }
 
   const pb = await getSuperuserPB();
-  const createdItem = await pb.collection("notificationItems").create({
+  const createdItem = (await pb.collection("notificationItems").create({
     topicId: resolved.topicId,
     content,
     status: "sent",
     source: "token",
     forwardStatus: "none",
-  });
+  })) as NotificationItemsResponse;
 
   return {
     topicId: resolved.topicId,
@@ -36,9 +37,9 @@ export async function createNotificationForUserTopic(input: PublishToUserTopicIn
   const safeTopic = String(topic).replace(/"/g, '\\"');
   const filter = `title="${safeTopic}" && userId="${userId}"`;
 
-  let existing: Record<string, any> | null = null;
+  let existing: NotificationTopicsResponse | null = null;
   try {
-    existing = await pb.collection("notificationTopics").getFirstListItem(filter);
+    existing = (await pb.collection("notificationTopics").getFirstListItem(filter)) as NotificationTopicsResponse;
   } catch {
     existing = null;
   }
@@ -53,13 +54,13 @@ export async function createNotificationForUserTopic(input: PublishToUserTopicIn
         })
       ).id;
 
-  const notificationItem = await pb.collection("notificationItems").create({
+  const notificationItem = (await pb.collection("notificationItems").create({
     topicId,
     content,
     status: "sent",
     source,
     forwardStatus: "none",
-  });
+  })) as NotificationItemsResponse;
 
   return {
     topicId,
@@ -73,13 +74,13 @@ export async function createNotificationByTopicId(
   source = "system",
 ) {
   const pb = await getSuperuserPB();
-  const notificationItem = await pb.collection("notificationItems").create({
+  const notificationItem = (await pb.collection("notificationItems").create({
     topicId,
     content,
     status: "sent",
     source,
     forwardStatus: "none",
-  });
+  })) as NotificationItemsResponse;
 
   return {
     topicId,

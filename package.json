@@ -10,5 +10,5 @@
     "build": "bun run --workspaces --if-present build",
     "lint": "bun run --workspaces --if-present lint",
     "typecheck": "bun run --workspaces --if-present typecheck"
-  },
+  }
 }

@@ -1,4 +1,5 @@
 import { defaultShortcutsManifest } from "@dashwise/assets";
+import type { HomeLink } from "@dashwise/types";
 import { getHomeLinks } from "@dashwise/sdk/data/links";
 import config from "@dashwise/sdk/lib/config";
 import { getSuperuserPB } from "@dashwise/sdk/lib/pocketbase";
@@ -43,7 +44,7 @@ export async function runSearchItemsIndexing() {
     if (!userId) continue;
 
     const rows: SearchItemRow[] = buildDefaultShortcutSearchRows();
-    const links = await getHomeLinks(userId).catch(() => [] as any[]);
+    const links = await getHomeLinks(userId).catch(() => [] as HomeLink[]);
     for (const link of links) {
       const name = String(link?.title ?? "").trim();
       const url = String(link?.url ?? "").trim();

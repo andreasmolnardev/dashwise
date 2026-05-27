@@ -1,4 +1,5 @@
 import { getSuperuserPB } from "@dashwise/sdk/lib/pocketbase";
+import type { PageConfigResponse } from "@dashwise/types";
 /*
 PAGE CONFIG
 format:
@@ -24,14 +25,10 @@ export type PageConfig = {
     [key: string]: unknown;
 };
 
-type PageConfigRecord = {
-    id: string;
-    pageName: string;
-    associatedUserId: string;
-    config: PageConfig;
-    created: string;
-    updated: string;
-};
+type PageConfigRecord = Pick<
+    PageConfigResponse<PageConfig>,
+    "id" | "pageName" | "associatedUserId" | "config" | "created" | "updated"
+>;
 
 function escapeFilter(value: string) {
     return value.replace(/"/g, '\\"');
