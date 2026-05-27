@@ -3,6 +3,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    image: andreasmolnardev/dashwise:aio-preview
     ports:
       - "3016:3000"
       - "8090:8090"
