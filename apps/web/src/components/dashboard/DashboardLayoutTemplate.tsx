@@ -50,9 +50,11 @@ function sortWidgetEntries(entries: Record<string, any>) {
 export default function DashboardLayoutTemplate({
     config,
     pageName,
+    isLoading = false,
 }: {
-    config: Record<string, any>;
+    config: Record<string, any> | null;
     pageName?: string;
+    isLoading?: boolean;
 }) {
     const { token } = useAuth();
     const [searchParams] = useSearchParams();
@@ -74,11 +76,11 @@ export default function DashboardLayoutTemplate({
     >("idle");
     const [integrationStreamVersion, setIntegrationStreamVersion] = useState(0);
 
-    if (!config) {
+    if (!config && !isLoading) {
         return <PageNotFound />
     }
 
-    const columns = config.columns as
+    const columns = config?.columns as
         | Record<Column, Record<string, any>>
         | undefined;
 
@@ -422,6 +424,66 @@ export default function DashboardLayoutTemplate({
         }
     };
 
+    const renderColumnSkeleton = (columnName: Column) => {
+        switch (columnName) {
+            case "left":
+                return (
+                    <div className="space-y-4 w-full">
+                        {/* Clock skeleton */}
+                        <div className="h-[96px] w-full frosted rounded-xl animate-pulse flex items-center justify-center">
+                            <div className="h-4 w-1/3 bg-white/10 rounded animate-pulse" />
+                        </div>
+                        {/* Widget panel skeleton */}
+                        <div className="h-[250px] w-full frosted rounded-xl animate-pulse flex flex-col p-4 space-y-3">
+                            <div className="h-4 w-1/4 bg-white/10 rounded animate-pulse" />
+                            <div className="h-2.5 w-full bg-white/10 rounded animate-pulse" />
+                            <div className="h-2.5 w-5/6 bg-white/10 rounded animate-pulse" />
+                            <div className="h-2.5 w-4/6 bg-white/10 rounded animate-pulse" />
+                        </div>
+                    </div>
+                );
+            case "middle":
+                return (
+                    <div className="space-y-4 w-full">
+                        {/* Search Bar skeleton */}
+                        <div className="h-[42px] w-full frosted rounded-xl animate-pulse flex items-center px-4">
+                            <div className="h-4 w-12 bg-white/10 rounded animate-pulse" />
+                        </div>
+                        {/* Link tiles grid skeleton */}
+                        <div className="p-4 frosted rounded-xl w-full">
+                            <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                                {Array.from({ length: 12 }).map((_, i) => (
+                                    <div
+                                        key={i}
+                                        className="aspect-square w-full frosted rounded-xl animate-pulse flex items-center justify-center"
+                                    >
+                                        <div className="w-1/2 h-1/2 rounded bg-white/10 animate-pulse" />
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                );
+            case "right":
+                return (
+                    <div className="space-y-4 w-full">
+                        <div className="h-[180px] w-full frosted rounded-xl animate-pulse flex flex-col p-4 space-y-3">
+                            <div className="h-4 w-1/3 bg-white/10 rounded animate-pulse" />
+                            <div className="h-2.5 w-full bg-white/10 rounded animate-pulse" />
+                            <div className="h-2.5 w-full bg-white/10 rounded animate-pulse" />
+                        </div>
+                        <div className="h-[180px] w-full frosted rounded-xl animate-pulse flex flex-col p-4 space-y-3">
+                            <div className="h-4 w-1/4 bg-white/10 rounded animate-pulse" />
+                            <div className="h-2.5 w-full bg-white/10 rounded animate-pulse" />
+                            <div className="h-2.5 w-5/6 bg-white/10 rounded animate-pulse" />
+                        </div>
+                    </div>
+                );
+            default:
+                return null;
+        }
+    };
+
     const renderColumn = (columnName: Column) => {
         const entries = columns?.[columnName];
         return (
@@ -431,11 +493,15 @@ export default function DashboardLayoutTemplate({
                 className={COLUMN_CLASSNAME[columnName]}
                 style={{ scrollSnapStop: "always", touchAction: "pan-x" }}
             >
-                {entries && typeof entries === "object"
-                    ? sortWidgetEntries(entries).map(([key, cfg], i) =>
-                        renderWidgetEntry(columnName, key, cfg as Record<string, any>, i)
-                    )
-                    : null}
+                {isLoading ? (
+                    renderColumnSkeleton(columnName)
+                ) : (
+                    entries && typeof entries === "object"
+                        ? sortWidgetEntries(entries).map(([key, cfg], i) =>
+                            renderWidgetEntry(columnName, key, cfg as Record<string, any>, i)
+                        )
+                        : null
+                )}
             </div>
         );
     };
@@ -466,6 +532,14 @@ export default function DashboardLayoutTemplate({
                     columns={columns}
                 />
             </div>
+            {openFromURL && (
+                <div className="hidden">
+                    {renderWidget({
+                        type: "search-bar",
+                        defaultOpen: true,
+                    })}
+                </div>
+            )}
         </PageIntegrationStreamProvider>
     );
 }

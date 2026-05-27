@@ -17,6 +17,8 @@ export default function DashboardPageFromConfig() {
 
     useEffect(() => {
         let mounted = true;
+        setLoading(true);
+        setConfig(null);
         (async () => {
             try {
                 const cfg = await withAuth(async (auth) => getPageConfigAction(auth, pageName || undefined));
@@ -32,8 +34,7 @@ export default function DashboardPageFromConfig() {
         };
     }, [pageName, withAuth]);
 
-    if (loading) return null;
-    if (!config) return <PageNotFound pageName={pageName} />;
+    if (!loading && !config) return <PageNotFound pageName={pageName} />;
 
-    return <DashboardLayoutTemplate config={config} pageName={pageName} />;
+    return <DashboardLayoutTemplate config={config} pageName={pageName} isLoading={loading} />;
 }
