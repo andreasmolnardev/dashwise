@@ -11,10 +11,4 @@
     "lint": "bun run --workspaces --if-present lint",
     "typecheck": "bun run --workspaces --if-present typecheck"
   },
-  "dependencies": {
-    "@trpc/client": "^11.16.0",
-    "@trpc/server": "^11.16.0",
-    "react-use-measure": "^2.1.7",
-    "ts-caldav": "^0.3.6"
-  }
 }
