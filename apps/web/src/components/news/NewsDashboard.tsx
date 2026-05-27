@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import useAuth from "@/context/useAuth";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Icon } from "@iconify-icon/react";
@@ -17,12 +17,16 @@ import {
 import {
     Dialog,
     DialogContent,
+    DialogDescription,
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import NewsFeedEditModal from "./NewsFeedEditModal";
 import SubscriptionDetailsForm from "./SubscriptionDetailsForm";
 import {
+    createNewsFeedRecordAction,
     getNewsFeedAction,
     getNewsFeedRecordAction,
     getNewsFeedMetadataAction,
@@ -64,6 +68,10 @@ export default function NewsDashboardComponent(
     const [editingFeed, setEditingFeed] = useState<NewsFeedDraft | null>(null);
     const [editFeedOpen, setEditFeedOpen] = useState(false);
     const [editingNewsFeed, setEditingNewsFeed] = useState<NewsFeedRecord | null>(null);
+    const [createFeedOpen, setCreateFeedOpen] = useState(false);
+    const [newFeedTitle, setNewFeedTitle] = useState("");
+    const [createFeedSaving, setCreateFeedSaving] = useState(false);
+    const [createFeedError, setCreateFeedError] = useState<string | null>(null);
     const [loadingFeedRecord, setLoadingFeedRecord] = useState(false);
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [refreshStatus, setRefreshStatus] = useState<string | null>(null);
@@ -123,6 +131,18 @@ export default function NewsDashboardComponent(
         if (sidebarAction === "subscribe") {
             setEditingFeed(null);
             setAddOpen(true);
+            navigate(
+                `/apps/news/${activeFeedId === "all" ? "" : activeFeedId}`
+                    .replace(/\/$/, ""),
+                { replace: true },
+            );
+            return;
+        }
+
+        if (sidebarAction === "create-feed") {
+            setCreateFeedOpen(true);
+            setNewFeedTitle("");
+            setCreateFeedError(null);
             navigate(
                 `/apps/news/${activeFeedId === "all" ? "" : activeFeedId}`
                     .replace(/\/$/, ""),
@@ -218,6 +238,40 @@ export default function NewsDashboardComponent(
         setEditFeedOpen(false);
         setEditingNewsFeed(null);
         setLoadingFeedRecord(false);
+    };
+
+    const closeCreateFeedModal = () => {
+        setCreateFeedOpen(false);
+        setNewFeedTitle("");
+        setCreateFeedError(null);
+    };
+
+    const handleCreateFeed = async (event: FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+        const title = newFeedTitle.trim();
+
+        if (!title) {
+            setCreateFeedError("Feed name is required");
+            return;
+        }
+
+        setCreateFeedSaving(true);
+        setCreateFeedError(null);
+
+        try {
+            const createdFeed = await withAuth((auth) => createNewsFeedRecordAction(auth, { title }));
+            await loadSubscriptions();
+            window.dispatchEvent(new CustomEvent("dashwise:news-sidebar-refresh"));
+            closeCreateFeedModal();
+
+            if (createdFeed?.id) {
+                navigate(`/apps/news/${createdFeed.id}`);
+            }
+        } catch (err) {
+            setCreateFeedError(err instanceof Error ? err.message : String(err));
+        } finally {
+            setCreateFeedSaving(false);
+        }
     };
 
     const currentSubscription = subscriptions?.find((subscription) =>
@@ -603,6 +657,50 @@ export default function NewsDashboardComponent(
                             }}
                         />
                     </div>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={createFeedOpen} onOpenChange={(open) => !open && closeCreateFeedModal()}>
+                <DialogContent className="frosted text-foreground w-[min(92vw,28rem)]">
+                    <DialogHeader>
+                        <DialogTitle>Create feed</DialogTitle>
+                        <DialogDescription>
+                            Add a new feed group to organize subscriptions.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <form onSubmit={handleCreateFeed} className="space-y-4">
+                        <div>
+                            <Label htmlFor="new-news-feed-title">Feed name</Label>
+                            <Input
+                                id="new-news-feed-title"
+                                className="frosted mt-1"
+                                placeholder="Homelab"
+                                value={newFeedTitle}
+                                onChange={(event) => setNewFeedTitle(event.target.value)}
+                                disabled={createFeedSaving}
+                                autoFocus
+                            />
+                        </div>
+
+                        {createFeedError && (
+                            <p className="text-sm text-red-400">{createFeedError}</p>
+                        )}
+
+                        <div className="flex items-center justify-end gap-3 pt-2">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={closeCreateFeedModal}
+                                disabled={createFeedSaving}
+                            >
+                                Cancel
+                            </Button>
+                            <Button type="submit" disabled={createFeedSaving || !newFeedTitle.trim()}>
+                                {createFeedSaving ? "Creating..." : "Create feed"}
+                            </Button>
+                        </div>
+                    </form>
                 </DialogContent>
             </Dialog>
 

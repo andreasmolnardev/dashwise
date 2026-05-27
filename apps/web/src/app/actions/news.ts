@@ -4,6 +4,7 @@ import type {
   NewsFeedItem,
   NewsFeedMetadata,
   NewsFeedRecord,
+  NewsFeedRecordCreateInput,
   NewsFeedRecordUpdateInput,
   NewsFeedsResponse,
   NewsSubscribeInput,
@@ -18,6 +19,10 @@ export async function getNewsFeedAction(auth: ActionAuth, feedId?: string | null
 
 export async function getNewsFeedRecordAction(auth: ActionAuth, feedId?: string | null): Promise<NewsFeedRecord | null> {
   return callApiAction("news", "getNewsFeedRecordAction", { auth, feedId }) as Promise<NewsFeedRecord | null>;
+}
+
+export async function createNewsFeedRecordAction(auth: ActionAuth, payload: NewsFeedRecordCreateInput): Promise<NewsFeedRecord | null> {
+  return callApiAction("news", "createNewsFeedRecordAction", { auth, payload }) as Promise<NewsFeedRecord | null>;
 }
 
 export async function getNewsSubscriptionsAction(auth: ActionAuth): Promise<NewsSubscriptionsResponse> {

@@ -2,8 +2,8 @@ import Parser from "rss-parser";
 import { Hono } from "hono";
 import type { Context } from "hono";
 
-import { getNewsFeed, getNewsFeedRecord, getNewsFeeds, getNewsSubscriptions, subscribeNewsFeed, unsubscribeNewsFeed, updateNewsFeed, updateNewsFeedRecordForUser, getNewsFeedMetadata, updateNewsSubscription } from "@dashwise/sdk/data/news";
-import type { NewsFeedMetadata, NewsFeedRecordUpdateInput, NewsSubscribeInput, NewsUpdateInput } from "@dashwise/sdk/data/news";
+import { createNewsFeedRecordForUser, getNewsFeed, getNewsFeedRecord, getNewsFeeds, getNewsSubscriptions, subscribeNewsFeed, unsubscribeNewsFeed, updateNewsFeed, updateNewsFeedRecordForUser, getNewsFeedMetadata, updateNewsSubscription } from "@dashwise/sdk/data/news";
+import type { NewsFeedMetadata, NewsFeedRecordCreateInput, NewsFeedRecordUpdateInput, NewsSubscribeInput, NewsUpdateInput } from "@dashwise/sdk/data/news";
 
 import { readAuthToken, readJsonBody, requireAuth, withJson } from "./shared";
 import { createLogger } from "../lib/logger";
@@ -179,6 +179,11 @@ const newsRoute = new Hono();
   newsRoute.get("/api/v1/news/feed-records/:id", withJson(async (c) => {
     const { userId } = await requireAuth({ token: readAuthToken(c) });
     return getNewsFeedRecord(userId, String(c.req.param("id") ?? ""));
+  }));
+  newsRoute.post("/api/v1/news/feed-records", withJson(async (c) => {
+    const body = await readJsonBody<{ auth?: { token?: string | null }; payload?: NewsFeedRecordCreateInput }>(c);
+    const { userId } = await requireAuth(body?.auth ?? {});
+    return createNewsFeedRecordForUser(userId, body?.payload ?? { title: "" });
   }));
   newsRoute.get("/api/v1/news/feed-metadata", withJson(async (c) => {
     await requireAuth({ token: readAuthToken(c) });

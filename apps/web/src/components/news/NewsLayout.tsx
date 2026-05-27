@@ -29,6 +29,16 @@ export default function NewsLayout({ children }: { children: ReactNode }) {
     const [searchParams] = useSearchParams();
     const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
     const [feeds, setFeeds] = useState<FeedRecord[]>([]);
+    const [sidebarRefreshVersion, setSidebarRefreshVersion] = useState(0);
+
+    useEffect(() => {
+        const refreshSidebar = () => setSidebarRefreshVersion((version) => version + 1);
+        window.addEventListener("dashwise:news-sidebar-refresh", refreshSidebar);
+
+        return () => {
+            window.removeEventListener("dashwise:news-sidebar-refresh", refreshSidebar);
+        };
+    }, []);
 
     useEffect(() => {
         if (!token) {
@@ -64,7 +74,7 @@ export default function NewsLayout({ children }: { children: ReactNode }) {
         return () => {
             mounted = false;
         };
-    }, [token, withAuth]);
+    }, [token, withAuth, sidebarRefreshVersion]);
 
     const userFeeds = useMemo(() => feeds.filter((entry) => entry.id && entry.id !== "all"), [feeds]);
     const subscriptionTabs = useMemo(
@@ -93,6 +103,11 @@ export default function NewsLayout({ children }: { children: ReactNode }) {
         navigate(`${activeFeedRoute}?${params.toString()}`);
     };
 
+    const openCreateFeedModal = () => {
+        const params = new URLSearchParams({ action: "create-feed" });
+        navigate(`${activeFeedRoute}?${params.toString()}`);
+    };
+
     const openEditSubscriptionModal = (subscription: Subscription) => {
         const params = new URLSearchParams({
             action: "edit",
@@ -116,6 +131,13 @@ export default function NewsLayout({ children }: { children: ReactNode }) {
                     group="Feeds"
                     title="Feeds"
                     collapsible={true}
+                    actions={[
+                        {
+                            icon: "fa6-solid:plus",
+                            title: "Create feed",
+                            action: openCreateFeedModal,
+                        },
+                    ]}
                 />
 
                 <Tab
