@@ -1,10 +1,14 @@
 import { config } from "../../lib/config";
-import semver from "semver";
+import { semver } from "bun";
 import {
   createAppInfoRecord,
   getAppInfoRecords,
   updateAppInfoRecord,
 } from "@dashwise/sdk/data/superuser";
+
+function normalizeVersion(version: string | null | undefined) {
+  return String(version ?? "").trim().replace(/^v/i, "");
+}
 
 async function fetchLatestGithubTag(repo: string): Promise<string | null> {
   if (!repo) return null;
@@ -28,12 +32,12 @@ export async function runVersionComparisonRunner() {
   let newUpdate: boolean | null = null;
 
   if (latestTag && localVersion) {
-    const cleanLocal = semver.coerce(localVersion)?.version ?? null;
-    const cleanLatest = semver.coerce(latestTag)?.version ?? null;
+    const cleanLocal = normalizeVersion(localVersion);
+    const cleanLatest = normalizeVersion(latestTag);
 
     if (cleanLocal && cleanLatest) {
-      cmp = semver.compare(cleanLatest, cleanLocal);
-      newUpdate = semver.gt(cleanLatest, cleanLocal);
+      cmp = semver.order(cleanLatest, cleanLocal);
+      newUpdate = cmp > 0;
     }
   }
 
@@ -55,12 +59,12 @@ export async function runVersionComparisonRunner() {
     };
 
     if (record) {
-      const recordVersion = record.version ? semver.coerce(record.version)?.version : null;
+      const recordVersion = record.version ? normalizeVersion(record.version) : null;
 
       // Detect if local version is newer than app info in pocketbase
       const localIsNewer =
         recordVersion && localVersion
-          ? semver.gt(semver.coerce(localVersion)!, recordVersion)
+          ? semver.order(normalizeVersion(localVersion), recordVersion) > 0
           : false;
 
       const changed =

@@ -1,6 +1,11 @@
 import { getSuperuserPB } from "@dashwise/sdk/lib/pocketbase";
-import semver from "semver";
-import YAML from "yaml";
+
+import { semver } from "bun";
+import { YAML } from "bun";
+
+function normalizeVersion(version: string | null | undefined) {
+  return String(version ?? "").trim().replace(/^v/i, "");
+}
 
 export async function runIntegrationUpdaterJob() {
   const pb = await getSuperuserPB();
@@ -39,10 +44,10 @@ export async function runIntegrationUpdaterJob() {
       let newUpdateAvailable = false;
 
       if (localVersion) {
-        const cleanLocal = semver.coerce(localVersion)?.version;
-        const cleanRemote = semver.coerce(remoteVersion)?.version;
+        const cleanLocal = normalizeVersion(localVersion);
+        const cleanRemote = normalizeVersion(remoteVersion);
 
-        if (cleanLocal && cleanRemote && semver.gt(cleanRemote, cleanLocal)) {
+        if (cleanLocal && cleanRemote && semver.order(cleanRemote, cleanLocal) > 0) {
           newUpdateAvailable = true;
         }
       } else if (remoteVersion) {
