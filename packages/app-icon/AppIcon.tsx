@@ -1,7 +1,7 @@
 "use client";
 
 import { Icon as IconifyIcon } from "@iconify-icon/react";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 
 const ICONIFY_API_PREFIX = "https://api.iconify.design/";
 
@@ -16,6 +16,7 @@ export type AppIconProps = {
 	fallbackPrefix?: string;
 	useFrostedGradient?: boolean;
 	iconClassName?: string;
+	lazy?: boolean;
 };
 
 
@@ -30,8 +31,53 @@ export default function AppIcon({
 	fallbackPrefix = "",
 	useFrostedGradient = false,
 	iconClassName,
+	lazy,
 }: AppIconProps) {
+	const [isInView, setIsInView] = useState(!lazy);
+	const ref = useRef<HTMLElement | HTMLImageElement | null>(null);
+
+	useEffect(() => {
+		if (!lazy || isInView) return;
+
+		if (typeof window === "undefined" || !("IntersectionObserver" in window)) {
+			setIsInView(true);
+			return;
+		}
+
+		const el = ref.current;
+		if (!el) return;
+
+		const observer = new IntersectionObserver(
+			([entry]) => {
+				if (entry.isIntersecting) {
+					setIsInView(true);
+					observer.disconnect();
+				}
+			},
+			{ rootMargin: "200px" }
+		);
+
+		observer.observe(el);
+		return () => {
+			observer.disconnect();
+		};
+	}, [lazy, isInView]);
+
 	if (!source) return null;
+
+	if (lazy && !isInView) {
+		return (
+			<span
+				ref={ref as React.RefObject<HTMLSpanElement>}
+				className={combineClassNames(className, "app-icon-placeholder")}
+				style={{
+					display: "inline-block",
+					width: size,
+					height: size,
+				}}
+			/>
+		);
+	}
 
 	// normalize url:
 	const normalized =
