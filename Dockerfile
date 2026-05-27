@@ -25,7 +25,6 @@ COPY packages/sdk/package.json ./packages/sdk/
 COPY packages/app-icon/package.json ./packages/app-icon/
 COPY packages/assets/package.json ./packages/assets/
 COPY packages/api-types/package.json ./packages/api-types/
-COPY pocketbase/migrations ./pocketbase/migrations/
 RUN bun install --frozen-lockfile
 
 COPY . .
@@ -45,6 +44,7 @@ COPY --from=build /app/apps/backend/dist /app/apps/backend/dist
 COPY --from=build /app/apps/backend/dist/public /app/apps/backend/dist/public
 COPY --from=build /app/apps/backend/src /app/apps/backend/src
 COPY --from=build /app/apps/backend/package.json /app/apps/backend/package.json
+COPY --from=build /app/pocketbase/migrations /app/pocketbase/migrations
 COPY --from=build /app/node_modules /app/node_modules
 COPY --from=build /app/packages /app/packages
 

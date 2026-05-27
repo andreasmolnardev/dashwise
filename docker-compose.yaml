@@ -15,4 +15,3 @@ services:
       PB_BINARY_PATH: /usr/local/bin/pocketbase
     volumes:
       - ./pocketbase/pb_data:/app/pocketbase/pb_data
-      - ./pocketbase/migrations:/app/pocketbase/migrations
