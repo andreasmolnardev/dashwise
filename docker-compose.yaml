@@ -1,13 +1,12 @@
 services:
   dashwise:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: andreasmolnardev/dashwise:aio-preview
     ports:
       - "3016:3000"
       - "8090:8090"
     restart: unless-stopped
     environment:
+      ENVIRONMENT: production
       PB_ADMIN_EMAIL: default@dashwise.local
       PB_ADMIN_PASSWORD: DashwiseIsAwesome
       PB_URL: http://127.0.0.1:8090

@@ -1,4 +1,4 @@
-pocketbase/
+pocketbase/pb_*
 jobs/
 docs/
 CONTRIBUTING.md
@@ -7,3 +7,13 @@ LICENSE
 docker-compose.yaml
 node_modules/
 **/node_modules
+
+# Additional ignores to reduce build context
+.DS_Store
+*.log
+pb_data/
+pocketbase/pb_data/
+pocketbase/pb_data_old/
+.vscode
+dist
+.env

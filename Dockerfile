@@ -25,18 +25,28 @@ COPY packages/sdk/package.json ./packages/sdk/
 COPY packages/app-icon/package.json ./packages/app-icon/
 COPY packages/assets/package.json ./packages/assets/
 COPY packages/api-types/package.json ./packages/api-types/
+COPY pocketbase/migrations ./pocketbase/migrations/
 RUN bun install --frozen-lockfile
 
 COPY . .
 RUN bun --cwd apps/web run build && mkdir -p apps/backend/dist/public && cp -R apps/web/dist/. apps/backend/dist/public/
-
+RUN bun --cwd apps/backend run build
+RUN bun install --production --frozen-lockfile
 FROM oven/bun:1-alpine
-WORKDIR /app
+WORKDIR /app/apps/backend
 
 COPY --from=pocketbase /usr/local/bin/pocketbase /usr/local/bin/pocketbase
 ENV PB_BINARY_PATH=/usr/local/bin/pocketbase
+ENV NODE_PATH=/app/apps/backend:/app/packages
+RUN mkdir -p /app && touch /app/.root.ind
 
-COPY --from=build /app /app
+# Copy only the runtime artifacts: backend source, built frontend assets, and production deps
+COPY --from=build /app/apps/backend/dist /app/apps/backend/dist
+COPY --from=build /app/apps/backend/dist/public /app/apps/backend/dist/public
+COPY --from=build /app/apps/backend/src /app/apps/backend/src
+COPY --from=build /app/apps/backend/package.json /app/apps/backend/package.json
+COPY --from=build /app/node_modules /app/node_modules
+COPY --from=build /app/packages /app/packages
 
 EXPOSE 3000 8090
-CMD ["bun", "run", "apps/backend/src/index.ts"]
+CMD ["bun", "run", "src/index.ts"]
