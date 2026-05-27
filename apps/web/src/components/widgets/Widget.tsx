@@ -1,15 +1,49 @@
 "use client";
 
-import { type ReactNode, useEffect, useRef, useState } from "react";
-import GlanceableClockWidget from "./dashboard/GlanceableClock";
-import CalendarWeekWidget, {
-  CalendarTodayWidget,
-  CalendarUpcomingWidget,
-} from "@dashwise/integrationskit/static-widgets/CalendarWidgets";
-import LinkView from "./LinkView";
-import SearchBar from "./SearchBar";
-import IframeTemplate from "@dashwise/integrationskit/templates/IFrame";
-import Widget from "@dashwise/integrationskit/Widget";
+import { Suspense, lazy, type ReactNode, useEffect, useRef, useState } from "react";
+const GlanceableClockWidget = lazy(() =>
+  import("./dashboard/GlanceableClock").then((module) => ({
+    default: module.default,
+  })),
+);
+const calendarWidgetsImport = import(
+  "@dashwise/integrationskit/static-widgets/CalendarWidgets"
+);
+const CalendarWeekWidget = lazy(() =>
+  calendarWidgetsImport.then((module) => ({
+    default: module.default,
+  })),
+);
+const CalendarTodayWidget = lazy(() =>
+  calendarWidgetsImport.then((module) => ({
+    default: module.CalendarTodayWidget,
+  })),
+);
+const CalendarUpcomingWidget = lazy(() =>
+  calendarWidgetsImport.then((module) => ({
+    default: module.CalendarUpcomingWidget,
+  })),
+);
+const LinkView = lazy(() =>
+  import("./LinkView").then((module) => ({
+    default: module.default,
+  })),
+);
+const SearchBar = lazy(() =>
+  import("./SearchBar").then((module) => ({
+    default: module.default,
+  })),
+);
+const IframeTemplate = lazy(() =>
+  import("@dashwise/integrationskit/templates/IFrame").then((module) => ({
+    default: module.default,
+  })),
+);
+const Widget = lazy(() =>
+  import("@dashwise/integrationskit/Widget").then((module) => ({
+    default: module.default,
+  })),
+);
 import { useLocalization } from "@/context/LocalizationContext";
 import { readPageIntegrationConsumer } from "@/lib/pageIntegrationDataCache";
 import useAuth from "@/context/useAuth";
@@ -48,46 +82,55 @@ export function renderWidget({
   const renderParams = stripWidgetIndex(params);
   const finalClassName = `${className ?? ""} frosted`.trim();
 
+  let content: ReactNode;
+
   switch (type) {
     case "main-clock":
     case "glanceable-clock":
-      return (
+      content = (
         <GlanceableClockWidget className={className} params={renderParams} />
       );
+      break;
 
     case "search-bar":
-      return <SearchBar useRedirect={false} defaultOpen={defaultOpen} />;
+      content = <SearchBar useRedirect={false} defaultOpen={defaultOpen} />;
+      break;
 
     case "calendar-week":
-      return <CalendarWeekWidget
-        className={finalClassName}
-        {...renderParams}
-      />;
+      content = (
+        <CalendarWeekWidget className={finalClassName} {...renderParams} />
+      );
+      break;
 
     case "calendar-today":
-      return (
+      content = (
         <CalendarTodayWidget className={finalClassName} {...renderParams} />
       );
+      break;
 
     case "calendar-upcoming":
-      return (
+      content = (
         <CalendarUpcomingWidgetWrapper
           className={finalClassName}
           {...renderParams}
         />
       );
+      break;
 
     case "link-view":
-      return <LinkView />;
+      content = <LinkView />;
+      break;
 
     case "placeholder":
-      return <div className={`${className ?? ""}`} />;
+      content = <div className={`${className ?? ""}`} />;
+      break;
 
     case "iframe":
-      return <IframeWidget className={finalClassName} params={renderParams} />;
+      content = <IframeWidget className={finalClassName} params={renderParams} />;
+      break;
 
     default:
-      return (
+      content = (
         <IntegrationWidget
           type={type}
           isPreview={isPreview}
@@ -95,7 +138,14 @@ export function renderWidget({
           className={finalClassName}
         />
       );
+      break;
   }
+
+  return (
+    <Suspense fallback={<WidgetLoadingState className={className} label={type} />}>
+      {content}
+    </Suspense>
+  );
 }
 
 function CalendarUpcomingWidgetWrapper({
@@ -404,6 +454,26 @@ function WidgetErrorState({
       <p className="mt-1 text-xs leading-snug text-red-100/80 wrap-break-word max-h-10 overflow-x-scroll">
         {message}
       </p>
+    </div>
+  );
+}
+
+function WidgetLoadingState({
+  className,
+  label,
+}: {
+  className?: string;
+  label: string;
+}) {
+  return (
+    <div
+      className={`rounded-xl p-3 flex items-center justify-center min-h-25 ${
+        className ?? "frosted"
+      }`}
+    >
+      <div className="text-xs text-white/50 animate-pulse">
+        Loading widget from {label}...
+      </div>
     </div>
   );
 }
