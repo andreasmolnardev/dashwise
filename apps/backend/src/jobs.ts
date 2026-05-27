@@ -2,7 +2,6 @@ import { Buffer } from "node:buffer";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
-import cron from "node-cron";
 import { runJob } from "./jobs/job-logger";
 import { config } from "./lib/config";
 import { _d } from "./lib/sdk";
@@ -106,36 +105,36 @@ export function validateJobsBasicAuth(authorizationHeader: string | undefined) {
 export function registerJobsCron() {
   logger.debug("Dashwise SDK app config", _d.getAppConfig());
 
-  cron.schedule(config.SEARCHITEMS_SCHEDULE, () => {
-    void runSearchItemsJob("cron schedule");
+  Bun.cron(config.SEARCHITEMS_SCHEDULE, async () => {
+    await runSearchItemsJob("cron schedule");
   });
 
   if (config.ENABLE_ICONS_REFRESH) {
-    cron.schedule(config.PULL_ICONS_SCHEDULE, () => {
-      void runPullIconsJob("cron schedule");
+    Bun.cron(config.PULL_ICONS_SCHEDULE, async () => {
+      await runPullIconsJob("cron schedule");
     });
   }
 
-  cron.schedule(config.MONITORING_INDEXER_SCHEDULE, () => {
-    void runMonitoringIndexerJob("cron schedule");
+  Bun.cron(config.MONITORING_INDEXER_SCHEDULE, async () => {
+    await runMonitoringIndexerJob("cron schedule");
   });
 
-  cron.schedule(config.MONITORING_RUNNER_SCHEDULE, () => {
-    void runMonitoringRunnerJob("cron schedule");
+  Bun.cron(config.MONITORING_RUNNER_SCHEDULE, async () => {
+    await runMonitoringRunnerJob("cron schedule");
   });
 
   void runComparisonJob("initial run");
-  cron.schedule(config.UPDATE_CHECK_SCHEDULE, () => {
-    void runComparisonJob("scheduled run");
+  Bun.cron(config.UPDATE_CHECK_SCHEDULE, async () => {
+    await runComparisonJob("scheduled run");
   });
 
   void runNewsFeedBuilderJob("initial run");
-  cron.schedule(config.FEED_BUILDING_SCHEDULE, () => {
-    void runNewsFeedBuilderJob("scheduled run");
+  Bun.cron(config.FEED_BUILDING_SCHEDULE, async () => {
+    await runNewsFeedBuilderJob("scheduled run");
   });
 
-  cron.schedule(config.NOTIFICATION_FORWARDER_SCHEDULE, () => {
-    void runNotificationForwarderJob("cron schedule");
+  Bun.cron(config.NOTIFICATION_FORWARDER_SCHEDULE, async () => {
+    await runNotificationForwarderJob("cron schedule");
   });
 }
 
