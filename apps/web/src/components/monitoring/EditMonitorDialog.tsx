@@ -20,10 +20,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  buildEndpointAuthPayload,
+  parseEndpointAuth,
+  parseResponseFilter,
+  type EndpointAuthMode,
+} from "./monitoringFormUtils";
 
 const METHODS = ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"] as const;
-
-type EndpointAuthMode = "none" | "basic" | "bearer" | "header";
 
 type Props = {
   open: boolean;
@@ -31,63 +35,6 @@ type Props = {
   monitor: MonitorRecord | null;
   onUpdated?: (monitor: MonitorRecord) => void;
 };
-
-function parseMaybeJson(value: string): unknown {
-  const trimmed = value.trim();
-  if (!trimmed) return undefined;
-
-  try {
-    return JSON.parse(trimmed);
-  } catch {
-    return trimmed;
-  }
-}
-
-function parseAuth(raw: unknown): { mode: EndpointAuthMode; username?: string; password?: string; token?: string; headerName?: string; headerValue?: string } {
-  if (!raw) return { mode: "none" };
-
-  if (typeof raw === "string") {
-    try {
-      return parseAuth(JSON.parse(raw));
-    } catch {
-      return { mode: "none" };
-    }
-  }
-
-  if (typeof raw === "object") {
-    const type = (raw as any).type;
-    if (type === "basic") {
-      return { mode: "basic", username: String((raw as any).username || ""), password: String((raw as any).password || "") };
-    }
-    if (type === "bearer") {
-      return { mode: "bearer", token: String((raw as any).token || "") };
-    }
-    if (type === "header") {
-      return { mode: "header", headerName: String((raw as any).name || ""), headerValue: String((raw as any).value || "") };
-    }
-  }
-
-  return { mode: "none" };
-}
-
-function parseResponseFilter(raw: unknown) {
-  if (!raw) return {} as { acceptStatusCodes?: string; acceptBodyProperties?: unknown };
-
-  if (typeof raw === "string") {
-    try {
-      const parsed = JSON.parse(raw);
-      return typeof parsed === "object" && parsed ? parsed : {};
-    } catch {
-      return { acceptStatusCodes: raw };
-    }
-  }
-
-  if (typeof raw === "object") {
-    return raw as { acceptStatusCodes?: string; acceptBodyProperties?: unknown };
-  }
-
-  return {};
-}
 
 export default function EditMonitorDialog({ open, onOpenChange, monitor, onUpdated }: Props) {
   const { token, withAuth } = useAuth();
@@ -120,7 +67,7 @@ export default function EditMonitorDialog({ open, onOpenChange, monitor, onUpdat
         : ""
     );
 
-    const auth = parseAuth(monitor.endpointAuth);
+    const auth = parseEndpointAuth(monitor.endpointAuth);
     setEndpointAuthMode(auth.mode);
     setBasicUsername(auth.username || "");
     setBasicPassword(auth.password || "");
@@ -131,18 +78,18 @@ export default function EditMonitorDialog({ open, onOpenChange, monitor, onUpdat
     setError(null);
   }, [open, monitor]);
 
-  const authPayload = useMemo(() => {
-    if (endpointAuthMode === "basic") {
-      return { type: "basic", username: basicUsername, password: basicPassword };
-    }
-    if (endpointAuthMode === "bearer") {
-      return { type: "bearer", token: bearerToken };
-    }
-    if (endpointAuthMode === "header") {
-      return { type: "header", name: headerName, value: headerValue };
-    }
-    return null;
-  }, [endpointAuthMode, basicUsername, basicPassword, bearerToken, headerName, headerValue]);
+  const authPayload = useMemo(
+    () =>
+      buildEndpointAuthPayload({
+        mode: endpointAuthMode,
+        basicUsername,
+        basicPassword,
+        bearerToken,
+        headerName,
+        headerValue,
+      }),
+    [endpointAuthMode, basicUsername, basicPassword, bearerToken, headerName, headerValue],
+  );
 
   const handleSave = async () => {
     if (!token || !monitor) return;
@@ -155,10 +102,10 @@ export default function EditMonitorDialog({ open, onOpenChange, monitor, onUpdat
     setError(null);
 
     try {
-      const responseFilter = {
-        acceptStatusCodes: expectedStatusCodes.trim() ? expectedStatusCodes.trim() : undefined,
-        acceptBodyProperties: expectedResponseBody.trim() ? parseMaybeJson(expectedResponseBody) : undefined,
-      };
+      const responseFilter = buildResponseUpFilter({
+        acceptStatusCodes: expectedStatusCodes,
+        acceptBodyProperties: expectedResponseBody,
+      });
 
       const updated = await withAuth((auth) =>
         updateMonitorAction(auth, monitor.id, {

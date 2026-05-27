@@ -32,6 +32,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import {
+  buildEndpointAuthPayload,
+  buildResponseUpFilter,
+} from "./monitoringFormUtils";
 
 type LinkCollection = {
   id: string;
@@ -68,17 +72,6 @@ type Props = {
   onOpenChange: (open: boolean) => void;
   onCreated?: (monitor: MonitorRecord) => void;
 };
-
-function parseMaybeJson(value: string): unknown {
-  const trimmed = value.trim();
-  if (!trimmed) return undefined;
-
-  try {
-    return JSON.parse(trimmed);
-  } catch {
-    return trimmed;
-  }
-}
 
 function LinkCombobox({
   options,
@@ -275,30 +268,12 @@ export default function AddMonitoringResourceDialog({ open, onOpenChange, onCrea
       throw new Error("Endpoint is required");
     }
 
-    const responseUpFilter: Record<string, unknown> = {};
-    const statusCodesValue = expectedStatusCodes.trim();
-    if (statusCodesValue) {
-      responseUpFilter.acceptStatusCodes = statusCodesValue;
-    }
-
-    const expectedBodyValue = expectedResponseBody.trim();
-    if (expectedBodyValue) {
-      responseUpFilter.acceptBodyProperties = parseMaybeJson(expectedBodyValue);
-    }
-
-    const endpointAuth =
-      endpointAuthMode === "basic"
-        ? {
-            type: "basic",
-            username: basicUsername.trim(),
-            password: basicPassword,
-          }
-        : endpointAuthMode === "bearer"
-          ? {
-              type: "bearer",
-              token: bearerToken.trim(),
-            }
-          : undefined;
+    const endpointAuth = buildEndpointAuthPayload({
+      mode: endpointAuthMode,
+      basicUsername: basicUsername.trim(),
+      basicPassword,
+      bearerToken: bearerToken.trim(),
+    });
 
     if (endpointAuthMode === "basic" && !basicUsername.trim()) {
       throw new Error("Basic auth username is required");
@@ -315,7 +290,10 @@ export default function AddMonitoringResourceDialog({ open, onOpenChange, onCrea
         endpoint: endpointValue,
         method,
         endpointAuth,
-        responseUpFilter: Object.keys(responseUpFilter).length > 0 ? responseUpFilter : undefined,
+        responseUpFilter: buildResponseUpFilter({
+          acceptStatusCodes: expectedStatusCodes,
+          acceptBodyProperties: expectedResponseBody,
+        }),
       }),
     );
   };
