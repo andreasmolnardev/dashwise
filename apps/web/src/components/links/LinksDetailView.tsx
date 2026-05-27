@@ -306,6 +306,7 @@ function LinkRow({
                     className="h-9 w-9 rounded-xl text-white/70"
                     monoClassName="bg-white/75"
                     imageClassName="rounded-xl object-contain"
+                    lazy
                 />
             </div>
 

@@ -785,6 +785,7 @@ function LinkTile({
             alt={link.title}
             className="aspect-square w-8.75 m-2"
             monoClassName="bg-foreground transition-colors group-hover:bg-primary"
+            lazy
           />
         )
         : (
