@@ -14,6 +14,8 @@ import {
 } from "./monitoring/runner";
 import { runVersionComparisonRunner } from "./updates/comparison-runner";
 import { runIntegrationUpdaterJob } from "./updates/integration-updater";
+import { runDefaultIntegrationsBootstrapJob } from "./updates/default-integrations";
+import { runPageConfigCleanupJob } from "./pageconfig-cleanup";
 import { newsFeedBuilder } from "./news/feed-builder";
 import { processQueuedNotifications } from "./notifications/forwarder";
 import { createLogger } from "../lib/logger";
@@ -86,6 +88,20 @@ const runIntegrationUpdateJob = (source: string) =>
     errorMessage: "Integration updater failed",
   });
 
+const runDefaultIntegrationsJob = (source: string) =>
+  runJob("defaultIntegrationsBootstrap", runDefaultIntegrationsBootstrapJob, {
+    startMessage: `Triggered by ${source}`,
+    successMessage: "Default integrations bootstrap completed",
+    errorMessage: "Default integrations bootstrap failed",
+  });
+
+const runPageConfigCleanup = (source: string) =>
+  runJob("pageConfigCleanup", runPageConfigCleanupJob, {
+    startMessage: `Triggered by ${source}`,
+    successMessage: "PageConfig cleanup completed",
+    errorMessage: "PageConfig cleanup failed",
+  });
+
 const runNewsFeedBuilderJob = (source: string, feedId?: string) =>
   runJob("newsFeedBuilder", () => newsFeedBuilder(feedId), {
     startMessage: `Triggered by ${source}${
@@ -144,9 +160,19 @@ export function registerJobsCron() {
 
   void runComparisonJob("initial run");
   void runIntegrationUpdateJob("initial run");
+  void runDefaultIntegrationsJob("initial run");
+  void runPageConfigCleanup("initial run");
   cron.schedule(config.UPDATE_CHECK_SCHEDULE, () => {
     void runComparisonJob("scheduled run");
     void runIntegrationUpdateJob("scheduled run");
+  });
+
+  cron.schedule(config.DEFAULT_INTEGRATIONS_SCHEDULE, () => {
+    void runDefaultIntegrationsJob("scheduled run");
+  });
+
+  cron.schedule(config.PAGECONFIG_CLEANUP_SCHEDULE, () => {
+    void runPageConfigCleanup("scheduled run");
   });
 
   void runNewsFeedBuilderJob("initial run");
@@ -166,6 +192,8 @@ export const jobsApi = {
   runMonitoringRunnerJob,
   runComparisonJob,
   runIntegrationUpdateJob,
+  runDefaultIntegrationsJob,
+  runPageConfigCleanup,
   runNewsFeedBuilderJob,
   runNotificationForwarderJob,
 };

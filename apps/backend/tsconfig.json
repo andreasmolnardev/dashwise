@@ -3,7 +3,8 @@
   "compilerOptions": {
     "declaration": true,
     "emitDeclarationOnly": false,
-    "rootDir": "../..",
+    "rootDir": "./src",
+    "noEmit": false,
     "baseUrl": ".",
     "module": "esnext",
     "moduleResolution": "bundler",

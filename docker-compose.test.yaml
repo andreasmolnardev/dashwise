@@ -17,5 +17,4 @@ services:
       START_POCKETBASE: "true"
       PB_BINARY_PATH: /usr/local/bin/pocketbase
     volumes:
-      - ./pocketbase/pb_data:/app/pocketbase/pb_data
-      - ./pocketbase/migrations:/app/pocketbase/migrations
+      - ./pocketbase/pb_data_old:/app/pocketbase/pb_data

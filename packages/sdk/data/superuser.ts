@@ -1,67 +1,67 @@
 import { getSuperuserPB } from "../lib/pocketbase";
 
+async function safeNull<T>(fn: (pb: any) => Promise<T>): Promise<T | null> {
+	try {
+		const pb = await getSuperuserPB();
+		return await fn(pb);
+	} catch {
+		return null;
+	}
+}
+
 export async function getAllUserConfigs(batchSize = 1000) {
-	const pb = await getSuperuserPB();
-	return pb.collection("userConfig").getFullList(batchSize);
+	return safeNull((pb) => pb.collection("userConfig").getFullList(batchSize));
 }
 
 export async function getUserConfigById(configId: string) {
-	const pb = await getSuperuserPB();
-	return pb.collection("userConfig").getOne(configId);
+	return safeNull((pb) => pb.collection("userConfig").getOne(configId));
 }
 
 export async function getUserConfigsByAssociatedUserId(
 	userId: string,
 	batchSize = 1000,
 ) {
-	const pb = await getSuperuserPB();
-	return pb.collection("userConfig").getFullList(batchSize, {
+	return safeNull((pb) => pb.collection("userConfig").getFullList(batchSize, {
 		filter: `associatedUserId = "${userId}"`,
-	});
+	}));
 }
 
 export async function updateUserConfigRecord(
 	configId: string,
 	payload: Record<string, unknown>,
 ) {
-	const pb = await getSuperuserPB();
-	return pb.collection("userConfig").update(configId, payload);
+	return safeNull((pb) => pb.collection("userConfig").update(configId, payload));
 }
 
 export async function getMonitorsByUserId(
 	userId: string,
 	batchSize = 2000,
 ) {
-	const pb = await getSuperuserPB();
-	return pb.collection("monitors").getFullList(batchSize, {
+	return safeNull((pb) => pb.collection("monitors").getFullList(batchSize, {
 		filter: `userId = "${userId}"`,
-	});
+	}));
 }
 
 export async function getMonitors(batchSize = 2000, filter?: string) {
-	const pb = await getSuperuserPB();
-	return pb.collection("monitors").getFullList(
+	return safeNull((pb) => pb.collection("monitors").getFullList(
 		batchSize,
 		filter ? { filter } : undefined,
-	);
+	));
 }
 
 export async function getMonitorById(monitorId: string) {
-	const pb = await getSuperuserPB();
-	return pb.collection("monitors").getOne(monitorId);
+	return safeNull((pb) => pb.collection("monitors").getOne(monitorId));
 }
 
 export async function createMonitor(payload: Record<string, unknown>) {
-	const pb = await getSuperuserPB();
-	return pb.collection("monitors").create(payload);
+	return safeNull((pb) => pb.collection("monitors").create(payload));
 }
 
 export async function updateMonitor(
 	monitorId: string,
 	payload: Record<string, unknown>,
 ) {
-	const pb = await getSuperuserPB();
-	return pb.collection("monitors").update(monitorId, payload);
+	return safeNull((pb) => pb.collection("monitors").update(monitorId, payload));
 }
 
 export async function getMonitoringJobsByUserId(
@@ -87,145 +87,122 @@ export async function updateMonitoringJob(
 }
 
 export async function deleteMonitoringJob(jobId: string) {
-	const pb = await getSuperuserPB();
-	return pb.collection("monitors").delete(jobId);
+	return safeNull((pb) => pb.collection("monitors").delete(jobId));
 }
 
 export async function getAppInfoRecords(batchSize = 200) {
-	const pb = await getSuperuserPB();
-	return pb.collection("appInfo").getFullList(batchSize);
+	return safeNull((pb) => pb.collection("appInfo").getFullList(batchSize));
 }
 
 export async function updateAppInfoRecord(
 	recordId: string,
 	payload: Record<string, unknown>,
 ) {
-	const pb = await getSuperuserPB();
-	return pb.collection("appInfo").update(recordId, payload);
+	return safeNull((pb) => pb.collection("appInfo").update(recordId, payload));
 }
 
 export async function createAppInfoRecord(payload: Record<string, unknown>) {
-	const pb = await getSuperuserPB();
-	return pb.collection("appInfo").create(payload);
+	return safeNull((pb) => pb.collection("appInfo").create(payload));
 }
 
 export async function createJobLog(payload: Record<string, unknown>) {
-	const pb = await getSuperuserPB();
-	return pb.collection("jobLogs").create(payload, { requestKey: null });
+	return safeNull((pb) => pb.collection("jobLogs").create(payload, { requestKey: null }));
 }
 
 export async function getAllNewsFeeds(batchSize = 2000) {
-	const pb = await getSuperuserPB();
-	return pb.collection("newsFeeds").getFullList(batchSize);
+	return safeNull((pb) => pb.collection("newsFeeds").getFullList(batchSize));
 }
 
 export async function getNewsFeedsByUserId(userId: string, batchSize = 2000) {
-	const pb = await getSuperuserPB();
-	return pb.collection("newsFeeds").getFullList(batchSize, {
+	return safeNull((pb) => pb.collection("newsFeeds").getFullList(batchSize, {
 		filter: `userId="${userId.replace(/"/g, '\\"')}"`,
-	});
+	}));
 }
 
 export async function getNewsFeedByTitle(userId: string, title: string) {
-	const pb = await getSuperuserPB();
-	return pb.collection("newsFeeds").getFirstListItem(
+	return safeNull((pb) => pb.collection("newsFeeds").getFirstListItem(
 		`userId="${userId.replace(/"/g, '\\"')}" && title="${title.replace(/"/g, '\\"')}"`,
-	);
+	));
 }
 
 export async function createNewsFeedRecord(payload: Record<string, unknown>) {
-	const pb = await getSuperuserPB();
-	return pb.collection("newsFeeds").create(payload);
+	return safeNull((pb) => pb.collection("newsFeeds").create(payload));
 }
 
 export async function updateNewsFeedRecord(
 	feedId: string,
 	payload: Record<string, unknown>,
 ) {
-	const pb = await getSuperuserPB();
-	return pb.collection("newsFeeds").update(feedId, payload);
+	return safeNull((pb) => pb.collection("newsFeeds").update(feedId, payload));
 }
 
 export async function getAllNewsSubscriptions(batchSize = 2000) {
-	const pb = await getSuperuserPB();
-	return pb.collection("newsSubscriptions").getFullList(batchSize);
+	return safeNull((pb) => pb.collection("newsSubscriptions").getFullList(batchSize));
 }
 
 export async function getNewsFeedById(feedId: string) {
-	const pb = await getSuperuserPB();
-	return pb.collection("newsFeeds").getOne(feedId);
+	return safeNull((pb) => pb.collection("newsFeeds").getOne(feedId));
 }
 
 export async function getNewsSubscriptionById(subscriptionId: string) {
-	const pb = await getSuperuserPB();
-	return pb.collection("newsSubscriptions").getOne(subscriptionId);
+	return safeNull((pb) => pb.collection("newsSubscriptions").getOne(subscriptionId));
 }
 
 export async function getNewsSubscriptionByUrl(url: string) {
-	const pb = await getSuperuserPB();
-	return pb.collection("newsSubscriptions").getFirstListItem(
+	return safeNull((pb) => pb.collection("newsSubscriptions").getFirstListItem(
 		`url="${url.replace(/"/g, '\\"')}"`,
-	);
+	));
 }
 
 export async function updateNewsSubscription(
 	subscriptionId: string,
 	payload: Record<string, unknown>,
 ) {
-	const pb = await getSuperuserPB();
-	return pb.collection("newsSubscriptions").update(subscriptionId, payload);
+	return safeNull((pb) => pb.collection("newsSubscriptions").update(subscriptionId, payload));
 }
 
 export async function createNewsSubscription(payload: Record<string, unknown>) {
-	const pb = await getSuperuserPB();
-	return pb.collection("newsSubscriptions").create(payload);
+	return safeNull((pb) => pb.collection("newsSubscriptions").create(payload));
 }
 
 export async function getNewsFeedItemsCacheByUrl(url: string) {
-	const pb = await getSuperuserPB();
-	return pb.collection("newsSubscriptions").getList(1, 1, {
+	return safeNull((pb) => pb.collection("newsSubscriptions").getList(1, 1, {
 		filter: `url="${url.replace(/"/g, '\\"')}"`,
-	});
+	}));
 }
 
 export async function deleteNewsSubscription(subscriptionId: string) {
-	const pb = await getSuperuserPB();
-	return pb.collection("newsSubscriptions").delete(subscriptionId);
+	return safeNull((pb) => pb.collection("newsSubscriptions").delete(subscriptionId));
 }
 
 export async function updateNewsFeedItemsCache(
 	recordId: string,
 	payload: Record<string, unknown>,
 ) {
-	const pb = await getSuperuserPB();
-	return pb.collection("newsSubscriptions").update(recordId, payload);
+	return safeNull((pb) => pb.collection("newsSubscriptions").update(recordId, payload));
 }
 
 export async function createNewsFeedItemsCache(
 	payload: Record<string, unknown>,
 ) {
-	const pb = await getSuperuserPB();
-	return pb.collection("newsSubscriptions").create(payload);
+	return safeNull((pb) => pb.collection("newsSubscriptions").create(payload));
 }
 
 export async function getQueuedNotificationItems(batchSize = 100) {
-	const pb = await getSuperuserPB();
-	return pb.collection("notificationItems").getFullList({
+	return safeNull((pb) => pb.collection("notificationItems").getFullList({
 		filter: `forwardStatus="queued"`,
 		batch: batchSize,
-	});
+	}));
 }
 
 export async function getActiveNotificationForwardersByTopic(topicId: string) {
-	const pb = await getSuperuserPB();
-	return pb.collection("notificationForwarders").getFullList({
+	return safeNull((pb) => pb.collection("notificationForwarders").getFullList({
 		filter: `topic="${topicId}" && isActive=true`,
-	});
+	}));
 }
 
 export async function markNotificationAsDone(notificationId: string) {
-	const pb = await getSuperuserPB();
-	return pb.collection("notificationItems").update(notificationId, {
+	return safeNull((pb) => pb.collection("notificationItems").update(notificationId, {
 		forwardStatus: "done",
-	});
+	}));
 }

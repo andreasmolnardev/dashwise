@@ -17,6 +17,12 @@ export type ChangePasswordError = {
   error: string;
 };
 
+export type ValidateAuthTokenSuccess = {
+  success: true;
+  token: string;
+  user: AuthUserRecord;
+};
+
 export async function changePasswordAction(auth: ActionAuth, body: ChangePasswordRequest) {
   return callApiAction("auth", "changePasswordAction", { auth, body });
 }
@@ -29,8 +35,8 @@ export async function signupUserAction(payload: { _name?: string; email: string;
   return callApiAction("auth", "signupUserAction", payload);
 }
 
-export async function validateAuthTokenAction(auth: ActionAuth) {
-  return callApiAction("auth", "validateAuthTokenAction", auth);
+export async function validateAuthTokenAction(auth: ActionAuth): Promise<ValidateAuthTokenSuccess> {
+  return callApiAction<ValidateAuthTokenSuccess>("auth", "validateAuthTokenAction", auth);
 }
 
 export async function deleteAccountAction(auth: ActionAuth, payload: { email: string; password: string; totp?: string }) {

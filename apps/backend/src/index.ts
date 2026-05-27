@@ -109,7 +109,71 @@ app.get("/defaults/*", (c) => serveWorkspaceAsset("defaults", new URL(c.req.url)
 app.get("/integrations", (c) => serveWorkspaceAsset("integrations", new URL(c.req.url).pathname));
 app.get("/integrations/*", (c) => serveWorkspaceAsset("integrations", new URL(c.req.url).pathname));
 
-const publicDir = resolve(process.cwd(), "apps/backend/dist/public");
+const publicDir = resolve(process.cwd(), "dist/public");
+
+async function servePublicFile(requestPath: string) {
+  const relativePath = requestPath.replace(/^\/+/, "");
+
+  if (!relativePath) {
+    return null;
+  }
+
+  const assetPath = resolve(publicDir, relativePath);
+  const rootPath = `${publicDir}/`;
+
+  if (assetPath !== publicDir && !assetPath.startsWith(rootPath)) {
+    return new Response("Not found", { status: 404 });
+  }
+
+  const assetFile = Bun.file(assetPath);
+
+  if (!(await assetFile.exists())) {
+    return null;
+  }
+
+  const extension = assetPath.slice(assetPath.lastIndexOf(".")).toLowerCase();
+  const contentType = {
+    ".css": "text/css; charset=utf-8",
+    ".html": "text/html; charset=utf-8",
+    ".ico": "image/x-icon",
+    ".jpeg": "image/jpeg",
+    ".jpg": "image/jpeg",
+    ".js": "application/javascript; charset=utf-8",
+    ".json": "application/json; charset=utf-8",
+    ".map": "application/json; charset=utf-8",
+    ".mjs": "application/javascript; charset=utf-8",
+    ".png": "image/png",
+    ".svg": "image/svg+xml",
+    ".ttf": "font/ttf",
+    ".txt": "text/plain; charset=utf-8",
+    ".webmanifest": "application/manifest+json; charset=utf-8",
+    ".webp": "image/webp",
+    ".woff": "font/woff",
+    ".woff2": "font/woff2",
+    ".xml": "application/xml; charset=utf-8",
+  }[extension] || "application/octet-stream";
+
+  return new Response(assetFile, {
+    headers: {
+      "Content-Type": contentType,
+    },
+  });
+}
+
+app.get("/assets/*", async (c) => servePublicFile(new URL(c.req.url).pathname));
+app.get("/favicons/*", async (c) => servePublicFile(new URL(c.req.url).pathname));
+app.get("/fonts/*", async (c) => servePublicFile(new URL(c.req.url).pathname));
+app.get("/icons/*", async (c) => servePublicFile(new URL(c.req.url).pathname));
+app.get("/weather-icons/*", async (c) => servePublicFile(new URL(c.req.url).pathname));
+app.get("/sw.js", async (c) => servePublicFile(new URL(c.req.url).pathname));
+app.get("/openapi.json", async (c) => servePublicFile(new URL(c.req.url).pathname));
+app.get("/integrations.json", async (c) => servePublicFile(new URL(c.req.url).pathname));
+app.get("/bangs.js", async (c) => servePublicFile(new URL(c.req.url).pathname));
+app.get("/dashboard-wallpaper.png", async (c) => servePublicFile(new URL(c.req.url).pathname));
+app.get("/dashwise-icon.png", async (c) => servePublicFile(new URL(c.req.url).pathname));
+app.get("/dashwise-icon.svg", async (c) => servePublicFile(new URL(c.req.url).pathname));
+app.get("/dashwise-light.png", async (c) => servePublicFile(new URL(c.req.url).pathname));
+app.get("/dashwise-light.svg", async (c) => servePublicFile(new URL(c.req.url).pathname));
 
 app.get("*", async () => {
   const indexFile = Bun.file(join(publicDir, "index.html"));

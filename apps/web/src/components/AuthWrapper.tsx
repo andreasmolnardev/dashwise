@@ -1,6 +1,7 @@
 "use client";
 import { ReactNode, useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
+import { validateAuthTokenAction } from "@/app/actions/auth";
 import useAuth from "@/context/useAuth";
 import { cn } from "@/lib/utils";
 import { fetchWallpaperBlob } from "@/lib/apiClient";
@@ -14,7 +15,8 @@ type ThemeMode = "light" | "dark" | "system";
 
 export default function AuthWrapper({ children }: AuthWrapperProps) {
   const navigate = useNavigate();
-  const { token, user } = useAuth();
+  const { token, user, setAuth, logout } = useAuth();
+  const location = useLocation();
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
@@ -26,6 +28,38 @@ export default function AuthWrapper({ children }: AuthWrapperProps) {
       navigate("/auth/login", { replace: true });
     }
   }, [navigate, token]);
+
+  useEffect(() => {
+    if (!token) return;
+
+    let cancelled = false;
+
+    const refreshUser = async () => {
+      try {
+        const response = await validateAuthTokenAction({ token });
+        if (cancelled) return;
+
+        if (response?.user) {
+          setAuth(response.user, response.token ?? token);
+        }
+      } catch (error: any) {
+        if (cancelled) return;
+
+        if (error?.status === 401) {
+          logout();
+          navigate("/auth/login", { replace: true });
+        } else {
+          console.error("Failed to refresh authenticated user:", error);
+        }
+      }
+    };
+
+    refreshUser();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [location.pathname, location.search, logout, navigate, setAuth, token]);
 
   useEffect(() => {
     if (typeof document === "undefined" || typeof window === "undefined") return;

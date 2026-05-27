@@ -68,11 +68,15 @@ const pageConfigRoute = new Hono();
           isPreview: false,
           sharedRuntimeCache,
         });
+        const consumerKey = payload.integrationId
+          ? `${payload.integrationId}#${consumer.key}`
+          : consumer.consumerKey;
         return {
           consumer: consumer.consumer,
           key: consumer.key,
           properties: consumer.properties,
-          consumerKey: consumer.consumerKey,
+          integrationId: payload.integrationId ?? null,
+          consumerKey,
           success: true,
           data: payload.data,
           blueprint: payload.blueprint,
@@ -82,6 +86,7 @@ const pageConfigRoute = new Hono();
           consumer: consumer.consumer,
           key: consumer.key,
           properties: consumer.properties,
+          integrationId: null,
           consumerKey: consumer.consumerKey,
           success: false,
           error: error instanceof Error ? error.message : String(error),
@@ -168,6 +173,9 @@ const pageConfigRoute = new Hono();
                 isPreview: false,
                 sharedRuntimeCache,
               });
+              const consumerKey = payload.integrationId
+                ? `${payload.integrationId}#${consumer.key}`
+                : consumer.consumerKey;
 
               if (closed || streamId !== currentStreamId) return;
               sendJson(ws, {
@@ -175,6 +183,8 @@ const pageConfigRoute = new Hono();
                 pageName,
                 item: {
                   ...baseItem,
+                  integrationId: payload.integrationId ?? null,
+                  consumerKey,
                   success: true,
                   data: payload.data,
                   blueprint: payload.blueprint,
@@ -187,6 +197,7 @@ const pageConfigRoute = new Hono();
                 pageName,
                 item: {
                   ...baseItem,
+                  integrationId: null,
                   success: false,
                   error: error instanceof Error ? error.message : String(error),
                 },

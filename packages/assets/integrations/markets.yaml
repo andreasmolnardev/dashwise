@@ -1,0 +1,115 @@
+# Stock Integration YAML
+details:
+  name: Stock
+  description: "Glanceable stock price with daily change (Yahoo Finance)"
+  author: ""
+  version: 1.0.0
+  repository: ""
+  icon: "mdi:chart-line"
+  links:
+    website: "https://finance.yahoo.com"
+  categories:
+    - Finance
+    - Monitoring
+
+configuration:
+  environment_variables:
+    STOCK:
+      required: true
+      description: "Stock symbol (e.g. AAPL, TSLA, BTC-USD)"
+      default: "AAPL"
+
+    RANGE:
+      required: false
+      default: "1mo"
+
+    INTERVAL:
+      required: false
+      default: "1d"
+
+    POLLING_INTERVAL:
+      required: false
+      default: 60
+
+  endpoints:
+    fetch-stock:
+      method: GET
+      url: "https://query1.finance.yahoo.com/v8/finance/chart/${STOCK}?range=${RANGE}&interval=${INTERVAL}"
+      custom_headers:
+        User-Agent: "Mozilla/5.0"
+      cache_ttl: 60
+      response:
+        type: json
+        data_path: "chart.result[0]"
+
+      response_mapping:
+        current:
+          symbol: "meta.symbol"
+          name: "meta.shortName"
+          price: "meta.regularMarketPrice"
+          previous_close: "meta.chartPreviousClose"
+          currency: "meta.currency"
+
+  computed:
+    stock:
+      fields:
+        symbol: "this.endpoints.fetch-stock.mappedResponse.current.symbol"
+        name: "this.endpoints.fetch-stock.mappedResponse.current.name"
+        price: "this.endpoints.fetch-stock.mappedResponse.current.price"
+        previous: "this.endpoints.fetch-stock.mappedResponse.current.previous_close"
+
+        change:
+          operation: "subtract"
+          inputs:
+            a: "this.endpoints.fetch-stock.mappedResponse.current.price"
+            b: "this.endpoints.fetch-stock.mappedResponse.current.previous_close"
+
+        change_percent:
+          operation: "percentage_change"
+          inputs:
+            current: "this.endpoints.fetch-stock.mappedResponse.current.price"
+            previous: "this.endpoints.fetch-stock.mappedResponse.current.previous_close"
+
+        is_up:
+          operation: "conditional"
+          condition: "price >= previous"
+          true_value: true
+          false_value: false
+
+        color:
+          operation: "conditional"
+          condition: "price >= previous"
+          true_value: "#16a34a"
+          false_value: "#ef4444"
+
+        sign:
+          operation: "conditional"
+          condition: "change >= 0"
+          true_value: "+"
+          false_value: ""
+
+        direction_icon:
+          operation: "conditional"
+          condition: "price >= previous"
+          true_value: "mdi:arrow-up"
+          false_value: "mdi:arrow-down"
+
+  cache:
+    policy: "cache-first"
+    retention: 60
+
+  glanceables:
+  - name: "Stock"
+    key: "stock-glance"
+    properties:
+      symbol: "${STOCK}"
+      poll: "${POLLING_INTERVAL}"
+
+    icon:
+      file: "${computed.stock.direction_icon}"
+      size: 16
+      description: "${computed.stock.name}"
+
+    text: "${computed.stock.price} ${computed.stock.sign}${computed.stock.change} (${computed.stock.change_percent}%)"
+
+    color: "${computed.stock.color}"

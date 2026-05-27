@@ -2,6 +2,7 @@ import * as dotenv from "dotenv";
 dotenv.config();
 
 const processAllowSsl = process.env.ALLOW_SSL;
+const processEnvironment = process.env.ENVIRONMENT;
 const processStartPocketBase = process.env.START_POCKETBASE;
 const processOutlierType = process.env.MONITORING_OUTLIER_THRESHOLD_TYPE;
 const processOutlierValue = process.env.MONITORING_OUTLIER_THRESHOLD_VALUE;
@@ -14,6 +15,7 @@ const resolvedOutlierValue = Number.isFinite(normalizedOutlierValue) && normaliz
   : fallbackOutlierValue;
 
 export const config = {
+  ENVIRONMENT: processEnvironment === "env" ? "env" : "production",
   PB_URL: process.env.PB_URL || "http://127.0.0.1:8090",
   START_POCKETBASE:
     processStartPocketBase == null
@@ -27,12 +29,14 @@ export const config = {
   UPDATE_CHECK_SCHEDULE:  process.env.UPDATE_CHECK_SCHEDULE || "0 2 * * *",
   FEED_BUILDING_SCHEDULE: process.env.FEED_BUILDING_SCHEDULE || "*/30 * * * *",
   NOTIFICATION_FORWARDER_SCHEDULE: process.env.NOTIFICATION_FORWARDER_SCHEDULE || "* * * * *",
+  DEFAULT_INTEGRATIONS_SCHEDULE: process.env.DEFAULT_INTEGRATIONS_SCHEDULE || "0 4 * * *",
+  PAGECONFIG_CLEANUP_SCHEDULE: process.env.PAGECONFIG_CLEANUP_SCHEDULE || "0 5 * * *",
   MONITORING_OUTLIER_THRESHOLD_TYPE: normalizedOutlierType,
   MONITORING_OUTLIER_THRESHOLD_VALUE: resolvedOutlierValue,
   ALLOW_SSL: processAllowSsl == "true" || processAllowSsl == "1",
   PB_ADMIN_EMAIL: process.env.PB_ADMIN_EMAIL!,
   PB_ADMIN_PASSWORD: process.env.PB_ADMIN_PASSWORD,
-  DASHWISE_URL: process.env.DASHWISE_URL || "http://localhost:3000",
+  DASHWISE_URL: process.env.DASHWISE_URL || (processEnvironment === "env" ? "http://localhost:3000" : ""),
   DASHWISE_VERSION: '1.0',
   GITHUB_REPO: 'andreasmolnardev/dashwise-next'
 } as const;

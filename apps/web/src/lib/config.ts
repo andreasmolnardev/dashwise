@@ -1,5 +1,4 @@
 interface Config {
-  app_base_url: string;
   backend_url: string;
   pb_url: string;
   jobs_url?: string | undefined;
@@ -35,12 +34,9 @@ const enableJobsWebhook =
   !!env.NEXT_PUBLIC_JOBS_URL ||
   false;
 
-const backendUrl =
-  env.NEXT_PUBLIC_BACKEND_URL ||
-  (isDev ? "http://localhost:3000" : env.NEXT_PUBLIC_APP_URL || "http://localhost:3000");
+const backendUrl = env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:3000";
 
 const config: Config = {
-  app_base_url: env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
   backend_url: backendUrl,
 
   pb_url: env.NEXT_PUBLIC_PB_URL || "http://127.0.0.1:8090",

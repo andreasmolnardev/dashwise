@@ -71,7 +71,9 @@ async function waitForPocketBaseReady(healthUrl: string, pb?: Bun.Subprocess) {
 
   while (Date.now() < deadline) {
     if (pb && pb.exitCode !== null) {
-      throw new Error(`PocketBase exited before becoming ready (code ${pb.exitCode})`);
+      throw new Error(
+        `PocketBase exited before becoming ready (code ${pb.exitCode})`,
+      );
     }
 
     try {
@@ -96,9 +98,10 @@ export async function startPocketbase(): Promise<PocketBaseStartResult> {
   if (!config.START_POCKETBASE) {
     logger.info(`Using configured PocketBase at ${config.PB_URL}`);
     await waitForPocketBaseReady(healthUrl);
-    logger.info(`Connection to PocketBase at ${config.PB_URL} succeeded`);
     const pb = await getSuperuserPB();
-    const pbLogger = (pb as { logger?: () => Parameters<typeof setPocketBaseLogger>[0] }).logger?.();
+    const pbLogger =
+      (pb as { logger?: () => Parameters<typeof setPocketBaseLogger>[0] })
+        .logger?.();
     if (pbLogger) {
       setPocketBaseLogger(pbLogger);
     }
@@ -110,6 +113,7 @@ export async function startPocketbase(): Promise<PocketBaseStartResult> {
 
   const dataDir = resolve(pocketBaseRoot, "pb_data");
   const migrationsDir = resolve(pocketBaseRoot, "migrations");
+  console.log("Resolved PocketBase paths", { dataDir, migrationsDir });
 
   const pocketBaseBinary = resolvePocketBaseRuntimePath();
 
@@ -124,18 +128,26 @@ export async function startPocketbase(): Promise<PocketBaseStartResult> {
     migrationsDir,
   });
 
-  // Create superuser (idempotent)
   const createSuperuser = Bun.spawnSync([
     pocketBaseBinary,
     "superuser",
-    "create",
-    `--email=${config.PB_ADMIN_EMAIL}`,
-    `--password=${config.PB_ADMIN_PASSWORD}`,
+    "upsert",
+    `${config.PB_ADMIN_EMAIL}`,
+    `${config.PB_ADMIN_PASSWORD}`,
     `--dir=${dataDir}`,
   ]);
 
   if (createSuperuser.exitCode !== 0) {
-    logger.warn("Superuser already exists or could not be created");
+    const stderr = new TextDecoder().decode(createSuperuser.stderr);
+    const stdout = new TextDecoder().decode(createSuperuser.stdout);
+    logger.error("Superuser creation failed", {
+      stderr,
+      stdout,
+      exitCode: createSuperuser.exitCode,
+    });
+    throw new Error(`Failed to create superuser: ${stderr || stdout}`);
+  } else {
+    logger.info("Superuser created or already exists");
   }
 
   // Start PocketBase
@@ -152,7 +164,6 @@ export async function startPocketbase(): Promise<PocketBaseStartResult> {
       stderr: "inherit",
     },
   );
-
   // Forward Ctrl+C and kill PB
   const shutdown = () => {
     logger.info("Shutting down PocketBase");
@@ -164,10 +175,11 @@ export async function startPocketbase(): Promise<PocketBaseStartResult> {
   process.on("SIGTERM", shutdown);
 
   await waitForPocketBaseReady(healthUrl, pb);
-  logger.info(`Connection to PocketBase at ${config.PB_URL} succeeded`);
 
   const pbClient = await getSuperuserPB();
-  const pbLogger = (pbClient as { logger?: () => Parameters<typeof setPocketBaseLogger>[0] }).logger?.();
+  const pbLogger =
+    (pbClient as { logger?: () => Parameters<typeof setPocketBaseLogger>[0] })
+      .logger?.();
   if (pbLogger) {
     setPocketBaseLogger(pbLogger);
   }

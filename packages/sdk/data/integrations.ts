@@ -330,8 +330,10 @@ export async function getIntegrationWithConsumer(userId: string, options: { widg
         for (const item of items) {
             if (!isPlainObject(item)) continue;
 
+            const resolvedWidgetKey = resolveWidgetId(item);
+
             const matches = widgetKey
-                ? item.key === widgetKey
+                ? resolvedWidgetKey !== null && resolvedWidgetKey === widgetKey
                 : (() => {
                     const t = resolveGlanceableId(item);
                     return t !== null && t.toLowerCase() === glanceableType.toLowerCase();
@@ -369,11 +371,71 @@ export async function getIntegrationWithConsumer(userId: string, options: { widg
         : { integrationId: null, integration: null, glanceableJSON: null, localData: null };
 }
 
+export function parseCompositeConsumerKey(compositeKey: string) {
+    const trimmed = compositeKey.trim();
+    if (!trimmed) return null;
+
+    const separatorIndex = trimmed.indexOf("#");
+    if (separatorIndex <= 0 || separatorIndex === trimmed.length - 1) {
+        return null;
+    }
+
+    return {
+        integrationId: trimmed.slice(0, separatorIndex).trim(),
+        consumerKey: trimmed.slice(separatorIndex + 1).trim(),
+    };
+}
+
+export async function getIntegrationWithCompositeConsumerKey(userId: string, compositeKey: string) {
+    const parsed = parseCompositeConsumerKey(compositeKey);
+    if (!parsed) {
+        throw new ApiActionError("Invalid consumer key", 400, { error: "Invalid consumer key" });
+    }
+
+    const payload = await getIntegration(userId, parsed.integrationId, false);
+    const integration = payload.integration as Record<string, any> | undefined;
+    const configuration = (integration?.config?.configuration as Record<string, unknown> | undefined) ?? {};
+
+    const envDefs = isPlainObject(configuration.environment_variables)
+        ? (configuration.environment_variables as Record<string, { default?: string }>)
+        : null;
+
+    for (const item of Array.isArray(configuration.widgets) ? configuration.widgets : []) {
+        if (!isPlainObject(item)) continue;
+        const resolvedKey = resolveWidgetId(item);
+        if (resolvedKey === parsed.consumerKey) {
+            return {
+                integrationId: parsed.integrationId,
+                integration: integration?.config ?? null,
+                environmentDefinitions: envDefs,
+                widgetJSON: { ...item, key: resolvedKey },
+                localData: integration?.localData ?? null,
+            };
+        }
+    }
+
+    for (const item of Array.isArray(configuration.glanceables) ? configuration.glanceables : []) {
+        if (!isPlainObject(item)) continue;
+        const resolvedType = resolveGlanceableId(item);
+        if (resolvedType === parsed.consumerKey) {
+            return {
+                integrationId: parsed.integrationId,
+                integration: integration?.config ?? null,
+                environmentDefinitions: envDefs,
+                glanceableJSON: { ...item, type: resolvedType },
+                localData: integration?.localData ?? null,
+            };
+        }
+    }
+
+    return { integrationId: null, integration: null, widgetJSON: null, glanceableJSON: null, localData: null };
+}
+
 // ---------------------------------------------------------------------------
 // Built-in integration seeding
 // ---------------------------------------------------------------------------
 
-async function ensureBuiltinIntegrations(userId: string, pb: Awaited<ReturnType<typeof getSuperuserPB>>) {
+export async function ensureBuiltinIntegrations(userId: string, pb: Awaited<ReturnType<typeof getSuperuserPB>>) {
     const seeds = await loadBuiltinSeeds();
     if (seeds.length === 0) return;
 

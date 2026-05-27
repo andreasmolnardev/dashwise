@@ -288,8 +288,9 @@ export default function SettingsPagesPage() {
           ...payload,
           consumer: "widget",
           key: widgetKey,
+          integrationId: payload.integrationId ?? null,
           properties: input ?? {},
-          consumerKey: `widget:${widgetKey}:${JSON.stringify(input ?? {})}`,
+          consumerKey: payload.integrationId ? `${payload.integrationId}#${widgetKey}` : `widget:${widgetKey}:${JSON.stringify(input ?? {})}`,
         });
       }
 

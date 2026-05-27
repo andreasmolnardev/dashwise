@@ -327,7 +327,11 @@ export async function validateAuthToken(token: string) {
     throw new ApiActionError("Unauthorized", 401, { error: "Unauthorized" });
   }
 
-  return { success: true };
+  return {
+    success: true,
+    token: pb.authStore.token ?? token,
+    user: authModel.record,
+  };
 }
 
 export type ChangePasswordRequest = {

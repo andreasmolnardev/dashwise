@@ -19,10 +19,34 @@ export function normalizePageName(pageName?: string | null) {
 }
 
 export async function loadSignupDefaults(filename: string) {
-  const defaultPage = await defaultHomeConfig;
-  return defaultPage;
-  throw new Error(`Unable to load signup defaults file: ${filename}`);
+  const publicPath = resolve(process.cwd(), "public", "defaults", filename);
+  try {
+    const file = await fs.readFile(publicPath, "utf-8");
+    return JSON.parse(file);
+  } catch {
+    // Try package assets folder as a fallback. The server's CWD may be inside apps/backend,
+    // so search upwards a few levels to find the repo-level `packages/assets/defaults`.
+    for (let up = 0; up <= 3; up++) {
+      try {
+        const parts = Array(up).fill("..");
+        const pkgPath = resolve(process.cwd(), ...parts, "packages", "assets", "defaults", filename);
+        const file = await fs.readFile(pkgPath, "utf-8");
+        return JSON.parse(file);
+      } catch {
+        // continue searching
+      }
+    }
+
+    // Final fallback for home.json to the bundled default
+    if (filename === "home.json") {
+      return defaultHomeConfig;
+    }
+
+    throw new Error(`Unable to load signup defaults file: ${filename}`);
+  }
+
 }
+
 
 export async function requireAuth(auth: z.infer<typeof authInput>) {
   return requireUserAuth(auth);
@@ -76,5 +100,13 @@ export function readBool(value: string | undefined) {
 }
 
 export function routeRedirectTarget(c: Context) {
-  return c.req.query("redirectTo") ?? config.DASHWISE_URL;
+  if (c.req.query("redirectTo")) {
+    return c.req.query("redirectTo") as string;
+  }
+
+  if (config.ENVIRONMENT === "production") {
+    return new URL("/", c.req.url).toString();
+  }
+
+  return config.DASHWISE_URL;
 }

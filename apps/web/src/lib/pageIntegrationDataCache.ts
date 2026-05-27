@@ -4,6 +4,7 @@ type CachedConsumerPayload = {
   consumer: ConsumerType;
   key: string;
   properties: Record<string, any>;
+  integrationId?: string | null;
   consumerKey: string;
   success: boolean;
   blueprint?: any;
@@ -17,6 +18,14 @@ type PageIntegrationDataResponse = {
 };
 
 const consumerCache = new Map<string, any>();
+
+function resolveCanonicalConsumerKey(item: CachedConsumerPayload) {
+  if (item.integrationId && item.key) {
+    return `${item.integrationId}#${item.key}`;
+  }
+
+  return typeof item.consumerKey === "string" ? item.consumerKey : null;
+}
 
 export function buildConsumerCacheKey(
   consumer: ConsumerType,
@@ -34,10 +43,14 @@ export function primePageIntegrationConsumerCache(response: PageIntegrationDataR
   }
 
   response.items.forEach((item) => {
-    if (!item || typeof item.consumerKey !== "string") {
+    const canonicalKey = item ? resolveCanonicalConsumerKey(item) : null;
+    if (!item || !canonicalKey) {
       return;
     }
-    consumerCache.set(item.consumerKey, item);
+    consumerCache.set(canonicalKey, item);
+    if (typeof item.consumerKey === "string" && item.consumerKey !== canonicalKey) {
+      consumerCache.set(item.consumerKey, item);
+    }
     consumerCache.set(
       buildConsumerCacheKey(item.consumer, item.key, item.properties),
       item,
@@ -55,11 +68,15 @@ export function primePageIntegrationConsumerCache(response: PageIntegrationDataR
 }
 
 export function updatePageIntegrationConsumerCache(item: CachedConsumerPayload | null | undefined) {
-  if (!item || typeof item.consumerKey !== "string") {
+  const canonicalKey = item ? resolveCanonicalConsumerKey(item) : null;
+  if (!item || !canonicalKey) {
     return;
   }
 
-  consumerCache.set(item.consumerKey, item);
+  consumerCache.set(canonicalKey, item);
+  if (typeof item.consumerKey === "string" && item.consumerKey !== canonicalKey) {
+    consumerCache.set(item.consumerKey, item);
+  }
   consumerCache.set(
     buildConsumerCacheKey(item.consumer, item.key, item.properties),
     item,

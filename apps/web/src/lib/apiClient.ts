@@ -3,8 +3,9 @@ import type { paths } from "@dashwise/api-types";
 import type { ActionAuth } from "@dashwise/sdk/data/auth";
 import config from "@/lib/config";
 
+const apiBasePath = "/api/v1";
 const apiClient = createClient<paths>({
-  baseUrl: backendUrl("/api/v1"),
+  baseUrl: (config.backend_url ?? "").replace(/\/+$/, "") + apiBasePath,
 });
 
 type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
@@ -19,7 +20,8 @@ type RouteConfig = {
 };
 
 function getBaseUrl() {
-  return config.app_base_url;
+  if (config.backend_url) return config.backend_url;
+  return typeof window !== "undefined" ? window.location.origin : "";
 }
 
 export function backendUrl(path: string) {
