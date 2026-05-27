@@ -25,6 +25,7 @@ COPY packages/sdk/package.json ./packages/sdk/
 COPY packages/app-icon/package.json ./packages/app-icon/
 COPY packages/assets/package.json ./packages/assets/
 COPY packages/api-types/package.json ./packages/api-types/
+COPY packages/types/package.json ./packages/types/
 RUN bun install --frozen-lockfile
 
 COPY . .
