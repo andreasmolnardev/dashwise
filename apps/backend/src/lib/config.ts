@@ -1,11 +1,10 @@
-import * as dotenv from "dotenv";
-dotenv.config();
+const env = Bun.env;
 
-const processAllowSsl = process.env.ALLOW_SSL;
-const processEnvironment = process.env.ENVIRONMENT;
-const processStartPocketBase = process.env.START_POCKETBASE;
-const processOutlierType = process.env.MONITORING_OUTLIER_THRESHOLD_TYPE;
-const processOutlierValue = process.env.MONITORING_OUTLIER_THRESHOLD_VALUE;
+const processAllowSsl = env.ALLOW_SSL;
+const processEnvironment = env.ENVIRONMENT;
+const processStartPocketBase = env.START_POCKETBASE;
+const processOutlierType = env.MONITORING_OUTLIER_THRESHOLD_TYPE;
+const processOutlierValue = env.MONITORING_OUTLIER_THRESHOLD_VALUE;
 
 const normalizedOutlierType = processOutlierType === "absolute" ? "absolute" : "relative";
 const normalizedOutlierValue = Number(processOutlierValue);
@@ -15,28 +14,28 @@ const resolvedOutlierValue = Number.isFinite(normalizedOutlierValue) && normaliz
   : fallbackOutlierValue;
 
 export const config = {
-  ENVIRONMENT: processEnvironment === "env" ? "env" : "production",
-  PB_URL: process.env.PB_URL || "http://127.0.0.1:8090",
+  ENVIRONMENT: processEnvironment === "dev" ? "dev" : "production",
+  PB_URL: env.PB_URL || "http://127.0.0.1:8090",
   START_POCKETBASE:
     processStartPocketBase == null
       ? true
       : !(processStartPocketBase === "false" || processStartPocketBase === "0"),
-  SEARCHITEMS_SCHEDULE: process.env.SEARCHITEMS_SCHEDULE || "*/10 * * * *",
-  ENABLE_ICONS_REFRESH: process.env.ENABLE_ICONS_REFRESH === "true",
-  PULL_ICONS_SCHEDULE: process.env.PULL_ICONS_SCHEDULE || "0 */18 * * *",
-  MONITORING_INDEXER_SCHEDULE: process.env.MONITORING_INDEXER_SCHEDULE || "*/10 * * * *",
-  MONITORING_RUNNER_SCHEDULE: process.env.MONITORING_RUNNER_SCHEDULE || "*/1 * * * *",
-  UPDATE_CHECK_SCHEDULE:  process.env.UPDATE_CHECK_SCHEDULE || "0 2 * * *",
-  FEED_BUILDING_SCHEDULE: process.env.FEED_BUILDING_SCHEDULE || "*/30 * * * *",
-  NOTIFICATION_FORWARDER_SCHEDULE: process.env.NOTIFICATION_FORWARDER_SCHEDULE || "* * * * *",
-  DEFAULT_INTEGRATIONS_SCHEDULE: process.env.DEFAULT_INTEGRATIONS_SCHEDULE || "0 4 * * *",
-  PAGECONFIG_CLEANUP_SCHEDULE: process.env.PAGECONFIG_CLEANUP_SCHEDULE || "0 5 * * *",
+  SEARCHITEMS_SCHEDULE: env.SEARCHITEMS_SCHEDULE || "*/10 * * * *",
+  ENABLE_ICONS_REFRESH: env.ENABLE_ICONS_REFRESH === "true",
+  PULL_ICONS_SCHEDULE: env.PULL_ICONS_SCHEDULE || "0 */18 * * *",
+  MONITORING_INDEXER_SCHEDULE: env.MONITORING_INDEXER_SCHEDULE || "*/10 * * * *",
+  MONITORING_RUNNER_SCHEDULE: env.MONITORING_RUNNER_SCHEDULE || "*/1 * * * *",
+  UPDATE_CHECK_SCHEDULE:  env.UPDATE_CHECK_SCHEDULE || "0 2 * * *",
+  FEED_BUILDING_SCHEDULE: env.FEED_BUILDING_SCHEDULE || "*/30 * * * *",
+  NOTIFICATION_FORWARDER_SCHEDULE: env.NOTIFICATION_FORWARDER_SCHEDULE || "* * * * *",
+  DEFAULT_INTEGRATIONS_SCHEDULE: env.DEFAULT_INTEGRATIONS_SCHEDULE || "0 4 * * *",
+  PAGECONFIG_CLEANUP_SCHEDULE: env.PAGECONFIG_CLEANUP_SCHEDULE || "0 5 * * *",
   MONITORING_OUTLIER_THRESHOLD_TYPE: normalizedOutlierType,
   MONITORING_OUTLIER_THRESHOLD_VALUE: resolvedOutlierValue,
   ALLOW_SSL: processAllowSsl == "true" || processAllowSsl == "1",
-  PB_ADMIN_EMAIL: process.env.PB_ADMIN_EMAIL!,
-  PB_ADMIN_PASSWORD: process.env.PB_ADMIN_PASSWORD,
-  DASHWISE_URL: process.env.DASHWISE_URL || (processEnvironment === "env" ? "http://localhost:3000" : ""),
+  PB_ADMIN_EMAIL: env.PB_ADMIN_EMAIL!,
+  PB_ADMIN_PASSWORD: env.PB_ADMIN_PASSWORD,
+  DASHWISE_URL: env.DASHWISE_URL || (processEnvironment === "dev" ? "http://localhost:3000" : ""),
   DASHWISE_VERSION: '1.0',
   GITHUB_REPO: 'andreasmolnardev/dashwise-next'
 } as const;
