@@ -394,6 +394,10 @@ export default function NewsDashboardComponent() {
     const selectedFeed = feeds.find((entry) => entry.id === activeFeedId) ||
         null;
 
+    const newSubscriptionDefaults = activeFeedId === "all"
+        ? undefined
+        : ({ feedIds: [activeFeedId] } as NewsFeedDraft);
+
     const selectedSource = selectedSubscription?.title ||
         selectedSubscription?.url || selectedFeed?.title || null;
     const selectedCategory = activeFeedId === "all"
@@ -619,7 +623,7 @@ export default function NewsDashboardComponent() {
                                     fallbackThumbnailUrl: editingFeed.fallbackThumbnailUrl,
                                     thumbnailOverwriteUrl: editingFeed.thumbnailOverwriteUrl,
                                 }
-                                : undefined}
+                                : newSubscriptionDefaults}
                             feeds={feeds}
                             resolveFeedMetadata={(feedUrl) =>
                                 withAuth((auth) => getNewsFeedMetadataAction(auth, feedUrl))
