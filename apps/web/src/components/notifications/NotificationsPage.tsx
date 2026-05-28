@@ -13,7 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { MoreHorizontal, Plus } from "lucide-react";
+import { Check, CircleHelp, MoreHorizontal, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NOTIFICATIONS_UPDATED_EVENT } from "@/lib/events";
 import {
@@ -52,6 +52,7 @@ export default function NotificationsPage() {
     const [topicForToken, setTopicForToken] = useState<TopicItem | null>(null);
     const [topicForForwarder, setTopicForForwarder] = useState<TopicItem | null>(null);
     const [topicToDelete, setTopicToDelete] = useState<TopicItem | null>(null);
+    const [helpOpen, setHelpOpen] = useState(false);
 
     const fetchData = useCallback(async () => {
         if (!token) return;
@@ -83,6 +84,10 @@ export default function NotificationsPage() {
 
     const hasUnread = useMemo(
         () => notifications.some((notification) => notification.status !== "read"),
+        [notifications]
+    );
+    const unreadCount = useMemo(
+        () => notifications.filter((notification) => notification.status !== "read").length,
         [notifications]
     );
 
@@ -164,19 +169,40 @@ export default function NotificationsPage() {
     return (
         <>
             <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
-                <h1 className="text-3xl font-semibold">Notifications</h1>
+                <div className="flex items-center gap-3">
+                    <h1 className="text-3xl font-semibold">Notifications</h1>
+                    {hasUnread && (
+                        <div className="flex items-center shrink-0">
+                            <div
+                                className="h-8 inline-flex items-center rounded-l-xl rounded-r-sm border border-primary/60 bg-white/15 px-3 text-sm font-semibold text-white backdrop-blur-md"
+                                aria-label={`${unreadCount} unread notifications`}
+                            >
+                                {unreadCount}
+                            </div>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={(event) => {
+                                    event.stopPropagation();
+                                    markAllAsRead();
+                                }}
+                                className="h-8 w-8 rounded-l-sm rounded-r-xl border border-l-0 border-primary/60 bg-white/10 p-0 hover:bg-white/20"
+                                aria-label="Mark all notifications as read"
+                                title="Mark all as read"
+                            >
+                                <Check className="h-4 w-4" />
+                            </Button>
+                        </div>
+                    )}
+                </div>
                 <div className="flex items-center gap-2">
                     <Button
                         variant="ghost"
                         size="sm"
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            markAllAsRead();
-                        }}
-                        disabled={!hasUnread}
-                        aria-label="Mark all notifications as read"
+                        onClick={() => setHelpOpen(true)}
+                        className="gap-2 text-muted-foreground hover:text-foreground"
                     >
-                        Mark all as read
+                        How to use?
                     </Button>
                 </div>
             </div>
@@ -226,10 +252,10 @@ export default function NotificationsPage() {
                                     </DropdownMenuItem>
                                     <DropdownMenuSeparator />
                                     <DropdownMenuItem onClick={() => setTopicForToken(topic)}>
-                                        Create new topic token
+                                        New topic token
                                     </DropdownMenuItem>
                                     <DropdownMenuItem onClick={() => setTopicForForwarder(topic)}>
-                                        Create new topic forwarder
+                                        New topic forwarder
                                     </DropdownMenuItem>
                                     <DropdownMenuSeparator />
                                     <DropdownMenuItem
@@ -248,10 +274,10 @@ export default function NotificationsPage() {
                     <Button
                         variant="ghost"
                         onClick={() => setCreateTopicOpen(true)}
-                        className="gap-2 frosted-lite"
+                        className="gap-2 frosted-lite hover:text-primary"
                     >
                         <Plus className="h-4 w-4" />
-                        Create new topic
+                        Topic
                     </Button>
                 </div>
 
@@ -390,6 +416,61 @@ export default function NotificationsPage() {
                             {creatingTopic ? "Creating..." : "Create topic"}
                         </Button>
                     </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={helpOpen} onOpenChange={setHelpOpen}>
+                <DialogContent className="frosted text-foreground max-w-2xl overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle>How to send notifications</DialogTitle>
+                        <DialogDescription>
+                            Dashwise accepts any JSON payload at the notifications endpoint. Use a topic token for
+                            automation, and keep the token secret.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="space-y-4 text-sm leading-6 text-white/80 break-words">
+                        <div className="space-y-1">
+                            <p className="font-medium text-white">1. Create a topic token</p>
+                            <p>
+                                Generate a token in the Tokens tab and attach it to the topic you want to receive
+                                notifications for.
+                            </p>
+                        </div>
+
+                        <div className="space-y-1">
+                            <p className="font-medium text-white">2. POST JSON to the notifications endpoint</p>
+                            <p>
+                                Send your payload to{" "}
+                                <span className="font-mono text-white break-all">/api/v1/notifications</span>{" "}
+                                with the token in the{" "}
+                                <span className="font-mono text-white break-all">Authorization</span>{" "}
+                                header or as the{" "}
+                                <span className="font-mono text-white break-all">?token=</span>{" "}
+                                query parameter.
+                            </p>
+
+                            <pre className="whitespace-pre-wrap break-all overflow-x-hidden rounded-md border border-white/10 bg-black/20 p-3 text-xs text-white/90">
+{`curl -X POST ${"${URL}"}/api/v1/notifications \\
+  -H "Authorization: Bearer ${"${topicToken}"}" \\
+  -H "Content-Type: application/json" \\
+  -d '{"summary":"Backing up TV shows","details":"Backup completed"}'`}
+                            </pre>
+                        </div>
+
+                        <div className="space-y-1">
+                            <p className="font-medium text-white">3. Use Shoutrrr for automation</p>
+                            <p>
+                                Shoutrrr can call Dashwise directly. The docs use a generic target with the same bearer
+                                token:
+                            </p>
+
+                            <pre className="whitespace-pre-wrap break-all overflow-x-hidden rounded-md border border-white/10 bg-black/20 p-3 text-xs text-white/90">
+{`Expression: generic://${"${URL}"}/api/v1/notifications/${"${topicToken}"}?template=json
+Headers: Authorization: Bearer ${"${topicToken}"}`}
+                            </pre>
+                        </div>
+                    </div>
                 </DialogContent>
             </Dialog>
 
