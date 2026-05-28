@@ -59,9 +59,12 @@ async function normalizeNewsFeedUrl(feedUrl: string) {
 
         if (response.ok) {
           const html = await response.text();
-          const channelMatch = html.match(/"channelId":"([^"]+)"/);
-          if (channelMatch?.[1]) {
-            return `https://www.youtube.com/feeds/videos.xml?channel_id=${channelMatch[1]}`;
+          const channelId = html.match(
+            /<meta[^>]*itemprop=["']identifier["'][^>]*content=["']([^"']+)["'][^>]*>/i
+          )?.[1];
+
+          if (channelId) {
+            return `https://www.youtube.com/feeds/videos.xml?channel_id=${channelId}`;
           }
         }
       } catch {
