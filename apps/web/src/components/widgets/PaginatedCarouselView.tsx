@@ -30,11 +30,26 @@ export function PaginatedCarouselViewComponent({
 
   useEffect(() => {
     const update = () => {
-      if (containerRef.current) setContainerWidth(containerRef.current.clientWidth);
+      if (containerRef.current) {
+        setContainerWidth(containerRef.current.clientWidth);
+      }
     };
+
     update();
+
+    const observer = typeof ResizeObserver !== "undefined" && containerRef.current
+      ? new ResizeObserver(update)
+      : null;
+
+    if (containerRef.current) {
+      observer?.observe(containerRef.current);
+    }
+
     window.addEventListener("resize", update);
-    return () => window.removeEventListener("resize", update);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", update);
+    };
   }, []);
 
   useEffect(() => {
@@ -44,17 +59,19 @@ export function PaginatedCarouselViewComponent({
       setRows(finalRows);
 
       const effectiveWidth = containerWidth || window.innerWidth;
-      let computedCols = Math.max(1, Math.floor(effectiveWidth / minColWidth));
-      computedCols = Math.min(computedCols, maxCols);
-      const perPage = finalRows * maxCols;
-      const itemsOnPage = Math.min(perPage, children.length);
-      computedCols = Math.min(computedCols, Math.ceil(itemsOnPage / finalRows));
-      setCols(computedCols > minCols ? computedCols : minCols);
+      const widthBasedCols = Math.max(
+        minCols,
+        Math.floor(effectiveWidth / minColWidth),
+      );
+      let computedCols = maxCols
+        ? Math.min(widthBasedCols, maxCols)
+        : widthBasedCols;
+      setCols(Math.max(1, computedCols));
     };
     calc();
     window.addEventListener("resize", calc);
     return () => window.removeEventListener("resize", calc);
-  }, [containerWidth, rowHeight, minColWidth, maxCols]);
+  }, [children.length, containerWidth, rowHeight, minColWidth, minCols, maxCols, maxRows]);
 
   const perPage = rows * cols;
 
