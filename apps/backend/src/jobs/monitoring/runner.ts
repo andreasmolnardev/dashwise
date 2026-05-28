@@ -276,6 +276,10 @@ async function getLinkConfigById(
     if (!cache.has(userId)) {
         const userConfigs = await getUserConfigsByAssociatedUserId(userId, 1000);
 
+        if (!userConfigs || userConfigs.length === 0) {
+            return undefined;   
+        }
+
         const mapById = new Map<string, LinkCheckConfig>();
         for (const userConfig of userConfigs) {
             const parsedConfig = parseConfigObject(userConfig.config);
