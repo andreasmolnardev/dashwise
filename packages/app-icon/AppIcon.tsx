@@ -35,6 +35,7 @@ export default function AppIcon({
 }: AppIconProps) {
 	const [isInView, setIsInView] = useState(!lazy);
 	const ref = useRef<HTMLElement | HTMLImageElement | null>(null);
+	const alignedClassName = combineClassNames("text-center", className);
 
 	useEffect(() => {
 		if (!lazy || isInView) return;
@@ -69,7 +70,10 @@ export default function AppIcon({
 		return (
 			<span
 				ref={ref as React.RefObject<HTMLSpanElement>}
-				className={combineClassNames(className, "app-icon-placeholder")}
+				className={combineClassNames(
+					alignedClassName,
+					"app-icon-placeholder"
+				)}
 				style={{
 					display: "inline-block",
 					width: size,
@@ -89,7 +93,7 @@ export default function AppIcon({
 		return (
 			<IconifyIcon
 				icon={iconifySlug}
-				className={combineClassNames(className, iconClassName)}
+				className={combineClassNames(alignedClassName, iconClassName)}
 				style={{
 					maskImage: useFrostedGradient
 						? "linear-gradient(130deg, black 60%, transparent)"
@@ -110,7 +114,11 @@ export default function AppIcon({
 			<MaskedIcon
 				source={normalized}
 				size={size}
-				className={combineClassNames(className, monoClassName)}
+				className={combineClassNames(
+					getMonoIconBackgroundClassName(normalized),
+					alignedClassName,
+					monoClassName
+				)}
 			/>
 		);
 	}
@@ -124,7 +132,7 @@ export default function AppIcon({
 				<AppIcon
 					source={fallbackSource}
 					alt={alt}
-					className={className}
+					className={alignedClassName}
 					imageClassName={imageClassName}
 					fallbackPrefix={fallbackPrefix}
 					size={size}
@@ -137,7 +145,11 @@ export default function AppIcon({
 				<MaskedIcon
 					source={imageSource}
 					size={size}
-					className={combineClassNames(className, monoClassName)}
+					className={combineClassNames(
+						getMonoIconBackgroundClassName(imageSource),
+						alignedClassName,
+						monoClassName
+					)}
 				/>
 			);
 		}
@@ -146,7 +158,7 @@ export default function AppIcon({
 			<UrlImageIcon
 				source={imageSource}
 				alt={alt}
-				className={className}
+				className={alignedClassName}
 				imageClassName={imageClassName}
 				fallbackSource={fallbackSource}
 				size={size}
@@ -161,7 +173,7 @@ export default function AppIcon({
 			alt={alt ?? ""}
 			width={size}
 			height={size}
-			className={combineClassNames(className, imageClassName)}
+			className={combineClassNames(alignedClassName, imageClassName)}
 		/>
 	);
 }
@@ -206,6 +218,18 @@ export function isMonoIconSource(source?: string | null) {
 	);
 }
 
+function isLightMonoIconSource(source?: string | null) {
+	if (!source) return false;
+
+	return /^\/icons\/(?:webp|png|svg)\/[^/]+?-light\.(?:webp|png|svg)(?:\?.*)?$/i.test(
+		source
+	);
+}
+
+function getMonoIconBackgroundClassName(source: string) {
+	return isLightMonoIconSource(source) ? "bg-white" : undefined;
+}
+
 function resolveUrlSource(source: string, fallbackPrefix: string) {
 	if (
 		source.startsWith("/") ||
@@ -233,6 +257,7 @@ function MaskedIcon({
 		<span
 			className={combineClassNames(
 				"bg-current inline-block shrink-0",
+				"text-center",
 				className
 			)}
 			style={{
@@ -272,7 +297,7 @@ function UrlImageIcon({
 			<AppIcon
 				source={fallbackSource}
 				alt={alt}
-				className={className}
+				className={combineClassNames("text-center", className)}
 				imageClassName={imageClassName}
 				size={size}
 			/>
@@ -286,7 +311,7 @@ function UrlImageIcon({
 			onError={() => setFailed(true)}
 			width={size}
 			height={size}
-			className={combineClassNames(className, imageClassName)}
+			className={combineClassNames("text-center", className, imageClassName)}
 		/>
 	);
 }
