@@ -16,11 +16,7 @@
     ],
     "paths": {
       "@dashwise/assets": ["../../packages/assets/index.ts"],
-      "@dashwise/assets/*": ["../../packages/assets/*"],
-      "@dashwise/sdk": ["../../packages/sdk/index.ts"],
-      "@dashwise/sdk/index": ["../../packages/sdk/index.ts"],
-      "@dashwise/sdk/lib/*": ["../../packages/sdk/lib/*"],
-      "@dashwise/sdk/data/*": ["../../packages/sdk/data/*"]
+      "@dashwise/assets/*": ["../../packages/assets/*"]
     },
     "outDir": "./dist"
   },

@@ -15,10 +15,11 @@
   },
   "dependencies": {
     "@dashwise/assets": "workspace:*",
+    "@dashwise/integrationskit": "workspace:*",
     "@dashwise/types": "workspace:*",
     "@dashwise/sdk": "workspace:*",
-    "dotenv": "^17.2.3",
     "hono": "^4.6.14",
+    "ts-caldav": "^0.3.7",
     "rss-parser": "^3.12.0",
     "zod": "^3.24.1"
   },
