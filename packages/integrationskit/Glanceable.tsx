@@ -44,7 +44,7 @@ export default function Glanceable({
   if (resolved) {
     return (
       <span
-        className={`inline-flex items-center gap-1 ${className ?? ""}`}
+        className={`inline-flex items-center gap-1 text-center ${className ?? ""}`}
       >
         {resolved.icon && (
           <AppIcon source={resolved.icon} alt="" className="text-lg object-contain shrink-0" />
@@ -141,7 +141,7 @@ export default function Glanceable({
 
   return (
     <span
-      className={`inline-flex items-center gap-1 ${className ?? ""}`}
+      className={`inline-flex items-center gap-1 text-center ${className ?? ""}`}
     >
       {iconSrc && (
         <AppIcon source={iconSrc} alt="" className="text-lg object-contain shrink-0" />
@@ -164,22 +164,22 @@ function LegacyGlanceable({
 }) {
   switch (type) {
     case "date":
-      return <span className={`inline-flex items-center text-sm ${className ?? ""}`}>{formatDate(new Date(), params?.format, formatters)}</span>;
+      return <span className={`inline-flex items-center text-sm text-center ${className ?? ""}`}>{formatDate(new Date(), params?.format, formatters)}</span>;
 
     case "greeting":
-      return <span className={`inline-flex items-center text-sm ${className ?? ""}`}>Hello</span>;
+      return <span className={`inline-flex items-center text-sm text-center ${className ?? ""}`}>Hello</span>;
 
     case "local-timezone":
-      return <span className={`inline-flex items-center text-sm ${className ?? ""}`}>{getLocalTimezoneLabel()}</span>;
+      return <span className={`inline-flex items-center text-sm text-center ${className ?? ""}`}>{getLocalTimezoneLabel()}</span>;
 
     case "weather":
-      return <span className={`inline-flex items-center text-sm ${className ?? ""}`}>{formatWeather(params, formatters)}</span>;
+      return <span className={`inline-flex items-center text-sm text-center ${className ?? ""}`}>{formatWeather(params, formatters)}</span>;
 
     case "world-clock":
       return <LegacyWorldClock params={params} className={className} formatters={formatters} />;
 
     default:
-      return <span className={`inline-flex items-center text-sm ${className ?? ""}`}>{params?.name ?? type}</span>;
+      return <span className={`inline-flex items-center text-sm text-center ${className ?? ""}`}>{params?.name ?? type}</span>;
   }
 }
 
@@ -208,7 +208,7 @@ function LegacyWorldClock({
     return () => clearInterval(interval);
   }, [formatters, timezone]);
 
-  return <span className={`inline-flex items-center text-sm ${className ?? ""}`}>{time}{location ? ` in ${location}` : ""}</span>;
+  return <span className={`inline-flex items-center text-sm text-center ${className ?? ""}`}>{time}{location ? ` in ${location}` : ""}</span>;
 }
 
 function getLocalTimezoneLabel() {
