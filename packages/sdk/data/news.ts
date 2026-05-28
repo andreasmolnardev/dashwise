@@ -100,6 +100,10 @@ export type NewsFeedRecordUpdateInput = {
   feedId: string;
 } & Pick<NewsFeedsRecord, "title" | "subscriptionRefs" | "excludedSubscriptionRefs">;
 
+export type NewsFeedRecordCreateInput = {
+  title: string;
+};
+
 function escapeFilter(value: string) {
   return value.replace(/"/g, '\\"');
 }
@@ -338,6 +342,30 @@ export async function updateNewsFeedRecordForUser(
     subscriptionRefs,
     excludedSubscriptionRefs,
   });
+}
+
+export async function createNewsFeedRecordForUser(
+  userId: string,
+  payload: NewsFeedRecordCreateInput,
+): Promise<NewsFeedRecord | null> {
+  const title = String(payload.title || "").trim();
+  if (!title) {
+    return null;
+  }
+
+  const existingFeed = (await getNewsFeedByTitle(userId, title).catch(() => null)) as NewsFeedRecord | null;
+  if (existingFeed?.id) {
+    return normalizeFeedRecord(existingFeed as Record<string, unknown>);
+  }
+
+  const createdFeed = (await createNewsFeedRecord({
+    userId,
+    title,
+    subscriptionRefs: [],
+    excludedSubscriptionRefs: [],
+  })) as NewsFeedRecord;
+
+  return normalizeFeedRecord(createdFeed as Record<string, unknown>);
 }
 
 async function getUserSubscriptionIdsFromFeeds(feeds: NewsFeedRecord[]) {
@@ -655,4 +683,3 @@ export async function updateNewsFeed(
 }
 
 export { updateNewsSubscription };
-

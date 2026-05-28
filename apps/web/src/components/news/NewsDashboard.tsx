@@ -47,9 +47,7 @@ import type {
     NewsSubscriptionsResponse,
 } from "@dashwise/sdk/data/news";
 
-export default function NewsDashboardComponent(
-    children: React.PropsWithChildren<{}> = {},
-) {
+export default function NewsDashboardComponent() {
     const navigate = useNavigate();
     const { feedId } = useParams();
     const [searchParams] = useSearchParams();
