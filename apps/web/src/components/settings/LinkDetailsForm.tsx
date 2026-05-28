@@ -399,7 +399,7 @@ export default function LinkDetailsForm({
   return (
     <form
       onSubmit={handleSubmit}
-      className="flex gap-2 justify-center relative"
+      className="grid grid-cols-[1fr_auto_1fr] gap-2 justify-center relative"
     >
       <section className="max-h-100 overflow-scroll">
         <Label htmlFor="link-title">Name</Label>
@@ -606,7 +606,7 @@ export default function LinkDetailsForm({
         </div>
       </section>
 
-      <div className="col-span-3 mt-2 flex gap-2 justify-end absolute bottom-2 right-2">
+      <div className="justify-self-end col-span-full gap-2 flex">
         {error && <p className="text-red-500">{error}</p>}
         {isEditing && (
           <Button
