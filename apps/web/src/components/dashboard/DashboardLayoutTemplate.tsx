@@ -68,6 +68,21 @@ export default function DashboardLayoutTemplate({
     const { token } = useAuth();
     const [searchParams] = useSearchParams();
     const openFromURL = searchParams.get("search") === "1";
+    const hasSearchBarWidget = useMemo(() => {
+        const columns = config?.columns as
+            | Record<Column, Record<string, any>>
+            | undefined;
+
+        if (!columns) return false;
+
+        return COLUMN_ORDER.some((columnName) => {
+            const entries = columns[columnName];
+            return !!entries && typeof entries === "object" &&
+                Object.keys(entries).some((entryKey) =>
+                    entryKey === "search-bar"
+                );
+        });
+    }, [config]);
 
     const containerRef = useRef<HTMLDivElement | null>(null);
     const [activePanel, setActivePanel] = useState<number>(1);
@@ -547,7 +562,7 @@ export default function DashboardLayoutTemplate({
                     columns={columns}
                 />
             </div>
-            {openFromURL && (
+            {openFromURL && !hasSearchBarWidget && (
                 <div className="hidden">
                     {renderWidget({
                         type: "search-bar",

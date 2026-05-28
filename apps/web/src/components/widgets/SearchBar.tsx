@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import useAuth from "@/context/useAuth";
 import CommandBar from './CommandBar';
 import { getSearchItemsAction } from '@/app/actions/searchItems';
@@ -96,7 +96,8 @@ function isCacheFresh(cache: SearchItemsCache | null) {
 
 export default function SearchBar({ useRedirect, defaultOpen }: SearchBarProps) {
   const [redirecting, setRedirecting] = useState(false);
-  const [open, setOpen] = useState(false); // control CommandBar
+  const [open, setOpen] = useState(() => !!defaultOpen); // control CommandBar
+  const didMountRef = useRef(false);
   const { user, withAuth } = useAuth();
 
   // fetched items from /api/v1/searchItems
@@ -105,6 +106,11 @@ export default function SearchBar({ useRedirect, defaultOpen }: SearchBarProps) 
   const [itemsError, setItemsError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!didMountRef.current) {
+      didMountRef.current = true;
+      return;
+    }
+
     if (defaultOpen) setOpen(true);
   }, [defaultOpen]);
 
