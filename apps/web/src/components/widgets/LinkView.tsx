@@ -56,10 +56,45 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { updateLinksOrderAction } from "@/app/actions/links";
 
+const HOME_LINKS_CACHE_KEY = "dashwise_home_links_cache_v1";
+
+function readCachedHomeLinks(): LinkType[] | null {
+  if (typeof window === "undefined") return null;
+
+  try {
+    const raw = window.localStorage.getItem(HOME_LINKS_CACHE_KEY);
+    if (!raw) return null;
+
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) return parsed as LinkType[];
+    if (Array.isArray(parsed?.links)) return parsed.links as LinkType[];
+  } catch {
+    // ignore cache parse failures and fall back to server data
+  }
+
+  return null;
+}
+
+function writeCachedHomeLinks(links: LinkType[]) {
+  if (typeof window === "undefined") return;
+
+  try {
+    window.localStorage.setItem(
+      HOME_LINKS_CACHE_KEY,
+      JSON.stringify({ links, updatedAt: Date.now() }),
+    );
+  } catch {
+    // ignore storage failures
+  }
+}
+
 export default function LinkView({ links = [] }: { links?: LinkType[] }) {
   const { pageConfig } = usePageConfig();
   const { token, withAuth } = useAuth();
-  const [localLinks, setLocalLinks] = useState<LinkType[]>(links);
+  const [localLinks, setLocalLinks] = useState<LinkType[]>(() => {
+    if (links.length > 0) return links;
+    return readCachedHomeLinks() ?? links;
+  });
 
   const [folderPreviewRev, setFolderPreviewRev] = useState(0);
 
@@ -83,7 +118,9 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
       try {
         const data = await withAuth((auth) => getHomeLinksAction(auth));
         if (Array.isArray(data)) {
-          setLocalLinks(data as LinkType[]);
+          const nextLinks = data as LinkType[];
+          setLocalLinks(nextLinks);
+          writeCachedHomeLinks(nextLinks);
         }
       } catch (err) {
         console.error("Failed to fetch home links:", err);
@@ -249,7 +286,9 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
     try {
       const data = await withAuth((auth) => getHomeLinksAction(auth));
       if (Array.isArray(data)) {
-        setLocalLinks(data as LinkType[]);
+        const nextLinks = data as LinkType[];
+        setLocalLinks(nextLinks);
+        writeCachedHomeLinks(nextLinks);
       }
     } catch (err) {
       console.error("Failed to refresh home links:", err);
@@ -281,7 +320,7 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
               );
             };
 
-            return prev.map((l) =>
+            const nextLinks = prev.map((l) =>
               l.id === draft.id
                 ? {
                   ...l,
@@ -294,6 +333,9 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
                 }
                 : l
             );
+
+            writeCachedHomeLinks(nextLinks);
+            return nextLinks;
           }
         }
 
@@ -301,7 +343,7 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
           setLocalLinks((current) => current.filter((l) => l.id !== draft.id));
         };
 
-        return [
+        const nextLinks = [
           ...prev,
           {
             id: draft.id,
@@ -313,6 +355,9 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
             statusCheck: draft.statusCheck,
           },
         ];
+
+        writeCachedHomeLinks(nextLinks);
+        return nextLinks;
       });
 
       return rollback;
@@ -373,6 +418,7 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
 
         // Optimistically update localLinks
         setLocalLinks(reorderedLinks);
+        writeCachedHomeLinks(reorderedLinks);
 
         // Persist order to backend
         try {
@@ -697,13 +743,15 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
                       icon: iconObj.url ?? "",
                     })
                   );
-                  setLocalLinks((current) =>
-                    current.map((link) =>
+                  setLocalLinks((current) => {
+                    const nextLinks = current.map((link) =>
                       link.folderId === editingFolder.id
                         ? { ...link, folderIcon: iconObj.url ?? "" }
                         : link
-                    )
-                  );
+                    );
+                    writeCachedHomeLinks(nextLinks);
+                    return nextLinks;
+                  });
                   setEditingFolder((current) =>
                     current ? { ...current, icon: iconObj?.url ?? "" } : current
                   );
