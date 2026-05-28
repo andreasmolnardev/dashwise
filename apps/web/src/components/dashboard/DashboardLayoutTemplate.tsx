@@ -11,7 +11,10 @@ import useAuth from "@/context/useAuth";
 import { getNotificationsAction } from "@/app/actions/notifications/items";
 import { renderWidget } from "../widgets/Widget";
 import PageNotFound from "../errorPages/PageNotFound";
-import { clearPageIntegrationConsumerCache, updatePageIntegrationConsumerCache } from "@/lib/pageIntegrationDataCache";
+import {
+    clearPageIntegrationConsumerCache,
+    updatePageIntegrationConsumerCache,
+} from "@/lib/pageIntegrationDataCache";
 import { subscribePageIntegrationSocket } from "@/lib/pageIntegrationSocket";
 import { PageIntegrationStreamProvider } from "@/context/PageIntegrationStreamContext";
 
@@ -34,17 +37,23 @@ const COLUMN_PANEL_IDS: Record<Column, string | undefined> = {
 };
 
 function sortWidgetEntries(entries: Record<string, any>) {
-    return Object.entries(entries).sort(([leftKey, leftValue], [rightKey, rightValue]) => {
-        const leftIndex = typeof leftValue?.index === "number" && Number.isFinite(leftValue.index)
-            ? leftValue.index
-            : Number.MAX_SAFE_INTEGER;
-        const rightIndex = typeof rightValue?.index === "number" && Number.isFinite(rightValue.index)
-            ? rightValue.index
-            : Number.MAX_SAFE_INTEGER;
+    return Object.entries(entries).sort(
+        ([leftKey, leftValue], [rightKey, rightValue]) => {
+            const leftIndex =
+                typeof leftValue?.index === "number" &&
+                    Number.isFinite(leftValue.index)
+                    ? leftValue.index
+                    : Number.MAX_SAFE_INTEGER;
+            const rightIndex =
+                typeof rightValue?.index === "number" &&
+                    Number.isFinite(rightValue.index)
+                    ? rightValue.index
+                    : Number.MAX_SAFE_INTEGER;
 
-        if (leftIndex !== rightIndex) return leftIndex - rightIndex;
-        return leftKey.localeCompare(rightKey);
-    });
+            if (leftIndex !== rightIndex) return leftIndex - rightIndex;
+            return leftKey.localeCompare(rightKey);
+        },
+    );
 }
 
 export default function DashboardLayoutTemplate({
@@ -77,7 +86,7 @@ export default function DashboardLayoutTemplate({
     const [integrationStreamVersion, setIntegrationStreamVersion] = useState(0);
 
     if (!config && !isLoading) {
-        return <PageNotFound />
+        return <PageNotFound />;
     }
 
     const columns = config?.columns as
@@ -346,7 +355,7 @@ export default function DashboardLayoutTemplate({
         entryKey: string,
         entryConfig: Record<string, any> | null | undefined,
         entryIndex: number,
-    ) => {  
+    ) => {
         const cfg = entryConfig ?? {};
         const wrapperClass = ["mb-3", cfg.className].filter(Boolean).join(
             " ",
@@ -405,10 +414,9 @@ export default function DashboardLayoutTemplate({
                 return (
                     <div key={baseKey} className={wrapperClass}>
                         {renderWidget({
-                            type: "link-view"
+                            type: "link-view",
                         })}
                     </div>
-                    
                 );
             default:
                 // Fall back to integration widget-by-key renderer, then to generic widget.
@@ -493,15 +501,22 @@ export default function DashboardLayoutTemplate({
                 className={COLUMN_CLASSNAME[columnName]}
                 style={{ scrollSnapStop: "always", touchAction: "pan-x" }}
             >
-                {isLoading ? (
-                    renderColumnSkeleton(columnName)
-                ) : (
-                    entries && typeof entries === "object"
-                        ? sortWidgetEntries(entries).map(([key, cfg], i) =>
-                            renderWidgetEntry(columnName, key, cfg as Record<string, any>, i)
-                        )
-                        : null
-                )}
+                {isLoading
+                    ? (
+                        renderColumnSkeleton(columnName)
+                    )
+                    : (
+                        entries && typeof entries === "object"
+                            ? sortWidgetEntries(entries).map(([key, cfg], i) =>
+                                renderWidgetEntry(
+                                    columnName,
+                                    key,
+                                    cfg as Record<string, any>,
+                                    i,
+                                )
+                            )
+                            : null
+                    )}
             </div>
         );
     };
@@ -514,7 +529,7 @@ export default function DashboardLayoutTemplate({
                 pageName,
             }}
         >
-            <div className="grid grid-rows-[minmax(0,1fr)_36px] h-dvh pt-5 md:p-2.5 p-0 overflow-x-hidden text-(--surface-foreground) bg-(--surface)">
+            <div className="grid grid-rows-[minmax(0,1fr)_36px] h-dvh pt-5 p-2 overflow-x-hidden text-(--surface-foreground) bg-(--surface)">
                 <main
                     id="page-content-container"
                     ref={containerRef}
@@ -560,22 +575,29 @@ function BottomNavbar({
     const { user, token, withAuth } = useAuth();
     const [unreadCount, setUnreadCount] = useState<number>(0);
     const [showSmartFrameButton, setShowSmartFrameButton] = useState(false);
+    const [isFullscreen, setIsFullscreen] = useState(() => {
+        return typeof document !== "undefined" && !!document.fullscreenElement;
+    });
 
     useEffect(() => {
         const checkConfig = () => {
             const local = localStorage.getItem("dashwise_screensaver_local");
             const localConfig = local ? JSON.parse(local) : null;
             const globalConfig = user?.screensaverPreferences as any;
-            
+
             const showLocal = localConfig?.showButton === true;
             const showGlobal = globalConfig?.showButton === true;
-            
+
             setShowSmartFrameButton(showLocal || showGlobal);
         };
 
         checkConfig();
         window.addEventListener("dashwise_local_config_updated", checkConfig);
-        return () => window.removeEventListener("dashwise_local_config_updated", checkConfig);
+        return () =>
+            window.removeEventListener(
+                "dashwise_local_config_updated",
+                checkConfig,
+            );
     }, [user?.screensaverPreferences]);
 
     useEffect(() => {
@@ -593,6 +615,35 @@ function BottomNavbar({
         fetchNotifications();
     }, [token, withAuth]);
 
+    useEffect(() => {
+        const onFullscreenChange = () => {
+            setIsFullscreen(!!document.fullscreenElement);
+        };
+
+        document.addEventListener("fullscreenchange", onFullscreenChange);
+        onFullscreenChange();
+
+        return () => {
+            document.removeEventListener(
+                "fullscreenchange",
+                onFullscreenChange,
+            );
+        };
+    }, []);
+
+    const toggleFullscreen = useCallback(async () => {
+        try {
+            if (document.fullscreenElement) {
+                await document.exitFullscreen();
+                return;
+            }
+
+            await document.documentElement.requestFullscreen();
+        } catch (error) {
+            console.error(error);
+        }
+    }, []);
+
     const hasLeftColumn = columns?.left && Object.keys(columns.left).length > 0;
     const hasRightColumn = columns?.right &&
         Object.keys(columns.right).length > 0;
@@ -600,18 +651,18 @@ function BottomNavbar({
 
     return (
         <div
-            className="grid grid-cols-[1fr_auto_1fr] items-center px-3 md:px-0 mx-2 mb-2"
+            className="grid grid-cols-[1fr_auto_1fr] items-center md:px-0 mx-2 mb-2"
             id="page-footer"
         >
             <div id="app-details" className="flex items-center gap-2">
                 <Link to="/home" className="flex items-center gap-2">
                     <img src="/dashwise-icon.png" alt="" className="h-9" />
-                    <span className="font-semibold">dashwise</span>
+                    <span className="hidden md:flex font-semibold">dashwise</span>
                 </Link>
                 <QuickLaunchPopover />
                 <a
                     href="https://github.com/andreasmolnardev/dashwise-next"
-                    className="frosted rounded-full p-1 transition-colors duration-200 group"
+                    className="hidden md:flex frosted rounded-full p-1 transition-colors duration-200 group"
                 >
                     <img
                         src="/icons/png/github-light.png"
@@ -619,7 +670,7 @@ function BottomNavbar({
                         className="h-5 w-5 opacity-85 group-hover:opacity-100 transition-opacity duration-200"
                     />
                 </a>
-                <div className="aspect-square rounded-full frosted w-2 h-2" />
+                <div className="hidden md:flex aspect-square rounded-full frosted w-2 h-2" />
                 <UpdateDetailsDialogComponent />
             </div>
 
@@ -640,11 +691,11 @@ function BottomNavbar({
                     <li>
                         <Link
                             to="../frame"
-                            className="frosted p-2.5 rounded-full group transition-colors duration-200 aspect-square flex items-center justify-center"
+                            className="hidden md:flex frosted p-2.5 rounded-full group transition-colors duration-200 aspect-square items-center justify-center"
                             title="Open Smart Frame"
                         >
                             <Icon
-                                icon="fa6-solid:expand"
+                                icon="teenyicons:screen-solid"
                                 className="text-foreground group-hover:text-primary transition-colors duration-200"
                             />
                         </Link>
@@ -653,7 +704,7 @@ function BottomNavbar({
                 <li className="relative">
                     <Link
                         to="/notifications"
-                        className="frosted p-2.5 rounded-full group transition-colors duration-200 aspect-square flex items-center justify-center"
+                        className="hidden md:flex frosted p-2.5 rounded-full group transition-colors duration-200 aspect-square items-center justify-center"
                     >
                         <Icon
                             icon="fa6-solid:bell"
@@ -665,6 +716,26 @@ function BottomNavbar({
                             {unreadCount > 9 ? "9+" : unreadCount}
                         </span>
                     )}
+                </li>
+                <li>
+                    <button
+                        type="button"
+                        onClick={toggleFullscreen}
+                        className="frosted p-2.5 rounded-full group transition-colors duration-200 aspect-square flex items-center justify-center"
+                        title={isFullscreen
+                            ? "Exit fullscreen"
+                            : "Enter fullscreen"}
+                        aria-label={isFullscreen
+                            ? "Exit fullscreen"
+                            : "Enter fullscreen"}
+                    >
+                        <Icon
+                            icon={isFullscreen
+                                ? "fa6-solid:compress"
+                                : "fa6-solid:expand"}
+                            className="text-foreground group-hover:text-primary transition-colors duration-200"
+                        />
+                    </button>
                 </li>
                 <li>
                     <Link
