@@ -16,6 +16,8 @@ export interface FeedItem {
 const logger = createLogger("NewsFeedBuilder");
 
 type ParserItem = Parser.Item & {
+    author?: string;
+    creator?: string;
     "media:thumbnail"?:
         | { $: { url: string } }
         | Array<{ $: { url: string } }>
@@ -86,7 +88,7 @@ export async function getFeedItems({
                     source: feedName,
                 } as FeedItem;
             })
-            .filter((item) => !isNaN(item.pubDate.getTime()))
+            .filter((item: FeedItem) => !isNaN(item.pubDate.getTime()))
             .slice(0, maxItems);
     } catch (error: any) {
         logger.error(`Error fetching or parsing feed: ${feedUrl}`, error);
@@ -131,6 +133,23 @@ function getContent(item: ParserItem): string | undefined {
     if (typeof raw === "string") return raw;
 
     return (raw as any)._ ?? String(raw);
+}
+
+function getHtmlContentCandidates(item: ParserItem): string[] {
+    const candidates: Array<string | { _: string } | undefined> = [
+        item.content,
+        item["content:encoded"],
+        item.description,
+        item.summary,
+    ];
+
+    return candidates
+        .map((value: string | { _: string } | undefined) => {
+            if (!value) return undefined;
+            if (typeof value === "string") return value;
+            return (value as any)._ ?? String(value);
+        })
+        .filter((value): value is string => Boolean(value));
 }
 
 function stripHtml(text?: string): string {
@@ -218,9 +237,7 @@ export function getThumbnail(
         fromMediaThumbnail,
         fromMediaContent,
         item.enclosure?.url,
-        firstImageSrc(
-            item.content || item.description || item.summary || "",
-        ),
+        ...getHtmlContentCandidates(item).map(firstImageSrc),
         fallback,
     ];
 
