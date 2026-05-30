@@ -1,53 +1,27 @@
 "use client";
 
-import { Suspense, lazy, type ReactNode, useEffect, useRef, useState } from "react";
-const GlanceableClockWidget = lazy(() =>
-  import("./dashboard/GlanceableClock").then((module) => ({
-    default: module.default,
-  })),
-);
-const calendarWidgetsImport = import(
-  "@dashwise/integrationskit/static-widgets/CalendarWidgets"
-);
-const CalendarWeekWidget = lazy(() =>
-  calendarWidgetsImport.then((module) => ({
-    default: module.default,
-  })),
-);
-const CalendarTodayWidget = lazy(() =>
-  calendarWidgetsImport.then((module) => ({
-    default: module.CalendarTodayWidget,
-  })),
-);
-const CalendarUpcomingWidget = lazy(() =>
-  calendarWidgetsImport.then((module) => ({
-    default: module.CalendarUpcomingWidget,
-  })),
-);
-const LinkView = lazy(() =>
-  import("./LinkView").then((module) => ({
-    default: module.default,
-  })),
-);
-const SearchBar = lazy(() =>
-  import("./SearchBar").then((module) => ({
-    default: module.default,
-  })),
-);
-const IframeTemplate = lazy(() =>
-  import("@dashwise/integrationskit/templates/IFrame").then((module) => ({
-    default: module.default,
-  })),
-);
-const Widget = lazy(() =>
-  import("@dashwise/integrationskit/Widget").then((module) => ({
-    default: module.default,
-  })),
-);
+import {
+  lazy,
+  type ReactNode,
+  Suspense,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import GlanceableClockWidget from "./dashboard/GlanceableClock";
+import {
+  CalendarTodayWidget,
+  CalendarUpcomingWidget,
+  default as CalendarWeekWidget,
+} from "@dashwise/integrationskit/static-widgets/CalendarWidgets";
+import CountdownWidget from "@dashwise/integrationskit/static-widgets/CountdownWidget";
+import LinkView from "./LinkView";
+import SearchBar from "./SearchBar";
+import IframeTemplate from "@dashwise/integrationskit/templates/IFrame";
+import Widget from "@dashwise/integrationskit/Widget";
 import { useLocalization } from "@/context/LocalizationContext";
-import { readPageIntegrationConsumer } from "@/lib/pageIntegrationDataCache";
 import useAuth from "@/context/useAuth";
-import { usePageIntegrationStream } from "@/context/PageIntegrationStreamContext";
 import {
   getConsumerDataAction,
   getIntegrationCalendarEventsAction,
@@ -55,6 +29,7 @@ import {
 
 export type WidgetProps = {
   type: string;
+  consumerKey?: string;
   params?: Record<string, any>;
   className?: string;
   isPreview?: boolean;
@@ -74,6 +49,7 @@ function stripWidgetIndex(params?: Record<string, any>) {
 
 export function renderWidget({
   type,
+  consumerKey,
   params,
   className,
   isPreview,
@@ -82,72 +58,52 @@ export function renderWidget({
   const renderParams = stripWidgetIndex(params);
   const finalClassName = `${className ?? ""} frosted`.trim();
 
-  let content: ReactNode;
-
   switch (type) {
     case "main-clock":
     case "glanceable-clock":
-      content = (
-        <GlanceableClockWidget className={className} params={renderParams} />
-      );
-      break;
+      return <GlanceableClockWidget className={className} params={renderParams} />;
 
     case "search-bar":
-      content = <SearchBar useRedirect={false} defaultOpen={defaultOpen} />;
-      break;
-
-    case "calendar-week":
-      content = (
-        <CalendarWeekWidget className={finalClassName} {...renderParams} />
-      );
-      break;
+      return <SearchBar useRedirect={false} defaultOpen={defaultOpen} />;
 
     case "calendar-today":
-      content = (
-        <CalendarTodayWidget className={finalClassName} {...renderParams} />
-      );
-      break;
+      return <CalendarTodayWidget className={finalClassName} {...renderParams} />;
+
+    case "calendar-week":
+      return <CalendarWeekWidget className={finalClassName} {...renderParams} />;
 
     case "calendar-upcoming":
-      content = (
+      return (
         <CalendarUpcomingWidgetWrapper
           className={finalClassName}
           {...renderParams}
         />
       );
-      break;
+
+    case "countdown":
+      return <CountdownWidget className={finalClassName} {...renderParams} />;
 
     case "link-view":
-      content = <LinkView />;
-      break;
+      return <LinkView />;
 
     case "placeholder":
-      content = <div className={`${className ?? ""}`} />;
-      break;
+      return <div className={`${className ?? ""}`} />;
 
     case "iframe":
-      content = <IframeWidget className={finalClassName} params={renderParams} />;
-      break;
+      return <IframeWidget className={finalClassName} params={renderParams} />;
 
     default:
-      content = (
+      return (
         <IntegrationWidget
           type={type}
+          consumerKey={consumerKey ?? (type.includes("#") ? type : undefined)}
           isPreview={isPreview}
           properties={renderParams}
           className={finalClassName}
         />
       );
-      break;
   }
-
-  return (
-    <Suspense fallback={<WidgetLoadingState className={className} label={type} />}>
-      {content}
-    </Suspense>
-  );
 }
-
 function CalendarUpcomingWidgetWrapper({
   className,
   integrationId,
@@ -206,7 +162,9 @@ function CalendarUpcomingWidgetWrapper({
   if (loading) {
     return (
       <div className={`rounded-lg p-2 flex flex-col ${className}`}>
-        <div className="text-sm opacity-50 py-4 text-center text-foreground">Loading...</div>
+        <div className="text-sm opacity-50 py-4 text-center text-foreground">
+          Loading...
+        </div>
       </div>
     );
   }
@@ -228,7 +186,8 @@ function IframeWidget({
   params?: Record<string, any>;
 }) {
   const localization = useLocalization();
-  const { url, min_height, max_height, title, icon, title_action } = params ?? {};
+  const { url, min_height, max_height, title, icon, title_action } = params ??
+    {};
 
   const resolved = {
     header: {
@@ -259,102 +218,98 @@ function IframeWidget({
 
 function IntegrationWidget({
   type,
+  consumerKey,
   properties,
   isPreview,
   className,
 }: {
   type: string;
+  consumerKey?: string;
   properties?: Record<string, any>;
   isPreview?: boolean;
   className?: string;
 }) {
   const localization = useLocalization();
   const { withAuth } = useAuth();
-  const { phase, version } = usePageIntegrationStream();
-  const [localPayload, setLocalPayload] = useState<any>(null);
+  const [consumerPayload, setConsumerPayload] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
-  const loadingStartedAtRef = useRef<number | null>(null);
   const loadingTimeoutRef = useRef<number | null>(null);
 
-  const consumerPayload = readPageIntegrationConsumer("widget", type, properties) || localPayload;
-  const loadingLabel = resolveWidgetLabel(type, consumerPayload);
   const MIN_LOADING_MS = 750;
 
-  const scheduleLoadingStop = () => {
-    if (!loading) return;
-    if (loadingTimeoutRef.current !== null) return;
+  // Serialize to a stable string so object identity changes from the parent
+  // don't re-trigger the effect when the contents haven't actually changed.
+  const propertiesKey = useMemo(
+    () => JSON.stringify(properties ?? {}),
+    [properties],
+  );
 
-    const startedAt = loadingStartedAtRef.current ?? Date.now();
-    const elapsed = Date.now() - startedAt;
-    const remaining = Math.max(0, MIN_LOADING_MS - elapsed);
-
-    loadingTimeoutRef.current = window.setTimeout(() => {
-      loadingTimeoutRef.current = null;
-      setLoading(false);
-    }, remaining);
-  };
-
-  const hasStreamError = consumerPayload?.success === false;
-  const shouldStreamLoad =
-    phase === "streaming" && !consumerPayload?.blueprint?.widgetJSON && !hasStreamError;
-  const allowLocalFetch = phase === "idle" || phase === "error" || isPreview;
+  const requestKey = useMemo(
+    () => resolveConsumerRequestKey(type, consumerKey, properties),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [type, consumerKey, propertiesKey],
+  );
 
   useEffect(() => {
-    if (consumerPayload?.blueprint?.widgetJSON && loading) {
-      scheduleLoadingStop();
-      setLocalError(null);
-      return;
-    }
-
-    if (!allowLocalFetch || consumerPayload?.blueprint?.widgetJSON || loading) {
-      return;
-    }
-
     let cancelled = false;
-    loadingStartedAtRef.current = Date.now();
+    const startedAt = Date.now();
+
+    // Parse once inside the effect so we always work with a stable snapshot.
+    const resolvedProperties = JSON.parse(propertiesKey) as Record<string, any>;
+    const environmentOverrides = extractEnvironmentOverrides(
+      resolvedProperties,
+    );
+
     if (loadingTimeoutRef.current !== null) {
       window.clearTimeout(loadingTimeoutRef.current);
       loadingTimeoutRef.current = null;
     }
+
     setLoading(true);
     setLocalError(null);
+    setConsumerPayload(null);
+
+    const stopLoading = () => {
+      if (cancelled) return;
+      const elapsed = Date.now() - startedAt;
+      const remaining = Math.max(0, MIN_LOADING_MS - elapsed);
+      if (remaining > 0) {
+        loadingTimeoutRef.current = window.setTimeout(() => {
+          loadingTimeoutRef.current = null;
+          if (!cancelled) setLoading(false);
+        }, remaining);
+      } else {
+        setLoading(false);
+      }
+    };
 
     void withAuth((auth) =>
-      getConsumerDataAction(auth, type, properties ?? {}, {
+      getConsumerDataAction(auth, requestKey, resolvedProperties, {
         type: "widget",
         isPreview,
+        environmentOverrides,
       })
     )
       .then((payload) => {
         if (cancelled) return;
-        const casted = payload as any;
-        if (casted?.success === false) {
-          setLocalPayload(casted);
-          setLocalError(
-            typeof casted?.error === "string"
-              ? casted.error
-              : "Widget data request failed.",
-          );
-          return;
-        }
-
-        setLocalPayload(casted);
+        setConsumerPayload(payload as any);
+        stopLoading();
       })
       .catch((err) => {
         console.error(`Failed to fetch widget data for ${type}`, err);
-        setLocalError(
-          err instanceof Error ? err.message : "Widget data request failed.",
-        );
-      })
-      .finally(() => {
-        if (!cancelled) scheduleLoadingStop();
+        if (!cancelled) {
+          setLocalError(
+            err instanceof Error ? err.message : "Widget data request failed.",
+          );
+          stopLoading();
+        }
       });
 
     return () => {
       cancelled = true;
     };
-  }, [type, properties, isPreview, withAuth, consumerPayload, loading, allowLocalFetch, version]);
+  }, [type, requestKey, propertiesKey, isPreview, withAuth]);
 
   useEffect(() => {
     return () => {
@@ -364,26 +319,16 @@ function IntegrationWidget({
     };
   }, []);
 
-  if (shouldStreamLoad || loading) {
-    return (
-      <div
-        className={`rounded-xl p-3 flex items-center justify-center min-h-25 ${
-          className ?? "frosted"
-        }`}
-      >
-        <div className="text-xs text-white/50 animate-pulse">
-          Loading widget from {loadingLabel}...
-        </div>
-      </div>
-    );
+  // In IntegrationWidget
+  if (loading || !consumerPayload) {
+    return <WidgetLoadingState className={className} />;
   }
 
-  const consumerError =
-    consumerPayload?.success === false
-      ? typeof consumerPayload?.error === "string"
-        ? consumerPayload.error
-        : `Widget "${type}" data failed to load.`
-      : null;
+  const consumerError = consumerPayload?.success === false
+    ? typeof consumerPayload?.error === "string"
+      ? consumerPayload.error
+      : `Widget "${type}" data failed to load.`
+    : null;
   const errorMessage = localError ?? consumerError;
 
   if (errorMessage) {
@@ -411,6 +356,7 @@ function IntegrationWidget({
         isPreview={isPreview ?? false}
         widgetKey={type}
         widgetJSON={consumerPayload.blueprint.widgetJSON}
+        input={properties}
         data={consumerPayload.data}
         resolved={consumerPayload.blueprint.resolved}
         formatters={{
@@ -428,13 +374,76 @@ function resolveWidgetLabel(widgetKey: string, payload?: any) {
   const widgetName =
     typeof widgetJSON?.name === "string" && widgetJSON.name.trim()
       ? widgetJSON.name.trim()
-      : typeof widgetJSON?.details?.name === "string" && widgetJSON.details.name.trim()
-        ? widgetJSON.details.name.trim()
-        : typeof widgetJSON?.label === "string" && widgetJSON.label.trim()
-          ? widgetJSON.label.trim()
-          : "";
+      : typeof widgetJSON?.details?.name === "string" &&
+          widgetJSON.details.name.trim()
+      ? widgetJSON.details.name.trim()
+      : typeof widgetJSON?.label === "string" && widgetJSON.label.trim()
+      ? widgetJSON.label.trim()
+      : "";
 
   return widgetName || widgetKey;
+}
+
+function resolveConsumerRequestKey(
+  widgetType: string,
+  consumerKey?: string,
+  properties?: Record<string, any>,
+) {
+  if (consumerKey && typeof consumerKey === "string" && consumerKey.trim()) {
+    return consumerKey.trim();
+  }
+
+  const configKey = properties && typeof properties.configKey === "string"
+    ? properties.configKey.trim()
+    : "";
+  if (configKey) {
+    return configKey;
+  }
+
+  return widgetType;
+}
+
+function extractEnvironmentOverrides(
+  properties?: Record<string, any>,
+): Record<string, string> {
+  if (!properties || typeof properties !== "object") {
+    return {};
+  }
+
+  const rawOverrides =
+    (typeof properties.environmentOverrides === "object" &&
+        properties.environmentOverrides !== null
+      ? properties.environmentOverrides
+      : null) ??
+      (typeof properties.envOverrides === "object" &&
+          properties.envOverrides !== null
+        ? properties.envOverrides
+        : null) ??
+      (typeof properties.input === "object" && properties.input !== null
+        ? properties.input
+        : null);
+
+  if (!rawOverrides || typeof rawOverrides !== "object") {
+    return {};
+  }
+
+  return Object.entries(rawOverrides as Record<string, unknown>).reduce<
+    Record<string, string>
+  >(
+    (acc, [key, value]) => {
+      if (typeof value === "string") {
+        acc[key] = value;
+        return acc;
+      }
+
+      if (typeof value === "number" || typeof value === "boolean") {
+        acc[key] = String(value);
+      }
+
+      return acc;
+    },
+    {},
+  );
 }
 
 function WidgetErrorState({
@@ -446,7 +455,9 @@ function WidgetErrorState({
 }) {
   return (
     <div
-      className={`frosted rounded-xl border border-red-500/30 bg-red-500/10 p-3 ${className ?? ""}`}
+      className={`frosted rounded-xl border border-red-500/30 bg-red-500/10 p-3 ${
+        className ?? ""
+      }`}
     >
       <p className="text-sm font-semibold text-red-200">
         Widget failed to load
@@ -458,22 +469,14 @@ function WidgetErrorState({
   );
 }
 
-function WidgetLoadingState({
-  className,
-  label,
-}: {
-  className?: string;
-  label: string;
-}) {
+function WidgetLoadingState({ className }: { className?: string }) {
   return (
     <div
       className={`rounded-xl p-3 flex items-center justify-center min-h-25 ${
         className ?? "frosted"
       }`}
     >
-      <div className="text-xs text-white/50 animate-pulse">
-        Loading widget from {label}...
-      </div>
+      <div className="text-xs text-white/50 animate-pulse">Loading widget data...</div>
     </div>
   );
 }

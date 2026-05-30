@@ -9,14 +9,10 @@ import UpdateDetailsDialogComponent from "./UpdateDetailsDialog";
 import QuickLaunchPopover from "./QuickLaunchPopover";
 import useAuth from "@/context/useAuth";
 import { getNotificationsAction } from "@/app/actions/notifications/items";
+import { getPageIntegrationDataAction } from "@/app/actions/pageConfigs";
 import { renderWidget } from "../widgets/Widget";
 import PageNotFound from "../errorPages/PageNotFound";
-import {
-    clearPageIntegrationConsumerCache,
-    updatePageIntegrationConsumerCache,
-} from "@/lib/pageIntegrationDataCache";
-import { subscribePageIntegrationSocket } from "@/lib/pageIntegrationSocket";
-import { PageIntegrationStreamProvider } from "@/context/PageIntegrationStreamContext";
+import { primePageIntegrationConsumerCache } from "@/lib/pageIntegrationDataCache";
 
 const COLUMN_ORDER = ["left", "middle", "right"] as const;
 type Column = (typeof COLUMN_ORDER)[number];
@@ -65,8 +61,8 @@ export default function DashboardLayoutTemplate({
     pageName?: string;
     isLoading?: boolean;
 }) {
-    const { token } = useAuth();
     const [searchParams] = useSearchParams();
+    const { token, withAuth } = useAuth();
     const openFromURL = searchParams.get("search") === "1";
     const hasSearchBarWidget = useMemo(() => {
         const columns = config?.columns as
@@ -86,6 +82,7 @@ export default function DashboardLayoutTemplate({
 
     const containerRef = useRef<HTMLDivElement | null>(null);
     const [activePanel, setActivePanel] = useState<number>(1);
+    const [integrationDataVersion, setIntegrationDataVersion] = useState(0);
 
     const heightRefs = useRef<Record<string, HTMLElement | null>>({});
     const heightRefCallbacks = useRef<
@@ -95,10 +92,6 @@ export default function DashboardLayoutTemplate({
     const [measuredHeights, setMeasuredHeights] = useState<
         Record<string, number>
     >({});
-    const [integrationStreamPhase, setIntegrationStreamPhase] = useState<
-        "idle" | "streaming" | "complete" | "error"
-    >("idle");
-    const [integrationStreamVersion, setIntegrationStreamVersion] = useState(0);
 
     if (!config && !isLoading) {
         return <PageNotFound />;
@@ -111,53 +104,58 @@ export default function DashboardLayoutTemplate({
     useEffect(() => {
         let cancelled = false;
 
-        if (!token) {
-            clearPageIntegrationConsumerCache();
-            setIntegrationStreamPhase("idle");
-            return () => {
-                cancelled = true;
-            };
-        }
+        const primeIntegrationData = async () => {
+            try {
+                const response = await withAuth((auth) =>
+                    getPageIntegrationDataAction(auth, pageName),
+                ) as any;
 
-        clearPageIntegrationConsumerCache();
-        setIntegrationStreamPhase("streaming");
-        setIntegrationStreamVersion((v) => v + 1);
-
-        const unsubscribe = subscribePageIntegrationSocket(
-            token,
-            pageName,
-            (message) => {
                 if (cancelled) return;
 
-                if (message.type === "start") {
-                    setIntegrationStreamPhase("streaming");
-                    return;
+                primePageIntegrationConsumerCache(response);
+                setIntegrationDataVersion((current) => current + 1);
+            } catch (error) {
+                if (!cancelled) {
+                    console.error("Failed to prime page integration data", error);
                 }
+            }
+        };
 
-                if (message.type === "consumer") {
-                    updatePageIntegrationConsumerCache(message.item as any);
-                    setIntegrationStreamVersion((v) => v + 1);
-                    return;
-                }
+        void primeIntegrationData();
 
-                if (message.type === "complete") {
-                    setIntegrationStreamPhase("complete");
-                    setIntegrationStreamVersion((v) => v + 1);
-                    return;
-                }
+        // Poll for integration data periodically instead of using websockets.
+        let intervalId: number | null = null;
+        const POLL_INTERVAL_MS = 10000;
 
-                if (message.type === "error") {
-                    setIntegrationStreamPhase("error");
-                    setIntegrationStreamVersion((v) => v + 1);
+        const startPolling = () => {
+            if (intervalId) return;
+            intervalId = window.setInterval(async () => {
+                try {
+                    const response = await withAuth((auth) =>
+                        getPageIntegrationDataAction(auth, pageName),
+                    ) as any;
+
+                    if (cancelled) return;
+
+                    primePageIntegrationConsumerCache(response);
+                    setIntegrationDataVersion((current) => current + 1);
+                } catch (error) {
+                    if (!cancelled) console.error("Failed to poll page integration data", error);
                 }
-            },
-        );
+            }, POLL_INTERVAL_MS);
+        };
+
+        // Start polling if we have a token (otherwise polling is a no-op)
+        if (token) startPolling();
 
         return () => {
             cancelled = true;
-            unsubscribe();
+            if (intervalId) {
+                clearInterval(intervalId);
+                intervalId = null;
+            }
         };
-    }, [config, pageName, token]);
+    }, [pageName, token, withAuth]);
 
     // Scroll to center panel on mobile first render
     useEffect(() => {
@@ -439,6 +437,9 @@ export default function DashboardLayoutTemplate({
                     <div key={baseKey} className={wrapperClass}>
                         {renderWidget({
                             type: entryKey,
+                            consumerKey: typeof cfg.configKey === "string" && cfg.configKey.trim()
+                                ? cfg.configKey.trim()
+                                : undefined,
                             params: cfg,
                             className: wrapperClass,
                         })}
@@ -537,13 +538,7 @@ export default function DashboardLayoutTemplate({
     };
 
     return (
-        <PageIntegrationStreamProvider
-            value={{
-                phase: integrationStreamPhase,
-                version: integrationStreamVersion,
-                pageName,
-            }}
-        >
+        <>
             <div className="grid grid-rows-[minmax(0,1fr)_36px] h-dvh pt-5 p-2 overflow-x-hidden text-(--surface-foreground) bg-(--surface)">
                 <main
                     id="page-content-container"
@@ -570,7 +565,7 @@ export default function DashboardLayoutTemplate({
                     })}
                 </div>
             )}
-        </PageIntegrationStreamProvider>
+        </>
     );
 }
 
@@ -666,7 +661,7 @@ function BottomNavbar({
 
     return (
         <div
-            className="grid grid-cols-[1fr_auto_1fr] items-center md:px-0 mx-2 mb-2"
+            className="grid grid-cols-[1fr_auto_1fr] items-center md:px-0 mb-2"
             id="page-footer"
         >
             <div id="app-details" className="flex items-center gap-2">
