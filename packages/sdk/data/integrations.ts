@@ -308,6 +308,12 @@ export async function getIntegrationWithConsumer(userId: string, options: { widg
     if (widgetKey && glanceableType) throw new ApiActionError("Provide only one consumer key", 400, { error: "Provide only one consumer key" });
     if (!widgetKey && !glanceableType) throw new ApiActionError("Missing consumer key", 400, { error: "Missing consumer key" });
 
+    const compositeKey = widgetKey || glanceableType;
+    const parsedCompositeKey = compositeKey ? parseCompositeConsumerKey(compositeKey) : null;
+    if (parsedCompositeKey) {
+        return getIntegrationWithCompositeConsumerKey(userId, compositeKey);
+    }
+
     const { integrations } = await listIntegrations(userId);
 
     for (const record of integrations) {
@@ -331,12 +337,14 @@ export async function getIntegrationWithConsumer(userId: string, options: { widg
             if (!isPlainObject(item)) continue;
 
             const resolvedWidgetKey = resolveWidgetId(item);
+            const glanceableAliases = resolveGlanceableAliases(item);
+            const normalizedGlanceableType = glanceableType.toLowerCase();
 
             const matches = widgetKey
                 ? resolvedWidgetKey !== null && resolvedWidgetKey === widgetKey
                 : (() => {
-                    const t = resolveGlanceableId(item);
-                    return t !== null && t.toLowerCase() === glanceableType.toLowerCase();
+                    if (!normalizedGlanceableType) return false;
+                    return glanceableAliases.some((alias) => alias.toLowerCase() === normalizedGlanceableType);
                 })();
 
             if (!matches) continue;
@@ -399,6 +407,14 @@ export async function getIntegrationWithCompositeConsumerKey(userId: string, com
     const envDefs = isPlainObject(configuration.environment_variables)
         ? (configuration.environment_variables as Record<string, { default?: string }>)
         : null;
+    const envVars = envDefs
+        ? resolveEnvironmentVariables(envDefs, integration?.environment ?? {})
+        : null;
+
+    const sharedIntegration = {
+        ...integration?.config,
+        configuration: { ...configuration, environment_variables: envVars ?? {} },
+    };
 
     for (const item of Array.isArray(configuration.widgets) ? configuration.widgets : []) {
         if (!isPlainObject(item)) continue;
@@ -406,7 +422,7 @@ export async function getIntegrationWithCompositeConsumerKey(userId: string, com
         if (resolvedKey === parsed.consumerKey) {
             return {
                 integrationId: parsed.integrationId,
-                integration: integration?.config ?? null,
+                integration: sharedIntegration,
                 environmentDefinitions: envDefs,
                 widgetJSON: { ...item, key: resolvedKey },
                 localData: integration?.localData ?? null,
@@ -417,10 +433,11 @@ export async function getIntegrationWithCompositeConsumerKey(userId: string, com
     for (const item of Array.isArray(configuration.glanceables) ? configuration.glanceables : []) {
         if (!isPlainObject(item)) continue;
         const resolvedType = resolveGlanceableId(item);
-        if (resolvedType === parsed.consumerKey) {
+        const aliases = resolveGlanceableAliases(item);
+        if (aliases.some((alias) => alias.toLowerCase() === parsed.consumerKey.toLowerCase())) {
             return {
                 integrationId: parsed.integrationId,
-                integration: integration?.config ?? null,
+                integration: sharedIntegration,
                 environmentDefinitions: envDefs,
                 glanceableJSON: { ...item, type: resolvedType },
                 localData: integration?.localData ?? null,
@@ -834,10 +851,31 @@ function resolveWidgetId(w: Record<string, unknown>): string | null {
 }
 
 function resolveGlanceableId(g: Record<string, unknown>): string | null {
+    if (typeof g.key === "string" && g.key.trim()) return g.key.trim();
     if (typeof g.type === "string" && g.type.trim()) return g.type.trim();
     if (typeof g.slug === "string" && g.slug.trim()) return g.slug.trim();
     const name = typeof g.name === "string" ? g.name : typeof g.displayName === "string" ? g.displayName : null;
     return name ? name.toLowerCase().trim().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "") || null : null;
+}
+
+function resolveGlanceableAliases(g: Record<string, unknown>) {
+    const aliases = new Set<string>();
+
+    if (typeof g.key === "string" && g.key.trim()) aliases.add(g.key.trim());
+    if (typeof g.type === "string" && g.type.trim()) aliases.add(g.type.trim());
+    if (typeof g.slug === "string" && g.slug.trim()) aliases.add(g.slug.trim());
+
+    const name = typeof g.name === "string"
+        ? g.name
+        : typeof g.displayName === "string"
+            ? g.displayName
+            : null;
+    if (name) {
+        const normalized = name.toLowerCase().trim().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+        if (normalized) aliases.add(normalized);
+    }
+
+    return Array.from(aliases);
 }
 
 function extractValueAtPath(body: unknown, path?: string): unknown {

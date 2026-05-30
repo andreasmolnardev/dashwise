@@ -13,6 +13,7 @@ type WidgetPreviewData = {
 
 type WidgetCatalogItem = {
     key: string;
+    integrationId?: string;
     index?: number;
     name?: string;
     description?: string;
@@ -31,6 +32,7 @@ type WidgetCatalog = Record<string, WidgetCatalogItem[]>;
 type GlanceableCatalogItem = {
     type: string;
     displayName: string;
+    integrationId?: string;
     description?: string;
     exampleProps: Record<string, any>;
     properties?: Record<string, any>;
@@ -184,10 +186,13 @@ function normalizeGlanceables(
                     : typeof entry.displayName === "string" && entry.displayName.trim()
                         ? entry.displayName.trim()
                         : "Glanceable";
+            const explicitKey = typeof entry.key === "string" && entry.key.trim()
+                ? entry.key.trim()
+                : "";
             const normalizedType =
-                typeof entry.type === "string" && entry.type.trim()
+                explicitKey || (typeof entry.type === "string" && entry.type.trim()
                     ? entry.type.trim()
-                    : fallbackTypes[displayName.toLowerCase()] ?? normalizeWidgetSlug(displayName);
+                    : fallbackTypes[displayName.toLowerCase()] ?? normalizeWidgetSlug(displayName));
 
             const result: GlanceableCatalogItem = {
                 type: normalizedType,
@@ -257,7 +262,13 @@ async function getIntegrationGlanceables(userId: string): Promise<GlanceableCata
         const normalized = normalizeGlanceables(rawGlanceables, {});
         if (normalized.length === 0) continue;
 
-        glanceables.push(...normalized);
+        glanceables.push(
+            ...normalized.map((entry) => ({
+                ...entry,
+                integrationId: record.id,
+                type: `${record.id}#${entry.type}`,
+            })),
+        );
     }
 
     return glanceables;
@@ -299,7 +310,10 @@ export async function getUserWidgets(userId: string) {
         for (const normalized of normalizedWidgets) {
             const exists = merged[category].some((entry) => entry.key === normalized.key);
             if (!exists) {
-                merged[category].push(normalized);
+                merged[category].push({
+                    ...normalized,
+                    integrationId: record.id,
+                });
             }
         }
     }

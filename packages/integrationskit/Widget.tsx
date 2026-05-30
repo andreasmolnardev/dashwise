@@ -97,13 +97,13 @@ export default function Widget({
                 const runtimeData = data !== undefined
                     ? data
                     : integrationJSON
-                        ? (await resolveWidgetRuntimeData({
-                            widgetJSON: widgetWithInput,
-                            integrationJSON: integrationJSON ?? null,
-                            data: null,
-                            isPreview: isPreview,
-                        })).data
-                        : null;
+                    ? (await resolveWidgetRuntimeData({
+                        widgetJSON: widgetWithInput,
+                        integrationJSON: integrationJSON ?? null,
+                        data: null,
+                        isPreview: isPreview,
+                    })).data
+                    : null;
                 console.log("Resolved widget runtime data:", runtimeData);
                 if (!cancelled) {
                     setResolved(
@@ -132,7 +132,14 @@ export default function Widget({
         return () => {
             cancelled = true;
         };
-    }, [data, effectiveWidgetJSON, integrationJSON, isPreview, preResolved, widgetWithInput]);
+    }, [
+        data,
+        effectiveWidgetJSON,
+        integrationJSON,
+        isPreview,
+        preResolved,
+        widgetWithInput,
+    ]);
 
     if (!effectiveWidgetJSON) {
         console.warn(
@@ -142,7 +149,12 @@ export default function Widget({
     }
 
     if (isResolving && !preResolved) {
-        return <WidgetLoadingState className={className} label={resolveWidgetLabel(widgetKey, integrationJSON)} />;
+        return (
+            <WidgetLoadingState
+                className={className}
+                label={resolveWidgetLabel(widgetKey, integrationJSON)}
+            />
+        );
     }
 
     if (resolutionError && !isPreview) {
@@ -155,7 +167,12 @@ export default function Widget({
     }
 
     if (!resolved) {
-        return <WidgetLoadingState className={className} label={resolveWidgetLabel(widgetKey, integrationJSON)} />;
+        return (
+            <WidgetLoadingState
+                className={className}
+                label={resolveWidgetLabel(widgetKey, integrationJSON)}
+            />
+        );
     }
 
     const template = effectiveWidgetJSON.template ?? "columns";
@@ -166,10 +183,22 @@ export default function Widget({
 
     switch (template) {
         case "columns":
-            return <ColumnsWidget resolved={renderedResolved} className={className} formatters={formatters} />;
+            return (
+                <ColumnsWidget
+                    resolved={renderedResolved}
+                    className={className}
+                    formatters={formatters}
+                />
+            );
 
         case "vertical-list":
-            return <VerticalList resolved={renderedResolved} className={className} formatters={formatters} />;
+            return (
+                <VerticalList
+                    resolved={renderedResolved}
+                    className={className}
+                    formatters={formatters}
+                />
+            );
 
         case "icon-details-card":
             return (
@@ -194,8 +223,9 @@ function WidgetErrorState({
 }) {
     return (
         <div
-            className={`frosted rounded-xl border border-red-500/30 bg-red-500/10 p-3 ${className ?? ""
-                }`}
+            className={`frosted rounded-xl border border-red-500/30 bg-red-500/10 p-3 ${
+                className ?? ""
+            }`}
         >
             <p className="text-sm font-semibold text-red-200">
                 Widget failed to load
@@ -216,7 +246,9 @@ function WidgetLoadingState({
 }) {
     return (
         <div
-            className={`frosted rounded-xl border border-white/10 bg-white/5 p-3 ${className ?? ""}`}
+            className={`frosted rounded-xl border border-white/10 bg-white/5 p-3 ${
+                className ?? ""
+            }`}
             aria-busy="true"
             aria-live="polite"
         >
@@ -225,11 +257,13 @@ function WidgetLoadingState({
                 <div className="h-3 w-24 animate-pulse rounded-full bg-white/15" />
             </div>
 
-            {label ? (
-                <p className="mt-2 text-xs text-white/50">
-                    Loading widget from {label}...
-                </p>
-            ) : null}
+            {label
+                ? (
+                    <p className="mt-2 text-xs text-white/50">
+                        Loading widget from {label}...
+                    </p>
+                )
+                : null}
 
             <div className="mt-3 space-y-2">
                 <div className="h-3 w-3/4 animate-pulse rounded-full bg-white/15" />
@@ -240,18 +274,27 @@ function WidgetLoadingState({
     );
 }
 
-function resolveWidgetLabel(widgetKey: string, integrationJSON?: Record<string, any> | null) {
+function resolveWidgetLabel(
+    widgetKey: string,
+    integrationJSON?: Record<string, any> | null,
+) {
     const integrationDetails = integrationJSON?.integration?.details;
     const integrationName =
-        (integrationDetails && typeof integrationDetails.name === "string" && integrationDetails.name.trim())
+        (integrationDetails && typeof integrationDetails.name === "string" &&
+                integrationDetails.name.trim())
             ? integrationDetails.name.trim()
-            : (integrationJSON?.details && typeof integrationJSON.details.name === "string" && integrationJSON.details.name.trim())
-                ? integrationJSON.details.name.trim()
-                : (integrationJSON?.integration && typeof integrationJSON.integration.name === "string" && integrationJSON.integration.name.trim())
-                    ? integrationJSON.integration.name.trim()
-                    : (integrationJSON && typeof integrationJSON.name === "string" && integrationJSON.name.trim())
-                        ? integrationJSON.name.trim()
-                        : "";
+            : (integrationJSON?.details &&
+                    typeof integrationJSON.details.name === "string" &&
+                    integrationJSON.details.name.trim())
+            ? integrationJSON.details.name.trim()
+            : (integrationJSON?.integration &&
+                    typeof integrationJSON.integration.name === "string" &&
+                    integrationJSON.integration.name.trim())
+            ? integrationJSON.integration.name.trim()
+            : (integrationJSON && typeof integrationJSON.name === "string" &&
+                    integrationJSON.name.trim())
+            ? integrationJSON.name.trim()
+            : "";
 
     return integrationName || widgetKey;
 }
@@ -286,10 +329,14 @@ function applyResolvedColumnCustomizations(
 
     const displayCustomizations = input?.display_customizations;
     const orderIds = Array.isArray(displayCustomizations?.order)
-        ? displayCustomizations.order.filter((value: unknown): value is string => typeof value === "string")
+        ? displayCustomizations.order.filter((
+            value: unknown,
+        ): value is string => typeof value === "string")
         : [];
     const hiddenIds = Array.isArray(displayCustomizations?.hidden)
-        ? displayCustomizations.hidden.filter((value: unknown): value is string => typeof value === "string")
+        ? displayCustomizations.hidden.filter((
+            value: unknown,
+        ): value is string => typeof value === "string")
         : [];
 
     if (orderIds.length === 0 && hiddenIds.length === 0) {
@@ -307,11 +354,19 @@ function applyResolvedColumnCustomizations(
         };
     }
 
-    const byId = new Map(visibleColumns.map((column) => [column.id, column] as const));
+    const byId = new Map(
+        visibleColumns.map((column) => [column.id, column] as const),
+    );
     const ordered = orderIds
         .map((id: string) => byId.get(id))
-        .filter((column: NonNullable<ResolvedWidget["columns"]>[number] | undefined): column is NonNullable<ResolvedWidget["columns"]>[number] => Boolean(column));
-    const remaining = visibleColumns.filter((column) => !orderIds.includes(column.id));
+        .filter((
+            column: NonNullable<ResolvedWidget["columns"]>[number] | undefined,
+        ): column is NonNullable<ResolvedWidget["columns"]>[number] =>
+            Boolean(column)
+        );
+    const remaining = visibleColumns.filter((column) =>
+        !orderIds.includes(column.id)
+    );
 
     return {
         ...resolved,
@@ -337,17 +392,24 @@ function ColumnsWidget({
     return (
         <WidgetColumnTemplate
             className={className}
-            title={header?.show !== false ? renderLocalizedText(header?.title ?? "", formatters) : ""}
+            title={header?.show !== false
+                ? renderLocalizedText(header?.title ?? "", formatters)
+                : ""}
             url={header?.titleAction ?? ""}
             iconUrl={header?.icon ?? ""}
         >
-            {columns.map((col) => <ColumnCell key={col.id} col={col} formatters={formatters} />)}
+            {columns.map((col) => (
+                <ColumnCell key={col.id} col={col} formatters={formatters} />
+            ))}
         </WidgetColumnTemplate>
     );
 }
 
 function ColumnCell(
-    { col, formatters }: { col: NonNullable<ResolvedWidget["columns"]>[number]; formatters?: TextFormatters },
+    { col, formatters }: {
+        col: NonNullable<ResolvedWidget["columns"]>[number];
+        formatters?: TextFormatters;
+    },
 ) {
     const hasProgress = !!col.progress;
     const hasIcon = !!col.icon?.file;
@@ -368,7 +430,6 @@ function ColumnCell(
                 />
             )}
 
-
             {!hasProgress && hasIcon && (
                 <AppIcon
                     source={col.icon!.file}
@@ -380,18 +441,20 @@ function ColumnCell(
             )}
 
             {col.primary && (
-                col.primaryAction ? (
-                    <a
-                        href={col.primaryAction}
-                        className="block max-w-full text-sm font-semibold leading-tight text-center hover:text-primary transition-colors truncate"
-                    >
-                        {renderLocalizedText(col.primary, formatters)}
-                    </a>
-                ) : (
-                    <p className="font-semibold text-sm leading-tight text-center">
-                        {renderLocalizedText(col.primary, formatters)}
-                    </p>
-                )
+                col.primaryAction
+                    ? (
+                        <a
+                            href={col.primaryAction}
+                            className="block max-w-full text-sm font-semibold leading-tight text-center hover:text-primary transition-colors line-clamp-2"
+                        >
+                            {renderLocalizedText(col.primary, formatters)}
+                        </a>
+                    )
+                    : (
+                        <p className="font-semibold text-sm leading-tight text-center line-clamp-2">
+                            {renderLocalizedText(col.primary, formatters)}
+                        </p>
+                    )
             )}
 
             {col.secondary && (
