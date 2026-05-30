@@ -278,10 +278,30 @@ function setEndpointResponseEnv(
 
 	if (!dataSetEnv) return;
 
-	const nextValue = getNestedValue(
-		resolvedEndpoint.mappedResponse as Record<string, any>,
-		dataPath ?? "",
-	);
+	let nextValue: unknown = undefined;
+
+	if (dataPath) {
+		if (isPlainObject(resolvedEndpoint.mappedResponse)) {
+			nextValue = getNestedValue(
+				resolvedEndpoint.mappedResponse as Record<string, any>,
+				dataPath,
+			);
+		}
+
+		if (nextValue === undefined) {
+			if (isPlainObject(resolvedEndpoint.rawResponse)) {
+				nextValue = getNestedValue(
+					resolvedEndpoint.rawResponse as Record<string, any>,
+					dataPath,
+				);
+			}
+			if (nextValue === undefined && resolvedEndpoint.mappedResponse !== undefined) {
+				nextValue = resolvedEndpoint.mappedResponse;
+			}
+		}
+	} else {
+		nextValue = resolvedEndpoint.mappedResponse ?? resolvedEndpoint.rawResponse;
+	}
 
 	if (nextValue !== undefined && nextValue !== null) {
 		env[dataSetEnv] = formatEnvValue(nextValue);
@@ -538,6 +558,17 @@ function resolveBody(
 }
 
 function mapResponseBody(body: unknown, endpoint: EndpointDefinition) {
+	const responseDirective = isPlainObject(endpoint.response)
+		? endpoint.response
+		: null;
+	const dataPath = typeof responseDirective?.data_path === "string"
+		? responseDirective.data_path
+		: "";
+
+	const responseRoot = dataPath
+		? getNestedValue(body as Record<string, any>, dataPath)
+		: body;
+
 	const mappings = Array.isArray(endpoint.response_mappings)
 		? endpoint.response_mappings
 		: isPlainObject(endpoint.response_mapping)
@@ -545,19 +576,24 @@ function mapResponseBody(body: unknown, endpoint: EndpointDefinition) {
 		: [];
 
 	if (mappings.length === 0) {
-		return body;
+		return responseRoot;
 	}
 
-	// Handle direct array responses: if the endpoint returns an array directly
-	// (not nested in an object), wrap it so response_mapping can work.
-	// This allows iterate: "response" to work with direct array responses.
-	// Example: [{ id: 1, name: "server" }] is wrapped as { response: [...] }
-	const wrappedBody = Array.isArray(body)
-		? { response: body }
-		: body;
+	let wrappedBody: unknown;
+	if (Array.isArray(responseRoot)) {
+		if (dataPath) {
+			const parts = String(dataPath).split('.');
+			const key = parts[parts.length - 1] || 'response';
+			wrappedBody = { [key]: responseRoot };
+		} else {
+			wrappedBody = { response: responseRoot };
+		}
+	} else {
+		wrappedBody = responseRoot;
+	}
 
 	if (!isPlainObject(wrappedBody)) {
-		return body;
+		return responseRoot;
 	}
 
 	const discardFlag = String(endpoint.discard_unmapped).toLowerCase();
