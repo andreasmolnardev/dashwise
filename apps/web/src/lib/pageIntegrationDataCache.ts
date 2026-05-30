@@ -20,6 +20,10 @@ type PageIntegrationDataResponse = {
 const consumerCache = new Map<string, any>();
 
 function resolveCanonicalConsumerKey(item: CachedConsumerPayload) {
+  if (item.key && item.key.includes("#")) {
+    return item.key;
+  }
+
   if (item.integrationId && item.key) {
     return `${item.integrationId}#${item.key}`;
   }
