@@ -42,6 +42,7 @@ const DEFAULT_CLOCK_STYLE: Record<string, any> = {
 type GlanceableCatalogItem = {
   type: string;
   name: string;
+  integrationId?: string;
   exampleProps: Record<string, any>;
 };
 
@@ -119,6 +120,8 @@ export default function SettingsPagesPage() {
           ? data.map((entry: any) => ({
               type: String(entry?.type ?? "weather"),
               name: String(entry?.displayName ?? entry?.name ?? entry?.type ?? "Glanceable"),
+              integrationId:
+                typeof entry?.integrationId === "string" ? entry.integrationId : undefined,
               exampleProps: (entry?.exampleProps && typeof entry.exampleProps === "object")
                 ? entry.exampleProps
                 : {},
@@ -168,7 +171,7 @@ export default function SettingsPagesPage() {
         resolvedSelection,
         nextClock.map,
         nextClockStyle,
-        widgetCatalog,
+        glanceablesCatalog,
       ),
     );
     hasLoadedConfigRef.current = !!(resolvedSelection.left || resolvedSelection.right);
@@ -221,8 +224,8 @@ export default function SettingsPagesPage() {
   };
 
   const pageConfigPatch = useMemo(
-    () => buildPageConfigPatch(template, columns, clockSelection, clockGlanceables, clockStyle, widgetCatalog),
-    [clockGlanceables, clockSelection, clockStyle, columns, template, widgetCatalog],
+    () => buildPageConfigPatch(template, columns, clockSelection, clockGlanceables, clockStyle, glanceablesCatalog),
+    [clockGlanceables, clockSelection, clockStyle, columns, template, glanceablesCatalog],
   );
 
   const pageConfigSignature = useMemo(() => JSON.stringify(pageConfigPatch), [pageConfigPatch]);
@@ -267,11 +270,11 @@ export default function SettingsPagesPage() {
           clockSelection,
           clockGlanceables,
           clockStyle,
-          widgetCatalog,
+          glanceablesCatalog,
         ),
       ).then(() => undefined);
     },
-    [clockGlanceables, clockSelection, clockStyle, template, widgetCatalog, persistPageConfigPatch],
+    [clockGlanceables, clockSelection, clockStyle, template, glanceablesCatalog, persistPageConfigPatch],
   );
 
   const loadWidgetPreviewData = useCallback(
@@ -279,22 +282,27 @@ export default function SettingsPagesPage() {
       const payload = await withAuth((auth) =>
         getConsumerDataAction(auth, widgetKey, input ?? {}, {
           type: "widget",
-          isPreview: true,
         }),
       ) as any;
 
       if (payload?.success) {
+        const canonicalConsumerKey = widgetKey.includes("#")
+          ? widgetKey
+          : payload.integrationId
+            ? `${payload.integrationId}#${widgetKey}`
+            : `widget:${widgetKey}:${JSON.stringify(input ?? {})}`;
+
         updatePageIntegrationConsumerCache({
           ...payload,
           consumer: "widget",
           key: widgetKey,
           integrationId: payload.integrationId ?? null,
           properties: input ?? {},
-          consumerKey: payload.integrationId ? `${payload.integrationId}#${widgetKey}` : `widget:${widgetKey}:${JSON.stringify(input ?? {})}`,
+          consumerKey: canonicalConsumerKey,
         });
       }
 
-      return payload?.blueprint?.resolved ?? null;
+      return payload ?? null;
     },
     [withAuth],
   );
