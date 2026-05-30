@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState, useCallback, type Dispatch, type ReactNode, type SetStateAction } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback, type Dispatch, type ReactNode, type SetStateAction } from "react";
+import useAuth from "@/context/useAuth";
+import { getConsumerDataAction } from "@/app/actions/integrations";
 import {
   closestCenter,
   DndContext,
@@ -88,6 +90,7 @@ function WidgetTile({
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
   const [displayOrder, setDisplayOrder] = useState<string[]>([]);
   const [hiddenIds, setHiddenIds] = useState<string[]>([]);
+  const hasInitializedDisplayOrder = useRef(false);
   const customizationSensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
   );
@@ -103,11 +106,16 @@ function WidgetTile({
   );
 
   const currentCustomizations = useMemo(() => readDisplayCustomizations(columnWidget.input), [columnWidget.input]);
-  const previewColumns = Array.isArray(previewResolved?.columns) ? previewResolved.columns : [];
-  const previewColumnsById = useMemo(() => new Map(previewColumns.map((column: any) => [String(column.id), column] as const)), [previewColumns]);
+  const integrationDataEntries = useMemo(() => extractIntegrationDataEntries(previewResolved), [previewResolved]);
+  console.log("integration", integrationDataEntries);
+  const integrationDataEntriesById = useMemo(
+    () => new Map(integrationDataEntries.map((item) => [item.id, item] as const)),
+    [integrationDataEntries],
+  );
 
   useEffect(() => {
     if (isDataDialogOpen) return;
+    hasInitializedDisplayOrder.current = false;
     const baseInput = {
       ...(columnWidget.properties ?? {}),
       ...stripDisplayCustomizations(columnWidget.input ?? {}),
@@ -122,8 +130,10 @@ function WidgetTile({
     setActiveTab("input");
   }, [isDataDialogOpen, columnWidget.input, columnWidget.properties, widgetConfig?.input]);
 
+  const { withAuth } = useAuth();
+
   useEffect(() => {
-    if (!isDataDialogOpen || !supportsUserCustomizations || !widgetConfig?.key || !loadWidgetPreviewData) {
+    if (!isDataDialogOpen || !supportsUserCustomizations || !widgetConfig?.key || !withAuth) {
       return;
     }
 
@@ -134,10 +144,13 @@ function WidgetTile({
       ...(columnWidget.properties ?? {}),
       ...stripDisplayCustomizations(columnWidget.input ?? {}),
     };
-    void loadWidgetPreviewData(widgetConfig.key, previewInput)
-      .then((preview) => {
+
+    void withAuth((auth) =>
+      getConsumerDataAction(auth, widgetConfig.key, previewInput ?? {}, { type: "widget", isPreview: false }),
+    )
+      .then((payload) => {
         if (cancelled) return;
-        setPreviewResolved(preview);
+        setPreviewResolved(payload as any);
       })
       .catch(() => {
         if (cancelled) return;
@@ -152,28 +165,29 @@ function WidgetTile({
     return () => {
       cancelled = true;
     };
-  }, [columnWidget.input, columnWidget.properties, isDataDialogOpen, loadWidgetPreviewData, supportsUserCustomizations, widgetConfig?.key]);
+  }, [columnWidget.input, columnWidget.properties, isDataDialogOpen, supportsUserCustomizations, widgetConfig?.key, withAuth]);
 
   useEffect(() => {
-    if (!isDataDialogOpen || !supportsUserCustomizations) {
+    if (!isDataDialogOpen || !supportsUserCustomizations || hasInitializedDisplayOrder.current) {
       return;
     }
 
-    const previewItems = previewColumns.map((column: any) => String(column.id));
-    if (previewItems.length === 0) {
+    const integrationDataEntryIds = integrationDataEntries.map((item) => item.id);
+    if (integrationDataEntryIds.length === 0) {
       return;
     }
 
     const savedOrder = Array.isArray(currentCustomizations.order) ? currentCustomizations.order : [];
     const savedHidden = Array.isArray(currentCustomizations.hidden) ? currentCustomizations.hidden : [];
     const orderedIds = [
-      ...savedOrder.filter((id) => previewItems.includes(id)),
-      ...previewItems.filter((id) => !savedOrder.includes(id)),
+      ...savedOrder.filter((id) => integrationDataEntryIds.includes(id)),
+      ...integrationDataEntryIds.filter((id) => !savedOrder.includes(id)),
     ];
 
     setDisplayOrder(orderedIds);
-    setHiddenIds(savedHidden.filter((id) => previewItems.includes(id)));
-  }, [currentCustomizations.hidden, currentCustomizations.order, isDataDialogOpen, previewColumns, supportsUserCustomizations]);
+    setHiddenIds(savedHidden.filter((id) => integrationDataEntryIds.includes(id)));
+    hasInitializedDisplayOrder.current = true;
+  }, [currentCustomizations.hidden, currentCustomizations.order, isDataDialogOpen, integrationDataEntries, supportsUserCustomizations]);
 
   const mergedInput = useMemo(() => {
     const baseInput = inputDraft ?? {};
@@ -241,8 +255,7 @@ function WidgetTile({
       {renderWidget({
         type: columnWidget.type,
         params,
-        className: "w-full h-[90px] pointer-events-none frosted",
-        isPreview: true,
+        className: "w-full h-[90px]",
       })}
 
       {/* Hover overlay with controls */}
@@ -275,12 +288,12 @@ function WidgetTile({
               </DialogHeader>
               {supportsUserCustomizations ? (
                 <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "input" | "displayed")} className="py-4">
-                  <TabsList className="grid w-full grid-cols-2">
-                    <TabsTrigger value="input">Input</TabsTrigger>
-                    <TabsTrigger value="displayed">Displayed Items</TabsTrigger>
+                  <TabsList className="grid w-full grid-cols-2 frosted rounded-full">
+                    <TabsTrigger value="input" className="rounded-full">Input</TabsTrigger>
+                    <TabsTrigger value="displayed" className="rounded-full">Displayed Items</TabsTrigger>
                   </TabsList>
 
-                  <TabsContent value="input" className="space-y-4 pt-4">
+                  <TabsContent value="input" className="space-y-4 pt-4 max-h-[50vh] overflow-y-auto">
                     <WidgetInputEditor
                       widgetId={columnWidget.id}
                       inputDraft={inputDraft}
@@ -293,8 +306,8 @@ function WidgetTile({
 
                   <TabsContent value="displayed" className="space-y-3 pt-4">
                     {isPreviewLoading ? (
-                      <p className="text-sm text-white/60">Loading preview items...</p>
-                    ) : previewColumns.length > 0 ? (
+                      <p className="text-sm text-white/60">Loading items...</p>
+                    ) : integrationDataEntries.length > 0 ? (
                       <DndContext
                         collisionDetection={closestCenter}
                         onDragEnd={handleCustomizationDragEnd}
@@ -303,14 +316,14 @@ function WidgetTile({
                         <SortableContext items={displayOrder} strategy={verticalListSortingStrategy}>
                           <div className="space-y-2">
                             {displayOrder.map((itemId) => {
-                              const item = previewColumnsById.get(itemId);
+                              const item = integrationDataEntriesById.get(itemId);
                               if (!item) return null;
                               return (
                                 <DisplayedItemRow
                                   key={itemId}
                                   id={itemId}
-                                  title={String(item.primary ?? item.title ?? item.label ?? itemId)}
-                                  subtitle={String(item.secondary ?? item.thumbnail ?? "")}
+                                  title={item.title}
+                                  subtitle={item.subtitle}
                                   hidden={hiddenIds.includes(itemId)}
                                   onToggleHidden={() => toggleHidden(itemId)}
                                 />
@@ -320,7 +333,7 @@ function WidgetTile({
                         </SortableContext>
                       </DndContext>
                     ) : (
-                      <p className="text-sm text-white/60">This widget has no preview items yet.</p>
+                      <p className="text-sm text-white/60">This widget has no items yet.</p>
                     )}
                   </TabsContent>
                 </Tabs>
@@ -530,6 +543,84 @@ function DisplayedItemRow({
   );
 }
 
+type IntegrationDataEntry = {
+  id: string;
+  title: string;
+  subtitle?: string;
+};
+
+function extractIntegrationDataEntries(previewResolved: Record<string, any> | null): IntegrationDataEntry[] {
+  const resolvedColumns = Array.isArray(previewResolved?.blueprint?.resolved?.columns)
+    ? previewResolved!.blueprint.resolved.columns
+    : Array.isArray(previewResolved?.columns)
+    ? previewResolved.columns
+    : [];
+  if (resolvedColumns.length > 0) {
+    return resolvedColumns.map((column: any, index: number) => normalizeResolvedColumnEntry(column, index));
+  }
+
+  const source = previewResolved?.blueprint?.widgetJSON?.data?.source;
+  const items = source ? asArray(getPathValue(previewResolved?.data, source)) : [];
+
+  return items.map((item, index) => normalizeIntegrationDataEntry(item, index));
+}
+
+function normalizeResolvedColumnEntry(column: Record<string, any>, index: number): IntegrationDataEntry {
+  const id = getFirstString(column.id, String(index + 1));
+  const title = getFirstString(column.title, column.label, column.primary, id);
+  const subtitle = getFirstString(column.secondary, column.badge?.tooltip);
+
+  return {
+    id,
+    title,
+    subtitle: subtitle && subtitle !== title ? subtitle : undefined,
+  };
+}
+
+function normalizeIntegrationDataEntry(item: unknown, index: number): IntegrationDataEntry {
+  const record = item && typeof item === "object" && !Array.isArray(item)
+    ? (item as Record<string, any>)
+    : {};
+
+  const id = getFirstString(record.id, record.key, record.displayName, record.name, record.title, record.label, String(index + 1));
+  const title = getFirstString(record.displayName, record.name, record.title, record.label, id);
+  const subtitle = getFirstString(record.secondary, record.subtitle, record.description, record.group);
+
+  return {
+    id,
+    title,
+    subtitle: subtitle && subtitle !== title ? subtitle : undefined,
+  };
+}
+
+function getPathValue(value: unknown, path: string): unknown {
+  if (!value || typeof value !== "object") {
+    return undefined;
+  }
+
+  return path.split(".").reduce<unknown>((current, segment) => {
+    if (!current || typeof current !== "object") {
+      return undefined;
+    }
+
+    return (current as Record<string, unknown>)[segment];
+  }, value);
+}
+
+function asArray(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : [];
+}
+
+function getFirstString(...values: Array<unknown>): string {
+  for (const value of values) {
+    if (typeof value !== "string") continue;
+    const trimmed = value.trim();
+    if (trimmed) return trimmed;
+  }
+
+  return "";
+}
+
 function readDisplayCustomizations(input?: ColumnWidget["input"]): DisplayCustomizations {
   const raw = stripDisplayCustomizations(input);
   const displayCustomizations = (input as Record<string, any> | undefined)?.display_customizations;
@@ -549,25 +640,6 @@ function stripDisplayCustomizations(input?: ColumnWidget["input"]) {
   if (!input || typeof input !== "object") return {};
   const { display_customizations: _displayCustomizations, ...rest } = input as Record<string, any>;
   return rest;
-}
-
-function parseWidgetInput(value: string, setDataError?: (value: string | null) => void): Record<string, any> | null {
-  const trimmedInput = value.trim();
-  if (!trimmedInput) {
-    return {};
-  }
-
-  try {
-    const parsed = JSON.parse(trimmedInput);
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      setDataError?.("Input must be a JSON object.");
-      return null;
-    }
-    return parsed as Record<string, any>;
-  } catch {
-    setDataError?.("Input must be valid JSON.");
-    return null;
-  }
 }
 
 function buildDisplayCustomizationsPayload(opts: {
@@ -682,7 +754,6 @@ function LibraryItem({ item }: { item: WidgetCatalogItem }) {
         type: item.key,
         params: mergedPreviewParams,
         className: "h-[110px] w-full",
-        isPreview: true,
         previewTemplate,
       })}
     </div>
@@ -811,7 +882,13 @@ export function DashboardWidgetPreview({
       const source = widgetCatalog.find((item) => item.category === category && item.key === key);
       if (!source) return;
 
-      const nextWidget: ColumnWidget = { id: createWidgetId(), type: key, properties: {}, input: undefined };
+      const nextWidget: ColumnWidget = {
+        id: createWidgetId(),
+        type: key,
+        configKey: source.integrationId ? `${source.integrationId}#${key}` : key,
+        properties: {},
+        input: undefined,
+      };
       const nextColumns = { left: [...columns.left], middle: [...columns.middle], right: [...columns.right] };
       nextColumns[target.zone].splice(target.index, 0, nextWidget);
       setColumns(nextColumns);
@@ -960,7 +1037,7 @@ export function DashboardWidgetPreview({
             };
             return (
               <div className="w-48 rounded-lg overflow-hidden shadow-2xl opacity-90 rotate-1 scale-105">
-                {renderWidget({ type, params, className: "h-[90px] w-full", isPreview: true })}
+                {renderWidget({ type, params, className: "h-[90px] w-full" })}
               </div>
             );
           })()}
