@@ -588,6 +588,16 @@ function buildEnv(opts: ResolveOptions): Record<string, string> {
   const envVarDefs: Record<string, any> =
     integrationJSON?.configuration?.environment_variables ?? {};
   for (const [k, def] of Object.entries(envVarDefs)) {
+    if (typeof def === "string") {
+      env[k] = def;
+      continue;
+    }
+
+    if (def?.value !== undefined && typeof def.value === "string") {
+      env[k] = def.value;
+      continue;
+    }
+
     if (def?.default !== undefined) {
       env[k] = String(def.default);
     }
