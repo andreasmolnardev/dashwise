@@ -1,0 +1,19 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "declaration": true,
+    "emitDeclarationOnly": false,
+    "rootDir": ".",
+    "outDir": "dist",
+    "noEmit": false,
+    "incremental": false,
+    "baseUrl": ".",
+    "module": "esnext",
+    "moduleResolution": "bundler"
+  },
+  "include": [
+    "index.ts",
+    "yaml.d.ts"
+  ],
+  "exclude": ["dist"]
+}
