@@ -8,26 +8,19 @@ import {
 import { renderLocalizedText, type TextFormatters } from "./data/renderText";
 import WidgetColumnTemplate from "./templates/WidgetColumn";
 import VerticalList from "./templates/VerticalList";
-import IconDetailsCard from "./templates/IconDetailsCard";
+import ItemDetailsCard from "./templates/ItemDetailsCard";
 import IframeTemplate from "./templates/IFrame";
 import AppIcon from "@dashwise/app-icon";
 import type { ResolvedWidget } from "./types";
 
 export type WidgetProps = {
     widgetKey: string;
-    /** Full parsed integration YAML object — used for env var defaults & icon resolution */
-    integrationJSON?: Record<string, any> | null;
-    /** The specific widget definition from configuration.widgets[] */
+    integrationJSON?: Record<string, any> | null; // will also be used as fallback
     widgetJSON?: Record<string, any> | null;
-    /** Optional per-user env overrides stored in page config. */
     input?: Record<string, any> | null;
-    /** Optional runtime endpoint/computed data resolved by backend. */
     data?: Record<string, any> | null;
-    /** Optional fully resolved blueprint. When provided, no client resolution runs. */
     resolved?: ResolvedWidget | null;
-    /** Localization callbacks used to format typed placeholders. */
-    formatters?: TextFormatters;
-    /** When true, uses ??? fallback values baked into the YAML instead of live data */
+    formatters?: TextFormatters; // provide localization
     isPreview?: boolean;
     className?: string;
 };
@@ -166,18 +159,22 @@ export default function Widget({
     }
 
     const template = effectiveWidgetJSON.template ?? "columns";
+    const renderedResolved = applyResolvedColumnCustomizations(
+        resolved,
+        input,
+    );
 
     switch (template) {
         case "columns":
-            return <ColumnsWidget resolved={resolved} className={className} formatters={formatters} />;
+            return <ColumnsWidget resolved={renderedResolved} className={className} formatters={formatters} />;
 
         case "vertical-list":
-            return <VerticalList resolved={resolved} className={className} formatters={formatters} />;
+            return <VerticalList resolved={renderedResolved} className={className} formatters={formatters} />;
 
         case "icon-details-card":
             return (
-                <IconDetailsCard
-                    resolved={resolved}
+                <ItemDetailsCard
+                    resolved={renderedResolved}
                     className={className}
                     formatters={formatters}
                 />
@@ -276,6 +273,49 @@ function applyWidgetInput(
                 ...input,
             },
         },
+    };
+}
+
+function applyResolvedColumnCustomizations(
+    resolved: ResolvedWidget,
+    input: Record<string, any> | null | undefined,
+): ResolvedWidget {
+    if (!resolved.columns || resolved.columns.length === 0) {
+        return resolved;
+    }
+
+    const displayCustomizations = input?.display_customizations;
+    const orderIds = Array.isArray(displayCustomizations?.order)
+        ? displayCustomizations.order.filter((value: unknown): value is string => typeof value === "string")
+        : [];
+    const hiddenIds = Array.isArray(displayCustomizations?.hidden)
+        ? displayCustomizations.hidden.filter((value: unknown): value is string => typeof value === "string")
+        : [];
+
+    if (orderIds.length === 0 && hiddenIds.length === 0) {
+        return resolved;
+    }
+
+    const visibleColumns = hiddenIds.length > 0
+        ? resolved.columns.filter((column) => !hiddenIds.includes(column.id))
+        : [...resolved.columns];
+
+    if (orderIds.length === 0) {
+        return {
+            ...resolved,
+            columns: visibleColumns,
+        };
+    }
+
+    const byId = new Map(visibleColumns.map((column) => [column.id, column] as const));
+    const ordered = orderIds
+        .map((id: string) => byId.get(id))
+        .filter((column: NonNullable<ResolvedWidget["columns"]>[number] | undefined): column is NonNullable<ResolvedWidget["columns"]>[number] => Boolean(column));
+    const remaining = visibleColumns.filter((column) => !orderIds.includes(column.id));
+
+    return {
+        ...resolved,
+        columns: [...ordered, ...remaining],
     };
 }
 
