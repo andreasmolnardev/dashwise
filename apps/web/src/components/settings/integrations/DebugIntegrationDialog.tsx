@@ -447,46 +447,48 @@ export function DebugIntegrationDialog({
                                       </div>
                                     </div>
 
-                                    {hasResponse && (
-                                      <div className="space-y-1">
-                                        <p className="text-xs font-medium text-muted-foreground">
-                                          Response
-                                        </p>
-                                        <div className="rounded-lg bg-muted/50 p-2 font-mono text-xs max-h-48 overflow-auto max-w-full">
-                                          {resp.rawResponse !== undefined && (
-                                            <div className="mb-2">
-                                              <span className="text-muted-foreground">
-                                                Raw:
-                                              </span>
-                                              {typeof resp.rawResponse ===
-                                                  "string"
-                                                ? resp.rawResponse
-                                                : JSON.stringify(
-                                                  resp.rawResponse,
-                                                  null,
-                                                  2,
-                                                )}
-                                            </div>
-                                          )}
-                                          {resp.mappedResponse !== undefined &&
-                                            (
-                                              <div>
-                                                <span className="text-muted-foreground">
-                                                  Mapped:
-                                                </span>
-                                                {typeof resp.mappedResponse ===
-                                                    "string"
-                                                  ? resp.mappedResponse
-                                                  : JSON.stringify(
-                                                    resp.mappedResponse,
-                                                    null,
-                                                    2,
-                                                  )}
-                                              </div>
-                                            )}
+                                    <div className="space-y-1 mt-2">
+                                      <p className="text-xs font-medium text-muted-foreground">
+                                        Request
+                                      </p>
+                                      <div className="rounded-lg bg-muted/50 p-2 font-mono text-xs overflow-x-auto max-w-full">
+                                        <div>
+                                          <Badge>{endpoint.method}</Badge>{" "}
+                                          {endpoint.resolvedUrl || endpoint.url}
                                         </div>
+                                        {Object.keys(endpoint.resolvedHeaders ?? {}).length > 0 && (
+                                          <div className="mt-1 text-muted-foreground">
+                                            Headers: {JSON.stringify(endpoint.resolvedHeaders)}
+                                          </div>
+                                        )}
+                                        {endpoint.resolvedBody && (
+                                          <div className="mt-1 text-muted-foreground">
+                                            Body: {typeof endpoint.resolvedBody === "string" ? endpoint.resolvedBody : JSON.stringify(endpoint.resolvedBody as Record<string, unknown>)}
+                                          </div>
+                                        )}
+                                        {endpoint.auth && (
+                                          <div className="mt-1 text-muted-foreground">Auth: {endpoint.auth}</div>
+                                        )}
                                       </div>
-                                    )}
+
+                                      <p className="text-xs font-medium text-muted-foreground">Raw Response</p>
+                                      <div className="rounded-lg bg-muted/50 p-2 font-mono text-xs max-h-48 overflow-auto max-w-full">
+                                        {resp && resp.rawResponse !== undefined ? (
+                                          typeof resp.rawResponse === "string" ? resp.rawResponse : JSON.stringify(resp.rawResponse, null, 2)
+                                        ) : (
+                                          <div className="text-muted-foreground">(empty)</div>
+                                        )}
+                                      </div>
+
+                                      <p className="text-xs font-medium text-muted-foreground">Mapped Response</p>
+                                      <div className="rounded-lg bg-muted/50 p-2 font-mono text-xs max-h-48 overflow-auto max-w-full">
+                                        {resp && resp.mappedResponse !== undefined ? (
+                                          typeof resp.mappedResponse === "string" ? resp.mappedResponse : JSON.stringify(resp.mappedResponse, null, 2)
+                                        ) : (
+                                          <div className="text-muted-foreground">(empty)</div>
+                                        )}
+                                      </div>
+                                    </div>
                                   </div>
                                 );
                               })}
@@ -658,45 +660,48 @@ export function DebugIntegrationDialog({
                                     </div>
                                   </div>
 
-                                  {hasResponse && (
-                                    <div className="space-y-1">
-                                      <p className="text-xs font-medium text-muted-foreground">
-                                        Response
-                                      </p>
-                                      <div className="rounded-lg bg-muted/50 p-2 font-mono text-xs max-h-48 overflow-auto max-w-full">
-                                        {resp.rawResponse !== undefined && (
-                                          <div className="mb-2">
-                                            <span className="text-muted-foreground">
-                                              Raw:
-                                            </span>
-                                            {typeof resp.rawResponse ===
-                                                "string"
-                                              ? resp.rawResponse
-                                              : JSON.stringify(
-                                                resp.rawResponse,
-                                                null,
-                                                2,
-                                              )}
-                                          </div>
-                                        )}
-                                        {resp.mappedResponse !== undefined && (
-                                          <div>
-                                            <span className="text-muted-foreground">
-                                              Mapped:
-                                            </span>
-                                            {typeof resp.mappedResponse ===
-                                                "string"
-                                              ? resp.mappedResponse
-                                              : JSON.stringify(
-                                                resp.mappedResponse,
-                                                null,
-                                                2,
-                                              )}
-                                          </div>
-                                        )}
+                                  <div className="space-y-1 mt-2">
+                                    <p className="text-xs font-medium text-muted-foreground">
+                                      Request
+                                    </p>
+                                    <div className="rounded-lg bg-muted/50 p-2 font-mono text-xs">
+                                      <div>
+                                        <Badge>{endpoint.method}</Badge>{" "}
+                                        {endpoint.resolvedUrl || endpoint.url}
                                       </div>
+                                      {Object.keys(endpoint.resolvedHeaders ?? {}).length > 0 && (
+                                        <div className="mt-1 text-muted-foreground">
+                                          Headers: {JSON.stringify(endpoint.resolvedHeaders)}
+                                        </div>
+                                      )}
+                                      {endpoint.resolvedBody && (
+                                        <div className="mt-1 text-muted-foreground">
+                                          Body: {typeof endpoint.resolvedBody === "string" ? endpoint.resolvedBody : JSON.stringify(endpoint.resolvedBody as object)}
+                                        </div>
+                                      )}
+                                      {endpoint.auth && (
+                                        <div className="mt-1 text-muted-foreground">Auth: {endpoint.auth}</div>
+                                      )}
                                     </div>
-                                  )}
+
+                                    <p className="text-xs font-medium text-muted-foreground">Raw Response</p>
+                                    <div className="rounded-lg bg-muted/50 p-2 font-mono text-xs max-h-48 overflow-auto max-w-full">
+                                      {resp && resp.rawResponse !== undefined ? (
+                                        typeof resp.rawResponse === "string" ? resp.rawResponse : JSON.stringify(resp.rawResponse, null, 2)
+                                      ) : (
+                                        <div className="text-muted-foreground">(empty)</div>
+                                      )}
+                                    </div>
+
+                                    <p className="text-xs font-medium text-muted-foreground">Mapped Response</p>
+                                    <div className="rounded-lg bg-muted/50 p-2 font-mono text-xs max-h-48 overflow-auto max-w-full">
+                                      {resp && resp.mappedResponse !== undefined ? (
+                                        typeof resp.mappedResponse === "string" ? resp.mappedResponse : JSON.stringify(resp.mappedResponse, null, 2)
+                                      ) : (
+                                        <div className="text-muted-foreground">(empty)</div>
+                                      )}
+                                    </div>
+                                  </div>
                                 </div>
                               );
                             })}
