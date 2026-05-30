@@ -2,6 +2,8 @@ import { Hono } from "hono";
 
 import { changePassword, deleteAccount, loginUser, signupUser, updateUserProperty, validateAuthToken } from "@dashwise/sdk/data/auth";
 import type { UserPropertyValue } from "@dashwise/sdk/data/auth";
+import { ensureBuiltinIntegrations } from "@dashwise/sdk/data/integrations";
+import { getSuperuserPB } from "@dashwise/sdk/lib/pocketbase";
 
 import { loadSignupDefaults, readJsonBody, routeRedirectTarget, withJson } from "./shared";
 
@@ -36,7 +38,7 @@ const authRoute = new Hono();
     const links = await loadSignupDefaults("links.json");
     const preferences = await loadSignupDefaults("preferences.json");
 
-    return signupUser({
+    const result = await signupUser({
       _name: input._name,
       email: String(input.email ?? ""),
       password: String(input.password ?? ""),
@@ -47,6 +49,10 @@ const authRoute = new Hono();
         linksConfig: links,
       },
     });
+
+    await ensureBuiltinIntegrations(result.user.id, await getSuperuserPB());
+
+    return result;
   }));
   authRoute.post("/api/v1/auth/change-password", withJson(async (c) => {
     const body = await readJsonBody<{ auth?: { token?: string | null }; body?: { email?: string; oldPassword?: string; newPassword?: string; confirmPassword?: string } }>(c);
