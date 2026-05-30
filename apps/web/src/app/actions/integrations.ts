@@ -37,6 +37,7 @@ export async function getConsumerDataAction(
   options?: {
     type?: "widget" | "glanceable";
     isPreview?: boolean;
+    environmentOverrides?: Record<string, string>;
   },
 ) {
   return callApiAction("integrations", "getConsumerDataAction", {
@@ -45,6 +46,7 @@ export async function getConsumerDataAction(
     properties,
     type: options?.type,
     isPreview: options?.isPreview,
+    environmentOverrides: options?.environmentOverrides,
   });
 }
 
