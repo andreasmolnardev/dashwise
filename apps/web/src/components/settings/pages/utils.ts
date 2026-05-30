@@ -33,9 +33,17 @@ export type GlanceableCatalogItem = {
   exampleProps: Record<string, any>;
 };
 
+const LOCAL_GLANCEABLE_TYPES = new Set([
+  "date",
+  "greeting",
+  "local-timezone",
+  "world-clock",
+]);
+
 export type ColumnWidget = {
   id: string;
   type: string;
+  configKey?: string;
   index?: number;
   properties: Record<string, any>;
   input?: Record<string, any>;
@@ -44,6 +52,7 @@ export type ColumnWidget = {
 export type WidgetCatalogItem = {
   category: string;
   key: string;
+  integrationId?: string;
   index?: number;
   name: string;
   description: string;
@@ -128,11 +137,24 @@ export function createWidgetId() {
   return Math.random().toString(36).slice(2, 12);
 }
 
+function splitWidgetConfigKey(key: string) {
+  const separatorIndex = key.indexOf("#");
+  if (separatorIndex <= 0 || separatorIndex === key.length - 1) {
+    return { configKey: key, type: key };
+  }
+
+  return {
+    configKey: key,
+    type: key.slice(separatorIndex + 1),
+  };
+}
+
 export function flattenWidgetCatalog(widgetsData: Record<string, WidgetDefinition[]>) {
   return Object.entries(widgetsData).flatMap(([category, widgets]) =>
     sortByIndex(widgets).map((widget) => ({
       category,
       key: widget.key,
+      integrationId: (widget as WidgetDefinition & { integrationId?: string }).integrationId,
       index: widget.index,
       name: widget.name ?? widget.key,
       description: widget.description ?? "",
@@ -192,9 +214,11 @@ export function normalizeColumns(config: any): Record<ColumnName, ColumnWidget[]
   const columns = config?.columns;
   if (columns && typeof columns === "object") {
     const normalizeColumnEntries = (columnEntries: Record<string, any> | undefined) =>
-      sortByIndex(Object.entries(columnEntries ?? {}).map(([type, cfg]) => {
+      sortByIndex(Object.entries(columnEntries ?? {}).map(([key, cfg]) => {
+        const { configKey, type } = splitWidgetConfigKey(key);
         const normalized = normalizeWidgetConfig(cfg);
         return {
+          configKey,
           type,
           index: normalized.index,
           properties: normalized.properties,
@@ -203,6 +227,7 @@ export function normalizeColumns(config: any): Record<ColumnName, ColumnWidget[]
       })).map((entry) => ({
         id: createWidgetId(),
         type: entry.type,
+        configKey: entry.configKey,
         index: entry.index,
         properties: entry.properties,
         input: entry.input,
@@ -222,6 +247,7 @@ export function normalizeColumns(config: any): Record<ColumnName, ColumnWidget[]
       return {
         id: widget?.id ?? createWidgetId(),
         type: widget?.type ?? "placeholder",
+        configKey: typeof widget?.configKey === "string" ? widget.configKey : undefined,
         index: normalized.index,
         properties: normalized.properties,
         input: normalized.input,
@@ -232,6 +258,7 @@ export function normalizeColumns(config: any): Record<ColumnName, ColumnWidget[]
       return {
         id: widget?.id ?? createWidgetId(),
         type: widget?.type ?? "placeholder",
+        configKey: typeof widget?.configKey === "string" ? widget.configKey : undefined,
         index: normalized.index,
         properties: normalized.properties,
         input: normalized.input,
@@ -242,6 +269,7 @@ export function normalizeColumns(config: any): Record<ColumnName, ColumnWidget[]
       return {
         id: widget?.id ?? createWidgetId(),
         type: widget?.type ?? "placeholder",
+        configKey: typeof widget?.configKey === "string" ? widget.configKey : undefined,
         index: normalized.index,
         properties: normalized.properties,
         input: normalized.input,
@@ -361,7 +389,7 @@ export function buildPageConfigPatch(
   clockSelection: Record<GlanceableSide, string>,
   clockGlanceables: Record<string, any>,
   clockStyle: Record<string, any>,
-  widgetCatalog?: WidgetCatalogItem[],
+  glanceableCatalog?: GlanceableCatalogItem[],
 ) {
   const nextColumnsObject: Record<string, Record<string, any>> = {};
   const templateColumns = enabledColumnsFromTemplate(template);
@@ -372,11 +400,13 @@ export function buildPageConfigPatch(
       const widgetProps = { ...(widget.properties ?? {}) };
 
       if (widget.type === "main-clock") {
-        const left = clockSelection.left;
-        const right = clockSelection.right;
+        const leftRaw = clockSelection.left;
+        const rightRaw = clockSelection.right;
+        const left = resolveStoredGlanceableKey(leftRaw, glanceableCatalog);
+        const right = resolveStoredGlanceableKey(rightRaw, glanceableCatalog);
         widgetProps.glanceables = {
-          [left]: clockGlanceables[left] ?? null,
-          [right]: clockGlanceables[right] ?? null,
+          [left]: clockGlanceables[leftRaw] ?? clockGlanceables[left] ?? null,
+          [right]: clockGlanceables[rightRaw] ?? clockGlanceables[right] ?? null,
         };
         widgetProps["clock-style"] = { ...clockStyle };
       }
@@ -386,7 +416,7 @@ export function buildPageConfigPatch(
         ...(widget.input ?? {}),
       };
 
-      nextColumnsObject[column][widget.type] =
+      nextColumnsObject[column][widget.configKey ?? widget.type] =
         Object.keys(widgetPayload).length > 0
           ? { index, ...widgetPayload }
           : { index };
@@ -397,4 +427,23 @@ export function buildPageConfigPatch(
     template,
     columns: nextColumnsObject
   };
+}
+
+function resolveStoredGlanceableKey(
+  selectedKey: string,
+  catalogGlanceables?: GlanceableCatalogItem[],
+) {
+  const trimmed = String(selectedKey ?? "").trim();
+  if (!trimmed) return "";
+  if (trimmed.includes("#")) return trimmed;
+  if (LOCAL_GLANCEABLE_TYPES.has(trimmed)) return trimmed;
+  if (!Array.isArray(catalogGlanceables) || catalogGlanceables.length === 0) {
+    return trimmed;
+  }
+
+  const directMatch = catalogGlanceables.find((entry) => entry.type === trimmed);
+  if (directMatch) return directMatch.type;
+
+  const compositeMatch = catalogGlanceables.find((entry) => entry.type.endsWith(`#${trimmed}`));
+  return compositeMatch?.type ?? trimmed;
 }

@@ -47,6 +47,7 @@ const WIDGET_OPTIONS = [
   "main-clock",
   "search-bar",
   "calendar-week",
+  "countdown",
   "link-view",
   "monitoring",
 ];
