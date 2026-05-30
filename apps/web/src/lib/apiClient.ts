@@ -386,6 +386,7 @@ const routes: Record<string, RouteConfig> = {
       type: input?.type,
       properties: input?.properties,
       isPreview: input?.isPreview,
+      environmentOverrides: input?.environmentOverrides,
     }),
   },
   "integrations.getIntegrationCalendarEventsAction": {
