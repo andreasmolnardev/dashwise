@@ -8,7 +8,8 @@
     "react-dom": ">=19"
   },
   "dependencies": {
-    "@dashwise/app-icon": "workspace:*"
+    "@dashwise/app-icon": "workspace:*",
+    "date-fns": "^4.1.0"
   },
   "exports": {
     "./AppIcon": "./templates/AppIcon.tsx",
@@ -16,6 +17,11 @@
     "./GlanceableComponent": "./Glanceable.tsx",
     "./Shortcuts": "./Shortcuts.tsx",
     "./Widget": "./Widget.tsx",
+    "./static-widgets/CountdownWidget": {
+      "types": "./static-widgets/CountdownWidget.tsx",
+      "import": "./static-widgets/CountdownWidget.tsx",
+      "default": "./static-widgets/CountdownWidget.tsx"
+    },
     "./templates/IFrame": {
       "import": "./templates/IFrame.tsx",
       "default": "./templates/IFrame.tsx"

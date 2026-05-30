@@ -2,12 +2,20 @@
   "name": "@dashwise/assets",
   "version": "1.0.0",
   "private": true,
-  "main": "index.ts",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.json && cp -R defaults integrations dist/"
+  },
   "exports": {
     ".": {
-      "types": "./index.ts",
-      "default": "./index.ts"
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
     }
   },
-  "types": "index.ts"
+  "types": "./dist/index.d.ts"
 }
