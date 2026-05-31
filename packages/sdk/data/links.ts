@@ -505,6 +505,17 @@ export async function createHomeLinkItem(
     const pb = getServerPB();
     const homeCollection = await getOrCreateHomeCollection(pb, userId);
 
+    const existingLinks = await pb.collection("linkItems").getFullList({
+        filter: `collection = "${homeCollection.id}"`,
+        fields: "id,position",
+    });
+    const nextPosition = existingLinks.reduce((max, record) => {
+        const position = typeof (record as any).position === "number" && Number.isFinite((record as any).position)
+            ? (record as any).position
+            : -1;
+        return Math.max(max, position);
+    }, -1) + 1;
+
     let folderId: string | undefined;
     const groupName = String(data.linkGroup || "").trim();
     const childFolderName = String(data.folder || "").trim();
@@ -533,6 +544,7 @@ export async function createHomeLinkItem(
         description: data.description ?? "",
         collection: homeCollection.id,
         folder: folderId ?? "",
+        position: nextPosition,
     });
 
     return {
