@@ -5,7 +5,7 @@
 // computed-field evaluation, and widget rendering.
 
 import getLookupTableValue from "./resolvers/lookupTable";
-import { ExpressionParser, resolveMathOperation, tokenizeExpression } from "./resolvers/math";
+import { ExpressionParser, evaluateMathJsExpression, resolveMathOperation, tokenizeExpression } from "./resolvers/math";
 
 export type ComputedResolutionContext = {
 	env: Record<string, string>;
@@ -743,33 +743,10 @@ function resolveOperationValue(def: Record<string, any>, context: ComputedResolu
 		const expression = typeof def.expression === "string" ? def.expression : "";
 		if (!expression) return fallback;
 
-		try {
-			const normalizedExpression = normalizeComputedExpression(expression)
-				.replace(/\bor\b/g, "||")
-				.replace(/\band\b/g, "&&")
-				.replace(/\bnot\b/g, "!");
-			const evaluator = new Function(
-				...Object.keys(resolvedInputs),
-				"round",
-				"clamp",
-				"humanBytes",
-				"length",
-				"isNaN",
-				"now",
-				`return (${normalizedExpression});`,
-			);
-			return evaluator(
-				...Object.values(resolvedInputs),
-				Math.round,
-				clamp,
-				humanBytes,
-				(value: any) => (Array.isArray(value) || typeof value === "string" ? value.length : 0),
-				Number.isNaN,
-				() => Date.now(),
-			);
-		} catch {
-			return fallback;
-		}
+		const result = evaluateMathJsExpression(expression, resolvedInputs, {
+			normalizeComputedExpression,
+		});
+		return typeof result === "number" && Number.isNaN(result) ? fallback : result ?? fallback;
 	}
 
 	if (operation === "compute_health") {

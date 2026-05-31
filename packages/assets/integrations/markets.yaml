@@ -55,61 +55,77 @@ configuration:
       fields:
         symbol: "this.endpoints.fetch-stock.mappedResponse.current.symbol"
         name: "this.endpoints.fetch-stock.mappedResponse.current.name"
-        price: "this.endpoints.fetch-stock.mappedResponse.current.price"
-        previous: "this.endpoints.fetch-stock.mappedResponse.current.previous_close"
+
+        price:
+          operation: "math"
+          expression: "round(price, 2)"
+          inputs:
+            price: "this.endpoints.fetch-stock.mappedResponse.current.price"
+
+        previous:
+          operation: "math"
+          expression: "round(previous, 2)"
+          inputs:
+            previous: "this.endpoints.fetch-stock.mappedResponse.current.previous_close"
 
         change:
-          operation: "subtract"
+          operation: "math"
+          expression: "round(a - b, 2)"
           inputs:
             a: "this.endpoints.fetch-stock.mappedResponse.current.price"
             b: "this.endpoints.fetch-stock.mappedResponse.current.previous_close"
 
         change_percent:
-          operation: "percentage_change"
+          operation: "math"
+          expression: "previous == 0 ? 0 : round((((current - previous) / previous) * 100) * 100) / 100"
           inputs:
             current: "this.endpoints.fetch-stock.mappedResponse.current.price"
             previous: "this.endpoints.fetch-stock.mappedResponse.current.previous_close"
 
         is_up:
-          operation: "conditional"
-          condition: "price >= previous"
-          true_value: true
-          false_value: false
-
-        color:
-          operation: "conditional"
-          condition: "price >= previous"
-          true_value: "#16a34a"
-          false_value: "#ef4444"
+          operation: "math"
+          expression: "current >= previous"
+          inputs:
+            current: "this.endpoints.fetch-stock.mappedResponse.current.price"
+            previous: "this.endpoints.fetch-stock.mappedResponse.current.previous_close"
 
         sign:
-          operation: "conditional"
-          condition: "change >= 0"
-          true_value: "+"
-          false_value: ""
+          operation: "math"
+          expression: "current >= previous ? '+' : ''"
+          inputs:
+            current: "this.endpoints.fetch-stock.mappedResponse.current.price"
+            previous: "this.endpoints.fetch-stock.mappedResponse.current.previous_close"
 
         direction_icon:
-          operation: "conditional"
-          condition: "price >= previous"
-          true_value: "mdi:arrow-up"
-          false_value: "mdi:arrow-down"
+          operation: "math"
+          expression: "current >= previous ? 'fluent-mdl2:market' : 'fluent-mdl2:market-down'"
+          inputs:
+            current: "this.endpoints.fetch-stock.mappedResponse.current.price"
+            previous: "this.endpoints.fetch-stock.mappedResponse.current.previous_close"
+
+        color:
+          operation: "math"
+          expression: "current >= previous ? '#16a34a' : '#ef4444'"
+          inputs:
+            current: "this.endpoints.fetch-stock.mappedResponse.current.price"
+            previous: "this.endpoints.fetch-stock.mappedResponse.current.previous_close"
 
   cache:
     policy: "cache-first"
     retention: 60
 
   glanceables:
-  - name: "Stock"
-    key: "stock-glance"
-    properties:
-      symbol: "${STOCK}"
-      poll: "${POLLING_INTERVAL}"
+    - name: "Stock"
+      key: "stock-glance"
+      properties:
+        symbol: "${STOCK}"
+        poll: "${POLLING_INTERVAL}"
 
-    icon:
-      file: "${computed.stock.direction_icon}"
-      size: 16
-      description: "${computed.stock.name}"
+      icon:
+        file: "${computed.stock.fields.direction_icon}"
+        size: 16
+        description: "${computed.stock.fields.name}"
 
-    text: "${computed.stock.price} ${computed.stock.sign}${computed.stock.change} (${computed.stock.change_percent}%)"
+      text: "${STOCK} ${computed.stock.fields.change_percent}%"
 
-    color: "${computed.stock.color}"
+      color: "${computed.stock.fields.color}"

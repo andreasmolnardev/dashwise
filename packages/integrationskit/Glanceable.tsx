@@ -6,7 +6,9 @@ import {
   flattenToEnv,
   resolveStringWithCasts,
   resolveGlanceableRuntimeData,
+  resolveValue,
 } from "./data/resolveProperties";
+import { evaluateCondition } from "./data/resolvers/operations";
 import { renderLocalizedText, type TextFormatters } from "./data/renderText";
 
 export type GlanceableProps = {
@@ -41,6 +43,15 @@ export default function Glanceable({
   resolved,
   formatters,
 }: GlanceableProps) {
+  console.debug("Rendering Glanceable", {
+    glanceableJSON,
+    integrationJSON,
+    data,
+    isPreview,
+    type,
+    params,
+    resolved,
+  });
   if (resolved) {
     return (
       <span
@@ -134,10 +145,40 @@ export default function Glanceable({
     };
   }, [integrationJSON, isPreview, resolvedRuntimeData, safeGlanceableJSON]);
 
-  const rawText = typeof safeGlanceableJSON.text === "string" ? safeGlanceableJSON.text : "";
-  const text = rawText ? resolveGlanceableText(rawText, env, formatters) : (safeGlanceableJSON.name ?? "");
+  let text = "";
 
-  const iconSrc = getGlanceableIconSource(safeGlanceableJSON.icon);
+  // support structured text operations (eg. stringadd) as well as plain strings
+  if (typeof safeGlanceableJSON.text === "string" && safeGlanceableJSON.text) {
+    text = resolveGlanceableText(safeGlanceableJSON.text, env, formatters);
+  } else if (safeGlanceableJSON.text && typeof safeGlanceableJSON.text === "object") {
+    const def = safeGlanceableJSON.text as Record<string, any>;
+    if ((def.operation ?? "").toString().toLowerCase() === "stringadd" && Array.isArray(def.inputs)) {
+      const parts: string[] = [];
+      for (const input of def.inputs) {
+        if (!input) continue;
+        if (input.show_if !== undefined) {
+          const show = evaluateCondition(String(input.show_if), env);
+          if (!show) continue;
+        }
+        const segment = typeof input === "string" ? input : input.text ?? "";
+        const resolved = resolveGlanceableText(String(segment), env, formatters);
+        if (resolved && resolved.trim()) parts.push(resolved);
+      }
+      text = parts.join("");
+    } else {
+      // fallback: try to resolve any `value` or `text` properties
+      const candidate = def.text ?? def.value ?? "";
+      text = candidate ? resolveGlanceableText(String(candidate), env, formatters) : "";
+    }
+  } else {
+    text = safeGlanceableJSON.name ?? "";
+  }
+
+  if (!text || String(text).trim() === "") {
+    text = safeGlanceableJSON.name ?? "";
+  }
+
+  const iconSrc = getGlanceableIconSource(safeGlanceableJSON.icon, env);
 
   return (
     <span
@@ -164,22 +205,22 @@ function LegacyGlanceable({
 }) {
   switch (type) {
     case "date":
-      return <span className={`inline-flex items-center text-sm text-center ${className ?? ""}`}>{formatDate(new Date(), params?.format, formatters)}</span>;
+      return <span className={`inline-flex items-center text-center ${className ?? ""}`}>{formatDate(new Date(), params?.format, formatters)}</span>;
 
     case "greeting":
-      return <span className={`inline-flex items-center text-sm text-center ${className ?? ""}`}>Hello</span>;
+      return <span className={`inline-flex items-center text-center ${className ?? ""}`}>Hello</span>;
 
     case "local-timezone":
-      return <span className={`inline-flex items-center text-sm text-center ${className ?? ""}`}>{getLocalTimezoneLabel()}</span>;
+      return <span className={`inline-flex items-center text-center ${className ?? ""}`}>{getLocalTimezoneLabel()}</span>;
 
     case "weather":
-      return <span className={`inline-flex items-center text-sm text-center ${className ?? ""}`}>{formatWeather(params, formatters)}</span>;
+      return <span className={`inline-flex items-center text-center ${className ?? ""}`}>{formatWeather(params, formatters)}</span>;
 
     case "world-clock":
       return <LegacyWorldClock params={params} className={className} formatters={formatters} />;
 
     default:
-      return <span className={`inline-flex items-center text-sm text-center ${className ?? ""}`}>{params?.name ?? type}</span>;
+      return <span className={`inline-flex items-center text-center ${className ?? ""}`}>{params?.name ?? type}</span>;
   }
 }
 
@@ -208,7 +249,7 @@ function LegacyWorldClock({
     return () => clearInterval(interval);
   }, [formatters, timezone]);
 
-  return <span className={`inline-flex items-center text-sm text-center ${className ?? ""}`}>{time}{location ? ` in ${location}` : ""}</span>;
+  return <span className={`inline-flex items-center text-center ${className ?? ""}`}>{time}{location ? ` in ${location}` : ""}</span>;
 }
 
 function getLocalTimezoneLabel() {
@@ -346,7 +387,7 @@ function mergeGlanceableJSON(glanceableJSON: Record<string, any>, params?: Recor
   };
 }
 
-function getGlanceableIconSource(icon: unknown) {
+function getGlanceableIconSource(icon: unknown, env?: Record<string, string>) {
   if (!icon || icon === "none") return null;
   if (typeof icon === "string") return icon;
 
@@ -359,7 +400,11 @@ function getGlanceableIconSource(icon: unknown) {
       iconRecord.value;
 
     if (typeof source === "string" && source.trim()) {
-      return source.trim();
+      try {
+        return env ? (resolveValue(source.trim(), env) ?? source.trim()) : source.trim();
+      } catch {
+        return source.trim();
+      }
     }
   }
 

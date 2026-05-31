@@ -1,3 +1,7 @@
+import { create, all } from "mathjs";
+
+const math = create(all, {});
+
 export type MathResolverDeps<Ctx extends { env: Record<string, string> }> = {
 	resolveComputedFieldValue: (value: any, context: Ctx) => any;
 	resolvePathReference: (path: string, context: Ctx) => any;
@@ -24,10 +28,15 @@ export function resolveMathOperation<Ctx extends { env: Record<string, string> }
 	fallback: any,
 	deps: MathResolverDeps<Ctx>,
 ) {
-	const expression = buildMathExpression(def, context, deps).trim();
-	if (!expression) return fallback;
+	const resolvedInputs = deps.resolveComputedFieldValue(def.inputs ?? {}, context) as Record<string, any>;
+	const { expression, mode } = buildMathExpression(def, context, deps);
+	const normalizedExpression = expression.trim();
+	if (!normalizedExpression) return fallback;
 
-	const result = evaluateMathExpression(expression, context, deps);
+	const result = mode === "scope"
+		? evaluateMathJsExpression(normalizedExpression, resolvedInputs, deps)
+		: evaluateMathExpression(normalizedExpression, context, deps);
+
 	if (typeof result === "number" && Number.isNaN(result)) {
 		return fallback ?? expression;
 	}
@@ -45,25 +54,34 @@ function buildMathExpression<Ctx extends { env: Record<string, string> }>(
 		? def.value
 		: "";
 	if (explicit.trim()) {
-		return deps.normalizeComputedExpression(explicit);
+		return {
+			expression: deps.normalizeComputedExpression(explicit),
+			mode: "scope" as const,
+		};
 	}
 
 	const from = def.from ?? def.base ?? def.left;
 	const subtract = def.subtract ?? def.susbtract ?? def.minus;
 	if (from !== undefined && subtract !== undefined) {
-		return deps.normalizeComputedExpression(
-			`(${resolveMathOperandExpression(from, context, deps)}) - (${resolveMathOperandExpression(subtract, context, deps)})`,
-		);
+		return {
+			expression: deps.normalizeComputedExpression(
+				`(${resolveMathOperandExpression(from, context, deps)}) - (${resolveMathOperandExpression(subtract, context, deps)})`,
+			),
+			mode: "paths" as const,
+		};
 	}
 
 	const add = def.add ?? def.plus;
 	if (from !== undefined && add !== undefined) {
-		return deps.normalizeComputedExpression(
-			`(${resolveMathOperandExpression(from, context, deps)}) + (${resolveMathOperandExpression(add, context, deps)})`,
-		);
+		return {
+			expression: deps.normalizeComputedExpression(
+				`(${resolveMathOperandExpression(from, context, deps)}) + (${resolveMathOperandExpression(add, context, deps)})`,
+			),
+			mode: "paths" as const,
+		};
 	}
 
-	return "";
+	return { expression: "", mode: "paths" as const };
 }
 
 function resolveMathOperandExpression<Ctx extends { env: Record<string, string> }>(
@@ -84,12 +102,93 @@ function evaluateMathExpression<Ctx extends { env: Record<string, string> }>(
 ) {
 	const prepared = prepareMathExpression(expression, context, deps);
 	if (!prepared) return NaN;
-	if (!/^[0-9+\-*/().\s]+$/.test(prepared)) {
+
+	try {
+		return math.evaluate(prepared, buildMathScope({}));
+	} catch {
 		return NaN;
 	}
+}
 
-	const evaluator = new Function(`return (${prepared});`);
-	return evaluator();
+export function evaluateMathJsExpression<Ctx extends { env: Record<string, string> }>(
+	expression: string,
+	resolvedInputs: Record<string, any>,
+	deps: Pick<MathResolverDeps<Ctx>, "normalizeComputedExpression">,
+) {
+	const normalizedExpression = deps
+		.normalizeComputedExpression(expression)
+		.replace(/\bor\b/g, "||")
+		.replace(/\band\b/g, "&&")
+		.replace(/\bnot\b/g, "!");
+
+	try {
+		return math.evaluate(normalizedExpression, buildMathScope(resolvedInputs));
+	} catch {
+		return NaN;
+	}
+}
+
+function buildMathScope(resolvedInputs: Record<string, any>) {
+	const scope: Record<string, any> = {
+		round: math.round,
+		clamp,
+		humanBytes,
+		length: (value: any) => (Array.isArray(value) || typeof value === "string" ? value.length : 0),
+		isNaN: Number.isNaN,
+		now: () => Date.now(),
+	};
+
+	for (const [key, value] of Object.entries(resolvedInputs ?? {})) {
+		scope[key] = normalizeMathScopeValue(value);
+	}
+
+	return scope;
+}
+
+function normalizeMathScopeValue(value: any): any {
+	if (Array.isArray(value)) {
+		return value.map((entry) => normalizeMathScopeValue(entry));
+	}
+
+	if (value && typeof value === "object") {
+		const normalized: Record<string, any> = {};
+		for (const [key, entry] of Object.entries(value)) {
+			normalized[key] = normalizeMathScopeValue(entry);
+		}
+		return normalized;
+	}
+
+	if (typeof value === "string") {
+		const trimmed = value.trim();
+		if (trimmed === "") return value;
+		if (trimmed === "true") return true;
+		if (trimmed === "false") return false;
+		const numeric = Number(trimmed);
+		if (Number.isFinite(numeric)) return numeric;
+	}
+
+	return value;
+}
+
+function clamp(value: number, min: number, max: number) {
+	return Math.min(max, Math.max(min, value));
+}
+
+function humanBytes(value: any) {
+	const bytes = Number(value);
+	if (!Number.isFinite(bytes)) return value === undefined || value === null ? "" : String(value);
+	const units = ["B", "KB", "MB", "GB", "TB", "PB"];
+	let next = Math.abs(bytes);
+	let unit = 0;
+
+	while (next >= 1024 && unit < units.length - 1) {
+		next /= 1024;
+		unit += 1;
+	}
+
+	const sign = bytes < 0 ? "-" : "";
+	const rounded = next >= 10 ? Math.round(next) : Math.round(next * 10) / 10;
+	return `${sign}${rounded} ${units[unit]}`;
 }
 
 function prepareMathExpression<Ctx extends { env: Record<string, string> }>(
