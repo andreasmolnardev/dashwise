@@ -130,6 +130,46 @@ function sortLinksForDisplay(links: LinkType[]): LinkType[] {
   });
 }
 
+function applyOptimisticLinkOrder(
+  prevLinks: LinkType[],
+  reorderedVisibleLinks: LinkType[],
+  activeCollection: string | null,
+): LinkType[] {
+  if (!reorderedVisibleLinks.length) return prevLinks;
+
+  if (!activeCollection) {
+    return reorderedVisibleLinks.map((link, position) => ({
+      ...link,
+      position,
+    }));
+  }
+
+  const sortedPrevLinks = sortLinksForDisplay(prevLinks);
+  const visibleSlots: number[] = [];
+
+  sortedPrevLinks.forEach((link, index) => {
+    if (link.collection === activeCollection) {
+      visibleSlots.push(index);
+    }
+  });
+
+  if (!visibleSlots.length) return prevLinks;
+
+  const nextBySlot = new Map<number, LinkType>();
+
+  visibleSlots.forEach((slot, index) => {
+    const reorderedLink = reorderedVisibleLinks[index];
+    if (!reorderedLink) return;
+
+    nextBySlot.set(slot, {
+      ...reorderedLink,
+      position: slot,
+    });
+  });
+
+  return sortedPrevLinks.map((link, index) => nextBySlot.get(index) ?? link);
+}
+
 export default function LinkView({ links = [] }: { links?: LinkType[] }) {
   const { token, withAuth } = useAuth();
   const [localLinks, setLocalLinks] = useState<LinkType[]>(() => {
@@ -467,21 +507,11 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
         const { reorderedVisibleLinks, payload } = reorderVisibleLinks(newItems);
 
         setLocalLinks((prev) => {
-          if (!activeCollection) {
-            writeCachedHomeLinks(reorderedVisibleLinks);
-            return reorderedVisibleLinks;
-          }
-
-          let visibleIndex = 0;
-          const nextLinks = prev.map((link) => {
-            if (link.collection !== activeCollection) {
-              return link;
-            }
-
-            const replacement = reorderedVisibleLinks[visibleIndex];
-            visibleIndex += 1;
-            return replacement ?? link;
-          });
+          const nextLinks = applyOptimisticLinkOrder(
+            prev,
+            reorderedVisibleLinks,
+            activeCollection,
+          );
 
           writeCachedHomeLinks(nextLinks);
           return nextLinks;
