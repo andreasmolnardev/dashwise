@@ -938,7 +938,7 @@ function LinkFolderPopover({
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="group flex flex-col items-center justify-between space-y-2 frosted rounded-2xl p-2 hover:text-(primary) transition-colors min-h-18 w-full group/folderdiv"
+          className="group h-full flex flex-col items-center justify-between frosted rounded-2xl p-2 hover:text-(primary) transition-colors min-h-18 w-full group/folderdiv"
           aria-label={`Open folder ${folder.name}`}
           title={folder.name}
         >
@@ -961,7 +961,7 @@ function LinkFolderPopover({
                     <AppIcon
                       source={child.iconUrl}
                       alt={child.title || ""}
-                      className="p-1 h-5 w-5 bg-white group-hover/icon:bg-primary"
+                      className="p-1 h-8 w-5 bg-white group-hover/icon:bg-primary"
                     />
                   </div>
                 ))}
@@ -980,7 +980,7 @@ function LinkFolderPopover({
               <AppIcon
                 source={folder.icon}
                 alt={folder.name}
-                className="text-white/90 h-6text-[2rem] group-hover:text-primary"
+                className="text-white/90 h-6 p-2 text-[2rem] group-hover:text-primary"
                 imageClassName="invert object-contain"
               />
             )
