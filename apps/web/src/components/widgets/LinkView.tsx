@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { usePageConfig } from "@/hooks/usePageConfig";
 import { useAuth } from "@/context/useAuth";
 import { getMonitoringStatusAction } from "@/app/actions/monitoring";
 import {
@@ -27,7 +26,6 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-
 import {
   Dialog,
   DialogContent,
@@ -41,6 +39,7 @@ import {
   closestCenter,
   DndContext,
   DragEndEvent,
+  DragOverlay,
   KeyboardSensor,
   PointerSensor,
   useSensor,
@@ -57,6 +56,17 @@ import { CSS } from "@dnd-kit/utilities";
 import { updateLinksOrderAction } from "@/app/actions/links";
 
 const HOME_LINKS_CACHE_KEY = "dashwise_home_links_cache_v1";
+
+type Item =
+  | { type: "link"; link: LinkType }
+  | {
+    type: "folder";
+    key: string;
+    recordId?: string;
+    name: string;
+    icon?: string;
+    links: LinkType[];
+  };
 
 function readCachedHomeLinks(): LinkType[] | null {
   if (typeof window === "undefined") return null;
@@ -88,29 +98,60 @@ function writeCachedHomeLinks(links: LinkType[]) {
   }
 }
 
+function getLinkSortLabel(link: LinkType): string {
+  return String(link.title || link.name || link.url || "").trim().toLowerCase();
+}
+
+function getLinkSortPosition(link: LinkType): number | null {
+  return typeof link.position === "number" && Number.isFinite(link.position)
+    ? link.position
+    : null;
+}
+
+function sortLinksForDisplay(links: LinkType[]): LinkType[] {
+  return [...links].sort((left, right) => {
+    const leftPosition = getLinkSortPosition(left);
+    const rightPosition = getLinkSortPosition(right);
+
+    if (leftPosition !== null || rightPosition !== null) {
+      if (leftPosition === null) return 1;
+      if (rightPosition === null) return -1;
+      if (leftPosition !== rightPosition) return leftPosition - rightPosition;
+    }
+
+    const leftLabel = getLinkSortLabel(left);
+    const rightLabel = getLinkSortLabel(right);
+
+    if (leftLabel !== rightLabel) {
+      return leftLabel.localeCompare(rightLabel);
+    }
+
+    return String(left.id || left.url || "").localeCompare(String(right.id || right.url || ""));
+  });
+}
+
 export default function LinkView({ links = [] }: { links?: LinkType[] }) {
-  const { pageConfig } = usePageConfig();
   const { token, withAuth } = useAuth();
   const [localLinks, setLocalLinks] = useState<LinkType[]>(() => {
     if (links.length > 0) return links;
     return readCachedHomeLinks() ?? links;
   });
 
-  const [folderPreviewRev, setFolderPreviewRev] = useState(0);
+  const [, setFolderPreviewRev] = useState(0);
 
   const toggleFolderPreview = React.useCallback((folderId: string) => {
     if (!folderId) return;
     try {
       const key = `folderPreviewMode#${folderId}`;
       if (window.localStorage.getItem(key) === "preview-first") {
-        window.localStorage.removeItem(key); // back to normal
+        window.localStorage.removeItem(key);
       } else {
         window.localStorage.setItem(key, "preview-first");
       }
     } catch {
       // ignore storage failures
     }
-    setFolderPreviewRev((v) => v + 1); // force re-render so previewFirstFolderIcons reads fresh
+    setFolderPreviewRev((value) => value + 1);
   }, []);
 
   useEffect(() => {
@@ -133,18 +174,17 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
   const [activeCollection, setActiveCollection] = useState<string | null>(null);
 
   const collections = useMemo(
-    () =>
-      [
-        ...new Set(localLinks.map((l) => l.collection).filter(Boolean)),
-      ] as string[],
+    () => [...new Set(localLinks.map((link) => link.collection).filter(Boolean))] as string[],
     [localLinks],
   );
 
+  const sortedLinks = useMemo(() => sortLinksForDisplay(localLinks), [localLinks]);
+
   const visibleLinks = useMemo(
     () => (activeCollection
-      ? localLinks.filter((l) => l.collection === activeCollection)
-      : localLinks),
-    [localLinks, activeCollection],
+      ? sortedLinks.filter((link) => link.collection === activeCollection)
+      : sortedLinks),
+    [sortedLinks, activeCollection],
   );
 
   useEffect(() => {
@@ -159,43 +199,31 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
   }, [collections, activeCollection]);
 
   const emittedFolders = new Set<string>();
-  type Item =
-    | { type: "link"; link: LinkType }
-    | {
-      type: "folder";
-      key: string;
-      recordId?: string;
-      name: string;
-      icon?: string;
-      links: LinkType[];
-    };
-
   const items: Item[] = [];
 
-  for (const l of visibleLinks) {
-    const folderKey = l.folderId || l.folder;
+  for (const link of visibleLinks) {
+    const folderKey = link.folderId || link.folder;
     if (folderKey) {
       if (!emittedFolders.has(folderKey)) {
-        const children = visibleLinks.filter((x) =>
-          (x.folderId || x.folder) === folderKey
+        const children = visibleLinks.filter((candidate) =>
+          (candidate.folderId || candidate.folder) === folderKey
         );
         items.push({
           type: "folder",
           key: folderKey,
-          recordId: l.folderId,
-          name: l.folder || folderKey,
-          icon: l.folderIcon,
+          recordId: link.folderId,
+          name: link.folder || folderKey,
+          icon: link.folderIcon,
           links: children,
         });
         emittedFolders.add(folderKey);
       }
     } else {
-      items.push({ type: "link", link: l });
+      items.push({ type: "link", link });
     }
   }
 
-  const [statusMap, setStatusMap] = useState<Record<string, boolean>>({});
-
+  const [, setStatusMap] = useState<Record<string, boolean>>({});
   const [monitoringDetails, setMonitoringDetails] = useState<
     Record<string, {
       status: string;
@@ -215,6 +243,7 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
       icon?: string;
     } | null
   >(null);
+  const [activeDragId, setActiveDragId] = useState<string | null>(null);
 
   function serverStatusToBool(status?: string | null): boolean | undefined {
     if (status === undefined || status === null) return undefined;
@@ -279,7 +308,7 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
   }, [fetchMonitoringStatuses]);
 
   const selectedLink = openDialogFor
-    ? localLinks.find((l: LinkType) => l.id === openDialogFor)
+    ? localLinks.find((link: LinkType) => link.id === openDialogFor)
     : undefined;
 
   const refreshHomeLinks = React.useCallback(async () => {
@@ -312,18 +341,18 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
 
       setLocalLinks((prev) => {
         if (mode === "update") {
-          const previous = prev.find((l) => l.id === draft.id);
+          const previous = prev.find((link) => link.id === draft.id);
           if (previous) {
             rollback = () => {
               setLocalLinks((current) =>
-                current.map((l) => (l.id === previous.id ? previous : l))
+                current.map((link) => (link.id === previous.id ? previous : link))
               );
             };
 
-            const nextLinks = prev.map((l) =>
-              l.id === draft.id
+            const nextLinks = prev.map((link) =>
+              link.id === draft.id
                 ? {
-                  ...l,
+                  ...link,
                   title: draft.title,
                   url: draft.url,
                   iconUrl: draft.iconUrl,
@@ -331,7 +360,7 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
                   folder: draft.folder,
                   statusCheck: draft.statusCheck,
                 }
-                : l
+                : link
             );
 
             writeCachedHomeLinks(nextLinks);
@@ -340,7 +369,7 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
         }
 
         rollback = () => {
-          setLocalLinks((current) => current.filter((l) => l.id !== draft.id));
+          setLocalLinks((current) => current.filter((link) => link.id !== draft.id));
         };
 
         const nextLinks = [
@@ -376,51 +405,88 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
     }),
   );
 
+  const getItemId = React.useCallback((item: Item) => {
+    return item.type === "link"
+      ? `link:${item.link.id || item.link.url || item.link.title}`
+      : `folder:${item.key}`;
+  }, []);
+
+  const activeDragItem = useMemo(() => {
+    if (!activeDragId) return null;
+    return items.find((item) => getItemId(item) === activeDragId) ?? null;
+  }, [activeDragId, getItemId, items]);
+
+  const reorderVisibleLinks = React.useCallback((reorderedItems: Item[]) => {
+    const reorderedVisibleLinks: LinkType[] = [];
+    const payload: {
+      id: string;
+      type: "link" | "folder";
+      position: number;
+    }[] = [];
+
+    reorderedItems.forEach((item, index) => {
+      if (item.type === "link") {
+        reorderedVisibleLinks.push(item.link);
+        if (item.link.id) {
+          payload.push({ id: item.link.id, type: "link", position: index });
+        }
+        return;
+      }
+
+      reorderedVisibleLinks.push(...item.links);
+      if (item.recordId) {
+        payload.push({ id: item.recordId, type: "folder", position: index });
+      }
+    });
+
+    return { reorderedVisibleLinks, payload };
+  }, []);
+
+  const handleDragStart = React.useCallback((event: { active: { id: string | number } }) => {
+    setActiveDragId(String(event.active.id));
+  }, []);
+
+  const handleDragCancel = React.useCallback(() => {
+    setActiveDragId(null);
+  }, []);
+
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
+    setActiveDragId(null);
 
     if (over && active.id !== over.id) {
       const oldIndex = items.findIndex((item) =>
-        (item.type === "link" ? item.link.id : item.key) === active.id
+        getItemId(item) === active.id
       );
       const newIndex = items.findIndex((item) =>
-        (item.type === "link" ? item.link.id : item.key) === over.id
+        getItemId(item) === over.id
       );
 
       if (oldIndex !== -1 && newIndex !== -1) {
         const newItems = arrayMove(items, oldIndex, newIndex);
+        const { reorderedVisibleLinks, payload } = reorderVisibleLinks(newItems);
 
-        // Re-construct localLinks from newItems order
-        const reorderedLinks: LinkType[] = [];
-        const payload: {
-          id: string;
-          type: "link" | "folder";
-          position: number;
-        }[] = [];
-
-        newItems.forEach((item, index) => {
-          if (item.type === "link") {
-            reorderedLinks.push(item.link);
-            if (item.link.id) {
-              payload.push({ id: item.link.id, type: "link", position: index });
-            }
-          } else {
-            reorderedLinks.push(...item.links);
-            if (item.recordId) {
-              payload.push({
-                id: item.recordId,
-                type: "folder",
-                position: index,
-              });
-            }
+        setLocalLinks((prev) => {
+          if (!activeCollection) {
+            writeCachedHomeLinks(reorderedVisibleLinks);
+            return reorderedVisibleLinks;
           }
+
+          let visibleIndex = 0;
+          const nextLinks = prev.map((link) => {
+            if (link.collection !== activeCollection) {
+              return link;
+            }
+
+            const replacement = reorderedVisibleLinks[visibleIndex];
+            visibleIndex += 1;
+            return replacement ?? link;
+          });
+
+          writeCachedHomeLinks(nextLinks);
+          return nextLinks;
         });
 
-        // Optimistically update localLinks
-        setLocalLinks(reorderedLinks);
-        writeCachedHomeLinks(reorderedLinks);
-
-        // Persist order to backend
         try {
           await withAuth((auth) => updateLinksOrderAction(auth, payload));
         } catch (err) {
@@ -431,9 +497,42 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
     }
   };
 
+  const renderItem = React.useCallback(
+    (item: Item, itemIdx: number, dragging = false) => {
+      if (item.type === "link") {
+        return (
+          <LinkTile
+            key={item.link.id || item.link.url || itemIdx}
+            link={item.link}
+            monitoringDetails={monitoringDetails}
+            setOpenDialogFor={setOpenDialogFor}
+            setEditingLink={setEditingLink}
+            itemIdx={itemIdx}
+            isDragging={dragging}
+          />
+        );
+      }
+
+      const folder = item;
+      const folderId = folder.recordId || folder.key;
+      const isPreview = previewFirstFolderIcons(folderId);
+
+      return (
+        <LinkFolderPopover
+          folder={folder}
+          monitoringDetails={monitoringDetails}
+          setEditingFolder={setEditingFolder}
+          setEditingLink={setEditingLink}
+          setOpenDialogFor={setOpenDialogFor}
+          toggleFolderPreview={toggleFolderPreview}
+        />
+      );
+    },
+    [monitoringDetails, setEditingFolder, setEditingLink, setOpenDialogFor, toggleFolderPreview],
+  );
+
   return (
     <div className="space-y-2">
-      {/* Collection filter chips */}
       {collections.length > 0 && (
         <div className="flex items-center justify-between gap-2">
           <div className="flex gap-1.5 flex-wrap">
@@ -466,183 +565,34 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
         </div>
       )}
 
-      <PaginatedCarouselViewComponent minColWidth={140}>
-        {items.map((item, itemIdx) => {
-          if (item.type === "link") {
-            return (
-              <LinkTile
-                key={item.link.id || item.link.url || itemIdx}
-                link={item.link}
-                monitoringDetails={monitoringDetails}
-                setOpenDialogFor={setOpenDialogFor}
-                setEditingLink={setEditingLink}
-                itemIdx={itemIdx}
-              />
-            );
-          }
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragStart={handleDragStart}
+        onDragCancel={handleDragCancel}
+        onDragEnd={handleDragEnd}
+      >
+        <SortableContext
+          items={items.map((item) => getItemId(item))}
+          strategy={rectSortingStrategy}
+        >
+          <PaginatedCarouselViewComponent minColWidth={140}>
+            {items.map((item, itemIdx) => (
+              <SortableTileWrapper key={getItemId(item)} id={getItemId(item)}>
+                {renderItem(item, itemIdx)}
+              </SortableTileWrapper>
+            ))}
+          </PaginatedCarouselViewComponent>
+        </SortableContext>
 
-          // folder tile (Popover)
-          const folder = item;
-          const folderId = folder.recordId || folder.key;
-          const isPreview = previewFirstFolderIcons(folderId);
-          return (
-            <Popover key={folder.key}>
-              <PopoverTrigger asChild>
-                <button
-                  type="button"
-                  className="group flex flex-col items-center justify-between space-y-2 frosted rounded-2xl p-2 hover:text-(primary) transition-colors min-h-18 w-full group/folderdiv"
-                  aria-label={`Open folder ${folder.name}`}
-                  title={folder.name}
-                >
-                  {isPreview && folder.links.length > 0
-                    ? (
-                      <div className="flex items-center justify-center gap-1">
-                        {folder.links.slice(0, 2).map((child, childIdx) => (
-                          <div
-                            key={child.id || childIdx}
-                            className="frosted w-12 aspect-square rounded-lg flex items-center justify-center text-2xl group/icon cursor-pointer"
-                            onClick={() =>
-                              child.url &&
-                              window.open(
-                                child.url,
-                                "_blank",
-                                "noopener,noreferrer",
-                              )}
-                          >
-                            <AppIcon
-                              source={child.iconUrl}
-                              alt={child.title || ""}
-                              className="p-1 h-5 w-5 bg-white group-hover/icon:bg-primary"
-                            />
-                          </div>
-                        ))}
-                        <div className="frosted w-12 aspect-square rounded-lg flex items-center justify-center text-2xl group/icon cursor-pointer">
-                          <AppIcon
-                            source="fa6-solid:plus"
-                            alt={folder.name}
-                            className="text-white/90 text-[1rem] group-hover/icon:text-primary"
-                            imageClassName="object-contain"
-                          />
-                        </div>
-                      </div>
-                    )
-                    : folder.icon
-                    ? (
-                      <AppIcon
-                        source={folder.icon}
-                        alt={folder.name}
-                        className="text-white/90 h-6text-[2rem] group-hover:text-primary"
-                        imageClassName="invert object-contain"
-                      />
-                    )
-                    : (
-                      <Icon
-                        icon="fa6-solid:folder"
-                        className="h-6 w-6 text-[1.5rem] pt-2 group-hover:text-primary"
-                      />
-                    )}
-
-                  <div className="flex items-center w-full justify-center">
-                    <span className="text-sm text-white truncate px-1 group-hover/folderdiv:text-primary">
-                      {folder.name}
-                    </span>
-                  </div>
-                </button>
-              </PopoverTrigger>
-
-              <PopoverContent className="w-87.5 frosted text-foreground space-y-2">
-                <header className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <button
-                      type="button"
-                      disabled={!folder.recordId}
-                      onClick={() => {
-                        if (!folder.recordId) return;
-                        setEditingFolder({
-                          id: folder.recordId,
-                          name: folder.name,
-                          icon: folder?.icon,
-                        });
-                      }}
-                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/5 transition-colors hover:bg-white/10"
-                      title={`Change icon for ${folder.name}`}
-                      aria-label={`Change icon for ${folder.name}`}
-                    >
-                      {folder.icon
-                        ? (
-                          <AppIcon
-                            source={folder.icon}
-                            alt={folder.name}
-                            className="text-white/90 h-5 w-5"
-                            imageClassName="invert object-contain"
-                          />
-                        )
-                        : (
-                          <Icon
-                            icon="fa6-solid:folder"
-                            className="h-5 w-5 text-white/30"
-                          />
-                        )}
-                    </button>
-                    <h4 className="font-semibold truncate">{folder.name}</h4>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() => toggleFolderPreview(folderId)}
-                      className={`flex h-8 w-8 items-center justify-center rounded-lg  transition-colors`}
-                      aria-pressed={isPreview}
-                      aria-label={isPreview
-                        ? "Hide folder contents preview"
-                        : "Show folder contents preview"}
-                      title={isPreview
-                        ? "Hide folder contents preview"
-                        : "Show folder contents preview"}
-                    >
-                      <AppIcon
-                        source="glyphs:columns-2-bold"
-                        className={`h-4 w-4 ${isPreview ? "text-primary" : ""}`}
-                      />
-                    </button>
-                    <PopoverClose asChild>
-                      <Button variant="ghost" className="h-8 w-8 p-0">
-                        <Icon icon="fa6-solid:xmark" />
-                      </Button>
-                    </PopoverClose>
-                  </div>
-                </header>
-                <div
-                  className="grid gap-3"
-                  style={{
-                    gridTemplateColumns:
-                      "repeat(auto-fill, minmax(120px, 1fr))",
-                  }}
-                >
-                  {folder.links.map((child, childIdx) => {
-                    const serverEntry = child.id && monitoringDetails
-                      ? monitoringDetails[child.id]
-                      : undefined;
-                    const serverStatus = serverEntry?.status;
-                    const isHealthy = serverStatus === "healthy";
-                    const isDisabled = serverStatus === "disabled";
-                    const showDot = Boolean(child.statusCheck);
-
-                    return (
-                      <LinkTile
-                        key={child.id || child.url || childIdx}
-                        link={child}
-                        monitoringDetails={monitoringDetails}
-                        setOpenDialogFor={setOpenDialogFor}
-                        setEditingLink={setEditingLink}
-                      />
-                    );
-                  })}
-                </div>
-              </PopoverContent>
-            </Popover>
-          );
-        })}
-      </PaginatedCarouselViewComponent>
+        <DragOverlay>
+          {activeDragItem ? (
+            <div className="pointer-events-none scale-105 rotate-1 opacity-80 shadow-2xl">
+              {renderItem(activeDragItem, 0, true)}
+            </div>
+          ) : null}
+        </DragOverlay>
+      </DndContext>
 
       {items.length === 0 && (
         <Empty className="frosted w-full">
@@ -785,7 +735,7 @@ function previewFirstFolderIcons(folderId: string): boolean {
   if (!folderId) return false;
   try {
     const mode = window.localStorage.getItem(`folderPreviewMode#${folderId}`);
-    if (!mode) return false; // not set → normal show folder icon
+    if (!mode) return false;
     return mode === "preview-first";
   } catch {
     return false;
@@ -798,6 +748,7 @@ interface LinkTileProps {
   setOpenDialogFor: (id: string) => void;
   setEditingLink: (link: LinkType) => void;
   itemIdx?: number;
+  isDragging?: boolean;
 }
 
 function LinkTile({
@@ -806,6 +757,7 @@ function LinkTile({
   setOpenDialogFor,
   setEditingLink,
   itemIdx,
+  isDragging,
 }: LinkTileProps) {
   const { user } = useAuth();
   const serverEntry = link.id && monitoringDetails
@@ -824,7 +776,7 @@ function LinkTile({
       rel={user?.global?.linkOpenBehaviour === "newtab"
         ? "noopener noreferrer"
         : undefined}
-      className="group relative flex flex-col items-center justify-between gap-1 frosted rounded-2xl p-2 hover:text-(primary) transition-colors min-h-18 w-full"
+      className={`group relative flex flex-col items-center justify-between gap-1 frosted rounded-2xl p-2 hover:text-(primary) transition-colors min-h-18 w-full ${isDragging ? "opacity-40 ring-1 ring-white/20" : ""}`}
     >
       {link.iconUrl
         ? (
@@ -856,9 +808,7 @@ function LinkTile({
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                if (
-                  link.id && monitoringDetails && monitoringDetails[link.id]
-                ) {
+                if (link.id && monitoringDetails && monitoringDetails[link.id]) {
                   setOpenDialogFor(link.id);
                 }
               }}
@@ -896,7 +846,7 @@ function LinkTile({
   );
 }
 
-function SortableItem(
+function SortableTileWrapper(
   { id, children }: { id: string; children: React.ReactNode },
 ) {
   const {
@@ -912,12 +862,191 @@ function SortableItem(
     transform: CSS.Transform.toString(transform),
     transition,
     zIndex: isDragging ? 50 : undefined,
-    opacity: isDragging ? 0.5 : 1,
+    opacity: isDragging ? 0.45 : 1,
   };
 
   return (
-    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="touch-none select-none"
+      {...attributes}
+      {...listeners}
+    >
       {children}
     </div>
+  );
+}
+
+function LinkFolderPopover({
+  folder,
+  monitoringDetails,
+  setEditingFolder,
+  setEditingLink,
+  setOpenDialogFor,
+  toggleFolderPreview,
+}: {
+  folder: {
+    type: "folder";
+    key: string;
+    recordId?: string;
+    name: string;
+    icon?: string;
+    links: LinkType[];
+  };
+  monitoringDetails: any;
+  setEditingFolder: (f: { id: string; name: string; icon?: string } | null) => void;
+  setEditingLink: (link: LinkType) => void;
+  setOpenDialogFor: (id: string) => void;
+  toggleFolderPreview: (folderId: string) => void;
+}) {
+  const folderId = folder.recordId || folder.key;
+  const isPreview = previewFirstFolderIcons(folderId);
+
+  return (
+    <Popover key={folder.key}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="group flex flex-col items-center justify-between space-y-2 frosted rounded-2xl p-2 hover:text-(primary) transition-colors min-h-18 w-full group/folderdiv"
+          aria-label={`Open folder ${folder.name}`}
+          title={folder.name}
+        >
+          {isPreview && folder.links.length > 0
+            ? (
+              <div className="flex items-center justify-center gap-1">
+                {folder.links.slice(0, 2).map((child, childIdx) => (
+                  <div
+                    key={child.id || childIdx}
+                    className="frosted w-12 aspect-square rounded-lg flex items-center justify-center text-2xl group/icon cursor-pointer"
+                    onClick={() =>
+                      child.url &&
+                      window.open(
+                        child.url,
+                        "_blank",
+                        "noopener,noreferrer",
+                      )
+                    }
+                  >
+                    <AppIcon
+                      source={child.iconUrl}
+                      alt={child.title || ""}
+                      className="p-1 h-5 w-5 bg-white group-hover/icon:bg-primary"
+                    />
+                  </div>
+                ))}
+                <div className="frosted w-12 aspect-square rounded-lg flex items-center justify-center text-2xl group/icon cursor-pointer">
+                  <AppIcon
+                    source="fa6-solid:plus"
+                    alt={folder.name}
+                    className="text-white/90 text-[1rem] group-hover/icon:text-primary"
+                    imageClassName="object-contain"
+                  />
+                </div>
+              </div>
+            )
+            : folder.icon
+            ? (
+              <AppIcon
+                source={folder.icon}
+                alt={folder.name}
+                className="text-white/90 h-6text-[2rem] group-hover:text-primary"
+                imageClassName="invert object-contain"
+              />
+            )
+            : (
+              <Icon
+                icon="fa6-solid:folder"
+                className="h-6 w-6 text-[1.5rem] pt-2 group-hover:text-primary"
+              />
+            )}
+
+          <div className="flex items-center w-full justify-center">
+            <span className="text-sm text-white truncate px-1 group-hover/folderdiv:text-primary">
+              {folder.name}
+            </span>
+          </div>
+        </button>
+      </PopoverTrigger>
+
+      <PopoverContent className="w-87.5 frosted text-foreground space-y-2">
+        <header className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <button
+              type="button"
+              disabled={!folder.recordId}
+              onClick={() => {
+                if (!folder.recordId) return;
+                setEditingFolder({
+                  id: folder.recordId,
+                  name: folder.name,
+                  icon: folder?.icon,
+                });
+              }}
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/5 transition-colors hover:bg-white/10"
+              title={`Change icon for ${folder.name}`}
+              aria-label={`Change icon for ${folder.name}`}
+            >
+              {folder.icon
+                ? (
+                  <AppIcon
+                    source={folder.icon}
+                    alt={folder.name}
+                    className="text-white/90 h-5 w-5"
+                    imageClassName="invert object-contain"
+                  />
+                )
+                : (
+                  <Icon
+                    icon="fa6-solid:folder"
+                    className="h-5 w-5 text-white/30"
+                  />
+                )}
+            </button>
+            <h4 className="font-semibold truncate">{folder.name}</h4>
+          </div>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => toggleFolderPreview(folderId)}
+              className="flex h-8 w-8 items-center justify-center rounded-lg transition-colors"
+              aria-pressed={isPreview}
+              aria-label={isPreview
+                ? "Hide folder contents preview"
+                : "Show folder contents preview"}
+              title={isPreview
+                ? "Hide folder contents preview"
+                : "Show folder contents preview"}
+            >
+              <AppIcon
+                source="glyphs:columns-2-bold"
+                className={`h-4 w-4 ${isPreview ? "text-primary" : ""}`}
+              />
+            </button>
+            <PopoverClose asChild>
+              <Button variant="ghost" className="h-8 w-8 p-0">
+                <Icon icon="fa6-solid:xmark" />
+              </Button>
+            </PopoverClose>
+          </div>
+        </header>
+        <div
+          className="grid gap-3"
+          style={{
+            gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))",
+          }}
+        >
+          {folder.links.map((child, childIdx) => (
+            <LinkTile
+              key={child.id || child.url || childIdx}
+              link={child}
+              monitoringDetails={monitoringDetails}
+              setOpenDialogFor={setOpenDialogFor}
+              setEditingLink={setEditingLink}
+            />
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }
