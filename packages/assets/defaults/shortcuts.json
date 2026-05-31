@@ -68,5 +68,12 @@
         "secondary": "Dashwise",
         "action": "url:/apps/news",
         "tags": ["News", "Feeds", "Updates"]
+    },
+    {
+        "name": "Smart Frame",
+        "icon": "teenyicons:screen-solid",
+        "secondary": "Dashwise",
+        "action": "url:/frame",
+        "tags": ["QuickLaunch", "Frame"]
     }
 ]
