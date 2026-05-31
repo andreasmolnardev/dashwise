@@ -3,31 +3,34 @@
 import React, { useState, useEffect } from "react";
 import { Slider } from "@/components/ui/slider";
 import useAuth from "@/context/useAuth";
+import {
+  DEFAULT_WALLPAPER_FILTERS,
+  blurToPercent,
+  normalizeWallpaperFilters,
+  percentToBlur,
+} from "./wallpaperFilterDefaults";
 
 export default function WallpaperBlurSliderComponent({ className }: { className?: string }) {
   const { user, updateUserProperty } = useAuth();
   
-  const [percent, setPercent] = useState(50); // slider percentage
-  const [previewBlur, setPreviewBlur] = useState(3); // px
+  const [percent, setPercent] = useState(blurToPercent(DEFAULT_WALLPAPER_FILTERS.blur)); // slider percentage
+  const [previewBlur, setPreviewBlur] = useState(DEFAULT_WALLPAPER_FILTERS.blur); // px
   const [saving, setSaving] = useState(false);
 
   // Load current blur from config on mount
   useEffect(() => {
     const appearance = user?.appearancePreferences;
-    const current = appearance?.wallpaperFilters?.blur;
-    if (typeof current === "number") {
-      const newPercent = ((current - 1) / (25 - 1)) * 100;
-      setPercent(Math.round(newPercent));
-      setPreviewBlur(current);
-    }
+    const filters = normalizeWallpaperFilters(appearance?.wallpaperFilters);
+    setPercent(blurToPercent(filters.blur));
+    setPreviewBlur(filters.blur);
   }, [user?.appearancePreferences]);
 
   // Preview on drag
   function handlePreview(pxValue: number) {
     setPreviewBlur(pxValue);
     const appearance = user?.appearancePreferences;
-    const brightness = appearance?.wallpaperFilters?.brightness;
-    document.body.style.backdropFilter = `blur(${pxValue}px) brightness(${brightness ? 0.01 * brightness : 85})`;
+    const filters = normalizeWallpaperFilters(appearance?.wallpaperFilters);
+    document.body.style.backdropFilter = `blur(${pxValue}px) brightness(${filters.brightness / 100})`;
   }
 
   // Save on release
@@ -35,10 +38,11 @@ export default function WallpaperBlurSliderComponent({ className }: { className?
     setSaving(true);
     try {
       const currentAppearance = user?.appearancePreferences || {};
+      const currentFilters = normalizeWallpaperFilters(currentAppearance.wallpaperFilters);
       const updatedAppearance = {
         ...currentAppearance,
         wallpaperFilters: {
-          ...(currentAppearance.wallpaperFilters ?? {}),
+          ...currentFilters,
           blur: pxValue,
         },
       };
@@ -51,7 +55,7 @@ export default function WallpaperBlurSliderComponent({ className }: { className?
     }
   }
 
-  const blurPx = ((percent / 100) * (25 - 1) + 1).toFixed(1);
+  const blurPx = percentToBlur(percent).toFixed(1);
 
   return (
     <div
@@ -74,13 +78,13 @@ export default function WallpaperBlurSliderComponent({ className }: { className?
           disabled={saving}
           onValueChange={([v]) => {
             setPercent(v);
-            const newValue = Math.round((v / 100) * (25 - 1) + 1);
+            const newValue = percentToBlur(v);
             handlePreview(newValue);
             handleSave(newValue);
           }}
 
           onValueCommit={([v]) => {
-            const newValue = Math.round((v / 100) * (25 - 1) + 1);
+            const newValue = percentToBlur(v);
             handleSave(newValue);
           }}
           className="flex-1"

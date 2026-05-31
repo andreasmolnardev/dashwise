@@ -42,6 +42,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import useAuth from "@/context/useAuth";
 import { uploadWallpaperAction } from "@/app/actions/wallpapers";
 import { renderWidget } from "../widgets/Widget";
+import { normalizeWallpaperFilters } from "./wallpaperFilterDefaults";
 
 const WIDGET_OPTIONS = [
   "main-clock",
@@ -203,11 +204,9 @@ export default function SmartFramesManager({
 
   const handleOpenAdd = () => {
     resetDraft();
-    const fallbackFilters = user?.appearancePreferences?.wallpaperFilters;
-    const brightness = typeof fallbackFilters?.brightness === "number"
-      ? fallbackFilters.brightness
-      : 85;
-    const blur = typeof fallbackFilters?.blur === "number" ? fallbackFilters.blur : 3;
+    const fallbackFilters = normalizeWallpaperFilters(user?.appearancePreferences?.wallpaperFilters);
+    const brightness = fallbackFilters.brightness;
+    const blur = fallbackFilters.blur;
     setBrightnessPercent(Math.round(((brightness - 50) / (150 - 50)) * 100));
     setBlurPercent(Math.round(((blur - 1) / (25 - 1)) * 100));
     setDialogOpen(true);
@@ -230,18 +229,14 @@ export default function SmartFramesManager({
     const paramsText = Object.keys(editableParams).length
       ? JSON.stringify(editableParams, null, 2)
       : "";
-    const fallbackFilters = user?.appearancePreferences?.wallpaperFilters;
+    const fallbackFilters = normalizeWallpaperFilters(user?.appearancePreferences?.wallpaperFilters);
     const filters = frame.params?.backgroundFilters as Record<string, any> | undefined;
     const brightness = typeof filters?.brightness === "number"
       ? filters.brightness
-      : typeof fallbackFilters?.brightness === "number"
-        ? fallbackFilters.brightness
-        : 85;
+      : fallbackFilters.brightness;
     const blur = typeof filters?.blur === "number"
       ? filters.blur
-      : typeof fallbackFilters?.blur === "number"
-        ? fallbackFilters.blur
-        : 3;
+      : fallbackFilters.blur;
 
     setEditFrameId(frame.id);
     setDraftType(frame.type);

@@ -5,27 +5,32 @@ import { Slider } from "@/components/ui/slider";
 import { cn } from "@/lib/utils";
 import { usePageConfig } from "@/hooks/usePageConfig";
 import useAuth from "@/context/useAuth";
+import {
+  DEFAULT_WALLPAPER_FILTERS,
+  brightnessToPercent,
+  darkModeBrightnessToPercent,
+  normalizeWallpaperFilters,
+  percentToBrightness,
+} from "./wallpaperFilterDefaults";
 
 export default function WallpaperBrightnessSliderComponent({ className }: { className?: string }) {
   const { config, refreshConfig } = usePageConfig();
   const { user, updateUserProperty } = useAuth();
 
-  const [percent, setPercent] = useState(100);
+  const [percent, setPercent] = useState(brightnessToPercent(DEFAULT_WALLPAPER_FILTERS.brightness));
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     const appearance = user?.appearancePreferences || config?.appearance;
-    const current = appearance?.wallpaperFilters?.brightness;
-    if (typeof current === "number") {
-      const mapped = ((current - 50) / (150 - 50)) * 100;
-      setPercent(Math.round(mapped));
-    }
+    const filters = normalizeWallpaperFilters(appearance?.wallpaperFilters);
+    setPercent(brightnessToPercent(filters.brightness));
   }, [user, config]);
 
   function handlePreview(value: number) {
     const appearance = user?.appearancePreferences || config?.appearance;
-    const blur = appearance?.wallpaperFilters?.blur ?? 3;
-    const darkModeBrightness = appearance?.wallpaperFilters?.darkModeBrightness ?? 0;
+    const filters = normalizeWallpaperFilters(appearance?.wallpaperFilters);
+    const blur = filters.blur;
+    const darkModeBrightness = darkModeBrightnessToPercent(filters.darkModeBrightness);
     const appliedBrightness = Math.max(0, value - darkModeBrightness);
     document.body.style.backdropFilter = `brightness(${appliedBrightness}%) blur(${blur}px)`;
   }
@@ -34,10 +39,11 @@ export default function WallpaperBrightnessSliderComponent({ className }: { clas
     setSaving(true);
     try {
       const currentAppearance = user?.appearancePreferences || config?.appearance || {};
+      const currentFilters = normalizeWallpaperFilters(currentAppearance.wallpaperFilters);
       const updatedAppearance = {
         ...currentAppearance,
         wallpaperFilters: {
-          ...(currentAppearance.wallpaperFilters ?? {}),
+          ...currentFilters,
           brightness: value,
         },
       };
@@ -51,7 +57,7 @@ export default function WallpaperBrightnessSliderComponent({ className }: { clas
     }
   }
 
-  const brightnessValue = ((percent / 100) * (150 - 50) + 50).toFixed(0);
+  const brightnessValue = percentToBrightness(percent).toFixed(0);
 
   return (
     <div
@@ -72,12 +78,12 @@ export default function WallpaperBrightnessSliderComponent({ className }: { clas
           disabled={saving}
           onValueChange={([v]) => {
             setPercent(v);
-            const newValue = Math.round((v / 100) * (150 - 50) + 50);
+            const newValue = percentToBrightness(v);
             handlePreview(newValue);
             handleSave(newValue);
           }}
           onValueCommit={([v]) => {
-            const newValue = Math.round((v / 100) * (150 - 50) + 50);
+            const newValue = percentToBrightness(v);
             handleSave(newValue);
           }}
           className="flex-1"
@@ -97,18 +103,15 @@ export function WallpaperBrightnessDarkModeSliderComponent({ className }: { clas
 
   useEffect(() => {
     const appearance = user?.appearancePreferences || config?.appearance;
-    const current = appearance?.wallpaperFilters?.darkModeBrightness;
-    if (typeof current === "number") {
-      setPercent(Math.max(0, Math.min(50, current)));
-      return;
-    }
-    setPercent(0);
+    const filters = normalizeWallpaperFilters(appearance?.wallpaperFilters);
+    setPercent(darkModeBrightnessToPercent(filters.darkModeBrightness));
   }, [user, config]);
 
   function handlePreview(value: number) {
     const appearance = user?.appearancePreferences || config?.appearance;
-    const blur = appearance?.wallpaperFilters?.blur ?? 3;
-    const brightness = appearance?.wallpaperFilters?.brightness ?? 85;
+    const filters = normalizeWallpaperFilters(appearance?.wallpaperFilters);
+    const blur = filters.blur;
+    const brightness = filters.brightness;
     const appliedBrightness = Math.max(0, brightness - value);
     document.body.style.backdropFilter = `brightness(${appliedBrightness}%) blur(${blur}px)`;
   }
@@ -117,10 +120,11 @@ export function WallpaperBrightnessDarkModeSliderComponent({ className }: { clas
     setSaving(true);
     try {
       const currentAppearance = user?.appearancePreferences || config?.appearance || {};
+      const currentFilters = normalizeWallpaperFilters(currentAppearance.wallpaperFilters);
       const updatedAppearance = {
         ...currentAppearance,
         wallpaperFilters: {
-          ...(currentAppearance.wallpaperFilters ?? {}),
+          ...currentFilters,
           darkModeBrightness: value,
         },
       };
