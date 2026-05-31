@@ -6,6 +6,7 @@ import useAuth from "@/context/useAuth";
 import { cn } from "@/lib/utils";
 import { fetchWallpaperBlob } from "@/lib/apiClient";
 import { LocalizationProvider } from "@/context/LocalizationContext";
+import { normalizeWallpaperFilters } from "./settings/wallpaperFilterDefaults";
 
 type AuthWrapperProps = {
   children: ReactNode;
@@ -156,10 +157,10 @@ export default function AuthWrapper({ children }: AuthWrapperProps) {
     return null;
   }
 
-  const blur = user?.appearancePreferences?.wallpaperFilters?.blur ?? 3;
-  const brightness = user?.appearancePreferences?.wallpaperFilters?.brightness ?? 85;
-  const darkModeBrightness =
-    user?.appearancePreferences?.wallpaperFilters?.darkModeBrightness ?? 0;
+  const wallpaperFilters = normalizeWallpaperFilters(user?.appearancePreferences?.wallpaperFilters);
+  const blur = wallpaperFilters.blur;
+  const brightness = wallpaperFilters.brightness;
+  const darkModeBrightness = wallpaperFilters.darkModeBrightness;
   const appliedBrightness = Math.max(
     0,
     brightness - Math.max(0, Math.min(50, darkModeBrightness))
