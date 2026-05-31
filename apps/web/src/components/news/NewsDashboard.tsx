@@ -738,11 +738,11 @@ function NewsArticle({ item, iconUrl }: { item: any; iconUrl?: string }) {
                     ? (
                         <img
                             src={item.thumbnailUrl}
-                            className="w-full aspect-1.5/1 object-cover rounded-xl"
+                            className="w-full h-45 object-cover rounded-xl"
                         />
                     )
                     : 
-                    <div className="w-full aspect-1.5/1 frosted rounded-xl" />}
+                    <div className="w-full h-45 frosted rounded-xl" />}
 
                 <div className="min-w-0">
                     <a
