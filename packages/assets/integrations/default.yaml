@@ -32,6 +32,15 @@ configuration:
       key: "calendar-upcoming"
       template: "calendar-upcoming"
       category: "Calendar"
+    - name: "Countdown"
+      key: "countdown"
+      template: "countdown"
+      category: "Clock"
+      data:
+        input:
+          date: "2026-12-31"
+          display_name: "New Year"
+          date_format: "yyyy-MM-dd"
     - name: "Iframe"
       key: "iframe"
       template: "iframe"
