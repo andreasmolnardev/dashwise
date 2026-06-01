@@ -370,4 +370,11 @@ configuration:
         file: "${computed.weather.fields.icon_file} ??? fa6-solid:sun"
         size: 16
         description: "${computed.weather.fields.description}"
-      text: "${computed.weather.fields.temperature:temp} in ${WEATHER_LOCATION.name}"
+      text:
+        operation: stringadd
+        inputs:
+          - text: "${computed.weather.fields.temperature:temp}"
+          - text: "  ${computed.weather.fields.description}"
+            show_if: "${SHOW_LOCATION} == false"
+          - text: " in ${WEATHER_LOCATION.name}"
+            show_if: "${SHOW_LOCATION} != false"
