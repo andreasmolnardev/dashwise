@@ -659,11 +659,19 @@ function BottomNavbar({
         Object.keys(columns.right).length > 0;
     const showThreeDots = !!(hasLeftColumn && hasRightColumn);
 
+    const gearStyle = `
+        .gear-rotate { display: inline-block; }
+        .gear-link:hover .gear-rotate { animation: dashwise-rotate-180 600ms ease-in-out forwards; }
+        @keyframes dashwise-rotate-180 { from { transform: rotate(0deg); } to { transform: rotate(180deg); } }
+    `;
+
     return (
-        <div
-            className="grid grid-cols-[1fr_auto_1fr] items-center md:px-0 mb-2"
-            id="page-footer"
-        >
+        <>
+            <style>{gearStyle}</style>
+            <div
+                className="grid grid-cols-[1fr_auto_1fr] items-center md:px-0 mb-2"
+                id="page-footer"
+            >
             <div id="app-details" className="flex items-center gap-2">
                 <Link to="/home" className="flex items-center gap-2">
                     <img src="/dashwise-icon.png" alt="" className="h-9" />
@@ -750,16 +758,17 @@ function BottomNavbar({
                 <li>
                     <Link
                         to="/settings/appearance"
-                        className="frosted p-2.5 rounded-full group transition-colors duration-200 aspect-square flex items-center justify-center"
+                        className="frosted p-2.5 rounded-full gear-link transition-colors duration-200 aspect-square flex items-center justify-center"
                     >
                         <Icon
                             icon="fa6-solid:gear"
-                            className="text-foreground group-hover:text-primary transition-colors duration-200"
+                            className="gear-rotate text-foreground group-hover:text-primary transition-colors duration-200"
                         />
                     </Link>
                 </li>
             </ul>
         </div>
+        </>
     );
 }
 
