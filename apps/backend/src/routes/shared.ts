@@ -63,7 +63,9 @@ export function jsonErrorBody(error: unknown) {
 
   return { status: 500, body: { error: "Internal Server Error" } };
 }
-
+/**
+ * Wrapper for json route handlers
+ */
 export function withJson<C extends (import("hono").Context<any, any, any>) = import("hono").Context>(handler: JsonHandler<C>) {
   return async (c: C) => {
     try {

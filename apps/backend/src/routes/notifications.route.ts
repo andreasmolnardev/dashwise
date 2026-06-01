@@ -1,71 +1,161 @@
 import { Hono } from "hono";
+import type { Context } from "hono";
 
+import { ApiActionError } from "@dashwise/sdk/data/auth";
 import { createForwarder, deleteForwarder, getForwarders, updateForwarder } from "@dashwise/sdk/data/notifications/forwarders";
 import { createNotificationTopic, deleteNotificationTopic, getNotificationTopics, getNotifications, markNotificationsAsRead, sendTestNotification } from "@dashwise/sdk/data/notifications/items";
+import { createNotificationByTopicId, createNotificationWithTopicToken } from "@dashwise/sdk/data/notifications/publish";
 import { createTopicToken, deleteTopicToken, listTopicTokens } from "@dashwise/sdk/data/notifications/topicTokens";
+import { getServerPB, getSuperuserPB } from "@dashwise/sdk/lib/pocketbase";
 
 import { readAuthToken, readJsonBody, readBool, requireAuth, withJson } from "./shared";
 
 const notificationsRoute = new Hono();
-  notificationsRoute.get("/api/v1/notifications", withJson(async (c) => {
+
+function readBasicAuthCredentials(authorizationHeader: string | undefined) {
+  if (!authorizationHeader?.toLowerCase().startsWith("basic ")) {
+    return null;
+  }
+
+  const encoded = authorizationHeader.slice(6).trim();
+  if (!encoded) {
+    return null;
+  }
+
+  try {
+    const decoded = Buffer.from(encoded, "base64").toString("utf-8");
+    const [email, password] = decoded.split(":", 2);
+    if (!email || !password) {
+      return null;
+    }
+
+    return { email, password };
+  } catch {
+    return null;
+  }
+}
+
+async function resolveUserIdFromRequest(c: Context) {
+  const authToken = readAuthToken(c);
+  if (authToken) {
+    return (await requireAuth({ token: authToken })).userId;
+  }
+
+  const basicAuth = readBasicAuthCredentials(c.req.header("authorization") ?? c.req.header("Authorization"));
+  if (!basicAuth) {
+    return null;
+  }
+
+  const pb = getServerPB();
+  try {
+    await pb.collection("users").authWithPassword(basicAuth.email, basicAuth.password);
+  } catch {
+    throw new ApiActionError("Unauthorized", 401, { error: "Unauthorized" });
+  }
+
+  const userId = pb.authStore.model?.id;
+  if (!userId) {
+    throw new ApiActionError("Unauthorized", 401, { error: "Unauthorized" });
+  }
+
+  return userId;
+}
+
+async function verifyTopicOwnership(topicId: string, userId: string) {
+  const pb = await getSuperuserPB();
+  let topic;
+
+  try {
+    topic = await pb.collection("notificationTopics").getOne(topicId);
+  } catch {
+    throw new ApiActionError("Topic not found", 404, { error: "Topic not found" });
+  }
+
+  if (!topic || topic.userId !== userId) {
+    throw new ApiActionError("Topic not found", 404, { error: "Topic not found" });
+  }
+
+  return topic;
+}
+
+notificationsRoute
+  .get("/api/v1/notifications", withJson(async (c) => {
     const { userId } = await requireAuth({ token: readAuthToken(c) });
     return getNotifications(userId, readBool(c.req.query("unread") ?? undefined), readBool(c.req.query("count") ?? undefined));
-  }));
-  notificationsRoute.post("/api/v1/notifications", withJson(async () => ({ ok: true })));
-  notificationsRoute.get("/api/v1/notifications/topics", withJson(async (c) => {
+  }))
+  .post("/api/v1/notifications", withJson(async () => ({ ok: true })))
+  .get("/api/v1/notifications/topics", withJson(async (c) => {
     const { userId } = await requireAuth({ token: readAuthToken(c) });
     return getNotificationTopics(userId);
-  }));
-  notificationsRoute.post("/api/v1/notifications/topics", withJson(async (c) => {
+  }))
+  .post("/api/v1/notifications/topics", withJson(async (c) => {
     const body = await readJsonBody<any>(c);
     const { userId } = await requireAuth(body?.auth);
     return createNotificationTopic(userId, String(body?.title ?? ""));
-  }));
-  notificationsRoute.delete("/api/v1/notifications/topics", withJson(async (c) => {
+  }))
+  .delete("/api/v1/notifications/topics", withJson(async (c) => {
     const body = await readJsonBody<any>(c);
     const { userId } = await requireAuth(body?.auth);
     return deleteNotificationTopic(userId, String(body?.topicId ?? ""));
-  }));
-  notificationsRoute.post("/api/v1/notifications/markAsRead", withJson(async (c) => {
+  }))
+  .post("/api/v1/notifications/markAsRead", withJson(async (c) => {
     const body = await readJsonBody<any>(c);
     const { userId } = await requireAuth(body?.auth);
     return markNotificationsAsRead(userId, Array.isArray(body?.ids) ? body.ids : []);
-  }));
-  notificationsRoute.post("/api/v1/notifications/test", withJson(async (c) => {
+  }))
+  .post("/api/v1/notifications/test", withJson(async (c) => {
     const body = await readJsonBody<any>(c);
     const { userId } = await requireAuth(body?.auth);
     return sendTestNotification(userId, String(body?.topicId ?? ""));
-  }));
-  notificationsRoute.post("/api/v1/notifications/:topic", withJson(async () => ({ ok: true })));
-  notificationsRoute.get("/api/v1/notifications/topicTokens", withJson(async (c) => {
+  }))
+  .post("/api/v1/notifications/:topic", withJson(async (c) => {
+    const topic = String(c.req.param("topic") ?? "").trim();
+    const body = await readJsonBody<any>(c);
+    const content = body?.content ?? body;
+    const source = String(body?.source ?? "api");
+
+    const topicTokenResult = await createNotificationWithTopicToken(topic, content);
+    if (topicTokenResult) {
+      return { ok: true, ...topicTokenResult };
+    }
+
+    const userId = await resolveUserIdFromRequest(c);
+    if (!userId) {
+      throw new ApiActionError("Unauthorized", 401, { error: "Unauthorized" });
+    }
+
+    await verifyTopicOwnership(topic, userId);
+    return { ok: true, ...(await createNotificationByTopicId(topic, content, source)) };
+  }))
+  .get("/api/v1/notifications/topicTokens", withJson(async (c) => {
     const { userId } = await requireAuth({ token: readAuthToken(c) });
     return listTopicTokens(userId);
-  }));
-  notificationsRoute.post("/api/v1/notifications/topicTokens", withJson(async (c) => {
+  }))
+  .post("/api/v1/notifications/topicTokens", withJson(async (c) => {
     const body = await readJsonBody<any>(c);
     const { userId } = await requireAuth(body?.auth);
     return createTopicToken(userId, body?.body ?? {});
-  }));
-  notificationsRoute.delete("/api/v1/notifications/topicTokens", withJson(async (c) => {
+  }))
+  .delete("/api/v1/notifications/topicTokens", withJson(async (c) => {
     const body = await readJsonBody<any>(c);
     const { userId } = await requireAuth(body?.auth);
     return deleteTopicToken(userId, String(body?.tokenId ?? ""));
-  }));
-  notificationsRoute.get("/api/v1/notifications/forwarders", withJson(async (c) => {
+  }))
+  .get("/api/v1/notifications/forwarders", withJson(async (c) => {
     const { userId } = await requireAuth({ token: readAuthToken(c) });
     return getForwarders(userId);
-  }));
-  notificationsRoute.post("/api/v1/notifications/forwarders", withJson(async (c) => {
+  }))
+  .post("/api/v1/notifications/forwarders", withJson(async (c) => {
     const body = await readJsonBody<any>(c);
     const { userId } = await requireAuth(body?.auth);
     return createForwarder(userId, body?.body ?? {});
-  }));
-  notificationsRoute.put("/api/v1/notifications/forwarders", withJson(async (c) => {
+  }))
+  .put("/api/v1/notifications/forwarders", withJson(async (c) => {
     const body = await readJsonBody<any>(c);
     const { userId } = await requireAuth(body?.auth);
     return updateForwarder(userId, body?.body ?? {});
-  }));
-  notificationsRoute.delete("/api/v1/notifications/forwarders", withJson(async (c) => {
+  }))
+  .delete("/api/v1/notifications/forwarders", withJson(async (c) => {
     const body = await readJsonBody<any>(c);
     const { userId } = await requireAuth(body?.auth);
     return deleteForwarder(userId, String(body?.forwarderId ?? ""));

@@ -21,6 +21,7 @@ import {
   resolveWidgetProperties,
   resolveWidgetRuntimeData,
 } from "@dashwise/integrationskit/data/resolveProperties";
+import { evaluateCondition } from "@dashwise/integrationskit/data/resolveProperties";
 import type {
   EndpointRuntimeCacheAdapter,
   ResolvedEndpointData,
@@ -53,245 +54,246 @@ type CacheRecord = {
 
 const integrationsRoute = new Hono();
 
-integrationsRoute.get(
-  "/api/v1/integrations",
-  withJson(async (c) => {
-    const { userId } = await requireAuth({ token: readAuthToken(c) });
-    const id = c.req.query("id") ?? undefined;
-    const resolveEndpoints = readBool(
-      c.req.query("resolveEndpoints") ?? undefined,
-    );
-    return id
-      ? getIntegration(userId, id, resolveEndpoints)
-      : listIntegrations(userId);
-  }),
-);
-
-integrationsRoute.post(
-  "/api/v1/integrations",
-  withJson(async (c) => {
-    const body = await readJsonBody<any>(c);
-    const { userId } = await requireAuth(body?.auth);
-    return createIntegration(userId, body?.payload ?? {});
-  }),
-);
-
-integrationsRoute.put(
-  "/api/v1/integrations/:id",
-  withJson(async (c) => {
-    const id = c.req.param("id")!;
-    const body = await readJsonBody<any>(c);
-    const { userId } = await requireAuth(body?.auth);
-    return updateIntegration(userId, id, body?.payload ?? {});
-  }),
-);
-
-integrationsRoute.delete(
-  "/api/v1/integrations/:id",
-  withJson(async (c) => {
-    const id = c.req.param("id")!;
-    const { userId } = await requireAuth({ token: readAuthToken(c) });
-    return deleteIntegration(userId, id);
-  }),
-);
-
-integrationsRoute.post(
-  "/api/v1/integrations/test-endpoint",
-  withJson(async (c) => {
-    const body = await readJsonBody<any>(c);
-    const { userId } = await requireAuth(body?.auth);
-    return testIntegrationEndpoint(userId, String(body?.target ?? ""));
-  }),
-);
-
-integrationsRoute.post(
-  "/api/v1/integrations/proxyAction",
-  withJson(async (c) => {
-    const body = await readJsonBody<any>(c);
-    const { userId } = await requireAuth(body?.auth);
-    const searchItemId = String(body?.searchItemId ?? body?.id ?? "").trim();
-
-    if (!searchItemId) {
-      throw new ApiActionError("Missing searchItemId", 400, {
-        error: "Missing searchItemId",
-      });
-    }
-
-    const pb = await getSuperuserPB();
-    const record = await pb.collection("searchItems").getOne(searchItemId);
-    if (!record || record.user !== userId) {
-      throw new ApiActionError("Unauthorized", 403, { error: "Unauthorized" });
-    }
-
-    const action = parseProxyAction(record.action);
-    if (!action?.url) {
-      throw new ApiActionError("Unsupported proxy action", 400, {
-        error: "Unsupported proxy action",
-      });
-    }
-
-    const headers: Record<string, string> = {};
-    for (const [key, value] of Object.entries(action.headers ?? {})) {
-      headers[key] = String(value ?? "");
-    }
-
-    const hasAuthHeader = Object.keys(headers).some((k) =>
-      k.toLowerCase() === "authorization"
-    );
-    if (action.auth && !hasAuthHeader) {
-      headers.Authorization = action.auth;
-    }
-
-    let requestBody: string | undefined;
-    if (action.body != null) {
-      requestBody = typeof action.body === "string"
-        ? action.body
-        : JSON.stringify(action.body);
-      if (
-        !Object.keys(headers).some((k) => k.toLowerCase() === "content-type")
-      ) {
-        headers["content-type"] = "application/json";
-      }
-    }
-
-    const response = await fetch(action.url, {
-      method: "POST",
-      headers,
-      body: requestBody,
-      ...(config.ALLOW_SSL
-        ? ({ tls: { rejectUnauthorized: false } } as any)
-        : {}),
-    } as any);
-
-    return {
-      ok: response.ok,
-      status: response.status,
-      statusText: response.statusText,
-      body: await response.text(),
-    };
-  }),
-);
-
-integrationsRoute.get(
-  "/api/v1/integrations/widget-properties",
-  withJson(async (c) => {
-    const { userId } = await requireAuth({ token: readAuthToken(c) });
-    return getWidgetProperties(userId, String(c.req.query("widgetSlug") ?? ""));
-  }),
-);
-
-integrationsRoute.get(
-  "/api/v1/integrations/consumerData",
-  withJson(async (c) => {
-    const auth = await requireAuth({ token: readAuthToken(c) });
-    const typeRaw = String(c.req.query("type") ?? "").trim().toLowerCase();
-    const key = String(c.req.query("key") ?? "").trim();
-    const properties = parseInputQuery(c.req.query("input") ?? null);
-
-    if (!key) {
-      throw new ApiActionError("Missing key", 400, { error: "Missing key" });
-    }
-
-    try {
-      return omitConsumerDataMeta(
-        await resolveConsumerData({
-          userId: auth.userId,
-          pb: auth.pb,
-          type: parseConsumerType(typeRaw || null),
-          key,
-          properties,
-          environmentOverrides: {},
-          isPreview: false,
-        }),
+integrationsRoute
+  .get(
+    "/api/v1/integrations",
+    withJson(async (c) => {
+      const { userId } = await requireAuth({ token: readAuthToken(c) });
+      const id = c.req.query("id") ?? undefined;
+      const resolveEndpoints = readBool(
+        c.req.query("resolveEndpoints") ?? undefined,
       );
-    } catch (e) {
-      console.error("[integrations/consumerData] GET Error:", e);
-      throw e;
-    }
-  }),
-);
+      return id
+        ? getIntegration(userId, id, resolveEndpoints)
+        : listIntegrations(userId);
+    }),
+  )
+  .post(
+    "/api/v1/integrations",
+    withJson(async (c) => {
+      const body = await readJsonBody<any>(c);
+      const { userId } = await requireAuth(body?.auth);
+      return createIntegration(userId, body?.payload ?? {});
+    }),
+  )
+  .put(
+    "/api/v1/integrations/:id",
+    withJson(async (c) => {
+      const id = c.req.param("id")!;
+      const body = await readJsonBody<any>(c);
+      const { userId } = await requireAuth(body?.auth);
+      return updateIntegration(userId, id, body?.payload ?? {});
+    }),
+  )
+  .delete(
+    "/api/v1/integrations/:id",
+    withJson(async (c) => {
+      const id = c.req.param("id")!;
+      const { userId } = await requireAuth({ token: readAuthToken(c) });
+      return deleteIntegration(userId, id);
+    }),
+  )
+  .post(
+    "/api/v1/integrations/test-endpoint",
+    withJson(async (c) => {
+      const body = await readJsonBody<any>(c);
+      const { userId } = await requireAuth(body?.auth);
+      return testIntegrationEndpoint(userId, String(body?.target ?? ""));
+    }),
+  )
+  .post(
+    "/api/v1/integrations/proxyAction",
+    withJson(async (c) => {
+      const body = await readJsonBody<any>(c);
+      const { userId } = await requireAuth(body?.auth);
+      const searchItemId = String(body?.searchItemId ?? body?.id ?? "").trim();
 
-integrationsRoute.post(
-  "/api/v1/integrations/consumerData",
-  withJson(async (c) => {
-    const auth = await requireAuth({ token: readAuthToken(c) });
-    const body = await readJsonBody<any>(c);
-    const key = String(body?.key ?? "").trim();
-    const isPreview = Boolean(body?.isPreview);
-    const properties = parsePropertiesBody(body?.properties);
-    const environmentOverrides = parseEnvironmentOverridesBody(
-      body?.environmentOverrides,
-    );
-
-    if (!key) {
-      throw new ApiActionError("Missing key", 400, { error: "Missing key" });
-    }
-
-    try {
-      return omitConsumerDataMeta(
-        await resolveConsumerData({
-          userId: auth.userId,
-          pb: auth.pb,
-          type: parseConsumerType(
-            typeof body?.type === "string" ? body.type : null,
-          ),
-          key,
-          properties,
-          environmentOverrides,
-          isPreview,
-        }),
-      );
-    } catch (e) {
-      console.error("[integrations/consumerData] POST Error:", e);
-      throw e;
-    }
-  }),
-);
-
-integrationsRoute.get(
-  "/api/v1/integrations/caldav/events",
-  withJson(async (c) => {
-    const { userId, pb } = await requireAuth({ token: readAuthToken(c) });
-    const integrationId = c.req.query("integrationId") ?? undefined;
-
-    const updateLocalData = (id: string, localData: Record<string, unknown>) =>
-      pb.collection("integrations").update(id, { localData });
-
-    if (integrationId) {
-      const integration = await getIntegration(userId, integrationId);
-      if (!integration) {
-        throw new ApiActionError("Integration not found", 404, {
-          error: "Not found",
+      if (!searchItemId) {
+        throw new ApiActionError("Missing searchItemId", 400, {
+          error: "Missing searchItemId",
         });
       }
-      const events = await getUpcomingEvents(
-        (integration as any).environment,
-        (integration as any).localData,
-        (ld) => updateLocalData(integrationId, ld),
+
+      const pb = await getSuperuserPB();
+      const record = await pb.collection("searchItems").getOne(searchItemId);
+      if (!record || record.user !== userId) {
+        throw new ApiActionError("Unauthorized", 403, { error: "Unauthorized" });
+      }
+
+      const action = parseProxyAction(record.action);
+      if (!action?.url) {
+        throw new ApiActionError("Unsupported proxy action", 400, {
+          error: "Unsupported proxy action",
+        });
+      }
+
+      const headers: Record<string, string> = {};
+      for (const [key, value] of Object.entries(action.headers ?? {})) {
+        headers[key] = String(value ?? "");
+      }
+
+      const hasAuthHeader = Object.keys(headers).some((k) =>
+        k.toLowerCase() === "authorization"
       );
-      return { events };
-    }
+      if (action.auth && !hasAuthHeader) {
+        headers.Authorization = action.auth;
+      }
 
-    const { integrations } = await listIntegrations(userId);
-    const caldavIntegrations = integrations.filter((i) => i.type === "caldav");
+      let requestBody: string | undefined;
+      if (action.body != null) {
+        requestBody = typeof action.body === "string"
+          ? action.body
+          : JSON.stringify(action.body);
+        if (
+          !Object.keys(headers).some((k) => k.toLowerCase() === "content-type")
+        ) {
+          headers["content-type"] = "application/json";
+        }
+      }
 
-    if (caldavIntegrations.length === 0) return { events: [] };
+      const response = await fetch(action.url, {
+        method: "POST",
+        headers,
+        body: requestBody,
+        ...(config.ALLOW_SSL
+          ? ({ tls: { rejectUnauthorized: false } } as any)
+          : {}),
+      } as any);
 
-    const allEvents = await Promise.all(
-      caldavIntegrations.map((integration) =>
-        getUpcomingEvents(
-          integration.environment,
-          integration.localData,
-          (ld) => updateLocalData(integration.id, ld),
-        )
-      ),
-    );
+      return {
+        ok: response.ok,
+        status: response.status,
+        statusText: response.statusText,
+        body: await response.text(),
+      };
+    }),
+  )
+  .get(
+    "/api/v1/integrations/widget-properties",
+    withJson(async (c) => {
+      const { userId } = await requireAuth({ token: readAuthToken(c) });
+      return getWidgetProperties(
+        userId,
+        String(c.req.query("widgetSlug") ?? ""),
+      );
+    }),
+  )
+  .get(
+    "/api/v1/integrations/consumerData",
+    withJson(async (c) => {
+      const auth = await requireAuth({ token: readAuthToken(c) });
+      const typeRaw = String(c.req.query("type") ?? "").trim().toLowerCase();
+      const key = String(c.req.query("key") ?? "").trim();
+      const properties = parseInputQuery(c.req.query("input") ?? null);
 
-    return { events: allEvents.flat() };
-  }),
-);
+      if (!key) {
+        throw new ApiActionError("Missing key", 400, { error: "Missing key" });
+      }
+
+      try {
+        return omitConsumerDataMeta(
+          await resolveConsumerData({
+            userId: auth.userId,
+            pb: auth.pb,
+            type: parseConsumerType(typeRaw || null),
+            key,
+            properties,
+            environmentOverrides: {},
+            isPreview: false,
+          }),
+        );
+      } catch (e) {
+        console.error("[integrations/consumerData] GET Error:", e);
+        throw e;
+      }
+    }),
+  )
+  .post(
+    "/api/v1/integrations/consumerData",
+    withJson(async (c) => {
+      const auth = await requireAuth({ token: readAuthToken(c) });
+      const body = await readJsonBody<any>(c);
+      const key = String(body?.key ?? "").trim();
+      const isPreview = Boolean(body?.isPreview);
+      const properties = parsePropertiesBody(body?.properties);
+      const environmentOverrides = parseEnvironmentOverridesBody(
+        body?.environmentOverrides,
+      );
+
+      if (!key) {
+        throw new ApiActionError("Missing key", 400, { error: "Missing key" });
+      }
+
+      try {
+        return omitConsumerDataMeta(
+          await resolveConsumerData({
+            userId: auth.userId,
+            pb: auth.pb,
+            type: parseConsumerType(
+              typeof body?.type === "string" ? body.type : null,
+            ),
+            key,
+            properties,
+            environmentOverrides,
+            isPreview,
+          }),
+        );
+      } catch (e) {
+        console.error("[integrations/consumerData] POST Error:", e);
+        throw e;
+      }
+    }),
+  )
+  .get(
+    "/api/v1/integrations/caldav/events",
+    withJson(async (c) => {
+      const { userId, pb } = await requireAuth({ token: readAuthToken(c) });
+      const integrationId = c.req.query("integrationId") ?? undefined;
+
+      const updateLocalData = (
+        id: string,
+        localData: Record<string, unknown>,
+      ) => pb.collection("integrations").update(id, { localData });
+
+      if (integrationId) {
+        const integration = await getIntegration(userId, integrationId);
+        if (!integration) {
+          throw new ApiActionError("Integration not found", 404, {
+            error: "Not found",
+          });
+        }
+        const events = await getUpcomingEvents(
+          (integration as any).environment,
+          (integration as any).localData,
+          (ld) => updateLocalData(integrationId, ld),
+        );
+        return { events };
+      }
+
+      const { integrations } = await listIntegrations(userId);
+      const caldavIntegrations = integrations.filter(
+        (i) => i.type === "caldav",
+      );
+
+      if (caldavIntegrations.length === 0) return { events: [] };
+
+      const allEvents = await Promise.all(
+        caldavIntegrations.map((integration) =>
+          getUpcomingEvents(
+            integration.environment,
+            integration.localData,
+            (ld) => updateLocalData(integration.id, ld),
+          )
+        ),
+      );
+
+      return { events: allEvents.flat() };
+    }),
+  );
 
 export default integrationsRoute;
+
+// --- Types ---
 
 type ResolveConsumerDataOpts = {
   userId: string;
@@ -305,6 +307,8 @@ type ResolveConsumerDataOpts = {
   sharedEndpointCache?: Map<string, ResolvedEndpointData>;
 };
 
+// --- Core resolver ---
+
 async function resolveConsumerData(
   opts: ResolveConsumerDataOpts,
 ): Promise<any> {
@@ -312,9 +316,8 @@ async function resolveConsumerData(
   const resolverOpts = { ...opts, user };
 
   if (opts.type === "widget") return resolveWidgetConsumer(resolverOpts);
-  if (opts.type === "glanceable") {
-    return resolveGlanceableConsumer(resolverOpts);
-  }
+  if (opts.type === "glanceable") return resolveGlanceableConsumer(resolverOpts);
+  
 
   try {
     return await resolveWidgetConsumer(resolverOpts);
@@ -539,12 +542,11 @@ async function resolveGlanceableConsumer(
   }
 
   await persistLocalDataIfChanged(payload.integrationId, cacheContext);
-
-  const rawText = typeof glanceableJSON.text === "string"
-    ? glanceableJSON.text
-    : typeof glanceableJSON.name === "string"
-    ? glanceableJSON.name
-    : "";
+  const resolvedText = resolveGlanceableTextValue(
+    glanceableJSON.text,
+    runtimeData.env,
+    typeof glanceableJSON.name === "string" ? glanceableJSON.name : "",
+  );
 
   return {
     consumer: "glanceable" as const,
@@ -554,7 +556,7 @@ async function resolveGlanceableConsumer(
     env: runtimeData.env,
     data: runtimeData.data,
     blueprint: {
-      text: rawText ? resolveGlanceableText(rawText, runtimeData.env) : "",
+      text: resolvedText,
       icon: getGlanceableIconSource(glanceableJSON.icon, runtimeData.env),
       glanceableJSON,
     },
@@ -593,6 +595,7 @@ function buildCacheMeta(
   };
 }
 
+// --- Proxy action ---
 
 type ProxyActionDefinition = {
   type: "post";
@@ -631,6 +634,8 @@ function parseProxyAction(raw: unknown): ProxyActionDefinition | null {
     return null;
   }
 }
+
+// --- Input parsers ---
 
 function parseInputQuery(raw: string | null): Record<string, any> {
   if (!raw?.trim()) return {};
@@ -673,6 +678,8 @@ function parseEnvironmentOverridesBody(raw: unknown): Record<string, string> {
   );
 }
 
+// --- Response shaping ---
+
 // Strip internal env/input fields before sending to the client.
 function omitConsumerDataMeta(
   payload: Record<string, any>,
@@ -684,6 +691,8 @@ function omitConsumerDataMeta(
   }
   return { ...rest, fresh };
 }
+
+// --- Integration env helpers ---
 
 function applyWidgetInput(
   widgetJSON: Record<string, any>,
@@ -1064,6 +1073,8 @@ async function persistLocalDataIfChanged(
   });
 }
 
+// --- Glanceable display helpers ---
+
 function getGlanceableIconSource(icon: unknown, env: Record<string, string>) {
   if (!icon || icon === "none") return null;
   if (typeof icon === "string") return resolveTemplatedString(icon, env);
@@ -1103,6 +1114,50 @@ function resolveGlanceableText(template: string, env: Record<string, string>) {
   return resolveStringWithCasts(withLibDate, env);
 }
 
+function resolveGlanceableTextValue(
+  def: unknown,
+  env: Record<string, string>,
+  fallbackName: string,
+) {
+  let text = "";
+
+  if (typeof def === "string" && def.trim()) {
+    text = resolveGlanceableText(def, env);
+  } else if (def && typeof def === "object") {
+    const block = def as Record<string, any>;
+    if (
+      String(block.operation ?? "").trim().toLowerCase() === "stringadd" &&
+      Array.isArray(block.inputs)
+    ) {
+      const parts: string[] = [];
+      for (const input of block.inputs) {
+        if (!input) continue;
+        if (input.show_if !== undefined) {
+          const show = evaluateCondition(String(input.show_if), env);
+          if (!show) continue;
+        }
+        const segment = typeof input === "string" ? input : input.text ?? "";
+        const resolved = resolveGlanceableText(String(segment), env);
+        if (resolved && resolved.trim()) parts.push(resolved);
+      }
+      text = parts.join("");
+    } else {
+      const candidate = block.text ?? block.value ?? "";
+      text = candidate ? resolveGlanceableText(String(candidate), env) : "";
+    }
+  } else {
+    text = fallbackName;
+  }
+
+  if (!text || !String(text).trim()) {
+    text = fallbackName;
+  }
+
+  return text;
+}
+
+// --- Auth / user helpers ---
+
 async function getAuthUserRecord(pb: any, userId: string) {
   try {
     const record = await pb.collection("users").getOne(userId);
@@ -1115,6 +1170,8 @@ async function getAuthUserRecord(pb: any, userId: string) {
 function isApiNotFound(error: unknown) {
   return error instanceof ApiActionError && error.status === 404;
 }
+
+// --- Cache config ---
 
 function resolveIntegrationCacheConfig(
   integrationJSON: Record<string, any>,
@@ -1132,6 +1189,8 @@ function resolveIntegrationCacheConfig(
     : 300;
   return { policy, retentionSeconds };
 }
+
+// --- Utilities ---
 
 function isPlainObject(value: unknown): value is Record<string, any> {
   return typeof value === "object" && value !== null && !Array.isArray(value);

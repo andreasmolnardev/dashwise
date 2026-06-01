@@ -198,3 +198,6 @@ Bun.serve({
 
 logger.info(`Running on 0.0.0.0:${port}`);
 logger.info(`PocketBase target URL: ${config.PB_URL}`);
+
+export type AppType = typeof app;
+export default app;
