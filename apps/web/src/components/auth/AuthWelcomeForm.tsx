@@ -33,7 +33,7 @@ export default function AuthWelcomeFormComponent() {
     return (
         <Card className="w-full max-w-sm frosted text-foreground">
             <CardHeader>
-                <CardTitle>Welcome to Dashwise</CardTitle>
+                <CardTitle>Welcome to {config.instance_name || "Dashwise"}</CardTitle>
                 <CardDescription className="text-muted-foreground">
                     Choose how you’d like to sign in.
                 </CardDescription>

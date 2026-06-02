@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome"
 import { faCircleCheck, faExclamationTriangle } from "@fortawesome/free-solid-svg-icons"
+import config from "@/lib/config";
 
 export default function SignupCard() {
   const [name, setName] = useState("");
@@ -88,7 +89,7 @@ export default function SignupCard() {
   return (
     <Card className="w-full max-w-sm frosted text-foreground backdrop-saturate-90 backdrop-brightness-90">
       <CardHeader>
-        <CardTitle>Welcome to Dashwise!</CardTitle>
+        <CardTitle>Welcome to {config.instance_name || "Dashwise"}!</CardTitle>
         <CardDescription>
           Let's get started by creating an account.
         </CardDescription>

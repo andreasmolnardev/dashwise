@@ -13,6 +13,7 @@ import { getPageIntegrationDataAction } from "@/app/actions/pageConfigs";
 import { renderWidget } from "../widgets/Widget";
 import PageNotFound from "../errorPages/PageNotFound";
 import { primePageIntegrationConsumerCache } from "@/lib/pageIntegrationDataCache";
+import config from "@/lib/config";
 
 const COLUMN_ORDER = ["left", "middle", "right"] as const;
 type Column = (typeof COLUMN_ORDER)[number];
@@ -675,7 +676,7 @@ function BottomNavbar({
             <div id="app-details" className="flex items-center gap-2">
                 <Link to="/home" className="flex items-center gap-2">
                     <img src="/dashwise-icon.png" alt="" className="h-9" />
-                    <span className="hidden md:flex font-semibold">dashwise</span>
+                    <span className="hidden md:flex font-semibold">{config.instance_name || "dashwise"}</span>
                 </Link>
                 <QuickLaunchPopover />
                 <a
