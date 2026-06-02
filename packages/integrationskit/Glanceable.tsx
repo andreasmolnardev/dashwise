@@ -43,15 +43,6 @@ export default function Glanceable({
   resolved,
   formatters,
 }: GlanceableProps) {
-  console.debug("Rendering Glanceable", {
-    glanceableJSON,
-    integrationJSON,
-    data,
-    isPreview,
-    type,
-    params,
-    resolved,
-  });
   if (resolved) {
     return (
       <span
