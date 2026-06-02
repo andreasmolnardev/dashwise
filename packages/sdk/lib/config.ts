@@ -1,4 +1,5 @@
 interface Config {
+  instance_name?: string | undefined;
   app_base_url: string;
   pb_url: string;
   jobs_url?: string | undefined;
@@ -31,8 +32,9 @@ const enableJobsWebhook =
   process.env.NEXT_PUBLIC_JOBS_WEBHOOK_ENABLE === "1" ||
   !!process.env.NEXT_PUBLIC_JOBS_URL ||
   false;
-
+  
 const config: Config = {
+  instance_name: process.env.INSTANCE_NAME || process.env.NEXT_PUBLIC_INSTANCE_NAME || "Dashwise",
   app_base_url: browserOrigin,
   pb_url: process.env.NEXT_PUBLIC_PB_URL || "http://127.0.0.1:8090",
   jobs_webhook_enabled: enableJobsWebhook,
