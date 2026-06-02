@@ -1,7 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -20,7 +19,7 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Check, CircleHelp, MoreHorizontal, Plus } from "lucide-react";
+import { Check, MoreHorizontal, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NOTIFICATIONS_UPDATED_EVENT } from "@/lib/events";
 import {
@@ -30,6 +29,8 @@ import {
     getNotificationTopicsAction,
     markNotificationsAsReadAction,
 } from "@/app/actions/notifications/items";
+import { getForwardersAction } from "@/app/actions/notifications/forwarders";
+import { listTopicTokensAction } from "@/app/actions/notifications/topicTokens";
 import CreateForwarderDialogComponent from "@/components/notifications/CreateForwarderDialog";
 import CreateTopicTokenDialogComponent from "@/components/notifications/CreateTopicTokenDialog";
 import useAuth from "@/context/useAuth";
@@ -46,9 +47,23 @@ export type NotificationItem = {
 };
 
 type TopicItem = { id: string; title: string };
+type TopicTokenItem = {
+    id: string;
+    token?: string;
+    topic?: { id: string; title?: string } | string;
+    expires?: string | null;
+    created?: string | null;
+};
+type TopicForwarderItem = {
+    id: string;
+    topic?: { id: string } | string;
+    target?: string;
+    isActive?: boolean;
+    created?: string | null;
+    updated?: string | null;
+};
 
 export default function NotificationsPage() {
-    const navigate = useNavigate();
     const { token, withAuth } = useAuth();
     const [notifications, setNotifications] = useState<NotificationItem[]>([]);
     const [topics, setTopics] = useState<TopicItem[]>([]);
@@ -62,6 +77,22 @@ export default function NotificationsPage() {
     >(null);
     const [topicToDelete, setTopicToDelete] = useState<TopicItem | null>(null);
     const [helpOpen, setHelpOpen] = useState(false);
+    const [topicDetailsOpen, setTopicDetailsOpen] = useState(false);
+    const [topicDetailsTopic, setTopicDetailsTopic] = useState<TopicItem | null>(
+        null
+    );
+    const [topicDetailsTokens, setTopicDetailsTokens] = useState<
+        TopicTokenItem[]
+    >([]);
+    const [topicDetailsForwarders, setTopicDetailsForwarders] = useState<
+        TopicForwarderItem[]
+    >([]);
+    const [topicDetailsLoading, setTopicDetailsLoading] = useState(false);
+    const [topicDetailsSection, setTopicDetailsSection] = useState<
+        "tokens" | "forwarders" | null
+    >(null);
+    const tokensSectionRef = useRef<HTMLDivElement | null>(null);
+    const forwardersSectionRef = useRef<HTMLDivElement | null>(null);
 
     const fetchData = useCallback(async () => {
         if (!token) return;
@@ -92,6 +123,71 @@ export default function NotificationsPage() {
     useEffect(() => {
         fetchData();
     }, [fetchData]);
+
+    const fetchTopicDetails = useCallback(async () => {
+        if (!token || !topicDetailsTopic) return;
+
+        setTopicDetailsLoading(true);
+        try {
+            const [tokensResp, forwardersResp] = await withAuth((auth) =>
+                Promise.all([
+                    listTopicTokensAction(auth),
+                    getForwardersAction(auth),
+                ])
+            );
+
+            const tokens = (tokensResp?.items || []).filter(
+                (item: TopicTokenItem) => {
+                    const topicId =
+                        typeof item.topic === "string"
+                            ? item.topic
+                            : item.topic?.id;
+                    return topicId === topicDetailsTopic.id;
+                }
+            );
+            const forwarders = (forwardersResp?.items || []).filter(
+                (item: TopicForwarderItem) => {
+                    const topicId =
+                        typeof item.topic === "string"
+                            ? item.topic
+                            : item.topic?.id;
+                    return topicId === topicDetailsTopic.id;
+                }
+            );
+
+            setTopicDetailsTokens(tokens);
+            setTopicDetailsForwarders(forwarders);
+        } catch (err) {
+            console.error("Failed to load topic details:", err);
+        } finally {
+            setTopicDetailsLoading(false);
+        }
+    }, [token, withAuth, topicDetailsTopic]);
+
+    useEffect(() => {
+        if (!topicDetailsOpen || !topicDetailsTopic) return;
+        fetchTopicDetails();
+    }, [fetchTopicDetails, topicDetailsOpen, topicDetailsTopic]);
+
+    useEffect(() => {
+        if (!topicDetailsOpen || !topicDetailsSection) return;
+        const target =
+            topicDetailsSection === "tokens"
+                ? tokensSectionRef.current
+                : forwardersSectionRef.current;
+        if (!target) return;
+
+        const rafId = requestAnimationFrame(() => {
+            target.scrollIntoView({ behavior: "smooth", block: "start" });
+        });
+
+        return () => cancelAnimationFrame(rafId);
+    }, [
+        topicDetailsOpen,
+        topicDetailsSection,
+        topicDetailsTokens.length,
+        topicDetailsForwarders.length,
+    ]);
 
     const hasUnread = useMemo(
         () =>
@@ -203,6 +299,17 @@ export default function NotificationsPage() {
         title: topic.title,
     }));
 
+    const openTopicDetails = (
+        topic: TopicItem,
+        section: "tokens" | "forwarders"
+    ) => {
+        setTopicDetailsTopic(topic);
+        setTopicDetailsSection(section);
+        setTopicDetailsTokens([]);
+        setTopicDetailsForwarders([]);
+        setTopicDetailsOpen(true);
+    };
+
     return (
         <>
             <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
@@ -295,20 +402,15 @@ export default function NotificationsPage() {
                                     </DropdownMenuLabel>
                                     <DropdownMenuItem
                                         onClick={() =>
-                                            navigate(
-                                                `/notifications/tokens?topic=${
-                                                    encodeURIComponent(topic.id)
-                                                }`,
-                                            )}
+                                            openTopicDetails(topic, "tokens")}
                                     >
                                         View topic tokens
                                     </DropdownMenuItem>
                                     <DropdownMenuItem
                                         onClick={() =>
-                                            navigate(
-                                                `/notifications/forwarders?topic=${
-                                                    encodeURIComponent(topic.id)
-                                                }`,
+                                            openTopicDetails(
+                                                topic,
+                                                "forwarders",
                                             )}
                                     >
                                         View topic forwarders
@@ -639,6 +741,149 @@ export default function NotificationsPage() {
                             </pre>
                         </div>
                     </div>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog
+                open={topicDetailsOpen}
+                onOpenChange={(open) => {
+                    setTopicDetailsOpen(open);
+                    if (!open) {
+                        setTopicDetailsTopic(null);
+                        setTopicDetailsSection(null);
+                    }
+                }}
+            >
+                <DialogContent className="frosted text-foreground max-w-3xl">
+                    <DialogHeader>
+                        <DialogTitle>Topic details</DialogTitle>
+                    </DialogHeader>
+
+                    {topicDetailsLoading ? (
+                        <div className="py-6 text-sm text-muted-foreground">
+                            Loading topic details...
+                        </div>
+                    ) : (
+                        <div className="space-y-6">
+                            <div ref={tokensSectionRef} className="space-y-3">
+                                <div className="flex items-center justify-between">
+                                    <h3 className="font-semibold">
+                                        Topic tokens
+                                    </h3>
+                                </div>
+
+                                {topicDetailsTokens.length === 0 ? (
+                                    <p className="text-sm text-muted-foreground">
+                                        No active tokens for this topic.
+                                    </p>
+                                ) : (
+                                    <div className="space-y-2">
+                                        {topicDetailsTokens.map((item) => (
+                                            <div
+                                                key={item.id}
+                                                className="rounded-lg border border-white/10 bg-white/5 p-3"
+                                            >
+                                                <div className="flex items-start justify-between gap-3">
+                                                    <div className="flex flex-col gap-1">
+                                                        <div className="text-xs text-muted-foreground">
+                                                            Token
+                                                        </div>
+                                                        <div className="font-mono text-xs break-all text-white/90">
+                                                            {item.token ||
+                                                                "(hidden)"}
+                                                        </div>
+                                                    </div>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        onClick={() =>
+                                                            item.token &&
+                                                            navigator.clipboard
+                                                                .writeText(
+                                                                    item
+                                                                        .token,
+                                                                )}
+                                                    >
+                                                        Copy
+                                                    </Button>
+                                                </div>
+                                                <div className="mt-2 text-xs text-muted-foreground">
+                                                    {item.expires
+                                                        ? `Expires ${new Date(
+                                                            item.expires,
+                                                        ).toLocaleString()}`
+                                                        : "No expiry"}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+
+                            <div
+                                ref={forwardersSectionRef}
+                                className="space-y-3"
+                            >
+                                <div className="flex items-center justify-between">
+                                    <h3 className="font-semibold">
+                                        Forwarders
+                                    </h3>
+                                </div>
+
+                                {topicDetailsForwarders.length === 0 ? (
+                                    <p className="text-sm text-muted-foreground">
+                                        No forwarders configured for this
+                                        topic.
+                                    </p>
+                                ) : (
+                                    <div className="space-y-2">
+                                        {topicDetailsForwarders.map((item) => (
+                                            <div
+                                                key={item.id}
+                                                className="rounded-lg border border-white/10 bg-white/5 p-3"
+                                            >
+                                                <div className="flex items-center justify-between gap-3">
+                                                    <div className="text-sm text-white/90 break-all">
+                                                        {item.target ||
+                                                            "(missing target)"}
+                                                    </div>
+                                                    <span
+                                                        className={cn(
+                                                            "rounded-full px-2 py-1 text-xs font-semibold",
+                                                            item.isActive
+                                                                ? "bg-emerald-500/20 text-emerald-100"
+                                                                : "bg-amber-500/20 text-amber-100",
+                                                        )}
+                                                    >
+                                                        {item.isActive
+                                                            ? "Active"
+                                                            : "Paused"}
+                                                    </span>
+                                                </div>
+                                                {item.updated && (
+                                                    <div className="mt-1 text-xs text-muted-foreground">
+                                                        Updated{" "}
+                                                        {new Date(
+                                                            item.updated,
+                                                        ).toLocaleString()}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    <DialogFooter>
+                        <Button
+                            variant="ghost"
+                            onClick={() => setTopicDetailsOpen(false)}
+                        >
+                            Close
+                        </Button>
+                    </DialogFooter>
                 </DialogContent>
             </Dialog>
 
