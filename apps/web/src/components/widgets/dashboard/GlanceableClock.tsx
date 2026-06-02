@@ -1,21 +1,23 @@
 // components/widgets/dashboard/GlanceableClock.tsx
 "use client";
 
+import { useEffect, useMemo, useState } from "react";
 import ClockWidget from "../ClockWidget";
+import useAuth from "@/context/useAuth";
+import { getConsumerDataAction } from "@/app/actions/integrations";
+import { updatePageIntegrationConsumerCache } from "@/lib/pageIntegrationDataCache";
 import GlanceableComponent from "@dashwise/integrationskit/Glanceable";
 import { usePageConfig } from "@/hooks/usePageConfig";
 import type { WidgetItemProps } from "../Widget";
-import useAuth from "@/context/useAuth";
 import { useLocalization } from "@/context/LocalizationContext";
 import { readPageIntegrationConsumer } from "@/lib/pageIntegrationDataCache";
-import { usePageIntegrationStream } from "@/context/PageIntegrationStreamContext";
 
 type ResolvedGlanceablePayload = {
   consumer: "glanceable";
   blueprint: {
-    text: string;
-    icon: string | null;
-    glanceableJSON: Record<string, any>;
+    text?: string;
+    icon?: string | null;
+    glanceableJSON?: Record<string, any>;
   };
   data: Record<string, any> | null;
 };
@@ -103,12 +105,78 @@ function ResolvedGlanceable({
   className?: string;
   formatters?: LocalizationFormatters;
 }) {
-  const { phase } = usePageIntegrationStream();
+  const { withAuth } = useAuth();
+  const [backendPayload, setBackendPayload] = useState<ResolvedGlanceablePayload | null>(null);
+  const [loading, setLoading] = useState(false);
   const cacheKey = `${type}:${stableStringify(params ?? {})}`;
   const preloaded = readPageIntegrationConsumer("glanceable", type, params);
   const resolved = preloaded?.consumer === "glanceable"
     ? (glanceableConsumerCache.set(cacheKey, preloaded as ResolvedGlanceablePayload), preloaded as ResolvedGlanceablePayload)
-    : glanceableConsumerCache.get(cacheKey);
+    : backendPayload ?? glanceableConsumerCache.get(cacheKey);
+  const shouldUseBackend = !LOCAL_ONLY_GLANCEABLES.has(type);
+  const blueprint = resolved?.blueprint;
+  const hasBackendBlueprint = Boolean(blueprint?.text || blueprint?.icon || blueprint?.glanceableJSON);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!shouldUseBackend) {
+      setLoading(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    if (preloaded?.consumer === "glanceable") {
+      setBackendPayload(preloaded as ResolvedGlanceablePayload);
+      setLoading(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    if (resolved?.blueprint?.glanceableJSON) {
+      setBackendPayload(resolved as ResolvedGlanceablePayload);
+      setLoading(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    setLoading(true);
+
+    void withAuth((auth) =>
+      getConsumerDataAction(auth, type, params ?? {}, {
+        type: "glanceable",
+      }),
+    )
+      .then((payload) => {
+        if (cancelled || !payload || (payload as any).success === false) return;
+
+        const nextPayload = payload as ResolvedGlanceablePayload;
+        glanceableConsumerCache.set(cacheKey, nextPayload);
+        updatePageIntegrationConsumerCache({
+          ...nextPayload,
+          consumer: "glanceable",
+          key: type,
+          properties: params ?? {},
+          consumerKey: `${type}:${stableStringify(params ?? {})}`,
+          success: true,
+        } as any);
+        setBackendPayload(nextPayload);
+        setLoading(false);
+      })
+      .catch((error) => {
+        console.error(`Failed to fetch glanceable data for ${type}`, error);
+        if (!cancelled) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [cacheKey, params, preloaded, resolved, shouldUseBackend, type, withAuth]);
 
   if (preloaded?.success === false) {
     return (
@@ -118,7 +186,7 @@ function ResolvedGlanceable({
     );
   }
 
-  if (phase === "streaming" && !resolved?.blueprint?.glanceableJSON && !LOCAL_ONLY_GLANCEABLES.has(type)) {
+  if (loading && shouldUseBackend && !hasBackendBlueprint) {
     return (
       <div className={`rounded-md px-2 py-1 text-xs text-white/60 ${className ?? ""}`}>
         Loading...
@@ -126,18 +194,26 @@ function ResolvedGlanceable({
     );
   }
 
-  if (resolved?.blueprint?.glanceableJSON) {
+  if (hasBackendBlueprint) {
     return (
       <GlanceableComponent
-        glanceableJSON={resolved.blueprint.glanceableJSON}
+        glanceableJSON={blueprint?.glanceableJSON}
         resolved={{
-          text: resolved.blueprint.text,
-          icon: resolved.blueprint.icon,
+          text: blueprint?.text ?? "",
+          icon: blueprint?.icon,
         }}
         params={params}
           formatters={formatters}
         className={className}
       />
+    );
+  }
+
+  if (shouldUseBackend) {
+    return (
+      <div className={`rounded-md px-2 py-1 text-xs text-white/60 ${className ?? ""}`}>
+        Loading...
+      </div>
     );
   }
 
