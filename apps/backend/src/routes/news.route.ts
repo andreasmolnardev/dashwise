@@ -151,7 +151,9 @@ async function addMissingSubscriptionTitles(userId: string) {
 }
 
 const newsRoute = new Hono();
-  newsRoute.get("/api/v1/news", withJson(async (c) => {
+
+newsRoute
+  .get("/api/v1/news", withJson(async (c) => {
     const { userId } = await requireAuth({ token: readAuthToken(c) });
     const [subscriptions, feeds] = await Promise.all([
       getNewsSubscriptions(userId),
@@ -162,33 +164,33 @@ const newsRoute = new Hono();
       ...subscriptions,
       ...feeds,
     };
-  }));
-  newsRoute.get("/api/v1/news/subscriptions", withJson(async (c) => {
+  }))
+  .get("/api/v1/news/subscriptions", withJson(async (c) => {
     const { userId } = await requireAuth({ token: readAuthToken(c) });
     return getNewsSubscriptions(userId);
-  }));
-  newsRoute.get("/api/v1/news/feeds", withJson(async (c) => {
+  }))
+  .get("/api/v1/news/feeds", withJson(async (c) => {
     const { userId } = await requireAuth({ token: readAuthToken(c) });
     return getNewsFeeds(userId);
-  }));
-  newsRoute.get("/api/v1/news/feeds/:id", withJson(async (c) => {
+  }))
+  .get("/api/v1/news/feeds/:id", withJson(async (c) => {
     const { userId } = await requireAuth({ token: readAuthToken(c) });
     return getNewsFeed(userId, c.req.param("id"));
-  }));
-  newsRoute.get("/api/v1/news/feed", withJson(async (c) => {
+  }))
+  .get("/api/v1/news/feed", withJson(async (c) => {
     const { userId } = await requireAuth({ token: readAuthToken(c) });
     return getNewsFeed(userId, c.req.query("feedId") ?? "all");
-  }));
-  newsRoute.get("/api/v1/news/feed-records/:id", withJson(async (c) => {
+  }))
+  .get("/api/v1/news/feed-records/:id", withJson(async (c) => {
     const { userId } = await requireAuth({ token: readAuthToken(c) });
     return getNewsFeedRecord(userId, String(c.req.param("id") ?? ""));
-  }));
-  newsRoute.post("/api/v1/news/feed-records", withJson(async (c) => {
+  }))
+  .post("/api/v1/news/feed-records", withJson(async (c) => {
     const body = await readJsonBody<{ auth?: { token?: string | null }; payload?: NewsFeedRecordCreateInput }>(c);
     const { userId } = await requireAuth(body?.auth ?? {});
     return createNewsFeedRecordForUser(userId, body?.payload ?? { title: "" });
-  }));
-  newsRoute.get("/api/v1/news/feed-metadata", withJson(async (c) => {
+  }))
+  .get("/api/v1/news/feed-metadata", withJson(async (c) => {
     await requireAuth({ token: readAuthToken(c) });
 
     const feedUrl = String(c.req.query("url") ?? "").trim();
@@ -197,12 +199,12 @@ const newsRoute = new Hono();
     }
 
     return getFeedMetadata(feedUrl);
-  }));
-  newsRoute.get("/api/v1/news/feed-refresh", withJson(async (c) => {
+  }))
+  .get("/api/v1/news/feed-refresh", withJson(async (c) => {
     const { userId } = await requireAuth({ token: readAuthToken(c) });
     return refreshNewsFeed(userId, { feedIds: readRequestedFeedIds(c) });
-  }));
-  newsRoute.post("/api/v1/news/feed-refresh", withJson(async (c) => {
+  }))
+  .post("/api/v1/news/feed-refresh", withJson(async (c) => {
     const body = await readJsonBody<{ auth?: { token?: string | null }; feedIds?: string[]; feedId?: string }>(c);
     const { userId } = await requireAuth(body?.auth ?? {});
     return refreshNewsFeed(userId, {
@@ -212,8 +214,8 @@ const newsRoute = new Hono();
           ? [String(body.feedId)]
           : readRequestedFeedIds(c),
     });
-  }));
-  newsRoute.post("/api/v1/news/feed-subscribe", withJson(async (c) => {
+  }))
+  .post("/api/v1/news/feed-subscribe", withJson(async (c) => {
     const body = await readJsonBody<{ auth?: { token?: string | null }; sub?: NewsSubscribeInput }>(c);
     const { userId } = await requireAuth(body?.auth ?? {});
     const sub: NewsSubscribeInput = body?.sub ?? { feedUrl: "" };
@@ -230,26 +232,26 @@ const newsRoute = new Hono();
     });
 
     return result;
-  }));
-  newsRoute.post("/api/v1/news/feed-unsubscribe", withJson(async (c) => {
+  }))
+  .post("/api/v1/news/feed-unsubscribe", withJson(async (c) => {
     const body = await readJsonBody<{ auth?: { token?: string | null }; feedUrl?: string }>(c);
     const { userId } = await requireAuth(body?.auth ?? {});
     return unsubscribeNewsFeed(userId, String(body?.feedUrl ?? ""));
-  }));
-  newsRoute.post("/api/v1/news/feed-update", withJson(async (c) => {
+  }))
+  .post("/api/v1/news/feed-update", withJson(async (c) => {
     const body = await readJsonBody<{ auth?: { token?: string | null }; payload?: NewsUpdateInput }>(c);
     const { userId } = await requireAuth(body?.auth ?? {});
     const payload: NewsUpdateInput = body?.payload ?? { feedUrl: "" };
     return updateNewsFeed(userId, payload);
-  }));
-  newsRoute.post("/api/v1/news/feed-records/:id", withJson(async (c) => {
+  }))
+  .post("/api/v1/news/feed-records/:id", withJson(async (c) => {
     const body = await readJsonBody<{ auth?: { token?: string | null }; payload?: Partial<NewsFeedRecordUpdateInput> }>(c);
     const { userId } = await requireAuth(body?.auth ?? {});
     const feedId = String(c.req.param("id") ?? body?.payload?.feedId ?? "").trim();
     const payload = body?.payload ?? {};
     return updateNewsFeedRecordForUser(userId, feedId, payload);
-  }));
-  newsRoute.post("/api/v1/news/fix-missing-titles", withJson(async (c) => {
+  }))
+  .post("/api/v1/news/fix-missing-titles", withJson(async (c) => {
     const { userId } = await requireAuth({ token: readAuthToken(c) });
     return addMissingSubscriptionTitles(userId);
   }));

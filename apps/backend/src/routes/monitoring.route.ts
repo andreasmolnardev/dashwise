@@ -6,23 +6,22 @@ import { deleteMonitoringJob } from "@dashwise/sdk/data/superuser";
 import { readAuthToken, readJsonBody, requireAuth, withJson } from "./shared";
 
 const monitoringRoute = new Hono();
-  monitoringRoute.get("/api/v1/monitors", withJson(async (c) => {
+
+monitoringRoute
+  .get("/api/v1/monitors", withJson(async (c) => {
     const { userId } = await requireAuth({ token: readAuthToken(c) });
     return getMonitors(userId);
-  }));
-
-  monitoringRoute.post("/api/v1/monitors", withJson(async (c) => {
+  }))
+  .post("/api/v1/monitors", withJson(async (c) => {
     const body = await readJsonBody<any>(c);
     const { userId } = await requireAuth(body?.auth);
     return createMonitor(userId, body ?? {});
-  }));
-
-  monitoringRoute.get("/api/v1/monitors/:id", withJson(async (c) => {
+  }))
+  .get("/api/v1/monitors/:id", withJson(async (c) => {
     const { userId } = await requireAuth({ token: readAuthToken(c) });
     return getMonitorById(userId, c.req.param("id") || "");
-  }));
-
-  monitoringRoute.put("/api/v1/monitors/:id", withJson(async (c) => {
+  }))
+  .put("/api/v1/monitors/:id", withJson(async (c) => {
     const body = await readJsonBody<any>(c);
     const { userId } = await requireAuth(body?.auth);
     const monitorId = c.req.param("id") || "";
@@ -31,9 +30,8 @@ const monitoringRoute = new Hono();
       return { _status: 404, error: "Monitor not found" };
     }
     return updated;
-  }));
-
-  monitoringRoute.delete("/api/v1/monitors/:id", withJson(async (c) => {
+  }))
+  .delete("/api/v1/monitors/:id", withJson(async (c) => {
     const { userId } = await requireAuth({ token: readAuthToken(c) });
     const monitorId = c.req.param("id") || "";
     const monitor = await getMonitorById(userId, monitorId);
@@ -41,13 +39,12 @@ const monitoringRoute = new Hono();
       return { _status: 404, error: "Monitor not found" };
     }
     return deleteMonitoringJob(monitorId);
-  }));
-
-  monitoringRoute.get("/api/v1/monitoringStatus", withJson(async (c) => {
+  }))
+  .get("/api/v1/monitoringStatus", withJson(async (c) => {
     const { userId } = await requireAuth({ token: readAuthToken(c) });
     return getMonitoringStatus(userId, c.req.query("jobId") ?? null);
-  }));
-  monitoringRoute.post("/api/v1/monitoringStatus", withJson(async (c) => {
+  }))
+  .post("/api/v1/monitoringStatus", withJson(async (c) => {
     const body = await readJsonBody<any>(c);
     const { userId } = await requireAuth(body?.auth);
     return runMonitoringStatus(userId, body?.body ?? {});
