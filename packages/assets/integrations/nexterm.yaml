@@ -147,7 +147,7 @@ configuration:
           icon: "url:/icons/png/nexterm-light.png"
           secondaryInfo: "${type}"
           type: "nextermEntry"
-          action: "url:${URL}"
+          action: "url:${URL}/servers?connectId=${id}"
           tags:
             - "Nexterm"
             - "Servers"
