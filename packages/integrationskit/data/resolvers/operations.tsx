@@ -252,6 +252,14 @@ export function evaluateCondition(
   if (resolved === "true") return true;
   if (resolved === "false" || resolved === "") return false;
 
+  const comparison = resolved.match(/^(.+?)\s*(==|!=)\s*(.+)$/);
+  if (comparison) {
+    const left = normalizeConditionToken(comparison[1], env);
+    const right = normalizeConditionToken(comparison[3], env);
+    const isEqual = left === right;
+    return comparison[2] === "==" ? isEqual : !isEqual;
+  }
+
   const notContains = resolved.match(
     /^(.+?)\s+not\s+contains\s+'?([^']+)'?\s*$/i,
   );
@@ -269,4 +277,15 @@ export function evaluateCondition(
   }
 
   return !!resolved;
+}
+
+function normalizeConditionToken(
+  token: string,
+  env: Record<string, string>,
+): string {
+  const raw = (resolveValue(token.trim(), env) ?? token).trim();
+  const unquoted = raw.replace(/^['"](.*)['"]$/, "$1").trim();
+  const lower = unquoted.toLowerCase();
+  if (lower === "true" || lower === "false") return lower;
+  return unquoted;
 }

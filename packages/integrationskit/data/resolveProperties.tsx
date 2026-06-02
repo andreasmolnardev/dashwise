@@ -26,7 +26,12 @@ import {
   interpolateString,
   evaluateCondition,
 } from "./resolvers/operations";
-export { resolveValue, resolveStringWithCasts, interpolateString } from "./resolvers/operations";
+export {
+  resolveValue,
+  resolveStringWithCasts,
+  interpolateString,
+  evaluateCondition,
+} from "./resolvers/operations";
 
 // ── Public types ──────────────────────────────────────────────────────────────
 

@@ -9,7 +9,8 @@
   },
   "dependencies": {
     "@dashwise/app-icon": "workspace:*",
-    "date-fns": "^4.1.0"
+    "date-fns": "^4.1.0",
+    "mathjs": "^15.2.0"
   },
   "exports": {
     "./AppIcon": "./templates/AppIcon.tsx",
