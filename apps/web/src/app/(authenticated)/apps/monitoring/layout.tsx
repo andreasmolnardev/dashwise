@@ -1,19 +1,35 @@
 "use client";
 
 import { Outlet, useSearchParams } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import AppTemplate, { Content, GroupLabel, Sidebar, Tab } from "@/components/apps/LayoutTemplate";
 import useAuth from "@/context/useAuth";
 import { getMonitorsAction } from "@/app/actions/monitoring";
+import { getNotificationsAction } from "@/app/actions/notifications/items";
 import type { MonitorRecord } from "@/app/actions/monitoring";
+import { NOTIFICATIONS_UPDATED_EVENT } from "@/lib/events";
+import config from "@/lib/config";
 import AddMonitoringResourceDialog from "@/components/monitoring/AddMonitoringResourceDialog";
 import { useMonitoringLinkLookup } from "@/components/monitoring/useMonitoringLinkLookup";
 
 export default function MonitoringRootLayout() {
     const { token, withAuth } = useAuth();
     const [monitors, setMonitors] = useState<MonitorRecord[]>([]);
+    const [unreadCount, setUnreadCount] = useState<number>(0);
     const [searchParams, setSearchParams] = useSearchParams();
     const { entryById } = useMonitoringLinkLookup();
+
+    const fetchUnreadCount = useCallback(async () => {
+        if (!token) return;
+        try {
+            const data = await withAuth((auth) =>
+                getNotificationsAction(auth, false, true)
+            );
+            setUnreadCount(data?.unread || 0);
+        } catch (err) {
+            console.error(err);
+        }
+    }, [token, withAuth]);
 
     const monitorDialogOpen = searchParams.get("newMonitor") === "true";
 
@@ -57,15 +73,38 @@ export default function MonitoringRootLayout() {
         };
     }, [token, withAuth]);
 
+    useEffect(() => {
+        fetchUnreadCount();
+    }, [fetchUnreadCount]);
+
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        window.addEventListener(NOTIFICATIONS_UPDATED_EVENT, fetchUnreadCount);
+        return () =>
+            window.removeEventListener(
+                NOTIFICATIONS_UPDATED_EVENT,
+                fetchUnreadCount,
+            );
+    }, [fetchUnreadCount]);
+
     return (
         <AppTemplate title="Monitoring">
-            <Sidebar>
-                <Tab
-                    dst="/apps/monitoring"
-                    icon="fa6-solid:gauge-high"
-                    title="Overview"
-                    isRoot
-                />
+             <Sidebar>
+                 <Tab
+                     dst="/apps/monitoring"
+                     icon="fa6-solid:gauge-high"
+                     title="Overview"
+                     isRoot
+                 />
+                 
+                  <Tab
+                      dst="/apps/monitoring/notifications"
+                      group="notifications"
+                      icon="fa6-solid:bell"
+                      title="Notifications"
+                      isRoot
+                      badge={unreadCount > 0 ? unreadCount : undefined}
+                  />
 
                 <GroupLabel
                     group="Monitors"
@@ -88,6 +127,8 @@ export default function MonitoringRootLayout() {
                         );
                     })()
                 ))}
+
+                
             </Sidebar>
 
             <Content>
