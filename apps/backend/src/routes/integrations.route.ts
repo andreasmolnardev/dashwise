@@ -439,7 +439,7 @@ async function resolveWidgetConsumer(
         }),
         allowInsecureEndpoints: config.ALLOW_SSL,
       }),
-    { cacheContext, isPreview: opts.isPreview },
+    { cacheContext, isPreview: opts.isPreview, cacheConfig },
   );
 
   if (!runtimeData) {
@@ -448,6 +448,8 @@ async function resolveWidgetConsumer(
     });
   }
 
+  const { _fromCache, _stale, ...runtime } = runtimeData;
+
   await persistLocalDataIfChanged(payload.integrationId, cacheContext);
 
   return {
@@ -455,20 +457,20 @@ async function resolveWidgetConsumer(
     key: opts.key,
     integrationId: payload.integrationId,
     input: mergedInput,
-    env: runtimeData.env,
-    data: runtimeData.data,
+    env: runtime.env,
+    data: runtime.data,
     blueprint: {
       template: widgetJSON.template ?? "columns",
       resolved: resolveWidgetProperties({
         widgetJSON,
         integrationJSON,
-        data: runtimeData.data,
+        data: runtime.data,
         isPreview: opts.isPreview,
       }),
       widgetJSON,
     },
     fresh: null,
-    cache: buildCacheMeta(cacheConfig, cacheContext),
+    cache: buildCacheMeta(cacheConfig, cacheContext, _fromCache, _stale),
   };
 }
 
@@ -532,7 +534,7 @@ async function resolveGlanceableConsumer(
           readEnabled: true,
         }),
       }),
-    { cacheContext, isPreview: opts.isPreview },
+    { cacheContext, isPreview: opts.isPreview, cacheConfig },
   );
 
   if (!runtimeData) {
@@ -541,10 +543,12 @@ async function resolveGlanceableConsumer(
     });
   }
 
+  const { _fromCache, _stale, ...runtime } = runtimeData;
+
   await persistLocalDataIfChanged(payload.integrationId, cacheContext);
   const resolvedText = resolveGlanceableTextValue(
     glanceableJSON.text,
-    runtimeData.env,
+    runtime.env,
     typeof glanceableJSON.name === "string" ? glanceableJSON.name : "",
   );
 
@@ -553,15 +557,15 @@ async function resolveGlanceableConsumer(
     key: opts.key,
     integrationId: payload.integrationId,
     input: mergedInput,
-    env: runtimeData.env,
-    data: runtimeData.data,
+    env: runtime.env,
+    data: runtime.data,
     blueprint: {
       text: resolvedText,
-      icon: getGlanceableIconSource(glanceableJSON.icon, runtimeData.env),
+      icon: getGlanceableIconSource(glanceableJSON.icon, runtime.env),
       glanceableJSON,
     },
     fresh: null,
-    cache: buildCacheMeta(cacheConfig, cacheContext),
+    cache: buildCacheMeta(cacheConfig, cacheContext, _fromCache, _stale),
   };
 }
 
@@ -573,25 +577,53 @@ async function resolveFreshRuntime(
   ctx: {
     cacheContext: ReturnType<typeof createIntegrationCacheContext>;
     isPreview: boolean;
+    cacheConfig: IntegrationCacheConfig;
   },
-) {
-  const runtime = await resolve();
-  if (!ctx.isPreview) {
-    ctx.cacheContext.setRuntimeSnapshot(runtime);
+): Promise<
+  { data: Record<string, any> | null; env: Record<string, string> } & {
+    _fromCache: boolean;
+    _stale: boolean;
   }
-  return runtime;
+> {
+  if (!ctx.isPreview) {
+    const snapshot = ctx.cacheContext.getRuntimeSnapshot();
+    if (snapshot) {
+      return { ...snapshot, _fromCache: true, _stale: false };
+    }
+  }
+
+  try {
+    const runtime = await resolve();
+    if (!ctx.isPreview) {
+      ctx.cacheContext.setRuntimeSnapshot(runtime);
+    }
+    return { ...runtime, _fromCache: false, _stale: false };
+  } catch (error) {
+    if (
+      !ctx.isPreview &&
+      ctx.cacheConfig.policy === "cache-first"
+    ) {
+      const stale = ctx.cacheContext.getRuntimeSnapshot(true);
+      if (stale) {
+        return { ...stale, _fromCache: true, _stale: true };
+      }
+    }
+    throw error;
+  }
 }
 
 function buildCacheMeta(
   cacheConfig: IntegrationCacheConfig,
   cacheContext: ReturnType<typeof createIntegrationCacheContext>,
+  fromCache = false,
+  staleReturned = false,
 ) {
   return {
     policy: cacheConfig.policy,
     retentionSeconds: cacheConfig.retentionSeconds,
     stateKey: cacheContext.stateKey,
-    fromCache: false,
-    staleReturned: false,
+    fromCache,
+    staleReturned,
   };
 }
 
@@ -1023,7 +1055,26 @@ function createIntegrationCacheContext(opts: {
     };
   };
 
-  const getRuntimeSnapshot = () => {
+  const getRuntimeSnapshot = (
+    allowStale?: boolean,
+  ): { data: Record<string, any> | null; env: Record<string, string> } | null => {
+    if (allowStale) {
+      const raw = cacheKV[runtimeSnapshotKey];
+      if (!isPlainObject(raw)) return null;
+      const record = raw as CacheRecord;
+      if (!isPlainObject(record.value)) return null;
+      const value = record.value as Record<string, unknown>;
+      const env = isPlainObject(value.env)
+        ? (value.env as Record<string, string>)
+        : null;
+      if (!env) return null;
+      return {
+        env,
+        data: isPlainObject(value.data)
+          ? (value.data as Record<string, any>)
+          : null,
+      };
+    }
     const record = readRecord(runtimeSnapshotKey);
     if (!record || !isPlainObject(record.value)) return null;
     const value = record.value as Record<string, unknown>;
