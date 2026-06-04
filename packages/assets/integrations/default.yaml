@@ -50,6 +50,22 @@ configuration:
           url: "https://www.wikipedia.org"
           min_height: 300
           max_height: 600
+    - name: "Day Progress"
+      key: "day-progress"
+      template: "day-progress"
+      category: "Progress"
+    - name: "Week Progress"
+      key: "week-progress"
+      template: "week-progress"
+      category: "Progress"
+    - name: "Month Progress"
+      key: "month-progress"
+      template: "month-progress"
+      category: "Progress"
+    - name: "Year Progress"
+      key: "year-progress"
+      template: "year-progress"
+      category: "Progress"
   glanceables:
     - name: "Date"
       icon: none
@@ -66,3 +82,19 @@ configuration:
         location: "type:String ??? 'London'"
       icon: none
       text: "${lib.date.time(${properties.timezone})} in ${properties.location}"
+    - name: "Day Progress"
+      key: "day-progress"
+      icon: none
+      text: "Day: 0%"
+    - name: "Week Progress"
+      key: "week-progress"
+      icon: none
+      text: "Week: 0%"
+    - name: "Month Progress"
+      key: "month-progress"
+      icon: none
+      text: "Month: 0%"
+    - name: "Year Progress"
+      key: "year-progress"
+      icon: none
+      text: "Year: 0%"
