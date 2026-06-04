@@ -3,7 +3,7 @@
 import { Link } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
 import useAuth from "@/context/useAuth";
-import { getLinksCollectionsAction } from "@/app/actions/links";
+import { getLinksCollectionsAction } from '@/lib/apiClient';
 
 type LinkCollection = {
     id: string;

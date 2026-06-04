@@ -1,4 +1,5 @@
 import { getSuperuserPB } from "../../pb/pocketbase";
+import { ApiActionError } from "../auth";
 import crypto from "crypto";
 import type { NotificationTopicsResponse, NotificationTopicTokensResponse } from "@dashwise/types";
 
@@ -44,10 +45,15 @@ export async function createTopicToken(userId: string, body: any) {
 
   let topicRecord: NotificationTopicsResponse | null = null;
   if (topicId) {
-    topicRecord = (await pb.collection("notificationTopics").getOne(topicId)) as NotificationTopicsResponse;
-    console.log("Found topic record:", topicRecord);
-    if (!topicRecord || topicRecord.userId !== userId) {
-      throw new Error("Topic not found or not owned by user");
+    try {
+      topicRecord = (await pb.collection("notificationTopics").getOne(topicId)) as NotificationTopicsResponse;
+    } catch (err) {
+      console.warn(`Failed to fetch topic. topicId: ${topicId}, userId: ${userId}`, err);
+      throw new ApiActionError("Topic not found", 404, { error: "Topic not found" });
+    }
+    if (topicRecord.userId !== userId) {
+      console.warn(`Topic record not found or not owned by user. topicId: ${topicId}, userId: ${userId}`);
+      throw new ApiActionError("Topic not found", 404, { error: "Topic not found" });
     }
   } else {
     const safeName = String(topicName).replace(/"/g, '\\"');
@@ -55,10 +61,9 @@ export async function createTopicToken(userId: string, body: any) {
       .collection("notificationTopics")
       .getFullList({ filter: `userId="${userId}" && title="${safeName}"` });
     topicRecord = (topics[0] as NotificationTopicsResponse | undefined) ?? null;
-  }
-
-  if (!topicRecord) {
-    throw new Error("Unable to resolve topic");
+    if (!topicRecord) {
+      throw new ApiActionError("Topic not found", 404, { error: "Topic not found" });
+    }
   }
 
   const rawToken = crypto.randomBytes(48).toString("hex");

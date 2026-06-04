@@ -14,7 +14,7 @@ import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Checkbox } from "../ui/checkbox";
 import TopicCombobox, { type Topic } from "./TopicCombobox";
-import { createForwarderAction } from "@/app/actions/notifications/forwarders";
+import { createForwarderAction } from '@/lib/apiClient';
 export type ForwarderItem = { 
   id: string; 
   topic: { id: string }; 

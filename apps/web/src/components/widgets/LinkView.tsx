@@ -2,11 +2,11 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/context/useAuth";
-import { getMonitoringStatusAction } from "@/app/actions/monitoring";
+import { getMonitoringStatusAction } from '@/lib/apiClient';
 import {
   getHomeLinksAction,
   updateHomeLinkFolderIconAction,
-} from "@/app/actions/links";
+} from '@/lib/apiClient';
 import { PaginatedCarouselViewComponent } from "./PaginatedCarouselView";
 import MonitoringDialog, { JobEntry } from "./MonitoringDialog";
 import type { LinkType } from "@dashwise/types/sdk";
@@ -53,7 +53,7 @@ import {
   useSortable,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { updateLinksOrderAction } from "@/app/actions/links";
+import { updateLinksOrderAction } from '@/lib/apiClient';
 
 const HOME_LINKS_CACHE_KEY = "dashwise_home_links_cache_v1";
 

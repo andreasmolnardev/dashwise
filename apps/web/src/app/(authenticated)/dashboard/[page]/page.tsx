@@ -2,10 +2,10 @@
 import useAuth from "@/context/useAuth";
 import { useParams } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { getPageConfigAction } from "../../../actions/pageConfigs";
+import { getPageConfigAction } from "@/lib/apiClient";
 import PageNotFound from "@/components/errorPages/PageNotFound";
 import DashboardLayoutTemplate from "@/components/dashboard/DashboardLayoutTemplate";
-import type { PageConfig } from "@dashwise/types/sdk/data/pageConfig";
+import type { PageConfig } from "@dashwise/types/sdk";
 
 export default function DashboardPageFromConfig() {
     const params = useParams();

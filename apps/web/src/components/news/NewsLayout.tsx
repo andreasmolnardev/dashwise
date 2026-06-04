@@ -6,7 +6,7 @@ import useAuth from "@/context/useAuth";
 import {
     getNewsFeedsAction,
     getNewsSubscriptionsAction,
-} from "@/app/actions/news";
+} from '@/lib/apiClient';
 import AppTemplate, { Content, GroupLabel, Sidebar, Tab } from "@/components/apps/LayoutTemplate";
 
 interface Subscription {

@@ -9,8 +9,8 @@ import { DialogTitle } from "@radix-ui/react-dialog";
 import { Icon as IconifyIcon } from "@iconify-icon/react";
 import AppIcon from "@dashwise/app-icon";
 import QRCode from "qrcode";
-import { getFrequentlyUsedSearchItemsAction, logSearchItemUsageAction } from "@/app/actions/searchItems";
-import { proxyIntegrationAction } from "@/app/actions/integrations";
+import { getFrequentlyUsedSearchItemsAction, logSearchItemUsageAction } from '@/lib/apiClient';
+import { proxyIntegrationAction } from '@/lib/apiClient';
 
 // --- Types ---
 

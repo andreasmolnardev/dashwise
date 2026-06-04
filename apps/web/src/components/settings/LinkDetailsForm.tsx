@@ -13,7 +13,7 @@ import {
   deleteLinkItemAction,
   getHomeLinkGroupsAction,
   updateHomeLinkItemAction
-} from "@/app/actions/links";
+} from '@/lib/apiClient';
 import {
   Command,
   CommandEmpty,

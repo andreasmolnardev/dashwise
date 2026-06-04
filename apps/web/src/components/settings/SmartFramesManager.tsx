@@ -40,7 +40,7 @@ import {
 } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import useAuth from "@/context/useAuth";
-import { uploadWallpaperAction } from "@/app/actions/wallpapers";
+import { uploadWallpaperAction } from '@/lib/apiClient';
 import { renderWidget } from "../widgets/Widget";
 import { normalizeWallpaperFilters } from "./wallpaperFilterDefaults";
 

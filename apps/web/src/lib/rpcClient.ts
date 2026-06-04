@@ -1,5 +1,5 @@
 import { hc } from "hono/client";
-import type { ActionAuth } from "@dashwise/types/sdk/data/auth";
+import type { ActionAuth } from "@dashwise/types/sdk";
 
 import { backendUrl } from "@/lib/apiClient";
 

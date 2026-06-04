@@ -8,8 +8,8 @@ import {
     deleteMonitorAction,
     getMonitorAction,
     updateMonitoringStatusAction,
-} from "@/app/actions/monitoring";
-import type { MonitorPing, MonitorRecord } from "@dashwise/types/sdk/data/monitoring";
+} from '@/lib/apiClient';
+import type { MonitorPing, MonitorRecord } from "@dashwise/types/sdk";
 import { Button } from "@/components/ui/button";
 import {
     DropdownMenu,

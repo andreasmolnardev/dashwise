@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import ThemeSelectComponent from "@/components/settings/ThemeSelect";
 import UploadWallpaperDialogComponent from "@/components/settings/UploadWallpaperDialog";
 import UrlWallpaperDialogComponent from "@/components/settings/UrlWallpaperDialog";
-import { updatePageConfigAction } from "@/app/actions/pageConfigs";
+import { updatePageConfigAction } from '@/lib/apiClient';
 
 type TimeFormatValue = "24-hour" | "12-hour";
 

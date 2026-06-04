@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import useAuth from "@/context/useAuth";
 import CommandBar from './CommandBar';
-import { getSearchItemsAction } from '@/app/actions/searchItems';
+import { getSearchItemsAction } from '@/lib/apiClient';
 
 type SearchBarProps = {
   useRedirect: boolean;

@@ -13,7 +13,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
 import { Button } from "../ui/button";
-import { createTopicTokenAction } from "@/app/actions/notifications/topicTokens";
+import { createTopicTokenAction } from '@/lib/apiClient';
 import TopicCombobox, { type Topic } from "./TopicCombobox";
 
 type NewTokenDialogProps = {

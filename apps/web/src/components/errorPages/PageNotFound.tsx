@@ -2,7 +2,7 @@
 
 import React from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { createHomePageAction } from "@/app/actions/pageConfigs";
+import { createHomePageAction } from '@/lib/apiClient';
 import useAuth from "@/context/useAuth";
 import {
 	Card,

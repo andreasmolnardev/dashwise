@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import useAuth from "@/context/useAuth";
-import { getHomeLinksAction, getLinksCollectionsAction, getLinksItemsAction } from "@/app/actions/links";
+import { getHomeLinksAction, getLinksCollectionsAction, getLinksItemsAction } from '@/lib/apiClient';
 
 export type MonitoringLinkLookupEntry = {
   id: string;

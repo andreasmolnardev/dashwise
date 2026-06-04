@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "../ui/button";
-import { createNotificationTopicAction } from "@/app/actions/notifications/items";
+import { createNotificationTopicAction } from '@/lib/apiClient';
 
 export type Topic = { id: string; title: string };
 

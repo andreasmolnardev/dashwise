@@ -1,9 +1,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePageConfig } from "@/hooks/usePageConfig";
-import { updatePageConfigAction } from "@/app/actions/pageConfigs";
-import { getConsumerDataAction } from "@/app/actions/integrations";
-import { getUserGlanceableAction, getUserWidgetsAction } from "@/app/actions/widgets";
+import { updatePageConfigAction } from '@/lib/apiClient';
+import { getConsumerDataAction } from '@/lib/apiClient';
+import { getUserGlanceableAction, getUserWidgetsAction } from '@/lib/apiClient';
 import { updatePageIntegrationConsumerCache } from "@/lib/pageIntegrationDataCache";
 import useAuth from "@/context/useAuth";
 import { PageSelectTabs } from "@/components/settings/pages/PageSelectTabs";

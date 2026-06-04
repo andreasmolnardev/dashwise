@@ -4,8 +4,8 @@ import useAuth from "@/context/useAuth";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import AppIcon from "@dashwise/app-icon";
-import { migrateLegacyPageConfigAction } from "@/app/actions/pageConfigs";
-import { fixMissingTitlesAction } from "@/app/actions/news";
+import { migrateLegacyPageConfigAction } from '@/lib/apiClient';
+import { fixMissingTitlesAction } from '@/lib/apiClient';
 
 export default function MigratePage() {
   const [loading, setLoading] = useState(false);

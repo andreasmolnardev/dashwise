@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { EnvDefinition } from "@/lib/integrations/types";
-import { getIntegrationsAction } from "@/app/actions/integrations";
+import { getIntegrationsAction } from '@/lib/apiClient';
 import useAuth from "@/context/useAuth";
 
 const dateFormatter = new Intl.DateTimeFormat(undefined, {

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import AppTemplate, { GroupLabel, Sidebar, Tab, Content } from "@/components/apps/LayoutTemplate";
 import useAuth from "@/context/useAuth";
-import { getLinksCollectionsAction, getLinksTagsAction } from "@/app/actions/links";
+import { getLinksCollectionsAction, getLinksTagsAction } from '@/lib/apiClient';
 import CreateLinksCollectionDialog from "@/components/links/CreateLinksCollectionDialog";
 import CreateLinksTagDialog from "@/components/links/CreateLinksTagDialog";
 

@@ -66,6 +66,8 @@ paths:
       tags:
         - auth
       summary: Delete account
+      requestBody:
+        $ref: "#/components/requestBodies/JsonBody"
       responses:
         "200":
           $ref: "#/components/responses/JsonOk"
@@ -146,6 +148,17 @@ paths:
       tags:
         - integrations
       summary: List integrations
+      parameters:
+        - name: id
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: resolveEndpoints
+          in: query
+          required: false
+          schema:
+            type: boolean
       responses:
         "200":
           $ref: "#/components/responses/JsonOk"
@@ -173,6 +186,12 @@ paths:
       tags:
         - integrations
       summary: Get widget properties
+      parameters:
+        - name: widgetSlug
+          in: query
+          required: false
+          schema:
+            type: string
       responses:
         "200":
           $ref: "#/components/responses/JsonOk"
@@ -223,6 +242,12 @@ paths:
       tags:
         - links
       summary: Get link folders
+      parameters:
+        - name: listId
+          in: query
+          required: false
+          schema:
+            type: string
       responses:
         "200":
           $ref: "#/components/responses/JsonOk"
@@ -240,6 +265,17 @@ paths:
       tags:
         - links
       summary: Get link items
+      parameters:
+        - name: listId
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: folderId
+          in: query
+          required: false
+          schema:
+            type: string
       responses:
         "200":
           $ref: "#/components/responses/JsonOk"
@@ -323,6 +359,12 @@ paths:
       tags:
         - locations
       summary: Get locations
+      parameters:
+        - name: q
+          in: query
+          required: false
+          schema:
+            type: string
       responses:
         "200":
           $ref: "#/components/responses/JsonOk"
@@ -331,6 +373,12 @@ paths:
       tags:
         - monitoring
       summary: Get monitoring status
+      parameters:
+        - name: jobId
+          in: query
+          required: false
+          schema:
+            type: string
       responses:
         "200":
           $ref: "#/components/responses/JsonOk"
@@ -425,6 +473,17 @@ paths:
       tags:
         - notifications
       summary: Get notifications
+      parameters:
+        - name: unread
+          in: query
+          required: false
+          schema:
+            type: boolean
+        - name: count
+          in: query
+          required: false
+          schema:
+            type: boolean
       responses:
         "200":
           $ref: "#/components/responses/JsonOk"
@@ -469,6 +528,8 @@ paths:
       tags:
         - notifications
       summary: Delete forwarder
+      requestBody:
+        $ref: "#/components/requestBodies/JsonBody"
       responses:
         "200":
           $ref: "#/components/responses/JsonOk"
@@ -545,6 +606,8 @@ paths:
       tags:
         - notifications
       summary: Delete topic token
+      requestBody:
+        $ref: "#/components/requestBodies/JsonBody"
       responses:
         "200":
           $ref: "#/components/responses/JsonOk"
@@ -561,6 +624,12 @@ paths:
       tags:
         - pageConfig
       summary: Get page config
+      parameters:
+        - name: pageName
+          in: query
+          required: false
+          schema:
+            type: string
       responses:
         "200":
           $ref: "#/components/responses/JsonOk"
@@ -679,20 +748,20 @@ paths:
         - pageConfig
       summary: Create home page
       requestBody:
-        "": "#/components/requestBodies/JsonBody"
+        $ref: "#/components/requestBodies/JsonBody"
       responses:
         "200":
-          "": "#/components/responses/JsonOk"
+          $ref: "#/components/responses/JsonOk"
   /pageConfig/migrate-legacy:
     post:
       tags:
         - pageConfig
       summary: Migrate legacy page config
       requestBody:
-        "": "#/components/requestBodies/JsonBody"
+        $ref: "#/components/requestBodies/JsonBody"
       responses:
         "200":
-          "": "#/components/responses/JsonOk"
+          $ref: "#/components/responses/JsonOk"
   /pageConfig/integrationData:
     post:
       tags:
@@ -705,10 +774,10 @@ paths:
           schema:
             type: string
       requestBody:
-        "": "#/components/requestBodies/JsonBody"
+        $ref: "#/components/requestBodies/JsonBody"
       responses:
         "200":
-          "": "#/components/responses/JsonOk"
+          $ref: "#/components/responses/JsonOk"
   /links/collections/{collectionId}:
     put:
       tags:
@@ -721,10 +790,10 @@ paths:
           schema:
             type: string
       requestBody:
-        "": "#/components/requestBodies/JsonBody"
+        $ref: "#/components/requestBodies/JsonBody"
       responses:
         "200":
-          "": "#/components/responses/JsonOk"
+          $ref: "#/components/responses/JsonOk"
   /links/folders/{folderId}/icon:
     put:
       tags:
@@ -737,10 +806,10 @@ paths:
           schema:
             type: string
       requestBody:
-        "": "#/components/requestBodies/JsonBody"
+        $ref: "#/components/requestBodies/JsonBody"
       responses:
         "200":
-          "": "#/components/responses/JsonOk"
+          $ref: "#/components/responses/JsonOk"
   /links/tags/{tagId}:
     put:
       tags:
@@ -753,20 +822,20 @@ paths:
           schema:
             type: string
       requestBody:
-        "": "#/components/requestBodies/JsonBody"
+        $ref: "#/components/requestBodies/JsonBody"
       responses:
         "200":
-          "": "#/components/responses/JsonOk"
+          $ref: "#/components/responses/JsonOk"
   /links/reorder:
     post:
       tags:
         - links
       summary: Reorder links
       requestBody:
-        "": "#/components/requestBodies/JsonBody"
+        $ref: "#/components/requestBodies/JsonBody"
       responses:
         "200":
-          "": "#/components/responses/JsonOk"
+          $ref: "#/components/responses/JsonOk"
   /glanceables:
     get:
       tags:
@@ -774,7 +843,7 @@ paths:
       summary: List user glanceables
       responses:
         "200":
-          "": "#/components/responses/JsonOk"
+          $ref: "#/components/responses/JsonOk"
   /widgets/by-integration:
     get:
       tags:
@@ -788,7 +857,7 @@ paths:
             type: string
       responses:
         "200":
-          "": "#/components/responses/JsonOk"
+          $ref: "#/components/responses/JsonOk"
   /glanceables/by-integration:
     get:
       tags:
@@ -802,7 +871,7 @@ paths:
             type: string
       responses:
         "200":
-          "": "#/components/responses/JsonOk"
+          $ref: "#/components/responses/JsonOk"
   /integrations/{id}:
     put:
       tags:
@@ -815,10 +884,10 @@ paths:
           schema:
             type: string
       requestBody:
-        "": "#/components/requestBodies/JsonBody"
+        $ref: "#/components/requestBodies/JsonBody"
       responses:
         "200":
-          "": "#/components/responses/JsonOk"
+          $ref: "#/components/responses/JsonOk"
     delete:
       tags:
         - integrations
@@ -831,17 +900,17 @@ paths:
             type: string
       responses:
         "200":
-          "": "#/components/responses/JsonOk"
+          $ref: "#/components/responses/JsonOk"
   /integrations/consumerData:
     post:
       tags:
         - integrations
       summary: Get integration consumer data
       requestBody:
-        "": "#/components/requestBodies/JsonBody"
+        $ref: "#/components/requestBodies/JsonBody"
       responses:
         "200":
-          "": "#/components/responses/JsonOk"
+          $ref: "#/components/responses/JsonOk"
     get:
       tags:
         - integrations
@@ -878,17 +947,17 @@ paths:
             type: string
       responses:
         "200":
-          "": "#/components/responses/JsonOk"
+          $ref: "#/components/responses/JsonOk"
   /integrations/proxyAction:
     post:
       tags:
         - integrations
       summary: Proxy integration action
       requestBody:
-        "": "#/components/requestBodies/JsonBody"
+        $ref: "#/components/requestBodies/JsonBody"
       responses:
         "200":
-          "": "#/components/responses/JsonOk"
+          $ref: "#/components/responses/JsonOk"
   /monitors:
     get:
       tags:
@@ -896,16 +965,16 @@ paths:
       summary: List monitors
       responses:
         "200":
-          "": "#/components/responses/JsonOk"
+          $ref: "#/components/responses/JsonOk"
     post:
       tags:
         - monitoring
       summary: Create monitor
       requestBody:
-        "": "#/components/requestBodies/JsonBody"
+        $ref: "#/components/requestBodies/JsonBody"
       responses:
         "200":
-          "": "#/components/responses/JsonOk"
+          $ref: "#/components/responses/JsonOk"
   /monitors/{id}:
     get:
       tags:
@@ -919,7 +988,7 @@ paths:
             type: string
       responses:
         "200":
-          "": "#/components/responses/JsonOk"
+          $ref: "#/components/responses/JsonOk"
     put:
       tags:
         - monitoring
@@ -931,10 +1000,10 @@ paths:
           schema:
             type: string
       requestBody:
-        "": "#/components/requestBodies/JsonBody"
+        $ref: "#/components/requestBodies/JsonBody"
       responses:
         "200":
-          "": "#/components/responses/JsonOk"
+          $ref: "#/components/responses/JsonOk"
     delete:
       tags:
         - monitoring
@@ -947,7 +1016,7 @@ paths:
             type: string
       responses:
         "200":
-          "": "#/components/responses/JsonOk"
+          $ref: "#/components/responses/JsonOk"
   /news/feeds/{id}:
     get:
       tags:
@@ -961,7 +1030,7 @@ paths:
             type: string
       responses:
         "200":
-          "": "#/components/responses/JsonOk"
+          $ref: "#/components/responses/JsonOk"
   /news/feed-records/{id}:
     get:
       tags:
@@ -975,7 +1044,7 @@ paths:
             type: string
       responses:
         "200":
-          "": "#/components/responses/JsonOk"
+          $ref: "#/components/responses/JsonOk"
     post:
       tags:
         - news
@@ -987,20 +1056,20 @@ paths:
           schema:
             type: string
       requestBody:
-        "": "#/components/requestBodies/JsonBody"
+        $ref: "#/components/requestBodies/JsonBody"
       responses:
         "200":
-          "": "#/components/responses/JsonOk"
+          $ref: "#/components/responses/JsonOk"
   /news/feed-records:
     post:
       tags:
         - news
       summary: Create news feed record
       requestBody:
-        "": "#/components/requestBodies/JsonBody"
+        $ref: "#/components/requestBodies/JsonBody"
       responses:
         "200":
-          "": "#/components/responses/JsonOk"
+          $ref: "#/components/responses/JsonOk"
   /news/feed-metadata:
     get:
       tags:
@@ -1014,7 +1083,7 @@ paths:
             type: string
       responses:
         "200":
-          "": "#/components/responses/JsonOk"
+          $ref: "#/components/responses/JsonOk"
   /news/subscriptions:
     get:
       tags:
@@ -1022,7 +1091,7 @@ paths:
       summary: List news subscriptions
       responses:
         "200":
-          "": "#/components/responses/JsonOk"
+          $ref: "#/components/responses/JsonOk"
   /news/feeds:
     get:
       tags:
@@ -1030,7 +1099,7 @@ paths:
       summary: List news feeds
       responses:
         "200":
-          "": "#/components/responses/JsonOk"
+          $ref: "#/components/responses/JsonOk"
   /news/fix-missing-titles:
     post:
       tags:
@@ -1038,17 +1107,17 @@ paths:
       summary: Fix missing news titles
       responses:
         "200":
-          "": "#/components/responses/JsonOk"
+          $ref: "#/components/responses/JsonOk"
   /notifications/test:
     post:
       tags:
         - notifications
       summary: Send test notification
       requestBody:
-        "": "#/components/requestBodies/JsonBody"
+        $ref: "#/components/requestBodies/JsonBody"
       responses:
         "200":
-          "": "#/components/responses/JsonOk"
+          $ref: "#/components/responses/JsonOk"
   /searchItems/frequentlyUsed:
     get:
       tags:
@@ -1056,17 +1125,17 @@ paths:
       summary: List frequently used search items
       responses:
         "200":
-          "": "#/components/responses/JsonOk"
+          $ref: "#/components/responses/JsonOk"
   /searchItems/usageStats:
     post:
       tags:
         - search
       summary: Log search item usage
       requestBody:
-        "": "#/components/requestBodies/JsonBody"
+        $ref: "#/components/requestBodies/JsonBody"
       responses:
         "200":
-          "": "#/components/responses/JsonOk"
+          $ref: "#/components/responses/JsonOk"
 components:
   schemas:
     GenericObject:

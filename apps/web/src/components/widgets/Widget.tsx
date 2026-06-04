@@ -25,7 +25,7 @@ import useAuth from "@/context/useAuth";
 import {
   getConsumerDataAction,
   getIntegrationCalendarEventsAction,
-} from "@/app/actions/integrations";
+} from '@/lib/apiClient';
 
 export type WidgetProps = {
   type: string;

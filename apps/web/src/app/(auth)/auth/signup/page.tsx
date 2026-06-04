@@ -1,5 +1,5 @@
 import SignupCard from "@/components/auth/SignupForm";
-import { getAppInfoAction } from "@/app/actions/app";
+import { getAppInfoAction } from '@/lib/apiClient';
 import config from "@/lib/config";
 import { useEffect, useState } from "react";
 

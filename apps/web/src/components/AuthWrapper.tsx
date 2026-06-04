@@ -1,7 +1,7 @@
 "use client";
 import { ReactNode, useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { validateAuthTokenAction } from "@/app/actions/auth";
+import { validateAuthTokenAction } from '@/lib/apiClient';
 import useAuth from "@/context/useAuth";
 import { cn } from "@/lib/utils";
 import { fetchWallpaperBlob } from "@/lib/apiClient";

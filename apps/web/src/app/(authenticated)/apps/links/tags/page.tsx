@@ -3,7 +3,7 @@
 import { Link } from "react-router-dom";
 import { useEffect, useState } from "react";
 import useAuth from "@/context/useAuth";
-import { getLinksTagsAction } from "@/app/actions/links";
+import { getLinksTagsAction } from '@/lib/apiClient';
 
 type LinkTag = {
     id: string;

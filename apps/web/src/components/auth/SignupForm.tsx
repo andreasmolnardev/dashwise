@@ -2,8 +2,8 @@
 
 import { Link, useNavigate } from "react-router-dom"
 import { useEffect, useState } from "react"
-import { getAppConfigAction } from "@/app/actions/app";
-import { signupUserAction, validateAuthTokenAction } from "@/app/actions/auth";
+import { getAppConfigAction } from '@/lib/apiClient';
+import { signupUserAction, validateAuthTokenAction } from '@/lib/apiClient';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"

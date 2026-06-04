@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from "react";
 import useAuth from "@/context/useAuth";
-import type { MonitorRecord } from "@dashwise/types/sdk/data/monitoring";
-import { updateMonitorAction } from "@/app/actions/monitoring";
-import { getNotificationTopicsAction, createNotificationTopicAction, sendTestNotificationAction } from "@/app/actions/notifications/items";
+import type { MonitorRecord } from "@dashwise/types/sdk";
+import { updateMonitorAction } from '@/lib/apiClient';
+import { getNotificationTopicsAction, createNotificationTopicAction, sendTestNotificationAction } from '@/lib/apiClient';
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {

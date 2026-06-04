@@ -28,9 +28,9 @@ import {
     getNotificationsAction,
     getNotificationTopicsAction,
     markNotificationsAsReadAction,
-} from "@/app/actions/notifications/items";
-import { getForwardersAction } from "@/app/actions/notifications/forwarders";
-import { listTopicTokensAction } from "@/app/actions/notifications/topicTokens";
+} from '@/lib/apiClient';
+import { getForwardersAction } from '@/lib/apiClient';
+import { listTopicTokensAction } from '@/lib/apiClient';
 import CreateForwarderDialogComponent from "@/components/notifications/CreateForwarderDialog";
 import CreateTopicTokenDialogComponent from "@/components/notifications/CreateTopicTokenDialog";
 import useAuth from "@/context/useAuth";

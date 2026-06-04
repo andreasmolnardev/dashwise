@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import useAuth from "@/context/useAuth";
-import { updateMonitorAction, type MonitorRecord } from "@/app/actions/monitoring";
+import { updateMonitorAction, type MonitorRecord } from '@/lib/apiClient';
 import { Button } from "@/components/ui/button";
 import {
   Dialog,

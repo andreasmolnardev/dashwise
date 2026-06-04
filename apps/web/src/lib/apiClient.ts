@@ -1,41 +1,42 @@
-import createClient from "openapi-fetch";
-import type { paths } from "@dashwise/api-types";
-import type { ActionAuth } from "@dashwise/types/sdk/data/auth";
+import type { ActionAuth, AuthUserRecord, UserPropertyValue } from "@dashwise/types/sdk";
+export type { MonitorRecord } from "@dashwise/types/sdk";
+import type {
+  NewsFeedDraft,
+  NewsFeedItem,
+  NewsFeedMetadata,
+  NewsFeedRecord,
+  NewsFeedRecordCreateInput,
+  NewsFeedRecordUpdateInput,
+  NewsFeedsResponse,
+  NewsSubscribeInput,
+  NewsSubscriptionsResponse,
+  NewsUpdateInput,
+} from "@dashwise/types/sdk";
+import type { PageConfig } from "@dashwise/types/sdk";
 import config from "@/lib/config";
+import { client } from "./api/client.gen";
+import * as sdk from "./api/sdk.gen";
 
-const apiBasePath = "/api/v1";
-const apiClient = createClient<paths>({
-  baseUrl: (config.backend_url ?? "").replace(/\/+$/, "") + apiBasePath,
-});
-
-type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
-
-type RouteConfig = {
-  method: HttpMethod;
-  path: keyof paths;
-  auth?: (input: any) => string | null;
-  query?: (input: any) => Record<string, unknown>;
-  body?: (input: any) => unknown;
-  params?: (input: any) => { path?: Record<string, string> };
-};
+const { getAppConfig, getAppInfo, postAuthLogin, postAuthChangePassword, postAuthSignup, postAuthValidateAuth, deleteAuthDeleteAccount, patchAuthUpdateUserProperty, getLinksCollections, postLinksCollections, putLinksCollectionsByCollectionId, postLinksTags, putLinksTagsByTagId, getLinksHomeGroups, postLinksHomeGroups, putLinksFoldersByFolderIdIcon, getLinksHome, getLinksFolders, postLinksFolders, getLinksItems, getLinksTags, postLinksItems, putLinksItemsByLinkId, deleteLinksItemsByLinkId, postLinksReorder, getIntegrations, postIntegrations, putIntegrationsById, deleteIntegrationsById, postIntegrationsTestEndpoint, getIntegrationsWidgetProperties, getWidgetsByIntegration, postIntegrationsConsumerData, getIntegrationsCaldavEvents, postIntegrationsProxyAction, getWidgets, getGlanceables, getGlanceablesByIntegration, getMonitoringStatus, postMonitoringStatus, getMonitors, getMonitorsById, putMonitorsById, postMonitors, deleteMonitorsById, getNewsFeedsById, getNewsFeedRecordsById, postNewsFeedRecords, getNewsSubscriptions, getNewsFeeds, getNewsFeedMetadata, postNewsFeedRefresh, postNewsFeedSubscribe, postNewsFeedUnsubscribe, postNewsFeedUpdate, postNewsFeedRecordsById, postNewsFixMissingTitles, getPageConfig, getPageConfigUserPages, putPageConfig, postPageConfigHome, postPageConfigMigrateLegacy, postPageConfigIntegrationData, getSearchItems, getSearchItemsFrequentlyUsed, postSearchItemsUsageStats, getLocations, getJobsPullIcons, postWallpapers, getNotifications, getNotificationsTopics, postNotificationsTopics, deleteNotificationsTopics, postNotificationsMarkAsRead, postNotificationsTest, getNotificationsTopicTokens, postNotificationsTopicTokens, deleteNotificationsTopicTokens, getNotificationsForwarders, postNotificationsForwarders, putNotificationsForwarders, deleteNotificationsForwarders } = sdk;
+export * from "./api/sdk.gen";
+export type { GenericObject, Error } from "./api/types.gen";
 
 function getBaseUrl() {
   if (config.backend_url) return config.backend_url;
   return typeof window !== "undefined" ? window.location.origin : "";
 }
 
+const apiBasePath = "/api/v1";
+client.setConfig({
+  baseUrl: (getBaseUrl() ?? "").replace(/\/+$/, "") + apiBasePath,
+});
+
 export function backendUrl(path: string) {
   return new URL(path.replace(/^\/+/, ""), getBaseUrl()).toString();
 }
 
-function compactRecord<T extends Record<string, unknown>>(record: T) {
-  return Object.fromEntries(
-    Object.entries(record).filter(([, value]) => value !== undefined),
-  ) as Partial<T>;
-}
-
-function authToken(input: ActionAuth | null | undefined) {
-  return input?.token ?? null;
+export function authHeaders(auth?: ActionAuth | null): Record<string, string> | undefined {
+  return auth?.token ? { Authorization: `Bearer ${auth.token}` } : undefined;
 }
 
 function stringifyError(error: unknown) {
@@ -48,60 +49,15 @@ function stringifyError(error: unknown) {
   return "Request failed";
 }
 
-async function requestRoute<T = unknown>(route: RouteConfig, input?: any): Promise<T> {
-  const options: any = {};
-
-  const token = route.auth?.(input);
-  if (token) {
-    options.headers = {
-      ...(options.headers ?? {}),
-      Authorization: `Bearer ${token}`,
-    };
-  }
-
-  if (route.params) {
-    options.params = route.params(input);
-  }
-
-  if (route.query) {
-    options.params = {
-      ...(options.params ?? {}),
-      query: compactRecord(route.query(input)),
-    };
-  }
-
-  if (route.method !== "GET") {
-    options.body = route.body ? route.body(input) : input;
-  }
-
-  let response: any;
-  switch (route.method) {
-    case "GET":
-      response = await apiClient.GET(route.path as any, options);
-      break;
-    case "POST":
-      response = await apiClient.POST(route.path as any, options);
-      break;
-    case "PUT":
-      response = await apiClient.PUT(route.path as any, options);
-      break;
-    case "PATCH":
-      response = await apiClient.PATCH(route.path as any, options);
-      break;
-    case "DELETE":
-      response = await apiClient.DELETE(route.path as any, options);
-      break;
-  }
-
-  if (response?.error) {
-    throw new Error(stringifyError(response.error));
-  }
-
-  return response?.data as T;
-}
-
 function isWallpaperApiUrl(url: URL) {
   return url.pathname === "/api/v1/wallpapers" || url.pathname.endsWith("/api/v1/wallpapers");
+}
+
+export async function extractData<T>(result: { data?: T; error?: unknown }): Promise<T> {
+  if (result?.error) {
+    throw new Error(stringifyError(result.error));
+  }
+  return result?.data as T;
 }
 
 export async function fetchWallpaperBlob(imageUrl: string, token?: string): Promise<Blob> {
@@ -120,12 +76,14 @@ export async function fetchWallpaperBlob(imageUrl: string, token?: string): Prom
   }
 
   const query = Object.fromEntries(url.searchParams.entries());
-  const response = await apiClient.GET("/wallpapers" as any, {
+  const result = await client.get({
+    url: "/wallpapers",
     headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-    params: { query } as any,
+    query,
     parseAs: "blob",
-  } as any);
+  });
 
+  const response = result as { data?: Blob; error?: unknown };
   if (response?.error) {
     throw new Error(stringifyError(response.error));
   }
@@ -133,498 +91,435 @@ export async function fetchWallpaperBlob(imageUrl: string, token?: string): Prom
   return response.data as Blob;
 }
 
-function getRoute(modulePath: string, actionName: string) {
-  const route = routes[`${modulePath}.${actionName}`];
+// --- App actions ---
 
-  if (!route) {
-    throw new Error(`Unsupported API action: ${modulePath}.${actionName}`);
-  }
-
-  return route;
+export async function getAppConfigAction() {
+  return extractData(await getAppConfig());
 }
 
-const routes: Record<string, RouteConfig> = {
-  "app.getAppConfigAction": { method: "GET", path: "/appConfig" },
-  "app.getAppInfoAction": { method: "GET", path: "/appInfo" },
+export async function getAppInfoAction(_auth?: { token?: string | null }) {
+  return extractData(await getAppInfo());
+}
 
-  "auth.changePasswordAction": {
-    method: "POST",
-    path: "/auth/change-password",
-    body: (input) => input,
-  },
-  "auth.loginUserAction": {
-    method: "POST",
-    path: "/auth/login",
-    body: (input) => input,
-  },
-  "auth.signupUserAction": {
-    method: "POST",
-    path: "/auth/signup",
-    body: (input) => input,
-  },
-  "auth.validateAuthTokenAction": {
-    method: "POST",
-    path: "/auth/validate-auth",
-    body: (input) => input,
-  },
-  "auth.deleteAccountAction": {
-    method: "DELETE",
-    path: "/auth/delete-account",
-    body: (input) => input,
-  },
-  "auth.updateUserPropertyAction": {
-    method: "PATCH",
-    path: "/auth/update-user-property",
-    body: (input) => input,
-  },
+// --- Auth actions ---
 
-  "pageConfig.getPageConfigAction": {
-    method: "GET",
-    path: "/pageConfig",
-    auth: (input) => authToken(input?.auth),
-    query: (input) => ({ pageName: input?.pageName }),
-  },
-  "pageConfig.getUserPagesAction": {
-    method: "GET",
-    path: "/pageConfig/user-pages",
-    auth: (input) => authToken(input),
-  },
-  "pageConfig.createHomePageAction": {
-    method: "POST",
-    path: "/pageConfig/home",
-    body: (input) => input,
-  },
-  "pageConfig.migrateLegacyAction": {
-    method: "POST",
-    path: "/pageConfig/migrate-legacy",
-    auth: (input) => authToken(input?.auth),
-    body: (input) => input,
-  },
-  "pageConfig.updatePageConfigAction": {
-    method: "PUT",
-    path: "/pageConfig",
-    body: (input) => input,
-  },
-  "pageConfig.getPageIntegrationDataAction": {
-    method: "POST",
-    path: "/pageConfig/integrationData",
-    auth: (input) => authToken(input?.auth),
-    query: (input) => ({ page: input?.pageName }),
-    body: () => undefined,
-  },
-
-  "links.getLinksCollectionsAction": {
-    method: "GET",
-    path: "/links/collections",
-    auth: (input) => authToken(input),
-  },
-  "links.createLinksCollectionAction": {
-    method: "POST",
-    path: "/links/collections",
-    body: (input) => input,
-  },
-  "links.updateLinksCollectionAction": {
-    method: "PUT",
-    path: "/links/collections/{collectionId}",
-    params: (input) => ({ path: { collectionId: String(input?.collectionId ?? "") } }),
-    body: (input) => ({ auth: input?.auth, data: input?.data }),
-  },
-  "links.getHomeLinkGroupsAction": {
-    method: "GET",
-    path: "/links/home/groups",
-    auth: (input) => authToken(input),
-  },
-  "links.createHomeLinkGroupAction": {
-    method: "POST",
-    path: "/links/home/groups",
-    body: (input) => input,
-  },
-  "links.updateHomeLinkFolderIconAction": {
-    method: "PUT",
-    path: "/links/folders/{folderId}/icon",
-    params: (input) => ({ path: { folderId: String(input?.folderId ?? "") } }),
-    body: (input) => ({ auth: input?.auth, data: input?.data }),
-  },
-  "links.getHomeLinksAction": {
-    method: "GET",
-    path: "/links/home",
-    auth: (input) => authToken(input),
-  },
-  "links.getLinksFoldersAction": {
-    method: "GET",
-    path: "/links/folders",
-    auth: (input) => authToken(input?.auth),
-    query: (input) => ({ listId: input?.listId }),
-  },
-  "links.createLinksFolderAction": {
-    method: "POST",
-    path: "/links/folders",
-    body: (input) => input,
-  },
-  "links.getLinksItemsAction": {
-    method: "GET",
-    path: "/links/items",
-    auth: (input) => authToken(input?.auth),
-    query: (input) => ({ listId: input?.listId, folderId: input?.folderId }),
-  },
-  "links.getLinksTagsAction": {
-    method: "GET",
-    path: "/links/tags",
-    auth: (input) => authToken(input),
-  },
-  "links.createLinksTagAction": {
-    method: "POST",
-    path: "/links/tags",
-    body: (input) => input,
-  },
-  "links.updateLinksTagAction": {
-    method: "PUT",
-    path: "/links/tags/{tagId}",
-    params: (input) => ({ path: { tagId: String(input?.tagId ?? "") } }),
-    body: (input) => ({ auth: input?.auth, data: input?.data }),
-  },
-  "links.createLinkItemAction": {
-    method: "POST",
-    path: "/links/items",
-    body: (input) => input,
-  },
-  "links.updateHomeLinkItemAction": {
-    method: "PUT",
-    path: "/links/items/{linkId}",
-    params: (input) => ({ path: { linkId: String(input?.linkId ?? "") } }),
-    body: (input) => ({ auth: input?.auth, data: input?.data }),
-  },
-  "links.deleteLinkItemAction": {
-    method: "DELETE",
-    path: "/links/items/{linkId}",
-    params: (input) => ({ path: { linkId: String(input?.linkId ?? "") } }),
-    body: (input) => ({ auth: input?.auth }),
-  },
-  "links.updateLinksOrderAction": {
-    method: "POST",
-    path: "/links/reorder",
-    body: (input) => input,
-  },
-
-  "widgets.getUserWidgetsAction": {
-    method: "GET",
-    path: "/widgets",
-    auth: (input) => authToken(input),
-  },
-  "widgets.getUserGlanceableAction": {
-    method: "GET",
-    path: "/widgets/glanceable",
-    auth: (input) => authToken(input),
-  },
-  "widgets.getUserGlanceablesAction": {
-    method: "GET",
-    path: "/widgets/glanceables",
-    auth: (input) => authToken(input),
-  },
-  "glanceables.getUserGlanceablesAction": {
-    method: "GET",
-    path: "/glanceables",
-    auth: (input) => authToken(input),
-  },
-  "widgets.getIntegrationWithWidgetAction": {
-    method: "GET",
-    path: "/widgets/by-integration",
-    auth: (input) => authToken(input?.auth),
-    query: (input) => ({ widgetKey: input?.widgetKey }),
-  },
-  "glanceables.getIntegrationWithGlanceableAction": {
-    method: "GET",
-    path: "/glanceables/by-integration",
-    auth: (input) => authToken(input?.auth),
-    query: (input) => ({ glanceableType: input?.glanceableType }),
-  },
-
-  "integrations.getIntegrationsAction": {
-    method: "GET",
-    path: "/integrations",
-    auth: (input) => authToken(input?.auth),
-    query: (input) => ({
-      id: input?.options?.id,
-      resolveEndpoints: input?.options?.resolveEndpoints,
-    }),
-  },
-  "integrations.createIntegrationAction": {
-    method: "POST",
-    path: "/integrations",
-    body: (input) => input,
-  },
-  "integrations.updateIntegrationAction": {
-    method: "PUT",
-    path: "/integrations/{id}",
-    params: (input) => ({ path: { id: String(input?.id ?? "") } }),
-    body: (input) => input,
-  },
-  "integrations.deleteIntegrationAction": {
-    method: "DELETE",
-    path: "/integrations/{id}",
-    auth: (input) => authToken(input?.auth),
-    params: (input) => ({ path: { id: String(input?.id ?? "") } }),
-  },
-
-  "integrations.testIntegrationEndpointAction": {
-    method: "POST",
-    path: "/integrations/test-endpoint",
-    body: (input) => input,
-  },
-  "integrations.getWidgetPropertiesAction": {
-    method: "GET",
-    path: "/integrations/widget-properties",
-    auth: (input) => authToken(input?.auth),
-    query: (input) => ({ widgetSlug: input?.widgetSlug }),
-  },
-  "integrations.getConsumerDataAction": {
-    method: "POST",
-    path: "/integrations/consumerData",
-    auth: (input) => authToken(input?.auth),
-    body: (input) => ({
-      key: input?.key,
-      type: input?.type,
-      properties: input?.properties,
-      isPreview: input?.isPreview,
-      environmentOverrides: input?.environmentOverrides,
-    }),
-  },
-  "integrations.getIntegrationCalendarEventsAction": {
-    method: "GET",
-    path: "/integrations/caldav/events",
-    auth: (input) => authToken(input?.auth),
-    query: (input) => ({ integrationId: input?.integrationId }),
-  },
-  "integrations.proxyIntegrationAction": {
-    method: "POST",
-    path: "/integrations/proxyAction",
-    body: (input) => input,
-  },
-
-  "misc.getLocationsAction": {
-    method: "GET",
-    path: "/locations",
-    auth: (input) => authToken(input?.auth),
-    query: (input) => ({ q: input?.q }),
-  },
-  "jobs.runPullIconsAction": {
-    method: "GET",
-    path: "/jobs/pullIcons",
-    auth: (input) => authToken(input),
-  },
-
-  "monitoring.getMonitoringStatusAction": {
-    method: "GET",
-    path: "/monitoringStatus",
-    auth: (input) => authToken(input?.auth),
-    query: (input) => ({ jobId: input?.jobId }),
-  },
-  "monitoring.updateMonitoringStatusAction": {
-    method: "POST",
-    path: "/monitoringStatus",
-    body: (input) => input,
-  },
-  "monitoring.getMonitorsAction": {
-    method: "GET",
-    path: "/monitors",
-    auth: (input) => authToken(input?.auth),
-  },
-  "monitoring.getMonitorAction": {
-    method: "GET",
-    path: "/monitors/{id}",
-    auth: (input) => authToken(input?.auth),
-    params: (input) => ({ path: { id: String(input?.monitorId ?? "") } }),
-  },
-  "monitoring.updateMonitorAction": {
-    method: "PUT",
-    path: "/monitors/{id}",
-    params: (input) => ({ path: { id: String(input?.monitorId ?? "") } }),
-    body: (input) => input,
-  },
-    "monitoring.createMonitorAction": {
-      method: "POST",
-      path: "/monitors",
-      body: (input) => input,
-    },
-    "monitoring.deleteMonitorAction": {
-      method: "DELETE",
-      path: "/monitors/{id}",
-      auth: (input) => authToken(input?.auth),
-      params: (input) => ({ path: { id: String(input?.monitorId ?? "") } }),
-    },
-
-  "news.getNewsFeedAction": {
-    method: "GET",
-    path: "/news/feeds/{id}",
-    auth: (input) => authToken(input?.auth),
-    params: (input) => ({ path: { id: String(input?.feedId ?? "all") } }),
-  },
-  "news.getNewsFeedRecordAction": {
-    method: "GET",
-    path: "/news/feed-records/{id}",
-    auth: (input) => authToken(input?.auth),
-    params: (input) => ({ path: { id: String(input?.feedId ?? "all") } }),
-  },
-  "news.createNewsFeedRecordAction": {
-    method: "POST",
-    path: "/news/feed-records",
-    body: (input) => input,
-  },
-  "news.getNewsFeedMetadataAction": {
-    method: "GET",
-    path: "/news/feed-metadata",
-    auth: (input) => authToken(input?.auth),
-    query: (input) => ({ url: input?.url }),
-  },
-  "news.getNewsSubscriptionsAction": {
-    method: "GET",
-    path: "/news/subscriptions",
-    auth: (input) => authToken(input),
-  },
-  "news.getNewsFeedsAction": {
-    method: "GET",
-    path: "/news/feeds",
-    auth: (input) => authToken(input),
-  },
-  "news.refreshNewsFeedAction": {
-    method: "POST",
-    path: "/news/feed-refresh",
-    body: (input) => ({
-      auth: input?.auth,
-      feedId: input?.feedId,
-      feedIds: input?.feedIds,
-    }),
-  },
-  "news.subscribeNewsFeedAction": {
-    method: "POST",
-    path: "/news/feed-subscribe",
-    body: (input) => ({
-      auth: input?.auth,
-      sub: input?.sub
-        ? {
-            feedUrl: input.sub.feedUrl,
-            name: input.sub.name,
-            icon: input.sub.icon,
-            feedIds: input.sub.feedIds,
-            newFeedTitles: input.sub.newFeedTitles,
-          }
-        : input?.sub,
-    }),
-  },
-  "news.unsubscribeNewsFeedAction": {
-    method: "POST",
-    path: "/news/feed-unsubscribe",
-    body: (input) => input,
-  },
-  "news.updateNewsFeedAction": {
-    method: "POST",
-    path: "/news/feed-update",
-    body: (input) => input,
-  },
-  "news.updateNewsFeedRecordAction": {
-    method: "POST",
-    path: "/news/feed-records/{id}",
-    params: (input) => ({ path: { id: String(input?.feedId ?? "all") } }),
-    body: (input) => input,
-  },
-  "news.fixMissingTitlesAction": {
-    method: "POST",
-    path: "/news/fix-missing-titles",
-    auth: (input) => authToken(input?.auth),
-    body: () => undefined,
-  },
-
-  "notifications.items.getNotificationsAction": {
-    method: "GET",
-    path: "/notifications",
-    auth: (input) => authToken(input?.auth),
-    query: (input) => ({ unread: input?.unread, count: input?.count }),
-  },
-  "notifications.items.getNotificationTopicsAction": {
-    method: "GET",
-    path: "/notifications/topics",
-    auth: (input) => authToken(input),
-  },
-  "notifications.items.createNotificationTopicAction": {
-    method: "POST",
-    path: "/notifications/topics",
-    body: (input) => input,
-  },
-  "notifications.items.deleteNotificationTopicAction": {
-    method: "DELETE",
-    path: "/notifications/topics",
-    body: (input) => input,
-  },
-  "notifications.items.markNotificationsAsReadAction": {
-    method: "POST",
-    path: "/notifications/markAsRead",
-    body: (input) => input,
-  },
-  "notifications.items.sendTestNotificationAction": {
-    method: "POST",
-    path: "/notifications/test",
-    body: (input) => input,
-  },
-  "notifications.topicTokens.listTopicTokensAction": {
-    method: "GET",
-    path: "/notifications/topicTokens",
-    auth: (input) => authToken(input),
-  },
-  "notifications.topicTokens.createTopicTokenAction": {
-    method: "POST",
-    path: "/notifications/topicTokens",
-    auth: (input) => authToken(input?.auth),
-    body: (input) => input?.body,
-  },
-  "notifications.topicTokens.deleteTopicTokenAction": {
-    method: "DELETE",
-    path: "/notifications/topicTokens",
-    body: (input) => input,
-  },
-  "notifications.forwarders.getForwardersAction": {
-    method: "GET",
-    path: "/notifications/forwarders",
-    auth: (input) => authToken(input),
-  },
-  "notifications.forwarders.createForwarderAction": {
-    method: "POST",
-    path: "/notifications/forwarders",
-    body: (input) => input,
-  },
-  "notifications.forwarders.updateForwarderAction": {
-    method: "PUT",
-    path: "/notifications/forwarders",
-    body: (input) => input,
-  },
-  "notifications.forwarders.deleteForwarderAction": {
-    method: "DELETE",
-    path: "/notifications/forwarders",
-    body: (input) => input,
-  },
-
-  "searchItems.getSearchItemsAction": {
-    method: "GET",
-    path: "/searchItems",
-    auth: (input) => authToken(input),
-  },
-  "searchItems.getFrequentlyUsedAction": {
-    method: "GET",
-    path: "/searchItems/frequentlyUsed",
-    auth: (input) => authToken(input),
-  },
-  "searchItems.logSearchItemUsageAction": {
-    method: "POST",
-    path: "/searchItems/usageStats",
-    auth: (input) => authToken(input?.auth),
-    body: (input) => ({ id: input?.id, timestamp: input?.timestamp }),
-  },
-  "wallpapers.uploadWallpaperAction": {
-    method: "POST",
-    path: "/wallpapers",
-    body: (input) => input,
-  },
+export type ChangePasswordRequest = {
+  email?: string;
+  oldPassword: string;
+  newPassword: string;
+  confirmPassword: string;
 };
 
-export async function callApiAction<T = unknown>(modulePath: string, actionName: string, input?: unknown): Promise<T> {
-  return requestRoute<T>(getRoute(modulePath, actionName), input);
+export type ChangePasswordSuccess = {
+  message: string;
+  token?: string | null;
+};
+
+export type ChangePasswordError = {
+  error: string;
+};
+
+export type ValidateAuthTokenSuccess = {
+  success: true;
+  token: string;
+  user: AuthUserRecord;
+};
+
+export async function changePasswordAction(auth: ActionAuth, body: ChangePasswordRequest) {
+  return extractData(await postAuthChangePassword({ body, headers: authHeaders(auth) }));
+}
+
+export async function loginUserAction(payload: { email: string; password: string; totp?: string }) {
+  return extractData(await postAuthLogin({ body: payload }));
+}
+
+export async function signupUserAction(payload: { _name?: string; email: string; password: string; passwordConfirm: string }) {
+  return extractData(await postAuthSignup({ body: payload }));
+}
+
+export async function validateAuthTokenAction(auth: ActionAuth): Promise<ValidateAuthTokenSuccess> {
+  return extractData(await postAuthValidateAuth({ body: auth }));
+}
+
+export async function deleteAccountAction(auth: ActionAuth, payload: { email: string; password: string; totp?: string }) {
+  return extractData(await deleteAuthDeleteAccount({ body: { auth, payload }, headers: authHeaders(auth) }));
+}
+
+export async function updateUserPropertyAction(auth: ActionAuth, propertyName: string, propertyValue: UserPropertyValue): Promise<AuthUserRecord> {
+  return extractData(await patchAuthUpdateUserProperty({ body: { auth, propertyName, propertyValue }, headers: authHeaders(auth) })) as Promise<AuthUserRecord>;
+}
+
+// --- Links actions ---
+
+export async function getLinksCollectionsAction(auth: ActionAuth) {
+  return extractData(await getLinksCollections({ headers: authHeaders(auth) }));
+}
+
+export async function createLinksCollectionAction(auth: ActionAuth, data: { name: string; description?: string; icon?: string }) {
+  return extractData(await postLinksCollections({ body: data, headers: authHeaders(auth) }));
+}
+
+export async function updateLinksCollectionAction(auth: ActionAuth, collectionId: string, data: { name: string; description?: string; icon?: string }) {
+  return extractData(await putLinksCollectionsByCollectionId({ path: { collectionId }, body: { auth, data }, headers: authHeaders(auth) }));
+}
+
+export async function createLinksTagAction(auth: ActionAuth, data: { name: string; color?: string }) {
+  return extractData(await postLinksTags({ body: data, headers: authHeaders(auth) }));
+}
+
+export async function updateLinksTagAction(auth: ActionAuth, tagId: string, data: { name: string; color?: string }) {
+  return extractData(await putLinksTagsByTagId({ path: { tagId }, body: { auth, data }, headers: authHeaders(auth) }));
+}
+
+export async function getHomeLinkGroupsAction(auth: ActionAuth) {
+  return extractData(await getLinksHomeGroups({ headers: authHeaders(auth) }));
+}
+
+export async function createHomeLinkGroupAction(auth: ActionAuth, name: string) {
+  return extractData(await postLinksHomeGroups({ body: { auth, name }, headers: authHeaders(auth) }));
+}
+
+export async function updateHomeLinkFolderIconAction(auth: ActionAuth, folderId: string, data: { icon?: string }) {
+  return extractData(await putLinksFoldersByFolderIdIcon({ path: { folderId }, body: { auth, data }, headers: authHeaders(auth) }));
+}
+
+export async function getHomeLinksAction(auth: ActionAuth) {
+  return extractData(await getLinksHome({ headers: authHeaders(auth) }));
+}
+
+export async function getLinksFoldersAction(auth: ActionAuth, listId: string) {
+  return extractData(await getLinksFolders({ query: { listId }, headers: authHeaders(auth) }));
+}
+
+export async function createLinksFolderAction(auth: ActionAuth, data: { list: string; name: string; parentFolder?: string }) {
+  return extractData(await postLinksFolders({ body: data, headers: authHeaders(auth) }));
+}
+
+export async function getLinksItemsAction(auth: ActionAuth, listId: string, folderId?: string) {
+  return extractData(await getLinksItems({ query: { listId, folderId }, headers: authHeaders(auth) }));
+}
+
+export async function getLinksTagsAction(auth: ActionAuth) {
+  return extractData(await getLinksTags({ headers: authHeaders(auth) }));
+}
+
+export async function createLinkItemAction(auth: ActionAuth, data: { url: string; title: string; iconUrl?: string; description?: string; linkGroup?: string; folder?: string; collection?: string; tags?: string[] }) {
+  return extractData(await postLinksItems({ body: data, headers: authHeaders(auth) }));
+}
+
+export async function updateHomeLinkItemAction(auth: ActionAuth, linkId: string, data: { url?: string; title?: string; iconUrl?: string; description?: string; linkGroup?: string; folder?: string }) {
+  return extractData(await putLinksItemsByLinkId({ path: { linkId }, body: data, headers: authHeaders(auth) }));
+}
+
+export async function deleteLinkItemAction(auth: ActionAuth, linkId: string) {
+  return extractData(await deleteLinksItemsByLinkId({ path: { linkId }, headers: authHeaders(auth) }));
+}
+
+export async function updateLinksOrderAction(auth: ActionAuth, items: { id: string; type: "link" | "folder"; position: number }[]) {
+  return extractData(await postLinksReorder({ body: { auth, items }, headers: authHeaders(auth) }));
+}
+
+// --- Integrations actions ---
+
+export async function getIntegrationsAction(auth: ActionAuth, options?: { id?: string; resolveEndpoints?: boolean }) {
+  return extractData(await getIntegrations({ query: { id: options?.id, resolveEndpoints: options?.resolveEndpoints }, headers: authHeaders(auth) }));
+}
+
+export async function createIntegrationAction(auth: ActionAuth, payload: { type?: "plugin" | "caldav"; name?: string; source?: string; config: unknown; environment?: unknown }) {
+  return extractData(await postIntegrations({ body: payload, headers: authHeaders(auth) }));
+}
+
+export async function updateIntegrationAction(auth: ActionAuth, id: string, payload: { name?: string; config?: unknown; environment?: unknown; localData?: any }) {
+  return extractData(await putIntegrationsById({ path: { id }, body: payload, headers: authHeaders(auth) }));
+}
+
+export async function deleteIntegrationAction(auth: ActionAuth, id: string) {
+  return extractData(await deleteIntegrationsById({ path: { id }, headers: authHeaders(auth) }));
+}
+
+export async function testIntegrationEndpointAction(auth: ActionAuth, target: string) {
+  return extractData(await postIntegrationsTestEndpoint({ body: { auth, target }, headers: authHeaders(auth) }));
+}
+
+export async function getWidgetPropertiesAction(auth: ActionAuth, widgetSlug: string) {
+  return extractData(await getIntegrationsWidgetProperties({ query: { widgetSlug }, headers: authHeaders(auth) }));
+}
+
+export async function getIntegrationWithWidgetAction(auth: ActionAuth, widgetKey: string) {
+  return extractData(await getWidgetsByIntegration({ query: { widgetKey }, headers: authHeaders(auth) }));
+}
+
+export async function getConsumerDataAction(
+  auth: ActionAuth,
+  key: string,
+  properties?: Record<string, any>,
+  options?: {
+    type?: "widget" | "glanceable";
+    isPreview?: boolean;
+    environmentOverrides?: Record<string, string>;
+  },
+) {
+  return extractData(await postIntegrationsConsumerData({
+    body: {
+      key,
+      properties,
+      type: options?.type,
+      isPreview: options?.isPreview,
+      environmentOverrides: options?.environmentOverrides,
+    },
+    headers: authHeaders(auth),
+  }));
+}
+
+export async function getIntegrationCalendarEventsAction(auth: ActionAuth, integrationId?: string) {
+  return extractData(await getIntegrationsCaldavEvents({ query: { integrationId }, headers: authHeaders(auth) }));
+}
+
+export async function proxyIntegrationAction(auth: ActionAuth, searchItemId: string) {
+  return extractData(await postIntegrationsProxyAction({ body: { auth, searchItemId }, headers: authHeaders(auth) }));
+}
+
+// --- Widgets/Glanceables actions ---
+
+export async function getUserWidgetsAction(auth: ActionAuth) {
+  return extractData(await getWidgets({ headers: authHeaders(auth) }));
+}
+
+export async function getUserGlanceableAction(auth: ActionAuth) {
+  return extractData(await getGlanceables({ headers: authHeaders(auth) }));
+}
+
+export async function getUserGlanceablesAction(auth: ActionAuth) {
+  return extractData(await getGlanceables({ headers: authHeaders(auth) }));
+}
+
+export async function getIntegrationWithGlanceableAction(auth: ActionAuth, glanceableType: string) {
+  return extractData(await getGlanceablesByIntegration({ query: { glanceableType }, headers: authHeaders(auth) }));
+}
+
+// --- Monitoring actions ---
+
+export async function getMonitoringStatusAction(auth: ActionAuth, jobId?: string | null) {
+  return extractData(await getMonitoringStatus({ query: { jobId: jobId ?? undefined }, headers: authHeaders(auth) }));
+}
+
+export async function updateMonitoringStatusAction(auth: ActionAuth, body: any) {
+  return extractData(await postMonitoringStatus({ body, headers: authHeaders(auth) }));
+}
+
+export async function getMonitorsAction(auth: ActionAuth): Promise<MonitorRecord[]> {
+  return extractData(await getMonitors({ headers: authHeaders(auth) })) as Promise<MonitorRecord[]>;
+}
+
+export async function getMonitorAction(auth: ActionAuth, monitorId: string): Promise<MonitorRecord | null> {
+  return extractData(await getMonitorsById({ path: { id: monitorId }, headers: authHeaders(auth) })) as Promise<MonitorRecord | null>;
+}
+
+export async function updateMonitorAction(auth: ActionAuth, monitorId: string, data: Record<string, unknown>): Promise<MonitorRecord | null> {
+  return extractData(await putMonitorsById({ path: { id: monitorId }, body: data, headers: authHeaders(auth) })) as Promise<MonitorRecord | null>;
+}
+
+export async function createMonitorAction(auth: ActionAuth, data: { resourceType?: "link" | "system"; linkId: string; endpoint: string; method?: string; endpointAuth?: unknown; responseUpFilter?: { acceptStatusCodes?: string; acceptBodyProperties?: unknown } }): Promise<MonitorRecord> {
+  return extractData(await postMonitors({ body: data, headers: authHeaders(auth) })) as Promise<MonitorRecord>;
+}
+
+export async function deleteMonitorAction(auth: ActionAuth, monitorId: string): Promise<void> {
+  return extractData(await deleteMonitorsById({ path: { id: monitorId }, headers: authHeaders(auth) }));
+}
+
+// --- News actions ---
+
+export async function getNewsFeedAction(auth: ActionAuth, feedId?: string | null): Promise<NewsFeedItem[]> {
+  return extractData(await getNewsFeedsById({ path: { id: feedId ?? "all" }, headers: authHeaders(auth) })) as Promise<NewsFeedItem[]>;
+}
+
+export async function getNewsFeedRecordAction(auth: ActionAuth, feedId?: string | null): Promise<NewsFeedRecord | null> {
+  return extractData(await getNewsFeedRecordsById({ path: { id: feedId ?? "all" }, headers: authHeaders(auth) })) as Promise<NewsFeedRecord | null>;
+}
+
+export async function createNewsFeedRecordAction(auth: ActionAuth, payload: NewsFeedRecordCreateInput): Promise<NewsFeedRecord | null> {
+  return extractData(await postNewsFeedRecords({ body: payload, headers: authHeaders(auth) })) as Promise<NewsFeedRecord | null>;
+}
+
+export async function getNewsSubscriptionsAction(auth: ActionAuth): Promise<NewsSubscriptionsResponse> {
+  return extractData(await getNewsSubscriptions({ headers: authHeaders(auth) })) as Promise<NewsSubscriptionsResponse>;
+}
+
+export async function getNewsFeedsAction(auth: ActionAuth): Promise<NewsFeedsResponse> {
+  return extractData(await getNewsFeeds({ headers: authHeaders(auth) })) as Promise<NewsFeedsResponse>;
+}
+
+export async function getNewsFeedMetadataAction(auth: ActionAuth, url: string): Promise<NewsFeedMetadata> {
+  return extractData(await getNewsFeedMetadata({ query: { url }, headers: authHeaders(auth) })) as Promise<NewsFeedMetadata>;
+}
+
+export async function refreshNewsFeedAction(auth: ActionAuth, feedIds?: string[]) {
+  return extractData(await postNewsFeedRefresh({ body: { auth, feedIds }, headers: authHeaders(auth) }));
+}
+
+export async function subscribeNewsFeedAction(auth: ActionAuth, sub: NewsSubscribeInput | NewsFeedDraft) {
+  return extractData(await postNewsFeedSubscribe({ body: { auth, sub }, headers: authHeaders(auth) }));
+}
+
+export async function unsubscribeNewsFeedAction(auth: ActionAuth, feedUrl: string) {
+  return extractData(await postNewsFeedUnsubscribe({ body: { auth, feedUrl }, headers: authHeaders(auth) }));
+}
+
+export async function updateNewsFeedAction(auth: ActionAuth, payload: NewsUpdateInput | NewsFeedDraft) {
+  return extractData(await postNewsFeedUpdate({ body: { auth, payload }, headers: authHeaders(auth) }));
+}
+
+export async function updateNewsFeedRecordAction(auth: ActionAuth, payload: NewsFeedRecordUpdateInput) {
+  return extractData(await postNewsFeedRecordsById({ path: { id: payload.feedId ?? "all" }, body: payload, headers: authHeaders(auth) }));
+}
+
+export async function fixMissingTitlesAction(auth: ActionAuth): Promise<unknown> {
+  return extractData(await postNewsFixMissingTitles({ headers: authHeaders(auth) })) as Promise<unknown>;
+}
+
+// --- PageConfig actions ---
+
+export type CreateHomePageResponse = {
+  config: PageConfig;
+  created: boolean;
+  success: boolean;
+};
+
+export async function getPageConfigAction(auth: ActionAuth, pageName: string | undefined): Promise<PageConfig | null> {
+  return extractData(await getPageConfig({ query: { pageName }, headers: authHeaders(auth) })) as Promise<PageConfig | null>;
+}
+
+export async function getUserPagesAction(auth: ActionAuth): Promise<Array<{ pageName: string }>> {
+  return extractData(await getPageConfigUserPages({ headers: authHeaders(auth) })) as Promise<Array<{ pageName: string }>>;
+}
+
+export async function updatePageConfigAction(auth: ActionAuth, pageName: string | undefined, config: PageConfig): Promise<unknown> {
+  return extractData(await putPageConfig({ body: { auth, pageName, config }, headers: authHeaders(auth) })) as Promise<unknown>;
+}
+
+export async function createHomePageAction(auth: ActionAuth): Promise<CreateHomePageResponse> {
+  return extractData(await postPageConfigHome({ body: { auth }, headers: authHeaders(auth) })) as Promise<CreateHomePageResponse>;
+}
+
+export async function migrateLegacyPageConfigAction(auth: ActionAuth): Promise<unknown> {
+  return extractData(await postPageConfigMigrateLegacy({ body: { auth }, headers: authHeaders(auth) })) as Promise<unknown>;
+}
+
+export async function getPageIntegrationDataAction(auth: ActionAuth, pageName?: string): Promise<unknown> {
+  return extractData(await postPageConfigIntegrationData({ query: { page: pageName }, headers: authHeaders(auth) })) as Promise<unknown>;
+}
+
+// --- SearchItems actions ---
+
+export async function getSearchItemsAction(auth: ActionAuth) {
+  return extractData(await getSearchItems({ headers: authHeaders(auth) }));
+}
+
+export async function getFrequentlyUsedSearchItemsAction(auth: ActionAuth) {
+  return extractData(await getSearchItemsFrequentlyUsed({ headers: authHeaders(auth) }));
+}
+
+export async function logSearchItemUsageAction(auth: ActionAuth, id: string, timestamp: string) {
+  return extractData(await postSearchItemsUsageStats({ body: { id, timestamp }, headers: authHeaders(auth) }));
+}
+
+// --- Misc actions ---
+
+export async function getLocationsAction(auth: ActionAuth, q?: string | null) {
+  return extractData(await getLocations({ query: { q: q ?? undefined }, headers: authHeaders(auth) }));
+}
+
+export async function runPullIconsAction(auth: ActionAuth) {
+  return extractData(await getJobsPullIcons({ headers: authHeaders(auth) }));
+}
+
+// --- Wallpaper actions ---
+
+function fileToBase64(file: File) {
+  return file.arrayBuffer().then((buffer) => {
+    const bytes = new Uint8Array(buffer);
+    let binary = "";
+    const chunkSize = 0x8000;
+
+    for (let index = 0; index < bytes.length; index += chunkSize) {
+      binary += String.fromCharCode(...bytes.subarray(index, index + chunkSize));
+    }
+
+    return btoa(binary);
+  });
+}
+
+export async function uploadWallpaperAction(auth: ActionAuth, formData: FormData) {
+  const image = formData.get("image") as File | null;
+  const fileName = String(formData.get("fileName") ?? image?.name ?? "wallpaper");
+  const convertToWebp = String(formData.get("convertToWebp") ?? "false") === "true";
+
+  if (!image) {
+    throw new Error("Missing image file");
+  }
+
+  return extractData(await postWallpapers({
+    body: {
+      auth: { token: auth.token },
+      fileName,
+      mimeType: image.type || undefined,
+      contentBase64: await fileToBase64(image),
+      convertToWebp,
+    },
+    headers: authHeaders(auth),
+  }));
+}
+
+// --- Notifications actions ---
+
+export async function getNotificationsAction(auth: ActionAuth, unread = false, count = false) {
+  return extractData(await getNotifications({ query: { unread, count }, headers: authHeaders(auth) }));
+}
+
+export async function getNotificationTopicsAction(auth: ActionAuth) {
+  return extractData(await getNotificationsTopics({ headers: authHeaders(auth) }));
+}
+
+export async function createNotificationTopicAction(auth: ActionAuth, title: string) {
+  return extractData(await postNotificationsTopics({ body: { auth, title }, headers: authHeaders(auth) }));
+}
+
+export async function deleteNotificationTopicAction(auth: ActionAuth, topicId: string) {
+  return extractData(await deleteNotificationsTopics({ body: { auth, topicId }, headers: authHeaders(auth) }));
+}
+
+export async function markNotificationsAsReadAction(auth: ActionAuth, ids: string[]) {
+  return extractData(await postNotificationsMarkAsRead({ body: { auth, ids }, headers: authHeaders(auth) }));
+}
+
+export async function sendTestNotificationAction(auth: ActionAuth, topicId: string) {
+  return extractData(await postNotificationsTest({ body: { auth, topicId }, headers: authHeaders(auth) }));
+}
+
+export async function listTopicTokensAction(auth: ActionAuth) {
+  return extractData(await getNotificationsTopicTokens({ headers: authHeaders(auth) }));
+}
+
+export async function createTopicTokenAction(auth: ActionAuth, body: any) {
+  return extractData(await postNotificationsTopicTokens({ body, headers: authHeaders(auth) }));
+}
+
+export async function deleteTopicTokenAction(auth: ActionAuth, tokenId: string) {
+  return extractData(await deleteNotificationsTopicTokens({ body: { auth, tokenId }, headers: authHeaders(auth) }));
+}
+
+export async function getForwardersAction(auth: ActionAuth) {
+  return extractData(await getNotificationsForwarders({ headers: authHeaders(auth) }));
+}
+
+export async function createForwarderAction(auth: ActionAuth, body: any) {
+  return extractData(await postNotificationsForwarders({ body, headers: authHeaders(auth) }));
+}
+
+export async function updateForwarderAction(auth: ActionAuth, body: any) {
+  return extractData(await putNotificationsForwarders({ body, headers: authHeaders(auth) }));
+}
+
+export async function deleteForwarderAction(auth: ActionAuth, forwarderId: string) {
+  return extractData(await deleteNotificationsForwarders({ body: { auth, forwarderId }, headers: authHeaders(auth) }));
 }

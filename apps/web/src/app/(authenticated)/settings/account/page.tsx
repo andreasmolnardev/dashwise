@@ -14,9 +14,9 @@ import { Icon } from "@iconify-icon/react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { ChangePasswordRequest } from "@/app/actions/auth";
+import { ChangePasswordRequest } from '@/lib/apiClient';
 import { useNavigate } from "react-router-dom";
-import { changePasswordAction, deleteAccountAction } from "@/app/actions/auth";
+import { changePasswordAction, deleteAccountAction } from '@/lib/apiClient';
 import { DialogDescription } from "@radix-ui/react-dialog";
 import useAuth from "@/context/useAuth";
 

@@ -4,7 +4,7 @@
 import { useEffect, useMemo, useState } from "react";
 import ClockWidget from "../ClockWidget";
 import useAuth from "@/context/useAuth";
-import { getConsumerDataAction } from "@/app/actions/integrations";
+import { getConsumerDataAction } from '@/lib/apiClient';
 import { updatePageIntegrationConsumerCache } from "@/lib/pageIntegrationDataCache";
 import GlanceableComponent from "@dashwise/integrationskit/Glanceable";
 import { usePageConfig } from "@/hooks/usePageConfig";

@@ -13,7 +13,7 @@ import {
   getIntegrationsAction,
   testIntegrationEndpointAction,
   updateIntegrationAction,
-} from "@/app/actions/integrations";
+} from '@/lib/apiClient';
 import { AddIntegrationConfigDialog } from "@/components/settings/integrations/AddIntegrationConfigDialog";
 import { EditIntegrationEnvironmentDialog } from "@/components/settings/integrations/EditIntegrationEnvironmentDialog";
 import { UpdateIntegrationDialog } from "@/components/settings/integrations/UpdateIntegrationDialog";

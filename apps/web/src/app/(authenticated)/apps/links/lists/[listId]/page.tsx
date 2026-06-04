@@ -3,7 +3,7 @@
 import { useParams } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
 import useAuth from "@/context/useAuth";
-import { getLinksCollectionsAction, getLinksFoldersAction, getLinksItemsAction, getLinksTagsAction } from "@/app/actions/links";
+import { getLinksCollectionsAction, getLinksFoldersAction, getLinksItemsAction, getLinksTagsAction } from '@/lib/apiClient';
 import LinksDetailView, { type LinkFolderRecord, type LinkItemRecord, type LinkTagRecord } from "@/components/links/LinksDetailView";
 import CreateLinksItemDialog from "@/components/links/CreateLinksItemDialog";
 

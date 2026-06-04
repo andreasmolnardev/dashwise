@@ -7,7 +7,7 @@ import {
   getLinksCollectionsAction,
   getLinksFoldersAction,
   getLinksTagsAction,
-} from "@/app/actions/links";
+} from '@/lib/apiClient';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {

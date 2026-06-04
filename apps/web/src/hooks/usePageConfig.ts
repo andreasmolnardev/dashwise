@@ -1,8 +1,8 @@
 "use client";
 
-import { getPageConfigAction } from "@/app/actions/pageConfigs";
+import { getPageConfigAction } from '@/lib/apiClient';
 import useAuth from "@/context/useAuth";
-import type { PageConfig } from "@dashwise/types/sdk/data/pageConfig";
+import type { PageConfig } from "@dashwise/types/sdk";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useCallback, useEffect, useMemo, useState, type SetStateAction } from "react";
 

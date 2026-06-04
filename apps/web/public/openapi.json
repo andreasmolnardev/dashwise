@@ -128,6 +128,9 @@
 					"auth"
 				],
 				"summary": "Delete account",
+				"requestBody": {
+					"$ref": "#/components/requestBodies/JsonBody"
+				},
 				"responses": {
 					"200": {
 						"$ref": "#/components/responses/JsonOk"
@@ -255,6 +258,24 @@
 					"integrations"
 				],
 				"summary": "List integrations",
+				"parameters": [
+					{
+						"name": "id",
+						"in": "query",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "resolveEndpoints",
+						"in": "query",
+						"required": false,
+						"schema": {
+							"type": "boolean"
+						}
+					}
+				],
 				"responses": {
 					"200": {
 						"$ref": "#/components/responses/JsonOk"
@@ -298,6 +319,16 @@
 					"integrations"
 				],
 				"summary": "Get widget properties",
+				"parameters": [
+					{
+						"name": "widgetSlug",
+						"in": "query",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
 				"responses": {
 					"200": {
 						"$ref": "#/components/responses/JsonOk"
@@ -378,6 +409,16 @@
 					"links"
 				],
 				"summary": "Get link folders",
+				"parameters": [
+					{
+						"name": "listId",
+						"in": "query",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
 				"responses": {
 					"200": {
 						"$ref": "#/components/responses/JsonOk"
@@ -405,6 +446,24 @@
 					"links"
 				],
 				"summary": "Get link items",
+				"parameters": [
+					{
+						"name": "listId",
+						"in": "query",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "folderId",
+						"in": "query",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
 				"responses": {
 					"200": {
 						"$ref": "#/components/responses/JsonOk"
@@ -538,6 +597,16 @@
 					"locations"
 				],
 				"summary": "Get locations",
+				"parameters": [
+					{
+						"name": "q",
+						"in": "query",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
 				"responses": {
 					"200": {
 						"$ref": "#/components/responses/JsonOk"
@@ -551,6 +620,16 @@
 					"monitoring"
 				],
 				"summary": "Get monitoring status",
+				"parameters": [
+					{
+						"name": "jobId",
+						"in": "query",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
 				"responses": {
 					"200": {
 						"$ref": "#/components/responses/JsonOk"
@@ -701,6 +780,24 @@
 					"notifications"
 				],
 				"summary": "Get notifications",
+				"parameters": [
+					{
+						"name": "unread",
+						"in": "query",
+						"required": false,
+						"schema": {
+							"type": "boolean"
+						}
+					},
+					{
+						"name": "count",
+						"in": "query",
+						"required": false,
+						"schema": {
+							"type": "boolean"
+						}
+					}
+				],
 				"responses": {
 					"200": {
 						"$ref": "#/components/responses/JsonOk"
@@ -772,6 +869,9 @@
 					"notifications"
 				],
 				"summary": "Delete forwarder",
+				"requestBody": {
+					"$ref": "#/components/requestBodies/JsonBody"
+				},
 				"responses": {
 					"200": {
 						"$ref": "#/components/responses/JsonOk"
@@ -893,6 +993,9 @@
 					"notifications"
 				],
 				"summary": "Delete topic token",
+				"requestBody": {
+					"$ref": "#/components/requestBodies/JsonBody"
+				},
 				"responses": {
 					"200": {
 						"$ref": "#/components/responses/JsonOk"
@@ -919,6 +1022,16 @@
 					"pageConfig"
 				],
 				"summary": "Get page config",
+				"parameters": [
+					{
+						"name": "pageName",
+						"in": "query",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
 				"responses": {
 					"200": {
 						"$ref": "#/components/responses/JsonOk"
@@ -1106,11 +1219,11 @@
 				],
 				"summary": "Create home page",
 				"requestBody": {
-					"": "#/components/requestBodies/JsonBody"
+					"$ref": "#/components/requestBodies/JsonBody"
 				},
 				"responses": {
 					"200": {
-						"": "#/components/responses/JsonOk"
+						"$ref": "#/components/responses/JsonOk"
 					}
 				}
 			}
@@ -1122,11 +1235,11 @@
 				],
 				"summary": "Migrate legacy page config",
 				"requestBody": {
-					"": "#/components/requestBodies/JsonBody"
+					"$ref": "#/components/requestBodies/JsonBody"
 				},
 				"responses": {
 					"200": {
-						"": "#/components/responses/JsonOk"
+						"$ref": "#/components/responses/JsonOk"
 					}
 				}
 			}
@@ -1148,11 +1261,11 @@
 					}
 				],
 				"requestBody": {
-					"": "#/components/requestBodies/JsonBody"
+					"$ref": "#/components/requestBodies/JsonBody"
 				},
 				"responses": {
 					"200": {
-						"": "#/components/responses/JsonOk"
+						"$ref": "#/components/responses/JsonOk"
 					}
 				}
 			}
@@ -1174,11 +1287,11 @@
 					}
 				],
 				"requestBody": {
-					"": "#/components/requestBodies/JsonBody"
+					"$ref": "#/components/requestBodies/JsonBody"
 				},
 				"responses": {
 					"200": {
-						"": "#/components/responses/JsonOk"
+						"$ref": "#/components/responses/JsonOk"
 					}
 				}
 			}
@@ -1200,11 +1313,11 @@
 					}
 				],
 				"requestBody": {
-					"": "#/components/requestBodies/JsonBody"
+					"$ref": "#/components/requestBodies/JsonBody"
 				},
 				"responses": {
 					"200": {
-						"": "#/components/responses/JsonOk"
+						"$ref": "#/components/responses/JsonOk"
 					}
 				}
 			}
@@ -1226,11 +1339,11 @@
 					}
 				],
 				"requestBody": {
-					"": "#/components/requestBodies/JsonBody"
+					"$ref": "#/components/requestBodies/JsonBody"
 				},
 				"responses": {
 					"200": {
-						"": "#/components/responses/JsonOk"
+						"$ref": "#/components/responses/JsonOk"
 					}
 				}
 			}
@@ -1242,11 +1355,11 @@
 				],
 				"summary": "Reorder links",
 				"requestBody": {
-					"": "#/components/requestBodies/JsonBody"
+					"$ref": "#/components/requestBodies/JsonBody"
 				},
 				"responses": {
 					"200": {
-						"": "#/components/responses/JsonOk"
+						"$ref": "#/components/responses/JsonOk"
 					}
 				}
 			}
@@ -1259,7 +1372,7 @@
 				"summary": "List user glanceables",
 				"responses": {
 					"200": {
-						"": "#/components/responses/JsonOk"
+						"$ref": "#/components/responses/JsonOk"
 					}
 				}
 			}
@@ -1282,7 +1395,7 @@
 				],
 				"responses": {
 					"200": {
-						"": "#/components/responses/JsonOk"
+						"$ref": "#/components/responses/JsonOk"
 					}
 				}
 			}
@@ -1305,7 +1418,7 @@
 				],
 				"responses": {
 					"200": {
-						"": "#/components/responses/JsonOk"
+						"$ref": "#/components/responses/JsonOk"
 					}
 				}
 			}
@@ -1327,11 +1440,11 @@
 					}
 				],
 				"requestBody": {
-					"": "#/components/requestBodies/JsonBody"
+					"$ref": "#/components/requestBodies/JsonBody"
 				},
 				"responses": {
 					"200": {
-						"": "#/components/responses/JsonOk"
+						"$ref": "#/components/responses/JsonOk"
 					}
 				}
 			},
@@ -1352,7 +1465,7 @@
 				],
 				"responses": {
 					"200": {
-						"": "#/components/responses/JsonOk"
+						"$ref": "#/components/responses/JsonOk"
 					}
 				}
 			}
@@ -1364,11 +1477,11 @@
 				],
 				"summary": "Get integration consumer data",
 				"requestBody": {
-					"": "#/components/requestBodies/JsonBody"
+					"$ref": "#/components/requestBodies/JsonBody"
 				},
 				"responses": {
 					"200": {
-						"": "#/components/responses/JsonOk"
+						"$ref": "#/components/responses/JsonOk"
 					}
 				}
 			},
@@ -1428,7 +1541,7 @@
 				],
 				"responses": {
 					"200": {
-						"": "#/components/responses/JsonOk"
+						"$ref": "#/components/responses/JsonOk"
 					}
 				}
 			}
@@ -1440,11 +1553,11 @@
 				],
 				"summary": "Proxy integration action",
 				"requestBody": {
-					"": "#/components/requestBodies/JsonBody"
+					"$ref": "#/components/requestBodies/JsonBody"
 				},
 				"responses": {
 					"200": {
-						"": "#/components/responses/JsonOk"
+						"$ref": "#/components/responses/JsonOk"
 					}
 				}
 			}
@@ -1457,7 +1570,7 @@
 				"summary": "List monitors",
 				"responses": {
 					"200": {
-						"": "#/components/responses/JsonOk"
+						"$ref": "#/components/responses/JsonOk"
 					}
 				}
 			},
@@ -1467,11 +1580,11 @@
 				],
 				"summary": "Create monitor",
 				"requestBody": {
-					"": "#/components/requestBodies/JsonBody"
+					"$ref": "#/components/requestBodies/JsonBody"
 				},
 				"responses": {
 					"200": {
-						"": "#/components/responses/JsonOk"
+						"$ref": "#/components/responses/JsonOk"
 					}
 				}
 			}
@@ -1494,7 +1607,7 @@
 				],
 				"responses": {
 					"200": {
-						"": "#/components/responses/JsonOk"
+						"$ref": "#/components/responses/JsonOk"
 					}
 				}
 			},
@@ -1514,11 +1627,11 @@
 					}
 				],
 				"requestBody": {
-					"": "#/components/requestBodies/JsonBody"
+					"$ref": "#/components/requestBodies/JsonBody"
 				},
 				"responses": {
 					"200": {
-						"": "#/components/responses/JsonOk"
+						"$ref": "#/components/responses/JsonOk"
 					}
 				}
 			},
@@ -1539,7 +1652,7 @@
 				],
 				"responses": {
 					"200": {
-						"": "#/components/responses/JsonOk"
+						"$ref": "#/components/responses/JsonOk"
 					}
 				}
 			}
@@ -1562,7 +1675,7 @@
 				],
 				"responses": {
 					"200": {
-						"": "#/components/responses/JsonOk"
+						"$ref": "#/components/responses/JsonOk"
 					}
 				}
 			}
@@ -1585,7 +1698,7 @@
 				],
 				"responses": {
 					"200": {
-						"": "#/components/responses/JsonOk"
+						"$ref": "#/components/responses/JsonOk"
 					}
 				}
 			},
@@ -1605,11 +1718,11 @@
 					}
 				],
 				"requestBody": {
-					"": "#/components/requestBodies/JsonBody"
+					"$ref": "#/components/requestBodies/JsonBody"
 				},
 				"responses": {
 					"200": {
-						"": "#/components/responses/JsonOk"
+						"$ref": "#/components/responses/JsonOk"
 					}
 				}
 			}
@@ -1621,11 +1734,11 @@
 				],
 				"summary": "Create news feed record",
 				"requestBody": {
-					"": "#/components/requestBodies/JsonBody"
+					"$ref": "#/components/requestBodies/JsonBody"
 				},
 				"responses": {
 					"200": {
-						"": "#/components/responses/JsonOk"
+						"$ref": "#/components/responses/JsonOk"
 					}
 				}
 			}
@@ -1648,7 +1761,7 @@
 				],
 				"responses": {
 					"200": {
-						"": "#/components/responses/JsonOk"
+						"$ref": "#/components/responses/JsonOk"
 					}
 				}
 			}
@@ -1661,7 +1774,7 @@
 				"summary": "List news subscriptions",
 				"responses": {
 					"200": {
-						"": "#/components/responses/JsonOk"
+						"$ref": "#/components/responses/JsonOk"
 					}
 				}
 			}
@@ -1674,7 +1787,7 @@
 				"summary": "List news feeds",
 				"responses": {
 					"200": {
-						"": "#/components/responses/JsonOk"
+						"$ref": "#/components/responses/JsonOk"
 					}
 				}
 			}
@@ -1687,7 +1800,7 @@
 				"summary": "Fix missing news titles",
 				"responses": {
 					"200": {
-						"": "#/components/responses/JsonOk"
+						"$ref": "#/components/responses/JsonOk"
 					}
 				}
 			}
@@ -1699,11 +1812,11 @@
 				],
 				"summary": "Send test notification",
 				"requestBody": {
-					"": "#/components/requestBodies/JsonBody"
+					"$ref": "#/components/requestBodies/JsonBody"
 				},
 				"responses": {
 					"200": {
-						"": "#/components/responses/JsonOk"
+						"$ref": "#/components/responses/JsonOk"
 					}
 				}
 			}
@@ -1716,7 +1829,7 @@
 				"summary": "List frequently used search items",
 				"responses": {
 					"200": {
-						"": "#/components/responses/JsonOk"
+						"$ref": "#/components/responses/JsonOk"
 					}
 				}
 			}
@@ -1728,11 +1841,11 @@
 				],
 				"summary": "Log search item usage",
 				"requestBody": {
-					"": "#/components/requestBodies/JsonBody"
+					"$ref": "#/components/requestBodies/JsonBody"
 				},
 				"responses": {
 					"200": {
-						"": "#/components/responses/JsonOk"
+						"$ref": "#/components/responses/JsonOk"
 					}
 				}
 			}

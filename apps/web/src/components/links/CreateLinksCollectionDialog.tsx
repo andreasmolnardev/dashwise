@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import useAuth from "@/context/useAuth";
-import { createLinksCollectionAction, updateLinksCollectionAction } from "@/app/actions/links";
+import { createLinksCollectionAction, updateLinksCollectionAction } from '@/lib/apiClient';
 
 type Props = {
   open: boolean;

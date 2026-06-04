@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { getLocationsAction } from "@/app/actions/misc";
+import { getLocationsAction } from '@/lib/apiClient';
 import useAuth from "@/context/useAuth";
 
 interface SearchResult {

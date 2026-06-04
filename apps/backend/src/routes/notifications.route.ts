@@ -108,25 +108,6 @@ notificationsRoute
     const { userId } = await requireAuth(body?.auth);
     return sendTestNotification(userId, String(body?.topicId ?? ""));
   }))
-  .post("/api/v1/notifications/:topic", withJson(async (c) => {
-    const topic = String(c.req.param("topic") ?? "").trim();
-    const body = await readJsonBody<any>(c);
-    const content = body?.content ?? body;
-    const source = String(body?.source ?? "api");
-
-    const topicTokenResult = await createNotificationWithTopicToken(topic, content);
-    if (topicTokenResult) {
-      return { ok: true, ...topicTokenResult };
-    }
-
-    const userId = await resolveUserIdFromRequest(c);
-    if (!userId) {
-      throw new ApiActionError("Unauthorized", 401, { error: "Unauthorized" });
-    }
-
-    await verifyTopicOwnership(topic, userId);
-    return { ok: true, ...(await createNotificationByTopicId(topic, content, source)) };
-  }))
   .get("/api/v1/notifications/topicTokens", withJson(async (c) => {
     const { userId } = await requireAuth({ token: readAuthToken(c) });
     return listTopicTokens(userId);
@@ -159,6 +140,25 @@ notificationsRoute
     const body = await readJsonBody<any>(c);
     const { userId } = await requireAuth(body?.auth);
     return deleteForwarder(userId, String(body?.forwarderId ?? ""));
+  }))
+  .post("/api/v1/notifications/:topic", withJson(async (c) => {
+    const topic = String(c.req.param("topic") ?? "").trim();
+    const body = await readJsonBody<any>(c);
+    const content = body?.content ?? body;
+    const source = String(body?.source ?? "api");
+
+    const topicTokenResult = await createNotificationWithTopicToken(topic, content);
+    if (topicTokenResult) {
+      return { ok: true, ...topicTokenResult };
+    }
+
+    const userId = await resolveUserIdFromRequest(c);
+    if (!userId) {
+      throw new ApiActionError("Unauthorized", 401, { error: "Unauthorized" });
+    }
+
+    await verifyTopicOwnership(topic, userId);
+    return { ok: true, ...(await createNotificationByTopicId(topic, content, source)) };
   }));
 
 export default notificationsRoute;

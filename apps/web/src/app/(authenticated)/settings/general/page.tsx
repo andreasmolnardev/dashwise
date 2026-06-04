@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
 import LocationSelectFormComponent from "@/components/settings/LocationSelectForm";
 import useAuth from "@/context/useAuth";
-import { runPullIconsAction } from "@/app/actions/misc";
+import { runPullIconsAction } from '@/lib/apiClient';
 import { useLocalization } from "@/context/LocalizationContext";
 
 type TimeFormatValue = "24-hour" | "12-hour";

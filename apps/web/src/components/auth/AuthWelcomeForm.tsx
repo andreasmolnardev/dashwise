@@ -4,8 +4,8 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Button } from "@/components/ui/button"
 import config from "@/lib/config"
 import { useEffect, useState } from "react"
-import { getAppConfigAction } from "@/app/actions/app";
-import { validateAuthTokenAction } from "@/app/actions/auth";
+import { getAppConfigAction } from '@/lib/apiClient';
+import { validateAuthTokenAction } from '@/lib/apiClient';
 
 export default function AuthWelcomeFormComponent() {
     const navigate = useNavigate();

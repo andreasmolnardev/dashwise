@@ -50,7 +50,7 @@ export const config = {
   JOBS_URL: env.JOBS_URL || "http://127.0.0.1:3001",
   JOBS_WEBHOOK_ENABLED: truthyEnv(env.JOBS_WEBHOOK_ENABLE) || !!env.JOBS_URL,
   DEFAULT_BG_URL: env.DEFAULT_BG_URL || "/dashboard-wallpaper.png",
-  allowInsecureCertsForIntegrationUrls: truthyEnv(env.ALLOW_INSECURE_CERTS_FOR_INTEGRATION_URLS) || false,
+  allowInsecureCertsForIntegrationUrls: truthyEnv(env.ALLOW_INSECURE_CERTS_FOR_INTEGRATION_URLS) || truthyEnv(env.ALLOW_SSL),
 } as const;
 
 export type Config = typeof config;

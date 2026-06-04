@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import { GlanceableSide } from "./utils";
 import { useLocalization } from "@/context/LocalizationContext";
 import useAuth from "@/context/useAuth";
-import { getIntegrationWithGlanceableAction } from "@/app/actions/widgets";
+import { getIntegrationWithGlanceableAction } from '@/lib/apiClient';
 
 type GlanceableCatalogItem = {
   type: string;

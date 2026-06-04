@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, useCallback, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import useAuth from "@/context/useAuth";
-import { getConsumerDataAction } from "@/app/actions/integrations";
+import { getConsumerDataAction } from '@/lib/apiClient';
 import {
   closestCenter,
   DndContext,

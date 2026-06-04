@@ -37,7 +37,7 @@ import {
     unsubscribeNewsFeedAction,
     updateNewsFeedAction,
     updateNewsFeedRecordAction,
-} from "@/app/actions/news";
+} from '@/lib/apiClient';
 import type {
     NewsFeedDraft,
     NewsFeedItem,
@@ -45,7 +45,7 @@ import type {
     NewsFeedSummary,
     NewsFeedsResponse,
     NewsSubscriptionsResponse,
-} from "@dashwise/types/sdk/data/news";
+} from "@dashwise/types/sdk";
 
 export default function NewsDashboardComponent() {
     const navigate = useNavigate();

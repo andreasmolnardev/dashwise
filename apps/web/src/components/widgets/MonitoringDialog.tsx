@@ -12,7 +12,7 @@ import type { LinkType } from "@dashwise/types/sdk";
 import useAuth from "@/context/useAuth";
 import { useState } from "react";
 import { Icon } from "@iconify-icon/react";
-import { updateMonitoringStatusAction } from "@/app/actions/monitoring";
+import { updateMonitoringStatusAction } from '@/lib/apiClient';
 import MonitoringTimeline from "@/components/monitoring/MonitoringTimeline";
 
 export type JobEntry = {

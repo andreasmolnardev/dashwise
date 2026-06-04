@@ -142,7 +142,7 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody?: components["requestBodies"]["JsonBody"];
             responses: {
                 200: components["responses"]["JsonOk"];
                 401: components["responses"]["JsonUnauthorized"];
@@ -343,7 +343,10 @@ export interface paths {
         /** List integrations */
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    id?: string;
+                    resolveEndpoints?: boolean;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -411,7 +414,9 @@ export interface paths {
         /** Get widget properties */
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    widgetSlug?: string;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -547,7 +552,9 @@ export interface paths {
         /** Get link folders */
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    listId?: string;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -587,7 +594,10 @@ export interface paths {
         /** Get link items */
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    listId?: string;
+                    folderId?: string;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -768,7 +778,9 @@ export interface paths {
         /** Get locations */
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    q?: string;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -796,7 +808,9 @@ export interface paths {
         /** Get monitoring status */
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    jobId?: string;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -1025,7 +1039,10 @@ export interface paths {
         /** Get notifications */
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    unread?: boolean;
+                    count?: boolean;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -1109,7 +1126,7 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody?: components["requestBodies"]["JsonBody"];
             responses: {
                 200: components["responses"]["JsonOk"];
             };
@@ -1271,7 +1288,7 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody?: components["requestBodies"]["JsonBody"];
             responses: {
                 200: components["responses"]["JsonOk"];
             };
@@ -1319,7 +1336,9 @@ export interface paths {
         /** Get page config */
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    pageName?: string;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -1594,18 +1613,9 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: {
-                content: {
-                    "*/*"?: never;
-                };
-            };
+            requestBody?: components["requestBodies"]["JsonBody"];
             responses: {
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
+                200: components["responses"]["JsonOk"];
             };
         };
         delete?: never;
@@ -1631,18 +1641,9 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: {
-                content: {
-                    "*/*"?: never;
-                };
-            };
+            requestBody?: components["requestBodies"]["JsonBody"];
             responses: {
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
+                200: components["responses"]["JsonOk"];
             };
         };
         delete?: never;
@@ -1670,18 +1671,9 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: {
-                content: {
-                    "*/*"?: never;
-                };
-            };
+            requestBody?: components["requestBodies"]["JsonBody"];
             responses: {
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
+                200: components["responses"]["JsonOk"];
             };
         };
         delete?: never;
@@ -1708,18 +1700,9 @@ export interface paths {
                 };
                 cookie?: never;
             };
-            requestBody?: {
-                content: {
-                    "*/*"?: never;
-                };
-            };
+            requestBody?: components["requestBodies"]["JsonBody"];
             responses: {
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
+                200: components["responses"]["JsonOk"];
             };
         };
         post?: never;
@@ -1747,18 +1730,9 @@ export interface paths {
                 };
                 cookie?: never;
             };
-            requestBody?: {
-                content: {
-                    "*/*"?: never;
-                };
-            };
+            requestBody?: components["requestBodies"]["JsonBody"];
             responses: {
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
+                200: components["responses"]["JsonOk"];
             };
         };
         post?: never;
@@ -1786,18 +1760,9 @@ export interface paths {
                 };
                 cookie?: never;
             };
-            requestBody?: {
-                content: {
-                    "*/*"?: never;
-                };
-            };
+            requestBody?: components["requestBodies"]["JsonBody"];
             responses: {
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
+                200: components["responses"]["JsonOk"];
             };
         };
         post?: never;
@@ -1824,18 +1789,9 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: {
-                content: {
-                    "*/*"?: never;
-                };
-            };
+            requestBody?: components["requestBodies"]["JsonBody"];
             responses: {
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
+                200: components["responses"]["JsonOk"];
             };
         };
         delete?: never;
@@ -1861,12 +1817,7 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
+                200: components["responses"]["JsonOk"];
             };
         };
         put?: never;
@@ -1896,12 +1847,7 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
+                200: components["responses"]["JsonOk"];
             };
         };
         put?: never;
@@ -1931,12 +1877,7 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
+                200: components["responses"]["JsonOk"];
             };
         };
         put?: never;
@@ -1965,18 +1906,9 @@ export interface paths {
                 };
                 cookie?: never;
             };
-            requestBody?: {
-                content: {
-                    "*/*"?: never;
-                };
-            };
+            requestBody?: components["requestBodies"]["JsonBody"];
             responses: {
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
+                200: components["responses"]["JsonOk"];
             };
         };
         post?: never;
@@ -1992,12 +1924,7 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
+                200: components["responses"]["JsonOk"];
             };
         };
         options?: never;
@@ -2038,18 +1965,9 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: {
-                content: {
-                    "*/*"?: never;
-                };
-            };
+            requestBody?: components["requestBodies"]["JsonBody"];
             responses: {
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
+                200: components["responses"]["JsonOk"];
             };
         };
         delete?: never;
@@ -2077,12 +1995,7 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
+                200: components["responses"]["JsonOk"];
             };
         };
         put?: never;
@@ -2110,18 +2023,9 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: {
-                content: {
-                    "*/*"?: never;
-                };
-            };
+            requestBody?: components["requestBodies"]["JsonBody"];
             responses: {
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
+                200: components["responses"]["JsonOk"];
             };
         };
         delete?: never;
@@ -2147,12 +2051,7 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
+                200: components["responses"]["JsonOk"];
             };
         };
         put?: never;
@@ -2164,18 +2063,9 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: {
-                content: {
-                    "*/*"?: never;
-                };
-            };
+            requestBody?: components["requestBodies"]["JsonBody"];
             responses: {
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
+                200: components["responses"]["JsonOk"];
             };
         };
         delete?: never;
@@ -2203,12 +2093,7 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
+                200: components["responses"]["JsonOk"];
             };
         };
         /** Update monitor */
@@ -2221,18 +2106,9 @@ export interface paths {
                 };
                 cookie?: never;
             };
-            requestBody?: {
-                content: {
-                    "*/*"?: never;
-                };
-            };
+            requestBody?: components["requestBodies"]["JsonBody"];
             responses: {
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
+                200: components["responses"]["JsonOk"];
             };
         };
         post?: never;
@@ -2248,12 +2124,7 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
+                200: components["responses"]["JsonOk"];
             };
         };
         options?: never;
@@ -2280,12 +2151,7 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
+                200: components["responses"]["JsonOk"];
             };
         };
         put?: never;
@@ -2315,12 +2181,7 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
+                200: components["responses"]["JsonOk"];
             };
         };
         put?: never;
@@ -2334,18 +2195,9 @@ export interface paths {
                 };
                 cookie?: never;
             };
-            requestBody?: {
-                content: {
-                    "*/*"?: never;
-                };
-            };
+            requestBody?: components["requestBodies"]["JsonBody"];
             responses: {
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
+                200: components["responses"]["JsonOk"];
             };
         };
         delete?: never;
@@ -2371,18 +2223,9 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: {
-                content: {
-                    "*/*"?: never;
-                };
-            };
+            requestBody?: components["requestBodies"]["JsonBody"];
             responses: {
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
+                200: components["responses"]["JsonOk"];
             };
         };
         delete?: never;
@@ -2410,12 +2253,7 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
+                200: components["responses"]["JsonOk"];
             };
         };
         put?: never;
@@ -2443,12 +2281,7 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
+                200: components["responses"]["JsonOk"];
             };
         };
         put?: never;
@@ -2476,12 +2309,7 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
+                200: components["responses"]["JsonOk"];
             };
         };
         put?: never;
@@ -2511,12 +2339,7 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
+                200: components["responses"]["JsonOk"];
             };
         };
         delete?: never;
@@ -2542,18 +2365,9 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: {
-                content: {
-                    "*/*"?: never;
-                };
-            };
+            requestBody?: components["requestBodies"]["JsonBody"];
             responses: {
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
+                200: components["responses"]["JsonOk"];
             };
         };
         delete?: never;
@@ -2579,12 +2393,7 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
+                200: components["responses"]["JsonOk"];
             };
         };
         put?: never;
@@ -2612,18 +2421,9 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: {
-                content: {
-                    "*/*"?: never;
-                };
-            };
+            requestBody?: components["requestBodies"]["JsonBody"];
             responses: {
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
+                200: components["responses"]["JsonOk"];
             };
         };
         delete?: never;

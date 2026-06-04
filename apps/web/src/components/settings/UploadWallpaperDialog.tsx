@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import useAuth from "@/context/useAuth";
-import { uploadWallpaperAction } from "@/app/actions/wallpapers";
+import { uploadWallpaperAction } from '@/lib/apiClient';
 
 interface UploadWallpaperDialogProps {
   open: boolean;

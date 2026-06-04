@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/command";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import type { NewsFeedDraft } from "@dashwise/types/sdk/data/news";
+import type { NewsFeedDraft } from "@dashwise/types/sdk";
 
 interface FeedOption {
   id: string;

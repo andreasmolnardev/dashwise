@@ -3,8 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Check, ChevronsUpDown } from "lucide-react";
 import useAuth from "@/context/useAuth";
-import { createMonitorAction } from "@/app/actions/monitoring";
-import { getLinksCollectionsAction, getLinksItemsAction } from "@/app/actions/links";
+import { createMonitorAction } from '@/lib/apiClient';
+import { getLinksCollectionsAction, getLinksItemsAction } from '@/lib/apiClient';
 import { Button } from "@/components/ui/button";
 import {
   Command,
