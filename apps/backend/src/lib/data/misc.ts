@@ -1,5 +1,3 @@
-
-
 export async function getLocations(q?: string | null) {
   if (!q) return [];
 

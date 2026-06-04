@@ -1,19 +1,5 @@
-import { getSuperuserPB } from "@dashwise/sdk/lib/pocketbase";
+import { getSuperuserPB } from "../pb/pocketbase";
 import type { PageConfigResponse } from "@dashwise/types";
-/*
-PAGE CONFIG
-format:
-{
-    "template": "main", #main: 3 cols, expand middle one,
-    "columns": {
-        "left": [],
-        "middle": {
-        "main-clock": {},
-
-        "right": []
-    }
-}
-*/
 
 export type PageConfig = {
     appearance?: Record<string, unknown>;
@@ -34,9 +20,6 @@ function escapeFilter(value: string) {
     return value.replace(/"/g, '\\"');
 }
 
-// create new page (config)
-
-// get page config
 export async function getPageConfigJSON(
     userId: string,
     pageName: string,
@@ -102,7 +85,6 @@ export async function createPageFromDefaultConfig(
 ) {
     const pb = await getSuperuserPB();
 
-    // check if page already exists for user
     const existing = await getPageConfig(userId, pageName);
     if (existing) {
         throw new Error(
@@ -125,7 +107,6 @@ export async function createPageFromDefaultConfig(
     return { pageName, pageConfig: defaultHomeConfig };
 }
 
-// update page config
 export async function updatePageConfig(
     userId: string,
     pageName: string,
@@ -144,7 +125,7 @@ export async function updatePageConfig(
         config,
     });
 }
-// delete page config
+
 export async function deletePageConfig(userId: string, pageName: string) {
     const pb = await getSuperuserPB();
     const existing = await getPageConfig(userId, pageName);
@@ -152,3 +133,5 @@ export async function deletePageConfig(userId: string, pageName: string) {
         await pb.collection("pageConfig").delete(existing.id);
     }
 }
+
+export { migrateLegacyPageConfig } from "./config";

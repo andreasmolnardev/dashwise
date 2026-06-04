@@ -1,7 +1,7 @@
 import Parser from 'rss-parser';
 import { channelId } from "@gonetone/get-youtube-id-by-url";
-import config from "../lib/config";
-import { getFaviconFromDOM } from "../lib/api/tools/faviconFromDom";
+import { config } from "../config";
+import { getFaviconFromDOM } from "../api/tools/faviconFromDom";
 import type { NewsFeedsRecord, NewsSubscriptionsRecord } from "@dashwise/types";
 import {
   deleteNewsSubscription,
@@ -16,7 +16,7 @@ import {
   updateNewsFeedRecord,
   updateNewsSubscription,
   createNewsSubscription,
-} from "@dashwise/sdk/data/superuser";
+} from "./superuser";
 
 export type NewsFeedItem = {
   title: string;
@@ -578,8 +578,6 @@ export async function refreshNewsFeed(
   userId: string,
   options?: { feedId?: string | null; feedIds?: string[] | null },
 ) {
-  // External webhook calls are disabled in the monolithic structure.
-  // The API layer now handles this by calling internal job functions directly.
   return { message: "Internal refresh triggered" };
 }
 
@@ -612,13 +610,6 @@ export async function subscribeNewsFeed(
 
     if (subscriptionId) {
       const feedIds = await syncSubscriptionFeedRefs(userId, subscriptionId, sub.feedIds ?? [], sub.newFeedTitles ?? []);
-
-      // Refreshing of feeds is now handled by the API layer internally
-      /*
-      if (config.jobs_webhook_enabled && feedIds.length > 0) {
-        await refreshNewsFeed(userId, { feedIds });
-      }
-      */
     }
   } else {
     const created = (await createNewsSubscription({
@@ -633,13 +624,6 @@ export async function subscribeNewsFeed(
 
     if (created?.id) {
       const feedIds = await syncSubscriptionFeedRefs(userId, created.id, sub.feedIds ?? [], sub.newFeedTitles ?? []);
-
-      // Refreshing of feeds is now handled by the API layer internally
-      /*
-      if (config.jobs_webhook_enabled && feedIds.length > 0) {
-        await refreshNewsFeed(userId, { feedIds });
-      }
-      */
     }
   }
 

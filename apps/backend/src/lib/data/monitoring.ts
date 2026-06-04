@@ -1,5 +1,5 @@
-import config from "../lib/config";
-import { getSuperuserPB } from "@dashwise/sdk/lib/pocketbase";
+import { config } from "../config";
+import { getSuperuserPB } from "../pb/pocketbase";
 import type { MonitorsResponse } from "@dashwise/types";
 
 export type MonitorPing = {
@@ -315,14 +315,14 @@ export async function runMonitoringStatus(userId: string, body: any) {
     return { _status: 404, error: "Monitoring job not found for this user" };
   }
 
-  if (!config.jobs_webhook_enabled) {
+  if (!config.JOBS_WEBHOOK_ENABLED) {
     return { _status: 400, error: "Jobs webhook is disabled" };
   }
 
   const targetMonitor = existingMonitors[0];
   const sourceLinkId = targetMonitor.sourcelinkId || targetMonitor.linkId;
 
-  const webhookUrl = `${config.jobs_url}/webhook/statusMonitoringRunner${
+  const webhookUrl = `${config.JOBS_URL}/webhook/statusMonitoringRunner${
     sourceLinkId ? `?linkId=${encodeURIComponent(sourceLinkId)}` : ""
   }`;
   const webhookResponse = await fetch(webhookUrl, {

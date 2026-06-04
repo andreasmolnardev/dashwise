@@ -11,16 +11,20 @@
   "scripts": {
     "dev": "bun --hot src/index.ts",
     "start": "NODE_ENV=production bun src/index.ts",
+    "generate:openapi": "bun ../../scripts/generate-openapi-json.ts && bunx openapi-typescript openapi.yaml -o ../../packages/api-types/src/openapi.ts",
     "build": "tsc -p tsconfig.json"
   },
   "dependencies": {
     "@dashwise/assets": "workspace:*",
     "@dashwise/integrationskit": "workspace:*",
     "@dashwise/types": "workspace:*",
-    "@dashwise/sdk": "workspace:*",
     "hono": "^4.6.14",
     "ts-caldav": "^0.3.7",
     "rss-parser": "^3.12.0",
+    "pocketbase": "^0.26.8",
+    "speakeasy": "^2.0.0",
+    "sharp": "^0.34.3",
+    "yaml": "^2.8.2",
     "zod": "^3.24.1"
   },
   "devDependencies": {

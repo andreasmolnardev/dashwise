@@ -7,11 +7,14 @@
     ".": {
       "types": "./index.ts",
       "default": "./index.ts"
+    },
+    "./sdk": {
+      "types": "./sdk-types.ts",
+      "default": "./sdk-types.ts"
     }
   },
   "types": "index.ts",
   "dependencies": {
-    "@dashwise/sdk": "workspace:*",
     "pocketbase": "^0.26.8"
   }
 }

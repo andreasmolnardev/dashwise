@@ -1,6 +1,6 @@
 import { randomUUID } from "crypto";
 
-import { createJobLog } from "@dashwise/sdk/data/superuser";
+import { createJobLog } from "../lib/data/superuser";
 import { createLogger } from "../lib/logger";
 
 type JobStatus = "started" | "success" | "error";

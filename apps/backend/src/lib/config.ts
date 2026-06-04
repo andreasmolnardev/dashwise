@@ -13,6 +13,11 @@ const resolvedOutlierValue = Number.isFinite(normalizedOutlierValue) && normaliz
   ? normalizedOutlierValue
   : fallbackOutlierValue;
 
+const truthyEnv = (value?: string | null): boolean => {
+  if (!value) return false;
+  return value === "1" || value.toLowerCase() === "true";
+};
+
 export const config = {
   ENVIRONMENT: processEnvironment === "dev" ? "dev" : "production",
   PB_URL: env.PB_URL || "http://127.0.0.1:8090",
@@ -36,8 +41,16 @@ export const config = {
   PB_ADMIN_EMAIL: env.PB_ADMIN_EMAIL!,
   PB_ADMIN_PASSWORD: env.PB_ADMIN_PASSWORD,
   DASHWISE_URL: env.DASHWISE_URL || (processEnvironment === "dev" ? "http://localhost:3000" : ""),
+  APP_BASE_URL: env.APP_BASE_URL || env.DASHWISE_URL || (processEnvironment === "dev" ? "http://localhost:3000" : ""),
   DASHWISE_VERSION: '1.0',
-  GITHUB_REPO: 'andreasmolnardev/dashwise-next'
+  GITHUB_REPO: 'andreasmolnardev/dashwise-next',
+  INSTANCE_NAME: env.INSTANCE_NAME || "Dashwise",
+  DISABLE_USER_SIGNUP: truthyEnv(env.DISABLE_USER_SIGNUP),
+  ENABLE_SSO: truthyEnv(env.ENABLE_SSO),
+  JOBS_URL: env.JOBS_URL || "http://127.0.0.1:3001",
+  JOBS_WEBHOOK_ENABLED: truthyEnv(env.JOBS_WEBHOOK_ENABLE) || !!env.JOBS_URL,
+  DEFAULT_BG_URL: env.DEFAULT_BG_URL || "/dashboard-wallpaper.png",
+  allowInsecureCertsForIntegrationUrls: truthyEnv(env.ALLOW_INSECURE_CERTS_FOR_INTEGRATION_URLS) || false,
 } as const;
 
 export type Config = typeof config;

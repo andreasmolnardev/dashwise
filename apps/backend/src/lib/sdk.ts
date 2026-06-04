@@ -1,5 +1,5 @@
-import { DashwiseSDKConnector } from "@dashwise/sdk";
-import { registerDashwiseSDKConnector } from "@dashwise/sdk/lib/pocketbase";
+import { DashwiseSDKConnector } from "./pb/client";
+import { registerDashwiseSDKConnector } from "./pb/pocketbase";
 import { config } from "./config";
 import { createLogger } from "./logger";
 

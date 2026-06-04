@@ -6,7 +6,7 @@ services:
     image: andreasmolnardev/dashwise:aio-preview
     ports:
       - "3016:3000"
-      - "8090:8090"
+      - "8093:8090"
     restart: unless-stopped
     environment:
       ENVIRONMENT: production

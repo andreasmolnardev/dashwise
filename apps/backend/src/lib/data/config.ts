@@ -1,8 +1,8 @@
 import path from "path";
 import { promises as fs } from "fs";
 import { ClientResponseError } from "pocketbase";
-import { getSuperuserPB } from "@dashwise/sdk/lib/pocketbase";
-import { ApiActionError } from "@dashwise/sdk/data/auth";
+import { getSuperuserPB } from "../pb/pocketbase";
+import { ApiActionError } from "./auth";
 
 type PBRecord = {
   id: string;

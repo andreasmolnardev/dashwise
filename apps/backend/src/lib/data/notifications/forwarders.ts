@@ -1,4 +1,4 @@
-import { getSuperuserPB } from "@dashwise/sdk/lib/pocketbase";
+import { getSuperuserPB } from "../../pb/pocketbase";
 import type { NotificationForwardersResponse, NotificationTopicsResponse } from "@dashwise/types";
 
 export async function getForwarders(userId: string) {

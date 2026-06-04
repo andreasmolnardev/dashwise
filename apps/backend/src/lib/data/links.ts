@@ -1,4 +1,4 @@
-import { getServerPB } from "../lib/pocketbase";
+import { getServerPB } from "../pb/pocketbase";
 
 export interface LinkList {
     collectionId: string;
@@ -58,16 +58,13 @@ export interface LinkItem {
     updated: string;
 }
 
-// Shape accepted by setHomeLinks
 interface HomeLinkInput {
     name: string;
     url: string;
     icon?: string;
-    linkGroup: string; // maps to top-level folder name
-    folder?: string; // maps to nested folder name (child of linkGroup)
+    linkGroup: string;
+    folder?: string;
 }
-
-// ─── Read helpers ────────────────────────────────────────────────────────────
 
 export async function getLinksCollections(userId: string) {
     const pb = getServerPB();
@@ -273,8 +270,6 @@ export async function updateLinkTag(
     };
 }
 
-// ─── Home links ───────────────────────────────────────────────────────────────
-
 function buildFolderPathResolver(
     folders: HomeLinkFolderPathItem[],
 ) {
@@ -293,7 +288,6 @@ function buildFolderPathResolver(
     };
 }
 
-// Resolve the home list ID once and cache it
 let homeListId: string | null = null;
 
 async function getHomeListId(userId: string) {
@@ -560,12 +554,6 @@ export async function createHomeLinkItem(
 
 export type HomeLink = Awaited<ReturnType<typeof getHomeLinks>>[number];
 
-/**
- * Replace all link items in the user's "home" list with the provided JSON array.
- * Folders are created on-demand by name (linkGroup = top-level, folder = child).
- * Existing items are deleted first, then recreated. Folders are reused if they
- * already exist (matched by name + parent).
- */
 export async function setHomeLinks(
     userId: string,
     json: string,
@@ -573,7 +561,6 @@ export async function setHomeLinks(
     const pb = getServerPB();
     const inputs: HomeLinkInput[] = JSON.parse(json);
 
-    // 1. Resolve or create the home list
     let homeCollection = await pb
         .collection("linksLists")
         .getFirstListItem(`user = "${userId}" && type = "home"`)
@@ -590,7 +577,6 @@ export async function setHomeLinks(
 
     const listId = homeCollection?.id;
 
-    // 2. Delete all existing link items in this list
     const existingItems = await pb.collection("linkItems").getFullList({
         filter: `collection = "${listId}"`,
     });
@@ -598,12 +584,10 @@ export async function setHomeLinks(
         existingItems.map((item) => pb.collection("linkItems").delete(item.id)),
     );
 
-    // 3. Load existing folders so we can reuse them
     const existingFolders = await pb.collection("linksFolders").getFullList({
         filter: `list = "${listId}"`,
     });
 
-    // Cache: "parentId|name" -> folderId  (parentId="" means root)
     const folderCache = new Map<string, string>(
         existingFolders.map((f) => [`${f.parentFolder ?? ""}|${f.name}`, f.id]),
     );
@@ -626,7 +610,6 @@ export async function setHomeLinks(
         return record.id;
     }
 
-    // 4. Create items, resolving/creating folders as needed
     await Promise.all(
         inputs.map(async (input) => {
             const topFolderId = await getOrCreateFolder(input.linkGroup);
@@ -646,35 +629,32 @@ export async function setHomeLinks(
     );
 }
 
-// Update a home link
 export async function updateHomeLinkItem(
     userId: string,
     linkId: string,
     data: {
         url?: string;
         title?: string;
-        iconUrl?: string;      
+        iconUrl?: string;
         description?: string;
         linkGroup?: string;
         folder?: string;
     },
 ): Promise<void> {
     const pb = getServerPB();
-    
-    // Verify the item belongs to the user's home collection
+
     const item = await pb.collection("linkItems").getOne(linkId);
     const list = await pb.collection("linksLists").getOne(item.collection);
     if (list.user !== userId || list.type !== "home") {
         throw new Error("Unauthorized");
     }
-    
+
     const updateData: any = {};
     if (data.url !== undefined) updateData.url = data.url;
     if (data.title !== undefined) updateData.title = data.title;
     if (data.iconUrl !== undefined) updateData.iconUrl = data.iconUrl;
     if (data.description !== undefined) updateData.description = data.description;
-    
-    // Handle folder changes
+
     if (data.linkGroup !== undefined || data.folder !== undefined) {
         const homeListId = await getHomeListId(userId);
         let folderId: string | undefined;
@@ -709,10 +689,6 @@ export async function reorderLinks(
     items: { id: string; type: "link" | "folder"; position: number }[],
 ): Promise<void> {
     const pb = getServerPB();
-    
-    // Validate ownership (optional but recommended)
-    // For simplicity, we'll just try to update. 
-    // PocketBase rules should handle the security.
 
     await Promise.all(
         items.map(async (item) => {
@@ -724,8 +700,6 @@ export async function reorderLinks(
         })
     );
 }
-
-// ─── Collection CRUD ─────────────────────────────────────────────────────────
 
 export async function createCollection(
     userId: string,
@@ -756,11 +730,9 @@ export async function deleteCollection(
 ): Promise<void> {
     const pb = getServerPB();
 
-    // Verify ownership before deletion
     const list = await pb.collection("linksLists").getOne(listId);
     if (list.user !== userId) throw new Error("Unauthorized");
 
-    // Cascade-delete items and folders, then the list itself
     const [items, folders] = await Promise.all([
         pb.collection("linkItems").getFullList({
             filter: `collection = "${listId}"`,
@@ -777,8 +749,6 @@ export async function deleteCollection(
 
     await pb.collection("linksLists").delete(listId);
 }
-
-// ─── Link item CRUD ───────────────────────────────────────────────────────────
 
 export async function createLinkItem(data: {
     url: string;
@@ -904,7 +874,6 @@ export async function deleteLinkItem(
 ): Promise<void> {
     const pb = getServerPB();
 
-    // Verify the item belongs to one of the user's lists before deleting
     const item = await pb.collection("linkItems").getOne(linkId);
     const list = await pb.collection("linksLists").getOne(item.collection);
     if (list.user !== userId) throw new Error("Unauthorized");

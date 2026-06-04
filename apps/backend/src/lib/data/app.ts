@@ -1,5 +1,5 @@
-import config from "../lib/config";
-import { getDashwiseSDKConnector, getServerPB } from "@dashwise/sdk/lib/pocketbase";
+import { config } from "../config";
+import { getDashwiseSDKConnector, getServerPB } from "../pb/pocketbase";
 import type { AppInfoResponse } from "@dashwise/types";
 
 export async function getAppConfig() {
@@ -19,7 +19,7 @@ export async function getAppInfo() {
 
   return {
     updateAvailable: record?.updateAvailable || false,
-    currentAppVersion: config.version || "unknown",
-    userSignupDisabled: config.disableUserSignup || false,
+    currentAppVersion: config.DASHWISE_VERSION || "unknown",
+    userSignupDisabled: config.DISABLE_USER_SIGNUP || false,
   };
 }

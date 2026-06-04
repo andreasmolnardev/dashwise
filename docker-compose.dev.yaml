@@ -18,7 +18,6 @@ services:
       - backend-node-modules:/app/apps/backend/node_modules
       - web-node-modules:/app/apps/web/node_modules
       - integrationskit-node-modules:/app/packages/integrationskit/node_modules
-      - sdk-node-modules:/app/packages/sdk/node_modules
       - ./pocketbase/pb_data:/app/pocketbase/pb_data
       - ./pocketbase/migrations:/app/pocketbase/migrations
     networks:
@@ -38,4 +37,3 @@ volumes:
   backend-node-modules:
   web-node-modules:
   integrationskit-node-modules:
-  sdk-node-modules:

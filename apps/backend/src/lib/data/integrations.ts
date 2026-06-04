@@ -1,15 +1,11 @@
 import { Buffer } from "buffer";
 import { defaultIntegrationsManifest } from "@dashwise/assets";
-import { ApiActionError } from "@dashwise/sdk/data/auth";
-import { getSuperuserPB } from "@dashwise/sdk/lib/pocketbase";
-import { decodeBase64Json, parseNullableJson, tryParseJson, tryParseYaml } from "@dashwise/sdk/lib/parseHelpers";
+import { ApiActionError } from "./auth";
+import { getSuperuserPB } from "../pb/pocketbase";
+import { decodeBase64Json, parseNullableJson, tryParseJson, tryParseYaml } from "../parseHelpers";
 import { getEndpointCurl } from "@dashwise/integrationskit/data/getEndpointData";
 import { resolveIntegrationRuntimeProperties } from "@dashwise/integrationskit/data/resolveProperties";
-import config from "../lib/config";
-
-// ---------------------------------------------------------------------------
-// Constants & types
-// ---------------------------------------------------------------------------
+import { config } from "../config";
 
 const TOKEN_REGEX = /\$\{([A-Za-z0-9_]+)\}/g;
 const UNRESOLVED_TOKEN_REGEX = /\$\{[A-Za-z0-9_]+\}/;
@@ -62,10 +58,6 @@ export type CreateIntegrationPayload = {
     environment?: unknown;
 };
 
-// ---------------------------------------------------------------------------
-// Built-in integration loading (cached)
-// ---------------------------------------------------------------------------
-
 const builtinManifest = isPlainObject(defaultIntegrationsManifest)
     ? (defaultIntegrationsManifest as Record<string, { source: string; defaultEnv?: Record<string, unknown> }>)
     : {};
@@ -95,7 +87,7 @@ function loadBuiltinSeeds(): Promise<BuiltinSeed[]> {
 
 async function fetchBuiltinConfig(source: string): Promise<Record<string, unknown> | null> {
     try {
-        const response = await fetch(new URL(source, config.app_base_url).toString());
+        const response = await fetch(new URL(source, config.APP_BASE_URL).toString());
         if (!response.ok) return null;
         const parsed = tryParseYaml(await response.text());
         return isPlainObject(parsed) ? (parsed as Record<string, unknown>) : null;
@@ -108,10 +100,6 @@ async function getBuiltinSeedBySource(source: string) {
     const seeds = await loadBuiltinSeeds();
     return seeds.find((s) => s.source === source) ?? null;
 }
-
-// ---------------------------------------------------------------------------
-// Public CRUD
-// ---------------------------------------------------------------------------
 
 export async function listIntegrations(userId: string) {
     const pb = await getSuperuserPB();
@@ -142,7 +130,7 @@ export async function getIntegration(userId: string, integrationId: string, reso
         integrationJSON: integration.config,
         env: envMap,
         isPreview: false,
-        allowInsecureEndpoints: config.allowInsecureCertsForIntegrationUrls,
+        allowInsecureEndpoints: config.ALLOW_SSL,
     });
 
     const resolvedEndpointsWithData = resolvedEndpoints.map((ep) => {
@@ -196,10 +184,6 @@ export async function deleteIntegration(userId: string, integrationId: string) {
     await pb.collection("integrations").delete(integrationId);
     return { success: true };
 }
-
-// ---------------------------------------------------------------------------
-// Endpoint testing
-// ---------------------------------------------------------------------------
 
 export async function testIntegrationEndpoint(userId: string, rawTarget: string) {
     if (!rawTarget) throw new ApiActionError("Missing target", 400, { error: "Missing target" });
@@ -279,10 +263,6 @@ export async function testIntegrationEndpoint(userId: string, rawTarget: string)
         tc.clear();
     }
 }
-
-// ---------------------------------------------------------------------------
-// Widget / glanceable lookups
-// ---------------------------------------------------------------------------
 
 export async function getWidgetProperties(userId: string, widgetSlug: string) {
     if (!widgetSlug?.trim()) throw new ApiActionError("Missing widget slug", 400, { error: "Missing widget slug" });
@@ -448,10 +428,6 @@ export async function getIntegrationWithCompositeConsumerKey(userId: string, com
     return { integrationId: null, integration: null, widgetJSON: null, glanceableJSON: null, localData: null };
 }
 
-// ---------------------------------------------------------------------------
-// Built-in integration seeding
-// ---------------------------------------------------------------------------
-
 export async function ensureBuiltinIntegrations(userId: string, pb: Awaited<ReturnType<typeof getSuperuserPB>>) {
     const seeds = await loadBuiltinSeeds();
     if (seeds.length === 0) return;
@@ -459,7 +435,6 @@ export async function ensureBuiltinIntegrations(userId: string, pb: Awaited<Retu
     const existing = await pb.collection("integrations").getFullList({ filter: `user="${escapeFilter(userId)}"` });
 
     for (const seed of seeds) {
-        // Try matching by source first (most specific)
         const matchBySource = existing.find((r) => r.source === seed.source);
 
         if (matchBySource) {
@@ -478,7 +453,6 @@ export async function ensureBuiltinIntegrations(userId: string, pb: Awaited<Retu
                 });
             }
         } else {
-            // If no source match, check if an integration with the same name already exists
             if (seed.name) {
                 const matchByName = existing.find((r) => r.name === seed.name);
                 if (matchByName) {
@@ -496,10 +470,6 @@ export async function ensureBuiltinIntegrations(userId: string, pb: Awaited<Retu
         }
     }
 }
-
-// ---------------------------------------------------------------------------
-// Env var resolution via provider endpoints
-// ---------------------------------------------------------------------------
 
 async function resolveEnvVarsViaEndpoints(
     integrationId: string,
@@ -582,10 +552,6 @@ async function resolveEnvVarsViaEndpoints(
 
     return current;
 }
-
-// ---------------------------------------------------------------------------
-// Endpoint resolution
-// ---------------------------------------------------------------------------
 
 export function buildResolvedEndpoints(config: Record<string, unknown>, environment: Record<string, string>): ResolvedEndpoint[] {
     return buildResolvedEndpointList(normalizeEndpointList(config), buildEnvMap(config, environment));
@@ -677,10 +643,6 @@ function prepareRequest(ep: ResolvedEndpoint, envMap: Record<string, string>, is
     };
 }
 
-// ---------------------------------------------------------------------------
-// Env map helpers
-// ---------------------------------------------------------------------------
-
 function buildEnvMap(config: Record<string, unknown>, stored: Record<string, string>): Record<string, string> {
     const envDef = (config.configuration as Record<string, unknown>)?.environment_variables;
     const defaults: Record<string, string> = {};
@@ -715,10 +677,6 @@ function resolveEnvironmentVariables(
     return result;
 }
 
-// ---------------------------------------------------------------------------
-// Config / environment encoding
-// ---------------------------------------------------------------------------
-
 function normalizeConfig(value: unknown): Record<string, unknown> {
     if (isPlainObject(value)) return value;
     if (typeof value !== "string") return {};
@@ -749,10 +707,6 @@ function decodeEnvironment(raw: unknown): Record<string, string> {
     return result;
 }
 
-// ---------------------------------------------------------------------------
-// Endpoint config helpers
-// ---------------------------------------------------------------------------
-
 function normalizeEndpointList(config: Record<string, unknown>): Record<string, unknown>[] {
     const raw = (config?.configuration as Record<string, unknown>)?.endpoints;
     if (!raw) return [];
@@ -781,10 +735,6 @@ function collectTokensFromEndpoints(config: Record<string, unknown>): Set<string
     }
     return tokens;
 }
-
-// ---------------------------------------------------------------------------
-// Value interpolation
-// ---------------------------------------------------------------------------
 
 function resolveValue(value: unknown, envMap: Record<string, string>): unknown {
     if (value == null) return value;
@@ -818,10 +768,6 @@ function maybeParse(value: string): unknown {
     if (!t || (!t.startsWith("{") && !t.startsWith("["))) return value;
     try { return JSON.parse(t); } catch { return value; }
 }
-
-// ---------------------------------------------------------------------------
-// Misc helpers
-// ---------------------------------------------------------------------------
 
 function mapIntegration(record: any): IntegrationRecord {
     return {

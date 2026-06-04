@@ -1,9 +1,9 @@
-import { ClientResponseError, getServerPB } from "@dashwise/sdk/lib/pocketbase";
+import { ClientResponseError, getServerPB } from "../pb/pocketbase";
 import { defaultHomeConfig } from "@dashwise/assets";
 import type { UsersResponse } from "@dashwise/types";
 
 import speakeasy from "speakeasy";
-import config from "../lib/config";
+import { config } from "../config";
 
 export class ApiActionError extends Error {
   status: number;
@@ -277,7 +277,7 @@ export async function signupUser(payload: {
     linksConfig?: Record<string, unknown>;
   };
 }) {
-  if (config.disableUserSignup) {
+  if (config.DISABLE_USER_SIGNUP) {
     throw new ApiActionError("Signup failed.", 401, {
       error: "Signup failed.",
     });

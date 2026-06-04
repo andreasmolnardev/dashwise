@@ -1,4 +1,4 @@
-import type { HomeLink as SdkHomeLink } from "@dashwise/sdk/data/links";
+import type { HomeLink as SdkHomeLink } from "./sdk-types";
 
 export type StatusCheckMethod =
   | "GET"

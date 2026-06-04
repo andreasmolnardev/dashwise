@@ -1,4 +1,4 @@
-import { getSuperuserPB } from "@dashwise/sdk/lib/pocketbase";
+import { getSuperuserPB } from "../../pb/pocketbase";
 import crypto from "crypto";
 import type { NotificationTopicsResponse, NotificationTopicTokensResponse } from "@dashwise/types";
 
@@ -45,6 +45,7 @@ export async function createTopicToken(userId: string, body: any) {
   let topicRecord: NotificationTopicsResponse | null = null;
   if (topicId) {
     topicRecord = (await pb.collection("notificationTopics").getOne(topicId)) as NotificationTopicsResponse;
+    console.log("Found topic record:", topicRecord);
     if (!topicRecord || topicRecord.userId !== userId) {
       throw new Error("Topic not found or not owned by user");
     }
@@ -102,12 +103,12 @@ export async function resolveTopicToken(token: string) {
   const records = (await pb.collection("notificationTopicTokens").getFullList({
     filter: `token="${token}"`,
   })) as Array<NotificationTopicTokensResponse>;
-  
+
   const tokenRecord = records[0];
   if (!tokenRecord) {
     return null;
   }
-  
+
   if (tokenRecord.expires && new Date(tokenRecord.expires) <= new Date()) {
     await pb.collection("notificationTopicTokens").delete(tokenRecord.id);
     return null;
@@ -117,10 +118,10 @@ export async function resolveTopicToken(token: string) {
   if (!topicRecord) {
     return null;
   }
-  
+
   return {
     topicId: topicRecord.id,
     topicName: topicRecord.title,
     userId: topicRecord.userId,
-  };  
+  };
 }

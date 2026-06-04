@@ -39,6 +39,7 @@ You can use the following environment variables for the main container:
 
 | Name | Required | Default Value | Description |
 | --- | --- | --- | --- |
+| INSTANCE_NAME | No | Dashwise | The dashboard's display name
 | PB_URL | No | `http://127.0.0.1:8090` | PocketBase URL used by the backend |
 | NEXT_PUBLIC_PB_URL | Yes | `http://pocketbase:8090` | URL of the PocketBase instance |
 | START_POCKETBASE | No | `true` | Start the bundled PocketBase process; set to `false` to use an external instance |

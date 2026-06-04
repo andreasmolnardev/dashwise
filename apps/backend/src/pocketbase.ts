@@ -1,7 +1,7 @@
 import { accessSync, constants, existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { getSuperuserPB } from "@dashwise/sdk/lib/pocketbase";
+import { getSuperuserPB } from "./lib/pb/pocketbase";
 import { config } from "./lib/config";
 import { createLogger, setPocketBaseLogger } from "./lib/logger";
 

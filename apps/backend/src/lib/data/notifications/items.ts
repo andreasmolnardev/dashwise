@@ -1,4 +1,4 @@
-import { getSuperuserPB } from "@dashwise/sdk/lib/pocketbase";
+import { getSuperuserPB } from "../../pb/pocketbase";
 import type {
   NotificationForwardersResponse,
   NotificationItemsResponse,
@@ -136,7 +136,7 @@ export async function deleteNotificationTopic(userId: string, topicId: string) {
 
 export async function sendTestNotification(userId: string, topicId: string) {
   const pb = await getSuperuserPB();
-  
+
   const topic = (await pb.collection("notificationTopics").getOne(topicId)) as NotificationTopicsResponse;
   if (topic.userId !== userId) {
     throw new Error("Unauthorized");
@@ -158,7 +158,6 @@ export async function sendTestNotification(userId: string, topicId: string) {
       body: JSON.stringify({ trigger: "notification-queued", itemId: item.id }),
     });
   } catch {
-    // Ignore error
   }
 
   return { ok: true, itemId: item.id };
@@ -197,4 +196,3 @@ export async function markNotificationsAsRead(userId: string, ids: string[]) {
 export async function sendNotification({}) {
 
 }
-

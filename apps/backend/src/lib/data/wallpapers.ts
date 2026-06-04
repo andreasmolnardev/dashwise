@@ -1,5 +1,5 @@
 import sharp from "sharp";
-import { getServerPB } from "@dashwise/sdk/lib/pocketbase";
+import { getServerPB } from "../pb/pocketbase";
 import type { WallpaperStoreResponse } from "@dashwise/types";
 
 const MAX_WIDTH = 3840;

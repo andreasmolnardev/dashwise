@@ -1,6 +1,6 @@
-import { getSuperuserPB } from "../lib/pocketbase";
+import { getSuperuserPB } from "../pb/pocketbase";
 
-async function safeNull<T>(fn: (pb: any) => Promise<T>): Promise<T | null> {
+async function safeNull(fn: (pb: any) => Promise<any>): Promise<any> {
 	try {
 		const pb = await getSuperuserPB();
 		return await fn(pb);

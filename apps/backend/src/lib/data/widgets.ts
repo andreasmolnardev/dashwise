@@ -1,5 +1,5 @@
 import { getHomeLinks } from "./links";
-import { getSuperuserPB } from "@dashwise/sdk/lib/pocketbase";
+import { getSuperuserPB } from "../pb/pocketbase";
 import { defaultIntegrationsBlueprint, weatherIntegrationBlueprint } from "@dashwise/assets";
 import { readFile } from "fs/promises";
 import path from "path";

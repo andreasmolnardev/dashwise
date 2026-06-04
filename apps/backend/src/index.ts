@@ -110,12 +110,13 @@ app.get("/integrations", (c) => serveWorkspaceAsset("integrations", new URL(c.re
 app.get("/integrations/*", (c) => serveWorkspaceAsset("integrations", new URL(c.req.url).pathname));
 
 const publicDir = resolve(process.cwd(), "dist/public");
+const openApiYamlPath = resolve(process.cwd(), "openapi.yaml");
 
 async function servePublicFile(requestPath: string) {
   const relativePath = requestPath.replace(/^\/+/, "");
 
   if (!relativePath) {
-    return null;
+    return new Response("Not found", { status: 404 });
   }
 
   const assetPath = resolve(publicDir, relativePath);
@@ -128,7 +129,7 @@ async function servePublicFile(requestPath: string) {
   const assetFile = Bun.file(assetPath);
 
   if (!(await assetFile.exists())) {
-    return null;
+    return new Response("Not found", { status: 404 });
   }
 
   const extension = assetPath.slice(assetPath.lastIndexOf(".")).toLowerCase();
@@ -166,6 +167,19 @@ app.get("/fonts/*", async (c) => servePublicFile(new URL(c.req.url).pathname));
 app.get("/icons/*", async (c) => servePublicFile(new URL(c.req.url).pathname));
 app.get("/weather-icons/*", async (c) => servePublicFile(new URL(c.req.url).pathname));
 app.get("/sw.js", async (c) => servePublicFile(new URL(c.req.url).pathname));
+app.get("/openapi.yaml", async () => {
+  const specFile = Bun.file(openApiYamlPath);
+
+  if (!(await specFile.exists())) {
+    return new Response("OpenAPI spec not found.", { status: 404 });
+  }
+
+  return new Response(specFile, {
+    headers: {
+      "Content-Type": "application/yaml; charset=utf-8",
+    },
+  });
+});
 app.get("/openapi.json", async (c) => servePublicFile(new URL(c.req.url).pathname));
 app.get("/integrations.json", async (c) => servePublicFile(new URL(c.req.url).pathname));
 app.get("/bangs.js", async (c) => servePublicFile(new URL(c.req.url).pathname));
@@ -200,4 +214,4 @@ logger.info(`Running on 0.0.0.0:${port}`);
 logger.info(`PocketBase target URL: ${config.PB_URL}`);
 
 export type AppType = typeof app;
-export default app;
+export { app };

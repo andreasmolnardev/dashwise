@@ -1,4 +1,4 @@
-import { getSuperuserPB } from "@dashwise/sdk/lib/pocketbase";
+import { getSuperuserPB } from "../pb/pocketbase";
 import type { SearchItemsResponse } from "@dashwise/types";
 
 function parseTags(value: unknown): string[] {
@@ -84,7 +84,6 @@ function parseAction(raw: unknown): SearchItemAction {
         }
       }
     } catch {
-      // fall through to raw string
     }
   }
 

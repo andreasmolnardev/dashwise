@@ -1,15 +1,13 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "declaration": true,
+    "declaration": false,
     "emitDeclarationOnly": false,
-    "rootDir": "./src",
     "noEmit": false,
     "baseUrl": ".",
     "module": "esnext",
     "moduleResolution": "bundler",
     "jsx": "preserve",
-    "strict": true,
     "lib": ["esnext"],
     "types": [
       "bun"
@@ -18,7 +16,8 @@
       "@dashwise/assets": ["../../packages/assets/index.ts"],
       "@dashwise/assets/*": ["../../packages/assets/*"]
     },
-    "outDir": "./dist"
+    "outDir": "./dist",
+    "strict": true
   },
   "include": ["src/**/*"]
 }
