@@ -1,7 +1,7 @@
 "use client"
 
 import { updateUserPropertyAction } from "@/app/actions/auth";
-import type { ActionAuth, AuthUserRecord, UserPropertyValue } from "@dashwise/sdk/data/auth";
+import type { ActionAuth, AuthUserRecord, UserPropertyValue } from "@dashwise/types/sdk/data/auth";
 import { useCallback, useEffect, useState } from "react";
 
 type AuthUser = AuthUserRecord;

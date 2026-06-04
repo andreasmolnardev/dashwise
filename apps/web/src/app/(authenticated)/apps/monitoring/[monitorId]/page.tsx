@@ -9,7 +9,7 @@ import {
     getMonitorAction,
     updateMonitoringStatusAction,
 } from "@/app/actions/monitoring";
-import type { MonitorPing, MonitorRecord } from "@dashwise/sdk/data/monitoring";
+import type { MonitorPing, MonitorRecord } from "@dashwise/types/sdk/data/monitoring";
 import { Button } from "@/components/ui/button";
 import {
     DropdownMenu,

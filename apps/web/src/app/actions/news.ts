@@ -1,4 +1,4 @@
-import type { ActionAuth } from "@dashwise/sdk/data/auth";
+import type { ActionAuth } from "@dashwise/types/sdk/data/auth";
 import type {
   NewsFeedDraft,
   NewsFeedItem,
@@ -10,7 +10,7 @@ import type {
   NewsSubscribeInput,
   NewsSubscriptionsResponse,
   NewsUpdateInput,
-} from "@dashwise/sdk/data/news";
+} from "@dashwise/types/sdk/data/news";
 import { callApiAction } from "@/lib/apiClient";
 
 export async function getNewsFeedAction(auth: ActionAuth, feedId?: string | null): Promise<NewsFeedItem[]> {

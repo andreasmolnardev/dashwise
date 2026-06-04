@@ -48,7 +48,7 @@ import { faEllipsisV, faPaperclip } from "@fortawesome/free-solid-svg-icons";
 import { Icon as Iconify } from "@iconify-icon/react";
 import { Check, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { LinkType, StatusCheckAuth, StatusCheckMethod } from "@dashwise/types";
+import type { LinkType, StatusCheckAuth, StatusCheckMethod } from "@dashwise/types/sdk";
 
 interface Icon {
   Name: string;

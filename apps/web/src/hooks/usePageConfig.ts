@@ -2,7 +2,7 @@
 
 import { getPageConfigAction } from "@/app/actions/pageConfigs";
 import useAuth from "@/context/useAuth";
-import type { PageConfig } from "@dashwise/sdk/data/pageConfig";
+import type { PageConfig } from "@dashwise/types/sdk/data/pageConfig";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useCallback, useEffect, useMemo, useState, type SetStateAction } from "react";
 

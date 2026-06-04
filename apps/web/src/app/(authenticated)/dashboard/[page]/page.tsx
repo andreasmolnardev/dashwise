@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { getPageConfigAction } from "../../../actions/pageConfigs";
 import PageNotFound from "@/components/errorPages/PageNotFound";
 import DashboardLayoutTemplate from "@/components/dashboard/DashboardLayoutTemplate";
-import type { PageConfig } from "@dashwise/sdk/data/pageConfig";
+import type { PageConfig } from "@dashwise/types/sdk/data/pageConfig";
 
 export default function DashboardPageFromConfig() {
     const params = useParams();

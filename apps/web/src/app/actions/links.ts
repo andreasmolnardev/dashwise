@@ -1,4 +1,4 @@
-import type { ActionAuth } from "@dashwise/sdk/data/auth";
+import type { ActionAuth } from "@dashwise/types/sdk/data/auth";
 import { callApiAction } from "@/lib/apiClient";
 
 export async function getLinksCollectionsAction(auth: ActionAuth) {

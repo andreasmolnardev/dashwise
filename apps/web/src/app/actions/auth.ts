@@ -1,4 +1,4 @@
-import type { ActionAuth, AuthUserRecord, UserPropertyValue } from "@dashwise/sdk/data/auth";
+import type { ActionAuth, AuthUserRecord, UserPropertyValue } from "@dashwise/types/sdk/data/auth";
 import { callApiAction } from "@/lib/apiClient";
 
 export type ChangePasswordRequest = {

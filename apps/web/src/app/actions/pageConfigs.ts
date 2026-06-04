@@ -1,5 +1,5 @@
-import type { ActionAuth } from "@dashwise/sdk/data/auth";
-import type { PageConfig } from "@dashwise/sdk/data/pageConfig";
+import type { ActionAuth } from "@dashwise/types/sdk/data/auth";
+import type { PageConfig } from "@dashwise/types/sdk/data/pageConfig";
 import { callApiAction } from "@/lib/apiClient";
 import { rpcCreateHomePage, rpcGetPageConfig, rpcGetUserPages, rpcUpdatePageConfig } from "@/lib/rpcClient";
 

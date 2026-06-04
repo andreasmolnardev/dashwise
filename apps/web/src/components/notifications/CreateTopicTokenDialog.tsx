@@ -24,7 +24,7 @@ type NewTokenDialogProps = {
   initialTopic?: Topic | null;
 };
 
-export default function CreateTopicTokenDialogComponent({
+export default function nn({
   open,
   onOpenChange,
   topics,
@@ -109,7 +109,7 @@ export default function CreateTopicTokenDialogComponent({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="frosted text-foreground">
         <DialogHeader>
-          <DialogTitle>New Token</DialogTitle>
+          <DialogTitle>Create Topic Token</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">

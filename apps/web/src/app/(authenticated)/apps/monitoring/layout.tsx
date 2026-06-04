@@ -2,7 +2,7 @@
 
 import { Outlet, useSearchParams } from "react-router-dom";
 import { useEffect, useState, useCallback } from "react";
-import AppTemplate, { Content, GroupLabel, Sidebar, Tab } from "@/components/apps/LayoutTemplate";
+import AppTemplate, { BottomTab, Content, GroupLabel, Sidebar, Tab } from "@/components/apps/LayoutTemplate";
 import useAuth from "@/context/useAuth";
 import { getMonitorsAction } from "@/app/actions/monitoring";
 import { getNotificationsAction } from "@/app/actions/notifications/items";
@@ -97,9 +97,8 @@ export default function MonitoringRootLayout() {
                      isRoot
                  />
                  
-                  <Tab
+                  <BottomTab
                       dst="/apps/monitoring/notifications"
-                      group="notifications"
                       icon="fa6-solid:bell"
                       title="Notifications"
                       isRoot

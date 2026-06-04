@@ -9,7 +9,7 @@ import {
 } from "@/app/actions/links";
 import { PaginatedCarouselViewComponent } from "./PaginatedCarouselView";
 import MonitoringDialog, { JobEntry } from "./MonitoringDialog";
-import type { LinkType } from "@dashwise/types";
+import type { LinkType } from "@dashwise/types/sdk";
 import {
   Popover,
   PopoverContent,

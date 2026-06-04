@@ -45,7 +45,7 @@ import type {
     NewsFeedSummary,
     NewsFeedsResponse,
     NewsSubscriptionsResponse,
-} from "@dashwise/sdk/data/news";
+} from "@dashwise/types/sdk/data/news";
 
 export default function NewsDashboardComponent() {
     const navigate = useNavigate();

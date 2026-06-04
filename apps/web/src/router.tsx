@@ -12,8 +12,7 @@ const OnboardingPage = lazy(() => import("./app/(authenticated)/onboarding/page"
 const DynamicPage = lazy(() => import("./app/(authenticated)/dashboard/[page]/page"));
 const NewsPage = lazy(() => import("./app/(authenticated)/apps/news/page"));
 const NewsLayout = lazy(() => import("./components/news/NewsLayout"));
-const NotificationsLayout = lazy(() => import("./app/(authenticated)/apps/notifications/layout"));
-const NotificationsPage = lazy(() => import("./app/(authenticated)/apps/notifications/page"));
+const NotificationsPage = lazy(() => import("./app/(authenticated)/apps/monitoring/notifications/page"));
 const NotificationsInboxPage = lazy(() => import("./app/(authenticated)/apps/notifications/inbox/page"));
 const LinksLayout = lazy(() => import("./app/(authenticated)/apps/links/layout"));
 const LinksPage = lazy(() => import("./app/(authenticated)/apps/links/page"));
@@ -73,36 +72,29 @@ export const appRouter = createBrowserRouter([
                 </NewsLayout>
               ),
             },
-          {
-            path: "links",
-            element: <LinksLayout />,
-            children: [
-              { index: true, element: <LinksPage /> },
-              { path: "home", element: <LinksHomePage /> },
-              { path: "lists", element: <LinksListsPage /> },
-              { path: "lists/:listId", element: <LinksListDetailPage /> },
-              { path: "tags", element: <LinksTagsPage /> },
-              { path: "tags/:tagId", element: <LinksTagDetailPage /> },
-            ],
-          },
-          {
-            path: "notifications",
-            element: <NotificationsLayout />,
-            children: [
-              { index: true, element: <NotificationsPage /> },
-              { path: "inbox", element: <NotificationsInboxPage /> },
-            ],
-          },
-          {
-            path: "apps/monitoring",
-            element: <MonitoringLayout />,
-            children: [
-              { index: true, element: <MonitoringPage /> },
-              { path: ":monitorId", element: <MonitoringDetailPage /> },
-            ],
-          },
-          {
-            path: "settings",
+           {
+             path: "links",
+             element: <LinksLayout />,
+             children: [
+               { index: true, element: <LinksPage /> },
+               { path: "home", element: <LinksHomePage /> },
+               { path: "lists", element: <LinksListsPage /> },
+               { path: "lists/:listId", element: <LinksListDetailPage /> },
+               { path: "tags", element: <LinksTagsPage /> },
+               { path: "tags/:tagId", element: <LinksTagDetailPage /> },
+             ],
+           },
+           {
+             path: "apps/monitoring",
+             element: <MonitoringLayout />,
+             children: [
+               { index: true, element: <MonitoringPage /> },
+               { path: "notifications", element: <NotificationsPage /> },
+               { path: ":monitorId", element: <MonitoringDetailPage /> },
+             ],
+           },
+           {
+             path: "settings",
             element: <SettingsLayout />,
             children: [
               { index: true, element: <SettingsPage /> },

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Icon } from "@iconify-icon/react";
-import type { NewsFeedRecord, NewsFeedRecordUpdateInput } from "@dashwise/sdk/data/news";
+import type { NewsFeedRecord, NewsFeedRecordUpdateInput } from "@dashwise/types/sdk/data/news";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";

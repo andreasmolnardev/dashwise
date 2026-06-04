@@ -1,4 +1,5 @@
 interface Config {
+  instance_name?: string | undefined;
   backend_url: string;
   pb_url: string;
   jobs_url?: string | undefined;
@@ -45,6 +46,7 @@ if (!isDev){
 }
 
 const config: Config = {
+  instance_name: env.INSTANCE_NAME || env.NEXT_PUBLIC_INSTANCE_NAME || "Dashwise",
   backend_url: backend_url,
 
   pb_url: env.NEXT_PUBLIC_PB_URL || "http://127.0.0.1:8090",

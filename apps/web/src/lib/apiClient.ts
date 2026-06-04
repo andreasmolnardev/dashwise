@@ -1,6 +1,6 @@
 import createClient from "openapi-fetch";
 import type { paths } from "@dashwise/api-types";
-import type { ActionAuth } from "@dashwise/sdk/data/auth";
+import type { ActionAuth } from "@dashwise/types/sdk/data/auth";
 import config from "@/lib/config";
 
 const apiBasePath = "/api/v1";
@@ -191,12 +191,12 @@ const routes: Record<string, RouteConfig> = {
   },
   "pageConfig.createHomePageAction": {
     method: "POST",
-    path: "/pageConfig/home" as any,
+    path: "/pageConfig/home",
     body: (input) => input,
   },
   "pageConfig.migrateLegacyAction": {
     method: "POST",
-    path: "/pageConfig/migrate-legacy" as any,
+    path: "/pageConfig/migrate-legacy",
     auth: (input) => authToken(input?.auth),
     body: (input) => input,
   },
@@ -207,7 +207,7 @@ const routes: Record<string, RouteConfig> = {
   },
   "pageConfig.getPageIntegrationDataAction": {
     method: "POST",
-    path: "/pageConfig/integrationData" as any,
+    path: "/pageConfig/integrationData",
     auth: (input) => authToken(input?.auth),
     query: (input) => ({ page: input?.pageName }),
     body: () => undefined,
@@ -225,7 +225,7 @@ const routes: Record<string, RouteConfig> = {
   },
   "links.updateLinksCollectionAction": {
     method: "PUT",
-    path: "/links/collections/{collectionId}" as any,
+    path: "/links/collections/{collectionId}",
     params: (input) => ({ path: { collectionId: String(input?.collectionId ?? "") } }),
     body: (input) => ({ auth: input?.auth, data: input?.data }),
   },
@@ -241,7 +241,7 @@ const routes: Record<string, RouteConfig> = {
   },
   "links.updateHomeLinkFolderIconAction": {
     method: "PUT",
-    path: "/links/folders/{folderId}/icon" as any,
+    path: "/links/folders/{folderId}/icon",
     params: (input) => ({ path: { folderId: String(input?.folderId ?? "") } }),
     body: (input) => ({ auth: input?.auth, data: input?.data }),
   },
@@ -279,7 +279,7 @@ const routes: Record<string, RouteConfig> = {
   },
   "links.updateLinksTagAction": {
     method: "PUT",
-    path: "/links/tags/{tagId}" as any,
+    path: "/links/tags/{tagId}",
     params: (input) => ({ path: { tagId: String(input?.tagId ?? "") } }),
     body: (input) => ({ auth: input?.auth, data: input?.data }),
   },
@@ -302,7 +302,7 @@ const routes: Record<string, RouteConfig> = {
   },
   "links.updateLinksOrderAction": {
     method: "POST",
-    path: "/links/reorder" as any,
+    path: "/links/reorder",
     body: (input) => input,
   },
 
@@ -313,7 +313,7 @@ const routes: Record<string, RouteConfig> = {
   },
   "widgets.getUserGlanceableAction": {
     method: "GET",
-    path: "/widgets/glanceable" as any,
+    path: "/widgets/glanceable",
     auth: (input) => authToken(input),
   },
   "widgets.getUserGlanceablesAction": {
@@ -323,18 +323,18 @@ const routes: Record<string, RouteConfig> = {
   },
   "glanceables.getUserGlanceablesAction": {
     method: "GET",
-    path: "/glanceables" as any,
+    path: "/glanceables",
     auth: (input) => authToken(input),
   },
   "widgets.getIntegrationWithWidgetAction": {
     method: "GET",
-    path: "/widgets/by-integration" as any,
+    path: "/widgets/by-integration",
     auth: (input) => authToken(input?.auth),
     query: (input) => ({ widgetKey: input?.widgetKey }),
   },
   "glanceables.getIntegrationWithGlanceableAction": {
     method: "GET",
-    path: "/glanceables/by-integration" as any,
+    path: "/glanceables/by-integration",
     auth: (input) => authToken(input?.auth),
     query: (input) => ({ glanceableType: input?.glanceableType }),
   },
@@ -355,13 +355,13 @@ const routes: Record<string, RouteConfig> = {
   },
   "integrations.updateIntegrationAction": {
     method: "PUT",
-    path: "/integrations/{id}" as any,
+    path: "/integrations/{id}",
     params: (input) => ({ path: { id: String(input?.id ?? "") } }),
     body: (input) => input,
   },
   "integrations.deleteIntegrationAction": {
     method: "DELETE",
-    path: "/integrations/{id}" as any,
+    path: "/integrations/{id}",
     auth: (input) => authToken(input?.auth),
     params: (input) => ({ path: { id: String(input?.id ?? "") } }),
   },
@@ -379,7 +379,7 @@ const routes: Record<string, RouteConfig> = {
   },
   "integrations.getConsumerDataAction": {
     method: "POST",
-    path: "/integrations/consumerData" as any,
+    path: "/integrations/consumerData",
     auth: (input) => authToken(input?.auth),
     body: (input) => ({
       key: input?.key,
@@ -391,13 +391,13 @@ const routes: Record<string, RouteConfig> = {
   },
   "integrations.getIntegrationCalendarEventsAction": {
     method: "GET",
-    path: "/integrations/caldav/events" as any,
+    path: "/integrations/caldav/events",
     auth: (input) => authToken(input?.auth),
     query: (input) => ({ integrationId: input?.integrationId }),
   },
   "integrations.proxyIntegrationAction": {
     method: "POST",
-    path: "/integrations/proxyAction" as any,
+    path: "/integrations/proxyAction",
     body: (input) => input,
   },
 
@@ -426,64 +426,64 @@ const routes: Record<string, RouteConfig> = {
   },
   "monitoring.getMonitorsAction": {
     method: "GET",
-    path: "/monitors" as any,
+    path: "/monitors",
     auth: (input) => authToken(input?.auth),
   },
   "monitoring.getMonitorAction": {
     method: "GET",
-    path: "/monitors/{id}" as any,
+    path: "/monitors/{id}",
     auth: (input) => authToken(input?.auth),
     params: (input) => ({ path: { id: String(input?.monitorId ?? "") } }),
   },
   "monitoring.updateMonitorAction": {
     method: "PUT",
-    path: "/monitors/{id}" as any,
+    path: "/monitors/{id}",
     params: (input) => ({ path: { id: String(input?.monitorId ?? "") } }),
     body: (input) => input,
   },
     "monitoring.createMonitorAction": {
       method: "POST",
-      path: "/monitors" as any,
+      path: "/monitors",
       body: (input) => input,
     },
     "monitoring.deleteMonitorAction": {
       method: "DELETE",
-      path: "/monitors/{id}" as any,
+      path: "/monitors/{id}",
       auth: (input) => authToken(input?.auth),
       params: (input) => ({ path: { id: String(input?.monitorId ?? "") } }),
     },
 
   "news.getNewsFeedAction": {
     method: "GET",
-    path: "/news/feeds/{id}" as any,
+    path: "/news/feeds/{id}",
     auth: (input) => authToken(input?.auth),
     params: (input) => ({ path: { id: String(input?.feedId ?? "all") } }),
   },
   "news.getNewsFeedRecordAction": {
     method: "GET",
-    path: "/news/feed-records/{id}" as any,
+    path: "/news/feed-records/{id}",
     auth: (input) => authToken(input?.auth),
     params: (input) => ({ path: { id: String(input?.feedId ?? "all") } }),
   },
   "news.createNewsFeedRecordAction": {
     method: "POST",
-    path: "/news/feed-records" as any,
+    path: "/news/feed-records",
     body: (input) => input,
   },
   "news.getNewsFeedMetadataAction": {
     method: "GET",
-    path: "/news/feed-metadata" as any,
+    path: "/news/feed-metadata",
     auth: (input) => authToken(input?.auth),
     query: (input) => ({ url: input?.url }),
   },
   "news.getNewsSubscriptionsAction": {
     method: "GET",
-    path: "/news/subscriptions" as any,
+    path: "/news/subscriptions",
     auth: (input) => authToken(input),
   },
   "news.getNewsFeedsAction": {
     method: "GET",
-    path: "/news/feeds" as any,
+    path: "/news/feeds",
     auth: (input) => authToken(input),
   },
   "news.refreshNewsFeedAction": {
@@ -523,13 +523,13 @@ const routes: Record<string, RouteConfig> = {
   },
   "news.updateNewsFeedRecordAction": {
     method: "POST",
-    path: "/news/feed-records/{id}" as any,
+    path: "/news/feed-records/{id}",
     params: (input) => ({ path: { id: String(input?.feedId ?? "all") } }),
     body: (input) => input,
   },
   "news.fixMissingTitlesAction": {
     method: "POST",
-    path: "/news/fix-missing-titles" as any,
+    path: "/news/fix-missing-titles",
     auth: (input) => authToken(input?.auth),
     body: () => undefined,
   },
@@ -562,7 +562,7 @@ const routes: Record<string, RouteConfig> = {
   },
   "notifications.items.sendTestNotificationAction": {
     method: "POST",
-    path: "/notifications/test" as any,
+    path: "/notifications/test",
     body: (input) => input,
   },
   "notifications.topicTokens.listTopicTokensAction": {
@@ -573,7 +573,8 @@ const routes: Record<string, RouteConfig> = {
   "notifications.topicTokens.createTopicTokenAction": {
     method: "POST",
     path: "/notifications/topicTokens",
-    body: (input) => input,
+    auth: (input) => authToken(input?.auth),
+    body: (input) => input?.body,
   },
   "notifications.topicTokens.deleteTopicTokenAction": {
     method: "DELETE",
@@ -608,12 +609,12 @@ const routes: Record<string, RouteConfig> = {
   },
   "searchItems.getFrequentlyUsedAction": {
     method: "GET",
-    path: "/searchItems/frequentlyUsed" as any,
+    path: "/searchItems/frequentlyUsed",
     auth: (input) => authToken(input),
   },
   "searchItems.logSearchItemUsageAction": {
     method: "POST",
-    path: "/searchItems/usageStats" as any,
+    path: "/searchItems/usageStats",
     auth: (input) => authToken(input?.auth),
     body: (input) => ({ id: input?.id, timestamp: input?.timestamp }),
   },
