@@ -65,6 +65,7 @@ The jobs container can be configured with the following environment variables:
 | PULL_ICONS_SCHEDULE | No | `0 */6 * * *` | Cron expression defining how often the icons refresh job runs |
 | MONITORING_INDEXER_SCHEDULE | No | `*/10 * * * *` | Cron expression defining how often the monitoring indexer runs |
 | MONITORING_RUNNER_SCHEDULE | No | `*/1 * * * *` | Cron expression defining how often the monitoring runner executes |
+| JOBS_MONITORING_RETRY_AFTER | No | `5000` | Time in milliseconds to wait before retrying a failed monitoring ping |
 | ALLOW_SSL | No | `false` | Enables SSL support for internal service communication |
 
 ## Tech Stack
