@@ -12,7 +12,7 @@ import { PopoverClose } from "@radix-ui/react-popover";
 const quickLinks = [
   {href: "/home", label: "Home", icon: "fa6-solid:house"},
   {
-    href: "/notifications",
+    href: "/apps/monitoring/notifications",
     label: "Notifications",
     icon: "fa6-solid:bell",
   },
