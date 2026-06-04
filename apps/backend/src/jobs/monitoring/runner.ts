@@ -1,6 +1,6 @@
 import { config } from "../../lib/config";
 
-import { monitorHelper, MonitoringRequestAuth } from "./helper";
+import { monitorHelper, MonitoringRequestAuth, MonitoringRequestResult } from "./helper";
 import {
     getMonitoringJobs,
     getUserConfigsByAssociatedUserId,
@@ -120,10 +120,38 @@ export async function runStatusMonitoringJobsWithOptions(options?: {
                 monitorInput.auth = auth;
             }
 
-            const resultData = await monitorHelper(monitorInput);
+            let resultData: MonitoringRequestResult;
+            let isRetry = false;
+
+            try {
+                resultData = await monitorHelper(monitorInput);
+            } catch (firstErr: any) {
+                isRetry = true;
+                logger.warn("First ping failed, retrying", { endpoint, error: firstErr?.message || String(firstErr) });
+                await new Promise(resolve => setTimeout(resolve, config.JOBS_MONITORING_RETRY_AFTER));
+                resultData = await monitorHelper(monitorInput);
+            }
+
             const statusAccepted = responseUpFilter.acceptStatusCodes.has(resultData.status);
             const bodyAccepted = matchesExpectedBody(responseUpFilter.acceptBodyProperties, resultData.body, resultData.contentType);
-            const newStatus = statusAccepted && bodyAccepted ? 'healthy' : 'unhealthy';
+            let newStatus = statusAccepted && bodyAccepted ? 'healthy' : 'unhealthy';
+
+            if (!isRetry && newStatus === 'unhealthy') {
+                logger.warn("First ping returned unhealthy, retrying", { endpoint, httpStatus: resultData.status });
+                await new Promise(resolve => setTimeout(resolve, config.JOBS_MONITORING_RETRY_AFTER));
+                try {
+                    const retryData = await monitorHelper(monitorInput);
+                    const retryStatusAccepted = responseUpFilter.acceptStatusCodes.has(retryData.status);
+                    const retryBodyAccepted = matchesExpectedBody(responseUpFilter.acceptBodyProperties, retryData.body, retryData.contentType);
+
+                    if (retryStatusAccepted && retryBodyAccepted) {
+                        resultData = retryData;
+                        newStatus = 'healthy';
+                    }
+                } catch {
+                    // retry also failed, keep original unhealthy result
+                }
+            }
             const pingTimestamp = new Date().toISOString();
             const latencyUpdate = buildLatencyUpdate(job, resultData.latencyMs, pingTimestamp);
 
