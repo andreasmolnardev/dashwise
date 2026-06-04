@@ -63,7 +63,7 @@ linksRoute
   }))
   .post("/api/v1/links/items", withJson(async (c) => {
     const body = await readJsonBody<any>(c);
-    const { userId } = await requireAuth(body?.auth);
+    const { userId } = await requireAuth({ token: readAuthToken(c) });
     const data = body?.data ?? {};
 
     if (typeof data.collection === "string" && data.collection.trim()) {
@@ -74,12 +74,11 @@ linksRoute
   }))
   .put("/api/v1/links/items/:linkId", withJson(async (c) => {
     const body = await readJsonBody<any>(c);
-    const { userId } = await requireAuth(body?.auth);
+    const { userId } = await requireAuth({ token: readAuthToken(c) });
     return updateHomeLinkItem(userId, String(c.req.param("linkId") ?? ""), body?.data ?? {});
   }))
   .delete("/api/v1/links/items/:linkId", withJson(async (c) => {
-    const body = await readJsonBody<any>(c);
-    const { userId } = await requireAuth(body?.auth);
+    const { userId } = await requireAuth({ token: readAuthToken(c) });
     return deleteLinkItem(userId, String(c.req.param("linkId") ?? ""));
   }))
   .post("/api/v1/links/reorder", withJson(async (c) => {
