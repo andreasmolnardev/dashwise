@@ -29,6 +29,10 @@ const LOCAL_ONLY_GLANCEABLES = new Set([
   "greeting",
   "local-timezone",
   "world-clock",
+  "day-progress",
+  "week-progress",
+  "month-progress",
+  "year-progress",
 ]);
 
 export default function GlanceableClockWidget({ className, params }: WidgetItemProps) {

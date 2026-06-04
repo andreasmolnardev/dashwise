@@ -207,8 +207,17 @@ function LegacyGlanceable({
     case "weather":
       return <span className={`inline-flex items-center text-center ${className ?? ""}`}>{formatWeather(params, formatters)}</span>;
 
-    case "world-clock":
-      return <LegacyWorldClock params={params} className={className} formatters={formatters} />;
+    case "day-progress":
+      return <LegacyProgress type="day" params={params} className={className} />;
+
+    case "week-progress":
+      return <LegacyProgress type="week" params={params} className={className} />;
+
+    case "month-progress":
+      return <LegacyProgress type="month" params={params} className={className} />;
+
+    case "year-progress":
+      return <LegacyProgress type="year" params={params} className={className} />;
 
     default:
       return <span className={`inline-flex items-center text-center ${className ?? ""}`}>{params?.name ?? type}</span>;
@@ -241,6 +250,73 @@ function LegacyWorldClock({
   }, [formatters, timezone]);
 
   return <span className={`inline-flex items-center text-center ${className ?? ""}`}>{time}{location ? ` in ${location}` : ""}</span>;
+}
+
+type ProgressType = "day" | "week" | "month" | "year";
+
+const PROGRESS_LABELS: Record<ProgressType, string> = {
+  day: "Day",
+  week: "Week",
+  month: "Month",
+  year: "Year",
+};
+
+function calcProgress(type: ProgressType): number {
+  const now = new Date();
+  const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const msInDay = 24 * 60 * 60 * 1000;
+
+  switch (type) {
+    case "day": {
+      const elapsed = now.getTime() - startOfDay.getTime();
+      return (elapsed / msInDay) * 100;
+    }
+    case "week": {
+      const dayOfWeek = now.getDay();
+      const sunday = new Date(startOfDay);
+      sunday.setDate(sunday.getDate() - dayOfWeek);
+      const elapsed = now.getTime() - sunday.getTime();
+      return (elapsed / (7 * msInDay)) * 100;
+    }
+    case "month": {
+      const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+      const elapsed = now.getDate() - 1 + (now.getTime() - startOfDay.getTime()) / msInDay;
+      return (elapsed / daysInMonth) * 100;
+    }
+    case "year": {
+      const startOfYear = new Date(now.getFullYear(), 0, 1);
+      const daysInYear = ((new Date(now.getFullYear() + 1, 0, 1).getTime() - startOfYear.getTime()) / msInDay);
+      const elapsed = (now.getTime() - startOfYear.getTime()) / msInDay;
+      return (elapsed / daysInYear) * 100;
+    }
+  }
+}
+
+function LegacyProgress({
+  type,
+  params,
+  className,
+}: {
+  type: ProgressType;
+  params?: Record<string, any>;
+  className?: string;
+}) {
+  const [pct, setPct] = useState(() => `${calcProgress(type).toFixed(1)}%`);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setPct(`${calcProgress(type).toFixed(1)}%`);
+    }, 60000);
+    return () => clearInterval(interval);
+  }, [type]);
+
+  const label = params?.label !== undefined ? String(params.label) : PROGRESS_LABELS[type];
+
+  return (
+    <span className={`inline-flex items-center text-center ${className ?? ""}`}>
+      {label}: {pct}
+    </span>
+  );
 }
 
 function getLocalTimezoneLabel() {

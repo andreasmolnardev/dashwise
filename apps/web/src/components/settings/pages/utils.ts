@@ -38,6 +38,10 @@ const LOCAL_GLANCEABLE_TYPES = new Set([
   "greeting",
   "local-timezone",
   "world-clock",
+  "day-progress",
+  "week-progress",
+  "month-progress",
+  "year-progress",
 ]);
 
 export type ColumnWidget = {

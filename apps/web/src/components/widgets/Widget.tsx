@@ -20,6 +20,7 @@ import LinkView from "./LinkView";
 import SearchBar from "./SearchBar";
 import IframeTemplate from "@dashwise/integrationskit/templates/IFrame";
 import Widget from "@dashwise/integrationskit/Widget";
+import ProgressWidget from "./ProgressWidget";
 import { useLocalization } from "@/context/LocalizationContext";
 import useAuth from "@/context/useAuth";
 import {
@@ -82,6 +83,18 @@ export function renderWidget({
 
     case "countdown":
       return <CountdownWidget className={finalClassName} {...renderParams} />;
+
+    case "day-progress":
+      return <ProgressWidget type="day" className={finalClassName} />;
+
+    case "week-progress":
+      return <ProgressWidget type="week" className={finalClassName} />;
+
+    case "month-progress":
+      return <ProgressWidget type="month" className={finalClassName} />;
+
+    case "year-progress":
+      return <ProgressWidget type="year" className={finalClassName} />;
 
     case "link-view":
       return <LinkView />;
