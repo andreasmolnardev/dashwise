@@ -134,16 +134,28 @@ function normalizeWidgetList(rawWidgets: unknown): WidgetCatalogItem[] {
 }
 
 async function getDefaultWidgets(): Promise<WidgetCatalog> {
-    const widgets = defaultIntegrationsBlueprint?.configuration?.widgets;
-    const normalized = normalizeWidgetList(widgets);
+    const rawWidgets = defaultIntegrationsBlueprint?.configuration?.widgets;
+    if (!Array.isArray(rawWidgets)) return {};
 
-    if (normalized.length === 0) {
-        return {};
+    const result: WidgetCatalog = {};
+
+    for (const widget of rawWidgets) {
+        if (!widget || typeof widget !== "object") continue;
+
+        const normalized = normalizeWidgetList([widget])[0];
+        if (!normalized) continue;
+
+        const category = typeof widget.category === "string" && widget.category.trim()
+            ? normalizeWidgetSlug(widget.category.trim())
+            : "default";
+            
+        if (!result[category]) {
+            result[category] = [];
+        }
+        result[category].push(normalized);
     }
 
-    return {
-        "integration-default": normalized,
-    };
+    return result;
 }
 
 async function getDefaultWeatherWidgets(): Promise<WidgetCatalogItem[]> {
