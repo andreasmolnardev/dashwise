@@ -4,6 +4,7 @@ import React from "react";
 import AppIcon from "@dashwise/app-icon";
 import type { ResolvedWidget } from "../types";
 import { renderLocalizedText, type TextFormatters } from "../data/renderText";
+import { Progress } from "./shadcn-components/progress";
 
 interface ItemDetailsCardProps {
   resolved: ResolvedWidget;
@@ -18,6 +19,7 @@ export default function ItemDetailsCard({ resolved, className, formatters }: Ite
 
   const primary = card?.primary ?? "";
   const secondary = card?.secondary ?? "";
+  const progress = resolved?.progress ?? null;
 
   return (
     <div className={`frosted rounded-lg p-3 ${className ?? ""}`}>
@@ -45,6 +47,9 @@ export default function ItemDetailsCard({ resolved, className, formatters }: Ite
           {secondary ? (
             <p className="truncate text-sm opacity-75 leading-tight">{renderLocalizedText(secondary, formatters)}</p>
           ) : null}
+          {progress !== null && (
+            <Progress value={progress} />
+          )}
         </div>
       </div>
     </div>

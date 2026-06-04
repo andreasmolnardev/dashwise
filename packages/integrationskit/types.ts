@@ -47,6 +47,7 @@ export type ResolvedWidget = {
   };
   /** The raw properties object, passed through for custom consumers */
   raw: Record<string, any>;
+  progress?: number | null;
 };
 
 export type ResolvedColumn = {
