@@ -5,11 +5,11 @@ import {
     getMonitoringJobs,
     getUserConfigsByAssociatedUserId,
     updateMonitoringJob,
-} from "@dashwise/sdk/data/superuser";
+} from "../../lib/data/superuser";
 import {
     createNotificationByTopicId,
     queueNotificationForForwarding,
-} from "@dashwise/sdk/data/notifications/publish";
+} from "../../lib/data/notifications/publish";
 import { createLogger } from "../../lib/logger";
 
 type StatusCheckMethod = "GET" | "HEAD" | "POST" | "PUT" | "PATCH" | "DELETE" | "OPTIONS";

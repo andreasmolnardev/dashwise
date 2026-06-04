@@ -1,8 +1,8 @@
 import { defaultShortcutsManifest } from "@dashwise/assets";
 import type { HomeLink } from "@dashwise/types";
-import { getHomeLinks } from "@dashwise/sdk/data/links";
-import config from "@dashwise/sdk/lib/config";
-import { getSuperuserPB } from "@dashwise/sdk/lib/pocketbase";
+import { getHomeLinks } from "../lib/data/links";
+import { config } from "../lib/config";
+import { getSuperuserPB } from "../lib/pb/pocketbase";
 
 type SearchItemRow = {
   name: string;

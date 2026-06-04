@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 
-import { uploadWallpaper, getWallpaperByFileName } from "@dashwise/sdk/data/wallpapers";
+import { uploadWallpaper, getWallpaperByFileName } from "../lib/data/wallpapers";
 
 const wallpapersRoute = new Hono()
   wallpapersRoute.get("/api/v1/wallpapers", async (c) => {

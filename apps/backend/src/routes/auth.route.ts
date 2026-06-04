@@ -7,10 +7,10 @@ import {
   signupUser,
   updateUserProperty,
   validateAuthToken,
-} from "@dashwise/sdk/data/auth";
-import type { UserPropertyValue } from "@dashwise/sdk/data/auth";
-import { ensureBuiltinIntegrations } from "@dashwise/sdk/data/integrations";
-import { getSuperuserPB } from "@dashwise/sdk/lib/pocketbase";
+} from "../lib/data/auth";
+import type { UserPropertyValue } from "../lib/data/auth";
+import { ensureBuiltinIntegrations } from "../lib/data/integrations";
+import { getSuperuserPB } from "../lib/pb/pocketbase";
 
 import {
   loadSignupDefaults,

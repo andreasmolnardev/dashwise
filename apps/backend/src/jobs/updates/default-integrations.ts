@@ -1,6 +1,6 @@
-import { getSuperuserPB } from "@dashwise/sdk/lib/pocketbase";
+import { getSuperuserPB } from "../../lib/pb/pocketbase";
 
-import { ensureBuiltinIntegrations } from "@dashwise/sdk/data/integrations";
+import { ensureBuiltinIntegrations } from "../../lib/data/integrations";
 
 export async function runDefaultIntegrationsBootstrapJob() {
   const pb = await getSuperuserPB();

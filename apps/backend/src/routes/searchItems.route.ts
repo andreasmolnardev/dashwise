@@ -1,6 +1,6 @@
 import { Hono } from "hono";
-import { getSuperuserPB } from "@dashwise/sdk/lib/pocketbase";
-import { getSearchItems } from "@dashwise/sdk/data/searchItems";
+import { getSuperuserPB } from "../lib/pb/pocketbase";
+import { getSearchItems } from "../lib/data/searchItems";
 
 import { readAuthToken, readJsonBody, requireAuth, withJson } from "./shared";
 

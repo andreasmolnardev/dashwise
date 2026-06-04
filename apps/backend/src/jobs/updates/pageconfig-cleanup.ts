@@ -1,6 +1,6 @@
-import { getIntegrationWithConsumer } from "@dashwise/sdk/data/integrations";
-import { getPageConfigJSON, getUserPages, updatePageConfig } from "@dashwise/sdk/data/pageConfig";
-import { getSuperuserPB } from "@dashwise/sdk/lib/pocketbase";
+import { getIntegrationWithConsumer } from "../../lib/data/integrations";
+import { getPageConfigJSON, getUserPages, updatePageConfig } from "../../lib/data/pageConfig";
+import { getSuperuserPB } from "../../lib/pb/pocketbase";
 
 const FRONTEND_ONLY_WIDGETS = new Set([
   "placeholder",

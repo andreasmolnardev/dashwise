@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 
-import { createMonitor, getMonitoringStatus, getMonitors, getMonitorById, runMonitoringStatus, updateMonitor } from "@dashwise/sdk/data/monitoring";
-import { deleteMonitoringJob } from "@dashwise/sdk/data/superuser";
+import { createMonitor, getMonitoringStatus, getMonitors, getMonitorById, runMonitoringStatus, updateMonitor } from "../lib/data/monitoring";
+import { deleteMonitoringJob } from "../lib/data/superuser";
 
 import { readAuthToken, readJsonBody, requireAuth, withJson } from "./shared";
 

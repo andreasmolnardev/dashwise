@@ -1,8 +1,8 @@
 import { Hono } from "hono";
 
-import { getAppConfig, getAppInfo } from "@dashwise/sdk/data/app";
-import { getLocations } from "@dashwise/sdk/data/misc";
-import { runPullIcons } from "@dashwise/sdk/data/jobs";
+import { getAppConfig, getAppInfo } from "../lib/data/app";
+import { getLocations } from "../lib/data/misc";
+import { runPullIcons } from "../lib/data/jobs";
 
 import { jobsApi, validateJobsBasicAuth } from "../jobs/index";
 import { readAuthToken, requireAuth, withJson } from "./shared";

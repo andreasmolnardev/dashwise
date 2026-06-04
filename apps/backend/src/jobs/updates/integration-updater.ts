@@ -1,4 +1,4 @@
-import { getSuperuserPB } from "@dashwise/sdk/lib/pocketbase";
+import { getSuperuserPB } from "../../lib/pb/pocketbase";
 
 import { semver } from "bun";
 import { YAML } from "bun";
@@ -21,7 +21,7 @@ export async function runIntegrationUpdaterJob() {
       if (!response.ok) continue;
 
       const text = await response.text();
-      const remoteConfig = YAML.parse(text);
+      const remoteConfig = YAML.parse(text) as any;
 
       const remoteVersion = remoteConfig?.details?.version;
       if (!remoteVersion) continue;

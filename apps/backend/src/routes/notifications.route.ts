@@ -1,12 +1,12 @@
 import { Hono } from "hono";
 import type { Context } from "hono";
 
-import { ApiActionError } from "@dashwise/sdk/data/auth";
-import { createForwarder, deleteForwarder, getForwarders, updateForwarder } from "@dashwise/sdk/data/notifications/forwarders";
-import { createNotificationTopic, deleteNotificationTopic, getNotificationTopics, getNotifications, markNotificationsAsRead, sendTestNotification } from "@dashwise/sdk/data/notifications/items";
-import { createNotificationByTopicId, createNotificationWithTopicToken } from "@dashwise/sdk/data/notifications/publish";
-import { createTopicToken, deleteTopicToken, listTopicTokens } from "@dashwise/sdk/data/notifications/topicTokens";
-import { getServerPB, getSuperuserPB } from "@dashwise/sdk/lib/pocketbase";
+import { ApiActionError } from "../lib/data/auth";
+import { createForwarder, deleteForwarder, getForwarders, updateForwarder } from "../lib/data/notifications/forwarders";
+import { createNotificationTopic, deleteNotificationTopic, getNotificationTopics, getNotifications, markNotificationsAsRead, sendTestNotification } from "../lib/data/notifications/items";
+import { createNotificationByTopicId, createNotificationWithTopicToken } from "../lib/data/notifications/publish";
+import { createTopicToken, deleteTopicToken, listTopicTokens } from "../lib/data/notifications/topicTokens";
+import { getServerPB, getSuperuserPB } from "../lib/pb/pocketbase";
 
 import { readAuthToken, readJsonBody, readBool, requireAuth, withJson } from "./shared";
 
@@ -133,8 +133,8 @@ notificationsRoute
   }))
   .post("/api/v1/notifications/topicTokens", withJson(async (c) => {
     const body = await readJsonBody<any>(c);
-    const { userId } = await requireAuth(body?.auth);
-    return createTopicToken(userId, body?.body ?? {});
+    const { userId } = await requireAuth({ token: readAuthToken(c) });
+    return createTopicToken(userId, body);
   }))
   .delete("/api/v1/notifications/topicTokens", withJson(async (c) => {
     const body = await readJsonBody<any>(c);

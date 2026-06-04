@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 
 import type { Context } from "hono";
 
-import { ApiActionError, requireUserAuth } from "@dashwise/sdk/data/auth";
+import { ApiActionError, requireUserAuth } from "../lib/data/auth";
 import { z } from "zod";
 
 import { config } from "../lib/config";

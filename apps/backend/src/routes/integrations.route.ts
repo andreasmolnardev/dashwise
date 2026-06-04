@@ -10,9 +10,9 @@ import {
   listIntegrations,
   testIntegrationEndpoint,
   updateIntegration,
-} from "@dashwise/sdk/data/integrations";
-import { ApiActionError } from "@dashwise/sdk/data/auth";
-import { getSuperuserPB } from "@dashwise/sdk/lib/pocketbase";
+} from "../lib/data/integrations";
+import { ApiActionError } from "../lib/data/auth";
+import { getSuperuserPB } from "../lib/pb/pocketbase";
 import {
   flattenToEnv,
   interpolateString,
@@ -265,7 +265,7 @@ integrationsRoute
         const events = await getUpcomingEvents(
           (integration as any).environment,
           (integration as any).localData,
-          (ld) => updateLocalData(integrationId, ld),
+          (ld) => updateLocalData(integrationId, ld).then(() => undefined),
         );
         return { events };
       }
@@ -282,7 +282,7 @@ integrationsRoute
           getUpcomingEvents(
             integration.environment,
             integration.localData,
-            (ld) => updateLocalData(integration.id, ld),
+            (ld) => updateLocalData(integration.id, ld).then(() => undefined),
           )
         ),
       );

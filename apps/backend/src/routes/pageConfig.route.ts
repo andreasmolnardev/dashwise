@@ -1,7 +1,7 @@
 import { Hono } from "hono";
-import { getPageConfigJSON, getUserPages, updatePageConfig } from "@dashwise/sdk/data/pageConfig";
-import { migrateLegacyPageConfig } from "@dashwise/sdk/data/config";
-import type { PageConfig } from "@dashwise/sdk/data/pageConfig";
+import { getPageConfigJSON, getUserPages, updatePageConfig } from "../lib/data/pageConfig";
+import { migrateLegacyPageConfig } from "../lib/data/config";
+import type { PageConfig } from "../lib/data/pageConfig";
 import { resolveConsumerDataForRequest } from "./integrations.route";
 
 import { loadSignupDefaults, normalizePageName, readAuthToken, readJsonBody, requireAuth, withJson } from "./shared";

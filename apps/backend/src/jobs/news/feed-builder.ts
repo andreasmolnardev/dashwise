@@ -7,7 +7,7 @@ import {
   getNewsSubscriptionById,
   getNewsFeedItemsCacheByUrl,
   updateNewsFeedItemsCache,
-} from "@dashwise/sdk/data/superuser";
+} from "../../lib/data/superuser";
 import { createLogger } from "../../lib/logger";
 import { getFeedItems } from "./helper";
 

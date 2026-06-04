@@ -6,7 +6,7 @@ import {
     getUserConfigsByAssociatedUserId,
     updateMonitoringJob,
     updateUserConfigRecord,
-} from "@dashwise/sdk/data/superuser";
+} from "../../lib/data/superuser";
 import { createLogger } from "../../lib/logger";
 
 type StatusCheckMethod = "GET" | "HEAD" | "POST" | "PUT" | "PATCH" | "DELETE" | "OPTIONS";

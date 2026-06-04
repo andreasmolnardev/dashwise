@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 
-import { createCollection, createCollectionLinkItem, createHomeLinkGroup, createHomeLinkItem, createLinkTag, createLinksFolder, deleteLinkItem, getHomeLinkGroups, getHomeLinks, getLinksCollections, getLinksFolders, getLinksItems, getLinksTags, reorderLinks, updateCollection, updateHomeLinkFolderIcon, updateHomeLinkItem, updateLinkTag } from "@dashwise/sdk/data/links";
+import { createCollection, createCollectionLinkItem, createHomeLinkGroup, createHomeLinkItem, createLinkTag, createLinksFolder, deleteLinkItem, getHomeLinkGroups, getHomeLinks, getLinksCollections, getLinksFolders, getLinksItems, getLinksTags, reorderLinks, updateCollection, updateHomeLinkFolderIcon, updateHomeLinkItem, updateLinkTag } from "../lib/data/links";
 
 import { readAuthToken, readJsonBody, requireAuth, withJson } from "./shared";
 

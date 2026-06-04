@@ -2,8 +2,8 @@ import { Hono } from "hono";
 
 import {
   getIntegrationWithConsumer,
-} from "@dashwise/sdk/data/integrations";
-import { getUserGlanceable, getUserWidgets } from "@dashwise/sdk/data/widgets";
+} from "../lib/data/integrations";
+import { getUserGlanceable, getUserWidgets } from "../lib/data/widgets";
 
 import { readAuthToken, requireAuth, withJson } from "./shared";
 

@@ -2,12 +2,12 @@ import {
     formatNotificationMessage,
     groupNotificationsByTopic,
     sendViaShoutrrr,
-} from "@dashwise/sdk/data/notifications/forwarding";
+} from "../../lib/data/notifications/forwarding";
 import {
     getActiveNotificationForwardersByTopic,
     getQueuedNotificationItems,
     markNotificationAsDone,
-} from "@dashwise/sdk/data/superuser";
+} from "../../lib/data/superuser";
 import { createLogger } from "../../lib/logger";
 
 /**

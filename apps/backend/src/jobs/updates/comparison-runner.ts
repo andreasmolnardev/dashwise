@@ -4,7 +4,7 @@ import {
   createAppInfoRecord,
   getAppInfoRecords,
   updateAppInfoRecord,
-} from "@dashwise/sdk/data/superuser";
+} from "../../lib/data/superuser";
 
 function normalizeVersion(version: string | null | undefined) {
   return String(version ?? "").trim().replace(/^v/i, "");
@@ -16,7 +16,7 @@ async function fetchLatestGithubTag(repo: string): Promise<string | null> {
     const res = await fetch(`https://api.github.com/repos/${repo}/releases/latest`, {
       headers: { Accept: "application/vnd.github.v3+json" },
     });
-    if (res.ok) return (await res.json())?.tag_name ?? null;
+    if (res.ok) return ((await res.json()) as any)?.tag_name ?? null;
   } catch {}
   return null;
 }
