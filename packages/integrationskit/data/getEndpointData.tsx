@@ -415,7 +415,7 @@ function resolveInvalidateAfterSeconds(
 	const invalidate = isPlainObject(responseDirective?.invalidate)
 		? responseDirective.invalidate
 		: null;
-	const afterRaw = invalidate?.after;
+	const afterRaw = invalidate?.after ?? endpoint.cache_ttl;
 	const parsed = Number(afterRaw);
 	if (!Number.isFinite(parsed) || parsed <= 0) {
 		return null;
