@@ -52,6 +52,13 @@ interface TabProps {
     dropdownActions?: DropdownAction[];
 }
 
+interface BottomTabProps {
+    dst: string;
+    icon: string;
+    title: string;
+    isRoot?: boolean;
+}
+
 interface ActionProps {
     icon: string;
     title: string;
@@ -275,6 +282,40 @@ export function Tab({ dst, icon, title, group, isRoot, fallbackIcon, badge, drop
     );
 }
 
+// ─── BottomTab ────────────────────────────────────────────────────────────────
+
+export function BottomTab({ dst, icon, title, isRoot }: BottomTabProps) {
+    const { pathname, search, closeMobileSidebar } = useContext(SidebarContext);
+    const destination = new URL(dst, "http://dashwise.local");
+    const isActive = destination.search
+        ? pathname === destination.pathname && search === destination.search
+        : (isRoot
+            ? pathname === destination.pathname
+            : pathname === destination.pathname || pathname.startsWith(`${destination.pathname}/`));
+
+    return (
+        <Link
+            to={dst}
+            onClick={() => closeMobileSidebar?.()}
+            className="flex items-center gap-2 px-2 py-1.5 rounded-md group"
+        >
+            <Icon
+                icon={icon}
+                className={`text-sm font-medium transition-colors w-4 ${
+                    isActive ? "text-primary" : "text-white/40 group-hover:text-primary"
+                }`}
+            />
+            <span
+                className={`text-sm leading-none transition-colors ${
+                    isActive ? "text-white" : "text-white/50 group-hover:text-white"
+                }`}
+            >
+                {title}
+            </span>
+        </Link>
+    );
+}
+
 // ─── Action ──────────────────────────────────────────────────────────────────
 
 export function Action({ icon, title, action }: ActionProps) {
@@ -423,6 +464,10 @@ export function Sidebar({ children }: { children: ReactNode }) {
         (c) => isValidElement(c) && (c as React.ReactElement).type === Action,
     ) as React.ReactElement<ActionProps>[];
 
+    const bottomTabs = Children.toArray(children).filter(
+        (c) => isValidElement(c) && (c as React.ReactElement).type === BottomTab,
+    ) as React.ReactElement<BottomTabProps>[];
+
     const grouped = groupTabs(tabs);
     const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
 
@@ -506,8 +551,14 @@ export function Sidebar({ children }: { children: ReactNode }) {
                 </div>
             </div>
 
-            {/* Go to dashboard — always at bottom */}
+            {/* Bottom slot — BottomTabs, Actions, Go to dashboard */}
             <div className="shrink-0 pt-2 border-t border-white/10 mt-2">
+                {bottomTabs.length > 0 && (
+                    <div className="shrink-0 space-y-0.5 mb-1">
+                        {bottomTabs.map((bt, i) => <div key={i}>{bt}</div>)}
+                    </div>
+                )}
+
                 {actions.length > 0 && (
                     <div className="shrink-0 border-white/10 space-y-0.5">
                         {actions.map((a, i) => <div key={i}>{a}</div>)}
@@ -518,7 +569,7 @@ export function Sidebar({ children }: { children: ReactNode }) {
                     <div className="flex items-center gap-2 px-2 py-1.5 rounded-md">
                         <Icon
                             icon="fa6-solid:house"
-                            className="text-sm text-white/40 group-hover:text-primary transition-colors"
+                            className="text-sm text-white/40 group-hover:text-primary transition-colors w-4"
                         />
                         <span className="text-sm text-white/50 group-hover:text-white transition-colors leading-none">
                             Go to dashboard
