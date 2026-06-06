@@ -14,6 +14,7 @@ import { getSuperuserPB } from "../lib/pb/pocketbase";
 
 import {
   loadSignupDefaults,
+  readAuthToken,
   readJsonBody,
   routeRedirectTarget,
   withJson,
@@ -88,20 +89,17 @@ authRoute.get(
     withJson(async (c) => {
       const body = await readJsonBody<
         {
-          auth?: { token?: string | null };
-          body?: {
-            email?: string;
-            oldPassword?: string;
-            newPassword?: string;
-            confirmPassword?: string;
-          };
+          email?: string;
+          oldPassword?: string;
+          newPassword?: string;
+          confirmPassword?: string;
         }
       >(c);
-      return changePassword(String(body?.auth?.token ?? ""), {
-        email: body?.body?.email,
-        oldPassword: String(body?.body?.oldPassword ?? ""),
-        newPassword: String(body?.body?.newPassword ?? ""),
-        confirmPassword: String(body?.body?.confirmPassword ?? ""),
+      return changePassword(readAuthToken(c) ?? "", {
+        email: body?.email,
+        oldPassword: String(body?.oldPassword ?? ""),
+        newPassword: String(body?.newPassword ?? ""),
+        confirmPassword: String(body?.confirmPassword ?? ""),
       });
     }),
   )

@@ -99,13 +99,13 @@ pageConfigRoute
     };
   }))
   .put("/api/v1/pageConfig", withJson(async (c) => {
-    const body = await readJsonBody<{ auth?: { token?: string | null }; pageName?: string; config?: PageConfig }>(c);
-    const { userId } = await requireAuth(body?.auth ?? {});
+    const body = await readJsonBody<{ pageName?: string; config?: PageConfig }>(c);
+    const { userId } = await requireAuth({ token: readAuthToken(c) });
     return updatePageConfig(userId, normalizePageName(body?.pageName), body?.config ?? {});
   }))
   .post("/api/v1/pageConfig/home", withJson(async (c) => {
-    const body = await readJsonBody<{ auth?: { token?: string | null } }>(c);
-    const { userId } = await requireAuth(body?.auth ?? {});
+    const body = await readJsonBody(c);
+    const { userId } = await requireAuth({ token: readAuthToken(c) });
     const existingHomeConfig = await getPageConfigJSON(userId, "home");
 
     if (existingHomeConfig) {
@@ -118,8 +118,8 @@ pageConfigRoute
     return { success: true, created: true, config: defaultHomeConfig };
   }))
   .post("/api/v1/pageConfig/migrate-legacy", withJson(async (c) => {
-    const body = await readJsonBody<{ auth?: { token?: string | null } }>(c);
-    const { userId } = await requireAuth(body?.auth ?? {});
+    const body = await readJsonBody(c);
+    const { userId } = await requireAuth({ token: readAuthToken(c) });
 
     try {
       const result = await migrateLegacyPageConfig(userId);

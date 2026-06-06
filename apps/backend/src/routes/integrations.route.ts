@@ -72,8 +72,8 @@ integrationsRoute
     "/api/v1/integrations",
     withJson(async (c) => {
       const body = await readJsonBody<any>(c);
-      const { userId } = await requireAuth(body?.auth);
-      return createIntegration(userId, body?.payload ?? {});
+      const { userId } = await requireAuth({ token: readAuthToken(c) });
+      return createIntegration(userId, body ?? {});
     }),
   )
   .put(
@@ -81,8 +81,8 @@ integrationsRoute
     withJson(async (c) => {
       const id = c.req.param("id")!;
       const body = await readJsonBody<any>(c);
-      const { userId } = await requireAuth(body?.auth);
-      return updateIntegration(userId, id, body?.payload ?? {});
+      const { userId } = await requireAuth({ token: readAuthToken(c) });
+      return updateIntegration(userId, id, body ?? {});
     }),
   )
   .delete(
@@ -97,7 +97,7 @@ integrationsRoute
     "/api/v1/integrations/test-endpoint",
     withJson(async (c) => {
       const body = await readJsonBody<any>(c);
-      const { userId } = await requireAuth(body?.auth);
+      const { userId } = await requireAuth({ token: readAuthToken(c) });
       return testIntegrationEndpoint(userId, String(body?.target ?? ""));
     }),
   )
@@ -105,7 +105,7 @@ integrationsRoute
     "/api/v1/integrations/proxyAction",
     withJson(async (c) => {
       const body = await readJsonBody<any>(c);
-      const { userId } = await requireAuth(body?.auth);
+      const { userId } = await requireAuth({ token: readAuthToken(c) });
       const searchItemId = String(body?.searchItemId ?? body?.id ?? "").trim();
 
       if (!searchItemId) {

@@ -90,22 +90,22 @@ notificationsRoute
   }))
   .post("/api/v1/notifications/topics", withJson(async (c) => {
     const body = await readJsonBody<any>(c);
-    const { userId } = await requireAuth(body?.auth);
+    const { userId } = await requireAuth({ token: readAuthToken(c) });
     return createNotificationTopic(userId, String(body?.title ?? ""));
   }))
   .delete("/api/v1/notifications/topics", withJson(async (c) => {
     const body = await readJsonBody<any>(c);
-    const { userId } = await requireAuth(body?.auth);
+    const { userId } = await requireAuth({ token: readAuthToken(c) });
     return deleteNotificationTopic(userId, String(body?.topicId ?? ""));
   }))
   .post("/api/v1/notifications/markAsRead", withJson(async (c) => {
     const body = await readJsonBody<any>(c);
-    const { userId } = await requireAuth(body?.auth);
+    const { userId } = await requireAuth({ token: readAuthToken(c) });
     return markNotificationsAsRead(userId, Array.isArray(body?.ids) ? body.ids : []);
   }))
   .post("/api/v1/notifications/test", withJson(async (c) => {
     const body = await readJsonBody<any>(c);
-    const { userId } = await requireAuth(body?.auth);
+    const { userId } = await requireAuth({ token: readAuthToken(c) });
     return sendTestNotification(userId, String(body?.topicId ?? ""));
   }))
   .get("/api/v1/notifications/topicTokens", withJson(async (c) => {
@@ -119,7 +119,7 @@ notificationsRoute
   }))
   .delete("/api/v1/notifications/topicTokens", withJson(async (c) => {
     const body = await readJsonBody<any>(c);
-    const { userId } = await requireAuth(body?.auth);
+    const { userId } = await requireAuth({ token: readAuthToken(c) });
     return deleteTopicToken(userId, String(body?.tokenId ?? ""));
   }))
   .get("/api/v1/notifications/forwarders", withJson(async (c) => {
@@ -128,17 +128,17 @@ notificationsRoute
   }))
   .post("/api/v1/notifications/forwarders", withJson(async (c) => {
     const body = await readJsonBody<any>(c);
-    const { userId } = await requireAuth(body?.auth);
-    return createForwarder(userId, body?.body ?? {});
+    const { userId } = await requireAuth({ token: readAuthToken(c) });
+    return createForwarder(userId, body ?? {});
   }))
   .put("/api/v1/notifications/forwarders", withJson(async (c) => {
     const body = await readJsonBody<any>(c);
-    const { userId } = await requireAuth(body?.auth);
-    return updateForwarder(userId, body?.body ?? {});
+    const { userId } = await requireAuth({ token: readAuthToken(c) });
+    return updateForwarder(userId, body ?? {});
   }))
   .delete("/api/v1/notifications/forwarders", withJson(async (c) => {
     const body = await readJsonBody<any>(c);
-    const { userId } = await requireAuth(body?.auth);
+    const { userId } = await requireAuth({ token: readAuthToken(c) });
     return deleteForwarder(userId, String(body?.forwarderId ?? ""));
   }))
   .post("/api/v1/notifications/:topic", withJson(async (c) => {

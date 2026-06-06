@@ -14,7 +14,7 @@ monitoringRoute
   }))
   .post("/api/v1/monitors", withJson(async (c) => {
     const body = await readJsonBody<any>(c);
-    const { userId } = await requireAuth(body?.auth);
+    const { userId } = await requireAuth({ token: readAuthToken(c) });
     return createMonitor(userId, body ?? {});
   }))
   .get("/api/v1/monitors/:id", withJson(async (c) => {
@@ -23,9 +23,9 @@ monitoringRoute
   }))
   .put("/api/v1/monitors/:id", withJson(async (c) => {
     const body = await readJsonBody<any>(c);
-    const { userId } = await requireAuth(body?.auth);
+    const { userId } = await requireAuth({ token: readAuthToken(c) });
     const monitorId = c.req.param("id") || "";
-    const updated = await updateMonitor(userId, monitorId, body?.data ?? {});
+    const updated = await updateMonitor(userId, monitorId, body ?? {});
     if (!updated) {
       return { _status: 404, error: "Monitor not found" };
     }
@@ -46,8 +46,8 @@ monitoringRoute
   }))
   .post("/api/v1/monitoringStatus", withJson(async (c) => {
     const body = await readJsonBody<any>(c);
-    const { userId } = await requireAuth(body?.auth);
-    return runMonitoringStatus(userId, body?.body ?? {});
+    const { userId } = await requireAuth({ token: readAuthToken(c) });
+    return runMonitoringStatus(userId, body ?? {});
   }));
 
 export default monitoringRoute;
