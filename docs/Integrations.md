@@ -76,8 +76,8 @@ The `iterate` property in `response_mapping` specifies which array to iterate ov
 
 ## Key files
 
-- `apps/backend/src/controllers/pageConfig.controller.ts`
-- `apps/backend/src/controllers/integrations.controller.ts`
+- `apps/backend/src/routes/pageConfig.route.ts`
+- `apps/backend/src/routes/integrations.route.ts`
 - `packages/integrationskit/data/resolveProperties.tsx`
 - `apps/web/src/components/widgets/Widget.tsx`
 - `apps/web/src/lib/pageIntegrationDataCache.ts`
@@ -97,7 +97,7 @@ If `pageConfig` is not provided, the backend loads the saved page config for the
 
 ### Consumer extraction
 
-The backend scans the page config using `collectPageConsumers(...)`:
+The backend scans the page config using [`collectPageConsumers(...)`](apps/backend/src/routes/pageConfig.route.ts):
 
 - `columns` items are treated as widget consumers, except frontend-only widgets such as:
   - `placeholder`
@@ -121,13 +121,13 @@ The endpoint builds a single `sharedRuntimeCache` for the request.
 
 The resolver flow is:
 
-1. [`resolveConsumerDataForRequest(...)`](apps/backend/src/controllers/integrations.controller.ts)
-2. [`resolveConsumerData(...)`](apps/backend/src/controllers/integrations.controller.ts)
-3. [`resolveWidgetConsumer(...)`](apps/backend/src/controllers/integrations.controller.ts) or [`resolveGlanceableConsumer(...)`](apps/backend/src/controllers/integrations.controller.ts)
+1. [`resolveConsumerDataForRequest(...)`](apps/backend/src/routes/integrations.route.ts)
+2. [`resolveConsumerData(...)`](apps/backend/src/routes/integrations.route.ts)
+3. [`resolveWidgetConsumer(...)`](apps/backend/src/routes/integrations.route.ts) or [`resolveGlanceableConsumer(...)`](apps/backend/src/routes/integrations.route.ts)
 
 ### Loading integration payload
 
-The backend loads the integration payload from PocketBase using:
+The backend loads the integration payload from PocketBase using functions in [`integrations.route.ts`](apps/backend/src/routes/integrations.route.ts):
 
 - `getIntegrationWithWidget(...)`
 - `getIntegrationWithGlanceable(...)`
@@ -144,22 +144,22 @@ The payload includes:
 The resolver builds the effective integration environment by:
 
 - converting integration environment variables into a map
-- resolving stateful hidden vars with [`resolveStatefulEnvironmentVariables(...)`](apps/backend/src/controllers/integrations.controller.ts)
-- injecting user-specific values into environment variables via [`resolveUserInjectedEnv(...)`](apps/backend/src/controllers/integrations.controller.ts)
-- applying the resolved environment into the integration definition using [`applyIntegrationEnv(...)`](apps/backend/src/controllers/integrations.controller.ts)
+- resolving stateful hidden vars with [`resolveStatefulEnvironmentVariables(...)`](apps/backend/src/routes/integrations.route.ts)
+- injecting user-specific values into environment variables via [`resolveUserInjectedEnv(...)`](apps/backend/src/routes/integrations.route.ts)
+- applying the resolved environment into the integration definition using [`applyIntegrationEnv(...)`](apps/backend/src/routes/integrations.route.ts)
 
 ### Input merging
 
-- Widget input is merged using [`mergeWidgetInput(...)`](apps/backend/src/controllers/integrations.controller.ts)
-- Glanceable input is merged using [`mergeGlanceableInput(...)`](apps/backend/src/controllers/integrations.controller.ts)
-- Glanceable config is merged via [`mergeGlanceableJSON(...)`](apps/backend/src/controllers/integrations.controller.ts)
+- Widget input is merged using [`mergeWidgetInput(...)`](apps/backend/src/routes/integrations.route.ts)
+- Glanceable input is merged using [`mergeGlanceableInput(...)`](apps/backend/src/routes/integrations.route.ts)
+- Glanceable config is merged via [`mergeGlanceableJSON(...)`](apps/backend/src/routes/integrations.route.ts)
 
 ### Runtime data resolution
 
-The integration runtime data is computed by the integrations kit using:
+The integration runtime data is computed by the integrations kit in [`resolveProperties.tsx`](packages/integrationskit/data/resolveProperties.tsx) using:
 
-- [`resolveWidgetRuntimeData(...)`](packages/integrationskit/data/resolveProperties.tsx)
-- [`resolveGlanceableRuntimeData(...)`](packages/integrationskit/data/resolveProperties.tsx)
+- `resolveWidgetRuntimeData(...)`
+- `resolveGlanceableRuntimeData(...)`
 
 This performs:
 
@@ -171,8 +171,8 @@ This performs:
 
 The integration controller can reuse resolved runtime data across multiple consumers in a single request.
 
-- The cache key is built with [`createIntegrationRuntimeCacheKey(integrationId, mergedInput)`](apps/backend/src/controllers/integrations.controller.ts).
-- When a second consumer matches the same integration and merged input, its runtime data is reused instead of resolving endpoints again.
+- The cache namespace is built from `type`, `key`, and `stateKey` in [`integrations.route.ts`](apps/backend/src/routes/integrations.route.ts).
+- When a second consumer matches the same cache namespace, its runtime data is reused instead of resolving endpoints again.
 
 ## Blueprints and frontend rendering
 

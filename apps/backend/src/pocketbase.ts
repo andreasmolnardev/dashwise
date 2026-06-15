@@ -52,7 +52,7 @@ function isExecutable(path: string) {
  */
 function resolvePocketBaseRuntimePath() {
   const candidates = [
-    process.env.PB_BINARY_PATH,
+    config.PB_BINARY_PATH,
   ].filter(Boolean) as string[];
 
   for (const candidate of candidates) {

@@ -1,16 +1,13 @@
 import { DashwiseSDKConnector, DashwiseSDKConnectorOptions } from "./client";
+import { config } from "../config";
 
 let connector: DashwiseSDKConnector | null = null;
 
 function createDefaultOptions(): DashwiseSDKConnectorOptions {
-  const pbUrl = process.env.NEXT_PUBLIC_PB_URL || process.env.PB_URL || "http://127.0.0.1:8090";
-  const superuserEmail = process.env.PB_ADMIN_EMAIL;
-  const superuserPassword = process.env.PB_ADMIN_PASSWORD;
-
   return {
-    pbUrl,
-    ...(superuserEmail ? { superuserEmail } : {}),
-    ...(superuserPassword ? { superuserPassword } : {}),
+    pbUrl: config.PB_URL,
+    ...(config.PB_ADMIN_EMAIL ? { superuserEmail: config.PB_ADMIN_EMAIL } : {}),
+    ...(config.PB_ADMIN_PASSWORD ? { superuserPassword: config.PB_ADMIN_PASSWORD } : {}),
   };
 }
 

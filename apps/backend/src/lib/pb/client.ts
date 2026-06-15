@@ -1,9 +1,5 @@
 import PocketBase from "pocketbase";
-
-const truthyEnv = (value?: string | null): boolean => {
-  if (!value) return false;
-  return value === "1" || value.toLowerCase() === "true";
-};
+import { config } from "../config";
 
 export interface DashwiseSDKConnectorOptions {
   pbUrl?: string;
@@ -20,14 +16,10 @@ export class DashwiseSDKConnector {
   private superuserClientPromise: Promise<PocketBase> | null = null;
 
   constructor(options: DashwiseSDKConnectorOptions = {}) {
-    this.pbUrl =
-      options.pbUrl ??
-      process.env.NEXT_PUBLIC_PB_URL ??
-      process.env.PB_URL ?? ""
-    this.superuserEmail = options.superuserEmail ?? process.env.PB_ADMIN_EMAIL;
-    this.superuserPassword = options.superuserPassword ?? process.env.PB_ADMIN_PASSWORD;
-    this.enableSSOFlag =
-      options.enableSSO ?? truthyEnv(process.env.NEXT_PUBLIC_ENABLE_SSO) ?? false;
+    this.pbUrl = options.pbUrl ?? config.PB_URL;
+    this.superuserEmail = options.superuserEmail ?? config.PB_ADMIN_EMAIL;
+    this.superuserPassword = options.superuserPassword ?? config.PB_ADMIN_PASSWORD;
+    this.enableSSOFlag = options.enableSSO ?? config.ENABLE_SSO;
   }
 
   getAppConfig() {

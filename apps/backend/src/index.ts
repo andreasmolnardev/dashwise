@@ -201,7 +201,7 @@ app.get("*", async () => {
   });
 });
 
-const port = Number(process.env.PORT || 3000);
+const port = config.PORT;
 
 Bun.serve({
   hostname: "0.0.0.0",

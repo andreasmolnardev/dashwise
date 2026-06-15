@@ -27,7 +27,9 @@ function parseLogLevel(value: string | undefined): LogLevel {
   return "info";
 }
 
-const activeLogLevel = parseLogLevel(process.env.LOG_LEVEL ?? process.env.BACKEND_LOG_LEVEL);
+import { config } from "./config";
+
+const activeLogLevel = parseLogLevel(config.LOG_LEVEL);
 
 function shouldLog(level: LogLevel): boolean {
   return logLevelPriority[level] >= logLevelPriority[activeLogLevel];

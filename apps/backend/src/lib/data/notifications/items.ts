@@ -1,4 +1,5 @@
 import { getSuperuserPB } from "../../pb/pocketbase";
+import { config } from "../../config";
 import type {
   NotificationForwardersResponse,
   NotificationItemsResponse,
@@ -151,7 +152,7 @@ export async function sendTestNotification(userId: string, topicId: string) {
   });
 
   try {
-    const jobsUrl = process.env.JOBS_WEBHOOK_URL || "http://jobs:3000/api/forward-notifications";
+    const jobsUrl = config.JOBS_WEBHOOK_URL;
     await fetch(jobsUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },

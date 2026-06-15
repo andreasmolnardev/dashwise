@@ -1,4 +1,5 @@
 import { getServerPB, getSuperuserPB } from "../../pb/pocketbase";
+import { config } from "../../config";
 import { resolveTopicToken } from "./topicTokens";
 import type { NotificationItemsResponse, NotificationTopicsResponse } from "@dashwise/types";
 
@@ -95,7 +96,7 @@ export async function queueNotificationForForwarding(itemId: string) {
   });
 
   try {
-    const jobsUrl = process.env.JOBS_WEBHOOK_URL || "http://jobs:3000/api/forward-notifications";
+    const jobsUrl = config.JOBS_WEBHOOK_URL;
     await fetch(jobsUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },

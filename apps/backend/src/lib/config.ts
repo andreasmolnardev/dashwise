@@ -18,9 +18,25 @@ const truthyEnv = (value?: string | null): boolean => {
   return value === "1" || value.toLowerCase() === "true";
 };
 
+/**
+ * Get env var with NEXT_PUBLIC_ fallback for backend compatibility.
+ * Backend can use either the non-prefixed or NEXT_PUBLIC_ version.
+ */
+const getEnv = (name: string, nextPublicName?: string): string | undefined => {
+  return env[name] ?? (nextPublicName ? env[nextPublicName] : undefined);
+};
+
+// Helper to get log level with NEXT_PUBLIC_ fallback
+const getLogLevel = (): string | undefined => {
+  return env.LOG_LEVEL ?? env.BACKEND_LOG_LEVEL;
+};
+
 export const config = {
   ENVIRONMENT: processEnvironment === "dev" ? "dev" : "production",
-  PB_URL: env.PB_URL || "http://127.0.0.1:8090",
+  PORT: Number(env.PORT) || 3000,
+  PB_URL: getEnv("PB_URL", "NEXT_PUBLIC_PB_URL") || "http://127.0.0.1:8090",
+  PB_BINARY_PATH: env.PB_BINARY_PATH,
+  LOG_LEVEL: getLogLevel(),
   START_POCKETBASE:
     processStartPocketBase == null
       ? true
@@ -30,7 +46,7 @@ export const config = {
   PULL_ICONS_SCHEDULE: env.PULL_ICONS_SCHEDULE || "0 */18 * * *",
   MONITORING_INDEXER_SCHEDULE: env.MONITORING_INDEXER_SCHEDULE || "*/10 * * * *",
   MONITORING_RUNNER_SCHEDULE: env.MONITORING_RUNNER_SCHEDULE || "*/1 * * * *",
-  UPDATE_CHECK_SCHEDULE:  env.UPDATE_CHECK_SCHEDULE || "0 2 * * *",
+  UPDATE_CHECK_SCHEDULE: env.UPDATE_CHECK_SCHEDULE || "0 2 * * *",
   FEED_BUILDING_SCHEDULE: env.FEED_BUILDING_SCHEDULE || "*/30 * * * *",
   NOTIFICATION_FORWARDER_SCHEDULE: env.NOTIFICATION_FORWARDER_SCHEDULE || "* * * * *",
   DEFAULT_INTEGRATIONS_SCHEDULE: env.DEFAULT_INTEGRATIONS_SCHEDULE || "0 4 * * *",
@@ -42,16 +58,17 @@ export const config = {
   PB_ADMIN_EMAIL: env.PB_ADMIN_EMAIL!,
   PB_ADMIN_PASSWORD: env.PB_ADMIN_PASSWORD,
   DASHWISE_URL: env.DASHWISE_URL || (processEnvironment === "dev" ? "http://localhost:3000" : ""),
-  APP_BASE_URL: env.APP_BASE_URL || env.DASHWISE_URL || (processEnvironment === "dev" ? "http://localhost:3000" : ""),
+  APP_BASE_URL: getEnv("APP_BASE_URL", "NEXT_PUBLIC_APP_URL") || env.DASHWISE_URL || (processEnvironment === "dev" ? "http://localhost:3000" : ""),
   DASHWISE_VERSION: '1.0',
   GITHUB_REPO: 'andreasmolnardev/dashwise-next',
-  INSTANCE_NAME: env.INSTANCE_NAME || "Dashwise",
-  DISABLE_USER_SIGNUP: truthyEnv(env.DISABLE_USER_SIGNUP),
-  ENABLE_SSO: truthyEnv(env.ENABLE_SSO),
-  JOBS_URL: env.JOBS_URL || "http://127.0.0.1:3001",
-  JOBS_WEBHOOK_ENABLED: truthyEnv(env.JOBS_WEBHOOK_ENABLE) || !!env.JOBS_URL,
-  DEFAULT_BG_URL: env.DEFAULT_BG_URL || "/dashboard-wallpaper.png",
-  allowInsecureCertsForIntegrationUrls: truthyEnv(env.ALLOW_INSECURE_CERTS_FOR_INTEGRATION_URLS) || truthyEnv(env.ALLOW_SSL),
+  INSTANCE_NAME: getEnv("INSTANCE_NAME", "NEXT_PUBLIC_INSTANCE_NAME") || "Dashwise",
+  DISABLE_USER_SIGNUP: truthyEnv(getEnv("DISABLE_USER_SIGNUP", "NEXT_PUBLIC_DISABLE_USER_SIGNUP")),
+  ENABLE_SSO: truthyEnv(getEnv("ENABLE_SSO", "NEXT_PUBLIC_ENABLE_SSO")),
+  JOBS_URL: getEnv("JOBS_URL", "NEXT_PUBLIC_JOBS_URL") || "http://127.0.0.1:3001",
+  JOBS_WEBHOOK_URL: env.JOBS_WEBHOOK_URL || "http://jobs:3000/api/forward-notifications",
+  JOBS_WEBHOOK_ENABLED: truthyEnv(getEnv("JOBS_WEBHOOK_ENABLE", "NEXT_PUBLIC_JOBS_WEBHOOK_ENABLE")) || !!getEnv("JOBS_URL", "NEXT_PUBLIC_JOBS_URL"),
+  DEFAULT_BG_URL: getEnv("DEFAULT_BG_URL", "NEXT_PUBLIC_DEFAULT_BG_URL") || "/dashboard-wallpaper.png",
+  allowInsecureCertsForIntegrationUrls: truthyEnv(getEnv("ALLOW_INSECURE_CERTS_FOR_INTEGRATION_URLS", "NEXT_PUBLIC_INTEGRATIONS_ENABLE_SSL")) || truthyEnv(env.ALLOW_SSL),
 } as const;
 
 export type Config = typeof config;

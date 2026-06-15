@@ -119,13 +119,10 @@ function parseFilterValue(raw: unknown): unknown {
 }
 
 function getDefaultOutlierThreshold(): OutlierThreshold {
-  const rawType = process.env.MONITORING_OUTLIER_THRESHOLD_TYPE;
-  const rawValue = process.env.MONITORING_OUTLIER_THRESHOLD_VALUE;
-  const type = rawType === "absolute" ? "absolute" : "relative";
-  const parsedValue = Number(rawValue);
-  const fallbackValue = type === "absolute" ? 500 : 50;
-  const value = Number.isFinite(parsedValue) && parsedValue > 0 ? parsedValue : fallbackValue;
-  return { type, value };
+  return {
+    type: config.MONITORING_OUTLIER_THRESHOLD_TYPE,
+    value: config.MONITORING_OUTLIER_THRESHOLD_VALUE,
+  };
 }
 
 function getLatestMonitorStatus(monitor: any): MonitorStatusSummary {
