@@ -1,0 +1,7 @@
+{
+    "weather": 
+       {
+        "source": "/integrations/weather.yaml",
+        "defaultEnv": {}
+       }
+}

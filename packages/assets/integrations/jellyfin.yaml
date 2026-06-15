@@ -1,0 +1,128 @@
+# Dashwise Integration YAML
+details:
+  name: Jellyfin
+  description: ""
+  author: ""
+  version: 1.0.0
+  repository: ""
+  icon: "/icons/png/jellyfin-light.png"
+  links:
+    website: ""
+    documentation: ""
+    support: ""
+  categories:
+    - Media
+
+configuration:
+  environment_variables:
+    URL:
+      required: true
+      description: "Base URL of your Jellyfin instance (e.g. https://jellyfin.example.com)"
+    TOKEN:
+      required: false
+      edit: "overwrite-only"
+      description: "Jellyfin API token (sent as X-Emby-Token header)"
+    INCLUDE_ITEM_TYPES:
+      required: false
+      default: "Movie,Episode,Series,Audio,MusicAlbum"
+      description: "Comma-separated list of Jellyfin item types to fetch"
+    LIMIT:
+      required: false
+      default: 1000
+      description: "Maximum number of items to fetch"
+
+  endpoints:
+    fetch-items:
+      method: GET
+      url: "${URL}/Items?Recursive=true&IncludeItemTypes=${INCLUDE_ITEM_TYPES}&Limit=${LIMIT}"
+      custom_headers:
+        X-Emby-Token: "${TOKEN}"
+        Accept: "application/json"
+      insecure_skip_verify: true
+      response:
+        type: json
+        # Jellyfin can return Items at root array, .Items, .items, or .Data —
+        # data_path_fallback tries each in order until one resolves to an array
+        data_path_fallback:
+          - "Items"
+          - "items"
+          - "Data"
+          - "root"
+      response_mapping:
+        items:
+          iterate: "root"
+          mappingProperties:
+            id: "Id"
+            name:
+              operation: coalesce
+              fields: ["Name", "Title"]
+              fallback: "Untitled"
+            type: "Type"
+            primary_image_tag: "PrimaryImageTag"
+            series_name: "SeriesName"
+            album: "Album"
+
+  computed:
+    search_display:
+      iterate_over: "this.endpoints.fetch-items.mappedResponse.items"
+      key: "${id}"
+      fields:
+        id: "${id}"
+        name: "${name}"
+        type: "${type}"
+        # Secondary label: series name > album > type > ""
+        secondary:
+          operation: coalesce
+          fields: ["series_name", "album", "type"]
+          fallback: ""
+        action: "url:${URL}/web/index.html#/details?id=${id}"
+        thumbnail: "${URL}/Items/${id}/Images/Primary?tag=${primary_image_tag}"
+
+  # Jellyfin has no dashboard widget in the original code — search_items only.
+  # A "Recently Added" widget is included as a useful default.
+  widgets:
+    - name: "Jellyfin Recently Added"
+      key: "jellyfin-recently-added"
+      template: "vertical-list"
+      depends_on:
+        - "computed.search_display"
+      data:
+        source: "computed.search_display"
+        input:
+          URL: "${URL}"
+          TOKEN: "${TOKEN}"
+          INCLUDE_ITEM_TYPES: "${INCLUDE_ITEM_TYPES}"
+          LIMIT: "${LIMIT}"
+      properties:
+        header:
+          title: "${URL} ??? Recently Added"
+          icon: "integrations.jellyfin.details.icon"
+          titleAction: "url:${URL}"
+        list:
+          # Items come back in server order; Jellyfin returns newest-first
+          # when no explicit sort is requested, so no additional sort needed.
+          iterate_over: "computed.search_display"
+          max_items: 10
+          prototype:
+            thumbnail: "${thumbnail} ??? /icons/png/jellyfin-light.png"
+            title: "${name} ??? Dune"
+            titleAction: "url:${action}"
+            subtitle: "${secondary} ??? Movie"
+
+  shortcuts:
+    - my_collection:
+        iterate_over: "computed.search_display"
+        # Sort alphabetically, matching the original localeCompare sort
+        sort_by: "name"
+        sort_order: "asc"
+        mappingProperties:
+          id: "${id}"
+          name: "${name}"
+          icon: "integrations.jellyfin.details.icon"
+          secondaryInfo: "${secondary}"
+          type: "jellyfinItem"
+          action: "url:${action}"
+          tags:
+            - "${name}"
+            - "Jellyfin"
+            - "${secondary}"

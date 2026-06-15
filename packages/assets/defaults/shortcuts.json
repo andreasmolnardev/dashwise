@@ -1,0 +1,79 @@
+[
+    {
+        "name": "Settings",
+        "icon": "fa6-solid:gear",
+        "secondary": "Dashwise",
+        "action": "url:/settings/appearance",
+        "tags": ["Settings", "Preferences"]
+    },
+    {
+        "name": "Appearance Settings",
+        "icon": "fa6-solid:palette",
+        "secondary": "Dashwise",
+        "action": "url:/settings/appearance",
+        "tags": ["Settings", "Preferences", "Appearance"]
+    },
+    {
+        "name": "Pages Settings",
+        "icon": "fa6-solid:layer-group",
+        "secondary": "Dashwise",
+        "action": "url:/settings/pages",
+        "tags": ["Settings", "Pages", "Layout"]
+    },
+    {
+        "name": "Integrations Settings",
+        "icon": "fa6-solid:plug",
+        "secondary": "Dashwise",
+        "action": "url:/settings/integrations",
+        "tags": ["Settings", "Integrations", "Connections"]
+    },
+    {
+        "name": "Search Preferences",
+        "icon": "fa6-solid:magnifying-glass",
+        "secondary": "Dashwise",
+        "action": "url:/settings/search",
+        "tags": ["Settings", "Search", "Preferences"]
+    },
+    {
+        "name": "Notifications Inbox",
+        "icon": "fa6-solid:bell",
+        "secondary": "Dashwise",
+        "action": "url:/notifications/inbox",
+        "tags": ["Notifications", "Inbox", "Alerts"]
+    },
+    {
+        "name": "Links Home",
+        "icon": "fa6-solid:link",
+        "secondary": "Dashwise",
+        "action": "url:/apps/links/home",
+        "tags": ["Links", "Bookmarks", "Home"]
+    },
+    {
+        "name": "Monitoring",
+        "icon": "fa6-solid:chart-line",
+        "secondary": "Dashwise",
+        "action": "url:/apps/monitoring",
+        "tags": ["Monitoring", "Health", "Status"]
+    },
+    {
+        "name": "Home",
+        "icon": "fa6-solid:house",
+        "secondary": "Dashwise",
+        "action": "url:/home",
+        "tags": ["Dashboard", "Home", "Overview"]
+    },
+    {
+        "name": "News",
+        "icon": "fa6-solid:newspaper",
+        "secondary": "Dashwise",
+        "action": "url:/apps/news",
+        "tags": ["News", "Feeds", "Updates"]
+    },
+    {
+        "name": "Smart Frame",
+        "icon": "teenyicons:screen-solid",
+        "secondary": "Dashwise",
+        "action": "url:/frame",
+        "tags": ["QuickLaunch", "Frame"]
+    }
+]

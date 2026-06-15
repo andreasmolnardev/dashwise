@@ -1,0 +1,100 @@
+details:
+  name: Dashwise Default widgets
+  description: Enjoy the default built-in widgets. No need to add YAML files directly.
+
+configuration:
+  widgets:
+    - name: "Glanceable Clock"
+      key: "main-clock"
+      template: "glanceable-clock"
+      category: "Clock"
+    - name: "Search Bar"
+      key: "search-bar"
+      template: "search-bar"
+      category: "Search"
+    - name: "Link View"
+      key: "link-view"
+      template: "link-view"
+      category: "Links"
+    - name: "Placeholder"
+      key: "placeholder"
+      template: "placeholder"
+      category: "Placeholder"
+    - name: "Weekly view"
+      key: "calendar-week"
+      template: "calendar-week"
+      category: "Calendar"
+    - name: "Today's date"
+      key: "calendar-today"
+      template: "calendar-today"
+      category: "Calendar"
+    - name: "Upcoming events"
+      key: "calendar-upcoming"
+      template: "calendar-upcoming"
+      category: "Calendar"
+    - name: "Countdown"
+      key: "countdown"
+      template: "countdown"
+      category: "Clock"
+      data:
+        input:
+          date: "2026-12-31"
+          display_name: "New Year"
+          date_format: "yyyy-MM-dd"
+    - name: "Iframe"
+      key: "iframe"
+      template: "iframe"
+      category: "Tools"
+      data:
+        input:
+          url: "https://www.wikipedia.org"
+          min_height: 300
+          max_height: 600
+    - name: "Day Progress"
+      key: "day-progress"
+      template: "day-progress"
+      category: "Progress"
+    - name: "Week Progress"
+      key: "week-progress"
+      template: "week-progress"
+      category: "Progress"
+    - name: "Month Progress"
+      key: "month-progress"
+      template: "month-progress"
+      category: "Progress"
+    - name: "Year Progress"
+      key: "year-progress"
+      template: "year-progress"
+      category: "Progress"
+  glanceables:
+    - name: "Date"
+      icon: none
+      text: "${date.now}" 
+    - name: "Greeting"
+      icon: none
+      text: "Hello"
+    - name: "Local Timezone"
+      icon: none
+      text: "${user.current_timezone}"
+    - name: "World Clock"
+      properties:
+        timezone: "type:tz ??? 'Europe/London'"
+        location: "type:String ??? 'London'"
+      icon: none
+      text: "${lib.date.time(${properties.timezone})} in ${properties.location}"
+    - name: "Day Progress"
+      key: "day-progress"
+      icon: none
+      text: "Day: 0%"
+    - name: "Week Progress"
+      key: "week-progress"
+      icon: none
+      text: "Week: 0%"
+    - name: "Month Progress"
+      key: "month-progress"
+      icon: none
+      text: "Month: 0%"
+    - name: "Year Progress"
+      key: "year-progress"
+      icon: none
+      text: "Year: 0%"

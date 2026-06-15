@@ -1,32 +1,39 @@
 services:
-  nextjs:
-    image: node:20-alpine
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: dashwise:dev
+    container_name: dashwise-app-live
+    command: sh -lc "bun install --frozen-lockfile && bun run dev"
     ports:
       - "3000:3000"
-    volumes:
-      - ./:/app
-    working_dir: /app
-    command: sh -c "npm install && npm run dev"
-  pocketbase:
-    build: ./pocketbase
-    environment:
-      PB_ADMIN_EMAIL: default@dashwise.local
-      PB_ADMIN_PASSWORD: dashwiseIsAwesome
-    ports:
+      - "5173:5173"
       - "8090:8090"
-    volumes:
-      - ./pocketbase/pb_data:/app/pb_data
-      - ./pocketbase/pb_migrations:/app/pb_migrations
-    restart: unless-stopped
-  jobs:
-    build:
-      context: ./jobs
-    ports:
-      - "3001:3001"
-    environment:
-      NODE_ENV: development 
     env_file:
-      - ./jobs/.env
+      - .env.dev
     volumes:
-      - ./jobs:/usr/src/app
-    command: npm run dev
+      - .:/app
+      - app-node-modules:/app/node_modules
+      - backend-node-modules:/app/apps/backend/node_modules
+      - web-node-modules:/app/apps/web/node_modules
+      - integrationskit-node-modules:/app/packages/integrationskit/node_modules
+      - ./pocketbase/pb_data:/app/pocketbase/pb_data
+      - ./pocketbase/migrations:/app/pocketbase/migrations
+    networks:
+      - dashwise-default
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+networks:
+  dashwise-default:
+
+volumes:
+  app-node-modules:
+  backend-node-modules:
+  web-node-modules:
+  integrationskit-node-modules:

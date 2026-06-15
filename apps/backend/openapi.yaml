@@ -1,0 +1,1176 @@
+openapi: 3.0.3
+info:
+  title: Dashwise API
+  version: 1.0.0
+  description: OpenAPI specification for Dashwise v1 API routes.
+servers:
+  - url: /api/v1
+tags:
+  - name: app
+  - name: auth
+  - name: config
+  - name: integrations
+  - name: jobs
+  - name: links
+  - name: locations
+  - name: monitoring
+  - name: news
+  - name: notifications
+  - name: pageConfig
+  - name: search
+  - name: test
+  - name: wallpapers
+  - name: widgets
+  - name: weather
+paths:
+  /appConfig:
+    get:
+      tags:
+        - app
+      summary: Get application config
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+  /appInfo:
+    get:
+      tags:
+        - app
+      summary: Get application info
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+  /auth/callback:
+    get:
+      tags:
+        - auth
+      summary: Auth callback
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+        "302":
+          description: Redirect
+  /auth/change-password:
+    post:
+      tags:
+        - auth
+      summary: Change password
+      requestBody:
+        $ref: "#/components/requestBodies/JsonBody"
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+        "401":
+          $ref: "#/components/responses/JsonUnauthorized"
+  /auth/delete-account:
+    delete:
+      tags:
+        - auth
+      summary: Delete account
+      requestBody:
+        $ref: "#/components/requestBodies/JsonBody"
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+        "401":
+          $ref: "#/components/responses/JsonUnauthorized"
+  /auth/login:
+    post:
+      tags:
+        - auth
+      summary: Login
+      requestBody:
+        $ref: "#/components/requestBodies/JsonBody"
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+        "401":
+          $ref: "#/components/responses/JsonUnauthorized"
+  /auth/mfa:
+    post:
+      tags:
+        - auth
+      summary: MFA verification
+      requestBody:
+        $ref: "#/components/requestBodies/JsonBody"
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+        "401":
+          $ref: "#/components/responses/JsonUnauthorized"
+  /auth/signup:
+    post:
+      tags:
+        - auth
+      summary: Signup
+      requestBody:
+        $ref: "#/components/requestBodies/JsonBody"
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+        "400":
+          $ref: "#/components/responses/JsonBadRequest"
+  /auth/sso:
+    get:
+      tags:
+        - auth
+      summary: SSO start
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+        "302":
+          description: Redirect
+  /auth/validate-auth:
+    post:
+      tags:
+        - auth
+      summary: Validate auth
+      requestBody:
+        $ref: "#/components/requestBodies/JsonBody"
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+        "401":
+          $ref: "#/components/responses/JsonUnauthorized"
+  /auth/update-user-property:
+    patch:
+      tags:
+        - auth
+      summary: Update user property
+      requestBody:
+        $ref: "#/components/requestBodies/JsonBody"
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+        "401":
+          $ref: "#/components/responses/JsonUnauthorized"
+  /integrations:
+    get:
+      tags:
+        - integrations
+      summary: List integrations
+      parameters:
+        - name: id
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: resolveEndpoints
+          in: query
+          required: false
+          schema:
+            type: boolean
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+    post:
+      tags:
+        - integrations
+      summary: Create integration
+      requestBody:
+        $ref: "#/components/requestBodies/JsonBody"
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+  /integrations/test-endpoint:
+    post:
+      tags:
+        - integrations
+      summary: Test integration endpoint
+      requestBody:
+        $ref: "#/components/requestBodies/JsonBody"
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+  /integrations/widget-properties:
+    get:
+      tags:
+        - integrations
+      summary: Get widget properties
+      parameters:
+        - name: widgetSlug
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+  /links/collections:
+    get:
+      tags:
+        - links
+      summary: Get link collections
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+    post:
+      tags:
+        - links
+      summary: Create links collection
+      requestBody:
+        $ref: "#/components/requestBodies/JsonBody"
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+  /links/home/groups:
+    get:
+      tags:
+        - links
+      summary: Get home link groups
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+    post:
+      tags:
+        - links
+      summary: Create home link group
+      requestBody:
+        $ref: "#/components/requestBodies/JsonBody"
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+  /links/home:
+    get:
+      tags:
+        - links
+      summary: Get home links
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+  /links/folders:
+    get:
+      tags:
+        - links
+      summary: Get link folders
+      parameters:
+        - name: listId
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+    post:
+      tags:
+        - links
+      summary: Create links folder
+      requestBody:
+        $ref: "#/components/requestBodies/JsonBody"
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+  /links/items:
+    get:
+      tags:
+        - links
+      summary: Get link items
+      parameters:
+        - name: listId
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: folderId
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+    post:
+      tags:
+        - links
+      summary: Create link item
+      requestBody:
+        $ref: "#/components/requestBodies/JsonBody"
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+  /links/items/{linkId}:
+    put:
+      tags:
+        - links
+      summary: Update link item
+      parameters:
+        - name: linkId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        $ref: "#/components/requestBodies/JsonBody"
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+    delete:
+      tags:
+        - links
+      summary: Delete link item
+      parameters:
+        - name: linkId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        $ref: "#/components/requestBodies/JsonBody"
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+  /links/tags:
+    get:
+      tags:
+        - links
+      summary: Get link tags
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+    post:
+      tags:
+        - links
+      summary: Create links tag
+      requestBody:
+        $ref: "#/components/requestBodies/JsonBody"
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+  /jobs/searchItems:
+    get:
+      tags:
+        - jobs
+      summary: Search items job
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+  /jobs/pullIcons:
+    get:
+      tags:
+        - jobs
+      summary: Pull icons job
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+        "409":
+          $ref: "#/components/responses/JsonBadRequest"
+  /locations:
+    get:
+      tags:
+        - locations
+      summary: Get locations
+      parameters:
+        - name: q
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+  /monitoringStatus:
+    get:
+      tags:
+        - monitoring
+      summary: Get monitoring status
+      parameters:
+        - name: jobId
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+    post:
+      tags:
+        - monitoring
+      summary: Trigger monitoring check for one item
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                linkId:
+                  type: string
+                jobId:
+                  type: string
+              additionalProperties: false
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+        "400":
+          $ref: "#/components/responses/JsonBadRequest"
+        "401":
+          $ref: "#/components/responses/JsonUnauthorized"
+  /news:
+    get:
+      tags:
+        - news
+      summary: Get news subscriptions
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+  /news/feed:
+    get:
+      tags:
+        - news
+      summary: Get news feed
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+  /news/feed-refresh:
+    post:
+      tags:
+        - news
+      summary: Refresh feeds
+      requestBody:
+        $ref: "#/components/requestBodies/JsonBody"
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+    get:
+      tags:
+        - news
+      summary: Get feed refresh status
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+  /news/feed-subscribe:
+    post:
+      tags:
+        - news
+      summary: Subscribe to feed
+      requestBody:
+        $ref: "#/components/requestBodies/JsonBody"
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+  /news/feed-unsubscribe:
+    post:
+      tags:
+        - news
+      summary: Unsubscribe from feed
+      requestBody:
+        $ref: "#/components/requestBodies/JsonBody"
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+  /news/feed-update:
+    post:
+      tags:
+        - news
+      summary: Update feed
+      requestBody:
+        $ref: "#/components/requestBodies/JsonBody"
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+  /notifications:
+    get:
+      tags:
+        - notifications
+      summary: Get notifications
+      parameters:
+        - name: unread
+          in: query
+          required: false
+          schema:
+            type: boolean
+        - name: count
+          in: query
+          required: false
+          schema:
+            type: boolean
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+    post:
+      tags:
+        - notifications
+      summary: Create notification
+      security:
+        - bearerAuth: []
+      requestBody:
+        $ref: "#/components/requestBodies/JsonBody"
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+  /notifications/forwarders:
+    get:
+      tags:
+        - notifications
+      summary: List forwarders
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+    post:
+      tags:
+        - notifications
+      summary: Create forwarder
+      requestBody:
+        $ref: "#/components/requestBodies/JsonBody"
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+    put:
+      tags:
+        - notifications
+      summary: Update forwarder
+      requestBody:
+        $ref: "#/components/requestBodies/JsonBody"
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+    delete:
+      tags:
+        - notifications
+      summary: Delete forwarder
+      requestBody:
+        $ref: "#/components/requestBodies/JsonBody"
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+  /notifications/markAsRead:
+    post:
+      tags:
+        - notifications
+      summary: Mark notifications as read
+      requestBody:
+        $ref: "#/components/requestBodies/JsonBody"
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+  /notifications/{topic}:
+    post:
+      tags:
+        - notifications
+      summary: Send notification to topic
+      parameters:
+        - name: topic
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        $ref: "#/components/requestBodies/JsonBody"
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+  /notifications/topics:
+    get:
+      tags:
+        - notifications
+      summary: List topics
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+    post:
+      tags:
+        - notifications
+      summary: Create topic
+      requestBody:
+        $ref: "#/components/requestBodies/JsonBody"
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+    delete:
+      tags:
+        - notifications
+      summary: Delete notification topic
+      requestBody:
+        $ref: "#/components/requestBodies/JsonBody"
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+  /notifications/topicTokens:
+    post:
+      tags:
+        - notifications
+      summary: Create topic token
+      requestBody:
+        $ref: "#/components/requestBodies/JsonBody"
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+    get:
+      tags:
+        - notifications
+      summary: List topic tokens
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+    delete:
+      tags:
+        - notifications
+      summary: Delete topic token
+      requestBody:
+        $ref: "#/components/requestBodies/JsonBody"
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+  /searchItems:
+    get:
+      tags:
+        - search
+      summary: Search items
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+  /pageConfig:
+    get:
+      tags:
+        - pageConfig
+      summary: Get page config
+      parameters:
+        - name: pageName
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+    put:
+      tags:
+        - pageConfig
+      summary: Update page config
+      requestBody:
+        $ref: "#/components/requestBodies/JsonBody"
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+  /pageConfig/user-pages:
+    get:
+      tags:
+        - pageConfig
+      summary: Get user pages
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+  /test/bookmarks:
+    get:
+      tags:
+        - test
+      summary: Test bookmarks
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+  /wallpapers:
+    post:
+      tags:
+        - wallpapers
+      summary: Upload or update wallpaper
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                image:
+                  type: string
+                  format: binary
+                fileName:
+                  type: string
+                  description: Optional fallback file name
+                convertToWebp:
+                  type: boolean
+                  description: Convert the uploaded image to WebP before storing
+              required:
+                - image
+          application/json:
+            schema:
+              type: object
+              properties:
+                contentBase64:
+                  type: string
+                fileName:
+                  type: string
+                mimeType:
+                  type: string
+                convertToWebp:
+                  type: boolean
+                auth:
+                  type: object
+                  properties:
+                    token:
+                      type: string
+              required:
+                - contentBase64
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+    get:
+      tags:
+        - wallpapers
+      summary: Get wallpaper
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+  /widgets:
+    get:
+      tags:
+        - widgets
+      summary: Get user widgets
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+  /widgets/glanceable:
+    get:
+      tags:
+        - widgets
+      summary: Get user glanceable
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+  /widgets/glanceables:
+    get:
+      tags:
+        - widgets
+      summary: Get user glanceables
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+  /weather:
+    get:
+      tags:
+        - weather
+      summary: Get weather
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+  /pageConfig/home:
+    post:
+      tags:
+        - pageConfig
+      summary: Create home page
+      requestBody:
+        $ref: "#/components/requestBodies/JsonBody"
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+  /pageConfig/migrate-legacy:
+    post:
+      tags:
+        - pageConfig
+      summary: Migrate legacy page config
+      requestBody:
+        $ref: "#/components/requestBodies/JsonBody"
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+  /pageConfig/integrationData:
+    post:
+      tags:
+        - pageConfig
+      summary: Get page integration data
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: string
+      requestBody:
+        $ref: "#/components/requestBodies/JsonBody"
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+  /links/collections/{collectionId}:
+    put:
+      tags:
+        - links
+      summary: Update links collection
+      parameters:
+        - name: collectionId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        $ref: "#/components/requestBodies/JsonBody"
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+  /links/folders/{folderId}/icon:
+    put:
+      tags:
+        - links
+      summary: Update home link folder icon
+      parameters:
+        - name: folderId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        $ref: "#/components/requestBodies/JsonBody"
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+  /links/tags/{tagId}:
+    put:
+      tags:
+        - links
+      summary: Update links tag
+      parameters:
+        - name: tagId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        $ref: "#/components/requestBodies/JsonBody"
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+  /links/reorder:
+    post:
+      tags:
+        - links
+      summary: Reorder links
+      requestBody:
+        $ref: "#/components/requestBodies/JsonBody"
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+  /glanceables:
+    get:
+      tags:
+        - widgets
+      summary: List user glanceables
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+  /widgets/by-integration:
+    get:
+      tags:
+        - widgets
+      summary: Get integration by widget
+      parameters:
+        - name: widgetKey
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+  /glanceables/by-integration:
+    get:
+      tags:
+        - widgets
+      summary: Get integration by glanceable
+      parameters:
+        - name: glanceableType
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+  /integrations/{id}:
+    put:
+      tags:
+        - integrations
+      summary: Update integration
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        $ref: "#/components/requestBodies/JsonBody"
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+    delete:
+      tags:
+        - integrations
+      summary: Delete integration
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+  /integrations/consumerData:
+    post:
+      tags:
+        - integrations
+      summary: Get integration consumer data
+      requestBody:
+        $ref: "#/components/requestBodies/JsonBody"
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+    get:
+      tags:
+        - integrations
+      summary: Get integration consumer data
+      parameters:
+        - name: type
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: key
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: input
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+  /integrations/caldav/events:
+    get:
+      tags:
+        - integrations
+      summary: Get integration calendar events
+      parameters:
+        - name: integrationId
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+  /integrations/proxyAction:
+    post:
+      tags:
+        - integrations
+      summary: Proxy integration action
+      requestBody:
+        $ref: "#/components/requestBodies/JsonBody"
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+  /monitors:
+    get:
+      tags:
+        - monitoring
+      summary: List monitors
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+    post:
+      tags:
+        - monitoring
+      summary: Create monitor
+      requestBody:
+        $ref: "#/components/requestBodies/JsonBody"
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+  /monitors/{id}:
+    get:
+      tags:
+        - monitoring
+      summary: Get monitor
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+    put:
+      tags:
+        - monitoring
+      summary: Update monitor
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        $ref: "#/components/requestBodies/JsonBody"
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+    delete:
+      tags:
+        - monitoring
+      summary: Delete monitor
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+  /news/feeds/{id}:
+    get:
+      tags:
+        - news
+      summary: Get news feed
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+  /news/feed-records/{id}:
+    get:
+      tags:
+        - news
+      summary: Get news feed record
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+    post:
+      tags:
+        - news
+      summary: Update news feed record
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        $ref: "#/components/requestBodies/JsonBody"
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+  /news/feed-records:
+    post:
+      tags:
+        - news
+      summary: Create news feed record
+      requestBody:
+        $ref: "#/components/requestBodies/JsonBody"
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+  /news/feed-metadata:
+    get:
+      tags:
+        - news
+      summary: Get news feed metadata
+      parameters:
+        - name: url
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+  /news/subscriptions:
+    get:
+      tags:
+        - news
+      summary: List news subscriptions
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+  /news/feeds:
+    get:
+      tags:
+        - news
+      summary: List news feeds
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+  /news/fix-missing-titles:
+    post:
+      tags:
+        - news
+      summary: Fix missing news titles
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+  /notifications/test:
+    post:
+      tags:
+        - notifications
+      summary: Send test notification
+      requestBody:
+        $ref: "#/components/requestBodies/JsonBody"
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+  /searchItems/frequentlyUsed:
+    get:
+      tags:
+        - search
+      summary: List frequently used search items
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+  /searchItems/usageStats:
+    post:
+      tags:
+        - search
+      summary: Log search item usage
+      requestBody:
+        $ref: "#/components/requestBodies/JsonBody"
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+components:
+  schemas:
+    GenericObject:
+      type: object
+      additionalProperties: true
+    Error:
+      type: object
+      additionalProperties: true
+  requestBodies:
+    JsonBody:
+      required: false
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/GenericObject"
+  responses:
+    JsonOk:
+      description: OK
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/GenericObject"
+    JsonBadRequest:
+      description: Bad Request
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    JsonUnauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer

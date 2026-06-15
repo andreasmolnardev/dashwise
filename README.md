@@ -2,7 +2,8 @@
 I've been self hosting for a while but did not find a dashboard that suits my needs and that I like the look of.
 This is my attempt to solving that.
 
-> **Disclaimer:** This project is still under development. Therefore, only the working features of the app are listed in the features section. Integration with additional services is planned. Currently the integration logic is therefore being revamped.
+> **Disclaimer:** This project is being rewritten. If you want a stable version, use the
+[legacy compose](hhttps://github.com/andreasmolnardev/dashwise/blob/dev/docker-compose.yaml) instead. Not every feature of the legacy version has been ported to the new one
 
 > **Use of AI:** The development of this project is AI-Assisted by using it as a tool - not as a substitute for real programming skills.
 
@@ -24,56 +25,101 @@ This is my attempt to solving that.
 - Integrations: directly integrates with your favourite self hosted apps. Supported services are Karakeep, Dashdot, Beszel and Jellyfin. More integrations are planned
 
 ## Installation
-Grab the docker compose file (docker-compose.yaml), edit env vars, pull, deploy. That's it.
+For production depolyments, use the docker-compose.yaml (image is currently only built for arm, will change later).
+
+For local development, install dependencies and start the workspace scripts:
+
+```sh
+bun install
+bun run dev
+```
+
+The PocketBase backend can be either run using the aio container (default method) or connected to an external database (not recommended, migrations may fail)
 
 ## Configuration
-You can use the following environment variables for the main container:
+You can use the following environment variables for the all-in-one container - default values will also work:
 
+### Core Settings
 | Name | Required | Default Value | Description |
 | --- | --- | --- | --- |
-| NEXT_PUBLIC_PB_URL | Yes | `http://pocketbase:8090` | URL of the PocketBase instance |
-| NEXT_PUBLIC_INTEGRATIONS_ENABLE_SSL | No | `false` | Enable SSL for integrations |
+| INSTANCE_NAME / NEXT_PUBLIC_INSTANCE_NAME | No | Dashwise | The dashboard's display name |
+| PB_URL / NEXT_PUBLIC_PB_URL | No (if start pocketbase is true) | `http://127.0.0.1:8090` | PocketBase URL. Backend uses `PB_URL`, frontend uses `NEXT_PUBLIC_PB_URL` |
+| START_POCKETBASE | No | `true` | Start the bundled PocketBase process; set to `false` to use an external instance |
+| PB_BINARY_PATH | No | - | Path to PocketBase binary (default: `pocketbase/pocketbase`) |
+| PORT | No | `3000` | HTTP port for the backend server |
+
+### Authentication
+| Name | Required | Default Value | Description |
+| --- | --- | --- | --- |
 | PB_ADMIN_EMAIL | Yes | `default@dashwise.local` | Email of the PocketBase admin user |
 | PB_ADMIN_PASSWORD | Yes | `DashwiseIsAwesome` | Password of the PocketBase admin user |
-| NEXT_PUBLIC_APP_URL | Yes | `http://localhost:3000` | URL of the application |
-| NEXT_PUBLIC_ENABLE_SSO | No | `false` | Enable Single Sign-On (SSO) |
-| NEXT_PUBLIC_DEFAULT_BG_URL | No | `/dashboard-wallpaper.png` | Default background URL |
-| NEXT_PUBLIC_JOBS_WEBHOOK_ENABLE | No | `false` | Explicitly enable the jobs webhook. Set to `1` or `true`- to force-enable the webhook regardless of whether a jobs URL is configured. |
-| NEXT_PUBLIC_JOBS_URL | No | `http://127.0.0.1:3001` | URL of the jobs webhook endpoint. If overwritten, the jobs webhook is automatically enabled even if `NEXT_PUBLIC_JOBS_WEBHOOK_ENABLE` is not set. |
 
-The jobs container can be configured with the following environment variables:
-
+### URLs
 | Name | Required | Default Value | Description |
 | --- | --- | --- | --- |
-| PB_URL | Yes | `http://pocketbase:8090` | Internal URL of the PocketBase instance used for API access |
-| DASHWISE_URL | Yes | `http://dashwise:3000` | Internal URL of the Dashwise web application |
-| PB_ADMIN_EMAIL | Yes | `default@dashwise.local` | Email of the PocketBase admin user for authentication |
-| PB_ADMIN_PASSWORD | Yes | `DashwiseIsAwesome` | Password of the PocketBase admin user for authentication |
-| SEARCHITEMS_SCHEDULE | No | `*/10 * * * *` | Cron expression defining the interval for the search item indexing job |
+| NEXT_PUBLIC_APP_URL / APP_BASE_URL | No | `http://localhost:3000` | Public URL of the application |
+| NEXT_PUBLIC_BACKEND_URL | No | - | Backend URL for frontend API calls (fallback: window.location.origin in production) |
+| DASHWISE_URL | No | - | Internal Dashwise URL for jobs container communication |
+
+### Appearance & Features
+| Name | Required | Default Value | Description |
+| --- | --- | --- | --- |
+| NEXT_PUBLIC_DEFAULT_BG_URL / DEFAULT_BG_URL | No | `/dashboard-wallpaper.png` | Default background URL for new users |
+| NEXT_PUBLIC_ENABLE_SSO / ENABLE_SSO | No | `false` | Enable Single Sign-On (SSO) via OIDC |
+| NEXT_PUBLIC_DISABLE_USER_SIGNUP / DISABLE_USER_SIGNUP | No | `false` | Disable user self-registration |
+
+### SSL/TLS
+| Name | Required | Default Value | Description |
+| --- | --- | --- | --- |
+| NEXT_PUBLIC_INTEGRATIONS_ENABLE_SSL / ALLOW_INSECURE_CERTS_FOR_INTEGRATION_URLS | No | `false` | Allow insecure SSL certificates for integration URLs |
+| ALLOW_SSL | No | `false` | Enable SSL for internal service communication |
+| LOG_LEVEL / BACKEND_LOG_LEVEL | No | - | Backend log level (debug, info, warn, error) |
+
+### Jobs & Background Processing
+| Name | Required | Default Value | Description |
+| --- | --- | --- | --- |
+| JOBS_URL / NEXT_PUBLIC_JOBS_URL | No | `http://127.0.0.1:3001` | URL of the jobs service |
+| JOBS_WEBHOOK_ENABLE / NEXT_PUBLIC_JOBS_WEBHOOK_ENABLE | No | `false` | Explicitly enable the jobs webhook. Set to `1` or `true` to force-enable |
+| JOBS_WEBHOOK_URL | No | `http://jobs:3000/api/forward-notifications` | Webhook URL for forwarding notifications to jobs |
+| JOBS_MONITORING_RETRY_AFTER | No | `5000` | Time in milliseconds to wait before retrying a failed monitoring ping |
+
+### Scheduled Jobs (Cron Expressions)
+| Name | Required | Default Value | Description |
+| --- | --- | --- | --- |
+| SEARCHITEMS_SCHEDULE | No | `*/10 * * * *` | Interval for search item indexing job |
 | ENABLE_ICONS_REFRESH | No | `false` | Enable automatic icon refresh job |
-| PULL_ICONS_SCHEDULE | No | `0 */6 * * *` | Cron expression defining how often the icons refresh job runs |
-| MONITORING_INDEXER_SCHEDULE | No | `*/10 * * * *` | Cron expression defining how often the monitoring indexer runs |
-| MONITORING_RUNNER_SCHEDULE | No | `*/1 * * * *` | Cron expression defining how often the monitoring runner executes |
-| ALLOW_SSL | No | `false` | Enables SSL support for internal service communication |
+| PULL_ICONS_SCHEDULE | No | `0 */6 * * *` | How often the icons refresh job runs |
+| MONITORING_INDEXER_SCHEDULE | No | `*/10 * * * *` | How often the monitoring indexer runs |
+| MONITORING_RUNNER_SCHEDULE | No | `*/1 * * * *` | How often the monitoring runner executes |
+| UPDATE_CHECK_SCHEDULE | No | `0 2 * * *` | Schedule for update check job |
+| FEED_BUILDING_SCHEDULE | No | `*/30 * * * *` | Schedule for news feed building job |
+| NOTIFICATION_FORWARDER_SCHEDULE | No | `* * * * *` | Schedule for notification forwarder job |
+| DEFAULT_INTEGRATIONS_SCHEDULE | No | `0 4 * * *` | Schedule for default integrations sync |
+| PAGECONFIG_CLEANUP_SCHEDULE | No | `0 5 * * *` | Schedule for page config cleanup |
+| MONITORING_OUTLIER_THRESHOLD_TYPE | No | `relative` | Threshold type for monitoring outliers (`absolute` or `relative`) |
+| MONITORING_OUTLIER_THRESHOLD_VALUE | No | `50` | Threshold value for monitoring outliers |
 
 ## Tech Stack
-Frontend, API Layer: Next.js
+Frontend: React SPA bundled with Bun
+API Layer: Bun with Hono
 Backend: Pocketbase
 
 ## How it works
-On signup, a json config is created for each user.
-It's available to the frontend via a GET request to /api/v1/config.
-Accessing it is handled by the ConfigContext.
+Each user has page-based config records in `pageConfig` (for example `home`, `news`, `lab`) plus user-level preferences.
+The frontend reads and refreshes page config through the `usePageConfig` hook.
 
 ## Open Source Projects that make dashwise possible
 
 [Selfh.st icons](https://github.com/selfhst/icons),
 [Font Awesome](https://fontawesome.com),
-[Nextjs](https://github.com/vercel/next.js), [Shadcn](https://github.com/shadcn-ui/ui)
+[Bun](https://bun.sh), [React](https://react.dev), [Shadcn](https://github.com/shadcn-ui/ui)
 
 ## Contributions
 
 Feel free to contribute! I'll probably create a more detailed roadmap soon.
+
+### Creating an integration
+Refer to docs/integrations.md for more
 
 ## Star History
 

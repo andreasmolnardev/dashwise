@@ -1,0 +1,170 @@
+# Dashwise Integration YAML Syntax Reference
+# This file documents the structure and options available for integration configuration files.
+
+# ---------------------------------------------------------
+# 1. Details Section
+# Basic metadata about the integration.
+# ---------------------------------------------------------
+# Template strings support `${VAR}` interpolation and `primary ??? fallback` semantics.
+# When the interpolated value looks like JSON (`{...}` or `[...]`), it is parsed automatically.
+# Environment lookup is case-insensitive and will fall back from exact name to upper/lower variants.
+#
+# Example:
+#   title: "${name} ??? Untitled"
+#   icon: "${icon} ??? /icons/png/default.png"
+#   action: "url:${URL}/item/${id}"
+#
+# Fallbacks are only used when the primary expression resolves to empty or still contains an unresolved `${...}` token.
+details:
+  name: "Example Integration"       # Display name of the integration
+  description: "A short summary"    # (Optional) Description
+  author: "Author Name"             # (Optional)
+  version: "1.0.0"                  # Version string
+  repository: "https://github..."   # (Optional)
+  source: "https://..."
+  icon: "/icons/png/example.png"    # Path to the icon image
+  links:                            # (Optional) External links
+    website: ""
+    documentation: ""
+    support: ""
+  categories:                       # List of categories for discovery
+    - Monitoring
+
+# ---------------------------------------------------------
+# 2. Configuration Section
+# Defines how the integration connects to the external service.
+# ---------------------------------------------------------
+configuration:
+  # Environment Variables
+  # Used for secrets, URLs, and user settings.
+  environment_variables:
+    URL:
+      required: true
+      description: "Base URL of the service"
+    API_KEY:
+      required: true
+      user_hidden: true             # Sensitive value, obscured in UI
+      edit: "overwrite-only"         # Prevent reading back existing value
+    POLLING_INTERVAL:
+      required: false
+      default: 60                   # Default value if not provided
+      description: "Interval in seconds"
+
+  # Endpoints
+  # HTTP requests used to fetch or push data.
+  endpoints:
+    auth-step:
+      method: POST
+      url: "${URL}/api/auth"        # Variables use ${VAR_NAME} syntax
+      body:
+        username: "admin"
+        password: "${PASSWORD}"
+      response:
+        type: json
+        data_path: "token"          # Path in JSON response to extract
+        data_set_env: "AUTH_TOKEN"  # Store result in a temporary env var
+
+    fetch-data:
+      method: GET
+      url: "${URL}/api/data"
+      auth: "Bearer ${AUTH_TOKEN}"  # Uses token from previous step
+      insecure_skip_verify: true    # (Optional) Skip SSL verification
+      custom_headers:
+        X-Custom: "value"
+      response:
+        type: json
+        data_path: "items"
+      # Mapping transforms raw response into a structured format
+      response_mapping:
+        items_list:
+          iterate: "items"          # Loop through array at data_path
+          mappingProperties:
+            id: "id"
+            name: "display_name"
+            stats:
+              cpu: "usage.cpu"
+              memory: "usage.mem"
+
+  # Computed Fields
+  # Process and aggregate data from endpoints.
+  computed:
+    status_summary:
+      iterate_over: "this.endpoints.fetch-data.mappedResponse.items_list"
+      filter: "stats.cpu > 80"       # (Optional) Boolean expression to filter items
+      key: "${name}"                # Unique key for the resulting object
+      fields:
+        label: "${name}"
+        score:
+          operation: "compute_health" # Built-in operations (e.g., compute_health_score, compute_severity)
+          inputs:
+            value: "stats.cpu"
+            threshold: 90
+        link: "${URL}/dashboard/${id}"
+
+  # Widgets
+  # Defines how data is presented on the dashboard.
+  widgets:
+    - name: "Status Overview"
+      key: "status-overview"       # Unique identifier for the widget
+      template: "columns"           # UI template (e.g., columns, vertical-list)
+      depends_on:
+        - "computed.status_summary"
+      hide_if_empty: true
+      data:
+        source: "computed.status_summary"
+        input:
+          URL: "${URL}"
+          API_KEY: "${API_KEY}"
+          POLLING_INTERVAL: "${POLLING_INTERVAL}"
+      properties:
+        header:
+          title: "System Status"
+          icon: "integrations.example.details.icon"
+        columns:
+          iterate_over: "computed.status_summary"
+          prototype:                # Template for each item in the list
+            title: "${label}"
+            titleAction: "url:${link}"
+            progress:
+              type: "circular"
+              value: "${score}"
+              thresholds:
+                - min: 80
+                  color: "#16a34a"
+                - min: 0
+                  color: "#ef4444"
+
+# ---------------------------------------------------------
+# 3. Shortcuts
+# Defines how the integration contributes to global search.
+# ---------------------------------------------------------
+shortcuts:
+  - main:
+      iterate_over: "this.endpoints.fetch-data.mappedResponse.items_list"
+      mappingProperties:
+        id: "${id}"
+        name: "${name}"
+        icon: "integrations.example.details.icon"
+        secondaryInfo: "Example Service"
+        type: "exampleItem"
+        action: "url:${URL}/item/${id}"
+        tags:
+          - "Example"
+          - "${name}"
+
+# ---------------------------------------------------------
+# 4. Glanceables
+# Defines compact summary items shown in glanceable slots.
+# See weather.yaml for a richer example with computed fields and icon rendering.
+# ---------------------------------------------------------
+  glanceables:
+    - name: "Example Glanceable"
+      key: "example-glanceable"
+      properties:
+        label: "${name}"
+        value: "${value}"
+      icon:
+        file: "${icon} ??? fa6-solid:sun"
+        size: 16
+        description: "${description}"
+      text: "${value} ??? No data"

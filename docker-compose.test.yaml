@@ -1,37 +1,21 @@
-services: 
+services:
   dashwise:
     build:
       context: .
+      dockerfile: Dockerfile
+    image: andreasmolnardev/dashwise:aio-preview
     ports:
       - "3016:3000"
+      - "8093:8090"
     restart: unless-stopped
-    env_file: ./.env
-
-  pocketbase:
-    build: ./pocketbase
     environment:
+      ENVIRONMENT: production
       PB_ADMIN_EMAIL: default@dashwise.local
-      PB_ADMIN_PASSWORD: dashwiseIsAwesome
-    ports:
-      - "8090:8090"
+      PB_ADMIN_PASSWORD: DashwiseIsAwesome
+      PB_URL: http://127.0.0.1:8090
+      NEXT_PUBLIC_PB_URL: http://127.0.0.1:8090
+      NEXT_PUBLIC_APP_URL: http://localhost:3016
+      START_POCKETBASE: "true"
+      PB_BINARY_PATH: /usr/local/bin/pocketbase
     volumes:
-      - ./pocketbase/test/pb_data:/app/pb_data
-      - ./pocketbase/pb_migrations:/app/pb_migrations
-    restart: unless-stopped
-
-  jobs:
-    image: andreasmolnardev/dashwise-jobs-pre
-    #build:
-     # context: ./jobs
-    ports:
-        - "3001:3001"
-    environment:
-      PB_URL: http://pocketbase:8090
-      DASHWISE_URL: http://dashwise:3000
-      SEARCHITEMS_SCHEDULE: "*/10 * * * *"
-      MONITORING_INDEXER_SCHEDULE: "*/10 * * * *"
-      MONITORING_RUNNER_SCHEDULE: "*/1 * * * *"
-      ALLOW_SSL: false
-      PB_ADMIN_EMAIL: default@dashwise.local
-      PB_ADMIN_PASSWORD: dashwiseIsAwesome  
-    restart: unless-stopped
+      - ./pocketbase/pb_data_old:/app/pocketbase/pb_data

@@ -1,0 +1,1 @@
+export type { components, paths } from "./openapi";

@@ -1,4 +1,5 @@
 # Contributing to dashwise
+## This is currently outdated.
 To contribute, you might follow these steps:
 1. Comment on the GitHub Issue you want to work on or open a new one
 2. Fork the repo

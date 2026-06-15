@@ -1,0 +1,131 @@
+# Stock Integration YAML
+details:
+  name: Stock
+  description: "Glanceable stock price with daily change (Yahoo Finance)"
+  author: ""
+  version: 1.0.0
+  repository: ""
+  icon: "mdi:chart-line"
+  links:
+    website: "https://finance.yahoo.com"
+  categories:
+    - Finance
+    - Monitoring
+
+configuration:
+  environment_variables:
+    STOCK:
+      required: true
+      description: "Stock symbol (e.g. AAPL, TSLA, BTC-USD)"
+      default: "AAPL"
+
+    RANGE:
+      required: false
+      default: "1mo"
+
+    INTERVAL:
+      required: false
+      default: "1d"
+
+    POLLING_INTERVAL:
+      required: false
+      default: 60
+
+  endpoints:
+    fetch-stock:
+      method: GET
+      url: "https://query1.finance.yahoo.com/v8/finance/chart/${STOCK}?range=${RANGE}&interval=${INTERVAL}"
+      custom_headers:
+        User-Agent: "Mozilla/5.0"
+      cache_ttl: 60
+      response:
+        type: json
+        data_path: "chart.result[0]"
+
+      response_mapping:
+        current:
+          symbol: "meta.symbol"
+          name: "meta.shortName"
+          price: "meta.regularMarketPrice"
+          previous_close: "meta.chartPreviousClose"
+          currency: "meta.currency"
+
+  computed:
+    stock:
+      fields:
+        symbol: "this.endpoints.fetch-stock.mappedResponse.current.symbol"
+        name: "this.endpoints.fetch-stock.mappedResponse.current.name"
+
+        price:
+          operation: "math"
+          expression: "round(price, 2)"
+          inputs:
+            price: "this.endpoints.fetch-stock.mappedResponse.current.price"
+
+        previous:
+          operation: "math"
+          expression: "round(previous, 2)"
+          inputs:
+            previous: "this.endpoints.fetch-stock.mappedResponse.current.previous_close"
+
+        change:
+          operation: "math"
+          expression: "round(a - b, 2)"
+          inputs:
+            a: "this.endpoints.fetch-stock.mappedResponse.current.price"
+            b: "this.endpoints.fetch-stock.mappedResponse.current.previous_close"
+
+        change_percent:
+          operation: "math"
+          expression: "previous == 0 ? 0 : round((((current - previous) / previous) * 100) * 100) / 100"
+          inputs:
+            current: "this.endpoints.fetch-stock.mappedResponse.current.price"
+            previous: "this.endpoints.fetch-stock.mappedResponse.current.previous_close"
+
+        is_up:
+          operation: "math"
+          expression: "current >= previous"
+          inputs:
+            current: "this.endpoints.fetch-stock.mappedResponse.current.price"
+            previous: "this.endpoints.fetch-stock.mappedResponse.current.previous_close"
+
+        sign:
+          operation: "math"
+          expression: "current >= previous ? '+' : ''"
+          inputs:
+            current: "this.endpoints.fetch-stock.mappedResponse.current.price"
+            previous: "this.endpoints.fetch-stock.mappedResponse.current.previous_close"
+
+        direction_icon:
+          operation: "math"
+          expression: "current >= previous ? 'fluent-mdl2:market' : 'fluent-mdl2:market-down'"
+          inputs:
+            current: "this.endpoints.fetch-stock.mappedResponse.current.price"
+            previous: "this.endpoints.fetch-stock.mappedResponse.current.previous_close"
+
+        color:
+          operation: "math"
+          expression: "current >= previous ? '#16a34a' : '#ef4444'"
+          inputs:
+            current: "this.endpoints.fetch-stock.mappedResponse.current.price"
+            previous: "this.endpoints.fetch-stock.mappedResponse.current.previous_close"
+
+  cache:
+    policy: "cache-first"
+    retention: 60
+
+  glanceables:
+    - name: "Stock"
+      key: "stock-glance"
+      properties:
+        symbol: "${STOCK}"
+        poll: "${POLLING_INTERVAL}"
+
+      icon:
+        file: "${computed.stock.fields.direction_icon}"
+        size: 16
+        description: "${computed.stock.fields.name}"
+
+      text: "${STOCK} ${computed.stock.fields.change_percent}%"
+
+      color: "${computed.stock.fields.color}"

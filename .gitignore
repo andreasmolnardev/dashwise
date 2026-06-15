@@ -1,7 +1,7 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
 # dependencies
-/node_modules
+node_modules
 /.pnp
 .pnp.*
 .yarn/*
@@ -9,6 +9,10 @@
 !.yarn/plugins
 !.yarn/releases
 !.yarn/versions
+dist/
+
+# editor settings
+.vscode/    
 
 # testing
 /coverage
@@ -19,10 +23,11 @@
 # But keep these:
 !/pocketbase/init-pb.sh
 !/pocketbase/Dockerfile
-!/pocketbase/pb_migrations/
+!/pocketbase/migrations/
 
 #jobs runner's node modules
 /jobs/node_modules
+dashwise-sdk/node_modules
 
 # next.js
 /.next/

@@ -1,0 +1,20 @@
+{
+  "name": "@dashwise/types",
+  "version": "1.0.0",
+  "private": true,
+  "main": "index.ts",
+  "exports": {
+    ".": {
+      "types": "./index.ts",
+      "default": "./index.ts"
+    },
+    "./sdk": {
+      "types": "./sdk-types.ts",
+      "default": "./sdk-types.ts"
+    }
+  },
+  "types": "index.ts",
+  "dependencies": {
+    "pocketbase": "^0.26.8"
+  }
+}

@@ -1,0 +1,239 @@
+# Dashwise Integration YAML
+details:
+  name: Dashdot
+  description: ""
+  author: ""
+  version: 1.0.0
+  repository: ""
+  icon: "/icons/png/dashdot.png"
+  links:
+    website: ""
+    documentation: ""
+    support: ""
+  categories:
+    - Monitoring
+
+configuration:
+  environment_variables:
+    URL:
+      required: true
+      description: "Base URL of your Dashdot instance (e.g. https://dash.example.com)"
+    DISPLAY_NAME:
+      required: false
+      description: "Override the display name shown in the widget header"
+
+  endpoints:
+    fetch-info:
+      method: GET
+      url: "${URL}/info"
+      insecure_skip_verify: true
+      response:
+        type: json
+      response_mapping:
+        hostname: "hostname"
+        os: "os"
+        cpu:
+          cores: "cpu.cores"
+          usage: "cpu.usage"
+          temperature: "cpu.temperature"
+        ram:
+          size: "ram.size"
+        storage:
+          iterate: "storage"
+          mappingProperties:
+            size: "size"
+            disks:
+              iterate: "disks"
+              mappingProperties:
+                device: "device"
+                brand: "brand"
+                type: "type"
+        network:
+          speed_up: "network.speed_up"
+          speed_down: "network.speed_down"
+        gpu:
+          layout:
+            iterate: "gpu.layout"
+            mappingProperties:
+              name: "name"
+
+    fetch-load-cpu:
+      method: GET
+      url: "${URL}/load/cpu"
+      insecure_skip_verify: true
+      response:
+        type: json
+      response_mapping:
+        cpu_load:
+          iterate: "root"
+          mappingProperties:
+            load: "load"
+
+    fetch-load-ram:
+      method: GET
+      url: "${URL}/load/ram"
+      insecure_skip_verify: true
+      response:
+        type: json
+      response_mapping:
+        ram_load: "load"
+
+    fetch-load-storage:
+      method: GET
+      url: "${URL}/load/storage"
+      insecure_skip_verify: true
+      response:
+        type: json
+      # Raw array of used-bytes per storage index, correlated by position
+      # with fetch-info.mappedResponse.storage
+      response_mapping:
+        storage_load:
+          iterate: "root"
+          mappingProperties:
+            used_bytes: "root"
+
+    fetch-load-network:
+      method: GET
+      url: "${URL}/load/network"
+      insecure_skip_verify: true
+      response:
+        type: json
+      response_mapping:
+        network_load: "root"
+
+    fetch-load-gpu:
+      method: GET
+      url: "${URL}/load/gpu"
+      insecure_skip_verify: true
+      response:
+        type: json
+      response_mapping:
+        gpu_load: "root"
+
+  computed:
+    metrics:
+      fields:
+        hostname: "this.endpoints.fetch-info.mappedResponse.hostname"
+        display_name: "if(${DISPLAY_NAME}, ${DISPLAY_NAME}, this.endpoints.fetch-info.mappedResponse.hostname)"
+        server_url: "${URL}"
+        cpu:
+          cores: "this.endpoints.fetch-info.mappedResponse.cpu.cores"
+          temperature: "this.endpoints.fetch-info.mappedResponse.cpu.temperature"
+          # Average load across all cores
+          avg_load:
+            operation: avg
+            field: "this.endpoints.fetch-load-cpu.mappedResponse.cpu_load[*].load"
+            transform: "round(value * 10) / 10"
+          load: "this.endpoints.fetch-load-cpu.mappedResponse.cpu_load"
+        memory:
+          total: "this.endpoints.fetch-info.mappedResponse.ram.size"
+          load: "this.endpoints.fetch-load-ram.mappedResponse.ram_load"
+          # Used percent derived from load/total
+          used_percent:
+            operation: expr
+            expression: "round((ram_load / ram_size) * 100)"
+            inputs:
+              ram_load: "this.endpoints.fetch-load-ram.mappedResponse.ram_load"
+              ram_size: "this.endpoints.fetch-info.mappedResponse.ram.size"
+        storage:
+          iterate_over: "this.endpoints.fetch-info.mappedResponse.storage"
+          mappingProperties:
+            total: "size"
+            disks: "disks"
+            used_bytes:
+              operation: index_lookup
+              source: "this.endpoints.fetch-load-storage.mappedResponse.storage_load"
+              index: "${_index}.used_bytes"
+            used_percent:
+              operation: expr
+              expression: "clamp(round((used_bytes / size) * 100, 2), 0, 100)"
+              inputs:
+                used_bytes: "this.endpoints.fetch-load-storage.mappedResponse.storage_load[${_index}].used_bytes"
+                size: "size"
+        network:
+          speed_up: "this.endpoints.fetch-info.mappedResponse.network.speed_up"
+          speed_down: "this.endpoints.fetch-info.mappedResponse.network.speed_down"
+          load: "this.endpoints.fetch-load-network.mappedResponse.network_load"
+        gpu:
+          layout: "this.endpoints.fetch-info.mappedResponse.gpu.layout"
+          load: "this.endpoints.fetch-load-gpu.mappedResponse.gpu_load"
+          # has_gpu is true when layout has entries OR load is a valid number
+          has_gpu:
+            operation: expr
+            expression: "length(layout) > 0 or (load != null and not isNaN(load))"
+            inputs:
+              layout: "this.endpoints.fetch-info.mappedResponse.gpu.layout"
+              load: "this.endpoints.fetch-load-gpu.mappedResponse.gpu_load"
+
+  widgets:
+    - name: "Dashdot"
+      key: "dashdot-overview"
+      template: "columns"
+      depends_on:
+        - "computed.metrics"
+      # Refresh every 8 seconds to match original polling interval
+      refresh_interval: 8
+      data:
+        source: "computed.metrics"
+        input:
+          URL: "${URL}"
+          DISPLAY_NAME: "${DISPLAY_NAME}"
+      properties:
+        header:
+          title: "${computed.metrics.display_name} ??? Server Alpha"
+          icon: "integrations.dashdot.details.icon"
+          titleAction: "url:${URL}"
+        columns:
+          # CPU column — always shown
+          - label: "CPU"
+            primary: "${computed.metrics.cpu.avg_load}% ??? 42%"
+            secondary: "${computed.metrics.cpu.cores} cores ??? 8 cores"
+
+          # Memory column — always shown
+          - label: "Memory"
+            primary:
+              operation: human_bytes
+              value: "computed.metrics.memory.load"
+              fallback: "12.3 GB"
+            secondary:
+              operation: expr
+              # "of X used (Y%)"
+              expression: "'of ' + humanBytes(total) + ' used (' + used_percent + '%)'"
+              inputs:
+                total: "computed.metrics.memory.total"
+                used_percent: "computed.metrics.memory.used_percent"
+              fallback: "of 32 GB used (38%)"
+
+          # GPU column shown when has_gpu, otherwise Storage
+          - show_if: "computed.metrics.gpu.has_gpu"
+            label: "GPU"
+            primary: "${computed.metrics.gpu.load}% ??? 42%"
+            secondary:
+              operation: join
+              value: "computed.metrics.gpu.layout[*].name"
+              separator: ", "
+              fallback: "8 cores"
+
+          - show_if: "not computed.metrics.gpu.has_gpu"
+            label: "Storage"
+            primary: "${computed.metrics.storage[0].used_percent}% ??? 65%"
+            secondary:
+              operation: join
+              value: "computed.metrics.storage[*].total"
+              separator: " / "
+              transform: "human_bytes(value)"
+              fallback: "1.2 TB / 2 TB"
+
+  shortcuts:
+    - main:
+        mappingProperties:
+          id: "${URL}"
+          name: "${computed.metrics.display_name}"
+          icon: "integrations.dashdot.details.icon"
+          secondaryInfo: "Server"
+          type: "dashdotItem"
+          action: "url:${URL}"
+          tags:
+            - "Dashdot"
+            - "Monitoring"
+            - "${computed.metrics.hostname}"

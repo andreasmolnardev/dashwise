@@ -1,0 +1,23 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "declaration": false,
+    "emitDeclarationOnly": false,
+    "noEmit": false,
+    "baseUrl": ".",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "jsx": "preserve",
+    "lib": ["esnext"],
+    "types": [
+      "bun"
+    ],
+    "paths": {
+      "@dashwise/assets": ["../../packages/assets/index.ts"],
+      "@dashwise/assets/*": ["../../packages/assets/*"]
+    },
+    "outDir": "./dist",
+    "strict": true
+  },
+  "include": ["src/**/*"]
+}
