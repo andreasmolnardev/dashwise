@@ -1,9 +1,9 @@
-# <img src="./public/dashwise-icon.svg" alt="Dashwise icon" width="32" /> dashwise: Your Homelab, in one place
+# <img src="./apps/web/public/dashwise-icon.svg" alt="Dashwise icon" width="32" /> dashwise: Your Homelab, in one place
 I've been self hosting for a while but did not find a dashboard that suits my needs and that I like the look of.
 This is my attempt to solving that.
 
 > **Disclaimer:** This project is being rewritten. If you want a stable version, use the
-[legacy compose](hhttps://github.com/andreasmolnardev/dashwise/blob/dev/docker-compose.yaml) instead. Not every feature of the legacy version has been ported to the new one
+[legacy compose](https://github.com/andreasmolnardev/dashwise/blob/dev/docker-compose.yaml) instead. Not every feature of the legacy version has been ported to the new one
 
 > **Use of AI:** The development of this project is AI-Assisted by using it as a tool - not as a substitute for real programming skills.
 
