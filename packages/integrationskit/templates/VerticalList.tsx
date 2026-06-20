@@ -10,10 +10,11 @@ interface VerticalListProps {
   resolved: ResolvedWidget;
   className?: string;
   formatters?: TextFormatters;
+  itemClassName?: string;
 }
 
 export default function VerticalList(
-  { resolved, className, formatters }: VerticalListProps,
+  { resolved, className, formatters, itemClassName }: VerticalListProps,
 ) {
   const header = resolved.header;
   const items = resolved.list ?? [];
@@ -65,14 +66,14 @@ export default function VerticalList(
                   </div>
                 )}
                 {group.items.map((item, i) => (
-                  <ListRow key={i} item={item} formatters={formatters} className="p-1"/>
+                  <ListRow key={i} item={item} formatters={formatters} className={itemClassName} />
                 ))}
               </div>
             ));
           }
 
           return items.map((item, i) => (
-            <ListRow key={i} item={item} formatters={formatters} />
+            <ListRow key={i} item={item} formatters={formatters} className={itemClassName} />
           ));
         })()}
 

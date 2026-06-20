@@ -32,6 +32,15 @@ configuration:
       key: "calendar-upcoming"
       template: "calendar-upcoming"
       category: "Calendar"
+    - name: "Latest RSS Articles"
+      key: "rss-feed"
+      template: "rss-feed"
+      category: "News"
+      data:
+        input:
+          feedId: "all"
+          maxItems: 8
+          title: "Latest Articles"
     - name: "Countdown"
       key: "countdown"
       template: "countdown"
