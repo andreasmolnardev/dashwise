@@ -4,6 +4,7 @@ import type {
   NewsFeedDraft,
   NewsFeedItem,
   NewsFeedMetadata,
+  NewsSavedArticlesResponse,
   NewsFeedRecord,
   NewsFeedRecordCreateInput,
   NewsFeedRecordUpdateInput,
@@ -347,6 +348,22 @@ export async function getNewsSubscriptionsAction(auth: ActionAuth): Promise<News
 
 export async function getNewsFeedsAction(auth: ActionAuth): Promise<NewsFeedsResponse> {
   return extractData(await getNewsFeeds({ headers: authHeaders(auth) })) as Promise<NewsFeedsResponse>;
+}
+
+export async function getNewsSavedArticlesAction(auth: ActionAuth, list?: string | null): Promise<NewsSavedArticlesResponse> {
+  return extractData(await client.get({
+    url: "/news/saved-articles",
+    query: list ? { list } : undefined,
+    headers: authHeaders(auth),
+  })) as Promise<NewsSavedArticlesResponse>;
+}
+
+export async function saveNewsArticleAction(auth: ActionAuth, article: NewsFeedItem, list?: string | null) {
+  return extractData(await client.post({
+    url: "/news/saved-articles",
+    body: { article, list },
+    headers: authHeaders(auth),
+  }));
 }
 
 export async function getNewsFeedMetadataAction(auth: ActionAuth, url: string): Promise<NewsFeedMetadata> {

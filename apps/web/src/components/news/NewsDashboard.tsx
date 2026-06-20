@@ -31,8 +31,10 @@ import {
     getNewsFeedRecordAction,
     getNewsFeedMetadataAction,
     getNewsFeedsAction,
+    getNewsSavedArticlesAction,
     getNewsSubscriptionsAction,
     refreshNewsFeedAction,
+    saveNewsArticleAction,
     subscribeNewsFeedAction,
     unsubscribeNewsFeedAction,
     updateNewsFeedAction,
@@ -43,6 +45,7 @@ import type {
     NewsFeedItem,
     NewsFeedRecord,
     NewsFeedSummary,
+    NewsSavedArticlesResponse,
     NewsFeedsResponse,
     NewsSubscriptionsResponse,
 } from "@dashwise/types/sdk";
@@ -52,6 +55,10 @@ export default function NewsDashboardComponent() {
     const { feedId } = useParams();
     const [searchParams] = useSearchParams();
     const activeFeedId = feedId || "all";
+    const savedListRoutePrefix = "saved-";
+    const activeSavedList = activeFeedId.startsWith(savedListRoutePrefix)
+        ? decodeURIComponent(activeFeedId.slice(savedListRoutePrefix.length))
+        : null;
     const sidebarAction = searchParams.get("action");
     const editSubscriptionRef = searchParams.get("subscription");
     const editFeedRef = searchParams.get("feed");
@@ -73,6 +80,11 @@ export default function NewsDashboardComponent() {
     const [loadingFeedRecord, setLoadingFeedRecord] = useState(false);
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [refreshStatus, setRefreshStatus] = useState<string | null>(null);
+    const [savedArticlesData, setSavedArticlesData] = useState<NewsSavedArticlesResponse | null>(null);
+    const [saveDialogArticle, setSaveDialogArticle] = useState<NewsFeedItem | null>(null);
+    const [saveListSelection, setSaveListSelection] = useState("readLater");
+    const [newSaveListName, setNewSaveListName] = useState("");
+    const [saveError, setSaveError] = useState<string | null>(null);
 
     const itemsPerPage = 15;
     const { token, withAuth } = useAuth();
@@ -104,6 +116,13 @@ export default function NewsDashboardComponent() {
         if (!token) return;
 
         try {
+            if (activeSavedList) {
+                const data = await withAuth((auth) => getNewsSavedArticlesAction(auth, activeSavedList));
+                setSavedArticlesData(data);
+                setFeed(data.articles.map((article) => article.json));
+                return;
+            }
+
             const data = await withAuth((auth) =>
                 getNewsFeedAction(auth, activeFeedId)
             );
@@ -122,6 +141,13 @@ export default function NewsDashboardComponent() {
         setCurrentPage(1);
         loadFeed();
     }, [token, activeFeedId]);
+
+    useEffect(() => {
+        if (!token) return;
+        withAuth((auth) => getNewsSavedArticlesAction(auth))
+            .then(setSavedArticlesData)
+            .catch((err) => console.error("Failed to load saved articles:", err));
+    }, [token, withAuth]);
 
     useEffect(() => {
         if (!sidebarAction) return;
@@ -398,10 +424,12 @@ export default function NewsDashboardComponent() {
         ? undefined
         : ({ feedIds: [activeFeedId] } as NewsFeedDraft);
 
-    const selectedSource = selectedSubscription?.title ||
+    const selectedSource = activeSavedList || selectedSubscription?.title ||
         selectedSubscription?.url || selectedFeed?.title || null;
     const selectedCategory = activeFeedId === "all"
         ? "All"
+        : activeSavedList
+            ? "Saved"
         : selectedFeed?.title || "Feed";
 
     const getIconUrl = (name: string) => {
@@ -416,6 +444,49 @@ export default function NewsDashboardComponent() {
 
         if (subscription) {
             return subscription.icon ?? "";
+        }
+    };
+
+    const isArticleSaved = (article: NewsFeedItem) => {
+        const link = String(article?.link || "").trim();
+        if (!link || !savedArticlesData?.articles?.length) {
+            return false;
+        }
+
+        return savedArticlesData.articles.some((savedArticle) =>
+            String(savedArticle.json?.link || "").trim() === link
+        );
+    };
+
+    const saveArticle = async (article: NewsFeedItem, list?: string | null) => {
+        const saved = await withAuth((auth) => saveNewsArticleAction(auth, article, list));
+        const data = await withAuth((auth) => getNewsSavedArticlesAction(auth, activeSavedList));
+        setSavedArticlesData(data);
+        window.dispatchEvent(new CustomEvent("dashwise:news-sidebar-refresh"));
+        if (activeSavedList) {
+            setFeed(data.articles.map((entry) => entry.json));
+        }
+        return saved;
+    };
+
+    const openSaveDialog = (article: NewsFeedItem) => {
+        const defaultList = savedArticlesData?.defaultList || "readLater";
+        setSaveDialogArticle(article);
+        setSaveListSelection(defaultList);
+        setNewSaveListName("");
+        setSaveError(null);
+    };
+
+    const handleSaveDialogSubmit = async (event: FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+        if (!saveDialogArticle) return;
+
+        const targetList = newSaveListName.trim() || saveListSelection;
+        try {
+            await saveArticle(saveDialogArticle, targetList);
+            setSaveDialogArticle(null);
+        } catch (err) {
+            setSaveError(err instanceof Error ? err.message : String(err));
         }
     };
 
@@ -494,11 +565,14 @@ export default function NewsDashboardComponent() {
                         )}
 
                         {feed &&
-                            paginatedArticles.map((item, idx) => (
+                paginatedArticles.map((item, idx) => (
                                 <NewsArticle
                                     key={idx}
                                     item={item}
                                     iconUrl={getIconUrl(item.subscription_id || item.subscription_name)}
+                                    isSaved={isArticleSaved(item)}
+                                    onSave={() => saveArticle(item)}
+                                    onSaveOptions={() => openSaveDialog(item)}
                                 />
                             ))}
 
@@ -725,15 +799,55 @@ export default function NewsDashboardComponent() {
                 }}
             />
 
+            <Dialog open={Boolean(saveDialogArticle)} onOpenChange={(open) => !open && setSaveDialogArticle(null)}>
+                <DialogContent className="frosted text-foreground w-[min(92vw,28rem)]">
+                    <DialogHeader>
+                        <DialogTitle>Save article</DialogTitle>
+                        <DialogDescription>Select an existing list or create a new one.</DialogDescription>
+                    </DialogHeader>
+                    <form onSubmit={handleSaveDialogSubmit} className="space-y-4">
+                        <div>
+                            <Label htmlFor="saved-news-list">List</Label>
+                            <select
+                                id="saved-news-list"
+                                className="frosted mt-1 w-full rounded-md px-3 py-2"
+                                value={saveListSelection}
+                                onChange={(event) => setSaveListSelection(event.target.value)}
+                            >
+                                {(savedArticlesData?.lists?.length ? savedArticlesData.lists : ["readLater"]).map((list) => (
+                                    <option key={list} value={list}>{list}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <div>
+                            <Label htmlFor="new-saved-news-list">New list</Label>
+                            <Input
+                                id="new-saved-news-list"
+                                className="frosted mt-1"
+                                placeholder="favorites"
+                                value={newSaveListName}
+                                onChange={(event) => setNewSaveListName(event.target.value)}
+                            />
+                        </div>
+                        {saveError && <p className="text-sm text-red-400">{saveError}</p>}
+                        <div className="flex justify-end gap-3">
+                            <Button type="button" variant="outline" onClick={() => setSaveDialogArticle(null)}>Cancel</Button>
+                            <Button type="submit">Save</Button>
+                        </div>
+                    </form>
+                </DialogContent>
+            </Dialog>
+
             
         </div>
     );
 }
 
-function NewsArticle({ item, iconUrl }: { item: any; iconUrl?: string }) {
+function NewsArticle({ item, iconUrl, isSaved, onSave, onSaveOptions }: { item: any; iconUrl?: string; isSaved?: boolean; onSave?: () => void; onSaveOptions?: () => void }) {
     return (
         <div className="rounded-xl bg-(--surface-2) w-full">
             <div className="grid gap-3 grid-cols-1 md:grid-cols-[1fr_3fr]">
+                <div className="relative">
                 {item.thumbnailUrl
                     ? (
                         <img
@@ -743,6 +857,22 @@ function NewsArticle({ item, iconUrl }: { item: any; iconUrl?: string }) {
                     )
                     : 
                     <div className="w-full h-45 frosted rounded-xl" />}
+                    <button
+                        type="button"
+                        className={`absolute right-2 top-2 flex h-9 w-9 items-center justify-center rounded-full frosted transition ${isSaved ? "bg-(--accent)/20 ring-1 ring-(--accent)" : "bg-black/30 hover:bg-black/50"}`}
+                        title={isSaved ? "Saved to list" : "Save article"}
+                        onClick={(event) => {
+                            event.preventDefault();
+                            onSave?.();
+                        }}
+                        onContextMenu={(event) => {
+                            event.preventDefault();
+                            onSaveOptions?.();
+                        }}
+                    >
+                        <Icon icon="fa6-solid:bookmark" className={isSaved ? "text-(--accent)" : "text-white/90"} />
+                    </button>
+                </div>
 
                 <div className="min-w-0">
                     <a
