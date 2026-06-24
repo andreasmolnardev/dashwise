@@ -51,6 +51,12 @@ type DisplayCustomizations = {
   hidden?: string[];
 };
 
+function getPreviewGridTemplate(template: TemplateId) {
+  if (template === "left-middle") return "25% 75%";
+  if (template === "right-middle") return "75% 25%";
+  return "25% 50% 25%";
+}
+
 type DashboardWidgetPreviewProps = {
   template: TemplateId;
   columns: Record<ColumnName, ColumnWidget[]>;
@@ -919,9 +925,8 @@ export function DashboardWidgetPreview({
         <div className="space-y-4">
           <div className="relative overflow-hidden rounded-lg p-4 frosted">
             <div
-              className={`grid gap-0 ${
-                template === "left-middle" ? "grid-cols-[1fr_2fr]" : "grid-cols-[1fr_2fr_1fr]"
-              }`}
+              className="grid gap-0"
+              style={{ gridTemplateColumns: getPreviewGridTemplate(template) }}
             >
               {(["left", "middle", "right"] as ColumnName[])
                 .filter((column) => enabledColumns.includes(column))

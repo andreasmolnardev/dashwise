@@ -5,6 +5,7 @@ import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import useAuth from "@/context/useAuth";
 import {
     getNewsFeedsAction,
+    getNewsSavedArticlesAction,
     getNewsSubscriptionsAction,
 } from '@/lib/apiClient';
 import AppTemplate, { Content, GroupLabel, Sidebar, Tab } from "@/components/apps/LayoutTemplate";
@@ -29,6 +30,7 @@ export default function NewsLayout({ children }: { children: ReactNode }) {
     const [searchParams] = useSearchParams();
     const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
     const [feeds, setFeeds] = useState<FeedRecord[]>([]);
+    const [savedLists, setSavedLists] = useState<string[]>([]);
     const [sidebarRefreshVersion, setSidebarRefreshVersion] = useState(0);
 
     useEffect(() => {
@@ -51,20 +53,23 @@ export default function NewsLayout({ children }: { children: ReactNode }) {
 
         const loadSidebarData = async () => {
             try {
-                const [subscriptionsData, feedsData]: any[] = await Promise.all([
+                const [subscriptionsData, feedsData, savedData]: any[] = await Promise.all([
                     withAuth((auth) => getNewsSubscriptionsAction(auth)),
                     withAuth((auth) => getNewsFeedsAction(auth)),
+                    withAuth((auth) => getNewsSavedArticlesAction(auth)),
                 ]);
 
                 if (!mounted) return;
 
                 setSubscriptions(subscriptionsData?.subscriptions ?? []);
                 setFeeds(Array.isArray(feedsData?.feeds) ? feedsData.feeds : []);
+                setSavedLists(Array.isArray(savedData?.lists) ? savedData.lists : ["readLater"]);
             } catch (error) {
                 console.error("Failed to load news subscriptions:", error);
                 if (mounted) {
                     setSubscriptions([]);
                     setFeeds([]);
+                    setSavedLists([]);
                 }
             }
         };
@@ -169,6 +174,22 @@ export default function NewsLayout({ children }: { children: ReactNode }) {
                                 action: () => openEditFeedModal(feed),
                             },
                         ]}
+                    />
+                ))}
+
+                <GroupLabel
+                    group="Saved"
+                    title="Saved"
+                    collapsible={true}
+                />
+
+                {(savedLists.length ? savedLists : ["readLater"]).map((list) => (
+                    <Tab
+                        key={list}
+                        dst={`/apps/news/saved-${encodeURIComponent(list)}`}
+                        icon="fa6-solid:bookmark"
+                        title={list}
+                        group="Saved"
                     />
                 ))}
 

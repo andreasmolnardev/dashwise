@@ -104,6 +104,22 @@ export type NewsFeedItem = {
   [key: string]: unknown;
 };
 
+export type NewsSavedArticle = {
+  id: string;
+  list: string;
+  isRead?: boolean;
+  json: NewsFeedItem;
+  userId?: string;
+  created?: string;
+  updated?: string;
+};
+
+export type NewsSavedArticlesResponse = {
+  articles: NewsSavedArticle[];
+  lists: string[];
+  defaultList: string;
+};
+
 export type NewsFeedMetadata = {
   feedUrl: string;
   title: string;

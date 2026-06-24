@@ -17,6 +17,7 @@ import {
   updateNewsSubscription,
   createNewsSubscription,
 } from "./superuser";
+import { getSuperuserPB } from "../pb/pocketbase";
 
 export type NewsFeedItem = {
   title: string;
@@ -104,8 +105,57 @@ export type NewsFeedRecordCreateInput = {
   title: string;
 };
 
+export type NewsSavedArticle = {
+  id: string;
+  list: string;
+  isRead?: boolean;
+  json: NewsFeedItem;
+  userId?: string;
+  created?: string;
+  updated?: string;
+};
+
+export type NewsSavedArticlesResponse = {
+  articles: NewsSavedArticle[];
+  lists: string[];
+  defaultList: string;
+};
+
 function escapeFilter(value: string) {
   return value.replace(/"/g, '\\"');
+}
+
+function normalizeListName(list?: string | null) {
+  return String(list || "").trim() || "readLater";
+}
+
+function normalizeSavedArticle(record: Record<string, unknown>): NewsSavedArticle {
+  return {
+    id: String(record.id || ""),
+    list: normalizeListName(String(record.list || "")),
+    isRead: Boolean(record.isRead),
+    json: (record.json && typeof record.json === "object" ? record.json : {}) as NewsFeedItem,
+    userId: record.userId ? String(record.userId) : undefined,
+    created: record.created ? String(record.created) : undefined,
+    updated: record.updated ? String(record.updated) : undefined,
+  };
+}
+
+async function ensureNewsDefaultList(userId: string) {
+  const pb = await getSuperuserPB();
+  const user = await pb.collection("users").getOne(userId).catch(() => null) as Record<string, unknown> | null;
+  const current = user?.newsPreferences && typeof user.newsPreferences === "object"
+    ? user.newsPreferences as Record<string, unknown>
+    : {};
+  const defaultList = normalizeListName(String(current.defaultList || ""));
+
+  if (current.defaultList !== defaultList) {
+    await pb.collection("users").update(userId, {
+      newsPreferences: { ...current, defaultList },
+    });
+  }
+
+  return defaultList;
 }
 
 function itemTime(item: NewsFeedItem): number {
@@ -563,6 +613,51 @@ export async function getNewsFeeds(userId: string): Promise<NewsFeedsResponse> {
     id: null,
     feeds: buildFeedList(feeds),
   };
+}
+
+export async function getNewsSavedArticles(userId: string, list?: string | null): Promise<NewsSavedArticlesResponse> {
+  const defaultList = await ensureNewsDefaultList(userId);
+  const targetList = String(list || "").trim();
+  const pb = await getSuperuserPB();
+  const filters = [`userId=\"${escapeFilter(userId)}\"`];
+  if (targetList) {
+    filters.push(`list=\"${escapeFilter(targetList)}\"`);
+  }
+
+  const records = await pb.collection("newsSavedArticles").getFullList(2000, {
+    filter: filters.join(" && "),
+    sort: "-created",
+  }) as Array<Record<string, unknown>>;
+
+  const articles = records.map(normalizeSavedArticle);
+  const lists = Array.from(new Set([defaultList, ...articles.map((article) => article.list)].filter(Boolean))).sort((left, right) => left.localeCompare(right));
+
+  return { articles, lists, defaultList };
+}
+
+export async function saveNewsArticle(userId: string, article: NewsFeedItem, list?: string | null): Promise<NewsSavedArticle> {
+  const defaultList = await ensureNewsDefaultList(userId);
+  const targetList = normalizeListName(list || defaultList);
+  const link = String(article?.link || "").trim();
+  if (!link) {
+    throw new Error("Article link is required");
+  }
+
+  const pb = await getSuperuserPB();
+  const existingRecords = await pb.collection("newsSavedArticles").getFullList(2000, {
+    filter: `userId=\"${escapeFilter(userId)}\" && list=\"${escapeFilter(targetList)}\"`,
+  }) as Array<Record<string, unknown>>;
+  const existing = existingRecords.find((record) => {
+    const json = record.json && typeof record.json === "object" ? record.json as Record<string, unknown> : {};
+    return String(json.link || "").trim() === link;
+  }) || null;
+
+  const payload = { userId, list: targetList, isRead: false, json: article };
+  const saved = existing?.id
+    ? await pb.collection("newsSavedArticles").update(String(existing.id), payload)
+    : await pb.collection("newsSavedArticles").create(payload);
+
+  return normalizeSavedArticle(saved as Record<string, unknown>);
 }
 
 function normalizeRefreshFeedIds(feedIds?: string[] | string | null) {

@@ -2,8 +2,8 @@ import Parser from "rss-parser";
 import { Hono } from "hono";
 import type { Context } from "hono";
 
-import { createNewsFeedRecordForUser, getNewsFeed, getNewsFeedRecord, getNewsFeeds, getNewsSubscriptions, subscribeNewsFeed, unsubscribeNewsFeed, updateNewsFeed, updateNewsFeedRecordForUser, getNewsFeedMetadata, updateNewsSubscription } from "../lib/data/news";
-import type { NewsFeedMetadata, NewsFeedRecordCreateInput, NewsFeedRecordUpdateInput, NewsSubscribeInput, NewsUpdateInput } from "../lib/data/news";
+import { createNewsFeedRecordForUser, getNewsFeed, getNewsFeedRecord, getNewsFeeds, getNewsSavedArticles, getNewsSubscriptions, saveNewsArticle, subscribeNewsFeed, unsubscribeNewsFeed, updateNewsFeed, updateNewsFeedRecordForUser, getNewsFeedMetadata, updateNewsSubscription } from "../lib/data/news";
+import type { NewsFeedItem, NewsFeedMetadata, NewsFeedRecordCreateInput, NewsFeedRecordUpdateInput, NewsSubscribeInput, NewsUpdateInput } from "../lib/data/news";
 
 import { readAuthToken, readJsonBody, requireAuth, withJson } from "./shared";
 import { createLogger } from "../lib/logger";
@@ -172,6 +172,15 @@ newsRoute
   .get("/api/v1/news/feeds", withJson(async (c) => {
     const { userId } = await requireAuth({ token: readAuthToken(c) });
     return getNewsFeeds(userId);
+  }))
+  .get("/api/v1/news/saved-articles", withJson(async (c) => {
+    const { userId } = await requireAuth({ token: readAuthToken(c) });
+    return getNewsSavedArticles(userId, c.req.query("list"));
+  }))
+  .post("/api/v1/news/saved-articles", withJson(async (c) => {
+    const body = await readJsonBody<{ article?: NewsFeedItem; list?: string }>(c);
+    const { userId } = await requireAuth({ token: readAuthToken(c) });
+    return saveNewsArticle(userId, body?.article ?? ({} as NewsFeedItem), body?.list);
   }))
   .get("/api/v1/news/feeds/:id", withJson(async (c) => {
     const { userId } = await requireAuth({ token: readAuthToken(c) });

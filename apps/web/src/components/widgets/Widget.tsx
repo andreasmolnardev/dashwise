@@ -16,6 +16,7 @@ import {
   default as CalendarWeekWidget,
 } from "@dashwise/integrationskit/static-widgets/CalendarWidgets";
 import CountdownWidget from "@dashwise/integrationskit/static-widgets/CountdownWidget";
+import RssFeedWidget from "@dashwise/integrationskit/static-widgets/RssFeedWidget";
 import LinkView from "./LinkView";
 import SearchBar from "./SearchBar";
 import IframeTemplate from "@dashwise/integrationskit/templates/IFrame";
@@ -26,6 +27,7 @@ import useAuth from "@/context/useAuth";
 import {
   getConsumerDataAction,
   getIntegrationCalendarEventsAction,
+  getNewsFeedAction,
 } from '@/lib/apiClient';
 
 export type WidgetProps = {
@@ -81,6 +83,10 @@ export function renderWidget({
         />
       );
 
+    case "rss-feed":
+    case "latest-rss-feed":
+      return <RssFeedWidgetWrapper className={finalClassName} {...renderParams} />;
+
     case "countdown":
       return <CountdownWidget className={finalClassName} {...renderParams} />;
 
@@ -117,6 +123,68 @@ export function renderWidget({
       );
   }
 }
+
+function RssFeedWidgetWrapper({
+  className,
+  feedId = "all",
+  subscriptionId,
+  maxItems = 8,
+  title = "Latest Articles",
+}: {
+  className?: string;
+  feedId?: string;
+  subscriptionId?: string;
+  maxItems?: number;
+  title?: string;
+}) {
+  const { withAuth } = useAuth();
+  const [items, setItems] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    const selectedFeedId = String(subscriptionId || feedId || "all").trim() || "all";
+
+    setLoading(true);
+    void withAuth((auth) => getNewsFeedAction(auth, selectedFeedId))
+      .then((feedItems) => {
+        if (!cancelled) {
+          setItems(Array.isArray(feedItems) ? feedItems : []);
+        }
+      })
+      .catch((err) => {
+        console.error("Failed to fetch RSS feed items", err);
+        if (!cancelled) setItems([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [feedId, subscriptionId, withAuth]);
+
+  if (loading) {
+    return (
+      <div className={`rounded-lg p-2 flex flex-col ${className ?? ""}`}>
+        <div className="text-sm opacity-50 py-4 text-center text-foreground">
+          Loading...
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <RssFeedWidget
+      className={className}
+      items={items}
+      maxItems={maxItems}
+      title={title}
+    />
+  );
+}
+
 function CalendarUpcomingWidgetWrapper({
   className,
   integrationId,
