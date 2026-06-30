@@ -23,6 +23,11 @@
       "import": "./static-widgets/CountdownWidget.tsx",
       "default": "./static-widgets/CountdownWidget.tsx"
     },
+    "./static-widgets/RssFeedWidget": {
+      "types": "./static-widgets/RssFeedWidget.tsx",
+      "import": "./static-widgets/RssFeedWidget.tsx",
+      "default": "./static-widgets/RssFeedWidget.tsx"
+    },
     "./templates/IFrame": {
       "import": "./templates/IFrame.tsx",
       "default": "./templates/IFrame.tsx"
