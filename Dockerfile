@@ -33,15 +33,18 @@ WORKDIR /app
 
 COPY . .
 
-# Build frontend first, then copy output into backend's public dir
-RUN bun --cwd apps/web run build
+# Build package assets used by the backend at runtime
+RUN bun run --cwd packages/assets build
+
+# Build frontend, then copy output into backend's public dir
+RUN bun run --cwd apps/web build
 
 # Ensure the public dir exists and copy frontend dist into it
 RUN mkdir -p apps/backend/dist/public && \
     cp -R apps/web/dist/. apps/backend/dist/public/
 
 # Build backend
-RUN bun --cwd apps/backend run build
+RUN bun run --cwd apps/backend build
 
 # Prune to production deps only
 RUN bun install --production --frozen-lockfile
