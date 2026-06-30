@@ -56,6 +56,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { updateLinksOrderAction } from '@/lib/apiClient';
 
 const HOME_LINKS_CACHE_KEY = "dashwise_home_links_cache_v1";
+const DEFAULT_LINK_GROUP = "Default";
 
 type Item =
   | { type: "link"; link: LinkType }
@@ -108,6 +109,10 @@ function getLinkSortPosition(link: LinkType): number | null {
     : null;
 }
 
+function getLinkGroupName(link: LinkType): string {
+  return String(link.collection || link.linkGroup || "").trim() || DEFAULT_LINK_GROUP;
+}
+
 function sortLinksForDisplay(links: LinkType[]): LinkType[] {
   return [...links].sort((left, right) => {
     const leftPosition = getLinkSortPosition(left);
@@ -148,7 +153,7 @@ function applyOptimisticLinkOrder(
   const visibleSlots: number[] = [];
 
   sortedPrevLinks.forEach((link, index) => {
-    if (link.collection === activeCollection) {
+    if (getLinkGroupName(link) === activeCollection) {
       visibleSlots.push(index);
     }
   });
@@ -214,7 +219,7 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
   const [activeCollection, setActiveCollection] = useState<string | null>(null);
 
   const collections = useMemo(
-    () => [...new Set(localLinks.map((link) => link.collection).filter(Boolean))] as string[],
+    () => [...new Set(localLinks.map(getLinkGroupName))],
     [localLinks],
   );
 
@@ -222,7 +227,7 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
 
   const visibleLinks = useMemo(
     () => (activeCollection
-      ? sortedLinks.filter((link) => link.collection === activeCollection)
+      ? sortedLinks.filter((link) => getLinkGroupName(link) === activeCollection)
       : sortedLinks),
     [sortedLinks, activeCollection],
   );

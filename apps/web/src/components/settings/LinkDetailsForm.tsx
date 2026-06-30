@@ -116,6 +116,7 @@ export default function LinkDetailsForm({
   const [open, setOpen] = useState(false);
 
   const isEditing = Boolean(link?.id);
+  const missingCreateLinkGroup = !isEditing && !linkGroup.trim();
 
   // Load link groups (top-level folders in the user's home list)
   useEffect(() => {
@@ -242,6 +243,7 @@ export default function LinkDetailsForm({
 
   const saveLink = async () => {
     if (!token) throw new Error("Not authenticated");
+    if (missingCreateLinkGroup) throw new Error("Choose or create a link group");
 
     const payload: any = {
       title: name,
@@ -523,7 +525,10 @@ export default function LinkDetailsForm({
                 variant="outline"
                 role="combobox"
                 aria-expanded={linkGroupOpen}
-                className="rounded-full bg-white border-0 frosted w-42.5 justify-between"
+                className={cn(
+                  "rounded-full bg-white border-0 frosted w-42.5 justify-between",
+                  missingCreateLinkGroup && "text-red-600 outline-2 outline-red-500"
+                )}
               >
                 {linkGroup || "Select or create"}
                 <ChevronsUpDown className="opacity-50" />
@@ -577,6 +582,11 @@ export default function LinkDetailsForm({
             </PopoverContent>
           </Popover>
         </div>
+        {missingCreateLinkGroup && (
+          <p className="text-xs text-red-500 text-right">
+            Choose or create a link group.
+          </p>
+        )}
         <div className="flex gap-4 justify-between items-center">
           <Label className="font-medium">Folder</Label>
           <Input
