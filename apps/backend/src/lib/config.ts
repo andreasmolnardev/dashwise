@@ -59,7 +59,7 @@ export const config = {
   PB_ADMIN_PASSWORD: env.PB_ADMIN_PASSWORD,
   DASHWISE_URL: env.DASHWISE_URL || (processEnvironment === "dev" ? "http://localhost:3000" : ""),
   APP_BASE_URL: getEnv("APP_BASE_URL", "NEXT_PUBLIC_APP_URL") || env.DASHWISE_URL || (processEnvironment === "dev" ? "http://localhost:3000" : ""),
-  DASHWISE_VERSION: '1.0',
+  DASHWISE_VERSION: 'v1.0-alpha1',
   GITHUB_REPO: 'andreasmolnardev/dashwise-next',
   INSTANCE_NAME: getEnv("INSTANCE_NAME", "NEXT_PUBLIC_INSTANCE_NAME") || "Dashwise",
   DISABLE_USER_SIGNUP: truthyEnv(getEnv("DISABLE_USER_SIGNUP", "NEXT_PUBLIC_DISABLE_USER_SIGNUP")),
