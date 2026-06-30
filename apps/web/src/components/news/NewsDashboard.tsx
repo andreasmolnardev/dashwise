@@ -470,7 +470,7 @@ export default function NewsDashboardComponent() {
     };
 
     const openSaveDialog = (article: NewsFeedItem) => {
-        const defaultList = savedArticlesData?.defaultList || "readLater";
+        const defaultList = savedArticlesData?.defaultList || savedArticlesData?.lists?.[0]?.id || "readLater";
         setSaveDialogArticle(article);
         setSaveListSelection(defaultList);
         setNewSaveListName("");
@@ -814,8 +814,8 @@ export default function NewsDashboardComponent() {
                                 value={saveListSelection}
                                 onChange={(event) => setSaveListSelection(event.target.value)}
                             >
-                                {(savedArticlesData?.lists?.length ? savedArticlesData.lists : ["readLater"]).map((list) => (
-                                    <option key={list} value={list}>{list}</option>
+                                {(savedArticlesData?.lists?.length ? savedArticlesData.lists : [{ id: "readLater", name: "readLater" }]).map((list) => (
+                                    <option key={list.id} value={list.id}>{list.name}</option>
                                 ))}
                             </select>
                         </div>
@@ -859,7 +859,7 @@ function NewsArticle({ item, iconUrl, isSaved, onSave, onSaveOptions }: { item: 
                     <div className="w-full h-45 frosted rounded-xl" />}
                     <button
                         type="button"
-                        className={`absolute right-2 top-2 flex h-9 w-9 items-center justify-center rounded-full frosted transition ${isSaved ? "bg-(--accent)/20 ring-1 ring-(--accent)" : "bg-black/30 hover:bg-black/50"}`}
+                        className="absolute right-2 top-2 flex h-9 w-9 items-center justify-center rounded-full bg-black/30 frosted transition hover:bg-black/50 group"
                         title={isSaved ? "Saved to list" : "Save article"}
                         onClick={(event) => {
                             event.preventDefault();
@@ -870,7 +870,7 @@ function NewsArticle({ item, iconUrl, isSaved, onSave, onSaveOptions }: { item: 
                             onSaveOptions?.();
                         }}
                     >
-                        <Icon icon="fa6-solid:bookmark" className={isSaved ? "text-(--accent)" : "text-white/90"} />
+                        <Icon icon={isSaved ? "fa6-solid:square-check" : "fa6-solid:bookmark"} className={isSaved ? "text-(--accent)" : "text-white/90 group-hover:text-(--accent)"} />
                     </button>
                 </div>
 

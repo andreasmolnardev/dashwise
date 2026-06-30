@@ -107,7 +107,7 @@ export type NewsFeedRecordCreateInput = {
 
 export type NewsSavedArticle = {
   id: string;
-  list: string;
+  list: string[];
   isRead?: boolean;
   json: NewsFeedItem;
   userId?: string;
@@ -115,9 +115,14 @@ export type NewsSavedArticle = {
   updated?: string;
 };
 
+export type NewsSavedArticleList = {
+  id: string;
+  name: string;
+};
+
 export type NewsSavedArticlesResponse = {
   articles: NewsSavedArticle[];
-  lists: string[];
+  lists: NewsSavedArticleList[];
   defaultList: string;
 };
 
@@ -129,10 +134,22 @@ function normalizeListName(list?: string | null) {
   return String(list || "").trim() || "readLater";
 }
 
+function normalizeListIds(list?: unknown): string[] {
+  const values = Array.isArray(list) ? list : list ? [list] : [];
+  return Array.from(new Set(values.map((value) => String(value).trim()).filter(Boolean)));
+}
+
+function normalizeSavedArticleList(record: Record<string, unknown>): NewsSavedArticleList {
+  return {
+    id: String(record.id || ""),
+    name: normalizeListName(String(record.name || "")),
+  };
+}
+
 function normalizeSavedArticle(record: Record<string, unknown>): NewsSavedArticle {
   return {
     id: String(record.id || ""),
-    list: normalizeListName(String(record.list || "")),
+    list: normalizeListIds(record.list),
     isRead: Boolean(record.isRead),
     json: (record.json && typeof record.json === "object" ? record.json : {}) as NewsFeedItem,
     userId: record.userId ? String(record.userId) : undefined,
@@ -156,6 +173,38 @@ async function ensureNewsDefaultList(userId: string) {
   }
 
   return defaultList;
+}
+
+async function ensureNewsSavedArticleList(userId: string, list?: string | null): Promise<NewsSavedArticleList> {
+  const pb = await getSuperuserPB();
+  const target = normalizeListName(list);
+  const collection = pb.collection("newsSavedArticleLists");
+  const byId = await collection.getOne(target).catch(() => null) as Record<string, unknown> | null;
+  if (byId && String(byId.userId || "") === userId) {
+    return normalizeSavedArticleList(byId);
+  }
+
+  const existing = await collection.getFullList(200, {
+    filter: `userId=\"${escapeFilter(userId)}\" && name=\"${escapeFilter(target)}\"`,
+  }) as Array<Record<string, unknown>>;
+
+  if (existing[0]) {
+    return normalizeSavedArticleList(existing[0]);
+  }
+
+  const created = await collection.create({ userId, name: target });
+  return normalizeSavedArticleList(created as Record<string, unknown>);
+}
+
+async function getNewsSavedArticleLists(userId: string, defaultList: string): Promise<NewsSavedArticleList[]> {
+  const defaultRecord = await ensureNewsSavedArticleList(userId, defaultList);
+  const pb = await getSuperuserPB();
+  const records = await pb.collection("newsSavedArticleLists").getFullList(200, {
+    filter: `userId=\"${escapeFilter(userId)}\"`,
+    sort: "name",
+  }) as Array<Record<string, unknown>>;
+  const lists = records.map(normalizeSavedArticleList);
+  return lists.some((list) => list.id === defaultRecord.id) ? lists : [defaultRecord, ...lists];
 }
 
 function itemTime(item: NewsFeedItem): number {
@@ -617,11 +666,12 @@ export async function getNewsFeeds(userId: string): Promise<NewsFeedsResponse> {
 
 export async function getNewsSavedArticles(userId: string, list?: string | null): Promise<NewsSavedArticlesResponse> {
   const defaultList = await ensureNewsDefaultList(userId);
+  const lists = await getNewsSavedArticleLists(userId, defaultList);
   const targetList = String(list || "").trim();
   const pb = await getSuperuserPB();
   const filters = [`userId=\"${escapeFilter(userId)}\"`];
   if (targetList) {
-    filters.push(`list=\"${escapeFilter(targetList)}\"`);
+    filters.push(`list ?= \"${escapeFilter(targetList)}\"`);
   }
 
   const records = await pb.collection("newsSavedArticles").getFullList(2000, {
@@ -630,14 +680,13 @@ export async function getNewsSavedArticles(userId: string, list?: string | null)
   }) as Array<Record<string, unknown>>;
 
   const articles = records.map(normalizeSavedArticle);
-  const lists = Array.from(new Set([defaultList, ...articles.map((article) => article.list)].filter(Boolean))).sort((left, right) => left.localeCompare(right));
 
-  return { articles, lists, defaultList };
+  return { articles, lists, defaultList: lists.find((entry) => entry.name === defaultList)?.id || lists[0]?.id || defaultList };
 }
 
 export async function saveNewsArticle(userId: string, article: NewsFeedItem, list?: string | null): Promise<NewsSavedArticle> {
   const defaultList = await ensureNewsDefaultList(userId);
-  const targetList = normalizeListName(list || defaultList);
+  const listRecord = await ensureNewsSavedArticleList(userId, list || defaultList);
   const link = String(article?.link || "").trim();
   if (!link) {
     throw new Error("Article link is required");
@@ -645,14 +694,14 @@ export async function saveNewsArticle(userId: string, article: NewsFeedItem, lis
 
   const pb = await getSuperuserPB();
   const existingRecords = await pb.collection("newsSavedArticles").getFullList(2000, {
-    filter: `userId=\"${escapeFilter(userId)}\" && list=\"${escapeFilter(targetList)}\"`,
+    filter: `userId=\"${escapeFilter(userId)}\" && list ?= \"${escapeFilter(listRecord.id)}\"`,
   }) as Array<Record<string, unknown>>;
   const existing = existingRecords.find((record) => {
     const json = record.json && typeof record.json === "object" ? record.json as Record<string, unknown> : {};
     return String(json.link || "").trim() === link;
   }) || null;
 
-  const payload = { userId, list: targetList, isRead: false, json: article };
+  const payload = { userId, list: [listRecord.id], isRead: false, json: article };
   const saved = existing?.id
     ? await pb.collection("newsSavedArticles").update(String(existing.id), payload)
     : await pb.collection("newsSavedArticles").create(payload);
