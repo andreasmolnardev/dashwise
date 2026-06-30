@@ -1,10 +1,11 @@
 import React from "react";
 import type { SyntheticEvent } from "react";
 
-import { Dialog, DialogContent } from "../ui/dialog";
+import { Dialog, DialogClose, DialogContent } from "../ui/dialog";
 import { usePageConfig } from "@/hooks/usePageConfig";
 import useAuth from "@/context/useAuth";
 import { Separator } from "../ui/separator";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import { DialogTitle } from "@radix-ui/react-dialog";
 import { Icon as IconifyIcon } from "@iconify-icon/react";
 import AppIcon from "@dashwise/app-icon";
@@ -657,13 +658,45 @@ export default function CommandBar(
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTitle className="hidden">Search Bar</DialogTitle>
-      <DialogContent className="min-w-[50vw] min-h-[50vh] mx-auto frosted backdrop-blur-md grid grid-rows-[auto_1fr_auto] rounded-lg p-0 shadow-lg text-foreground">
+      <DialogContent
+        showCloseButton={false}
+        className="min-w-[50vw] min-h-[50vh] mx-auto frosted backdrop-blur-md grid grid-rows-[auto_1fr_auto] rounded-lg p-0 shadow-lg text-foreground"
+      >
+        <div className="absolute top-4 right-4 z-20 flex items-center gap-2">
+          {query && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setQuery("");
+                    inputRef.current?.focus();
+                  }}
+                  className="rounded-xs opacity-70 transition-opacity hover:opacity-100 focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2 ring-offset-background"
+                  aria-label="Delete Input"
+                >
+                  <IconifyIcon icon="mynaui:delete-solid" className="size-4" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>Delete Input</TooltipContent>
+            </Tooltip>
+          )}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <DialogClose className="rounded-xs opacity-70 transition-opacity hover:opacity-100 focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2 ring-offset-background">
+                <IconifyIcon icon="lucide:x" className="size-4" />
+                <span className="sr-only">Close Search</span>
+              </DialogClose>
+            </TooltipTrigger>
+            <TooltipContent>Close Search</TooltipContent>
+          </Tooltip>
+        </div>
         <div>
           <div className="relative flex mx-3 mt-3 pt-1 items-center">
             <input
               ref={inputRef}
               value={query}
-              type="search"
+              type="text"
               name="dashwise-search"
               data-form-type="other"
               onChange={(e) => setQuery(e.target.value)}
@@ -675,7 +708,7 @@ export default function CommandBar(
               autoCorrect="off"
               autoCapitalize="off"
               spellCheck={false}
-              className="w-full flex-1 rounded border border-none bg-transparent focus:outline-none relative z-10"
+              className="w-full flex-1 rounded border border-none bg-transparent pr-16 focus:outline-none relative z-10"
               aria-label="Command search"
             />
             {!query && clipboardText && (
