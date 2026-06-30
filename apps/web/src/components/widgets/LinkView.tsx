@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { useAuth } from "@/context/useAuth";
 import { getMonitoringStatusAction } from '@/lib/apiClient';
 import {
@@ -113,6 +114,13 @@ function getLinkGroupName(link: LinkType): string {
   return String(link.collection || link.linkGroup || "").trim() || DEFAULT_LINK_GROUP;
 }
 
+function isTruthyQueryValue(value: string | null): boolean {
+  if (value === null) return false;
+  const normalized = value.trim().toLowerCase();
+
+  return normalized === "" || !["0", "false", "no", "off"].includes(normalized);
+}
+
 function sortLinksForDisplay(links: LinkType[]): LinkType[] {
   return [...links].sort((left, right) => {
     const leftPosition = getLinkSortPosition(left);
@@ -177,6 +185,7 @@ function applyOptimisticLinkOrder(
 
 export default function LinkView({ links = [] }: { links?: LinkType[] }) {
   const { token, withAuth } = useAuth();
+  const location = useLocation();
   const [localLinks, setLocalLinks] = useState<LinkType[]>(() => {
     if (links.length > 0) return links;
     return readCachedHomeLinks() ?? links;
@@ -289,6 +298,13 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
     } | null
   >(null);
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const search = new URLSearchParams(location.search);
+    if (isTruthyQueryValue(search.get("addLink"))) {
+      setIsAddDialogOpen(true);
+    }
+  }, [location.search]);
 
   function serverStatusToBool(status?: string | null): boolean | undefined {
     if (status === undefined || status === null) return undefined;

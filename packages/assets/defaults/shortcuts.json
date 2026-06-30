@@ -49,6 +49,13 @@
         "tags": ["Links", "Bookmarks", "Home"]
     },
     {
+        "name": "Add Home Link",
+        "icon": "fa6-solid:plus",
+        "secondary": "Dashwise",
+        "action": "url:/home?addLink=1",
+        "tags": ["Links", "Bookmarks", "Home", "Add"]
+    },
+    {
         "name": "Monitoring",
         "icon": "fa6-solid:chart-line",
         "secondary": "Dashwise",
