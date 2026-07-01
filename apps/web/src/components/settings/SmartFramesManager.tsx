@@ -39,9 +39,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import useAuth from "@/context/useAuth";
 import { uploadWallpaperAction } from '@/lib/apiClient';
-import { renderWidget } from "../widgets/Widget";
 import { normalizeWallpaperFilters } from "./wallpaperFilterDefaults";
 
 const WIDGET_OPTIONS = [
@@ -53,6 +53,23 @@ const WIDGET_OPTIONS = [
   "monitoring",
 ];
 
+const GRID_PRESETS = [
+  { value: "1x1", label: "1x1", rows: 1, columns: 1 },
+  { value: "2x1", label: "2x1", rows: 1, columns: 2 },
+  { value: "2x2", label: "2x2", rows: 2, columns: 2 },
+  { value: "3x1", label: "3x1", rows: 1, columns: 3 },
+  { value: "custom", label: "Custom", rows: 1, columns: 1 },
+];
+
+type GridPreset = (typeof GRID_PRESETS)[number]["value"];
+
+type LayoutCellDraft = {
+  id: string;
+  name: string;
+  widget: string;
+  paramsText: string;
+};
+
 type Frame = {
   id: string;
   type: string;
@@ -60,6 +77,180 @@ type Frame = {
 };
 
 type BackgroundMode = "current" | "none" | "upload" | "url";
+
+function getCellName(row: number, column: number, rows: number, columns: number) {
+  const vertical = rows === 1
+    ? "middle"
+    : row === 0
+    ? "top"
+    : row === rows - 1
+    ? "bottom"
+    : "middle";
+  const horizontal = columns === 1
+    ? "center"
+    : column === 0
+    ? "left"
+    : column === columns - 1
+    ? "right"
+    : "center";
+
+  return rows === 1 && columns === 1 ? "middle" : `${vertical} ${horizontal}`;
+}
+
+function buildCells(
+  rows: number,
+  columns: number,
+  existingCells: Partial<LayoutCellDraft>[] = [],
+) {
+  return Array.from({ length: rows * columns }, (_, index) => {
+    const row = Math.floor(index / columns);
+    const column = index % columns;
+    const existing = existingCells[index];
+    return {
+      id: `${row}-${column}`,
+      name: getCellName(row, column, rows, columns),
+      widget: existing?.widget || WIDGET_OPTIONS[0],
+      paramsText: existing?.paramsText || "",
+    };
+  });
+}
+
+function stripLayoutAndBackgroundParams(params?: Record<string, any>) {
+  const nextParams = { ...(params ?? {}) };
+  delete nextParams.backgroundImageUrl;
+  delete nextParams.backgroundSource;
+  delete nextParams.backgroundFilters;
+  delete nextParams.layoutGrid;
+  return nextParams;
+}
+
+function parseParamsText(paramsText: string) {
+  if (!paramsText.trim()) return {};
+  const parsed = JSON.parse(paramsText);
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error("Widget properties must be a JSON object.");
+  }
+  return parsed as Record<string, any>;
+}
+
+function WidgetPropertiesEditor({
+  cell,
+  onChange,
+}: {
+  cell: LayoutCellDraft;
+  onChange: (paramsText: string) => void;
+}) {
+  let parsedParams: Record<string, any> | null = null;
+  let parseError = false;
+
+  try {
+    parsedParams = parseParamsText(cell.paramsText);
+  } catch {
+    parseError = true;
+  }
+
+  const updateParam = (key: string, value: any) => {
+    const nextParams = { ...(parsedParams ?? {}), [key]: value };
+    onChange(JSON.stringify(nextParams, null, 2));
+  };
+
+  const entries = Object.entries(parsedParams ?? {});
+
+  return (
+    <Tabs defaultValue="form" className="space-y-3">
+      <TabsList className="grid w-full grid-cols-2 bg-black/30">
+        <TabsTrigger value="form">Form</TabsTrigger>
+        <TabsTrigger value="json">JSON</TabsTrigger>
+      </TabsList>
+
+      <TabsContent value="form" className="space-y-3">
+        {parseError ? (
+          <p className="text-sm text-red-400">Fix invalid JSON before using the form editor.</p>
+        ) : entries.length === 0 ? (
+          <p className="text-sm text-white/60">No properties yet. Add keys in the JSON tab.</p>
+        ) : (
+          entries.map(([key, value]) => {
+            const inputId = `frame-cell-param-${cell.id}-${key}`;
+            if (typeof value === "boolean") {
+              return (
+                <label key={key} htmlFor={inputId} className="flex items-center justify-between gap-3 rounded-md border border-white/10 bg-black/20 px-3 py-2">
+                  <span className="text-sm text-white">{key}</span>
+                  <input
+                    id={inputId}
+                    type="checkbox"
+                    checked={value}
+                    onChange={(event) => updateParam(key, event.target.checked)}
+                    className="h-4 w-4 accent-white"
+                  />
+                </label>
+              );
+            }
+
+            if (typeof value === "number" && Number.isFinite(value)) {
+              return (
+                <div key={key} className="space-y-1.5">
+                  <Label htmlFor={inputId}>{key}</Label>
+                  <Input
+                    id={inputId}
+                    type="number"
+                    value={value}
+                    onChange={(event) =>
+                      updateParam(key, event.target.value === "" ? null : Number(event.target.value))}
+                  />
+                </div>
+              );
+            }
+
+            if (typeof value === "string" || value === null || value === undefined) {
+              return (
+                <div key={key} className="space-y-1.5">
+                  <Label htmlFor={inputId}>{key}</Label>
+                  <Input
+                    id={inputId}
+                    value={value ?? ""}
+                    onChange={(event) => updateParam(key, event.target.value)}
+                  />
+                </div>
+              );
+            }
+
+            return (
+              <div key={key} className="space-y-1.5">
+                <Label htmlFor={inputId}>{key}</Label>
+                <Textarea
+                  id={inputId}
+                  value={JSON.stringify(value, null, 2)}
+                  onChange={(event) => {
+                    try {
+                      updateParam(key, JSON.parse(event.target.value));
+                    } catch {
+                      onChange(cell.paramsText);
+                    }
+                  }}
+                  rows={4}
+                  spellCheck={false}
+                  className="font-mono text-sm"
+                />
+              </div>
+            );
+          })
+        )}
+      </TabsContent>
+
+      <TabsContent value="json" className="space-y-2">
+        <Textarea
+          id={`frame-cell-params-${cell.id}`}
+          value={cell.paramsText}
+          onChange={(event) => onChange(event.target.value)}
+          placeholder='{"title":"My Widget"}'
+          rows={5}
+          spellCheck={false}
+          className="font-mono text-sm"
+        />
+      </TabsContent>
+    </Tabs>
+  );
+}
 
 function SortableFrame({
   frame,
@@ -142,8 +333,12 @@ export default function SmartFramesManager({
   const [uploading, setUploading] = useState(false);
   const [brightnessPercent, setBrightnessPercent] = useState(35);
   const [blurPercent, setBlurPercent] = useState(8);
-  const [showWidgetParams, setShowWidgetParams] = useState(false);
-  const [draftWidgetParamsText, setDraftWidgetParamsText] = useState("");
+  const [draftGridPreset, setDraftGridPreset] = useState<GridPreset>("1x1");
+  const [draftGridRows, setDraftGridRows] = useState(1);
+  const [draftGridColumns, setDraftGridColumns] = useState(1);
+  const [draftCells, setDraftCells] = useState<LayoutCellDraft[]>(() =>
+    buildCells(1, 1)
+  );
   const [widgetParamsError, setWidgetParamsError] = useState<string | null>(
     null,
   );
@@ -196,8 +391,10 @@ export default function SmartFramesManager({
     setUploading(false);
     setBrightnessPercent(35);
     setBlurPercent(8);
-    setShowWidgetParams(false);
-    setDraftWidgetParamsText("");
+    setDraftGridPreset("1x1");
+    setDraftGridRows(1);
+    setDraftGridColumns(1);
+    setDraftCells(buildCells(1, 1));
     setWidgetParamsError(null);
     setError(null);
   };
@@ -222,13 +419,6 @@ export default function SmartFramesManager({
       : backgroundImageUrl
       ? "url"
       : "current";
-    const editableParams = { ...(frame.params ?? {}) } as Record<string, any>;
-    delete editableParams.backgroundImageUrl;
-    delete editableParams.backgroundSource;
-    delete editableParams.backgroundFilters;
-    const paramsText = Object.keys(editableParams).length
-      ? JSON.stringify(editableParams, null, 2)
-      : "";
     const fallbackFilters = normalizeWallpaperFilters(user?.appearancePreferences?.wallpaperFilters);
     const filters = frame.params?.backgroundFilters as Record<string, any> | undefined;
     const brightness = typeof filters?.brightness === "number"
@@ -237,6 +427,35 @@ export default function SmartFramesManager({
     const blur = typeof filters?.blur === "number"
       ? filters.blur
       : fallbackFilters.blur;
+    const layoutGrid = frame.params?.layoutGrid as Record<string, any> | undefined;
+    const layoutRows = Number(layoutGrid?.rows) || 1;
+    const layoutColumns = Number(layoutGrid?.columns) || 1;
+    const matchedPreset = GRID_PRESETS.find((preset) =>
+      preset.value !== "custom" &&
+      preset.rows === layoutRows &&
+      preset.columns === layoutColumns
+    );
+    const legacyWidgetParams = stripLayoutAndBackgroundParams(frame.params);
+    const layoutCells = Array.isArray(layoutGrid?.cells)
+      ? layoutGrid.cells.map((cell: any, index: number) => ({
+        id: String(cell?.id ?? index),
+        name: String(cell?.name ?? ""),
+        widget: String(cell?.widget ?? WIDGET_OPTIONS[0]),
+        paramsText: cell?.params && typeof cell.params === "object"
+          ? JSON.stringify(cell.params, null, 2)
+          : Object.keys(legacyWidgetParams).length
+          ? JSON.stringify(legacyWidgetParams, null, 2)
+          : "",
+      }))
+      : buildCells(layoutRows, layoutColumns, [
+        {
+          id: "0-0",
+          widget: frame.type,
+          paramsText: Object.keys(legacyWidgetParams).length
+            ? JSON.stringify(legacyWidgetParams, null, 2)
+            : "",
+        },
+      ]);
 
     setEditFrameId(frame.id);
     setDraftType(frame.type);
@@ -248,8 +467,10 @@ export default function SmartFramesManager({
     setUploading(false);
     setBrightnessPercent(Math.round(((brightness - 50) / (150 - 50)) * 100));
     setBlurPercent(Math.round(((blur - 1) / (25 - 1)) * 100));
-    setShowWidgetParams(false);
-    setDraftWidgetParamsText(paramsText);
+    setDraftGridPreset(matchedPreset?.value ?? "custom");
+    setDraftGridRows(layoutRows);
+    setDraftGridColumns(layoutColumns);
+    setDraftCells(buildCells(layoutRows, layoutColumns, layoutCells));
     setWidgetParamsError(null);
     setError(null);
     setDialogOpen(true);
@@ -263,22 +484,6 @@ export default function SmartFramesManager({
   const handleSaveFrame = async () => {
     setError(null);
     setWidgetParamsError(null);
-
-    let parsedWidgetParams: Record<string, any> = {};
-    if (draftWidgetParamsText.trim()) {
-      try {
-        const parsed = JSON.parse(draftWidgetParamsText);
-        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-          setWidgetParamsError("Widget properties must be a JSON object.");
-          return;
-        }
-        parsedWidgetParams = parsed as Record<string, any>;
-      } catch (err) {
-        console.error(err);
-        setWidgetParamsError("Widget properties must be valid JSON.");
-        return;
-      }
-    }
 
     let backgroundImageUrl: string | undefined;
     let backgroundSource: BackgroundMode | undefined;
@@ -335,7 +540,7 @@ export default function SmartFramesManager({
       ? frames.find((frame) => frame.id === editFrameId)
       : undefined;
 
-    const nextParams = { ...parsedWidgetParams } as Record<string, any>;
+    const nextParams = {} as Record<string, any>;
 
     if (draftBackgroundMode === "current" || draftBackgroundMode === "none") {
       delete nextParams.backgroundImageUrl;
@@ -354,10 +559,37 @@ export default function SmartFramesManager({
       };
     }
 
+    let parsedCells: Array<Record<string, any>>;
+    try {
+      parsedCells = draftCells.map((cell) => {
+        let parsedParams: Record<string, any> | undefined;
+        if (cell.paramsText.trim()) {
+          parsedParams = parseParamsText(cell.paramsText);
+        }
+
+        return {
+          id: cell.id,
+          name: cell.name.trim() || cell.id,
+          widget: cell.widget,
+          ...(parsedParams ? { params: parsedParams } : {}),
+        };
+      });
+    } catch (err) {
+      console.error(err);
+      setWidgetParamsError("Each widget properties block must be valid JSON.");
+      return;
+    }
+
+    nextParams.layoutGrid = {
+      rows: draftGridRows,
+      columns: draftGridColumns,
+      cells: parsedCells,
+    };
+
     const nextFrame: Frame = {
       id: existingFrame?.id ??
         `frame-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-      type: draftType,
+      type: draftCells[0]?.widget ?? draftType,
       params: nextParams,
     };
 
@@ -373,6 +605,33 @@ export default function SmartFramesManager({
 
     setDialogOpen(false);
     resetDraft();
+  };
+
+  const handleGridPresetChange = (value: string) => {
+    const preset = GRID_PRESETS.find((item) => item.value === value) ?? GRID_PRESETS[0];
+    setDraftGridPreset(preset.value);
+    if (preset.value !== "custom") {
+      setDraftGridRows(preset.rows);
+      setDraftGridColumns(preset.columns);
+      setDraftCells((cells) => buildCells(preset.rows, preset.columns, cells));
+    }
+  };
+
+  const handleCustomGridSizeChange = (field: "rows" | "columns", value: string) => {
+    const nextValue = Math.min(4, Math.max(1, Number(value) || 1));
+    const nextRows = field === "rows" ? nextValue : draftGridRows;
+    const nextColumns = field === "columns" ? nextValue : draftGridColumns;
+    setDraftGridRows(nextRows);
+    setDraftGridColumns(nextColumns);
+    setDraftCells((cells) => buildCells(nextRows, nextColumns, cells));
+  };
+
+  const updateCell = (index: number, updates: Partial<LayoutCellDraft>) => {
+    setDraftCells((cells) =>
+      cells.map((cell, cellIndex) =>
+        cellIndex === index ? { ...cell, ...updates } : cell
+      )
+    );
   };
 
   return (
@@ -419,56 +678,98 @@ export default function SmartFramesManager({
             </DialogTitle>
           </DialogHeader>
 
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Widget</Label>
-              <Select value={draftType} onValueChange={setDraftType}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select a widget" />
-                </SelectTrigger>
-                <SelectContent>
-                  {WIDGET_OPTIONS.map((widget) => (
-                    <SelectItem
-                      key={widget}
-                      value={widget}
-                      className="capitalize"
-                    >
-                      {widget.replace(/-/g, " ")}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Button
-                type="button"
-                variant="ghost"
-                className="px-0 text-sm text-white/70 hover:text-white"
-                onClick={() => setShowWidgetParams((prev) => !prev)}
-              >
-                {showWidgetParams
-                  ? "Hide widget properties"
-                  : "Edit widget properties"}
-              </Button>
-              {showWidgetParams && (
-                <div className="space-y-2">
-                  <Label htmlFor="frame-widget-params">
-                    Widget properties (JSON)
-                  </Label>
-                  <Textarea
-                    id="frame-widget-params"
-                    value={draftWidgetParamsText}
-                    onChange={(event) =>
-                      setDraftWidgetParamsText(event.target.value)}
-                    placeholder='{"title":"My Widget"}'
-                    rows={6}
-                    spellCheck={false}
-                    className="font-mono text-sm"
-                  />
-                  {widgetParamsError && (
-                    <p className="text-sm text-red-400">{widgetParamsError}</p>
-                  )}
-                </div>
+          <Tabs defaultValue="widgets" className="space-y-4">
+            <TabsList className="grid w-full grid-cols-2 bg-black/30">
+              <TabsTrigger value="background">Background</TabsTrigger>
+              <TabsTrigger value="widgets">Widgets</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="widgets" className="space-y-4">
+            <div className="space-y-3">
+              <div className="flex items-center gap-3">
+                <Label className="whitespace-nowrap w-full">Layout grid</Label>
+                <Select value={draftGridPreset} onValueChange={handleGridPresetChange}>
+                  <SelectTrigger className="w-min">
+                    <SelectValue placeholder="Select a grid" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {GRID_PRESETS.map((preset) => (
+                      <SelectItem key={preset.value} value={preset.value} className="whitespace-nowrap">
+                        {preset.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {draftGridPreset === "custom" && (
+                <div className="grid grid-cols-2 gap-1">
+                    <Label htmlFor="frame-grid-rows">Rows</Label>
+                    <Input
+                      id="frame-grid-rows"
+                      type="number"
+                      min={1}
+                      max={4}
+                      value={draftGridRows}
+                      onChange={(event) =>
+                        handleCustomGridSizeChange("rows", event.target.value)}
+                    />
+                    <Label htmlFor="frame-grid-columns">Columns</Label>
+                    <Input
+                      id="frame-grid-columns"
+                      type="number"
+                      min={1}
+                      max={4}
+                      value={draftGridColumns}
+                      onChange={(event) =>
+                        handleCustomGridSizeChange("columns", event.target.value)}
+                    />
+                  </div>
+              )}
+
+              <div className="space-y-3">
+                {draftCells.map((cell, index) => (
+                  <div key={cell.id} className="space-y-3 rounded-xl">
+                    <div className="text-sm font-medium capitalize text-white/80">
+                      {cell.name}
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Widget</Label>
+                      <Select
+                        value={cell.widget}
+                        onValueChange={(value) => updateCell(index, { widget: value })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Widget" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {WIDGET_OPTIONS.map((widget) => (
+                            <SelectItem key={widget} value={widget} className="capitalize">
+                              {widget.replace(/-/g, " ")}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Widget properties</Label>
+                      <WidgetPropertiesEditor
+                        cell={cell}
+                        onChange={(paramsText) => updateCell(index, { paramsText })}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {widgetParamsError && (
+                <p className="text-sm text-red-400">{widgetParamsError}</p>
               )}
             </div>
+
+            </TabsContent>
+
+            <TabsContent value="background" className="space-y-4">
 
             <div className="space-y-3">
               <Label>Background</Label>
@@ -614,8 +915,10 @@ export default function SmartFramesManager({
               )}
             </div>
 
+            </TabsContent>
+
             {error && <div className="text-sm text-red-400">{error}</div>}
-          </div>
+          </Tabs>
 
           <DialogFooter>
             <Button variant="ghost" onClick={() => handleDialogChange(false)}>

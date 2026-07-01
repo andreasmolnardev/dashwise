@@ -238,6 +238,15 @@ export default function Screensaver(
               ? fallbackFilters.brightness
               : 85;
           const backgroundUrl = frameBackgrounds[frame.id];
+          const layoutGrid = frame.params?.layoutGrid as Record<string, any> | undefined;
+          const gridRows = Number(layoutGrid?.rows) || 1;
+          const gridColumns = Number(layoutGrid?.columns) || 1;
+          const gridCells = Array.isArray(layoutGrid?.cells) ? layoutGrid.cells : [];
+          const widgetParams = { ...(frame.params || {}) };
+          delete widgetParams.layoutGrid;
+          delete widgetParams.backgroundImageUrl;
+          delete widgetParams.backgroundSource;
+          delete widgetParams.backgroundFilters;
 
           return (
             <div
@@ -258,13 +267,46 @@ export default function Screensaver(
                   }}
                 />
               )}
-              <div className="relative z-10 scale-150 transform origin-center">
-                {renderWidget({
-                  type: frame.type,
-                  params: frame.params || {},
-                  className: "overflow-visible",
-                })}
-              </div>
+              {gridCells.length > 0 ? (
+                <div
+                  className="relative z-10 grid h-full w-full gap-8 p-12"
+                  style={{
+                    gridTemplateRows: `repeat(${gridRows}, minmax(0, 1fr))`,
+                    gridTemplateColumns: `repeat(${gridColumns}, minmax(0, 1fr))`,
+                  }}
+                >
+                  {gridCells.map((cell: any, cellIndex: number) => (
+                    <div
+                      key={String(cell?.id ?? cellIndex)}
+                      className="flex min-h-0 min-w-0 flex-col items-center justify-center gap-3 rounded-3xl border border-white/10 bg-black/10 p-6 backdrop-blur-sm"
+                    >
+                      {cell?.name && (
+                        <div className="text-xs font-medium uppercase tracking-[0.25em] text-white/50">
+                          {String(cell.name)}
+                        </div>
+                      )}
+                      <div className="scale-125 transform origin-center">
+                        {renderWidget({
+                          type: String(cell?.widget ?? frame.type),
+                          params: {
+                            ...widgetParams,
+                            ...((cell as any)?.params || {}),
+                          },
+                          className: "overflow-visible",
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="relative z-10 scale-150 transform origin-center">
+                  {renderWidget({
+                    type: frame.type,
+                    params: widgetParams,
+                    className: "overflow-visible",
+                  })}
+                </div>
+              )}
             </div>
           );
         })}
