@@ -5,6 +5,7 @@
   "workspaces": ["apps/*", "packages/*"],
   "scripts": {
     "dev": "trap 'kill 0' SIGINT; bun run dev:backend & bun run dev:web & wait",
+    "dev:testenv": "./scripts/dev-testenv.sh",
     "dev:backend": "bun --cwd apps/backend --hot src/index.ts",
     "dev:web": "cd apps/web && bunx dotenv-cli -e ../../.env -- bunx vite --host 0.0.0.0 --port 5173",
     "generate:openapi": "bun scripts/generate-openapi-json.ts && bunx openapi-typescript apps/backend/openapi.yaml -o packages/api-types/src/openapi.ts",
