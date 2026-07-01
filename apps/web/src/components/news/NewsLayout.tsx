@@ -23,6 +23,11 @@ interface FeedRecord {
     title?: string;
 }
 
+interface SavedListRecord {
+    id: string;
+    name: string;
+}
+
 export default function NewsLayout({ children }: { children: ReactNode }) {
     const { token, withAuth } = useAuth();
     const navigate = useNavigate();
@@ -30,7 +35,7 @@ export default function NewsLayout({ children }: { children: ReactNode }) {
     const [searchParams] = useSearchParams();
     const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
     const [feeds, setFeeds] = useState<FeedRecord[]>([]);
-    const [savedLists, setSavedLists] = useState<string[]>([]);
+    const [savedLists, setSavedLists] = useState<SavedListRecord[]>([]);
     const [sidebarRefreshVersion, setSidebarRefreshVersion] = useState(0);
 
     useEffect(() => {
@@ -63,7 +68,7 @@ export default function NewsLayout({ children }: { children: ReactNode }) {
 
                 setSubscriptions(subscriptionsData?.subscriptions ?? []);
                 setFeeds(Array.isArray(feedsData?.feeds) ? feedsData.feeds : []);
-                setSavedLists(Array.isArray(savedData?.lists) ? savedData.lists : ["readLater"]);
+                setSavedLists(Array.isArray(savedData?.lists) ? savedData.lists : [{ id: "readLater", name: "readLater" }]);
             } catch (error) {
                 console.error("Failed to load news subscriptions:", error);
                 if (mounted) {
@@ -183,12 +188,12 @@ export default function NewsLayout({ children }: { children: ReactNode }) {
                     collapsible={true}
                 />
 
-                {(savedLists.length ? savedLists : ["readLater"]).map((list) => (
+                {(savedLists.length ? savedLists : [{ id: "readLater", name: "readLater" }]).map((list) => (
                     <Tab
-                        key={list}
-                        dst={`/apps/news/saved-${encodeURIComponent(list)}`}
+                        key={list.id}
+                        dst={`/apps/news/saved-${encodeURIComponent(list.id)}`}
                         icon="fa6-solid:bookmark"
-                        title={list}
+                        title={list.name}
                         group="Saved"
                     />
                 ))}

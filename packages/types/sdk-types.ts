@@ -106,7 +106,7 @@ export type NewsFeedItem = {
 
 export type NewsSavedArticle = {
   id: string;
-  list: string;
+  list: string[];
   isRead?: boolean;
   json: NewsFeedItem;
   userId?: string;
@@ -114,9 +114,14 @@ export type NewsSavedArticle = {
   updated?: string;
 };
 
+export type NewsSavedArticleList = {
+  id: string;
+  name: string;
+};
+
 export type NewsSavedArticlesResponse = {
   articles: NewsSavedArticle[];
-  lists: string[];
+  lists: NewsSavedArticleList[];
   defaultList: string;
 };
 
