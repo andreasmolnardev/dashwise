@@ -366,6 +366,29 @@ export async function saveNewsArticleAction(auth: ActionAuth, article: NewsFeedI
   }));
 }
 
+export async function deleteNewsSavedArticleAction(auth: ActionAuth, link: string) {
+  return extractData(await client.delete({
+    url: "/news/saved-articles",
+    body: { link },
+    headers: authHeaders(auth),
+  }));
+}
+
+export async function updateNewsSavedArticleReadStateAction(auth: ActionAuth, link: string, isRead = true) {
+  return extractData(await client.patch({
+    url: "/news/saved-articles/read",
+    body: { link, isRead },
+    headers: authHeaders(auth),
+  }));
+}
+
+export async function deleteNewsSavedArticleListAction(auth: ActionAuth, listId: string) {
+  return extractData(await client.delete({
+    url: `/news/saved-article-lists/${encodeURIComponent(listId)}`,
+    headers: authHeaders(auth),
+  }));
+}
+
 export async function getNewsFeedMetadataAction(auth: ActionAuth, url: string): Promise<NewsFeedMetadata> {
   return extractData(await getNewsFeedMetadata({ query: { url }, headers: authHeaders(auth) })) as Promise<NewsFeedMetadata>;
 }

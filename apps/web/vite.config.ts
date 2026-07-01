@@ -17,6 +17,9 @@ export default defineConfig({
   },
 
   server: {
+    watch: {
+      usePolling: process.env.CHOKIDAR_USEPOLLING === "true",
+    },
     proxy: {
       "/api": {
         target: "http://localhost:3000",

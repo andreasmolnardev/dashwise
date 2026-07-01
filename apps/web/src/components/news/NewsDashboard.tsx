@@ -27,6 +27,7 @@ import NewsFeedEditModal from "./NewsFeedEditModal";
 import SubscriptionDetailsForm from "./SubscriptionDetailsForm";
 import {
     createNewsFeedRecordAction,
+    deleteNewsSavedArticleAction,
     getNewsFeedAction,
     getNewsFeedRecordAction,
     getNewsFeedMetadataAction,
@@ -39,6 +40,7 @@ import {
     unsubscribeNewsFeedAction,
     updateNewsFeedAction,
     updateNewsFeedRecordAction,
+    updateNewsSavedArticleReadStateAction,
 } from '@/lib/apiClient';
 import type {
     NewsFeedDraft,
@@ -424,7 +426,11 @@ export default function NewsDashboardComponent() {
         ? undefined
         : ({ feedIds: [activeFeedId] } as NewsFeedDraft);
 
-    const selectedSource = activeSavedList || selectedSubscription?.title ||
+    const activeSavedListName = activeSavedList
+        ? savedArticlesData?.lists?.find((list) => list.id === activeSavedList || list.name === activeSavedList)?.name || activeSavedList
+        : null;
+
+    const selectedSource = activeSavedListName || selectedSubscription?.title ||
         selectedSubscription?.url || selectedFeed?.title || null;
     const selectedCategory = activeFeedId === "all"
         ? "All"
@@ -458,15 +464,64 @@ export default function NewsDashboardComponent() {
         );
     };
 
-    const saveArticle = async (article: NewsFeedItem, list?: string | null) => {
-        const saved = await withAuth((auth) => saveNewsArticleAction(auth, article, list));
+    const getSavedArticle = (article: NewsFeedItem) => {
+        const link = String(article?.link || "").trim();
+        if (!link || !savedArticlesData?.articles?.length) {
+            return null;
+        }
+
+        return savedArticlesData.articles.find((savedArticle) =>
+            String(savedArticle.json?.link || "").trim() === link
+        ) || null;
+    };
+
+    const reloadSavedArticles = async () => {
         const data = await withAuth((auth) => getNewsSavedArticlesAction(auth, activeSavedList));
         setSavedArticlesData(data);
         window.dispatchEvent(new CustomEvent("dashwise:news-sidebar-refresh"));
         if (activeSavedList) {
             setFeed(data.articles.map((entry) => entry.json));
         }
+
+        return data;
+    };
+
+    const saveArticle = async (article: NewsFeedItem, list?: string | null) => {
+        const saved = await withAuth((auth) => saveNewsArticleAction(auth, article, list));
+        await reloadSavedArticles();
         return saved;
+    };
+
+    const toggleSavedArticle = async (article: NewsFeedItem) => {
+        const link = String(article?.link || "").trim();
+        if (!link) return;
+
+        if (isArticleSaved(article)) {
+            await withAuth((auth) => deleteNewsSavedArticleAction(auth, link));
+            await reloadSavedArticles();
+            return;
+        }
+
+        await saveArticle(article);
+    };
+
+    const markSavedArticleRead = async (article: NewsFeedItem) => {
+        if (!activeSavedList || getSavedArticle(article)?.isRead) return;
+
+        const link = String(article?.link || "").trim();
+        if (!link) return;
+
+        await withAuth((auth) => updateNewsSavedArticleReadStateAction(auth, link, true));
+        setSavedArticlesData((current) => current
+            ? {
+                ...current,
+                articles: current.articles.map((savedArticle) =>
+                    String(savedArticle.json?.link || "").trim() === link
+                        ? { ...savedArticle, isRead: true }
+                        : savedArticle
+                ),
+            }
+            : current);
     };
 
     const openSaveDialog = (article: NewsFeedItem) => {
@@ -565,16 +620,21 @@ export default function NewsDashboardComponent() {
                         )}
 
                         {feed &&
-                paginatedArticles.map((item, idx) => (
-                                <NewsArticle
-                                    key={idx}
-                                    item={item}
-                                    iconUrl={getIconUrl(item.subscription_id || item.subscription_name)}
-                                    isSaved={isArticleSaved(item)}
-                                    onSave={() => saveArticle(item)}
-                                    onSaveOptions={() => openSaveDialog(item)}
-                                />
-                            ))}
+                paginatedArticles.map((item, idx) => {
+                    const savedArticle = getSavedArticle(item);
+                    return (
+                                 <NewsArticle
+                                     key={idx}
+                                     item={item}
+                                     iconUrl={getIconUrl(item.subscription_id || item.subscription_name)}
+                                     isSaved={isArticleSaved(item)}
+                                     isUnread={Boolean(activeSavedList && savedArticle && !savedArticle.isRead)}
+                                     onSave={() => toggleSavedArticle(item)}
+                                     onSaveOptions={() => openSaveDialog(item)}
+                                     onOpen={() => markSavedArticleRead(item)}
+                                 />
+                    );
+                })}
 
                         {/* Pagination */}
                         {feed && totalPages > 1 && (
@@ -814,7 +874,7 @@ export default function NewsDashboardComponent() {
                                 value={saveListSelection}
                                 onChange={(event) => setSaveListSelection(event.target.value)}
                             >
-                                {(savedArticlesData?.lists?.length ? savedArticlesData.lists : [{ id: "readLater", name: "readLater" }]).map((list) => (
+                                {(savedArticlesData?.lists?.length ? savedArticlesData.lists : [{ id: "readLater", name: "Read Later" }]).map((list) => (
                                     <option key={list.id} value={list.id}>{list.name}</option>
                                 ))}
                             </select>
@@ -843,7 +903,7 @@ export default function NewsDashboardComponent() {
     );
 }
 
-function NewsArticle({ item, iconUrl, isSaved, onSave, onSaveOptions }: { item: any; iconUrl?: string; isSaved?: boolean; onSave?: () => void; onSaveOptions?: () => void }) {
+function NewsArticle({ item, iconUrl, isSaved, isUnread, onSave, onSaveOptions, onOpen }: { item: any; iconUrl?: string; isSaved?: boolean; isUnread?: boolean; onSave?: () => void; onSaveOptions?: () => void; onOpen?: () => Promise<void> | void }) {
     return (
         <div className="rounded-xl bg-(--surface-2) w-full">
             <div className="grid gap-3 grid-cols-1 md:grid-cols-[1fr_3fr]">
@@ -870,7 +930,7 @@ function NewsArticle({ item, iconUrl, isSaved, onSave, onSaveOptions }: { item: 
                             onSaveOptions?.();
                         }}
                     >
-                        <Icon icon={isSaved ? "fa6-solid:square-check" : "fa6-solid:bookmark"} className={isSaved ? "text-(--accent)" : "text-white/90 group-hover:text-(--accent)"} />
+                        <Icon icon={isSaved ? "bi:bookmark-check-fill" : "fa6-solid:bookmark"} className={isSaved ? "text-(--primary)" : "text-white/90 group-hover:text-(--primary)"} />
                     </button>
                 </div>
 
@@ -878,14 +938,29 @@ function NewsArticle({ item, iconUrl, isSaved, onSave, onSaveOptions }: { item: 
                     <a
                         href={item.link}
                         target="_blank"
+                        rel="noreferrer"
                         className="
                 font-semibold
                 line-clamp-2
                 text-base md:text-lg
                 hover:text-primary
             "
+                        onClick={async (event) => {
+                            if (!isUnread || !item.link) return;
+
+                            event.preventDefault();
+                            try {
+                                await onOpen?.();
+                            } catch (error) {
+                                console.error("Failed to mark saved article as read:", error);
+                            }
+                            window.open(item.link, "_blank", "noreferrer");
+                        }}
                     >
-                        {item.title}
+                        <span className="inline-flex items-center gap-2">
+                            <span>{item.title}</span>
+                            {isUnread && <span className="h-2 w-2 shrink-0 rounded-full bg-(--primary)" aria-label="Unread" />}
+                        </span>
                     </a>
 
                     <div className="flex flex-wrap justify-between text-xs mt-1 opacity-80 gap-y-1">

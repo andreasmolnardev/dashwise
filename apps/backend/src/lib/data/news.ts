@@ -140,9 +140,10 @@ function normalizeListIds(list?: unknown): string[] {
 }
 
 function normalizeSavedArticleList(record: Record<string, unknown>): NewsSavedArticleList {
+  const name = normalizeListName(String(record.name || ""));
   return {
     id: String(record.id || ""),
-    name: normalizeListName(String(record.name || "")),
+    name: name === "readLater" ? "Read Later" : name,
   };
 }
 
@@ -667,21 +668,22 @@ export async function getNewsFeeds(userId: string): Promise<NewsFeedsResponse> {
 export async function getNewsSavedArticles(userId: string, list?: string | null): Promise<NewsSavedArticlesResponse> {
   const defaultList = await ensureNewsDefaultList(userId);
   const lists = await getNewsSavedArticleLists(userId, defaultList);
-  const targetList = String(list || "").trim();
+  const requestedList = String(list || "").trim();
+  const targetList = requestedList
+    ? lists.find((entry) => entry.id === requestedList || entry.name === requestedList) ?? null
+    : null;
   const pb = await getSuperuserPB();
-  const filters = [`userId=\"${escapeFilter(userId)}\"`];
-  if (targetList) {
-    filters.push(`list ?= \"${escapeFilter(targetList)}\"`);
-  }
 
   const records = await pb.collection("newsSavedArticles").getFullList(2000, {
-    filter: filters.join(" && "),
+    filter: `userId=\"${escapeFilter(userId)}\"`,
     sort: "-created",
   }) as Array<Record<string, unknown>>;
 
-  const articles = records.map(normalizeSavedArticle);
+  const articles = records
+    .map(normalizeSavedArticle)
+    .filter((article) => !targetList || article.list.includes(targetList.id));
 
-  return { articles, lists, defaultList: lists.find((entry) => entry.name === defaultList)?.id || lists[0]?.id || defaultList };
+  return { articles, lists, defaultList: lists.find((entry) => entry.name === defaultList || (defaultList === "readLater" && entry.name === "Read Later"))?.id || lists[0]?.id || defaultList };
 }
 
 export async function saveNewsArticle(userId: string, article: NewsFeedItem, list?: string | null): Promise<NewsSavedArticle> {
@@ -694,7 +696,7 @@ export async function saveNewsArticle(userId: string, article: NewsFeedItem, lis
 
   const pb = await getSuperuserPB();
   const existingRecords = await pb.collection("newsSavedArticles").getFullList(2000, {
-    filter: `userId=\"${escapeFilter(userId)}\" && list ?= \"${escapeFilter(listRecord.id)}\"`,
+    filter: `userId=\"${escapeFilter(userId)}\"`,
   }) as Array<Record<string, unknown>>;
   const existing = existingRecords.find((record) => {
     const json = record.json && typeof record.json === "object" ? record.json as Record<string, unknown> : {};
@@ -707,6 +709,71 @@ export async function saveNewsArticle(userId: string, article: NewsFeedItem, lis
     : await pb.collection("newsSavedArticles").create(payload);
 
   return normalizeSavedArticle(saved as Record<string, unknown>);
+}
+
+export async function deleteNewsSavedArticle(userId: string, link: string): Promise<{ success: boolean; deletedCount: number }> {
+  const targetLink = String(link || "").trim();
+  if (!targetLink) {
+    throw new Error("Article link is required");
+  }
+
+  const pb = await getSuperuserPB();
+  const records = await pb.collection("newsSavedArticles").getFullList(2000, {
+    filter: `userId=\"${escapeFilter(userId)}\"`,
+  }) as Array<Record<string, unknown>>;
+  const matches = records.filter((record) => {
+    const json = record.json && typeof record.json === "object" ? record.json as Record<string, unknown> : {};
+    return String(json.link || "").trim() === targetLink;
+  });
+
+  await Promise.all(matches.map((record) => pb.collection("newsSavedArticles").delete(String(record.id))));
+  return { success: true, deletedCount: matches.length };
+}
+
+export async function updateNewsSavedArticleReadState(userId: string, link: string, isRead: boolean): Promise<{ success: boolean; updatedCount: number }> {
+  const targetLink = String(link || "").trim();
+  if (!targetLink) {
+    throw new Error("Article link is required");
+  }
+
+  const pb = await getSuperuserPB();
+  const records = await pb.collection("newsSavedArticles").getFullList(2000, {
+    filter: `userId=\"${escapeFilter(userId)}\"`,
+  }) as Array<Record<string, unknown>>;
+  const matches = records.filter((record) => {
+    const json = record.json && typeof record.json === "object" ? record.json as Record<string, unknown> : {};
+    return String(json.link || "").trim() === targetLink;
+  });
+
+  await Promise.all(matches.map((record) => pb.collection("newsSavedArticles").update(String(record.id), { isRead })));
+  return { success: true, updatedCount: matches.length };
+}
+
+export async function deleteNewsSavedArticleList(userId: string, list: string): Promise<{ success: boolean; deletedArticles: number }> {
+  const requestedList = String(list || "").trim();
+  if (!requestedList) {
+    throw new Error("Saved list is required");
+  }
+
+  const defaultList = await ensureNewsDefaultList(userId);
+  const lists = await getNewsSavedArticleLists(userId, defaultList);
+  const targetList = lists.find((entry) => entry.id === requestedList || entry.name === requestedList);
+  if (!targetList) {
+    return { success: true, deletedArticles: 0 };
+  }
+
+  const pb = await getSuperuserPB();
+  const records = await pb.collection("newsSavedArticles").getFullList(2000, {
+    filter: `userId=\"${escapeFilter(userId)}\"`,
+  }) as Array<Record<string, unknown>>;
+  const matches = records
+    .map(normalizeSavedArticle)
+    .filter((article) => article.list.includes(targetList.id));
+
+  await Promise.all(matches.map((article) => pb.collection("newsSavedArticles").delete(article.id)));
+  await pb.collection("newsSavedArticleLists").delete(targetList.id);
+
+  return { success: true, deletedArticles: matches.length };
 }
 
 function normalizeRefreshFeedIds(feedIds?: string[] | string | null) {

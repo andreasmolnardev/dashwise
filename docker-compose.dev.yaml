@@ -5,6 +5,7 @@ services:
       dockerfile: Dockerfile
     image: dashwise:dev
     container_name: dashwise-app-live
+    working_dir: /app
     command: sh -lc "bun install --frozen-lockfile && bun run dev"
     ports:
       - "3000:3000"
@@ -12,6 +13,8 @@ services:
       - "8090:8090"
     env_file:
       - .env.dev
+    environment:
+      CHOKIDAR_USEPOLLING: "true"
     volumes:
       - .:/app
       - app-node-modules:/app/node_modules
