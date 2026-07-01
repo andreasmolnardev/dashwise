@@ -79,9 +79,8 @@ APP_PORT="$(next_free_port 3000)"
 PB_PORT="$(next_free_port 8090)"
 
 sed \
-  -e "s/[0-9][0-9]*:3000/${APP_PORT}:3000/g" \
-  -e "s/[0-9][0-9]*:8090/${PB_PORT}:8090/g" \
-  -e "s|NEXT_PUBLIC_PB_URL: .*|NEXT_PUBLIC_PB_URL: http://127.0.0.1:${PB_PORT}|g" \
+  -e "s/\"[0-9][0-9]*:3000\"/\"${APP_PORT}:3000\"/g" \
+  -e "s/\"[0-9][0-9]*:8090\"/\"${PB_PORT}:8090\"/g" \
   -e "s|NEXT_PUBLIC_APP_URL: .*|NEXT_PUBLIC_APP_URL: http://localhost:${APP_PORT}|g" \
   "$BASE_COMPOSE" > "$TEST_COMPOSE"
 
@@ -91,13 +90,13 @@ if command_exists tmux; then
   if tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
     printf 'tmux session %s already exists; attach with: tmux attach -t %s\n' "$SESSION_NAME" "$SESSION_NAME"
   else
-    tmux new-session -d -s "$SESSION_NAME" "cd '$ROOT_DIR' && docker compose -f '$TEST_COMPOSE' up"
+    tmux new-session -d -s "$SESSION_NAME" "cd '$ROOT_DIR' && docker compose -f '$TEST_COMPOSE' up --build"
     STARTED_TMUX=1
     printf 'Started docker compose in tmux session %s\n' "$SESSION_NAME"
   fi
 else
   printf 'tmux not found; running docker compose in this shell\n'
-  compose up &
+  compose up --build &
   COMPOSE_PID=$!
 fi
 
