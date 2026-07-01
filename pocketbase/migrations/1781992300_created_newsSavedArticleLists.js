@@ -123,7 +123,6 @@ migrate((app) => {
     app.save(article);
   }
 
-  return true;
 }, (app) => {
   const articles = app.findCollectionByNameOrId("pbc_708912430");
   articles.fields.removeById("relation3719284361");
