@@ -101,6 +101,9 @@ export type NewsFeedItem = {
   pubDate: string | Date;
   subscription_id: string;
   subscription_name: string;
+  topicId?: string;
+  topicTitle?: string;
+  relatedArticles?: NewsFeedItem[];
   [key: string]: unknown;
 };
 

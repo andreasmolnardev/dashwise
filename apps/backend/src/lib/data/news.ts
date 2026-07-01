@@ -25,7 +25,16 @@ export type NewsFeedItem = {
   pubDate: string | Date;
   subscription_id: string;
   subscription_name: string;
+  topicId?: string;
+  topicTitle?: string;
+  relatedArticles?: NewsFeedItem[];
   [key: string]: unknown;
+};
+
+type NewsTopicDraft = {
+  key: string;
+  title: string;
+  articles: NewsFeedItem[];
 };
 
 export type NewsSubscription = {
@@ -166,6 +175,169 @@ function itemTime(item: NewsFeedItem): number {
     return Number.isNaN(time) ? 0 : time;
   }
   return 0;
+}
+
+function articleKey(item: NewsFeedItem) {
+  return String(item.link || item.title || "").trim().toLowerCase();
+}
+
+function textValue(value: unknown) {
+  if (Array.isArray(value)) return value.join(" ");
+  return String(value || "");
+}
+
+const topicStopWords = new Set([
+  "about", "after", "again", "also", "amid", "because", "before", "being", "could", "from", "have", "into",
+  "more", "news", "over", "said", "says", "that", "their", "there", "this", "through", "update", "using", "what",
+  "when", "where", "which", "while", "with", "will", "would", "your",
+]);
+
+function topicTokens(item: NewsFeedItem) {
+  const weighted = [
+    textValue(item.title),
+    textValue(item.title),
+    textValue(item.description),
+    textValue(item.summary),
+    textValue(item.categories),
+    textValue(item.tags),
+    textValue(item.categories),
+    textValue(item.tags),
+  ].join(" ");
+
+  return weighted
+    .toLowerCase()
+    .replace(/<[^>]*>/g, " ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .split(" ")
+    .map((token) => token.trim())
+    .filter((token) => token.length > 3 && !topicStopWords.has(token));
+}
+
+function uniqueTopicTokens(item: NewsFeedItem) {
+  return new Set(topicTokens(item));
+}
+
+function similarity(left: NewsFeedItem, right: NewsFeedItem) {
+  const leftTokens = uniqueTopicTokens(left);
+  const rightTokens = uniqueTopicTokens(right);
+  if (!leftTokens.size || !rightTokens.size) return 0;
+
+  let overlap = 0;
+  for (const token of leftTokens) {
+    if (rightTokens.has(token)) overlap++;
+  }
+
+  return overlap / Math.min(leftTokens.size, rightTokens.size);
+}
+
+function topicKeyFor(articles: NewsFeedItem[]) {
+  const counts = new Map<string, number>();
+  for (const article of articles) {
+    for (const token of uniqueTopicTokens(article)) {
+      counts.set(token, (counts.get(token) || 0) + 1);
+    }
+  }
+
+  const tokens = Array.from(counts.entries())
+    .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+    .slice(0, 5)
+    .map(([token]) => token);
+
+  return tokens.join("-") || articleKey(articles[0]);
+}
+
+function topicTitleFor(articles: NewsFeedItem[]) {
+  const newest = [...articles].sort((left, right) => itemTime(right) - itemTime(left))[0];
+  const title = String(newest?.title || "Related stories").trim();
+  return title.length > 96 ? `${title.slice(0, 93)}...` : title;
+}
+
+function buildNewsTopics(feed: NewsFeedItem[]): NewsTopicDraft[] {
+  const topics: NewsTopicDraft[] = [];
+  const assigned = new Set<string>();
+  const sorted = [...feed].sort((left, right) => itemTime(right) - itemTime(left));
+
+  for (const lead of sorted) {
+    const leadKey = articleKey(lead);
+    if (!leadKey || assigned.has(leadKey)) continue;
+
+    const related = sorted
+      .filter((candidate) => {
+        const candidateKey = articleKey(candidate);
+        if (!candidateKey || candidateKey === leadKey || assigned.has(candidateKey)) return false;
+        if (Math.abs(itemTime(lead) - itemTime(candidate)) > 1000 * 60 * 60 * 72) return false;
+        return similarity(lead, candidate) >= 0.35;
+      })
+      .slice(0, 4);
+
+    if (!related.length) continue;
+
+    const articles = [lead, ...related];
+    for (const article of articles) assigned.add(articleKey(article));
+    topics.push({
+      key: topicKeyFor(articles),
+      title: topicTitleFor(articles),
+      articles,
+    });
+  }
+
+  return topics;
+}
+
+async function persistNewsTopics(userId: string, topics: NewsTopicDraft[]) {
+  const pb = await getSuperuserPB();
+  const persisted = new Map<string, Record<string, unknown>>();
+
+  for (const topic of topics) {
+    const payload = {
+      userId,
+      key: topic.key,
+      title: topic.title,
+      newestArticleLink: String(topic.articles[0]?.link || ""),
+      articleLinks: topic.articles.map((article) => String(article.link || "")).filter(Boolean),
+      json: topic.articles,
+    };
+
+    const existing = await pb.collection("newsTopics").getFirstListItem(
+      `userId=\"${escapeFilter(userId)}\" && topicKey=\"${escapeFilter(topic.key)}\"`,
+    ).catch(() => null) as Record<string, unknown> | null;
+    const record = existing?.id
+      ? await pb.collection("newsTopics").update(String(existing.id), payload)
+      : await pb.collection("newsTopics").create(payload);
+    persisted.set(topic.key, record as Record<string, unknown>);
+  }
+
+  return persisted;
+}
+
+async function applyNewsTopics(userId: string, feed: NewsFeedItem[]) {
+  const topics = buildNewsTopics(feed);
+  if (!topics.length) return feed;
+
+  const persisted = await persistNewsTopics(userId, topics).catch(() => new Map<string, Record<string, unknown>>());
+  const relatedKeys = new Set<string>();
+  const leadByKey = new Map<string, NewsFeedItem>();
+
+  for (const topic of topics) {
+    const record = persisted.get(topic.key);
+    const topicId = String(record?.id || topic.key);
+    const [lead, ...relatedArticles] = topic.articles;
+    for (const related of relatedArticles) relatedKeys.add(articleKey(related));
+    leadByKey.set(articleKey(lead), {
+      ...lead,
+      topicId,
+      topicTitle: topic.title,
+      relatedArticles: relatedArticles.map((article) => ({
+        ...article,
+        topicId,
+        topicTitle: topic.title,
+      })),
+    });
+  }
+
+  return feed
+    .filter((article) => !relatedKeys.has(articleKey(article)))
+    .map((article) => leadByKey.get(articleKey(article)) ?? article);
 }
 
 function normalizeSubscription(entry: Record<string, unknown> | null): NewsSubscription | null {
@@ -567,7 +739,7 @@ export async function getNewsFeed(userId: string, feedId?: string | null): Promi
     : subscriptions.filter((subscription) => !excludedIds.has(String(subscription.id || "")));
 
   const feed = await buildFeedFromSubscriptions(scopedSubscriptions, feedId, feeds);
-  return feed;
+  return applyNewsTopics(userId, feed);
 }
 
 export async function getNewsSubscriptions(userId: string): Promise<NewsSubscriptionsResponse> {
