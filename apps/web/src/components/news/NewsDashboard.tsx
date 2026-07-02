@@ -957,12 +957,14 @@ function RelatedNewsArticle({ item, iconUrl }: { item: NewsFeedItem; iconUrl?: s
         >
             {item.thumbnailUrl
                 ? (
-                    <img
-                        src={String(item.thumbnailUrl)}
-                        className="h-16 w-20 rounded-md object-cover"
-                    />
+                    <div className="overflow-hidden rounded-md shrink-0">
+                        <img
+                            src={String(item.thumbnailUrl)}
+                            className="h-16 w-20 object-cover hover:scale-[1.1] transition-transform duration-200"
+                        />
+                    </div>
                 )
-                : <div className="h-16 w-20 rounded-md bg-white/5" />}
+                : <div className="h-16 w-20 rounded-md bg-white/5 shrink-0" />}
             <div className="min-w-0">
                 <p className="line-clamp-2 text-sm font-medium leading-snug hover:text-primary">
                     {item.title}
@@ -980,16 +982,16 @@ function NewsArticle({ item, iconUrl, isSaved, isUnread, onSave, onSaveOptions, 
     return (
         <div className="rounded-xl bg-(--surface-2) w-full">
             <div className="grid gap-3 grid-cols-1 md:grid-cols-[1fr_3fr]">
-                <div className="relative">
+                <div className="relative overflow-hidden rounded-xl">
                 {item.thumbnailUrl
                     ? (
                         <img
                             src={item.thumbnailUrl}
-                            className="w-full h-45 object-cover rounded-xl"
+                            className="w-full h-45 object-cover hover:scale-[1.05] transition-transform duration-200"
                         />
                     )
                     : 
-                    <div className="w-full h-45 frosted rounded-xl" />}
+                    <div className="w-full h-45 frosted rounded-xl hover:border-primary" />}
                     <button
                         type="button"
                         className="absolute right-2 top-2 flex h-9 w-9 items-center justify-center rounded-full bg-black/30 frosted transition hover:bg-black/50 group"
