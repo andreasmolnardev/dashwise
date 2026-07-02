@@ -93,6 +93,8 @@ export type NewsFeedDraft = {
   linkReplaceRule?: Record<string, string>;
   fallbackThumbnailUrl?: string;
   thumbnailOverwriteUrl?: string;
+  similarityGroupingWordsBlacklist?: string;
+  enableTopicGrouping?: boolean;
 };
 
 export type NewsFeedItem = {
@@ -157,6 +159,8 @@ export type NewsSubscribeInput = {
   linkReplaceRule?: Record<string, string>;
   fallbackThumbnailUrl?: string;
   thumbnailOverwriteUrl?: string;
+  similarityGroupingWordsBlacklist?: string;
+  enableTopicGrouping?: boolean;
 };
 
 export type NewsUpdateInput = {
@@ -169,6 +173,8 @@ export type NewsUpdateInput = {
   linkReplaceRule?: Record<string, string>;
   fallbackThumbnailUrl?: string;
   thumbnailOverwriteUrl?: string;
+  similarityGroupingWordsBlacklist?: string;
+  enableTopicGrouping?: boolean;
 };
 
 export type HomeLink = {

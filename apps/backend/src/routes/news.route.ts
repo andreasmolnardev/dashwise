@@ -11,6 +11,11 @@ import { jobsApi } from "../jobs/index";
 
 const logger = createLogger("API");
 
+const FEED_REQUEST_HEADERS = {
+  "User-Agent": "Dashwise RSS Reader (+https://github.com/andrew-d/dashwise)",
+  "Accept": "application/rss+xml, application/atom+xml, application/xml, text/xml;q=0.9, */*;q=0.8",
+};
+
 async function refreshNewsFeed(userId: string, options: { feedIds: string[] }) {
   const { feedIds } = options;
   if (!feedIds.length) {
@@ -93,6 +98,7 @@ async function getFeedMetadata(feedUrl: string): Promise<NewsFeedMetadata> {
 
   try {
     const parser = new Parser<Record<string, unknown>, Record<string, unknown>>({
+      headers: FEED_REQUEST_HEADERS,
       customFields: {
         feed: ["image", "icon"],
       },

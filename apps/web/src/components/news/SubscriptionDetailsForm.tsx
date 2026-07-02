@@ -18,8 +18,7 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
-import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import type { NewsFeedDraft } from "@dashwise/types/sdk";
 
 interface FeedOption {
@@ -49,6 +48,9 @@ export default function SubscriptionDetailsForm({
   const [icon, setIcon] = useState<string>(() => feed?.icon || "");
   const [fallbackThumbnailUrl, setFallbackThumbnailUrl] = useState<string>(() => feed?.fallbackThumbnailUrl || "");
   const [thumbnailOverwriteUrl, setThumbnailOverwriteUrl] = useState<string>(() => feed?.thumbnailOverwriteUrl || "");
+  const [similarityGroupingWordsBlacklist, setSimilarityGroupingWordsBlacklist] = useState<string>(() => feed?.similarityGroupingWordsBlacklist || "");
+  const [enableTopicGrouping, setEnableTopicGrouping] = useState<boolean>(() => feed?.enableTopicGrouping !== false);
+  const [activeOptionsTab, setActiveOptionsTab] = useState<"link" | "thumbnail" | "grouping">("link");
   const initialReplaceRuleKey = feed?.linkReplaceRule ? Object.keys(feed.linkReplaceRule)[0] || "" : "";
   const [replaceSearch, setReplaceSearch] = useState<string>(initialReplaceRuleKey);
   const [replaceWith, setReplaceWith] = useState<string>(initialReplaceRuleKey ? String(feed?.linkReplaceRule?.[initialReplaceRuleKey] || "") : "");
@@ -189,6 +191,44 @@ export default function SubscriptionDetailsForm({
 
   const allSelectedLabels = [...selectedFeedTitles, ...selectedNewTitles];
 
+  const commonGroupingWords = useMemo(() => {
+    const items = Array.isArray(feed?.json) ? feed.json : [];
+    const counts = new Map<string, number>();
+
+    for (const item of items) {
+      if (!item || typeof item !== "object") continue;
+      const record = item as Record<string, unknown>;
+      const text = [record.title, record.description, record.summary, record.categories, record.tags]
+        .flatMap((value) => Array.isArray(value) ? value : [value])
+        .join(" ")
+        .toLowerCase()
+        .replace(/<[^>]*>/g, " ")
+        .replace(/[^a-z0-9]+/g, " ");
+
+      for (const token of text.split(" ")) {
+        const word = token.trim();
+        if (word.length < 3) continue;
+        counts.set(word, (counts.get(word) || 0) + 1);
+      }
+    }
+
+    return Array.from(counts.entries())
+      .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+      .slice(0, 18)
+      .map(([word]) => word);
+  }, [feed?.json]);
+
+  const addBlacklistWord = (word: string) => {
+    const nextWord = word.trim();
+    if (!nextWord) return;
+
+    setSimilarityGroupingWordsBlacklist((current) => {
+      const entries = current.split(",").map((entry) => entry.trim()).filter(Boolean);
+      if (entries.some((entry) => entry.toLowerCase() === nextWord.toLowerCase())) return current;
+      return [...entries, nextWord].join(", ");
+    });
+  };
+
   const normalizedQuery = query.trim();
   const exactFeedMatch = availableFeeds.find(
     (entry) => entry.title.toLowerCase() === normalizedQuery.toLowerCase(),
@@ -264,6 +304,8 @@ export default function SubscriptionDetailsForm({
         newFeedTitles: currentSelectedNewTitles,
         fallbackThumbnailUrl: fallbackThumbnailUrl.trim() || undefined,
         thumbnailOverwriteUrl: thumbnailOverwriteUrl.trim() || undefined,
+        similarityGroupingWordsBlacklist: similarityGroupingWordsBlacklist.trim(),
+        enableTopicGrouping,
         linkReplaceRule,
       };
 
@@ -486,57 +528,125 @@ export default function SubscriptionDetailsForm({
         ))}
       </div>
 
-      <div className="space-y-3 p-3 rounded-xl bg-white/5 border border-white/10 mt-4">
-        <Label className="text-xs opacity-50">Advanced</Label>
-        
-        <div>
-          <Label htmlFor="fallback-thumbnail" className="text-xs">Fallback Thumbnail URL</Label>
-          <Input
-            id="fallback-thumbnail"
-            className="h-8 text-sm frosted mt-1"
-            placeholder="https://example.com/image.png"
-            value={fallbackThumbnailUrl}
-            onChange={(e) => setFallbackThumbnailUrl(e.target.value)}
-            disabled={loading}
-          />
+      <div className="space-y-4 mt-4">
+        <div className="flex flex-wrap gap-2 border-b border-white/10">
+          {[
+            { id: "link", label: "Link Rewrite" },
+            { id: "thumbnail", label: "Thumbnail" },
+            { id: "grouping", label: "Topic Grouping" },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveOptionsTab(tab.id as "link" | "thumbnail" | "grouping")}
+              className={`px-3 py-2 text-sm transition ${activeOptionsTab === tab.id ? "border-b-2 border-primary text-white" : "text-white/60 hover:text-white"}`}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
 
-        <div>
-          <Label htmlFor="thumbnail-overwrite" className="text-xs">Thumbnail Overwrite URL</Label>
-          <Input
-            id="thumbnail-overwrite"
-            className="h-8 text-sm frosted mt-1"
-            placeholder="https://example.com/thumbnail.png"
-            value={thumbnailOverwriteUrl}
-            onChange={(e) => setThumbnailOverwriteUrl(e.target.value)}
-            disabled={loading}
-          />
-        </div>
+        {activeOptionsTab === "link" && (
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="replace-search" className="text-xs">Link Replace: Search</Label>
+              <Input
+                id="replace-search"
+                className="h-8 text-sm frosted mt-1"
+                placeholder="old-domain.com"
+                value={replaceSearch}
+                onChange={(e) => setReplaceSearch(e.target.value)}
+                disabled={loading}
+              />
+            </div>
+            <div>
+              <Label htmlFor="replace-with" className="text-xs">Link Replace: With</Label>
+              <Input
+                id="replace-with"
+                className="h-8 text-sm frosted mt-1"
+                placeholder="new-domain.com"
+                value={replaceWith}
+                onChange={(e) => setReplaceWith(e.target.value)}
+                disabled={loading}
+              />
+            </div>
+          </div>
+        )}
 
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <Label htmlFor="replace-search" className="text-xs">Link Replace: Search</Label>
-            <Input
-              id="replace-search"
-              className="h-8 text-sm frosted mt-1"
-              placeholder="old-domain.com"
-              value={replaceSearch}
-              onChange={(e) => setReplaceSearch(e.target.value)}
-              disabled={loading}
-            />
+        {activeOptionsTab === "thumbnail" && (
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div>
+              <Label htmlFor="fallback-thumbnail" className="text-xs">Fallback Thumbnail URL</Label>
+              <Input
+                id="fallback-thumbnail"
+                className="h-8 text-sm frosted mt-1"
+                placeholder="https://example.com/image.png"
+                value={fallbackThumbnailUrl}
+                onChange={(e) => setFallbackThumbnailUrl(e.target.value)}
+                disabled={loading}
+              />
+            </div>
+            <div>
+              <Label htmlFor="thumbnail-overwrite" className="text-xs">Thumbnail Overwrite URL</Label>
+              <Input
+                id="thumbnail-overwrite"
+                className="h-8 text-sm frosted mt-1"
+                placeholder="https://example.com/thumbnail.png"
+                value={thumbnailOverwriteUrl}
+                onChange={(e) => setThumbnailOverwriteUrl(e.target.value)}
+                disabled={loading}
+              />
+            </div>
           </div>
-          <div>
-            <Label htmlFor="replace-with" className="text-xs">Link Replace: With</Label>
-            <Input
-              id="replace-with"
-              className="h-8 text-sm frosted mt-1"
-              placeholder="new-domain.com"
-              value={replaceWith}
-              onChange={(e) => setReplaceWith(e.target.value)}
-              disabled={loading}
-            />
+        )}
+
+        {activeOptionsTab === "grouping" && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between gap-3 rounded-lg bg-white/5 px-3 py-2">
+              <div>
+                <Label htmlFor="enable-topic-grouping" className="text-sm">Enable Topic Grouping</Label>
+                <p className="text-xs text-white/50">Group similar articles from this subscription into related story clusters.</p>
+              </div>
+              <Switch
+                id="enable-topic-grouping"
+                checked={enableTopicGrouping}
+                onCheckedChange={setEnableTopicGrouping}
+                disabled={loading}
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="topic-blacklist" className="text-xs">Blacklist Words</Label>
+              <Input
+                id="topic-blacklist"
+                className="h-8 text-sm frosted mt-1"
+                placeholder="rumor, recap, sponsored, -it"
+                value={similarityGroupingWordsBlacklist}
+                onChange={(e) => setSimilarityGroupingWordsBlacklist(e.target.value)}
+                disabled={loading}
+              />
+              <p className="mt-1 text-xs text-white/50">Comma-separated, case-insensitive words. Prefix a default word with - to allow it again.</p>
+            </div>
+
+            {commonGroupingWords.length > 0 && (
+              <div>
+                <Label className="text-xs">Common Words</Label>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {commonGroupingWords.map((word) => (
+                    <button
+                      key={word}
+                      type="button"
+                      onClick={() => addBlacklistWord(word)}
+                      className="rounded-full bg-white/10 px-2.5 py-1 text-xs text-white/70 transition hover:bg-white/20 hover:text-white"
+                    >
+                      {word}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
-        </div>
+        )}
       </div>
 
       <div className="pt-2">

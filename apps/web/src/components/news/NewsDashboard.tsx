@@ -360,6 +360,8 @@ export default function NewsDashboardComponent() {
                 linkReplaceRule: feed.linkReplaceRule,
                 fallbackThumbnailUrl: feed.fallbackThumbnailUrl,
                 thumbnailOverwriteUrl: feed.thumbnailOverwriteUrl,
+                similarityGroupingWordsBlacklist: feed.similarityGroupingWordsBlacklist,
+                enableTopicGrouping: feed.enableTopicGrouping !== false,
             })
         );
 
@@ -397,6 +399,8 @@ export default function NewsDashboardComponent() {
                 linkReplaceRule: updatedFeed.linkReplaceRule,
                 fallbackThumbnailUrl: updatedFeed.fallbackThumbnailUrl,
                 thumbnailOverwriteUrl: updatedFeed.thumbnailOverwriteUrl,
+                similarityGroupingWordsBlacklist: updatedFeed.similarityGroupingWordsBlacklist,
+                enableTopicGrouping: updatedFeed.enableTopicGrouping !== false,
             })
         );
 
@@ -927,10 +931,8 @@ function NewsTopicGroup({ item, getIconUrl, activeSavedList, isArticleSaved, get
             />
 
             {relatedArticles.length > 0 && (
-                <div className="ml-0 md:ml-[calc(25%+0.75rem)] rounded-xl bg-(--surface-2)/70">
-                    <div className="mb-2 flex items-center  font-medium opacity-70">
+                <div className="mx-auto w-full rounded-xl bg-(--surface-2)/70 p-1 flex flex-col gap-1 font-medium">
                         Related
-                    </div>
                     <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
                         {relatedArticles.map((article, idx) => (
                             <RelatedNewsArticle
