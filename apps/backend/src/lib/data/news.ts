@@ -244,6 +244,14 @@ function textValue(value: unknown) {
   return String(value || "");
 }
 
+function titleWordCount(item: NewsFeedItem) {
+  return String(item.title || "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .length;
+}
+
 const topicStopWords = new Set([
   "able", "about", "after", "again", "also", "amid", "because", "before", "being", "between", "both", "can",
   "could", "does", "from", "have", "into", "just", "more", "news", "over", "said", "says", "that", "their",
@@ -303,10 +311,9 @@ function topicTokens(item: NewsFeedItem, blacklist = topicStopWords) {
   return weighted
     .toLowerCase()
     .replace(/<[^>]*>/g, " ")
-    .replace(/[^a-z0-9]+/g, " ")
-    .split(" ")
+    .split(/\s+/)
     .map((token) => token.trim())
-    .filter((token) => token.length > 0 && !blacklist.has(token));
+    .filter((token) => token.length >= 3 && !blacklist.has(token));
 }
 
 function uniqueTopicTokens(item: NewsFeedItem, blacklist = topicStopWords) {
@@ -359,6 +366,7 @@ function buildNewsTopics(feed: NewsFeedItem[], subscriptions: NewsSubscription[]
     const leadKey = articleKey(lead);
     const leadSubscription = subscriptionsById.get(String(lead.subscription_id || ""));
     if (leadSubscription?.enableTopicGrouping === false) continue;
+    if (titleWordCount(lead) < 5) continue;
     if (!leadKey || assigned.has(leadKey)) continue;
 
     const related = sorted
@@ -367,6 +375,7 @@ function buildNewsTopics(feed: NewsFeedItem[], subscriptions: NewsSubscription[]
         const candidateSubscription = subscriptionsById.get(String(candidate.subscription_id || ""));
         if (!candidateKey || candidateKey === leadKey || assigned.has(candidateKey)) return false;
         if (candidateSubscription?.enableTopicGrouping === false) return false;
+        if (titleWordCount(candidate) < 5) return false;
         if (Math.abs(itemTime(lead) - itemTime(candidate)) > 1000 * 60 * 60 * 72) return false;
         return similarity(lead, candidate, blacklists) >= 0.35;
       })
