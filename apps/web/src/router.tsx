@@ -24,6 +24,7 @@ const LinksTagDetailPage = lazy(() => import("./app/(authenticated)/apps/links/t
 const MonitoringLayout = lazy(() => import("./app/(authenticated)/apps/monitoring/layout"));
 const MonitoringPage = lazy(() => import("./app/(authenticated)/apps/monitoring/page"));
 const MonitoringDetailPage = lazy(() => import("./app/(authenticated)/apps/monitoring/[monitorId]/page"));
+const MonitoringSshPage = lazy(() => import("./app/(authenticated)/apps/monitoring/ssh/page"));
 const SettingsLayout = lazy(() => import("./app/(authenticated)/settings/layout"));
 const SettingsPage = lazy(() => import("./app/(authenticated)/settings/page"));
 const SettingsGeneralPage = lazy(() => import("./app/(authenticated)/settings/general/page"));
@@ -88,9 +89,10 @@ export const appRouter = createBrowserRouter([
              path: "apps/monitoring",
              element: <MonitoringLayout />,
              children: [
-               { index: true, element: <MonitoringPage /> },
-               { path: "notifications", element: <NotificationsPage /> },
-               { path: ":monitorId", element: <MonitoringDetailPage /> },
+                { index: true, element: <MonitoringPage /> },
+                { path: "notifications", element: <NotificationsPage /> },
+                { path: "ssh/:hostId", element: <MonitoringSshPage /> },
+                { path: ":monitorId", element: <MonitoringDetailPage /> },
              ],
            },
            {

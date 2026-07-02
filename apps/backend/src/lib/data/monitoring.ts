@@ -1,4 +1,5 @@
 import { config } from "../config";
+import { decryptSecret, encryptSecret } from "../crypto";
 import { getSuperuserPB } from "../pb/pocketbase";
 import type { MonitorsResponse } from "@dashwise/types";
 
@@ -40,6 +41,24 @@ export interface MonitorRecord extends Pick<
   linkId?: string;
   [key: string]: unknown;
 }
+
+export type MonitoringSshHostRecord = {
+  id: string;
+  userId: string;
+  name: string;
+  hostname: string;
+  port: number;
+  username: string;
+  authMethod: "password" | "key" | "agent";
+  authType?: "password" | "key" | "agent";
+  credentialEncrypted?: string;
+  hasCredential?: boolean;
+  status?: string;
+  lastConnectedAt?: string;
+  created?: string;
+  updated?: string;
+  [key: string]: unknown;
+};
 
 type MonitorStatusSummary = {
   status: string;
@@ -166,6 +185,119 @@ export async function getMonitorById(userId: string, monitorId: string) {
   } catch {
     return null;
   }
+}
+
+function normalizeSshHostPayload(userId: string, body: any, partial = false) {
+  const payload: Record<string, unknown> = { userId };
+
+  if (!partial || body?.name !== undefined) {
+    const name = String(body?.name ?? "").trim();
+    if (!name) throw new Error("Host name is required");
+    payload.name = name;
+  }
+
+  if (!partial || body?.hostname !== undefined) {
+    const hostname = String(body?.hostname ?? "").trim();
+    if (!hostname) throw new Error("Hostname is required");
+    payload.hostname = hostname;
+  }
+
+  if (!partial || body?.port !== undefined) {
+    const port = Number(body?.port ?? 22);
+    if (!Number.isInteger(port) || port < 1 || port > 65535) {
+      throw new Error("Port must be between 1 and 65535");
+    }
+    payload.port = port;
+  }
+
+  if (!partial || body?.username !== undefined) {
+    const username = String(body?.username ?? "").trim();
+    if (!username) throw new Error("Username is required");
+    payload.username = username;
+  }
+
+  if (!partial || body?.authMethod !== undefined || body?.authType !== undefined) {
+    const authType = String(body?.authMethod ?? body?.authType ?? "password");
+    if (!["password", "key", "agent"].includes(authType)) {
+      throw new Error("Unsupported SSH auth method");
+    }
+    payload.authType = authType;
+  }
+
+  const authType = String(payload.authType ?? body?.authMethod ?? body?.authType ?? "password");
+  const password = typeof body?.password === "string" ? body.password : "";
+  const publicKey = typeof body?.publicKey === "string" ? body.publicKey : "";
+  const privateKey = typeof body?.privateKey === "string" ? body.privateKey : "";
+
+  if (password || publicKey || privateKey || (!partial && (authType === "password" || authType === "key"))) {
+    if (authType === "password") {
+      if (!password) throw new Error("Password is required");
+      payload.credentialEncrypted = encryptSecret({ method: "password", password });
+    } else if (authType === "key") {
+      if (!publicKey || !privateKey) throw new Error("Public and private keys are required");
+      payload.credentialEncrypted = encryptSecret({ method: "key", publicKey, privateKey });
+    }
+  }
+
+  if (body?.status !== undefined) {
+    payload.status = String(body.status || "unknown");
+  } else if (!partial) {
+    payload.status = "unknown";
+  }
+
+  return payload;
+}
+
+function sanitizeSshHost(host: any): MonitoringSshHostRecord {
+  const { credentialEncrypted, ...safeHost } = host || {};
+  return {
+    ...safeHost,
+    authMethod: safeHost.authType || safeHost.authMethod,
+    hasCredential: Boolean(credentialEncrypted),
+  } as MonitoringSshHostRecord;
+}
+
+export function getMonitoringSshHostCredentials<T = unknown>(host: MonitoringSshHostRecord | null) {
+  return decryptSecret<T>(host?.credentialEncrypted || null);
+}
+
+export async function getMonitoringSshHosts(userId: string): Promise<MonitoringSshHostRecord[]> {
+  const pb = await getSuperuserPB();
+  const hosts = await pb.collection("monitoringSSHHosts").getFullList({ filter: `userId = "${userId}"`, sort: "name" });
+  return hosts.map(sanitizeSshHost);
+}
+
+export async function getMonitoringSshHostById(userId: string, hostId: string): Promise<MonitoringSshHostRecord | null> {
+  const pb = await getSuperuserPB();
+  const host = await pb.collection("monitoringSSHHosts").getOne(hostId).catch(() => null);
+  return host?.userId === userId ? host as any : null;
+}
+
+export async function getSafeMonitoringSshHostById(userId: string, hostId: string): Promise<MonitoringSshHostRecord | null> {
+  const host = await getMonitoringSshHostById(userId, hostId);
+  return host ? sanitizeSshHost(host) : null;
+}
+
+export async function createMonitoringSshHost(userId: string, body: any): Promise<MonitoringSshHostRecord> {
+  const pb = await getSuperuserPB();
+  const host = await pb.collection("monitoringSSHHosts").create(normalizeSshHostPayload(userId, body));
+  return sanitizeSshHost(host);
+}
+
+export async function updateMonitoringSshHost(userId: string, hostId: string, body: any): Promise<MonitoringSshHostRecord | null> {
+  const pb = await getSuperuserPB();
+  const host = await getMonitoringSshHostById(userId, hostId);
+  if (!host) return null;
+  const updated = await pb.collection("monitoringSSHHosts").update(hostId, normalizeSshHostPayload(userId, body, true));
+  return sanitizeSshHost(updated);
+}
+
+export async function deleteMonitoringSshHost(userId: string, hostId: string) {
+  const pb = await getSuperuserPB();
+  const host = await getMonitoringSshHostById(userId, hostId);
+  if (!host) return { _status: 404, error: "SSH host not found" };
+  await pb.collection("monitoringSSHHosts").delete(hostId);
+  return { success: true };
 }
 
 export async function getMonitoringStatus(userId: string, jobId?: string | null) {

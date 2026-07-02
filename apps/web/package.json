@@ -50,6 +50,8 @@
     "react-diff-viewer-continued": "^4.2.2",
     "react-dom": "^19.2.1",
     "tailwind-merge": "^3.3.1",
+    "xterm": "^5.3.0",
+    "xterm-addon-fit": "^0.8.0",
     "yaml": "^2.8.2"
   },
   "devDependencies": {
