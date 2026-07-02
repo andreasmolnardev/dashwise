@@ -27,6 +27,7 @@ import NewsFeedEditModal from "./NewsFeedEditModal";
 import SubscriptionDetailsForm from "./SubscriptionDetailsForm";
 import {
     createNewsFeedRecordAction,
+    deleteNewsSavedArticleAction,
     getNewsFeedAction,
     getNewsFeedRecordAction,
     getNewsFeedMetadataAction,
@@ -39,6 +40,7 @@ import {
     unsubscribeNewsFeedAction,
     updateNewsFeedAction,
     updateNewsFeedRecordAction,
+    updateNewsSavedArticleReadStateAction,
 } from '@/lib/apiClient';
 import type {
     NewsFeedDraft,
@@ -358,6 +360,8 @@ export default function NewsDashboardComponent() {
                 linkReplaceRule: feed.linkReplaceRule,
                 fallbackThumbnailUrl: feed.fallbackThumbnailUrl,
                 thumbnailOverwriteUrl: feed.thumbnailOverwriteUrl,
+                similarityGroupingWordsBlacklist: feed.similarityGroupingWordsBlacklist,
+                enableTopicGrouping: feed.enableTopicGrouping !== false,
             })
         );
 
@@ -395,6 +399,8 @@ export default function NewsDashboardComponent() {
                 linkReplaceRule: updatedFeed.linkReplaceRule,
                 fallbackThumbnailUrl: updatedFeed.fallbackThumbnailUrl,
                 thumbnailOverwriteUrl: updatedFeed.thumbnailOverwriteUrl,
+                similarityGroupingWordsBlacklist: updatedFeed.similarityGroupingWordsBlacklist,
+                enableTopicGrouping: updatedFeed.enableTopicGrouping !== false,
             })
         );
 
@@ -424,7 +430,11 @@ export default function NewsDashboardComponent() {
         ? undefined
         : ({ feedIds: [activeFeedId] } as NewsFeedDraft);
 
-    const selectedSource = activeSavedList || selectedSubscription?.title ||
+    const activeSavedListName = activeSavedList
+        ? savedArticlesData?.lists?.find((list) => list.id === activeSavedList || list.name === activeSavedList)?.name || activeSavedList
+        : null;
+
+    const selectedSource = activeSavedListName || selectedSubscription?.title ||
         selectedSubscription?.url || selectedFeed?.title || null;
     const selectedCategory = activeFeedId === "all"
         ? "All"
@@ -458,19 +468,68 @@ export default function NewsDashboardComponent() {
         );
     };
 
-    const saveArticle = async (article: NewsFeedItem, list?: string | null) => {
-        const saved = await withAuth((auth) => saveNewsArticleAction(auth, article, list));
+    const getSavedArticle = (article: NewsFeedItem) => {
+        const link = String(article?.link || "").trim();
+        if (!link || !savedArticlesData?.articles?.length) {
+            return null;
+        }
+
+        return savedArticlesData.articles.find((savedArticle) =>
+            String(savedArticle.json?.link || "").trim() === link
+        ) || null;
+    };
+
+    const reloadSavedArticles = async () => {
         const data = await withAuth((auth) => getNewsSavedArticlesAction(auth, activeSavedList));
         setSavedArticlesData(data);
         window.dispatchEvent(new CustomEvent("dashwise:news-sidebar-refresh"));
         if (activeSavedList) {
             setFeed(data.articles.map((entry) => entry.json));
         }
+
+        return data;
+    };
+
+    const saveArticle = async (article: NewsFeedItem, list?: string | null) => {
+        const saved = await withAuth((auth) => saveNewsArticleAction(auth, article, list));
+        await reloadSavedArticles();
         return saved;
     };
 
+    const toggleSavedArticle = async (article: NewsFeedItem) => {
+        const link = String(article?.link || "").trim();
+        if (!link) return;
+
+        if (isArticleSaved(article)) {
+            await withAuth((auth) => deleteNewsSavedArticleAction(auth, link));
+            await reloadSavedArticles();
+            return;
+        }
+
+        await saveArticle(article);
+    };
+
+    const markSavedArticleRead = async (article: NewsFeedItem) => {
+        if (!activeSavedList || getSavedArticle(article)?.isRead) return;
+
+        const link = String(article?.link || "").trim();
+        if (!link) return;
+
+        await withAuth((auth) => updateNewsSavedArticleReadStateAction(auth, link, true));
+        setSavedArticlesData((current) => current
+            ? {
+                ...current,
+                articles: current.articles.map((savedArticle) =>
+                    String(savedArticle.json?.link || "").trim() === link
+                        ? { ...savedArticle, isRead: true }
+                        : savedArticle
+                ),
+            }
+            : current);
+    };
+
     const openSaveDialog = (article: NewsFeedItem) => {
-        const defaultList = savedArticlesData?.defaultList || "readLater";
+        const defaultList = savedArticlesData?.defaultList || savedArticlesData?.lists?.[0]?.id || "readLater";
         setSaveDialogArticle(article);
         setSaveListSelection(defaultList);
         setNewSaveListName("");
@@ -565,14 +624,17 @@ export default function NewsDashboardComponent() {
                         )}
 
                         {feed &&
-                paginatedArticles.map((item, idx) => (
-                                <NewsArticle
-                                    key={idx}
+                            paginatedArticles.map((item, idx) => (
+                                <NewsTopicGroup
+                                    key={String(item.link || idx)}
                                     item={item}
-                                    iconUrl={getIconUrl(item.subscription_id || item.subscription_name)}
-                                    isSaved={isArticleSaved(item)}
-                                    onSave={() => saveArticle(item)}
-                                    onSaveOptions={() => openSaveDialog(item)}
+                                    getIconUrl={getIconUrl}
+                                    activeSavedList={activeSavedList}
+                                    isArticleSaved={isArticleSaved}
+                                    getSavedArticle={getSavedArticle}
+                                    toggleSavedArticle={toggleSavedArticle}
+                                    markSavedArticleRead={markSavedArticleRead}
+                                    openSaveDialog={openSaveDialog}
                                 />
                             ))}
 
@@ -814,8 +876,8 @@ export default function NewsDashboardComponent() {
                                 value={saveListSelection}
                                 onChange={(event) => setSaveListSelection(event.target.value)}
                             >
-                                {(savedArticlesData?.lists?.length ? savedArticlesData.lists : ["readLater"]).map((list) => (
-                                    <option key={list} value={list}>{list}</option>
+                                {(savedArticlesData?.lists?.length ? savedArticlesData.lists : [{ id: "readLater", name: "Read Later" }]).map((list) => (
+                                    <option key={list.id} value={list.id}>{list.name}</option>
                                 ))}
                             </select>
                         </div>
@@ -843,23 +905,96 @@ export default function NewsDashboardComponent() {
     );
 }
 
-function NewsArticle({ item, iconUrl, isSaved, onSave, onSaveOptions }: { item: any; iconUrl?: string; isSaved?: boolean; onSave?: () => void; onSaveOptions?: () => void }) {
+function NewsTopicGroup({ item, getIconUrl, activeSavedList, isArticleSaved, getSavedArticle, toggleSavedArticle, markSavedArticleRead, openSaveDialog }: {
+    item: NewsFeedItem;
+    getIconUrl: (name: string) => string | undefined;
+    activeSavedList: string | null;
+    isArticleSaved: (article: NewsFeedItem) => boolean;
+    getSavedArticle: (article: NewsFeedItem) => { isRead?: boolean } | null;
+    toggleSavedArticle: (article: NewsFeedItem) => Promise<void>;
+    markSavedArticleRead: (article: NewsFeedItem) => Promise<void>;
+    openSaveDialog: (article: NewsFeedItem) => void;
+}) {
+    const relatedArticles = Array.isArray(item.relatedArticles) ? item.relatedArticles : [];
+    const savedArticle = getSavedArticle(item);
+
+    return (
+        <div className="space-y-2">
+            <NewsArticle
+                item={item}
+                iconUrl={getIconUrl(item.subscription_id || item.subscription_name)}
+                isSaved={isArticleSaved(item)}
+                isUnread={Boolean(activeSavedList && savedArticle && !savedArticle.isRead)}
+                onSave={() => toggleSavedArticle(item)}
+                onSaveOptions={() => openSaveDialog(item)}
+                onOpen={() => markSavedArticleRead(item)}
+            />
+
+            {relatedArticles.length > 0 && (
+                <div className="mx-auto w-full rounded-xl bg-(--surface-2)/70 p-1 flex flex-col gap-1 font-medium">
+                        Related
+                    <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                        {relatedArticles.map((article, idx) => (
+                            <RelatedNewsArticle
+                                key={String(article.link || idx)}
+                                item={article}
+                                iconUrl={getIconUrl(article.subscription_id || article.subscription_name)}
+                            />
+                        ))}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
+
+function RelatedNewsArticle({ item, iconUrl }: { item: NewsFeedItem; iconUrl?: string }) {
+    return (
+        <a
+            href={item.link}
+            target="_blank"
+            className="grid grid-cols-[5rem_1fr] gap-2 rounded-lg frosted p-2 transition hover:bg-white/10"
+        >
+            {item.thumbnailUrl
+                ? (
+                    <div className="overflow-hidden rounded-md shrink-0">
+                        <img
+                            src={String(item.thumbnailUrl)}
+                            className="h-16 w-20 object-cover hover:scale-[1.1] transition-transform duration-200"
+                        />
+                    </div>
+                )
+                : <div className="h-16 w-20 rounded-md bg-white/5 shrink-0" />}
+            <div className="min-w-0">
+                <p className="line-clamp-2 text-sm font-medium leading-snug hover:text-primary">
+                    {item.title}
+                </p>
+                <div className="mt-1 flex items-center gap-1 text-xs opacity-70">
+                    {iconUrl && <img src={iconUrl} alt={item.subscription_name} className="h-3.5" />}
+                    <span className="truncate">{item.subscription_name}</span>
+                </div>
+            </div>
+        </a>
+    );
+}
+
+function NewsArticle({ item, iconUrl, isSaved, isUnread, onSave, onSaveOptions, onOpen }: { item: NewsFeedItem; iconUrl?: string; isSaved?: boolean; isUnread?: boolean; onSave?: () => void; onSaveOptions?: () => void; onOpen?: () => Promise<void> | void }) {
     return (
         <div className="rounded-xl bg-(--surface-2) w-full">
             <div className="grid gap-3 grid-cols-1 md:grid-cols-[1fr_3fr]">
-                <div className="relative">
+                <div className="relative overflow-hidden rounded-xl">
                 {item.thumbnailUrl
                     ? (
                         <img
                             src={item.thumbnailUrl}
-                            className="w-full h-45 object-cover rounded-xl"
+                            className="w-full h-45 object-cover hover:scale-[1.05] transition-transform duration-200"
                         />
                     )
                     : 
-                    <div className="w-full h-45 frosted rounded-xl" />}
+                    <div className="w-full h-45 frosted rounded-xl hover:border-primary" />}
                     <button
                         type="button"
-                        className={`absolute right-2 top-2 flex h-9 w-9 items-center justify-center rounded-full frosted transition ${isSaved ? "bg-(--accent)/20 ring-1 ring-(--accent)" : "bg-black/30 hover:bg-black/50"}`}
+                        className="absolute right-2 top-2 flex h-9 w-9 items-center justify-center rounded-full bg-black/30 frosted transition hover:bg-black/50 group"
                         title={isSaved ? "Saved to list" : "Save article"}
                         onClick={(event) => {
                             event.preventDefault();
@@ -870,7 +1005,7 @@ function NewsArticle({ item, iconUrl, isSaved, onSave, onSaveOptions }: { item: 
                             onSaveOptions?.();
                         }}
                     >
-                        <Icon icon="fa6-solid:bookmark" className={isSaved ? "text-(--accent)" : "text-white/90"} />
+                        <Icon icon={isSaved ? "bi:bookmark-check-fill" : "fa6-solid:bookmark"} className={isSaved ? "text-(--primary)" : "text-white/90 group-hover:text-(--primary)"} />
                     </button>
                 </div>
 
@@ -878,14 +1013,29 @@ function NewsArticle({ item, iconUrl, isSaved, onSave, onSaveOptions }: { item: 
                     <a
                         href={item.link}
                         target="_blank"
+                        rel="noreferrer"
                         className="
                 font-semibold
                 line-clamp-2
                 text-base md:text-lg
                 hover:text-primary
             "
+                        onClick={async (event) => {
+                            if (!isUnread || !item.link) return;
+
+                            event.preventDefault();
+                            try {
+                                await onOpen?.();
+                            } catch (error) {
+                                console.error("Failed to mark saved article as read:", error);
+                            }
+                            window.open(item.link, "_blank", "noreferrer");
+                        }}
                     >
-                        {item.title}
+                        <span className="inline-flex items-center gap-2">
+                            <span>{item.title}</span>
+                            {isUnread && <span className="h-2 w-2 shrink-0 rounded-full bg-(--primary)" aria-label="Unread" />}
+                        </span>
                     </a>
 
                     <div className="flex flex-wrap justify-between text-xs mt-1 opacity-80 gap-y-1">

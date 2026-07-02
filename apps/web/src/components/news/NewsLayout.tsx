@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import useAuth from "@/context/useAuth";
 import {
+    deleteNewsSavedArticleListAction,
     getNewsFeedsAction,
     getNewsSavedArticlesAction,
     getNewsSubscriptionsAction,
@@ -23,6 +24,21 @@ interface FeedRecord {
     title?: string;
 }
 
+interface SavedListRecord {
+    id: string;
+    name: string;
+}
+
+interface SavedArticleRecord {
+    json?: {
+        subscription_id?: string;
+        subscription_name?: string;
+        link?: string;
+    };
+}
+
+const fallbackSavedLists = [{ id: "readLater", name: "Read Later" }];
+
 export default function NewsLayout({ children }: { children: ReactNode }) {
     const { token, withAuth } = useAuth();
     const navigate = useNavigate();
@@ -30,8 +46,10 @@ export default function NewsLayout({ children }: { children: ReactNode }) {
     const [searchParams] = useSearchParams();
     const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
     const [feeds, setFeeds] = useState<FeedRecord[]>([]);
-    const [savedLists, setSavedLists] = useState<string[]>([]);
+    const [savedLists, setSavedLists] = useState<SavedListRecord[]>([]);
+    const [savedArticles, setSavedArticles] = useState<SavedArticleRecord[]>([]);
     const [sidebarRefreshVersion, setSidebarRefreshVersion] = useState(0);
+    const activeSavedList = feedId?.startsWith("saved-") ? decodeURIComponent(feedId.slice("saved-".length)) : null;
 
     useEffect(() => {
         const refreshSidebar = () => setSidebarRefreshVersion((version) => version + 1);
@@ -56,20 +74,22 @@ export default function NewsLayout({ children }: { children: ReactNode }) {
                 const [subscriptionsData, feedsData, savedData]: any[] = await Promise.all([
                     withAuth((auth) => getNewsSubscriptionsAction(auth)),
                     withAuth((auth) => getNewsFeedsAction(auth)),
-                    withAuth((auth) => getNewsSavedArticlesAction(auth)),
+                    withAuth((auth) => getNewsSavedArticlesAction(auth, activeSavedList)),
                 ]);
 
                 if (!mounted) return;
 
                 setSubscriptions(subscriptionsData?.subscriptions ?? []);
                 setFeeds(Array.isArray(feedsData?.feeds) ? feedsData.feeds : []);
-                setSavedLists(Array.isArray(savedData?.lists) ? savedData.lists : ["readLater"]);
+                setSavedLists(Array.isArray(savedData?.lists) ? savedData.lists : fallbackSavedLists);
+                setSavedArticles(Array.isArray(savedData?.articles) ? savedData.articles : []);
             } catch (error) {
                 console.error("Failed to load news subscriptions:", error);
                 if (mounted) {
                     setSubscriptions([]);
                     setFeeds([]);
                     setSavedLists([]);
+                    setSavedArticles([]);
                 }
             }
         };
@@ -79,20 +99,34 @@ export default function NewsLayout({ children }: { children: ReactNode }) {
         return () => {
             mounted = false;
         };
-    }, [token, withAuth, sidebarRefreshVersion]);
+    }, [token, withAuth, sidebarRefreshVersion, activeSavedList]);
 
     const userFeeds = useMemo(() => feeds.filter((entry) => entry.id && entry.id !== "all"), [feeds]);
+    const savedSubscriptionRefs = useMemo(() => {
+        if (!activeSavedList) return null;
+
+        return new Set(savedArticles.flatMap((article) => [
+            article.json?.subscription_id,
+            article.json?.subscription_name,
+        ].map((value) => String(value || "").trim()).filter(Boolean)));
+    }, [activeSavedList, savedArticles]);
     const subscriptionTabs = useMemo(
         () => subscriptions
             .slice()
             .filter((sub) => {
+                if (savedSubscriptionRefs) {
+                    return savedSubscriptionRefs.has(String(sub.id || "")) ||
+                        savedSubscriptionRefs.has(String(sub.title || "")) ||
+                        savedSubscriptionRefs.has(String(sub.url || ""));
+                }
+
                 if (!feedId || feedId === "all") return true;
                 const isSelected = sub.id === feedId || sub.url === feedId;
                 if (isSelected) return true;
                 return Array.isArray(sub.feedIds) ? sub.feedIds.includes(feedId) : false;
             })
             .sort((left, right) => String(left.title || left.url).localeCompare(String(right.title || right.url))),
-        [subscriptions, feedId],
+        [subscriptions, feedId, savedSubscriptionRefs],
     );
 
     const encodeSubscriptionRouteId = (subscription: Subscription) => {
@@ -127,6 +161,20 @@ export default function NewsLayout({ children }: { children: ReactNode }) {
             feed: feed.id,
         });
         navigate(`${activeFeedRoute}?${params.toString()}`);
+    };
+
+    const deleteSavedList = async (list: SavedListRecord) => {
+        if (!token) return;
+
+        const confirmed = window.confirm(`Delete ${list.name} and all saved articles in it?`);
+        if (!confirmed) return;
+
+        await withAuth((auth) => deleteNewsSavedArticleListAction(auth, list.id));
+        setSidebarRefreshVersion((version) => version + 1);
+
+        if (activeSavedList === list.id || activeSavedList === list.name) {
+            navigate("/apps/news");
+        }
     };
 
     return (
@@ -183,13 +231,20 @@ export default function NewsLayout({ children }: { children: ReactNode }) {
                     collapsible={true}
                 />
 
-                {(savedLists.length ? savedLists : ["readLater"]).map((list) => (
+                {(savedLists.length ? savedLists : fallbackSavedLists).map((list) => (
                     <Tab
-                        key={list}
-                        dst={`/apps/news/saved-${encodeURIComponent(list)}`}
+                        key={list.id}
+                        dst={`/apps/news/saved-${encodeURIComponent(list.id)}`}
                         icon="fa6-solid:bookmark"
-                        title={list}
+                        title={list.name}
                         group="Saved"
+                        dropdownActions={[
+                            {
+                                label: "Delete list",
+                                icon: "fa6-solid:trash",
+                                action: () => deleteSavedList(list),
+                            },
+                        ]}
                     />
                 ))}
 

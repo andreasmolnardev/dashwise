@@ -16,12 +16,15 @@ export default function AuthWelcomeFormComponent() {
              getAppConfigAction().then(res => setEnableSSO(res.enableSSO ?? false)).catch(() => setEnableSSO(false));
 
         const validateAuth = async () => {
-            const token = localStorage.getItem('pb_token');
+            const loginToken = new URLSearchParams(window.location.search).get("loginToken");
+            const token = loginToken || localStorage.getItem('pb_token');
             if (!token) return;
 
                 try {
-                    await validateAuthTokenAction({ token });
-                    navigate("/home");
+                    const result = await validateAuthTokenAction({ token });
+                    localStorage.setItem("pb_token", result.token || token);
+                    localStorage.setItem("pb_user", JSON.stringify(result.user));
+                    navigate("/home", { replace: true });
                 } catch (err) {
                     // ignore
                 }

@@ -93,6 +93,8 @@ export type NewsFeedDraft = {
   linkReplaceRule?: Record<string, string>;
   fallbackThumbnailUrl?: string;
   thumbnailOverwriteUrl?: string;
+  similarityGroupingWordsBlacklist?: string;
+  enableTopicGrouping?: boolean;
 };
 
 export type NewsFeedItem = {
@@ -101,12 +103,15 @@ export type NewsFeedItem = {
   pubDate: string | Date;
   subscription_id: string;
   subscription_name: string;
+  topicId?: string;
+  topicTitle?: string;
+  relatedArticles?: NewsFeedItem[];
   [key: string]: unknown;
 };
 
 export type NewsSavedArticle = {
   id: string;
-  list: string;
+  list: string[];
   isRead?: boolean;
   json: NewsFeedItem;
   userId?: string;
@@ -114,9 +119,14 @@ export type NewsSavedArticle = {
   updated?: string;
 };
 
+export type NewsSavedArticleList = {
+  id: string;
+  name: string;
+};
+
 export type NewsSavedArticlesResponse = {
   articles: NewsSavedArticle[];
-  lists: string[];
+  lists: NewsSavedArticleList[];
   defaultList: string;
 };
 
@@ -149,6 +159,8 @@ export type NewsSubscribeInput = {
   linkReplaceRule?: Record<string, string>;
   fallbackThumbnailUrl?: string;
   thumbnailOverwriteUrl?: string;
+  similarityGroupingWordsBlacklist?: string;
+  enableTopicGrouping?: boolean;
 };
 
 export type NewsUpdateInput = {
@@ -161,6 +173,8 @@ export type NewsUpdateInput = {
   linkReplaceRule?: Record<string, string>;
   fallbackThumbnailUrl?: string;
   thumbnailOverwriteUrl?: string;
+  similarityGroupingWordsBlacklist?: string;
+  enableTopicGrouping?: boolean;
 };
 
 export type HomeLink = {

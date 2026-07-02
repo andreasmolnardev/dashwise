@@ -16,6 +16,7 @@ dist/
 
 # testing
 /coverage
+docker-compose.test.testenv.yaml
 
 # Ignore everything under /pocketbase
 /pocketbase/*

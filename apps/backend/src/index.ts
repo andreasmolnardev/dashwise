@@ -13,6 +13,8 @@ import systemRoute from "./routes/system.route";
 import dataRoute from "./routes/data.route";
 
 const app = new Hono();
+const devAutoLoginEmail = "testenv@dashwise.local";
+const devAutoLoginPassword = "DashwiseTestenv123";
 const assetRoots = {
   defaults: resolve(process.cwd(), "../../packages/assets/defaults"),
   integrations: resolve(process.cwd(), "../../packages/assets/integrations"),
@@ -203,6 +205,56 @@ app.get("*", async () => {
 
 const port = config.PORT;
 
+async function printDevAutoLoginUrl() {
+  if (Bun.env.NODE_ENV !== "development") {
+    return;
+  }
+
+  const apiUrl = `http://127.0.0.1:${port}`;
+  const appUrl = Bun.env.NEXT_PUBLIC_APP_URL || "http://localhost:5173";
+
+  try {
+    const signupResponse = await fetch(`${apiUrl}/api/v1/auth/signup`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: devAutoLoginEmail,
+        password: devAutoLoginPassword,
+        passwordConfirm: devAutoLoginPassword,
+      }),
+    });
+
+    if (![200, 201, 400].includes(signupResponse.status)) {
+      logger.warn(`Dev auto-login signup returned HTTP ${signupResponse.status}`);
+    }
+
+    const loginResponse = await fetch(`${apiUrl}/api/v1/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: devAutoLoginEmail,
+        password: devAutoLoginPassword,
+      }),
+    });
+
+    if (!loginResponse.ok) {
+      logger.warn(`Dev auto-login failed with HTTP ${loginResponse.status}`);
+      return;
+    }
+
+    const loginData = await loginResponse.json() as { token?: string };
+    if (!loginData.token) {
+      logger.warn("Dev auto-login response did not include a token");
+      return;
+    }
+
+    logger.info(`Dev auto-login URL: ${appUrl}/auth?loginToken=${encodeURIComponent(loginData.token)}`);
+    logger.info(`Dev credentials: ${devAutoLoginEmail} / ${devAutoLoginPassword}`);
+  } catch (error) {
+    logger.warn(`Dev auto-login setup failed: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
 Bun.serve({
   hostname: "0.0.0.0",
   port,
@@ -212,6 +264,7 @@ Bun.serve({
 
 logger.info(`Running on 0.0.0.0:${port}`);
 logger.info(`PocketBase target URL: ${config.PB_URL}`);
+void printDevAutoLoginUrl();
 
 export type AppType = typeof app;
 export { app };

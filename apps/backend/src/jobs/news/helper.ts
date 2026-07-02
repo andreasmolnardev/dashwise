@@ -15,6 +15,11 @@ export interface FeedItem {
 
 const logger = createLogger("NewsFeedBuilder");
 
+const FEED_REQUEST_HEADERS = {
+    "User-Agent": "Dashwise RSS Reader (+https://github.com/andrew-d/dashwise)",
+    "Accept": "application/rss+xml, application/atom+xml, application/xml, text/xml;q=0.9, */*;q=0.8",
+};
+
 type ParserItem = Parser.Item & {
     author?: string;
     creator?: string;
@@ -50,6 +55,7 @@ export async function getFeedItems({
     const logger = createLogger("NewsFeedBuilder");
 
     const parser = new Parser<any, ParserItem>({
+        headers: FEED_REQUEST_HEADERS,
         customFields: {
             item: [
                 ["media:thumbnail", "media:thumbnail"],
@@ -80,7 +86,7 @@ export async function getFeedItems({
                 return {
                     title: stripHtml(item.title) || "No Title",
                     link,
-                    description: getBestDescription(item),
+                    description: truncateSentences(getBestDescription(item), 5),
                     content: getContent(item),
                     pubDate,
                     thumbnailUrl: getThumbnail(item, thumbnailOverwriteUrl, fallbackThumbnailUrl || feed?.image?.url),
@@ -92,7 +98,7 @@ export async function getFeedItems({
             .slice(0, maxItems);
     } catch (error: any) {
         logger.error(`Error fetching or parsing feed: ${feedUrl}`, error);
-        return [];
+        throw error;
     }
 }
 
@@ -119,6 +125,14 @@ function getBestDescription(item: ParserItem): string {
         item.summary ||
         ""
     );
+}
+
+function truncateSentences(value: string, maxSentences: number): string {
+    const text = stripHtml(value).trim();
+    if (!text) return "";
+
+    const sentences = text.match(/[^.!?]+[.!?]+(?:\s+|$)|[^.!?]+$/g) ?? [text];
+    return sentences.slice(0, maxSentences).join(" ").replace(/\s+/g, " ").trim();
 }
 
 function getContent(item: ParserItem): string | undefined {
