@@ -49,6 +49,34 @@ configuration:
       required: false
       default: 60                   # Default value if not provided
       description: "Interval in seconds"
+    SHOW_HEADER:
+      required: false
+      default: true
+      description: "Toggle the header on the column widget examples"
+    SHOW_CPU:
+      required: false
+      default: true
+      description: "Toggle the CPU column in the static array example"
+    SHOW_MEMORY:
+      required: false
+      default: true
+      description: "Toggle the Memory column in the static array example"
+    SHOW_STORAGE:
+      required: false
+      default: true
+      description: "Toggle the Storage column in the static array example"
+    SHOW_LIST_HEADER:
+      required: false
+      default: true
+      description: "Toggle the list widget header"
+    SHOW_CARD_HEADER:
+      required: false
+      default: true
+      description: "Toggle the details card header"
+    SHOW_IFRAME_HEADER:
+      required: false
+      default: true
+      description: "Toggle the iframe widget header"
 
   # Endpoints
   # HTTP requests used to fetch or push data.
@@ -103,36 +131,194 @@ configuration:
 
   # Widgets
   # Defines how data is presented on the dashboard.
+  # This section shows every supported widget template and the optional fields
+  # that the current resolver understands.
   widgets:
-    - name: "Status Overview"
-      key: "status-overview"       # Unique identifier for the widget
-      template: "columns"           # UI template (e.g., columns, vertical-list)
+    - name: "Columns Widget (prototype)"
+      key: "columns-prototype"
+      template: "columns"
       depends_on:
         - "computed.status_summary"
-      hide_if_empty: true
+      refresh_interval: 30
       data:
         source: "computed.status_summary"
         input:
           URL: "${URL}"
           API_KEY: "${API_KEY}"
           POLLING_INTERVAL: "${POLLING_INTERVAL}"
+          display_customizations:
+            order:
+              - "status-overview"
+              - "uptime"
+            hidden:
+              - "deprecated"
       properties:
         header:
+          show_if: "${SHOW_HEADER} != false"
           title: "System Status"
           icon: "integrations.example.details.icon"
+          titleAction: "url:${URL}/status"
         columns:
+          user_customizations:
+            - allow_reorder
+            - allow_hide
           iterate_over: "computed.status_summary"
-          prototype:                # Template for each item in the list
-            title: "${label}"
+          prototype:
+            id: "${id}"
+            label: "${label}"
+            primary: "${score}%"
+            primaryAction: "url:${link}"
+            secondary: "${description}"
+            title: "${name}"
             titleAction: "url:${link}"
+            thumbnail: "${thumbnail}"
+            icon:
+              type: "weather"
+              file: "${icon_file} ??? fa6-solid:circle-info"
+              size: 32
+              description: "${icon_description}"
+              useFrostedGradient: true
             progress:
               type: "circular"
               value: "${score}"
               thresholds:
                 - min: 80
                   color: "#16a34a"
+                - min: 60
+                  color: "#f59e0b"
                 - min: 0
                   color: "#ef4444"
+              zero_label: "N/A"
+            badge:
+              show: true
+              icon: "fa6-solid:triangle-exclamation"
+              tooltip: "${warning}"
+
+    - name: "Columns Widget (static array)"
+      key: "columns-static"
+      template: "columns"
+      properties:
+        header:
+          show_if: "${SHOW_HEADER}"
+          title: "Static Columns"
+          icon: "integrations.example.details.icon"
+          titleAction: "url:${URL}/static"
+        columns:
+          - show_if: "${SHOW_CPU} != false"
+            id: "cpu"
+            label: "CPU"
+            primary: "${computed.metrics.cpu.avg_load}%"
+            primaryAction: "url:${URL}/cpu"
+            secondary: "${computed.metrics.cpu.cores} cores"
+          - show_if: "${SHOW_MEMORY} != false"
+            id: "memory"
+            label: "Memory"
+            icon:
+              type: "custom"
+              file: "fa6-solid:memory"
+              size: 28
+              description: "Memory usage"
+              useFrostedGradient: false
+            primary: "${computed.metrics.memory.used_percent}%"
+            secondary: "${computed.metrics.memory.total} total"
+            badge:
+              show: true
+              icon: "fa6-solid:circle-info"
+              tooltip: "Usage details"
+          - show_if: "${SHOW_STORAGE} != false"
+            id: "storage"
+            label: "Storage"
+            title: "Disks"
+            titleAction: "url:${URL}/storage"
+            thumbnail: "${computed.metrics.storage.thumbnail}"
+            primary: "${computed.metrics.storage.used_percent}%"
+            secondary: "${computed.metrics.storage.total} used"
+
+    - name: "Vertical List Widget"
+      key: "vertical-list-reference"
+      template: "vertical-list"
+      depends_on:
+        - "computed.items"
+      hide_if_empty: true
+      refresh_interval: 60
+      data:
+        source: "computed.items"
+        input:
+          URL: "${URL}"
+          API_KEY: "${API_KEY}"
+      properties:
+        header:
+          show_if: "${SHOW_LIST_HEADER} != false"
+          title: "Recent Items"
+          icon: "fa6-solid:list"
+          titleAction: "url:${URL}/items"
+        list:
+          iterate_over: "computed.items"
+          max_items: 8
+          # max_visible is also supported and behaves the same as max_items.
+          max_visible: 8
+          sort_by: "updated_at"
+          sort_order: "desc"
+          prototype:
+            accent:
+              value: "severity"
+              map:
+                critical: "#ef4444"
+                warning: "#f59e0b"
+                info: "#3b82f6"
+            icon:
+              value: "kind"
+              map:
+                doc: "fa6-solid:file-lines"
+                link: "fa6-solid:link"
+                image: "fa6-solid:image"
+            title: "${title}"
+            titleAction: "url:${link}"
+            subtitle:
+              type: "list"
+              value: "${tags}"
+            thumbnail: "${thumbnail}"
+            badge:
+              show: true
+              icon: "fa6-solid:bell"
+              tooltip: "${summary}"
+
+    - name: "Item Details Card"
+      key: "icon-details-card-reference"
+      template: "icon-details-card"
+      depends_on:
+        - "computed.item"
+      data:
+        source: "computed.item"
+        input:
+          URL: "${URL}"
+      properties:
+        header:
+          show_if: "${SHOW_CARD_HEADER} != false"
+          title: "Current Item"
+          icon: "fa6-solid:circle-info"
+          titleAction: "url:${URL}/item"
+        icon:
+          file: "${computed.item.icon} ??? fa6-solid:square"
+        primary: "${computed.item.name}"
+        secondary: "${computed.item.description}"
+
+    - name: "Iframe Widget"
+      key: "iframe-reference"
+      template: "iframe"
+      data:
+        source: "computed.iframe"
+        input:
+          URL: "${URL}"
+      properties:
+        header:
+          show_if: "${SHOW_IFRAME_HEADER} != false"
+          title: "Embedded App"
+          icon: "fa6-solid:window-restore"
+          titleAction: "url:${URL}"
+        url: "${URL}/embed"
+        min_height: 300
+        max_height: 800
 
 # ---------------------------------------------------------
 # 3. Shortcuts
@@ -152,19 +338,14 @@ shortcuts:
           - "Example"
           - "${name}"
 
-# ---------------------------------------------------------
-# 4. Glanceables
-# Defines compact summary items shown in glanceable slots.
-# See weather.yaml for a richer example with computed fields and icon rendering.
-# ---------------------------------------------------------
-  glanceables:
-    - name: "Example Glanceable"
-      key: "example-glanceable"
-      properties:
-        label: "${name}"
-        value: "${value}"
-      icon:
-        file: "${icon} ??? fa6-solid:sun"
-        size: 16
-        description: "${description}"
-      text: "${value} ??? No data"
+glanceables:
+  - name: "Example Glanceable"
+    key: "example-glanceable"
+    properties:
+      label: "${name}"
+      value: "${value}"
+    icon:
+      file: "${icon} ??? fa6-solid:sun"
+      size: 16
+      description: "${description}"
+    text: "${value} ??? No data"
