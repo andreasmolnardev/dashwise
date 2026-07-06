@@ -29,7 +29,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Slider } from "@/components/ui/slider";
 import {
   Select,
@@ -40,18 +39,51 @@ import {
 } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import useAuth from "@/context/useAuth";
-import { uploadWallpaperAction } from '@/lib/apiClient';
-import { renderWidget } from "../widgets/Widget";
+import { getUserGlanceablesAction, getUserWidgetsAction, uploadWallpaperAction } from '@/lib/apiClient';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { WidgetPickerCard } from "./pages/DashboardWidgetPreview";
 import { normalizeWallpaperFilters } from "./wallpaperFilterDefaults";
+import { renderWidget } from "../widgets/Widget";
+import WidgetPropertiesForm from "@dashwise/integrationskit/forms/WidgetPropertiesForm";
 
-const WIDGET_OPTIONS = [
-  "main-clock",
-  "search-bar",
+const LOCAL_WIDGET_OPTIONS = [
+  { value: "glanceable-clock", label: "Frame glanceable clock" },
+  { value: "calendar-today", label: "Calendar today" },
   "calendar-week",
+  { value: "calendar-upcoming", label: "Calendar upcoming" },
   "countdown",
-  "link-view",
+  "rss-feed",
+  "day-progress",
+  "week-progress",
+  "month-progress",
+  "year-progress",
   "monitoring",
-];
+] as const;
+
+const FRAME_LAYOUTS = [
+  { value: "1x1", label: "1x1", cols: 1, rows: 1 },
+  { value: "2x1", label: "2x1", cols: 2, rows: 1 },
+  { value: "2x2", label: "2x2", cols: 2, rows: 2 },
+  { value: "custom", label: "Custom", cols: 2, rows: 2 },
+] as const;
+
+const EXCLUDED_FRAME_WIDGETS = new Set(["search-bar", "link-view"]);
+
+const LOCAL_WIDGET_SCHEMAS: Record<string, Record<string, any>> = {
+  "calendar-today": { startMonday: true },
+  "calendar-week": { startMonday: true },
+  "calendar-upcoming": { maxEvents: 5 },
+  countdown: { date: "", date_format: "yyyy-MM-dd", label: "Countdown" },
+  "rss-feed": { feedId: "all", maxItems: 8, title: "Latest Articles" },
+};
+
+type FrameSection = {
+  id: string;
+  label: string;
+  widgetType: string;
+  params?: Record<string, any>;
+  consumerKey?: string;
+};
 
 type Frame = {
   id: string;
@@ -60,6 +92,34 @@ type Frame = {
 };
 
 type BackgroundMode = "current" | "none" | "upload" | "url";
+
+function clampLayoutSize(value: number) {
+  if (!Number.isFinite(value)) return 1;
+  return Math.max(1, Math.min(4, Math.round(value)));
+}
+
+function getSectionLabel(col: number, row: number, cols: number, rows: number) {
+  const vertical = rows === 1 ? "" : row === 0 ? "top" : row === rows - 1 ? "bottom" : "middle";
+  const horizontal = cols === 1 ? "" : col === 0 ? "left" : col === cols - 1 ? "right" : "middle";
+  if (vertical === "middle" && horizontal === "middle") return "middle";
+  return [vertical, horizontal].filter(Boolean).join(" ") || "cell";
+}
+
+function buildSections(cols: number, rows: number, current: FrameSection[] = []) {
+  const currentById = new Map(current.map((section) => [section.id, section]));
+  return Array.from({ length: rows }).flatMap((_, row) =>
+    Array.from({ length: cols }).map((_, col) => {
+      const id = `cell-${row}-${col}`;
+      return {
+        id,
+        label: getSectionLabel(col, row, cols, rows),
+        widgetType: currentById.get(id)?.widgetType ?? "glanceable-clock",
+        params: currentById.get(id)?.params ?? {},
+        consumerKey: currentById.get(id)?.consumerKey,
+      };
+    })
+  );
+}
 
 function SortableFrame({
   frame,
@@ -131,7 +191,17 @@ export default function SmartFramesManager({
   const { user, withAuth } = useAuth();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editFrameId, setEditFrameId] = useState<string | null>(null);
-  const [draftType, setDraftType] = useState(WIDGET_OPTIONS[0]);
+  const [draftType, setDraftType] = useState("glanceable-clock");
+  const [layoutPreset, setLayoutPreset] = useState("1x1");
+  const [customCols, setCustomCols] = useState(2);
+  const [customRows, setCustomRows] = useState(2);
+  const [selectedSectionId, setSelectedSectionId] = useState("cell-0-0");
+  const [sections, setSections] = useState<FrameSection[]>([]);
+  const [widgetOptions, setWidgetOptions] = useState<Array<{ value: string; label: string }>>(
+    LOCAL_WIDGET_OPTIONS.map((item) => typeof item === "string" ? { value: item, label: item.replace(/-/g, " ") } : item),
+  );
+  const [glanceableOptions, setGlanceableOptions] = useState<Array<{ value: string; label: string }>>([]);
+  const [widgetSchemas, setWidgetSchemas] = useState<Record<string, Record<string, any>>>({});
   const [draftBackgroundMode, setDraftBackgroundMode] = useState<
     BackgroundMode
   >("current");
@@ -142,8 +212,6 @@ export default function SmartFramesManager({
   const [uploading, setUploading] = useState(false);
   const [brightnessPercent, setBrightnessPercent] = useState(35);
   const [blurPercent, setBlurPercent] = useState(8);
-  const [showWidgetParams, setShowWidgetParams] = useState(false);
-  const [draftWidgetParamsText, setDraftWidgetParamsText] = useState("");
   const [widgetParamsError, setWidgetParamsError] = useState<string | null>(
     null,
   );
@@ -151,6 +219,10 @@ export default function SmartFramesManager({
 
   const brightnessValue = Math.round((brightnessPercent / 100) * (150 - 50) + 50);
   const blurValue = Math.round((blurPercent / 100) * (25 - 1) + 1);
+  const selectedLayout = FRAME_LAYOUTS.find((layout) => layout.value === layoutPreset) ?? FRAME_LAYOUTS[0];
+  const layoutCols = layoutPreset === "custom" ? customCols : selectedLayout.cols;
+  const layoutRows = layoutPreset === "custom" ? customRows : selectedLayout.rows;
+  const selectedSection = sections.find((section) => section.id === selectedSectionId) ?? sections[0];
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -174,6 +246,11 @@ export default function SmartFramesManager({
     onChange(frames.filter((frame) => frame.id !== id));
   };
 
+  const updateSelectedSection = (patch: Partial<FrameSection>) => {
+    setSections((current) => current.map((section) => section.id === selectedSectionId ? { ...section, ...patch } : section));
+    if (patch.widgetType) setDraftType(patch.widgetType);
+  };
+
   useEffect(() => {
     if (!uploadFile) {
       setUploadPreview(null);
@@ -185,9 +262,59 @@ export default function SmartFramesManager({
     return () => URL.revokeObjectURL(url);
   }, [uploadFile]);
 
+  useEffect(() => {
+    void withAuth(async (auth) => {
+      const [widgetsData, glanceablesData] = await Promise.all([
+        getUserWidgetsAction(auth).catch(() => ({})),
+        getUserGlanceablesAction(auth).catch(() => []),
+      ]);
+
+      const integrationWidgets = Object.entries((widgetsData ?? {}) as Record<string, any[]>).flatMap(([, widgets]) =>
+        (Array.isArray(widgets) ? widgets : []).map((widget) => ({
+          value: String(widget.key ?? ""),
+          label: String(widget.name ?? widget.key ?? "Integration widget"),
+          schema: widget.input && typeof widget.input === "object"
+            ? widget.input
+            : widget.data?.input && typeof widget.data.input === "object"
+              ? widget.data.input
+              : widget.properties && typeof widget.properties === "object"
+                ? widget.properties
+                : {},
+        })).filter((widget) => widget.value && !EXCLUDED_FRAME_WIDGETS.has(widget.value)),
+      );
+
+      const glanceables = (Array.isArray(glanceablesData) ? glanceablesData : []).map((glanceable: any) => ({
+        value: String(glanceable.type ?? glanceable.key ?? ""),
+        label: String(glanceable.name ?? glanceable.displayName ?? glanceable.type ?? glanceable.key ?? "Glanceable"),
+      })).filter((glanceable) => glanceable.value);
+
+      setWidgetOptions([...LOCAL_WIDGET_OPTIONS.map((item) => typeof item === "string" ? { value: item, label: item.replace(/-/g, " ") } : item).filter((item) => !EXCLUDED_FRAME_WIDGETS.has(item.value)), ...integrationWidgets]);
+      setWidgetSchemas({
+        ...LOCAL_WIDGET_SCHEMAS,
+        ...Object.fromEntries(integrationWidgets.map((widget) => [widget.value, widget.schema])),
+      });
+      setGlanceableOptions(glanceables);
+    });
+  }, [withAuth]);
+
+  useEffect(() => {
+    setSections((current) => buildSections(layoutCols, layoutRows, current));
+  }, [layoutCols, layoutRows]);
+
+  useEffect(() => {
+    if (!sections.some((section) => section.id === selectedSectionId)) {
+      setSelectedSectionId(sections[0]?.id ?? "cell-0-0");
+    }
+  }, [sections, selectedSectionId]);
+
   const resetDraft = () => {
     setEditFrameId(null);
-    setDraftType(WIDGET_OPTIONS[0]);
+    setDraftType("glanceable-clock");
+    setLayoutPreset("1x1");
+    setCustomCols(2);
+    setCustomRows(2);
+    setSelectedSectionId("cell-0-0");
+    setSections(buildSections(1, 1));
     setDraftBackgroundMode("current");
     setDraftBackgroundUrl("");
     setExistingBackgroundUrl("");
@@ -196,8 +323,6 @@ export default function SmartFramesManager({
     setUploading(false);
     setBrightnessPercent(35);
     setBlurPercent(8);
-    setShowWidgetParams(false);
-    setDraftWidgetParamsText("");
     setWidgetParamsError(null);
     setError(null);
   };
@@ -223,12 +348,18 @@ export default function SmartFramesManager({
       ? "url"
       : "current";
     const editableParams = { ...(frame.params ?? {}) } as Record<string, any>;
+    const layout = editableParams.layout && typeof editableParams.layout === "object"
+      ? editableParams.layout as Record<string, any>
+      : undefined;
+    const cols = clampLayoutSize(Number(layout?.cols ?? 1));
+    const rows = clampLayoutSize(Number(layout?.rows ?? 1));
+    const preset = FRAME_LAYOUTS.some((item) => item.value === `${cols}x${rows}`) ? `${cols}x${rows}` : "custom";
+    const nextSections = buildSections(cols, rows, Array.isArray(editableParams.sections) ? editableParams.sections : [{ id: "cell-0-0", widgetType: frame.type, params: editableParams }]);
     delete editableParams.backgroundImageUrl;
     delete editableParams.backgroundSource;
     delete editableParams.backgroundFilters;
-    const paramsText = Object.keys(editableParams).length
-      ? JSON.stringify(editableParams, null, 2)
-      : "";
+    delete editableParams.layout;
+    delete editableParams.sections;
     const fallbackFilters = normalizeWallpaperFilters(user?.appearancePreferences?.wallpaperFilters);
     const filters = frame.params?.backgroundFilters as Record<string, any> | undefined;
     const brightness = typeof filters?.brightness === "number"
@@ -239,7 +370,12 @@ export default function SmartFramesManager({
       : fallbackFilters.blur;
 
     setEditFrameId(frame.id);
-    setDraftType(frame.type);
+    setDraftType(nextSections[0]?.widgetType ?? frame.type);
+    setLayoutPreset(preset);
+    setCustomCols(cols);
+    setCustomRows(rows);
+    setSections(nextSections);
+    setSelectedSectionId(nextSections[0]?.id ?? "cell-0-0");
     setDraftBackgroundMode(inferredMode);
     setDraftBackgroundUrl(backgroundImageUrl);
     setExistingBackgroundUrl(backgroundImageUrl);
@@ -248,8 +384,6 @@ export default function SmartFramesManager({
     setUploading(false);
     setBrightnessPercent(Math.round(((brightness - 50) / (150 - 50)) * 100));
     setBlurPercent(Math.round(((blur - 1) / (25 - 1)) * 100));
-    setShowWidgetParams(false);
-    setDraftWidgetParamsText(paramsText);
     setWidgetParamsError(null);
     setError(null);
     setDialogOpen(true);
@@ -264,21 +398,7 @@ export default function SmartFramesManager({
     setError(null);
     setWidgetParamsError(null);
 
-    let parsedWidgetParams: Record<string, any> = {};
-    if (draftWidgetParamsText.trim()) {
-      try {
-        const parsed = JSON.parse(draftWidgetParamsText);
-        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-          setWidgetParamsError("Widget properties must be a JSON object.");
-          return;
-        }
-        parsedWidgetParams = parsed as Record<string, any>;
-      } catch (err) {
-        console.error(err);
-        setWidgetParamsError("Widget properties must be valid JSON.");
-        return;
-      }
-    }
+    const selectedParams: Record<string, any> = selectedSection?.params ?? {};
 
     let backgroundImageUrl: string | undefined;
     let backgroundSource: BackgroundMode | undefined;
@@ -335,7 +455,13 @@ export default function SmartFramesManager({
       ? frames.find((frame) => frame.id === editFrameId)
       : undefined;
 
-    const nextParams = { ...parsedWidgetParams } as Record<string, any>;
+    const nextParams = {} as Record<string, any>;
+    const normalizedSections = buildSections(layoutCols, layoutRows, sections).map((section) => ({
+      ...section,
+      params: section.id === selectedSectionId ? selectedParams : section.params ?? {},
+    }));
+    nextParams.layout = { cols: layoutCols, rows: layoutRows };
+    nextParams.sections = normalizedSections;
 
     if (draftBackgroundMode === "current" || draftBackgroundMode === "none") {
       delete nextParams.backgroundImageUrl;
@@ -357,7 +483,7 @@ export default function SmartFramesManager({
     const nextFrame: Frame = {
       id: existingFrame?.id ??
         `frame-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-      type: draftType,
+      type: normalizedSections[0]?.widgetType ?? draftType,
       params: nextParams,
     };
 
@@ -408,69 +534,51 @@ export default function SmartFramesManager({
         onClick={handleOpenAdd}
       >
         <Plus className="w-4 h-4 mr-2" />
-        Add Smart Frame
+        Add Frame
       </Button>
 
       <Dialog open={dialogOpen} onOpenChange={handleDialogChange}>
-        <DialogContent className="frosted text-foreground">
+          <DialogContent className="frosted max-h-[90vh] w-[calc(100vw-2rem)] max-w-3xl overflow-y-auto overflow-x-hidden text-foreground">
           <DialogHeader>
             <DialogTitle>
-              {editFrameId ? "Edit Smart Frame" : "Add Smart Frame"}
+              {editFrameId ? "Edit Frame" : "Add Frame"}
             </DialogTitle>
           </DialogHeader>
 
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Widget</Label>
-              <Select value={draftType} onValueChange={setDraftType}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select a widget" />
-                </SelectTrigger>
-                <SelectContent>
-                  {WIDGET_OPTIONS.map((widget) => (
-                    <SelectItem
-                      key={widget}
-                      value={widget}
-                      className="capitalize"
-                    >
-                      {widget.replace(/-/g, " ")}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Button
-                type="button"
-                variant="ghost"
-                className="px-0 text-sm text-white/70 hover:text-white"
-                onClick={() => setShowWidgetParams((prev) => !prev)}
-              >
-                {showWidgetParams
-                  ? "Hide widget properties"
-                  : "Edit widget properties"}
-              </Button>
-              {showWidgetParams && (
-                <div className="space-y-2">
-                  <Label htmlFor="frame-widget-params">
-                    Widget properties (JSON)
-                  </Label>
-                  <Textarea
-                    id="frame-widget-params"
-                    value={draftWidgetParamsText}
-                    onChange={(event) =>
-                      setDraftWidgetParamsText(event.target.value)}
-                    placeholder='{"title":"My Widget"}'
-                    rows={6}
-                    spellCheck={false}
-                    className="font-mono text-sm"
-                  />
-                  {widgetParamsError && (
-                    <p className="text-sm text-red-400">{widgetParamsError}</p>
-                  )}
+            <div className="min-w-0 space-y-4 overflow-hidden">
+            <div className="space-y-3">
+              <div className="flex items-center gap-3">
+                <Label className="shrink-0">Layout</Label>
+                <Select value={layoutPreset} onValueChange={setLayoutPreset}>
+                  <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {FRAME_LAYOUTS.map((layout) => <SelectItem key={layout.value} value={layout.value}>{layout.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              {layoutPreset === "custom" && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2"><Label>Columns</Label><Input type="number" min={1} max={4} value={customCols} onChange={(event) => setCustomCols(clampLayoutSize(Number(event.target.value)))} /></div>
+                  <div className="space-y-2"><Label>Rows</Label><Input type="number" min={1} max={4} value={customRows} onChange={(event) => setCustomRows(clampLayoutSize(Number(event.target.value)))} /></div>
                 </div>
               )}
+              <div className="grid gap-2 rounded-xl border border-white/10 bg-black/20 p-2" style={{ gridTemplateColumns: `repeat(${layoutCols}, minmax(0, 1fr))` }}>
+                {sections.map((section) => (
+                  <button key={section.id} type="button" onClick={() => setSelectedSectionId(section.id)} className={`min-h-20 rounded-lg border p-2 text-sm capitalize transition ${selectedSectionId === section.id ? "border-primary bg-primary/20" : "border-white/10 bg-white/5 hover:bg-white/10"}`}>
+                    {section.label}
+                  </button>
+                ))}
+              </div>
             </div>
 
-            <div className="space-y-3">
+            <Tabs defaultValue="background" className="min-w-0 space-y-3 overflow-hidden">
+              <TabsList className="w-full grid grid-cols-3">
+                <TabsTrigger value="background">Frame background</TabsTrigger>
+                <TabsTrigger value="style">Widget style</TabsTrigger>
+                <TabsTrigger value="properties">Widget properties</TabsTrigger>
+              </TabsList>
+
+            <TabsContent value="background" className="space-y-3">
               <Label>Background</Label>
               <RadioGroup
                 value={draftBackgroundMode}
@@ -612,7 +720,67 @@ export default function SmartFramesManager({
                   />
                 </div>
               )}
-            </div>
+            </TabsContent>
+
+            <TabsContent value="style" className="space-y-3">
+              <p className="text-sm text-white/70">Widget style options coming here. Current section keeps dashboard default styling.</p>
+            </TabsContent>
+
+            <TabsContent value="properties" className="min-w-0 space-y-3 overflow-hidden">
+              <Label>{selectedSection?.label ?? "Cell"} widget</Label>
+              <WidgetPickerCard
+                title="Select widget"
+                compact
+                selectedLabel={widgetOptions.find((widget) => widget.value === selectedSection?.widgetType)?.label ?? selectedSection?.widgetType}
+              >
+                <div className="flex max-w-full snap-x gap-3 overflow-x-auto overscroll-x-contain pb-2">
+                  {widgetOptions.map((widget) => (
+                    <button
+                      key={widget.value}
+                      type="button"
+                      onClick={() => updateSelectedSection({ widgetType: widget.value })}
+                      className={`w-56 shrink-0 snap-start rounded-xl p-2 text-center transition ${
+                        selectedSection?.widgetType === widget.value
+                          ? "bg-white/15 ring-1 ring-primary"
+                          : "hover:bg-white/10"
+                      }`}
+                    >
+                      <div className="mb-2 h-24 overflow-hidden rounded-lg">
+                        {renderWidget({
+                          type: widget.value,
+                          params: {},
+                          className: "h-full w-full",
+                          isPreview: true,
+                        })}
+                      </div>
+                      <span className="block truncate text-sm text-white/80">{widget.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </WidgetPickerCard>
+              {selectedSection?.widgetType === "glanceable-clock" && glanceableOptions.length > 0 && (
+                <div className="space-y-2">
+                  <Label>Glanceables</Label>
+                  <div className="grid grid-cols-2 gap-3">
+                    {(["left", "right"] as const).map((side) => (
+                      <Select key={side} value={String(selectedSection?.params?.glanceables?.[side] ?? "")} onValueChange={(value) => updateSelectedSection({ params: { ...(selectedSection?.params ?? {}), glanceables: { ...(selectedSection?.params?.glanceables ?? {}), [side]: value } } })}>
+                        <SelectTrigger><SelectValue placeholder={`${side} glanceable`} /></SelectTrigger>
+                        <SelectContent>{glanceableOptions.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent>
+                      </Select>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <WidgetPropertiesForm
+                idPrefix={`frame-widget-${selectedSection?.id ?? "cell"}`}
+                schema={widgetSchemas[selectedSection?.widgetType ?? ""] ?? {}}
+                value={selectedSection?.params ?? {}}
+                onChange={(params) => updateSelectedSection({ params })}
+                onError={setWidgetParamsError}
+                error={widgetParamsError}
+              />
+            </TabsContent>
+            </Tabs>
 
             {error && <div className="text-sm text-red-400">{error}</div>}
           </div>

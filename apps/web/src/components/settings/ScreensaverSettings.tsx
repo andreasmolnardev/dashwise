@@ -5,6 +5,7 @@ import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { useState, useEffect } from "react";
 import useAuth from "@/context/useAuth";
+import { loadFont } from "@/lib/loadFont";
 import SmartFramesManager from "./SmartFramesManager.tsx";
 
 export default function ScreensaverSettings() {
@@ -12,6 +13,31 @@ export default function ScreensaverSettings() {
   const [scope, setScope] = useState<"global" | "local">("global");
   const [screensaverConfig, setScreensaverConfig] = useState<any>(user?.screensaverPreferences || {});
   const frames = Array.isArray(screensaverConfig?.frames) ? screensaverConfig.frames : [];
+  const [fonts, setFonts] = useState<Array<{ name: string; path: string }>>([]);
+  const [useHomePageStyle, setUseHomePageStyle] = useState(
+    screensaverConfig.useHomePageStyle ?? true
+  );
+
+  useEffect(() => {
+    fetch("/fonts/index.json")
+      .then((response) => response.json())
+      .then((data) => setFonts(Array.isArray(data) ? data : []))
+      .catch((error) => console.error("Failed to load fonts", error));
+  }, []);
+
+  useEffect(() => {
+    if (!fonts.length) return;
+
+    fonts.forEach((font) => {
+      if (font.name && font.path) {
+        loadFont(font.name, font.path);
+      }
+    });
+  }, [fonts]);
+
+  useEffect(() => {
+    setUseHomePageStyle(screensaverConfig.useHomePageStyle ?? true);
+  }, [screensaverConfig.useHomePageStyle]);
 
   useEffect(() => {
     const local = localStorage.getItem("dashwise_screensaver_local");
@@ -27,6 +53,9 @@ export default function ScreensaverSettings() {
   const updateScreensaverConfig = async (newPart: any) => {
     const updatedScreensaver = { ...screensaverConfig, ...newPart };
     setScreensaverConfig(updatedScreensaver);
+    if (typeof newPart.useHomePageStyle === "boolean") {
+      setUseHomePageStyle(newPart.useHomePageStyle);
+    }
 
     if (scope === "local") {
       localStorage.setItem("dashwise_screensaver_local", JSON.stringify(updatedScreensaver));
@@ -51,7 +80,7 @@ export default function ScreensaverSettings() {
   return (
     <>
       <div className="flex flex-col gap-2 mb-4">
-        <h1 className="text-3xl font-semibold">Smart Frame</h1>
+        <h1 className="text-3xl font-semibold">Frame</h1>
         <div className="flex bg-white/5 p-1 border border-white/10 w-fit rounded-full gap-2">
           <button
             onClick={() => handleScopeChange("global")}
@@ -90,6 +119,20 @@ export default function ScreensaverSettings() {
                 value={screensaverConfig.inactivityTimeout ?? ""}
                 onChange={(e) => setScreensaverConfig({ ...screensaverConfig, inactivityTimeout: parseInt(e.target.value, 10) })}
                 onBlur={(e) => updateScreensaverConfig({ inactivityTimeout: parseInt(e.target.value, 10) })}
+              />
+            </div>
+          </div>
+        </section>
+
+        <section className="space-y-4">
+          <h2 className="text-xl font-semibold">Style</h2>
+          <div className="space-y-4 px-2">
+            <div className="flex items-center justify-between">
+              <Label htmlFor="use-home-page-style">Use home page style</Label>
+              <Switch
+                id="use-home-page-style"
+                checked={useHomePageStyle}
+                onCheckedChange={(checked) => updateScreensaverConfig({ useHomePageStyle: checked })}
               />
             </div>
           </div>

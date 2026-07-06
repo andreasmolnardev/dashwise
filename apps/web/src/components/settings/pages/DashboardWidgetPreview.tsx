@@ -22,7 +22,8 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Edit3, Eye, EyeOff, GripVertical, PanelLeftDashed, Trash2 } from "lucide-react";
+import { ChevronDown, Edit3, Eye, EyeOff, GripVertical, PanelLeftDashed, Trash2 } from "lucide-react";
+import WidgetPropertiesForm from "@dashwise/integrationskit/forms/WidgetPropertiesForm";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import {
@@ -302,6 +303,7 @@ function WidgetTile({
                   <TabsContent value="input" className="space-y-4 pt-4 max-h-[50vh] overflow-y-auto">
                     <WidgetInputEditor
                       widgetId={columnWidget.id}
+                      schema={widgetConfig?.input ?? {}}
                       inputDraft={inputDraft}
                       onChange={setInputDraft}
                       dataError={dataError}
@@ -347,6 +349,7 @@ function WidgetTile({
                 <div className="space-y-4 py-4">
                   <WidgetInputEditor
                     widgetId={columnWidget.id}
+                    schema={widgetConfig?.input ?? {}}
                     inputDraft={inputDraft}
                     onChange={setInputDraft}
                     dataError={dataError}
@@ -391,111 +394,29 @@ function WidgetTile({
 
 function WidgetInputEditor({
   widgetId,
+  schema,
   inputDraft,
   onChange,
   dataError,
   setDataError,
 }: {
   widgetId: string;
+  schema?: Record<string, any>;
   inputDraft: Record<string, any>;
   onChange: (next: Record<string, any>) => void;
   dataError: string | null;
   setDataError: (value: string | null) => void;
 }) {
-  const inputEntries = Object.entries(inputDraft ?? {});
-  if (inputEntries.length === 0) {
-    return <p className="text-sm text-white/60">No input properties for this widget.</p>;
-  }
-
   return (
-    <div className="space-y-3">
-      {inputEntries.map(([key, value]) => {
-        const inputId = `widget-input-${widgetId}-${key}`;
-        const isBoolean = typeof value === "boolean";
-        const isNumber = typeof value === "number" && Number.isFinite(value);
-        const isText = typeof value === "string" || value === null || value === undefined;
-
-        if (isBoolean) {
-          return (
-            <label key={key} htmlFor={inputId} className="flex items-center justify-between gap-3 rounded-md border border-white/10 bg-black/20 px-3 py-2">
-              <span className="text-sm text-white">{key}</span>
-              <input
-                id={inputId}
-                type="checkbox"
-                checked={Boolean(value)}
-                onChange={(event) => {
-                  setDataError(null);
-                  onChange({ ...inputDraft, [key]: event.target.checked });
-                }}
-                className="h-4 w-4 accent-white"
-              />
-            </label>
-          );
-        }
-
-        if (isNumber) {
-          return (
-            <div key={key} className="space-y-1.5">
-              <Label htmlFor={inputId}>{key}</Label>
-              <input
-                id={inputId}
-                type="number"
-                value={value}
-                onChange={(event) => {
-                  const nextValue = event.target.value;
-                  setDataError(null);
-                  onChange({
-                    ...inputDraft,
-                    [key]: nextValue === "" ? null : Number(nextValue),
-                  });
-                }}
-                className="w-full rounded-md border border-white/15 bg-black/20 px-3 py-2 text-sm outline-none"
-              />
-            </div>
-          );
-        }
-
-        if (isText) {
-          return (
-            <div key={key} className="space-y-1.5">
-              <Label htmlFor={inputId}>{key}</Label>
-              <input
-                id={inputId}
-                type="text"
-                value={value ?? ""}
-                onChange={(event) => {
-                  setDataError(null);
-                  onChange({ ...inputDraft, [key]: event.target.value });
-                }}
-                className="w-full rounded-md border border-white/15 bg-black/20 px-3 py-2 text-sm outline-none"
-              />
-            </div>
-          );
-        }
-
-        return (
-          <div key={key} className="space-y-1.5">
-            <Label htmlFor={inputId}>{key}</Label>
-            <textarea
-              id={inputId}
-              value={JSON.stringify(value, null, 2)}
-              onChange={(event) => {
-                try {
-                  const parsed = JSON.parse(event.target.value);
-                  setDataError(null);
-                  onChange({ ...inputDraft, [key]: parsed });
-                } catch {
-                  setDataError("Input must be valid JSON.");
-                }
-              }}
-              className="min-h-24 w-full rounded-md border border-white/15 bg-black/20 p-3 text-sm outline-none"
-              spellCheck={false}
-            />
-            {dataError ? <p className="text-xs text-red-400">{dataError}</p> : null}
-          </div>
-        );
-      })}
-    </div>
+    <WidgetPropertiesForm
+      idPrefix={`widget-input-${widgetId}`}
+      schema={schema}
+      value={inputDraft}
+      onChange={onChange}
+      onError={setDataError}
+      error={dataError}
+      emptyMessage="No input properties for this widget."
+    />
   );
 }
 
@@ -751,7 +672,7 @@ function LibraryItem({ item }: { item: WidgetCatalogItem }) {
 
   return (
     <div
-      className={`rounded-xl ${isDragging ? "opacity-40" : "opacity-100"}`}
+      className={`w-56 shrink-0 snap-start space-y-2 rounded-xl border border-white/10 bg-white/5 p-2 ${isDragging ? "opacity-40" : "opacity-100"}`}
       ref={setNodeRef}
       {...listeners}
       {...attributes}
@@ -762,6 +683,44 @@ function LibraryItem({ item }: { item: WidgetCatalogItem }) {
         className: "h-[110px] w-full",
         previewTemplate,
       })}
+      <p className="text-center text-xs text-white/70">{item.name}</p>
+    </div>
+  );
+}
+
+export function WidgetPickerCard({
+  title = "Add a widget",
+  description = "Open widget list",
+  selectedLabel,
+  compact,
+  children,
+}: {
+  title?: string;
+  description?: string;
+  selectedLabel?: string;
+  compact?: boolean;
+  children: ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="min-w-0 max-w-full space-y-3 overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        className={`flex max-w-full items-center justify-between gap-3 rounded-xl border border-white/15 bg-white/5 text-left transition hover:bg-white/10 ${compact ? "w-fit min-w-48 px-3 py-2" : "w-full p-4"}`}
+      >
+        <span className="min-w-0">
+          <span className="block text-sm font-semibold">{title}</span>
+          <span className="block truncate text-xs text-white/65">{selectedLabel ?? description}</span>
+        </span>
+        <ChevronDown className={`h-4 w-4 shrink-0 text-white/60 transition ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && (
+        <div className="frosted min-w-0 max-w-full overflow-hidden rounded-xl border border-white/15 p-3">
+          {children}
+        </div>
+      )}
     </div>
   );
 }
@@ -989,41 +948,35 @@ export function DashboardWidgetPreview({
           </div>
 
           <div className="space-y-3">
-            <div>
-              <h3 className="text-sm font-semibold">Add a widget</h3>
-              <p className="text-xs text-white/70">Drag&apos;n&apos;drop a widget into the desired column</p>
-            </div>
+            <WidgetPickerCard description="Drag a widget from dropdown into a column">
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                  {widgetCategories.map((category) => (
+                    <button
+                      key={category}
+                      type="button"
+                      onClick={() => setSelectedWidgetCategory(category)}
+                      className={`whitespace-nowrap rounded-full px-3 py-1.5 text-xs capitalize transition ${
+                        selectedWidgetCategory === category
+                          ? "bg-white text-black"
+                          : "border border-white/25 text-white/80"
+                      }`}
+                    >
+                      {category.replace(/^integration-/, "")}
+                    </button>
+                  ))}
+                </div>
 
-            <div className="flex items-center gap-2 overflow-x-auto pb-1">
-              {widgetCategories.map((category) => (
-                <button
-                  key={category}
-                  type="button"
-                  onClick={() => setSelectedWidgetCategory(category)}
-                  className={`whitespace-nowrap rounded-full px-3 py-1.5 text-xs capitalize transition ${
-                    selectedWidgetCategory === category
-                      ? "bg-white text-black"
-                      : "border border-white/25 text-white/80"
-                  }`}
+                <SortableContext
+                  items={filteredWidgetCatalog.map((item) => `library:${item.category}:${item.key}`)}
+                  strategy={verticalListSortingStrategy}
                 >
-                  {category.replace(/^integration-/, "")}
-                </button>
-              ))}
-            </div>
-
-            <SortableContext
-              items={filteredWidgetCatalog.map((item) => `library:${item.category}:${item.key}`)}
-              strategy={verticalListSortingStrategy}
-            >
-              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                {filteredWidgetCatalog.map((item) => (
-                  <div key={`${item.category}:${item.key}`} className="space-y-2 border-transparent">
-                    <LibraryItem item={item} />
-                    <p className="text-center text-xs text-white/70">{item.name}</p>
+                  <div className="flex snap-x gap-3 overflow-x-auto pb-2">
+                    {filteredWidgetCatalog.map((item) => <LibraryItem key={`${item.category}:${item.key}`} item={item} />)}
                   </div>
-                ))}
+                </SortableContext>
               </div>
-            </SortableContext>
+            </WidgetPickerCard>
           </div>
         </div>
 
