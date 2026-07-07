@@ -275,7 +275,9 @@ export async function getWidgetProperties(userId: string, widgetSlug: string) {
         for (const w of widgets) {
             if (!isPlainObject(w)) continue;
             const id = resolveWidgetId(w);
-            if (id?.toLowerCase() === slug) return { widget: { ...w, slug: id }, integration: { id: integration.id, name: integration.name } };
+            if (normalizeProgressType(id ?? "").toLowerCase() === normalizeProgressType(slug).toLowerCase()) {
+                return { widget: { ...w, slug: id }, integration: { id: integration.id, name: integration.name } };
+            }
         }
     }
     return { widget: null, integration: null };
@@ -321,7 +323,7 @@ export async function getIntegrationWithConsumer(userId: string, options: { widg
             const normalizedGlanceableType = glanceableType.toLowerCase();
 
             const matches = widgetKey
-                ? resolvedWidgetKey !== null && resolvedWidgetKey === widgetKey
+                ? resolvedWidgetKey !== null && normalizeProgressType(resolvedWidgetKey) === normalizeProgressType(widgetKey)
                 : (() => {
                     if (!normalizedGlanceableType) return false;
                     return glanceableAliases.some((alias) => alias.toLowerCase() === normalizedGlanceableType);
@@ -790,26 +792,36 @@ function ownsIntegration(record: any, userId: string): boolean {
 }
 
 function resolveWidgetId(w: Record<string, unknown>): string | null {
-    if (typeof w.key === "string" && w.key.trim()) return w.key.trim();
-    if (typeof w.slug === "string" && w.slug.trim()) return w.slug.trim();
+    const key = typeof w.key === "string" && w.key.trim() ? w.key.trim() : null;
+    const slug = typeof w.slug === "string" && w.slug.trim() ? w.slug.trim() : null;
+    const resolved = normalizeProgressType(key ?? slug ?? "");
+    if (resolved) return resolved;
     const name = typeof w.name === "string" ? w.name : null;
-    return name ? name.toLowerCase().trim().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "") || null : null;
+    return name ? normalizeProgressType(name.toLowerCase().trim().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "")) || null : null;
 }
 
 function resolveGlanceableId(g: Record<string, unknown>): string | null {
-    if (typeof g.key === "string" && g.key.trim()) return g.key.trim();
-    if (typeof g.type === "string" && g.type.trim()) return g.type.trim();
-    if (typeof g.slug === "string" && g.slug.trim()) return g.slug.trim();
+    const key = typeof g.key === "string" && g.key.trim() ? g.key.trim() : null;
+    const type = typeof g.type === "string" && g.type.trim() ? g.type.trim() : null;
+    const slug = typeof g.slug === "string" && g.slug.trim() ? g.slug.trim() : null;
+    const resolved = normalizeProgressType(key ?? type ?? slug ?? "");
+    if (resolved) return resolved;
     const name = typeof g.name === "string" ? g.name : typeof g.displayName === "string" ? g.displayName : null;
-    return name ? name.toLowerCase().trim().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "") || null : null;
+    return name ? normalizeProgressType(name.toLowerCase().trim().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "")) || null : null;
 }
 
 function resolveGlanceableAliases(g: Record<string, unknown>) {
     const aliases = new Set<string>();
 
-    if (typeof g.key === "string" && g.key.trim()) aliases.add(g.key.trim());
-    if (typeof g.type === "string" && g.type.trim()) aliases.add(g.type.trim());
-    if (typeof g.slug === "string" && g.slug.trim()) aliases.add(g.slug.trim());
+    if (typeof g.key === "string" && g.key.trim()) {
+        addGlanceableAliases(aliases, g.key.trim());
+    }
+    if (typeof g.type === "string" && g.type.trim()) {
+        addGlanceableAliases(aliases, g.type.trim());
+    }
+    if (typeof g.slug === "string" && g.slug.trim()) {
+        addGlanceableAliases(aliases, g.slug.trim());
+    }
 
     const name = typeof g.name === "string"
         ? g.name
@@ -818,10 +830,33 @@ function resolveGlanceableAliases(g: Record<string, unknown>) {
             : null;
     if (name) {
         const normalized = name.toLowerCase().trim().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
-        if (normalized) aliases.add(normalized);
+        if (normalized) {
+            addGlanceableAliases(aliases, normalized);
+        }
     }
 
     return Array.from(aliases);
+}
+
+function addGlanceableAliases(target: Set<string>, value: string) {
+    const normalized = normalizeProgressType(value);
+    target.add(value);
+    target.add(normalized);
+
+    if (normalized === "progress") {
+        target.add("day-progress");
+        target.add("week-progress");
+        target.add("month-progress");
+        target.add("year-progress");
+    }
+}
+
+function normalizeProgressType(value: string) {
+    if (value === "day-progress" || value === "week-progress" || value === "month-progress" || value === "year-progress") {
+        return "progress";
+    }
+
+    return value;
 }
 
 function extractValueAtPath(body: unknown, path?: string): unknown {

@@ -38,6 +38,15 @@ const LOCAL_GLANCEABLE_TYPES = new Set([
   "greeting",
   "local-timezone",
   "world-clock",
+  "progress",
+  "day-progress",
+  "week-progress",
+  "month-progress",
+  "year-progress",
+]);
+
+const PROGRESS_GLANCEABLE_ALIASES = new Set([
+  "progress",
   "day-progress",
   "week-progress",
   "month-progress",
@@ -118,6 +127,11 @@ function normalizeWidgetConfig(config: unknown) {
       );
 
   return { index, input, properties };
+}
+
+function normalizeProgressKey(key: unknown) {
+  const value = String(key ?? "").trim();
+  return PROGRESS_GLANCEABLE_ALIASES.has(value) ? "progress" : value;
 }
 
 export const TEMPLATE_OPTIONS: Array<{ id: TemplateId; label: string }> = [
@@ -302,16 +316,18 @@ export function readClockGlanceables(
     ...catalogGlanceables,
   ]
     .map((entry) => entry?.type)
+    .map((entry) => normalizeProgressKey(entry))
     .filter((entry: unknown): entry is string => typeof entry === "string");
 
-  const selectedFromOverrides = overrides ? Object.keys(overrides) : [];
+  const overrideEntries = overrides ? Object.entries(overrides) : [];
+  const selectedFromOverrides = overrideEntries.map(([key]) => normalizeProgressKey(key));
   const left = selectedFromOverrides[0] ?? fallbackTypes[0] ?? "";
   const right = selectedFromOverrides[1] ?? fallbackTypes[1] ?? fallbackTypes[0] ?? "";
 
   const map: Record<string, any> = {};
-  if (overrides && Object.keys(overrides).length > 0) {
-    map[left] = overrides[left] ?? null;
-    map[right] = overrides[right] ?? null;
+  if (overrideEntries.length > 0) {
+    if (left) map[left] = overrideEntries[0]?.[1] ?? null;
+    if (right) map[right] = overrideEntries[1]?.[1] ?? null;
   } else {
     map[left] = null;
     map[right] = null;
@@ -440,6 +456,7 @@ function resolveStoredGlanceableKey(
   const trimmed = String(selectedKey ?? "").trim();
   if (!trimmed) return "";
   if (trimmed.includes("#")) return trimmed;
+  if (PROGRESS_GLANCEABLE_ALIASES.has(trimmed)) return "progress";
   if (LOCAL_GLANCEABLE_TYPES.has(trimmed)) return trimmed;
   if (!Array.isArray(catalogGlanceables) || catalogGlanceables.length === 0) {
     return trimmed;

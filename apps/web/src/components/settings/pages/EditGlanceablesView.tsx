@@ -17,6 +17,13 @@ import { useLocalization } from "@/context/LocalizationContext";
 import useAuth from "@/context/useAuth";
 import { getIntegrationWithGlanceableAction } from '@/lib/apiClient';
 
+const PROGRESS_PERIOD_OPTIONS = [
+  { value: "year", label: "Year" },
+  { value: "month", label: "Month" },
+  { value: "day", label: "Day" },
+  { value: "week", label: "Week" },
+];
+
 type GlanceableCatalogItem = {
   type: string;
   name: string;
@@ -27,7 +34,6 @@ type EditGlanceablesViewProps = {
   hasMainClock: boolean;
   glanceablesCatalog: GlanceableCatalogItem[];
   selectedClockPart: GlanceableSide | "clock";
-  setSelectedClockPart: (part: GlanceableSide | "clock") => void;
   clockSelection: Record<GlanceableSide, string>;
   setClockSelection: Dispatch<SetStateAction<Record<GlanceableSide, string>>>;
   clockGlanceables: Record<string, any>;
@@ -41,7 +47,6 @@ export function EditGlanceablesView({
   hasMainClock,
   glanceablesCatalog,
   selectedClockPart,
-  setSelectedClockPart,
   clockSelection,
   setClockSelection,
   clockGlanceables,
@@ -52,17 +57,26 @@ export function EditGlanceablesView({
 }: EditGlanceablesViewProps) {
   const localization = useLocalization();
   const { withAuth } = useAuth();
+  const editorTitle =
+    selectedClockPart === "clock"
+      ? "Edit Glanceable Clock"
+      : `Edit ${selectedClockPart === "left" ? "Left" : "Right"} Glanceable`;
   const selectedClockSide: GlanceableSide = selectedClockPart === "right"
     ? "right"
     : "left";
   const selectedClockType = clockSelection[selectedClockSide];
+  const selectedClockLabel = selectedClockPart === "clock"
+    ? "Clock"
+    : selectedClockPart === "left"
+      ? "Left Glanceable"
+      : "Right Glanceable";
 
   const [integrationInfo, setIntegrationInfo] = useState<{
     environmentDefinitions?: Record<string, { description?: string; required?: boolean; default?: string }>;
   } | null>(null);
 
   useEffect(() => {
-    if (!selectedClockType || ["date", "greeting", "local-timezone", "world-clock"].includes(selectedClockType)) {
+    if (!selectedClockType || ["date", "greeting", "local-timezone", "world-clock", "progress"].includes(selectedClockType)) {
       setIntegrationInfo(null);
       return;
     }
@@ -96,80 +110,22 @@ export function EditGlanceablesView({
 
   return (
     <div className="space-y-4">
-      <h2 className="text-lg font-semibold">Clock and Glanceables</h2>
+      <h2 className="text-lg font-semibold">{editorTitle}</h2>
 
       <div className="p-4">
-        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4">
-          <button
-            type="button"
-            onClick={() => setSelectedClockPart("left")}
-            className="flex flex-col items-center gap-2"
-          >
-            <div
-              className={`flex h-10 items-center justify-center rounded-full px-2 py-0.5 ${
-                selectedClockPart === "left"
-                  ? "frosted"
-                  : "border border-white/20"
-              }`}
-            >
-              <GlanceableComponent
-                type={clockSelection.left}
-                params={clockGlanceables[clockSelection.left] ?? {}}
-                formatters={{
-                  formatTemperature: localization.formatTemperature,
-                  formatTime: localization.formatTime,
-                  formatDate: localization.formatDate,
-                }}
-              />
-            </div>
-            <p
-              className={`text-xs ${
-                selectedClockPart === "left"
-                  ? "font-semibold"
-                  : "text-white/70"
-              }`}
-            >
-              Left
-            </p>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setSelectedClockPart("clock")}
-            className="flex flex-col items-center"
-          >
+        <div className="flex flex-col items-center gap-2 rounded-xl border border-white/10 bg-white/5 p-4">
+          {selectedClockPart === "clock" ? (
             <ClockWidget
-                className="p-0! text-4xl!"
+              className="p-0! text-4xl!"
               font={clockStyle.defaultFont}
               weight={clockStyle.fontWeight}
               color={clockStyle.color}
             />
-            <p
-              className={`text-xs ${
-                selectedClockPart === "clock"
-                  ? "font-semibold"
-                  : "text-white/70"
-              }`}
-            >
-              Clock
-            </p>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setSelectedClockPart("right")}
-            className="flex flex-col items-center gap-2"
-          >
-            <div
-              className={`flex h-10 items-center justify-center rounded-full px-2 py-0.5 ${
-                selectedClockPart === "right"
-                  ? "frosted"
-                  : "border border-white/20"
-              }`}
-            >
-              <GlanceableComponent
-                type={clockSelection.right}
-                params={clockGlanceables[clockSelection.right] ?? {}}
+          ) : selectedClockType ? (
+            <div className="flex min-h-10 items-center justify-center rounded-full px-2 py-0.5 frosted">
+                <GlanceableComponent
+                  type={selectedClockType}
+                  params={clockGlanceables[selectedClockType] ?? {}}
                 formatters={{
                   formatTemperature: localization.formatTemperature,
                   formatTime: localization.formatTime,
@@ -177,16 +133,12 @@ export function EditGlanceablesView({
                 }}
               />
             </div>
-            <p
-              className={`text-xs ${
-                selectedClockPart === "right"
-                  ? "font-semibold"
-                  : "text-white/70"
-              }`}
-            >
-              Right
-            </p>
-          </button>
+          ) : (
+            <p className="text-sm text-white/60">No glanceable selected</p>
+          )}
+          <p className={`text-xs ${selectedClockPart ? "font-semibold" : "text-white/70"}`}>
+            {selectedClockLabel}
+          </p>
         </div>
       </div>
 
@@ -194,25 +146,27 @@ export function EditGlanceablesView({
         <>
           <h3 className="font-medium">Edit {selectedClockPart} Glanceable</h3>
           <div className="grid gap-4 lg:grid-cols-[2fr_auto_1fr] lg:items-start">
-            <div className="flex flex-wrap gap-3">
+          <div className="flex max-w-full snap-x gap-3 overflow-x-auto pb-2">
               {glanceablesCatalog.map((glanceable) => (
                 <button
                   key={glanceable.type}
                   type="button"
                   onClick={() => setGlanceableForSide(selectedClockSide, glanceable.type)}
-                  className="flex min-w-35 flex-col items-center rounded-xl p-3 transition hover:bg-white/5"
+                  className={`w-56 shrink-0 snap-start rounded-xl border p-3 text-left transition ${selectedClockType === glanceable.type ? "border-primary bg-white/10" : "border-white/10 bg-white/5 hover:bg-white/10"}`}
                 >
-                  <GlanceableComponent
-                    type={glanceable.type}
-                    params={glanceable.exampleProps ?? {}}
-                    formatters={{
-                      formatTemperature: localization.formatTemperature,
-                      formatTime: localization.formatTime,
-                      formatDate: localization.formatDate,
-                    }}
-                    className="h-8 rounded-full px-2 py-0.5"
-                  />
-                  <p className="mt-2 truncate text-xs text-white/75">
+                  <div className="mb-3 overflow-hidden rounded-lg">
+                    <GlanceableComponent
+                      type={glanceable.type}
+                      params={glanceable.exampleProps ?? {}}
+                      formatters={{
+                        formatTemperature: localization.formatTemperature,
+                        formatTime: localization.formatTime,
+                        formatDate: localization.formatDate,
+                      }}
+                      className="h-10 rounded-full px-2 py-0.5"
+                    />
+                  </div>
+                  <p className="truncate text-xs text-white/75">
                     {glanceable.name}
                   </p>
                 </button>
@@ -242,6 +196,35 @@ export function EditGlanceablesView({
                   <div className="text-xs text-white/50 mt-1">
                     Use date format strings (e.g. <code>YYYY-MM-DD</code>, <code>mmmm</code>, <code>mmm</code>)
                   </div>
+                </div>
+              )}
+
+              {selectedClockType === "progress" && (
+                <div className="space-y-2">
+                  <p className="text-xs text-white/70">Period</p>
+                  <Select
+                    value={String(clockGlanceables[selectedClockType]?.period ?? "day")}
+                    onValueChange={(value) => {
+                      setClockGlanceables((prev) => ({
+                        ...prev,
+                        [selectedClockType]: {
+                          ...(prev[selectedClockType] ?? {}),
+                          period: value,
+                        },
+                      }));
+                    }}
+                  >
+                    <SelectTrigger className="h-9 min-w-32 rounded-full border-white/20">
+                      <SelectValue placeholder="Day" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PROGRESS_PERIOD_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               )}
 
