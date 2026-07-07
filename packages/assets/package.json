@@ -9,7 +9,7 @@
     "dist"
   ],
   "scripts": {
-    "build": "rm -rf dist && tsc -p tsconfig.json && cp -R defaults integrations dist/"
+    "build": "rm -rf dist && bunx -p typescript@5.9.3 tsc -p tsconfig.json && cp -R defaults integrations dist/"
   },
   "exports": {
     ".": {
