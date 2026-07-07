@@ -31,14 +31,14 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
 
   return (
     <div className="flex h-dvh bg-(--surface) text-white p-4">
-      <div className="w-[30%]">
+      <div className="w-[25%]">
         <h1 className="scroll-m-20 text-4xl font-bold tracking-tight text-balance">Settings</h1>
 
         <div className="relative flex flex-col h-[calc(100%-35px)] justify-between py-4">
           <div className="space-y-1">
             <div
               ref={activeBgRef}
-              className="absolute left-0 w-[90%] rounded-md bg-white/20 transition-all duration-300"
+              className="absolute left-0 w-[95%] rounded-md bg-white/20 transition-all duration-300"
               style={{ zIndex: 0 }}
             />
 
