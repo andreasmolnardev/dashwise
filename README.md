@@ -17,7 +17,7 @@ This is my attempt to solving that.
 - **Glanceables**: Customizable bits of one-line information next to the clock.
 - **Widgets**: Modular blocks on the dashboard that show key info or actions at a glance. They can be moved and customized individually.
 - **News**: Subscribe to RSS feeds to stay on top of everything.
-- **Notfications**: Dashwise can receive notifications via PUSH requests to /api/v1/notifications/TOPIC-NAME
+- **Notfications** : Dashwise can receive notifications via PUSH requests to /api/v1/notifications/TOPIC-NAME
 - ** Spotlight-like Search**: Hit Ctrl+K from your dashboard, and you'll be able to search your links and integrations or use bangs for search engines specified in settings.
 - **Integrations**: directly integrates with your favourite self hosted apps. Supported services are Karakeep, Dashdot, Beszel and Jellyfin. More integrations are planned
 
