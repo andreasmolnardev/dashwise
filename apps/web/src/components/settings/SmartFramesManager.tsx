@@ -29,7 +29,6 @@ import {
   getUserWidgetsAction,
   uploadWallpaperAction,
 } from "@/lib/apiClient";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { normalizeWallpaperFilters } from "./wallpaperFilterDefaults";
 import { renderWidget } from "../widgets/Widget";
 import WidgetPropertiesForm from "@dashwise/integrationskit/forms/WidgetPropertiesForm";
@@ -303,10 +302,6 @@ export default function SmartFramesManager({
   const selectedSection =
     sections.find((section) => section.id === selectedSectionId) ?? sections[0];
   const selectedFrame = frames[selectedFrameIndex];
-  const selectedWidgetLabel =
-    widgetOptions.find((widget) =>
-      widget.value === normalizeWidgetChoice(selectedSection?.widgetType)
-    )?.label ?? selectedSection?.widgetType ?? "Widget";
   const resolveWidgetLabel = (type?: string) =>
     widgetOptions.find((widget) =>
       widget.value === normalizeWidgetChoice(type)
@@ -846,205 +841,98 @@ export default function SmartFramesManager({
           <section className="space-y-4 rounded-md rounded-b-xl border border-transparent text-foreground">
 
             <div className="min-w-0 space-y-4 overflow-hidden">
-              <Tabs
-                defaultValue="style"
-                className="min-w-0 space-y-3 overflow-hidden"
-              >
-                <TabsList className="w-full grid grid-cols-2">
-                  <TabsTrigger value="style">Widget style</TabsTrigger>
-                  <TabsTrigger value="properties">
-                    Widget properties
-                  </TabsTrigger>
-                </TabsList>
+              <div className="frosted space-y-3 rounded-2xl border border-white/10 bg-white/5 p-4">
+                <div className="space-y-1">
+                  <h2 className="text-lg font-semibold">{selectedSection?.label ? selectedSection.label.charAt(0).toUpperCase() + selectedSection.label.slice(1) : "cell"} Widget</h2>
+                  <p className="text-sm text-white/60">
+                  </p>
+                </div>
 
-                <TabsContent value="style" className="space-y-3">
-                  <div className="space-y-3 rounded-2xl border border-white/10 bg-white/5 p-4">
-                    <div className="font-medium">
-                      Customize {selectedWidgetLabel}
-                    </div>
-                    <div className="space-y-4">
-                      <div className="space-y-2">
-                        <Label>Border radius</Label>
-                        <Slider
-                          value={[
-                            Number(
-                              selectedSection?.params?.appearance
-                                ?.borderRadius ?? 16,
-                            ),
-                          ]}
-                          min={0}
-                          max={32}
-                          step={1}
-                          onValueChange={([value]) =>
-                            updateSelectedSection({
-                              params: {
-                                ...(selectedSection?.params ?? {}),
-                                appearance: {
-                                  ...(selectedSection?.params?.appearance ??
-                                    {}),
-                                  borderRadius: value,
-                                },
-                              },
-                            })}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Background opacity</Label>
-                        <Slider
-                          value={[
-                            Number(
-                              selectedSection?.params?.appearance
-                                ?.backgroundOpacity ?? 45,
-                            ),
-                          ]}
-                          min={0}
-                          max={100}
-                          step={1}
-                          onValueChange={([value]) =>
-                            updateSelectedSection({
-                              params: {
-                                ...(selectedSection?.params ?? {}),
-                                appearance: {
-                                  ...(selectedSection?.params?.appearance ??
-                                    {}),
-                                  backgroundOpacity: value,
-                                },
-                              },
-                            })}
-                        />
-                      </div>
-                      <div className="flex items-center justify-between gap-4">
-                        <Label htmlFor="frame-widget-header">
-                          Show widget header
-                        </Label>
-                        <Switch
-                          id="frame-widget-header"
-                          checked={selectedSection?.params?.appearance
-                            ?.showHeader ?? true}
-                          onCheckedChange={(checked) =>
-                            updateSelectedSection({
-                              params: {
-                                ...(selectedSection?.params ?? {}),
-                                appearance: {
-                                  ...(selectedSection?.params?.appearance ??
-                                    {}),
-                                  showHeader: checked,
-                                },
-                              },
-                            })}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </TabsContent>
-
-                <TabsContent
-                  value="properties"
-                  className="min-w-0 space-y-3 overflow-hidden"
-                >
-                <div className="frosted space-y-3 rounded-2xl border border-white/10 bg-white/5 p-4">
-                  <div className="grid gap-3 sm:grid-cols-[auto_1fr_1.4fr] sm:items-center">
+                <details open className="space-y-3 rounded-2xl border border-white/10 bg-white/5 p-4">
+                  <summary className="cursor-pointer list-none text-sm font-medium text-white/90">
+                    Properties
+                  </summary>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-[auto_1fr_1.4fr] sm:items-center">
                     <Label>Widget</Label>
                     <div className="sm:col-span-2 text-sm text-white/70">
                       Click cell preview above to edit.
                     </div>
                     <Select
-                      value={normalizeWidgetChoice(
-                        selectedSection?.widgetType,
-                        )}
-                        onValueChange={(value) =>
-                          updateSelectedSection({ widgetType: value })}
-                      >
-                        <SelectTrigger
-                          className={sections.length > 1 ? "" : "sm:col-span-2"}
-                        >
-                          <SelectValue placeholder="Select widget" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {widgetOptions.map((widget) => (
-                            <SelectItem key={widget.value} value={widget.value}>
+                      value={normalizeWidgetChoice(selectedSection?.widgetType)}
+                      onValueChange={(value) => updateSelectedSection({ widgetType: value })}
+                    >
+                      <SelectTrigger className={sections.length > 1 ? "" : "sm:col-span-2"}>
+                        <SelectValue placeholder="Select widget" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {widgetOptions.map((widget) => (
+                          <SelectItem key={widget.value} value={widget.value}>
+                            {widget.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid grid-rows-[1fr] transition-[grid-template-rows] duration-250 ease-out">
+                    <div className="min-h-0 overflow-hidden">
+                      <div className="flex max-w-full snap-x gap-2 overflow-x-auto overscroll-x-contain pb-2">
+                        {widgetOptions.map((widget) => (
+                          <button
+                            key={widget.value}
+                            type="button"
+                            onClick={() => updateSelectedSection({ widgetType: widget.value })}
+                            className={`shrink-0 snap-start rounded-full border px-3 py-1.5 text-sm transition ${
+                              normalizeWidgetChoice(selectedSection?.widgetType) === widget.value
+                                ? "border-primary bg-primary/20 text-white"
+                                : "border-white/10 bg-white/5 text-white/70 hover:bg-white/10"
+                            }`}
+                          >
+                            {widget.label}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="flex max-w-full snap-x gap-3 overflow-x-auto overscroll-x-contain pb-2">
+                        {widgetOptions.map((widget) => (
+                          <button
+                            key={widget.value}
+                            type="button"
+                            onClick={() => updateSelectedSection({ widgetType: widget.value })}
+                            className={`w-56 shrink-0 snap-start rounded-xl p-2 text-center transition ${
+                              normalizeWidgetChoice(selectedSection?.widgetType) === widget.value
+                                ? "ring-1 ring-primary"
+                                : "hover:bg-white/10"
+                            }`}
+                          >
+                            <div className="mb-2 h-24 overflow-hidden rounded-lg">
+                              {renderWidget({
+                                type: widget.value,
+                                params: {},
+                                className: "h-full w-full",
+                                isPreview: true,
+                              })}
+                            </div>
+                            <span className="block truncate text-sm text-white/80">
                               {widget.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="grid grid-rows-[1fr] transition-[grid-template-rows] duration-250 ease-out">
-                      <div className="min-h-0 overflow-hidden">
-                        <div className="flex max-w-full snap-x gap-2 overflow-x-auto overscroll-x-contain pb-2">
-                          {widgetOptions.map((widget) => (
-                            <button
-                              key={widget.value}
-                              type="button"
-                              onClick={() =>
-                                updateSelectedSection({
-                                  widgetType: widget.value,
-                                })}
-                              className={`shrink-0 snap-start rounded-full border px-3 py-1.5 text-sm transition ${
-                                normalizeWidgetChoice(
-                                    selectedSection?.widgetType,
-                                  ) === widget.value
-                                  ? "border-primary bg-primary/20 text-white"
-                                  : "border-white/10 bg-white/5 text-white/70 hover:bg-white/10"
-                              }`}
-                            >
-                              {widget.label}
-                            </button>
-                          ))}
-                        </div>
-                        <div className="flex max-w-full snap-x gap-3 overflow-x-auto overscroll-x-contain pb-2">
-                          {widgetOptions.map((widget) => (
-                            <button
-                              key={widget.value}
-                              type="button"
-                              onClick={() =>
-                                updateSelectedSection({
-                                  widgetType: widget.value,
-                                })}
-                              className={`w-56 shrink-0 snap-start rounded-xl p-2 text-center transition ${
-                                normalizeWidgetChoice(
-                                    selectedSection?.widgetType,
-                                  ) === widget.value
-                                  ? "ring-1 ring-primary"
-                                  : "hover:bg-white/10"
-                              }`}
-                            >
-                              <div className="mb-2 h-24 overflow-hidden rounded-lg">
-                                {renderWidget({
-                                  type: widget.value,
-                                  params: {},
-                                  className: "h-full w-full",
-                                  isPreview: true,
-                                })}
-                              </div>
-                              <span className="block truncate text-sm text-white/80">
-                                {widget.label}
-                              </span>
-                            </button>
-                          ))}
-                        </div>
+                            </span>
+                          </button>
+                        ))}
                       </div>
                     </div>
                   </div>
-                  {selectedSection?.widgetType === "glanceable-clock" &&
-                    glanceableOptions.length > 0 && (
+                  {selectedSection?.widgetType === "glanceable-clock" && glanceableOptions.length > 0 && (
                     <div className="space-y-2">
                       <Label>Glanceables</Label>
                       <div className="grid grid-cols-2 gap-3">
                         {(["left", "right"] as const).map((side) => (
                           <Select
                             key={side}
-                            value={String(
-                              selectedSection?.params?.glanceables?.[side] ??
-                                "",
-                            )}
+                            value={String(selectedSection?.params?.glanceables?.[side] ?? "")}
                             onValueChange={(value) =>
                               updateSelectedSection({
                                 params: {
                                   ...(selectedSection?.params ?? {}),
                                   glanceables: {
-                                    ...(selectedSection?.params?.glanceables ??
-                                      {}),
+                                    ...(selectedSection?.params?.glanceables ?? {}),
                                     [side]: value,
                                   },
                                 },
@@ -1068,18 +956,13 @@ export default function SmartFramesManager({
                   {selectedSection?.widgetType === "weather" && (
                     <LocationSelectFormComponent
                       value={{
-                        displayName: String(
-                          selectedSection?.params?.displayName ?? "",
-                        ),
-                        coordinates: [
-                          selectedSection?.params?.lat,
-                          selectedSection?.params?.lon,
-                        ].filter(Boolean).join(", "),
+                        displayName: String(selectedSection?.params?.displayName ?? ""),
+                        coordinates: [selectedSection?.params?.lat, selectedSection?.params?.lon]
+                          .filter(Boolean)
+                          .join(", "),
                       }}
                       onChange={(value) => {
-                        const [lat = "", lon = ""] = value.coordinates.split(
-                          ",",
-                        ).map((part) => part.trim());
+                        const [lat = "", lon = ""] = value.coordinates.split(",").map((part) => part.trim());
                         updateSelectedSection({
                           params: {
                             ...(selectedSection?.params ?? {}),
@@ -1093,15 +976,78 @@ export default function SmartFramesManager({
                   )}
                   <WidgetPropertiesForm
                     idPrefix={`frame-widget-${selectedSection?.id ?? "cell"}`}
-                    schema={widgetSchemas[selectedSection?.widgetType ?? ""] ??
-                      {}}
+                    schema={widgetSchemas[selectedSection?.widgetType ?? ""] ?? {}}
                     value={selectedSection?.params ?? {}}
                     onChange={(params) => updateSelectedSection({ params })}
                     onError={setWidgetParamsError}
                     error={widgetParamsError}
                   />
-                </TabsContent>
-              </Tabs>
+                </details>
+
+                <details className="space-y-3 rounded-2xl border border-white/10 bg-white/5 p-4">
+                  <summary className="cursor-pointer list-none text-sm font-medium text-white/90">
+                    Style
+                  </summary>
+                  <div className="mt-3 space-y-4">
+                    <div className="space-y-2">
+                      <Label>Border radius</Label>
+                      <Slider
+                        value={[Number(selectedSection?.params?.appearance?.borderRadius ?? 16)]}
+                        min={0}
+                        max={32}
+                        step={1}
+                        onValueChange={([value]) =>
+                          updateSelectedSection({
+                            params: {
+                              ...(selectedSection?.params ?? {}),
+                              appearance: {
+                                ...(selectedSection?.params?.appearance ?? {}),
+                                borderRadius: value,
+                              },
+                            },
+                          })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Background opacity</Label>
+                      <Slider
+                        value={[Number(selectedSection?.params?.appearance?.backgroundOpacity ?? 45)]}
+                        min={0}
+                        max={100}
+                        step={1}
+                        onValueChange={([value]) =>
+                          updateSelectedSection({
+                            params: {
+                              ...(selectedSection?.params ?? {}),
+                              appearance: {
+                                ...(selectedSection?.params?.appearance ?? {}),
+                                backgroundOpacity: value,
+                              },
+                            },
+                          })}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between gap-4">
+                      <Label htmlFor="frame-widget-header">Show widget header</Label>
+                      <Switch
+                        id="frame-widget-header"
+                        checked={selectedSection?.params?.appearance?.showHeader ?? true}
+                        onCheckedChange={(checked) =>
+                          updateSelectedSection({
+                            params: {
+                              ...(selectedSection?.params ?? {}),
+                              appearance: {
+                                ...(selectedSection?.params?.appearance ?? {}),
+                                showHeader: checked,
+                              },
+                            },
+                          })}
+                      />
+                    </div>
+                  </div>
+                </details>
+
+              </div>
 
               <div className="frosted space-y-3 rounded-2xl border border-white/10 bg-white/5 p-4">
                 <div className="flex items-center justify-between gap-3">
