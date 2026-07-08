@@ -37,8 +37,6 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { renderWidget } from "@/components/widgets/Widget";
-import GlanceableComponent from "@dashwise/integrationskit/Glanceable";
-import { useLocalization } from "@/context/LocalizationContext";
 import { EditGlanceablesView } from "@/components/settings/pages/EditGlanceablesView";
 import {
   ColumnName,
@@ -95,8 +93,7 @@ function WidgetTile({
   isActive,
   onEditClockPart,
   clockSelection,
-  clockGlanceables,
-  clockStyle,
+  glanceableNames,
 }: {
   columnWidget: ColumnWidget;
   widgetConfig?: WidgetCatalogItem;
@@ -106,10 +103,8 @@ function WidgetTile({
   isActive?: boolean;
   onEditClockPart?: (part: GlanceableSide | "clock") => void;
   clockSelection?: Record<GlanceableSide, string>;
-  clockGlanceables?: Record<string, any>;
-  clockStyle?: Record<string, any>;
+  glanceableNames?: Record<string, string>;
 }) {
-  const localization = useLocalization();
   const { withAuth } = useAuth();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: columnWidget.id,
@@ -299,16 +294,13 @@ function WidgetTile({
         {isClockWidget ? (
           <div className="grid h-full grid-cols-3 items-center gap-2 p-2">
             <button type="button" onClick={() => onEditClockPart?.("left")} className="flex h-full flex-col items-center justify-center rounded-xl border border-white/10 bg-white/5 p-2 text-center hover:bg-white/10">
-              <GlanceableComponent type={clockSelection?.left ?? ""} params={clockGlanceables?.[clockSelection?.left ?? ""] ?? {}} formatters={localization} className="h-8 rounded-full px-2 py-0.5" />
-              <span className="mt-2 text-[10px] text-white/60">Left</span>
+              <span className="text-sm font-medium text-white/90">{glanceableNames?.[clockSelection?.left ?? ""] ?? "Left"}</span>
             </button>
             <button type="button" onClick={() => onEditClockPart?.("clock")} className="flex h-full flex-col items-center justify-center rounded-xl border border-white/10 bg-white/5 p-2 text-center hover:bg-white/10">
               <span className="rounded-full border border-white/10 bg-white/10 px-3 py-2 text-xs font-medium text-white/80">Clock</span>
-              <span className="mt-2 text-[10px] text-white/60">Edit</span>
             </button>
             <button type="button" onClick={() => onEditClockPart?.("right")} className="flex h-full flex-col items-center justify-center rounded-xl border border-white/10 bg-white/5 p-2 text-center hover:bg-white/10">
-              <GlanceableComponent type={clockSelection?.right ?? ""} params={clockGlanceables?.[clockSelection?.right ?? ""] ?? {}} formatters={localization} className="h-8 rounded-full px-2 py-0.5" />
-              <span className="mt-2 text-[10px] text-white/60">Right</span>
+              <span className="text-sm font-medium text-white/90">{glanceableNames?.[clockSelection?.right ?? ""] ?? "Right"}</span>
             </button>
           </div>
         ) : (
@@ -801,6 +793,14 @@ export function DashboardWidgetPreview({
     return widgetCatalog.filter((item) => item.category === selectedWidgetCategory);
   }, [selectedWidgetCategory, widgetCatalog]);
 
+  const glanceableNames = useMemo(
+    () =>
+      Object.fromEntries(
+        glanceablesCatalog.map((item) => [item.type, item.name] as const),
+      ),
+    [glanceablesCatalog],
+  );
+
   const removeWidget = (column: ColumnName, widgetId: string) => {
     setColumns((prev) => ({
       ...prev,
@@ -977,8 +977,7 @@ export function DashboardWidgetPreview({
                                 onRemove={() => removeWidget(column, widget.id)}
                                 onEditClockPart={openClockEditor}
                                 clockSelection={clockSelection}
-                                clockGlanceables={clockGlanceables}
-                                clockStyle={clockStyle}
+                                glanceableNames={glanceableNames}
                                 onUpdateInput={(widgetId, input) => {
                                   setColumns((prev) => ({
                                     ...prev,

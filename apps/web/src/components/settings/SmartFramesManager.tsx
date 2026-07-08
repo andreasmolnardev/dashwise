@@ -870,7 +870,7 @@ export default function SmartFramesManager({
                 </div>
 
                   <div className="mt-3 space-y-6">
-                    <div className="space-y-4">
+                    <div className="space-y-1">
                       <div className="flex items-center gap-3">
                         <Label className="shrink-0">Widget</Label>
                         <div className="min-w-0 flex-1" />
