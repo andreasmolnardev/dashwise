@@ -2,7 +2,24 @@ import Parser from 'rss-parser';
 import { channelId } from "@gonetone/get-youtube-id-by-url";
 import { config } from "../config";
 import { getFaviconFromDOM } from "../api/tools/faviconFromDom";
-import type { NewsFeedsRecord, NewsSubscriptionsRecord } from "@dashwise/types";
+import type { NewsSubscriptionsRecord } from "@dashwise/types";
+import type {
+  NewsFeedDraft,
+  NewsFeedItem,
+  NewsFeedMetadata,
+  NewsFeedRecord,
+  NewsFeedRecordCreateInput,
+  NewsFeedRecordUpdateInput,
+  NewsFeedsResponse,
+  NewsFeedSummary,
+  NewsSavedArticle,
+  NewsSavedArticleList,
+  NewsSavedArticlesResponse,
+  NewsSubscribeInput,
+  NewsSubscription,
+  NewsSubscriptionsResponse,
+  NewsUpdateInput,
+} from "@dashwise/types/sdk-types";
 import {
   deleteNewsSubscription,
   getAllNewsFeeds,
@@ -19,128 +36,10 @@ import {
 } from "./superuser";
 import { getSuperuserPB } from "../pb/pocketbase";
 
-export type NewsFeedItem = {
-  title: string;
-  link: string;
-  pubDate: string | Date;
-  subscription_id: string;
-  subscription_name: string;
-  topicId?: string;
-  topicTitle?: string;
-  relatedArticles?: NewsFeedItem[];
-  [key: string]: unknown;
-};
-
 type NewsTopicDraft = {
   key: string;
   title: string;
   articles: NewsFeedItem[];
-};
-
-export type NewsSubscription = {
-  id?: string;
-  userId?: string;
-  url: string;
-  feedUrl?: string;
-  icon?: string;
-  json?: unknown;
-  title?: string;
-  name?: string;
-  feedIds?: string[];
-  newFeedTitles?: string[];
-  linkReplaceRule?: Record<string, string>;
-  fallbackThumbnailUrl?: string;
-  thumbnailOverwriteUrl?: string;
-  similarityGroupingWordsBlacklist?: string;
-  enableTopicGrouping?: boolean;
-};
-
-export type NewsFeedMetadata = {
-  feedUrl: string;
-  title: string;
-  icon: string;
-};
-
-export type NewsFeedSummary = {
-  id: string;
-  title: string;
-};
-
-export type NewsFeedsResponse = {
-  id: null;
-  feeds: NewsFeedSummary[];
-  subscriptions?: NewsFeedSummary[];
-};
-
-export type NewsSubscriptionsResponse = {
-  id: null;
-  subscriptions: NewsFeedDraft[];
-};
-
-export type NewsSubscribeInput = {
-  feedUrl: string;
-  name?: string;
-  icon?: string;
-  feedIds?: string[];
-  newFeedTitles?: string[];
-  linkReplaceRule?: Record<string, string>;
-  fallbackThumbnailUrl?: string;
-  thumbnailOverwriteUrl?: string;
-  similarityGroupingWordsBlacklist?: string;
-  enableTopicGrouping?: boolean;
-};
-
-export type NewsUpdateInput = {
-  subscriptionId?: string;
-  oldFeedUrl?: string;
-  feedUrl: string;
-  title?: string;
-  icon?: string;
-  feedIds?: string[];
-  linkReplaceRule?: Record<string, string>;
-  fallbackThumbnailUrl?: string;
-  thumbnailOverwriteUrl?: string;
-  similarityGroupingWordsBlacklist?: string;
-  enableTopicGrouping?: boolean;
-};
-
-export type NewsFeedDraft = Omit<NewsSubscription, "feedUrl" | "url"> & {
-  feedUrl: string;
-  url?: string;
-};
-
-export type NewsFeedRecord = Pick<
-  NewsFeedsRecord,
-  "id" | "title" | "subscriptionRefs" | "excludedSubscriptionRefs"
->;
-
-export type NewsFeedRecordUpdateInput = {
-  feedId: string;
-} & Pick<NewsFeedsRecord, "title" | "subscriptionRefs" | "excludedSubscriptionRefs">;
-
-export type NewsFeedRecordCreateInput = {
-  title: string;
-};
-
-export type NewsSavedArticle = {
-  id: string;
-  list: string[];
-  isRead?: boolean;
-  json: NewsFeedItem;
-  userId?: string;
-  created?: string;
-  updated?: string;
-};
-
-export type NewsSavedArticleList = {
-  id: string;
-  name: string;
-};
-
-export type NewsSavedArticlesResponse = {
-  articles: NewsSavedArticle[];
-  lists: NewsSavedArticleList[];
-  defaultList: string;
 };
 
 function escapeFilter(value: string) {

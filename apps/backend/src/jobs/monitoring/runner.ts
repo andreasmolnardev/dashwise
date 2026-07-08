@@ -11,8 +11,7 @@ import {
     queueNotificationForForwarding,
 } from "../../lib/data/notifications/publish";
 import { createLogger } from "../../lib/logger";
-
-type StatusCheckMethod = "GET" | "HEAD" | "POST" | "PUT" | "PATCH" | "DELETE" | "OPTIONS";
+import { getLinkIdFromSource, getLinkSource, parseConfigObject, type StatusCheckMethod } from "./shared";
 
 type LinkCheckConfig = {
     id?: string;
@@ -78,12 +77,12 @@ export async function runStatusMonitoringJobsWithOptions(options?: {
     logger.info("Running status monitoring jobs");
 
     // fetch all monitoring jobs (increase limit if you expect >2000)
-    const requestedSource = options?.source || (options?.linkId ? `link ${options.linkId}` : undefined);
+    const requestedSource = options?.source || (options?.linkId ? getLinkSource(options.linkId) : undefined);
     const jobs = await getMonitoringJobs(2000, requestedSource ? `source = "${requestedSource}"` : undefined);
 
     for (const job of jobs) {
         const source = String(job.source || '');
-        const linkId = source.startsWith('link ') ? source.slice(5) : undefined;
+        const linkId = getLinkIdFromSource(source);
         const linkConfig = (job.userId && linkId)
             ? await getLinkConfigById(userLinkConfigCache, job.userId, linkId)
             : undefined;
@@ -324,18 +323,6 @@ async function getLinkConfigById(
     }
 
     return cache.get(userId)?.get(linkId);
-}
-
-function parseConfigObject(rawConfig: any): any {
-    if (!rawConfig) return {};
-    if (typeof rawConfig === 'string') {
-        try {
-            return JSON.parse(rawConfig);
-        } catch {
-            return {};
-        }
-    }
-    return rawConfig;
 }
 
 function normalizeStatus(raw: any): string {

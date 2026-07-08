@@ -4,9 +4,9 @@ import { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import useAuth from "@/context/useAuth";
 import { createLinksCollectionAction, updateLinksCollectionAction } from '@/lib/apiClient';
+import { LinksFormAlert, type LinksFormAlertState } from "./LinksFormAlert";
 
 type Props = {
   open: boolean;
@@ -20,7 +20,7 @@ export default function CreateLinksCollectionDialog({ open, onOpenChange, collec
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [icon, setIcon] = useState("");
-  const [alert, setAlert] = useState<{ open: boolean; title: string; description?: string; variant?: "success" | "error" }>({ open: false, title: "", description: "", variant: "success" });
+  const [alert, setAlert] = useState<LinksFormAlertState>({ open: false, title: "", description: "", variant: "success" });
   const isEditing = Boolean(collection?.id);
 
   useEffect(() => {
@@ -56,24 +56,7 @@ export default function CreateLinksCollectionDialog({ open, onOpenChange, collec
           <DialogTitle>{isEditing ? "Edit list" : "Create new list"}</DialogTitle>
         </DialogHeader>
 
-        {alert.open && (
-          <Alert className="mb-4">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <AlertTitle>{alert.title}</AlertTitle>
-                {alert.description && <AlertDescription>{alert.description}</AlertDescription>}
-              </div>
-              <button
-                type="button"
-                aria-label="Close alert"
-                onClick={() => setAlert((current) => ({ ...current, open: false }))}
-                className="rounded px-2 py-1 text-sm hover:bg-muted"
-              >
-                Close
-              </button>
-            </div>
-          </Alert>
-        )}
+        <LinksFormAlert alert={alert} onClose={() => setAlert((current) => ({ ...current, open: false }))} />
 
         <form
           className="space-y-4"
