@@ -1,0 +1,213 @@
+# Dashwise Integration YAML
+details:
+  name: GitHub Repository
+  description: Repo overview widget for issues, pull requests, and stars.
+  author: Dashwise
+  version: 1.0.0
+  repository: "https://github.com/dashwise"
+  icon: "/icons/png/github-light.png"
+  links:
+    website: "https://github.com/${REPOSITORY}"
+    documentation: "https://docs.github.com/"
+    support: "https://github.com/${REPOSITORY}/issues"
+  categories:
+    - Development
+
+configuration:
+  cache:
+    policy: "cache-first"
+    retention: 300
+
+  rate_limit:
+    requests_per_second: 2
+
+  environment_variables:
+    REPOSITORY:
+      required: true
+      description: "GitHub repository slug, eg. andreasmolnardev/dashwise"
+    GITHUB_TOKEN:
+      required: false
+      user_hidden: true
+      edit: "overwrite-only"
+      description: "Optional GitHub token for higher API limits"
+
+  endpoints:
+    repo:
+      method: GET
+      url: "https://api.github.com/repos/${REPOSITORY}"
+      cache_ttl: 300
+      custom_headers:
+        Accept: "application/vnd.github+json"
+        X-GitHub-Api-Version: "2022-11-28"
+        Authorization: "Bearer ${GITHUB_TOKEN}"
+      response:
+        type: json
+      response_mapping:
+        full_name: "full_name"
+        stars: "stargazers_count"
+        open_issues_count: "open_issues_count"
+
+    open-issues:
+      method: GET
+      url: "https://api.github.com/search/issues?q=repo:${REPOSITORY}+is:issue+is:open&sort=created&order=desc&per_page=100"
+      cache_ttl: 300
+      custom_headers:
+        Accept: "application/vnd.github+json"
+        X-GitHub-Api-Version: "2022-11-28"
+        Authorization: "Bearer ${GITHUB_TOKEN}"
+      response:
+        type: json
+      response_mapping:
+        count: "total_count"
+
+    recent-open-issues:
+      method: GET
+      url: "https://api.github.com/search/issues?q=repo:${REPOSITORY}+is:issue+is:open+created:>=${NOW_24H_AGO_DATE}&sort=created&order=desc&per_page=100"
+      cache_ttl: 300
+      custom_headers:
+        Accept: "application/vnd.github+json"
+        X-GitHub-Api-Version: "2022-11-28"
+        Authorization: "Bearer ${GITHUB_TOKEN}"
+      response:
+        type: json
+      response_mapping:
+        count: "total_count"
+
+    open-prs:
+      method: GET
+      url: "https://api.github.com/search/issues?q=repo:${REPOSITORY}+is:pr+is:open&sort=created&order=desc&per_page=100"
+      cache_ttl: 300
+      custom_headers:
+        Accept: "application/vnd.github+json"
+        X-GitHub-Api-Version: "2022-11-28"
+        Authorization: "Bearer ${GITHUB_TOKEN}"
+      response:
+        type: json
+      response_mapping:
+        count: "total_count"
+
+    recent-open-prs:
+      method: GET
+      url: "https://api.github.com/search/issues?q=repo:${REPOSITORY}+is:pr+is:open+created:>=${NOW_24H_AGO_DATE}&sort=created&order=desc&per_page=100"
+      cache_ttl: 300
+      custom_headers:
+        Accept: "application/vnd.github+json"
+        X-GitHub-Api-Version: "2022-11-28"
+        Authorization: "Bearer ${GITHUB_TOKEN}"
+      response:
+        type: json
+      response_mapping:
+        count: "total_count"
+
+    recent-stars:
+      method: GET
+      url: "https://api.github.com/repos/${REPOSITORY}/events?per_page=100"
+      cache_ttl: 300
+      custom_headers:
+        Accept: "application/vnd.github+json"
+        X-GitHub-Api-Version: "2022-11-28"
+        Authorization: "Bearer ${GITHUB_TOKEN}"
+      response:
+        type: json
+      response_mapping:
+        recent_stars:
+          iterate: "response"
+          filter: "type == 'WatchEvent' and created_at >= '${NOW_24H_AGO_ISO}'"
+          mappingProperties:
+            id: "id"
+            created_at: "created_at"
+        recent_stars_count:
+          operation: "count"
+          value:
+            iterate: "response"
+            filter: "type == 'WatchEvent' and created_at >= '${NOW_24H_AGO_ISO}'"
+            mappingProperties:
+              id: "id"
+
+  widgets:
+    - name: "Repository Stats"
+      key: "github-repo-stats"
+      template: "columns"
+      depends_on:
+        - "repo"
+        - "open-issues"
+        - "recent-open-issues"
+        - "open-prs"
+        - "recent-open-prs"
+        - "recent-stars"
+      properties:
+        header:
+          title: "${REPOSITORY}"
+          icon: "fa6-brands:github"
+          titleAction: "url:https://github.com/${REPOSITORY}"
+        columns:
+          - id: "issues"
+            primary: "Issues"
+            primaryAction: "url:https://github.com/${REPOSITORY}/issues"
+            titleAction: "url:https://github.com/${REPOSITORY}/issues"
+            stats:
+              primary: "${endpoints.open-issues.mappedResponse.count}"
+              secondary: "(+ ${endpoints.recent-open-issues.mappedResponse.count})"
+          - id: "prs"
+            primary: "Pull Requests"
+            primaryAction: "url:https://github.com/${REPOSITORY}/pulls"
+            titleAction: "url:https://github.com/${REPOSITORY}/pulls"
+            stats:
+              primary: "${endpoints.open-prs.mappedResponse.count}"
+              secondary: "(+ ${endpoints.recent-open-prs.mappedResponse.count})"
+          - id: "stars"
+            primary: "Stars"
+            primaryAction: "url:https://github.com/${REPOSITORY}/stargazers"
+            titleAction: "url:https://github.com/${REPOSITORY}/stargazers"
+            stats:
+              primary: "${endpoints.repo.mappedResponse.stars}"
+              secondary: "(+ ${endpoints.recent-stars.mappedResponse.recent_stars_count})"
+
+  shortcuts:
+    - main:
+        - id: "repo"
+          name: "Repository"
+          icon: "fa6-brands:github"
+          secondaryInfo: "${endpoints.repo.mappedResponse.full_name}"
+          type: "githubRepo"
+          action: "url:https://github.com/${REPOSITORY}"
+          tags:
+            - "GitHub"
+            - "Repository"
+            - "${REPOSITORY}"
+        - id: "issues"
+          name: "Issues"
+          icon: "fa6-solid:triangle-exclamation"
+          secondaryInfo: "${endpoints.open-issues.mappedResponse.count} open"
+          type: "githubIssues"
+          action: "url:https://github.com/${REPOSITORY}/issues"
+          tags:
+            - "GitHub"
+            - "Issues"
+        - id: "pull-requests"
+          name: "Pull Requests"
+          icon: "fa6-solid:code-pull-request"
+          secondaryInfo: "${endpoints.open-prs.mappedResponse.count} open"
+          type: "githubPullRequests"
+          action: "url:https://github.com/${REPOSITORY}/pulls"
+          tags:
+            - "GitHub"
+            - "Pull Requests"
+
+  glanceables:
+    - name: "GitHub Repo"
+      type: "github-repo"
+      icon:
+        file: "fa6-brands:github"
+        size: 16
+      properties:
+        repository: "${REPOSITORY}"
+      text: "${endpoints.repo.mappedResponse.full_name} • ${endpoints.repo.mappedResponse.stars} stars"
+    - name: "24h Activity"
+      type: "github-activity"
+      icon:
+        file: "fa6-solid:chart-line"
+        size: 16
+      properties:
+        repository: "${REPOSITORY}"
+      text: "${endpoints.recent-open-issues.mappedResponse.count} issues, ${endpoints.recent-open-prs.mappedResponse.count} PRs, ${endpoints.recent-stars.mappedResponse.recent_stars_count} stars in 24h"

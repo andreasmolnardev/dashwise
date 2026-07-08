@@ -1118,10 +1118,38 @@ async function persistLocalDataIfChanged(
   cacheContext: { changed: boolean; localData: Record<string, any> },
 ) {
   if (!cacheContext.changed) return;
+  if (integrationId.startsWith("builtin-")) return;
   const pb = await getSuperuserPB();
   await pb.collection("integrations").update(integrationId, {
-    localData: cacheContext.localData,
+    localData: sanitizePersistedLocalData(cacheContext.localData),
   });
+}
+
+function sanitizePersistedLocalData(localData: Record<string, any>) {
+  const copy = JSON.parse(JSON.stringify(localData));
+  sanitizeCachedValue(copy);
+  return copy;
+}
+
+function sanitizeCachedValue(value: unknown) {
+  if (Array.isArray(value)) {
+    for (const item of value) sanitizeCachedValue(item);
+    return;
+  }
+
+  if (!isPlainObject(value)) return;
+
+  if (
+    typeof value.method === "string" &&
+    typeof value.resolvedUrl === "string" &&
+    "mappedResponse" in value
+  ) {
+    value.rawResponse = null;
+  }
+
+  for (const child of Object.values(value)) {
+    sanitizeCachedValue(child);
+  }
 }
 
 // --- Glanceable display helpers ---

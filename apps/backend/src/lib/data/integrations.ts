@@ -1,5 +1,6 @@
 import { Buffer } from "buffer";
 import { defaultIntegrationsManifest } from "@dashwise/assets";
+import { weatherIntegrationBlueprint } from "@dashwise/assets";
 import { ApiActionError } from "./auth";
 import { getSuperuserPB } from "../pb/pocketbase";
 import { decodeBase64Json, parseNullableJson, tryParseJson, tryParseYaml } from "../parseHelpers";
@@ -62,6 +63,10 @@ const builtinManifest = isPlainObject(defaultIntegrationsManifest)
     ? (defaultIntegrationsManifest as Record<string, { source: string; defaultEnv?: Record<string, unknown> }>)
     : {};
 
+const builtinConfigsBySource: Record<string, unknown> = {
+    "/integrations/weather.yaml": weatherIntegrationBlueprint,
+};
+
 let builtinSeedsPromise: Promise<BuiltinSeed[]> | null = null;
 
 function loadBuiltinSeeds(): Promise<BuiltinSeed[]> {
@@ -86,6 +91,9 @@ function loadBuiltinSeeds(): Promise<BuiltinSeed[]> {
 }
 
 async function fetchBuiltinConfig(source: string): Promise<Record<string, unknown> | null> {
+    const bundled = builtinConfigsBySource[source];
+    if (isPlainObject(bundled)) return bundled;
+
     try {
         const response = await fetch(new URL(source, config.APP_BASE_URL).toString());
         if (!response.ok) return null;
@@ -356,9 +364,87 @@ export async function getIntegrationWithConsumer(userId: string, options: { widg
         }
     }
 
+    if (widgetKey) {
+        const builtin = await getBuiltinConsumerMatch({
+            widgetKey,
+            glanceableType: "",
+            integrationId: "builtin-weather",
+            integration: weatherIntegrationBlueprint as Record<string, unknown>,
+            source: "/integrations/weather.yaml",
+        });
+        if (builtin) return builtin;
+    }
+
     return widgetKey
         ? { integrationId: null, integration: null, widgetJSON: null, localData: null }
         : { integrationId: null, integration: null, glanceableJSON: null, localData: null };
+}
+
+async function getBuiltinConsumerMatch(opts: {
+    widgetKey: string;
+    glanceableType: string;
+    integrationId: string;
+    integration: Record<string, unknown>;
+    source: string;
+}) {
+    const widgetKey = opts.widgetKey.trim();
+    const glanceableType = opts.glanceableType.trim();
+    const seed = {
+        source: opts.source,
+        name: typeof opts.integration?.details === "object" && opts.integration.details && typeof (opts.integration.details as Record<string, unknown>).name === "string"
+            ? String((opts.integration.details as Record<string, unknown>).name)
+            : null,
+        config: opts.integration,
+        defaultEnv: {},
+    } satisfies BuiltinSeed;
+
+    const cfg = seed.config;
+    const configuration = cfg?.configuration as Record<string, unknown> | undefined;
+    const collection = widgetKey ? "widgets" : "glanceables";
+    const items = configuration?.[collection];
+    if (!Array.isArray(items)) return null;
+
+    for (const item of items) {
+        if (!isPlainObject(item)) continue;
+
+        const resolvedWidgetKey = resolveWidgetId(item);
+        const glanceableAliases = resolveGlanceableAliases(item);
+        const normalizedGlanceableType = glanceableType.toLowerCase();
+
+        const matches = widgetKey
+            ? resolvedWidgetKey !== null && normalizeProgressType(resolvedWidgetKey) === normalizeProgressType(widgetKey)
+            : (() => {
+                if (!normalizedGlanceableType) return false;
+                return glanceableAliases.some((alias) => alias.toLowerCase() === normalizedGlanceableType);
+            })();
+
+        if (!matches) continue;
+
+        const sharedIntegration = {
+            ...cfg,
+            configuration: { ...configuration, environment_variables: {} },
+        };
+
+        if (widgetKey) {
+            return {
+                integrationId: opts.integrationId,
+                integration: sharedIntegration,
+                environmentDefinitions: configuration?.environment_variables,
+                widgetJSON: { ...item, key: resolveWidgetId(item) },
+                localData: null,
+            };
+        }
+
+        return {
+            integrationId: opts.integrationId,
+            integration: sharedIntegration,
+            environmentDefinitions: configuration?.environment_variables,
+            glanceableJSON: { ...item, type: resolveGlanceableId(item) },
+            localData: null,
+        };
+    }
+
+    return null;
 }
 
 export function parseCompositeConsumerKey(compositeKey: string) {
@@ -614,16 +700,23 @@ function prepareRequest(ep: ResolvedEndpoint, envMap: Record<string, string>, is
 
     const resolvedAuth = interpolate(ep.resolvedAuth || ep.auth || "", envMap);
     const authKey = Object.keys(headers).find((k) => k.toLowerCase() === "authorization");
+    const hasResolvedAuth = resolvedAuth && !UNRESOLVED_TOKEN_REGEX.test(resolvedAuth);
 
     if (isProvider) {
-        if (!authKey && resolvedAuth && !UNRESOLVED_TOKEN_REGEX.test(resolvedAuth)) {
+        if (!authKey && hasResolvedAuth) {
             headers.Authorization = resolvedAuth;
+        } else if (authKey && UNRESOLVED_TOKEN_REGEX.test(headers[authKey]) && hasResolvedAuth) {
+            headers[authKey] = resolvedAuth;
+        } else if (authKey && UNRESOLVED_TOKEN_REGEX.test(headers[authKey])) {
+            delete headers[authKey];
         }
     } else {
-        if (!authKey && resolvedAuth) {
+        if (!authKey && hasResolvedAuth) {
             headers.Authorization = resolvedAuth;
-        } else if (authKey && UNRESOLVED_TOKEN_REGEX.test(headers[authKey]) && resolvedAuth) {
+        } else if (authKey && UNRESOLVED_TOKEN_REGEX.test(headers[authKey]) && hasResolvedAuth) {
             headers[authKey] = resolvedAuth;
+        } else if (authKey && UNRESOLVED_TOKEN_REGEX.test(headers[authKey])) {
+            delete headers[authKey];
         }
     }
 
