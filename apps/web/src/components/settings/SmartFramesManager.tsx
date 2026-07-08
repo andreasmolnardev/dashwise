@@ -158,6 +158,13 @@ function getFrameLayout(frame: Frame) {
   };
 }
 
+function stripPrivateSectionParams(params?: Record<string, any>) {
+  if (!params) return {};
+  const nextParams = { ...params };
+  delete nextParams.__pageName;
+  return nextParams;
+}
+
 function LayoutPreview({
   cols,
   rows,
@@ -507,18 +514,16 @@ export default function SmartFramesManager({
       Array.isArray(editableParams.sections)
         ? editableParams.sections
         : [{ id: "cell-0-0", widgetType: frame.type, params: editableParams }],
-    );
-    if (nextSections[0]) {
-      nextSections[0].params = {
-        ...(nextSections[0].params ?? {}),
-        __pageName: String(frame.params?.name ?? ""),
-      };
-    }
+    ).map((section) => ({
+      ...section,
+      params: stripPrivateSectionParams(section.params),
+    }));
     delete editableParams.backgroundImageUrl;
     delete editableParams.backgroundSource;
     delete editableParams.backgroundFilters;
     delete editableParams.layout;
     delete editableParams.sections;
+    delete editableParams.__pageName;
     const fallbackFilters = normalizeWallpaperFilters(
       user?.appearancePreferences?.wallpaperFilters as any,
     );
@@ -562,7 +567,9 @@ export default function SmartFramesManager({
     setError(null);
     setWidgetParamsError(null);
 
-    const selectedParams: Record<string, any> = selectedSection?.params ?? {};
+    const selectedParams: Record<string, any> = stripPrivateSectionParams(
+      selectedSection?.params,
+    );
 
     let backgroundImageUrl: string | undefined;
     let backgroundSource: BackgroundMode | undefined;
@@ -627,7 +634,7 @@ export default function SmartFramesManager({
           Object.entries(
             section.id === selectedSectionId
               ? selectedParams
-              : section.params ?? {},
+              : stripPrivateSectionParams(section.params),
           ),
         ),
       }));
@@ -687,7 +694,7 @@ export default function SmartFramesManager({
             Add Frame
           </Button>
         </div>
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 frosted rounded-t-xl rounded-md">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 frosted rounded-t-xl rounded-md py-2">
           {frames.map((frame, index) => (
             <div key={frame.id} className="mx-auto min-w-0" style={{ width: FRAME_PREVIEW_SIZE.width }}>
               <div
@@ -833,7 +840,7 @@ export default function SmartFramesManager({
             </div>
           ))}
         {frames.length > 1 && (
-          <div className="flex justify-center gap-2">
+          <div className="flex justify-center gap-2 col-span-2">
             {frames.map((frame, index) => (
               <button
                 key={frame.id}
