@@ -59,10 +59,13 @@ export function renderWidget({
   defaultOpen,
 }: WidgetProps): ReactNode {
   const renderParams = stripWidgetIndex(params);
+  const resolvedType = type === "widget" && typeof renderParams?.key === "string" && renderParams.key.trim()
+    ? renderParams.key.trim()
+    : type;
   const finalClassName = `${className ?? ""} frosted`.trim();
-  const progressPeriod = resolveProgressPeriod(type, params);
+  const progressPeriod = resolveProgressPeriod(resolvedType, params);
 
-  switch (type) {
+  switch (resolvedType) {
     case "main-clock":
     case "glanceable-clock":
       return <GlanceableClockWidget className={className} params={renderParams} isPreview={isPreview} />;
@@ -110,8 +113,8 @@ export function renderWidget({
     default:
       return (
         <IntegrationWidget
-          type={type}
-          consumerKey={consumerKey ?? (type.includes("#") ? type : undefined)}
+          type={resolvedType}
+          consumerKey={consumerKey ?? (resolvedType.includes("#") ? resolvedType : undefined)}
           isPreview={isPreview}
           properties={renderParams}
           className={finalClassName}
