@@ -871,28 +871,40 @@ export default function SmartFramesManager({
 
                   <div className="mt-3 space-y-6">
                     <div className="space-y-4">
-                      <div className="grid gap-3 sm:grid-cols-[auto_1fr_1.4fr] sm:items-center">
-                        <Label className="w-full">Widget Category</Label>
-                        <div className="sm:col-span-2 flex items-center gap-2 overflow-x-auto pb-1">
-                          {widgetCategories.map((category) => (
-                            <button
-                              key={category}
-                              type="button"
-                              onClick={() => setSelectedWidgetCategory(category)}
-                              className={`whitespace-nowrap rounded-full px-3 py-1.5 text-xs capitalize transition ${
-                                selectedWidgetCategory === category
-                                  ? "bg-white text-black"
-                                  : "border border-white/25 text-white/80"
-                              }`}
-                            >
-                              {category.replace(/^integration-/, "")}
-                            </button>
-                          ))}
-                        </div>
+                      <div className="flex items-center gap-3">
+                        <Label className="shrink-0">Widget</Label>
+                        <div className="min-w-0 flex-1" />
+                        <button
+                          type="button"
+                          onClick={() => setIsWidgetCarouselOpen((current) => !current)}
+                          aria-expanded={isWidgetCarouselOpen}
+                          className="frosted flex max-w-full items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white/90 transition hover:bg-white/10"
+                        >
+                          <span className="max-w-[18rem] truncate">
+                            {resolveWidgetLabel(selectedSection?.widgetType)}
+                          </span>
+                          <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${isWidgetCarouselOpen ? "rotate-180" : ""}`} />
+                        </button>
                       </div>
-                      <div className="grid grid-rows-[1fr] transition-[grid-template-rows] duration-250 ease-out">
-                        <div className="min-h-0 overflow-hidden">
-                          
+                      <div className={`grid transition-all duration-250 ease-out ${isWidgetCarouselOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0 pointer-events-none"}`}>
+                        <div className="min-h-0 overflow-hidden space-y-4">
+                          <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                            {widgetCategories.map((category) => (
+                              <button
+                                key={category}
+                                type="button"
+                                onClick={() => setSelectedWidgetCategory(category)}
+                                className={`whitespace-nowrap rounded-full px-3 py-1.5 text-xs capitalize transition ${
+                                  selectedWidgetCategory === category
+                                    ? "bg-white text-black"
+                                    : "border border-white/25 text-white/80"
+                                }`}
+                              >
+                                {category.replace(/^integration-/, "")}
+                              </button>
+                            ))}
+                          </div>
+
                           <div className="flex max-w-full snap-x gap-3 overflow-x-auto overscroll-x-contain pb-2">
                             {selectedWidgetOptions.map((widget) => (
                               <button
@@ -918,15 +930,6 @@ export default function SmartFramesManager({
                                 </span>
                               </button>
                             ))}
-                          </div>
-                          <div className="flex justify-end pt-2">
-                            <button
-                              type="button"
-                              onClick={() => updateSelectedSection({ widgetType: "placeholder", params: {} })}
-                              className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white/70 transition hover:bg-white/10"
-                            >
-                              Remove widget
-                            </button>
                           </div>
                         </div>
                       </div>
