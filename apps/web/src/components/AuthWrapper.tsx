@@ -102,8 +102,8 @@ export default function AuthWrapper({ children }: AuthWrapperProps) {
   useEffect(() => {
     if (!user?.appearancePreferences) return;
 
-    const imgUrl =
-      user.appearancePreferences.backgroundImageUrl || "/default-background.png";
+    const rawImgUrl = user.appearancePreferences.backgroundImageUrl || "/dashboard-wallpaper.png";
+    const imgUrl = rawImgUrl.startsWith("/assets/") ? rawImgUrl.replace(/^\/assets\//, "/") : rawImgUrl;
     const tokenToUse = token;
     let revokeUrl: string | null = null;
 

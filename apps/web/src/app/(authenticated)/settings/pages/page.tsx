@@ -4,11 +4,9 @@ import { usePageConfig } from "@/hooks/usePageConfig";
 import { updatePageConfigAction } from '@/lib/apiClient';
 import { getConsumerDataAction } from '@/lib/apiClient';
 import { getUserGlanceableAction, getUserWidgetsAction } from '@/lib/apiClient';
-import { updatePageIntegrationConsumerCache } from "@/lib/pageIntegrationDataCache";
 import useAuth from "@/context/useAuth";
 import { PageSelectTabs } from "@/components/settings/pages/PageSelectTabs";
 import { TemplateOptions } from "@/components/settings/pages/TemplateOptions";
-import { EditGlanceablesView } from "@/components/settings/pages/EditGlanceablesView";
 import { DashboardWidgetPreview } from "@/components/settings/pages/DashboardWidgetPreview";
 import {
   buildPageConfigPatch,
@@ -282,25 +280,9 @@ export default function SettingsPagesPage() {
       const payload = await withAuth((auth) =>
         getConsumerDataAction(auth, widgetKey, input ?? {}, {
           type: "widget",
+          isPreview: true,
         }),
       ) as any;
-
-      if (payload?.success) {
-        const canonicalConsumerKey = widgetKey.includes("#")
-          ? widgetKey
-          : payload.integrationId
-            ? `${payload.integrationId}#${widgetKey}`
-            : `widget:${widgetKey}:${JSON.stringify(input ?? {})}`;
-
-        updatePageIntegrationConsumerCache({
-          ...payload,
-          consumer: "widget",
-          key: widgetKey,
-          integrationId: payload.integrationId ?? null,
-          properties: input ?? {},
-          consumerKey: canonicalConsumerKey,
-        });
-      }
 
       return payload ?? null;
     },
@@ -349,22 +331,6 @@ export default function SettingsPagesPage() {
       <h2 className="text-lg font-semibold">Template</h2>
       <TemplateOptions template={template} onTemplateChange={setTemplate} />
 
-      {hasMainClock ? (
-        <EditGlanceablesView
-          hasMainClock={hasMainClock}
-          glanceablesCatalog={glanceablesCatalog}
-          selectedClockPart={selectedClockPart}
-          setSelectedClockPart={setSelectedClockPart}
-          clockSelection={clockSelection}
-          setClockSelection={setClockSelection}
-          clockGlanceables={clockGlanceables}
-          setClockGlanceables={setClockGlanceables}
-          clockStyle={clockStyle}
-          setClockStyle={setClockStyle}
-          fonts={fonts}
-        />
-      ) : null}
-
       <DashboardWidgetPreview
         template={template}
         columns={columns}
@@ -376,6 +342,17 @@ export default function SettingsPagesPage() {
         widgetCategories={widgetCategories}
         selectedWidgetCategory={selectedWidgetCategory}
         setSelectedWidgetCategory={setSelectedWidgetCategory}
+        hasMainClock={hasMainClock}
+        glanceablesCatalog={glanceablesCatalog}
+        selectedClockPart={selectedClockPart}
+        setSelectedClockPart={setSelectedClockPart}
+        clockSelection={clockSelection}
+        setClockSelection={setClockSelection}
+        clockGlanceables={clockGlanceables}
+        setClockGlanceables={setClockGlanceables}
+        clockStyle={clockStyle}
+        setClockStyle={setClockStyle}
+        fonts={fonts}
       />
     </div>
   );

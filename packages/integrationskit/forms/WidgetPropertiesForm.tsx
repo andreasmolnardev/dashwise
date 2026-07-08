@@ -10,6 +10,12 @@ export type WidgetPropertiesFormProps = {
   emptyMessage?: string;
 };
 
+type SelectSchema = {
+  type: "select";
+  default?: unknown;
+  options?: Array<string | { value: string; label?: string }>;
+};
+
 function getValueType(value: unknown) {
   if (Array.isArray(value)) return "array";
   if (value === null || value === undefined) return "string";
@@ -21,6 +27,25 @@ function formatDefault(value: unknown) {
   if (typeof value === "string") return value ? `"${value}"` : "empty string";
   if (typeof value === "object") return JSON.stringify(value);
   return String(value);
+}
+
+function isSelectSchema(value: unknown): value is SelectSchema {
+  return !!value && typeof value === "object" && !Array.isArray(value) && (value as Record<string, any>).type === "select";
+}
+
+function getSelectOptions(schemaValue: SelectSchema) {
+  return (schemaValue.options ?? [])
+    .map((option) => {
+      if (typeof option === "string") {
+        return { value: option, label: option };
+      }
+
+      return {
+        value: option.value,
+        label: option.label ?? option.value,
+      };
+    })
+    .filter((option) => Boolean(option.value));
 }
 
 export default function WidgetPropertiesForm({
@@ -47,9 +72,16 @@ export default function WidgetPropertiesForm({
     <div className="space-y-3">
       {keys.map((key) => {
         const schemaValue = schema[key];
-        const currentValue = key in value ? value[key] : schemaValue;
-        const type = getValueType(schemaValue ?? currentValue);
+        const hasStoredValue = key in value;
+        const currentValue = hasStoredValue ? value[key] : schemaValue;
+        const selectSchema = isSelectSchema(schemaValue) ? schemaValue : null;
+        const type = selectSchema ? "select" : getValueType(schemaValue ?? currentValue);
         const inputId = `${idPrefix}-${key}`;
+        const selectOptions = selectSchema ? getSelectOptions(selectSchema) : [];
+        const selectValue = hasStoredValue && value[key] != null && value[key] !== ""
+          ? String(value[key])
+          : ""
+        const resolvedSelectValue = selectValue || String(selectSchema?.default ?? selectOptions[0]?.value ?? "")
 
         return (
           <div key={key} className="space-y-1.5 rounded-lg border border-white/10 bg-black/15 p-3">
@@ -59,7 +91,20 @@ export default function WidgetPropertiesForm({
             </div>
             <p className="text-xs text-white/50">Default: {formatDefault(schemaValue)}</p>
 
-            {type === "boolean" ? (
+            {selectSchema ? (
+              <select
+                id={inputId}
+                value={resolvedSelectValue}
+                onChange={(event) => updateValue(key, event.target.value)}
+                className="w-full rounded-md border border-white/15 bg-black/20 px-3 py-2 text-sm outline-none"
+              >
+                {selectOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            ) : type === "boolean" ? (
               <input
                 id={inputId}
                 type="checkbox"

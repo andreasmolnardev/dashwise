@@ -1,7 +1,7 @@
 // components/widgets/dashboard/GlanceableClock.tsx
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import ClockWidget from "../ClockWidget";
 import useAuth from "@/context/useAuth";
 import { getConsumerDataAction } from '@/lib/apiClient';
@@ -11,6 +11,7 @@ import { usePageConfig } from "@/hooks/usePageConfig";
 import type { WidgetItemProps } from "../Widget";
 import { useLocalization } from "@/context/LocalizationContext";
 import { readPageIntegrationConsumer } from "@/lib/pageIntegrationDataCache";
+import type { ClockAppearance } from "../../settings/ClockFontSelectionCarousel";
 
 type ResolvedGlanceablePayload = {
   consumer: "glanceable";
@@ -29,17 +30,23 @@ const LOCAL_ONLY_GLANCEABLES = new Set([
   "greeting",
   "local-timezone",
   "world-clock",
+  "progress",
   "day-progress",
   "week-progress",
   "month-progress",
   "year-progress",
 ]);
 
-export default function GlanceableClockWidget({ className, params }: WidgetItemProps) {
+type GlanceableClockWidgetProps = WidgetItemProps & {
+  isPreview?: boolean;
+};
+
+export default function GlanceableClockWidget({ className, params, isPreview }: GlanceableClockWidgetProps) {
   const { pageConfig } = usePageConfig();
   const { user } = useAuth();
   const localization = useLocalization();
   const clockStyle = params?.["clock-style"] as Record<string, any> | undefined;
+  const clockAppearance = user?.appearancePreferences?.clock as ClockAppearance | undefined;
 
   // params.glanceables overrides config-level glanceables
   const glanceableOverrides: Record<string, any> | undefined = params?.glanceables;
@@ -58,12 +65,20 @@ export default function GlanceableClockWidget({ className, params }: WidgetItemP
     return Object.keys(rest).length > 0 ? rest : undefined;
   };
 
+  const previewGridStyle = isPreview
+    ? { gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr)", gridTemplateRows: "minmax(0, 1fr)", gridTemplateAreas: '"gl1 clock gl2"' }
+    : undefined;
+  const clockTextClassName = isPreview ? "text-xs leading-none" : "text-2xl md:text-4xl leading-tight";
+
   return (
-    <section className={`responsive-glance-grid w-full ${className ?? ""}`}>
-      <div style={{ gridArea: "clock" }} className="area-clock w-full flex items-center justify-center text-2xl md:text-4xl leading-tight">
-        <div style={{ margin: "0 auto", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+    <section
+      className={`responsive-glance-grid w-full overflow-hidden ${className ?? ""}`}
+      style={previewGridStyle}
+    >
+      <div style={{ gridArea: "clock" }} className={`area-clock min-w-0 overflow-hidden w-full flex items-center justify-center ${clockTextClassName}`}>
+        <div style={{ margin: "0 auto", display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 0, overflow: "hidden" }}>
           <ClockWidget
-            font={clockStyle?.defaultFont ?? user?.appearancePreferences?.clock?.defaultFont}
+            font={clockStyle?.defaultFont ?? clockAppearance?.defaultFont}
             weight={clockStyle?.fontWeight}
             color={clockStyle?.color}
             letterSpacing={clockStyle?.letterSpacing}
@@ -74,7 +89,7 @@ export default function GlanceableClockWidget({ className, params }: WidgetItemP
           />
         </div>
       </div>
-      <div style={{ gridArea: "gl1" }} className="area-gl1">
+      <div style={{ gridArea: "gl1" }} className="area-gl1 min-w-0 overflow-hidden">
         {glanceableKeys[0] && (
           <ResolvedGlanceable
             type={glanceableKeys[0]}
@@ -84,7 +99,7 @@ export default function GlanceableClockWidget({ className, params }: WidgetItemP
           />
         )}
       </div>
-      <div style={{ gridArea: "gl2" }} className="area-gl2">
+      <div style={{ gridArea: "gl2" }} className="area-gl2 min-w-0 overflow-hidden">
         {glanceableKeys[1] && (
           <ResolvedGlanceable
             type={glanceableKeys[1]}

@@ -37,9 +37,13 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { renderWidget } from "@/components/widgets/Widget";
+import GlanceableComponent from "@dashwise/integrationskit/Glanceable";
+import { useLocalization } from "@/context/LocalizationContext";
+import { EditGlanceablesView } from "@/components/settings/pages/EditGlanceablesView";
 import {
   ColumnName,
   ColumnWidget,
+  GlanceableSide,
   TemplateId,
   WidgetCatalogItem,
   createWidgetId,
@@ -69,6 +73,17 @@ type DashboardWidgetPreviewProps = {
   widgetCategories: string[];
   selectedWidgetCategory: string;
   setSelectedWidgetCategory: (category: string) => void;
+  hasMainClock: boolean;
+  glanceablesCatalog: Array<{ type: string; name: string; exampleProps: Record<string, any> }>;
+  selectedClockPart: GlanceableSide | "clock";
+  setSelectedClockPart: (part: GlanceableSide | "clock") => void;
+  clockSelection: Record<GlanceableSide, string>;
+  setClockSelection: Dispatch<SetStateAction<Record<GlanceableSide, string>>>;
+  clockGlanceables: Record<string, any>;
+  setClockGlanceables: Dispatch<SetStateAction<Record<string, any>>>;
+  clockStyle: Record<string, any>;
+  setClockStyle: Dispatch<SetStateAction<Record<string, any>>>;
+  fonts: Array<{ name: string; path: string }>;
 };
 
 function WidgetTile({
@@ -78,6 +93,10 @@ function WidgetTile({
   onUpdateInput,
   loadWidgetPreviewData,
   isActive,
+  onEditClockPart,
+  clockSelection,
+  clockGlanceables,
+  clockStyle,
 }: {
   columnWidget: ColumnWidget;
   widgetConfig?: WidgetCatalogItem;
@@ -85,7 +104,13 @@ function WidgetTile({
   onUpdateInput: (widgetId: string, input?: ColumnWidget["input"]) => void;
   loadWidgetPreviewData?: (widgetKey: string, input?: Record<string, any>) => Promise<Record<string, any> | null>;
   isActive?: boolean;
+  onEditClockPart?: (part: GlanceableSide | "clock") => void;
+  clockSelection?: Record<GlanceableSide, string>;
+  clockGlanceables?: Record<string, any>;
+  clockStyle?: Record<string, any>;
 }) {
+  const localization = useLocalization();
+  const { withAuth } = useAuth();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: columnWidget.id,
   });
@@ -137,10 +162,8 @@ function WidgetTile({
     setActiveTab("input");
   }, [isDataDialogOpen, columnWidget.input, columnWidget.properties, widgetConfig?.input]);
 
-  const { withAuth } = useAuth();
-
   useEffect(() => {
-    if (!isDataDialogOpen || !supportsUserCustomizations || !widgetConfig?.key || !withAuth) {
+    if (!isDataDialogOpen || !supportsUserCustomizations || !widgetConfig?.key) {
       return;
     }
 
@@ -152,9 +175,13 @@ function WidgetTile({
       ...stripDisplayCustomizations(columnWidget.input ?? {}),
     };
 
-    void withAuth((auth) =>
-      getConsumerDataAction(auth, widgetConfig.key, previewInput ?? {}, { type: "widget", isPreview: false }),
-    )
+    const resolvePreviewData = loadWidgetPreviewData
+      ? loadWidgetPreviewData(widgetConfig.key, previewInput ?? {})
+      : withAuth((auth) =>
+        getConsumerDataAction(auth, widgetConfig.key, previewInput ?? {}, { type: "widget", isPreview: true }),
+      );
+
+    void resolvePreviewData
       .then((payload) => {
         if (cancelled) return;
         setPreviewResolved(payload as any);
@@ -172,7 +199,7 @@ function WidgetTile({
     return () => {
       cancelled = true;
     };
-  }, [columnWidget.input, columnWidget.properties, isDataDialogOpen, supportsUserCustomizations, widgetConfig?.key, withAuth]);
+  }, [columnWidget.input, columnWidget.properties, isDataDialogOpen, loadWidgetPreviewData, supportsUserCustomizations, widgetConfig?.key, withAuth]);
 
   useEffect(() => {
     if (!isDataDialogOpen || !supportsUserCustomizations || hasInitializedDisplayOrder.current) {
@@ -251,6 +278,7 @@ function WidgetTile({
     ...(columnWidget.properties ?? {}),
     ...(columnWidget.input ?? {}),
   };
+  const isClockWidget = columnWidget.type === "main-clock" || columnWidget.type === "glanceable-clock";
 
   return (
     <div
@@ -263,111 +291,132 @@ function WidgetTile({
         type: columnWidget.type,
         params,
         className: "w-full h-[90px]",
+        isPreview: true,
       })}
 
       {/* Hover overlay with controls */}
-      <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg backdrop-blur-[2px]">
-        {widgetConfig?.name && (
-          <p className="font-bold py-0.5 text-sm text-center">
-            {widgetConfig.name}
-          </p>
-        )}
-        <div className="flex items-center justify-center gap-1">
-          {canEditData && (
-            <Dialog open={isDataDialogOpen} onOpenChange={setIsDataDialogOpen}>
-              <DialogTrigger asChild>
-                <button
-                  type="button"
-                  aria-label={`Edit input for ${columnWidget.type}`}
-                  className="rounded-full bg-white/10 p-2 hover:bg-white/20 backdrop-blur"
-                >
-                  <Edit3 className="h-4 w-4" />
-                </button>
-              </DialogTrigger>
-            <DialogContent className="frosted">
-              <DialogHeader>
-                <DialogTitle>{supportsUserCustomizations ? "Edit Widget Settings" : "Edit Widget Input"}</DialogTitle>
-                <DialogDescription>
-                  {supportsUserCustomizations
-                    ? "Adjust the input payload and displayed items for this widget instance."
-                    : "Customize the per-widget input payload used by the preview and saved page config."}
-                </DialogDescription>
-              </DialogHeader>
-              {supportsUserCustomizations ? (
-                <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "input" | "displayed")} className="py-4">
-                  <TabsList className="grid w-full grid-cols-2 frosted rounded-full">
-                    <TabsTrigger value="input" className="rounded-full">Input</TabsTrigger>
-                    <TabsTrigger value="displayed" className="rounded-full">Displayed Items</TabsTrigger>
-                  </TabsList>
+      <div className="absolute inset-0 rounded-lg bg-black/60 opacity-0 transition-opacity group-hover:opacity-100 backdrop-blur-[2px]">
+        {isClockWidget ? (
+          <div className="grid h-full grid-cols-3 items-center gap-2 p-2">
+            <button type="button" onClick={() => onEditClockPart?.("left")} className="flex h-full flex-col items-center justify-center rounded-xl border border-white/10 bg-white/5 p-2 text-center hover:bg-white/10">
+              <GlanceableComponent type={clockSelection?.left ?? ""} params={clockGlanceables?.[clockSelection?.left ?? ""] ?? {}} formatters={localization} className="h-8 rounded-full px-2 py-0.5" />
+              <span className="mt-2 text-[10px] text-white/60">Left</span>
+            </button>
+            <button type="button" onClick={() => onEditClockPart?.("clock")} className="flex h-full flex-col items-center justify-center rounded-xl border border-white/10 bg-white/5 p-2 text-center hover:bg-white/10">
+              <span className="rounded-full border border-white/10 bg-white/10 px-3 py-2 text-xs font-medium text-white/80">Clock</span>
+              <span className="mt-2 text-[10px] text-white/60">Edit</span>
+            </button>
+            <button type="button" onClick={() => onEditClockPart?.("right")} className="flex h-full flex-col items-center justify-center rounded-xl border border-white/10 bg-white/5 p-2 text-center hover:bg-white/10">
+              <GlanceableComponent type={clockSelection?.right ?? ""} params={clockGlanceables?.[clockSelection?.right ?? ""] ?? {}} formatters={localization} className="h-8 rounded-full px-2 py-0.5" />
+              <span className="mt-2 text-[10px] text-white/60">Right</span>
+            </button>
+          </div>
+        ) : (
+          <div className="flex h-full flex-col items-center justify-center gap-2 p-2">
+            {widgetConfig?.name && (
+              <p className="font-bold py-0.5 text-sm text-center">
+                {widgetConfig.name}
+              </p>
+            )}
+            <div className="flex items-center justify-center gap-1">
+              {canEditData && (
+                <Dialog open={isDataDialogOpen} onOpenChange={setIsDataDialogOpen}>
+                  <DialogTrigger asChild>
+                    <button
+                      type="button"
+                      aria-label={`Edit input for ${columnWidget.type}`}
+                      className="rounded-full bg-white/10 p-2 hover:bg-white/20 backdrop-blur"
+                    >
+                      <Edit3 className="h-4 w-4" />
+                    </button>
+                  </DialogTrigger>
+                <DialogContent className="frosted">
+                  <DialogHeader>
+                    <DialogTitle>{supportsUserCustomizations ? "Edit Widget Settings" : "Edit Widget Input"}</DialogTitle>
+                    <DialogDescription>
+                      {supportsUserCustomizations
+                        ? "Adjust the input payload and displayed items for this widget instance."
+                        : "Customize the per-widget input payload used by the preview and saved page config."}
+                    </DialogDescription>
+                  </DialogHeader>
+                  {supportsUserCustomizations ? (
+                    <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "input" | "displayed")} className="py-4">
+                      <TabsList className="grid w-full grid-cols-2 frosted rounded-full">
+                        <TabsTrigger value="input" className="rounded-full">Input</TabsTrigger>
+                        <TabsTrigger value="displayed" className="rounded-full">Displayed Items</TabsTrigger>
+                      </TabsList>
 
-                  <TabsContent value="input" className="space-y-4 pt-4 max-h-[50vh] overflow-y-auto">
-                    <WidgetInputEditor
-                      widgetId={columnWidget.id}
-                      schema={widgetConfig?.input ?? {}}
-                      inputDraft={inputDraft}
-                      onChange={setInputDraft}
-                      dataError={dataError}
-                      setDataError={setDataError}
-                    />
-                    {dataError ? <p className="text-sm text-red-400">{dataError}</p> : null}
-                  </TabsContent>
+                      <TabsContent value="input" className="space-y-4 pt-4 max-h-[50vh] overflow-y-auto">
+                        <WidgetInputEditor
+                          widgetId={columnWidget.id}
+                          schema={widgetConfig?.input ?? {}}
+                          inputDraft={inputDraft}
+                          onChange={setInputDraft}
+                          dataError={dataError}
+                          setDataError={setDataError}
+                        />
+                        {dataError ? <p className="text-sm text-red-400">{dataError}</p> : null}
+                      </TabsContent>
 
-                  <TabsContent value="displayed" className="space-y-3 pt-4">
-                    {isPreviewLoading ? (
-                      <p className="text-sm text-white/60">Loading items...</p>
-                    ) : integrationDataEntries.length > 0 ? (
-                      <DndContext
-                        collisionDetection={closestCenter}
-                        onDragEnd={handleCustomizationDragEnd}
-                        sensors={customizationSensors}
-                      >
-                        <SortableContext items={displayOrder} strategy={verticalListSortingStrategy}>
-                          <div className="space-y-2">
-                            {displayOrder.map((itemId) => {
-                              const item = integrationDataEntriesById.get(itemId);
-                              if (!item) return null;
-                              return (
-                                <DisplayedItemRow
-                                  key={itemId}
-                                  id={itemId}
-                                  title={item.title}
-                                  subtitle={item.subtitle}
-                                  hidden={hiddenIds.includes(itemId)}
-                                  onToggleHidden={() => toggleHidden(itemId)}
-                                />
-                              );
-                            })}
-                          </div>
-                        </SortableContext>
-                      </DndContext>
-                    ) : (
-                      <p className="text-sm text-white/60">This widget has no items yet.</p>
-                    )}
-                  </TabsContent>
-                </Tabs>
-              ) : (
-                <div className="space-y-4 py-4">
-                  <WidgetInputEditor
-                    widgetId={columnWidget.id}
-                    schema={widgetConfig?.input ?? {}}
-                    inputDraft={inputDraft}
-                    onChange={setInputDraft}
-                    dataError={dataError}
-                    setDataError={setDataError}
-                  />
-                  {dataError ? <p className="text-sm text-red-400">{dataError}</p> : null}
-                </div>
+                      <TabsContent value="displayed" className="space-y-3 pt-4">
+                        {isPreviewLoading ? (
+                          <p className="text-sm text-white/60">Loading items...</p>
+                        ) : integrationDataEntries.length > 0 ? (
+                          <DndContext
+                            collisionDetection={closestCenter}
+                            onDragEnd={handleCustomizationDragEnd}
+                            sensors={customizationSensors}
+                          >
+                            <SortableContext items={displayOrder} strategy={verticalListSortingStrategy}>
+                              <div className="space-y-2">
+                                {displayOrder.map((itemId) => {
+                                  const item = integrationDataEntriesById.get(itemId);
+                                  if (!item) return null;
+                                  return (
+                                    <DisplayedItemRow
+                                      key={itemId}
+                                      id={itemId}
+                                      title={item.title}
+                                      subtitle={item.subtitle}
+                                      hidden={hiddenIds.includes(itemId)}
+                                      onToggleHidden={() => toggleHidden(itemId)}
+                                    />
+                                  );
+                                })}
+                              </div>
+                            </SortableContext>
+                          </DndContext>
+                        ) : (
+                          <p className="text-sm text-white/60">This widget has no items yet.</p>
+                        )}
+                      </TabsContent>
+                    </Tabs>
+                  ) : (
+                    <div className="space-y-4 py-4">
+                      <WidgetInputEditor
+                        widgetId={columnWidget.id}
+                        schema={widgetConfig?.input ?? {}}
+                        inputDraft={inputDraft}
+                        onChange={setInputDraft}
+                        dataError={dataError}
+                        setDataError={setDataError}
+                      />
+                      {dataError ? <p className="text-sm text-red-400">{dataError}</p> : null}
+                    </div>
+                  )}
+                  <DialogFooter>
+                    <Button type="button" variant="outline" onClick={() => setIsDataDialogOpen(false)}>
+                      Cancel
+                    </Button>
+                    <Button type="button" onClick={handleSaveData}>
+                      Save input
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+                </Dialog>
               )}
-              <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setIsDataDialogOpen(false)}>
-                  Cancel
-                </Button>
-                <Button type="button" onClick={handleSaveData}>
-                  Save input
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+            </div>
+          </div>
         )}
         <button
           type="button"
@@ -388,8 +437,7 @@ function WidgetTile({
         </button>
       </div>
     </div>
-  </div>
-);
+  );
 }
 
 function WidgetInputEditor({
@@ -682,6 +730,7 @@ function LibraryItem({ item }: { item: WidgetCatalogItem }) {
         params: mergedPreviewParams,
         className: "h-[110px] w-full",
         previewTemplate,
+        isPreview: true,
       })}
       <p className="text-center text-xs text-white/70">{item.name}</p>
     </div>
@@ -701,26 +750,18 @@ export function WidgetPickerCard({
   compact?: boolean;
   children: ReactNode;
 }) {
-  const [open, setOpen] = useState(false);
-
   return (
     <div className="min-w-0 max-w-full space-y-3 overflow-hidden">
-      <button
-        type="button"
-        onClick={() => setOpen((value) => !value)}
-        className={`flex max-w-full items-center justify-between gap-3 rounded-xl border border-white/15 bg-white/5 text-left transition hover:bg-white/10 ${compact ? "w-fit min-w-48 px-3 py-2" : "w-full p-4"}`}
-      >
+      <div className={`flex max-w-full items-center justify-between gap-3 rounded-xl border border-white/15 bg-white/5 text-left ${compact ? "w-fit min-w-48 px-3 py-2" : "w-full p-4"}`}>
         <span className="min-w-0">
           <span className="block text-sm font-semibold">{title}</span>
           <span className="block truncate text-xs text-white/65">{selectedLabel ?? description}</span>
         </span>
-        <ChevronDown className={`h-4 w-4 shrink-0 text-white/60 transition ${open ? "rotate-180" : ""}`} />
-      </button>
-      {open && (
-        <div className="frosted min-w-0 max-w-full overflow-hidden rounded-xl border border-white/15 p-3">
-          {children}
-        </div>
-      )}
+        <ChevronDown className="h-4 w-4 shrink-0 text-white/60 opacity-0" />
+      </div>
+      <div className="min-w-0 max-w-full overflow-hidden rounded-xl border border-white/15 p-3">
+        {children}
+      </div>
     </div>
   );
 }
@@ -735,9 +776,21 @@ export function DashboardWidgetPreview({
   widgetCategories,
   selectedWidgetCategory,
   setSelectedWidgetCategory,
+  hasMainClock,
+  glanceablesCatalog,
+  selectedClockPart,
+  setSelectedClockPart,
+  clockSelection,
+  setClockSelection,
+  clockGlanceables,
+  setClockGlanceables,
+  clockStyle,
+  setClockStyle,
+  fonts,
 }: DashboardWidgetPreviewProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState<{ zone: ColumnName; index: number } | null>(null);
+  const [clockDialogOpen, setClockDialogOpen] = useState(false);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -768,6 +821,11 @@ export function DashboardWidgetPreview({
     },
     [columns]
   );
+
+  const openClockEditor = (part: GlanceableSide | "clock") => {
+    setSelectedClockPart(part);
+    setClockDialogOpen(true);
+  };
 
   // The widget (or library item) currently being dragged — for DragOverlay
   const activeWidget = useMemo(() => {
@@ -917,6 +975,10 @@ export function DashboardWidgetPreview({
                                 widgetConfig={widgetCatalog.find((item) => item.key === widget.type)}
                                 isActive={activeId === widget.id}
                                 onRemove={() => removeWidget(column, widget.id)}
+                                onEditClockPart={openClockEditor}
+                                clockSelection={clockSelection}
+                                clockGlanceables={clockGlanceables}
+                                clockStyle={clockStyle}
                                 onUpdateInput={(widgetId, input) => {
                                   setColumns((prev) => ({
                                     ...prev,
@@ -948,7 +1010,7 @@ export function DashboardWidgetPreview({
           </div>
 
           <div className="space-y-3">
-            <WidgetPickerCard description="Drag a widget from dropdown into a column">
+            <div className="space-y-3 rounded-xl border border-white/15 bg-white/5 p-4">
               <div className="space-y-3">
                 <div className="flex items-center gap-2 overflow-x-auto pb-1">
                   {widgetCategories.map((category) => (
@@ -976,7 +1038,7 @@ export function DashboardWidgetPreview({
                   </div>
                 </SortableContext>
               </div>
-            </WidgetPickerCard>
+            </div>
           </div>
         </div>
 
@@ -1001,6 +1063,23 @@ export function DashboardWidgetPreview({
           })()}
         </DragOverlay>
       </DndContext>
+
+      <Dialog open={clockDialogOpen} onOpenChange={setClockDialogOpen}>
+        <DialogContent className="frosted max-h-[90vh] overflow-y-auto text-foreground">
+          <EditGlanceablesView
+            hasMainClock={hasMainClock}
+            glanceablesCatalog={glanceablesCatalog}
+            selectedClockPart={selectedClockPart}
+            clockSelection={clockSelection}
+            setClockSelection={setClockSelection}
+            clockGlanceables={clockGlanceables}
+            setClockGlanceables={setClockGlanceables}
+            clockStyle={clockStyle}
+            setClockStyle={setClockStyle}
+            fonts={fonts}
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

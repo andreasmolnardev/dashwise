@@ -207,17 +207,12 @@ function LegacyGlanceable({
     case "weather":
       return <span className={`inline-flex items-center text-center ${className ?? ""}`}>{formatWeather(params, formatters)}</span>;
 
+    case "progress":
     case "day-progress":
-      return <LegacyProgress type="day" params={params} className={className} />;
-
     case "week-progress":
-      return <LegacyProgress type="week" params={params} className={className} />;
-
     case "month-progress":
-      return <LegacyProgress type="month" params={params} className={className} />;
-
     case "year-progress":
-      return <LegacyProgress type="year" params={params} className={className} />;
+      return <LegacyProgress period={resolveProgressPeriod(type, params)} params={params} className={className} />;
 
     default:
       return <span className={`inline-flex items-center text-center ${className ?? ""}`}>{params?.name ?? type}</span>;
@@ -292,25 +287,37 @@ function calcProgress(type: ProgressType): number {
   }
 }
 
+function resolveProgressPeriod(type?: string, params?: Record<string, any>): ProgressType {
+  const candidate = String(params?.period ?? params?.type ?? type ?? "day").trim();
+  if (candidate === "year" || candidate === "month" || candidate === "day" || candidate === "week") {
+    return candidate;
+  }
+
+  if (candidate === "year-progress") return "year";
+  if (candidate === "month-progress") return "month";
+  if (candidate === "week-progress") return "week";
+  return "day";
+}
+
 function LegacyProgress({
-  type,
+  period,
   params,
   className,
 }: {
-  type: ProgressType;
+  period: ProgressType;
   params?: Record<string, any>;
   className?: string;
 }) {
-  const [pct, setPct] = useState(() => `${calcProgress(type).toFixed(1)}%`);
+  const [pct, setPct] = useState(() => `${calcProgress(period).toFixed(1)}%`);
 
   useEffect(() => {
     const interval = setInterval(() => {
-      setPct(`${calcProgress(type).toFixed(1)}%`);
+      setPct(`${calcProgress(period).toFixed(1)}%`);
     }, 60000);
     return () => clearInterval(interval);
-  }, [type]);
+  }, [period]);
 
-  const label = params?.label !== undefined ? String(params.label) : PROGRESS_LABELS[type];
+  const label = params?.label !== undefined ? String(params.label) : PROGRESS_LABELS[period];
 
   return (
     <span className={`inline-flex items-center text-center ${className ?? ""}`}>

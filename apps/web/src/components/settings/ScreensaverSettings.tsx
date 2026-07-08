@@ -3,20 +3,37 @@
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import useAuth from "@/context/useAuth";
 import { loadFont } from "@/lib/loadFont";
 import SmartFramesManager from "./SmartFramesManager.tsx";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { ExternalLink } from "lucide-react";
 
 export default function ScreensaverSettings() {
   const { user, updateUserProperty } = useAuth();
-  const [scope, setScope] = useState<"global" | "local">("global");
-  const [screensaverConfig, setScreensaverConfig] = useState<any>(user?.screensaverPreferences || {});
-  const frames = Array.isArray(screensaverConfig?.frames) ? screensaverConfig.frames : [];
-  const [fonts, setFonts] = useState<Array<{ name: string; path: string }>>([]);
-  const [useHomePageStyle, setUseHomePageStyle] = useState(
-    screensaverConfig.useHomePageStyle ?? true
+  const [screensaverConfig, setScreensaverConfig] = useState<any>(
+    user?.screensaverPreferences || {},
   );
+  const frames = Array.isArray(screensaverConfig?.frames)
+    ? screensaverConfig.frames
+    : [];
+  const [rulesOpen, setRulesOpen] = useState(false);
+  const [rulesScope, setRulesScope] = useState<"global" | "device">("global");
+  const [fonts, setFonts] = useState<Array<{ name: string; path: string }>>([]);
 
   useEffect(() => {
     fetch("/fonts/index.json")
@@ -36,116 +53,228 @@ export default function ScreensaverSettings() {
   }, [fonts]);
 
   useEffect(() => {
-    setUseHomePageStyle(screensaverConfig.useHomePageStyle ?? true);
-  }, [screensaverConfig.useHomePageStyle]);
-
-  useEffect(() => {
-    const local = localStorage.getItem("dashwise_screensaver_local");
-    if (local) {
-      setScope("local");
-      setScreensaverConfig(JSON.parse(local));
-    } else {
-      setScope("global");
-      setScreensaverConfig(user?.screensaverPreferences || {});
-    }
+    setScreensaverConfig(user?.screensaverPreferences || {});
   }, [user?.screensaverPreferences]);
 
   const updateScreensaverConfig = async (newPart: any) => {
     const updatedScreensaver = { ...screensaverConfig, ...newPart };
     setScreensaverConfig(updatedScreensaver);
-    if (typeof newPart.useHomePageStyle === "boolean") {
-      setUseHomePageStyle(newPart.useHomePageStyle);
-    }
 
-    if (scope === "local") {
-      localStorage.setItem("dashwise_screensaver_local", JSON.stringify(updatedScreensaver));
-      window.dispatchEvent(new Event("dashwise_local_config_updated"));
-    } else {
-      await updateUserProperty("screensaverPreferences", updatedScreensaver);
-    }
+    await updateUserProperty("screensaverPreferences", updatedScreensaver);
   };
 
-  const handleScopeChange = (newScope: "global" | "local") => {
-    setScope(newScope);
-    if (newScope === "global") {
-      localStorage.removeItem("dashwise_screensaver_local");
-      setScreensaverConfig(user?.screensaverPreferences || {});
-      window.dispatchEvent(new Event("dashwise_local_config_updated"));
-    } else {
-      const initialLocal = { ...screensaverConfig };
-      localStorage.setItem("dashwise_screensaver_local", JSON.stringify(initialLocal));
+  const getRules = () => {
+    if (rulesScope === "global") return screensaverConfig.displayRules || {};
+    try {
+      return JSON.parse(
+        localStorage.getItem("dashwise_screensaver_device_rules") || "{}",
+      ) || {};
+    } catch {
+      return {};
     }
+  };
+  const updateRules = (patch: any) => {
+    if (rulesScope === "global") {
+      updateScreensaverConfig({
+        displayRules: { ...(screensaverConfig.displayRules || {}), ...patch },
+      });
+      return;
+    }
+    const nextRules = { ...(getRules() || {}), ...patch };
+    localStorage.setItem(
+      "dashwise_screensaver_device_rules",
+      JSON.stringify(nextRules),
+    );
+    window.dispatchEvent(new Event("dashwise_local_config_updated"));
   };
 
   return (
     <>
       <div className="flex flex-col gap-2 mb-4">
         <h1 className="text-3xl font-semibold">Frame</h1>
-        <div className="flex bg-white/5 p-1 border border-white/10 w-fit rounded-full gap-2">
-          <button
-            onClick={() => handleScopeChange("global")}
-            className={`px-3 py-1 text-sm rounded-full transition-all ${scope === "global" ? "frosted shadow-sm" : "hover:bg-white/5 border-transparent"}`}
-          >
-            Global
-          </button>
-          <button
-            onClick={() => handleScopeChange("local")}
-            className={`px-3 py-1 text-sm rounded-full transition-all ${scope === "local" ? "frosted shadow-sm" : "hover:bg-white/5 border-transparent"}`}
-          >
-            Local (Device)
-          </button>
-        </div>
       </div>
       <div className="content space-y-6">
-        <section className="space-y-4">
-          <h2 className="text-xl font-semibold">Triggers</h2>
-          <div className="space-y-4 px-2">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="show-button">Show Smart frame button</Label>
-              <Switch
-                id="show-button"
-                checked={screensaverConfig.showButton || false}
-                onCheckedChange={(checked) => updateScreensaverConfig({ showButton: checked })}
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <Label htmlFor="inactivity-time">
-                Inactivity time (seconds)
-              </Label>
-              <Input
-                id="inactivity-time"
-                type="number"
-                className="w-24 frosted"
-                value={screensaverConfig.inactivityTimeout ?? ""}
-                onChange={(e) => setScreensaverConfig({ ...screensaverConfig, inactivityTimeout: parseInt(e.target.value, 10) })}
-                onBlur={(e) => updateScreensaverConfig({ inactivityTimeout: parseInt(e.target.value, 10) })}
-              />
-            </div>
-          </div>
-        </section>
+        <button
+          type="button"
+          onClick={() => setRulesOpen(true)}
+          className="w-full flex items-center justify-between gap-2 rounded-md border border-transparent text-left transition hover:bg-white/5"
+        >
+          <h2 className="text-lg font-medium w-full">
+            Configure Frame Display (trigger) rules
+          </h2>
+          <ExternalLink className="h-4 w-4 text-white/80" />
+        </button>
 
-        <section className="space-y-4">
-          <h2 className="text-xl font-semibold">Style</h2>
-          <div className="space-y-4 px-2">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="use-home-page-style">Use home page style</Label>
-              <Switch
-                id="use-home-page-style"
-                checked={useHomePageStyle}
-                onCheckedChange={(checked) => updateScreensaverConfig({ useHomePageStyle: checked })}
-              />
-            </div>
-          </div>
-        </section>
-
-        <section className="space-y-4">
-          <h2 className="text-xl font-semibold">Frames</h2>
-          <SmartFramesManager
-            frames={frames}
-            onChange={(newFrames: any[]) => updateScreensaverConfig({ frames: newFrames })}
-          />
-        </section>
+        <SmartFramesManager
+          frames={frames}
+          onChange={(newFrames: any[]) =>
+            updateScreensaverConfig({ frames: newFrames })}
+        />
       </div>
+
+      <Dialog open={rulesOpen} onOpenChange={setRulesOpen}>
+        <DialogContent className="frosted max-h-[85vh] max-w-2xl overflow-y-auto text-foreground">
+          <DialogHeader>
+            <DialogTitle>Frame Display Rules</DialogTitle>
+          </DialogHeader>
+          <Tabs
+            value={rulesScope}
+            onValueChange={(value) =>
+              setRulesScope(value as "global" | "device")}
+            className="space-y-4"
+          >
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="global">Global</TabsTrigger>
+              <TabsTrigger value="device">This device</TabsTrigger>
+            </TabsList>
+            <TabsContent value="global" className="space-y-4">
+              <div className="flex items-center justify-between gap-4">
+                <Label htmlFor="global-manual">Manual trigger button</Label>
+                <Switch
+                  id="global-manual"
+                  checked={!!screensaverConfig.showButton}
+                  onCheckedChange={(checked) =>
+                    updateScreensaverConfig({ showButton: checked })}
+                />
+              </div>
+              <div className="grid gap-2 sm:grid-cols-[1fr_auto] sm:items-center">
+                <Label htmlFor="global-inactivity">
+                  Inactivity period (seconds)
+                </Label>
+                <Input
+                  id="global-inactivity"
+                  type="number"
+                  min={0}
+                  className="w-full sm:w-32 frosted"
+                  value={screensaverConfig.inactivityTimeout ?? ""}
+                  onChange={(e) =>
+                    setScreensaverConfig({
+                      ...screensaverConfig,
+                      inactivityTimeout: parseInt(e.target.value, 10),
+                    })}
+                  onBlur={() =>
+                    updateScreensaverConfig({
+                      inactivityTimeout: screensaverConfig.inactivityTimeout,
+                    })}
+                />
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>After inactivity go to</Label>
+                  <Select
+                    value={screensaverConfig.displayRules?.inactivityPageId ??
+                      "frame"}
+                    onValueChange={(value) =>
+                      updateRules({ inactivityPageId: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="frame">Frame</SelectItem>
+                      {frames.map((frame: any, index: number) => (
+                        <SelectItem key={frame.id} value={frame.id}>
+                          {frame.params?.name || `Page ${index + 1}`}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Manual trigger go to</Label>
+                  <Select
+                    value={screensaverConfig.displayRules?.manualPageId ??
+                      "frame"}
+                    onValueChange={(value) =>
+                      updateRules({ manualPageId: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="frame">Frame</SelectItem>
+                      {frames.map((frame: any, index: number) => (
+                        <SelectItem key={frame.id} value={frame.id}>
+                          {frame.params?.name || `Page ${index + 1}`}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </TabsContent>
+            <TabsContent value="device" className="space-y-4">
+              <div className="flex items-center justify-between gap-4">
+                <Label htmlFor="device-manual">Manual trigger button</Label>
+                <Switch
+                  id="device-manual"
+                  checked={!!getRules().showButton}
+                  onCheckedChange={(checked) =>
+                    updateRules({ showButton: checked })}
+                />
+              </div>
+              <div className="grid gap-2 sm:grid-cols-[1fr_auto] sm:items-center">
+                <Label htmlFor="device-inactivity">
+                  Inactivity period (seconds)
+                </Label>
+                <Input
+                  id="device-inactivity"
+                  type="number"
+                  min={0}
+                  className="w-full sm:w-32 frosted"
+                  value={getRules().inactivityTimeout ?? ""}
+                  onChange={(e) =>
+                    updateRules({
+                      inactivityTimeout: parseInt(e.target.value, 10),
+                    })}
+                />
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>After inactivity go to</Label>
+                  <Select
+                    value={getRules().inactivityPageId ?? "frame"}
+                    onValueChange={(value) =>
+                      updateRules({ inactivityPageId: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="frame">Frame</SelectItem>
+                      {frames.map((frame: any, index: number) => (
+                        <SelectItem key={frame.id} value={frame.id}>
+                          {frame.params?.name || `Page ${index + 1}`}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Manual trigger go to</Label>
+                  <Select
+                    value={getRules().manualPageId ?? "frame"}
+                    onValueChange={(value) =>
+                      updateRules({ manualPageId: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="frame">Frame</SelectItem>
+                      {frames.map((frame: any, index: number) => (
+                        <SelectItem key={frame.id} value={frame.id}>
+                          {frame.params?.name || `Page ${index + 1}`}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </TabsContent>
+          </Tabs>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

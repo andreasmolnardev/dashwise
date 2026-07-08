@@ -1,35 +1,19 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import {
-  closestCenter,
-  DndContext,
-  DragEndEvent,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-} from "@dnd-kit/core";
-import {
-  arrayMove,
-  SortableContext,
-  sortableKeyboardCoordinates,
-  useSortable,
-  verticalListSortingStrategy,
-} from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
-import { GripHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { PopoverClose } from "@radix-ui/react-popover";
 import {
   Select,
   SelectContent,
@@ -38,25 +22,27 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Switch } from "@/components/ui/switch";
 import useAuth from "@/context/useAuth";
-import { getUserGlanceablesAction, getUserWidgetsAction, uploadWallpaperAction } from '@/lib/apiClient';
+import {
+  getUserGlanceablesAction,
+  getUserWidgetsAction,
+  uploadWallpaperAction,
+} from "@/lib/apiClient";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { WidgetPickerCard } from "./pages/DashboardWidgetPreview";
 import { normalizeWallpaperFilters } from "./wallpaperFilterDefaults";
 import { renderWidget } from "../widgets/Widget";
 import WidgetPropertiesForm from "@dashwise/integrationskit/forms/WidgetPropertiesForm";
+import LocationSelectFormComponent from "./LocationSelectForm";
 
 const LOCAL_WIDGET_OPTIONS = [
   { value: "glanceable-clock", label: "Frame glanceable clock" },
-  { value: "calendar-today", label: "Calendar today" },
-  "calendar-week",
-  { value: "calendar-upcoming", label: "Calendar upcoming" },
+  { value: "calendar-today", label: "Calendar Overview: Today" },
+  { value: "calendar-week", label: "Calendar Overview: Week" },
+  { value: "calendar-upcoming", label: "Calendar Overview: Upcoming" },
+  { value: "progress", label: "Calendar progress" },
   "countdown",
   "rss-feed",
-  "day-progress",
-  "week-progress",
-  "month-progress",
-  "year-progress",
   "monitoring",
 ] as const;
 
@@ -67,7 +53,11 @@ const FRAME_LAYOUTS = [
   { value: "custom", label: "Custom", cols: 2, rows: 2 },
 ] as const;
 
-const EXCLUDED_FRAME_WIDGETS = new Set(["search-bar", "link-view"]);
+const EXCLUDED_FRAME_WIDGETS = new Set([
+  "search-bar",
+  "link-view",
+  "placeholder",
+]);
 
 const LOCAL_WIDGET_SCHEMAS: Record<string, Record<string, any>> = {
   "calendar-today": { startMonday: true },
@@ -75,6 +65,18 @@ const LOCAL_WIDGET_SCHEMAS: Record<string, Record<string, any>> = {
   "calendar-upcoming": { maxEvents: 5 },
   countdown: { date: "", date_format: "yyyy-MM-dd", label: "Countdown" },
   "rss-feed": { feedId: "all", maxItems: 8, title: "Latest Articles" },
+  progress: {
+    period: {
+      type: "select",
+      default: "day",
+      options: [
+        { value: "year", label: "Year" },
+        { value: "month", label: "Month" },
+        { value: "day", label: "Day" },
+        { value: "week", label: "Week" },
+      ],
+    },
+  },
 };
 
 type FrameSection = {
@@ -99,13 +101,29 @@ function clampLayoutSize(value: number) {
 }
 
 function getSectionLabel(col: number, row: number, cols: number, rows: number) {
-  const vertical = rows === 1 ? "" : row === 0 ? "top" : row === rows - 1 ? "bottom" : "middle";
-  const horizontal = cols === 1 ? "" : col === 0 ? "left" : col === cols - 1 ? "right" : "middle";
+  const vertical = rows === 1
+    ? ""
+    : row === 0
+    ? "top"
+    : row === rows - 1
+    ? "bottom"
+    : "middle";
+  const horizontal = cols === 1
+    ? ""
+    : col === 0
+    ? "left"
+    : col === cols - 1
+    ? "right"
+    : "middle";
   if (vertical === "middle" && horizontal === "middle") return "middle";
   return [vertical, horizontal].filter(Boolean).join(" ") || "cell";
 }
 
-function buildSections(cols: number, rows: number, current: FrameSection[] = []) {
+function buildSections(
+  cols: number,
+  rows: number,
+  current: FrameSection[] = [],
+) {
   const currentById = new Map(current.map((section) => [section.id, section]));
   return Array.from({ length: rows }).flatMap((_, row) =>
     Array.from({ length: cols }).map((_, col) => {
@@ -121,62 +139,103 @@ function buildSections(cols: number, rows: number, current: FrameSection[] = [])
   );
 }
 
-function SortableFrame({
-  frame,
-  onRemove,
-  onEdit,
-}: {
-  frame: Frame;
-  onRemove: () => void;
-  onEdit: () => void;
-}) {
-  const { attributes, listeners, setNodeRef, transform, transition } =
-    useSortable({ id: frame.id });
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-  };
+function getFrameName(frame: Frame, index: number) {
+  return String(
+    frame.params?.name || frame.params?.title || `Page ${index + 1}`,
+  );
+}
 
+function getFrameLayout(frame: Frame) {
+  const layout = frame.params?.layout && typeof frame.params.layout === "object"
+    ? frame.params.layout
+    : {};
+  return {
+    cols: clampLayoutSize(Number(layout.cols ?? 1)),
+    rows: clampLayoutSize(Number(layout.rows ?? 1)),
+  };
+}
+
+function LayoutPreview({
+  cols,
+  rows,
+  className = "",
+}: {
+  cols: number;
+  rows: number;
+  className?: string;
+}) {
   return (
     <div
-      ref={setNodeRef}
-      style={style}
-      className="relative flex items-center gap-4 w-full border frosted rounded-xl overflow-hidden bg-black/20 p-3"
+      className={`grid gap-0.5 ${className}`}
+      style={{
+        gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
+        gridTemplateRows: `repeat(${rows}, minmax(0, 1fr))`,
+      }}
     >
-      <div
-        className="w-8 h-8 flex items-center justify-center cursor-grab active:cursor-grabbing bg-black/50 rounded-md text-white/80"
-        {...attributes}
-        {...listeners}
-      >
-        <GripHorizontal className="w-4 h-4" />
-      </div>
+      {Array.from({ length: cols * rows }).map((_, index) => (
+        <div
+          key={index}
+          className="min-h-0 rounded-[2px] border border-white/15 bg-white/30"
+        />
+      ))}
+    </div>
+  );
+}
 
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium capitalize truncate">
-          {frame.type.replace(/-/g, " ")}
-        </p>
-         </div>
+function normalizeWidgetChoice(type?: string) {
+  return [
+      "progress",
+      "day-progress",
+      "week-progress",
+      "month-progress",
+      "year-progress",
+    ].includes(type ?? "")
+    ? "progress"
+    : type ?? "";
+}
 
-      <div className="flex items-center gap-2">
-        <Button
+function FrameLayoutPreview({
+  frame,
+  resolveWidgetLabel,
+  selectedSectionId,
+  onSelectSection,
+}: {
+  frame: Frame;
+  resolveWidgetLabel: (type?: string) => string;
+  selectedSectionId?: string;
+  onSelectSection?: (sectionId: string) => void;
+}) {
+  const layout = getFrameLayout(frame);
+  const sections = Array.isArray(frame.params?.sections)
+    ? frame.params.sections
+    : [];
+  return (
+    <div
+      className="grid h-full gap-2"
+      style={{
+        gridTemplateColumns: `repeat(${layout.cols}, minmax(0, 1fr))`,
+        gridTemplateRows: `repeat(${layout.rows}, minmax(0, 1fr))`,
+      }}
+    >
+      {buildSections(layout.cols, layout.rows, sections).map((section) => (
+        <button
+          key={section.id}
           type="button"
-          size="sm"
-          variant="ghost"
-          className="h-8 px-2"
-          onClick={onEdit}
+          onClick={() => onSelectSection?.(section.id)}
+          className={`frosted min-w-0 overflow-hidden rounded-xl border bg-white/5 p-2 text-center text-xs shadow-sm backdrop-blur-xl transition ${
+            selectedSectionId === section.id
+              ? "border-primary/70 bg-primary/15 text-white"
+              : "border-white/10 text-white/75 hover:bg-white/10"
+          }`}
         >
-          <Pencil className="w-4 h-4" />
-        </Button>
-        <Button
-          type="button"
-          size="sm"
-          variant="destructive"
-          className="h-8 px-2"
-          onClick={onRemove}
-        >
-          <Trash2 className="w-4 h-4" />
-        </Button>
-      </div>
+          <span className="flex h-full min-h-0 flex-col items-center justify-center gap-1 text-center leading-tight">
+            {selectedSectionId === section.id ? <span className="text-primary">•</span> : null}
+            <span className="whitespace-normal break-words font-medium">
+              {resolveWidgetLabel(section.widgetType || frame.type)}
+            </span>
+          </span>
+        </button>
+      ))}
     </div>
   );
 }
@@ -189,7 +248,8 @@ export default function SmartFramesManager({
   onChange: (newFrames: Frame[]) => void;
 }) {
   const { user, withAuth } = useAuth();
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const [selectedFrameIndex, setSelectedFrameIndex] = useState(0);
+  const [dialogOpen, setDialogOpen] = useState(true);
   const [editFrameId, setEditFrameId] = useState<string | null>(null);
   const [draftType, setDraftType] = useState("glanceable-clock");
   const [layoutPreset, setLayoutPreset] = useState("1x1");
@@ -197,11 +257,21 @@ export default function SmartFramesManager({
   const [customRows, setCustomRows] = useState(2);
   const [selectedSectionId, setSelectedSectionId] = useState("cell-0-0");
   const [sections, setSections] = useState<FrameSection[]>([]);
-  const [widgetOptions, setWidgetOptions] = useState<Array<{ value: string; label: string }>>(
-    LOCAL_WIDGET_OPTIONS.map((item) => typeof item === "string" ? { value: item, label: item.replace(/-/g, " ") } : item),
+  const [widgetOptions, setWidgetOptions] = useState<
+    Array<{ value: string; label: string }>
+  >(
+    LOCAL_WIDGET_OPTIONS.map((item) =>
+      typeof item === "string"
+        ? { value: item, label: item.replace(/-/g, " ") }
+        : item
+    ),
   );
-  const [glanceableOptions, setGlanceableOptions] = useState<Array<{ value: string; label: string }>>([]);
-  const [widgetSchemas, setWidgetSchemas] = useState<Record<string, Record<string, any>>>({});
+  const [glanceableOptions, setGlanceableOptions] = useState<
+    Array<{ value: string; label: string }>
+  >([]);
+  const [widgetSchemas, setWidgetSchemas] = useState<
+    Record<string, Record<string, any>>
+  >({});
   const [draftBackgroundMode, setDraftBackgroundMode] = useState<
     BackgroundMode
   >("current");
@@ -217,37 +287,77 @@ export default function SmartFramesManager({
   );
   const [error, setError] = useState<string | null>(null);
 
-  const brightnessValue = Math.round((brightnessPercent / 100) * (150 - 50) + 50);
-  const blurValue = Math.round((blurPercent / 100) * (25 - 1) + 1);
-  const selectedLayout = FRAME_LAYOUTS.find((layout) => layout.value === layoutPreset) ?? FRAME_LAYOUTS[0];
-  const layoutCols = layoutPreset === "custom" ? customCols : selectedLayout.cols;
-  const layoutRows = layoutPreset === "custom" ? customRows : selectedLayout.rows;
-  const selectedSection = sections.find((section) => section.id === selectedSectionId) ?? sections[0];
-
-  const sensors = useSensors(
-    useSensor(PointerSensor),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    }),
+  const brightnessValue = Math.round(
+    (brightnessPercent / 100) * (150 - 50) + 50,
   );
+  const blurValue = Math.round((blurPercent / 100) * (25 - 1) + 1);
+  const selectedLayout =
+    FRAME_LAYOUTS.find((layout) => layout.value === layoutPreset) ??
+      FRAME_LAYOUTS[0];
+  const layoutCols = layoutPreset === "custom"
+    ? customCols
+    : selectedLayout.cols;
+  const layoutRows = layoutPreset === "custom"
+    ? customRows
+    : selectedLayout.rows;
+  const selectedSection =
+    sections.find((section) => section.id === selectedSectionId) ?? sections[0];
+  const selectedFrame = frames[selectedFrameIndex];
+  const selectedWidgetLabel =
+    widgetOptions.find((widget) =>
+      widget.value === normalizeWidgetChoice(selectedSection?.widgetType)
+    )?.label ?? selectedSection?.widgetType ?? "Widget";
+  const resolveWidgetLabel = (type?: string) =>
+    widgetOptions.find((widget) =>
+      widget.value === normalizeWidgetChoice(type)
+    )?.label ?? type ?? "Widget";
 
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
-    if (over && active.id !== over.id) {
-      const oldIndex = frames.findIndex((frame) => frame.id === active.id);
-      const newIndex = frames.findIndex((frame) => frame.id === over.id);
-      if (oldIndex !== -1 && newIndex !== -1) {
-        onChange(arrayMove(frames, oldIndex, newIndex));
-      }
+  useEffect(() => {
+    if (selectedFrameIndex >= frames.length) {
+      setSelectedFrameIndex(Math.max(0, frames.length - 1));
     }
-  };
+  }, [frames.length, selectedFrameIndex]);
+
+  useEffect(() => {
+    if (selectedFrame) {
+      handleOpenEdit(selectedFrame);
+    } else {
+      setDialogOpen(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedFrame?.id]);
 
   const handleRemoveFrame = (id: string) => {
     onChange(frames.filter((frame) => frame.id !== id));
   };
 
+  const handleRenameFrame = (frame: Frame, index: number) => {
+    const currentName = getFrameName(frame, index);
+    const nextName = window.prompt("Rename page", currentName);
+    if (nextName === null) return;
+
+    const trimmed = nextName.trim();
+    onChange(
+      frames.map((item) =>
+        item.id === frame.id
+          ? {
+            ...item,
+            params: {
+              ...(item.params ?? {}),
+              ...(trimmed ? { name: trimmed } : {}),
+            },
+          }
+          : item,
+      ),
+    );
+  };
+
   const updateSelectedSection = (patch: Partial<FrameSection>) => {
-    setSections((current) => current.map((section) => section.id === selectedSectionId ? { ...section, ...patch } : section));
+    setSections((current) =>
+      current.map((section) =>
+        section.id === selectedSectionId ? { ...section, ...patch } : section
+      )
+    );
     if (patch.widgetType) setDraftType(patch.widgetType);
   };
 
@@ -269,29 +379,48 @@ export default function SmartFramesManager({
         getUserGlanceablesAction(auth).catch(() => []),
       ]);
 
-      const integrationWidgets = Object.entries((widgetsData ?? {}) as Record<string, any[]>).flatMap(([, widgets]) =>
+      const integrationWidgets = Object.entries(
+        (widgetsData ?? {}) as Record<string, any[]>,
+      ).flatMap(([, widgets]) =>
         (Array.isArray(widgets) ? widgets : []).map((widget) => ({
           value: String(widget.key ?? ""),
           label: String(widget.name ?? widget.key ?? "Integration widget"),
           schema: widget.input && typeof widget.input === "object"
             ? widget.input
             : widget.data?.input && typeof widget.data.input === "object"
-              ? widget.data.input
-              : widget.properties && typeof widget.properties === "object"
-                ? widget.properties
-                : {},
-        })).filter((widget) => widget.value && !EXCLUDED_FRAME_WIDGETS.has(widget.value)),
+            ? widget.data.input
+            : widget.properties && typeof widget.properties === "object"
+            ? widget.properties
+            : {},
+        })).filter((widget) =>
+          widget.value && !EXCLUDED_FRAME_WIDGETS.has(widget.value)
+        )
       );
 
-      const glanceables = (Array.isArray(glanceablesData) ? glanceablesData : []).map((glanceable: any) => ({
-        value: String(glanceable.type ?? glanceable.key ?? ""),
-        label: String(glanceable.name ?? glanceable.displayName ?? glanceable.type ?? glanceable.key ?? "Glanceable"),
-      })).filter((glanceable) => glanceable.value);
+      const glanceables =
+        (Array.isArray(glanceablesData) ? glanceablesData : []).map((
+          glanceable: any,
+        ) => ({
+          value: String(glanceable.type ?? glanceable.key ?? ""),
+          label: String(
+            glanceable.name ?? glanceable.displayName ?? glanceable.type ??
+              glanceable.key ?? "Glanceable",
+          ),
+        })).filter((glanceable) => glanceable.value);
 
-      setWidgetOptions([...LOCAL_WIDGET_OPTIONS.map((item) => typeof item === "string" ? { value: item, label: item.replace(/-/g, " ") } : item).filter((item) => !EXCLUDED_FRAME_WIDGETS.has(item.value)), ...integrationWidgets]);
+      setWidgetOptions([
+        ...LOCAL_WIDGET_OPTIONS.map((item) =>
+          typeof item === "string"
+            ? { value: item, label: item.replace(/-/g, " ") }
+            : item
+        ).filter((item) => !EXCLUDED_FRAME_WIDGETS.has(item.value)),
+        ...integrationWidgets,
+      ]);
       setWidgetSchemas({
         ...LOCAL_WIDGET_SCHEMAS,
-        ...Object.fromEntries(integrationWidgets.map((widget) => [widget.value, widget.schema])),
+        ...Object.fromEntries(
+          integrationWidgets.map((widget) => [widget.value, widget.schema]),
+        ),
       });
       setGlanceableOptions(glanceables);
     });
@@ -329,7 +458,9 @@ export default function SmartFramesManager({
 
   const handleOpenAdd = () => {
     resetDraft();
-    const fallbackFilters = normalizeWallpaperFilters(user?.appearancePreferences?.wallpaperFilters);
+    const fallbackFilters = normalizeWallpaperFilters(
+      user?.appearancePreferences?.wallpaperFilters as any,
+    );
     const brightness = fallbackFilters.brightness;
     const blur = fallbackFilters.blur;
     setBrightnessPercent(Math.round(((brightness - 50) / (150 - 50)) * 100));
@@ -348,20 +479,40 @@ export default function SmartFramesManager({
       ? "url"
       : "current";
     const editableParams = { ...(frame.params ?? {}) } as Record<string, any>;
-    const layout = editableParams.layout && typeof editableParams.layout === "object"
-      ? editableParams.layout as Record<string, any>
-      : undefined;
+    const layout =
+      editableParams.layout && typeof editableParams.layout === "object"
+        ? editableParams.layout as Record<string, any>
+        : undefined;
     const cols = clampLayoutSize(Number(layout?.cols ?? 1));
     const rows = clampLayoutSize(Number(layout?.rows ?? 1));
-    const preset = FRAME_LAYOUTS.some((item) => item.value === `${cols}x${rows}`) ? `${cols}x${rows}` : "custom";
-    const nextSections = buildSections(cols, rows, Array.isArray(editableParams.sections) ? editableParams.sections : [{ id: "cell-0-0", widgetType: frame.type, params: editableParams }]);
+    const preset =
+      FRAME_LAYOUTS.some((item) => item.value === `${cols}x${rows}`)
+        ? `${cols}x${rows}`
+        : "custom";
+    const nextSections = buildSections(
+      cols,
+      rows,
+      Array.isArray(editableParams.sections)
+        ? editableParams.sections
+        : [{ id: "cell-0-0", widgetType: frame.type, params: editableParams }],
+    );
+    if (nextSections[0]) {
+      nextSections[0].params = {
+        ...(nextSections[0].params ?? {}),
+        __pageName: String(frame.params?.name ?? ""),
+      };
+    }
     delete editableParams.backgroundImageUrl;
     delete editableParams.backgroundSource;
     delete editableParams.backgroundFilters;
     delete editableParams.layout;
     delete editableParams.sections;
-    const fallbackFilters = normalizeWallpaperFilters(user?.appearancePreferences?.wallpaperFilters);
-    const filters = frame.params?.backgroundFilters as Record<string, any> | undefined;
+    const fallbackFilters = normalizeWallpaperFilters(
+      user?.appearancePreferences?.wallpaperFilters as any,
+    );
+    const filters = frame.params?.backgroundFilters as
+      | Record<string, any>
+      | undefined;
     const brightness = typeof filters?.brightness === "number"
       ? filters.brightness
       : fallbackFilters.brightness;
@@ -456,10 +607,17 @@ export default function SmartFramesManager({
       : undefined;
 
     const nextParams = {} as Record<string, any>;
-    const normalizedSections = buildSections(layoutCols, layoutRows, sections).map((section) => ({
-      ...section,
-      params: section.id === selectedSectionId ? selectedParams : section.params ?? {},
-    }));
+    const normalizedSections = buildSections(layoutCols, layoutRows, sections)
+      .map((section) => ({
+        ...section,
+        params: Object.fromEntries(
+          Object.entries(
+            section.id === selectedSectionId
+              ? selectedParams
+              : section.params ?? {},
+          ),
+        ),
+      }));
     nextParams.layout = { cols: layoutCols, rows: layoutRows };
     nextParams.sections = normalizedSections;
 
@@ -495,6 +653,7 @@ export default function SmartFramesManager({
       );
     } else {
       onChange([...frames, nextFrame]);
+      setSelectedFrameIndex(frames.length);
     }
 
     setDialogOpen(false);
@@ -502,303 +661,571 @@ export default function SmartFramesManager({
   };
 
   return (
-    <div className="space-y-4">
-      <div>
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragEnd={handleDragEnd}
-        >
-          <SortableContext
-            items={frames.map((frame) => frame.id)}
-            strategy={verticalListSortingStrategy}
+    <div className="space-y-1">
+        <div className="flex items-center justify-between gap-3">
+          <h3 className="text-lg font-semibold">Pages</h3>
+          <Button
+            type="button"
+            variant="outline"
+            className="rounded-md border border-transparent bg-white/5 hover:bg-white/10 frosted group text-white"
+            onClick={handleOpenAdd}
           >
-            <div className="flex flex-col gap-3">
-              {frames.map((frame) => (
-                <SortableFrame
-                  key={frame.id}
-                  frame={frame}
-                  onRemove={() => handleRemoveFrame(frame.id)}
-                  onEdit={() => handleOpenEdit(frame)}
-                />
-              ))}
+            <Plus className="w-4 h-4 group-hover:text-primary" />
+            Add Frame
+          </Button>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 frosted rounded-t-xl rounded-md">
+          {frames.map((frame, index) => (
+            <div key={frame.id} className="mx-auto min-w-0 max-w-[250px]">
+              <div
+                className={`rounded-2xl p-3 transition ${
+                  "bg-transparent"
+                }`}
+              >
+                <div className="aspect-[3/2] w-full overflow-hidden rounded-2xl bg-transparent outline outline-offset-4 outline-dotted">
+                  <FrameLayoutPreview
+                    frame={frame}
+                    resolveWidgetLabel={resolveWidgetLabel}
+                    selectedSectionId={selectedFrameIndex === index ? selectedSectionId : undefined}
+                    onSelectSection={(sectionId) => {
+                      setSelectedFrameIndex(index);
+                      setSelectedSectionId(sectionId);
+                    }}
+                  />
+                </div>
+                <div className="relative mt-3 flex items-center gap-2 pr-8">
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 shrink-0 rounded-full text-white/70 hover:bg-white/10 hover:text-white"
+                        onClick={() => setSelectedFrameIndex(index)}
+                        aria-label={`Change layout for ${getFrameName(frame, index)}`}
+                      >
+                        <LayoutPreview
+                          cols={getFrameLayout(frame).cols}
+                          rows={getFrameLayout(frame).rows}
+                          className="h-4 w-4"
+                        />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent align="start" className="w-72 space-y-3 frosted text-foreground">
+                      <div>
+                        <div className="text-sm font-medium">Layout</div>
+                        <div className="text-xs text-white/60">Choose page grid</div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        {FRAME_LAYOUTS.map((layout) => {
+                          const active = layout.value === layoutPreset;
+                          const tile = (
+                            <button
+                              type="button"
+                              onClick={() => setLayoutPreset(layout.value)}
+                              className={`space-y-2 rounded-xl border p-2 text-left transition ${
+                                active
+                                  ? "border-primary bg-primary/15"
+                                  : "border-white/10 bg-white/5 hover:bg-white/10"
+                              }`}
+                            >
+                              <LayoutPreview cols={layout.cols} rows={layout.rows} className="h-12 w-12" />
+                              <div className="text-sm font-medium">{layout.label}</div>
+                            </button>
+                          );
+                          return (
+                            layout.value === "custom"
+                              ? <div key={layout.value}>{tile}</div>
+                              : <PopoverClose asChild key={layout.value}>{tile}</PopoverClose>
+                          );
+                        })}
+                      </div>
+                      {layoutPreset === "custom" && (
+                        <div className="grid grid-cols-2 gap-2 border-t border-white/10 pt-3">
+                          <div className="space-y-1">
+                            <Label className="text-xs text-white/70">Columns</Label>
+                            <Input
+                              type="number"
+                              min={1}
+                              max={4}
+                              value={customCols}
+                              onChange={(event) =>
+                                setCustomCols(
+                                  clampLayoutSize(Number(event.target.value)),
+                                )}
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs text-white/70">Rows</Label>
+                            <Input
+                              type="number"
+                              min={1}
+                              max={4}
+                              value={customRows}
+                              onChange={(event) =>
+                                setCustomRows(
+                                  clampLayoutSize(Number(event.target.value)),
+                                )}
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </PopoverContent>
+                  </Popover>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedFrameIndex(index)}
+                    className={`mx-auto text-center font-medium ${
+                    selectedFrameIndex === index
+                      ? "rounded-full bg-primary px-3 py-1 text-primary-foreground"
+                      : "text-white/90"
+                  }`}
+                  >
+                    {getFrameName(frame, index)}
+                  </button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="absolute right-0 h-8 w-8 text-white/70 hover:bg-white/10 hover:text-white"
+                        onClick={(event) => event.stopPropagation()}
+                        aria-label={`Page actions for ${getFrameName(frame, index)}`}
+                      >
+                        <MoreHorizontal className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-40">
+                      <DropdownMenuItem
+                        onSelect={() => handleRenameFrame(frame, index)}
+                      >
+                        <Pencil className="h-4 w-4" />
+                        Rename
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        variant="destructive"
+                        onSelect={() => handleRemoveFrame(frame.id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              </div>
             </div>
-          </SortableContext>
-        </DndContext>
+          ))}
+        {frames.length > 1 && (
+          <div className="flex justify-center gap-2">
+            {frames.map((frame, index) => (
+              <button
+                key={frame.id}
+                type="button"
+                aria-label={`Show page ${index + 1}`}
+                onClick={() => setSelectedFrameIndex(index)}
+                className={`h-2 rounded-full transition-all ${
+                  selectedFrameIndex === index
+                    ? "w-6 bg-primary"
+                    : "w-2 bg-white/30 hover:bg-white/60"
+                }`}
+              />
+            ))}
+          </div>
+        )}
       </div>
 
-      <Button
-        type="button"
-        variant="outline"
-        className="w-full h-12 border-dashed border-white/20 frosted hover:bg-white/5"
-        onClick={handleOpenAdd}
+      <div
+        className={`grid transition-all duration-250 ease-out ${
+          dialogOpen
+            ? "grid-rows-[1fr] opacity-100"
+            : "grid-rows-[0fr] opacity-0 pointer-events-none"
+        }`}
       >
-        <Plus className="w-4 h-4 mr-2" />
-        Add Frame
-      </Button>
-
-      <Dialog open={dialogOpen} onOpenChange={handleDialogChange}>
-          <DialogContent className="frosted max-h-[90vh] w-[calc(100vw-2rem)] max-w-3xl overflow-y-auto overflow-x-hidden text-foreground">
-          <DialogHeader>
-            <DialogTitle>
-              {editFrameId ? "Edit Frame" : "Add Frame"}
-            </DialogTitle>
-          </DialogHeader>
+        <div className="min-h-0 overflow-hidden">
+          <section className="space-y-4 rounded-md rounded-b-xl border border-transparent text-foreground">
 
             <div className="min-w-0 space-y-4 overflow-hidden">
-            <div className="space-y-3">
-              <div className="flex items-center gap-3">
-                <Label className="shrink-0">Layout</Label>
-                <Select value={layoutPreset} onValueChange={setLayoutPreset}>
-                  <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {FRAME_LAYOUTS.map((layout) => <SelectItem key={layout.value} value={layout.value}>{layout.label}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              {layoutPreset === "custom" && (
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-2"><Label>Columns</Label><Input type="number" min={1} max={4} value={customCols} onChange={(event) => setCustomCols(clampLayoutSize(Number(event.target.value)))} /></div>
-                  <div className="space-y-2"><Label>Rows</Label><Input type="number" min={1} max={4} value={customRows} onChange={(event) => setCustomRows(clampLayoutSize(Number(event.target.value)))} /></div>
-                </div>
-              )}
-              <div className="grid gap-2 rounded-xl border border-white/10 bg-black/20 p-2" style={{ gridTemplateColumns: `repeat(${layoutCols}, minmax(0, 1fr))` }}>
-                {sections.map((section) => (
-                  <button key={section.id} type="button" onClick={() => setSelectedSectionId(section.id)} className={`min-h-20 rounded-lg border p-2 text-sm capitalize transition ${selectedSectionId === section.id ? "border-primary bg-primary/20" : "border-white/10 bg-white/5 hover:bg-white/10"}`}>
-                    {section.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <Tabs defaultValue="background" className="min-w-0 space-y-3 overflow-hidden">
-              <TabsList className="w-full grid grid-cols-3">
-                <TabsTrigger value="background">Frame background</TabsTrigger>
-                <TabsTrigger value="style">Widget style</TabsTrigger>
-                <TabsTrigger value="properties">Widget properties</TabsTrigger>
-              </TabsList>
-
-            <TabsContent value="background" className="space-y-3">
-              <Label>Background</Label>
-              <RadioGroup
-                value={draftBackgroundMode}
-                onValueChange={(value) =>
-                  setDraftBackgroundMode(value as BackgroundMode)}
-                className="grid gap-3 grid-cols-[repeat(auto-fit,minmax(140px,1fr))]"
+              <Tabs
+                defaultValue="style"
+                className="min-w-0 space-y-3 overflow-hidden"
               >
-                <div>
-                  <RadioGroupItem
-                    id="frame-bg-none"
-                    value="none"
-                    className="peer sr-only"
-                  />
-                  <Label
-                    htmlFor="frame-bg-none"
-                    className="group flex flex-col items-center justify-center rounded-xl outline outline-transparent outline-offset-2 p-3 text-center cursor-pointer frosted text-sm
-                      peer-data-[state=checked]:outline-(--primary)
-                      peer-focus-visible:outline peer-focus-visible:outline-(--primary) h-20"
-                  >
-                    None
-                  </Label>
-                </div>
-                <div>
-                  <RadioGroupItem
-                    id="frame-bg-current"
-                    value="current"
-                    className="peer sr-only"
-                  />
-                  <Label
-                    htmlFor="frame-bg-current"
-                    className="group flex flex-col items-center justify-center rounded-xl outline outline-transparent outline-offset-2 p-3 text-center cursor-pointer frosted text-sm
-                      peer-data-[state=checked]:outline-(--primary)
-                      peer-focus-visible:outline peer-focus-visible:outline-(--primary) h-20"
-                  >
-                    Current
-                  </Label>
-                </div>
-                <div>
-                  <RadioGroupItem
-                    id="frame-bg-upload"
-                    value="upload"
-                    className="peer sr-only"
-                  />
-                  <Label
-                    htmlFor="frame-bg-upload"
-                    className="group flex flex-col items-center justify-center rounded-xl outline outline-transparent p-3 text-center cursor-pointer frosted text-sm
-                      peer-data-[state=checked]:outline-(--primary)
-                      peer-focus-visible:outline peer-focus-visible:outline-(--primary) h-20"
-                  >
-                    Upload
-                  </Label>
-                </div>
-                <div>
-                  <RadioGroupItem
-                    id="frame-bg-url"
-                    value="url"
-                    className="peer sr-only"
-                  />
-                  <Label
-                    htmlFor="frame-bg-url"
-                    className="group flex flex-col items-center justify-center rounded-xl outline outline-transparent p-3 text-center cursor-pointer frosted text-sm
-                      peer-data-[state=checked]:outline-(--primary)
-                      peer-focus-visible:outline peer-focus-visible:outline-(--primary) h-20"
-                  >
-                    Add from URL
-                  </Label>
-                </div>
-              </RadioGroup>
+                <TabsList className="w-full grid grid-cols-2">
+                  <TabsTrigger value="style">Widget style</TabsTrigger>
+                  <TabsTrigger value="properties">
+                    Widget properties
+                  </TabsTrigger>
+                </TabsList>
 
-              {draftBackgroundMode === "upload" && (
-                <div className="space-y-2">
-                  <Label htmlFor="frame-bg-file">Image file</Label>
-                  <Input
-                    id="frame-bg-file"
-                    type="file"
-                    accept="image/*"
-                    onChange={(event) =>
-                      setUploadFile(event.target.files?.[0] ?? null)}
-                  />
-                </div>
-              )}
+                <TabsContent value="style" className="space-y-3">
+                  <div className="space-y-3 rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <div className="font-medium">
+                      Customize {selectedWidgetLabel}
+                    </div>
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label>Border radius</Label>
+                        <Slider
+                          value={[
+                            Number(
+                              selectedSection?.params?.appearance
+                                ?.borderRadius ?? 16,
+                            ),
+                          ]}
+                          min={0}
+                          max={32}
+                          step={1}
+                          onValueChange={([value]) =>
+                            updateSelectedSection({
+                              params: {
+                                ...(selectedSection?.params ?? {}),
+                                appearance: {
+                                  ...(selectedSection?.params?.appearance ??
+                                    {}),
+                                  borderRadius: value,
+                                },
+                              },
+                            })}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Background opacity</Label>
+                        <Slider
+                          value={[
+                            Number(
+                              selectedSection?.params?.appearance
+                                ?.backgroundOpacity ?? 45,
+                            ),
+                          ]}
+                          min={0}
+                          max={100}
+                          step={1}
+                          onValueChange={([value]) =>
+                            updateSelectedSection({
+                              params: {
+                                ...(selectedSection?.params ?? {}),
+                                appearance: {
+                                  ...(selectedSection?.params?.appearance ??
+                                    {}),
+                                  backgroundOpacity: value,
+                                },
+                              },
+                            })}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between gap-4">
+                        <Label htmlFor="frame-widget-header">
+                          Show widget header
+                        </Label>
+                        <Switch
+                          id="frame-widget-header"
+                          checked={selectedSection?.params?.appearance
+                            ?.showHeader ?? true}
+                          onCheckedChange={(checked) =>
+                            updateSelectedSection({
+                              params: {
+                                ...(selectedSection?.params ?? {}),
+                                appearance: {
+                                  ...(selectedSection?.params?.appearance ??
+                                    {}),
+                                  showHeader: checked,
+                                },
+                              },
+                            })}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </TabsContent>
 
-              {draftBackgroundMode === "url" && (
-                <div className="space-y-2">
-                  <Label htmlFor="frame-bg-url-input">Image URL</Label>
-                  <Input
-                    id="frame-bg-url-input"
-                    type="url"
-                    placeholder="https://example.com/background.jpg"
-                    value={draftBackgroundUrl}
-                    onChange={(event) =>
-                      setDraftBackgroundUrl(event.target.value)}
+                <TabsContent
+                  value="properties"
+                  className="min-w-0 space-y-3 overflow-hidden"
+                >
+                <div className="frosted space-y-3 rounded-2xl border border-white/10 bg-white/5 p-4">
+                  <div className="grid gap-3 sm:grid-cols-[auto_1fr_1.4fr] sm:items-center">
+                    <Label>Widget</Label>
+                    <div className="sm:col-span-2 text-sm text-white/70">
+                      Click cell preview above to edit.
+                    </div>
+                    <Select
+                      value={normalizeWidgetChoice(
+                        selectedSection?.widgetType,
+                        )}
+                        onValueChange={(value) =>
+                          updateSelectedSection({ widgetType: value })}
+                      >
+                        <SelectTrigger
+                          className={sections.length > 1 ? "" : "sm:col-span-2"}
+                        >
+                          <SelectValue placeholder="Select widget" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {widgetOptions.map((widget) => (
+                            <SelectItem key={widget.value} value={widget.value}>
+                              {widget.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="grid grid-rows-[1fr] transition-[grid-template-rows] duration-250 ease-out">
+                      <div className="min-h-0 overflow-hidden">
+                        <div className="flex max-w-full snap-x gap-2 overflow-x-auto overscroll-x-contain pb-2">
+                          {widgetOptions.map((widget) => (
+                            <button
+                              key={widget.value}
+                              type="button"
+                              onClick={() =>
+                                updateSelectedSection({
+                                  widgetType: widget.value,
+                                })}
+                              className={`shrink-0 snap-start rounded-full border px-3 py-1.5 text-sm transition ${
+                                normalizeWidgetChoice(
+                                    selectedSection?.widgetType,
+                                  ) === widget.value
+                                  ? "border-primary bg-primary/20 text-white"
+                                  : "border-white/10 bg-white/5 text-white/70 hover:bg-white/10"
+                              }`}
+                            >
+                              {widget.label}
+                            </button>
+                          ))}
+                        </div>
+                        <div className="flex max-w-full snap-x gap-3 overflow-x-auto overscroll-x-contain pb-2">
+                          {widgetOptions.map((widget) => (
+                            <button
+                              key={widget.value}
+                              type="button"
+                              onClick={() =>
+                                updateSelectedSection({
+                                  widgetType: widget.value,
+                                })}
+                              className={`w-56 shrink-0 snap-start rounded-xl p-2 text-center transition ${
+                                normalizeWidgetChoice(
+                                    selectedSection?.widgetType,
+                                  ) === widget.value
+                                  ? "ring-1 ring-primary"
+                                  : "hover:bg-white/10"
+                              }`}
+                            >
+                              <div className="mb-2 h-24 overflow-hidden rounded-lg">
+                                {renderWidget({
+                                  type: widget.value,
+                                  params: {},
+                                  className: "h-full w-full",
+                                  isPreview: true,
+                                })}
+                              </div>
+                              <span className="block truncate text-sm text-white/80">
+                                {widget.label}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  {selectedSection?.widgetType === "glanceable-clock" &&
+                    glanceableOptions.length > 0 && (
+                    <div className="space-y-2">
+                      <Label>Glanceables</Label>
+                      <div className="grid grid-cols-2 gap-3">
+                        {(["left", "right"] as const).map((side) => (
+                          <Select
+                            key={side}
+                            value={String(
+                              selectedSection?.params?.glanceables?.[side] ??
+                                "",
+                            )}
+                            onValueChange={(value) =>
+                              updateSelectedSection({
+                                params: {
+                                  ...(selectedSection?.params ?? {}),
+                                  glanceables: {
+                                    ...(selectedSection?.params?.glanceables ??
+                                      {}),
+                                    [side]: value,
+                                  },
+                                },
+                              })}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder={`${side} glanceable`} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {glanceableOptions.map((item) => (
+                                <SelectItem key={item.value} value={item.value}>
+                                  {item.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {selectedSection?.widgetType === "weather" && (
+                    <LocationSelectFormComponent
+                      value={{
+                        displayName: String(
+                          selectedSection?.params?.displayName ?? "",
+                        ),
+                        coordinates: [
+                          selectedSection?.params?.lat,
+                          selectedSection?.params?.lon,
+                        ].filter(Boolean).join(", "),
+                      }}
+                      onChange={(value) => {
+                        const [lat = "", lon = ""] = value.coordinates.split(
+                          ",",
+                        ).map((part) => part.trim());
+                        updateSelectedSection({
+                          params: {
+                            ...(selectedSection?.params ?? {}),
+                            lat,
+                            lon,
+                            displayName: value.displayName,
+                          },
+                        });
+                      }}
+                    />
+                  )}
+                  <WidgetPropertiesForm
+                    idPrefix={`frame-widget-${selectedSection?.id ?? "cell"}`}
+                    schema={widgetSchemas[selectedSection?.widgetType ?? ""] ??
+                      {}}
+                    value={selectedSection?.params ?? {}}
+                    onChange={(params) => updateSelectedSection({ params })}
+                    onError={setWidgetParamsError}
+                    error={widgetParamsError}
                   />
-                </div>
-              )}
+                </TabsContent>
+              </Tabs>
 
-              {(uploadPreview ||
-                (draftBackgroundMode === "url" && draftBackgroundUrl) ||
-                (draftBackgroundMode === "upload" && existingBackgroundUrl)) &&
-                (
-                  <div className="relative w-full h-40 rounded-md overflow-hidden border border-white/10">
-                    <img
-                      src={uploadPreview ||
-                        (draftBackgroundMode === "url"
-                          ? draftBackgroundUrl
-                          : existingBackgroundUrl)}
-                      alt="Background preview"
-                      className="object-cover h-full w-full"
+              <div className="frosted space-y-3 rounded-2xl border border-white/10 bg-white/5 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <h2 className="text-lg font-semibold">Page Background</h2>
+                </div>
+                <RadioGroup
+                  value={draftBackgroundMode}
+                  onValueChange={(value) =>
+                    setDraftBackgroundMode(value as BackgroundMode)}
+                  className="grid gap-3 grid-cols-[repeat(auto-fit,minmax(140px,1fr))]"
+                >
+                  {(["none", "current", "upload", "url"] as const).map((mode) => (
+                    <div key={mode}>
+                      <RadioGroupItem
+                        id={`frame-bg-${mode}`}
+                        value={mode}
+                        className="peer sr-only"
+                      />
+                      <Label
+                        htmlFor={`frame-bg-${mode}`}
+                        className="group flex h-20 cursor-pointer flex-col items-center justify-center rounded-xl border border-transparent p-3 text-center text-sm frosted outline outline-transparent outline-offset-2 peer-data-[state=checked]:outline-(--primary) peer-focus-visible:outline peer-focus-visible:outline-(--primary)"
+                      >
+                        {mode === "none"
+                          ? "None"
+                          : mode === "current"
+                          ? "Current"
+                          : mode === "upload"
+                          ? "Upload"
+                          : "Add from URL"}
+                      </Label>
+                    </div>
+                  ))}
+                </RadioGroup>
+
+                {draftBackgroundMode === "upload" && (
+                  <div className="space-y-2">
+                    <Label htmlFor="frame-bg-file">Image file</Label>
+                    <Input
+                      id="frame-bg-file"
+                      type="file"
+                      accept="image/*"
+                      onChange={(event) =>
+                        setUploadFile(event.target.files?.[0] ?? null)}
                     />
                   </div>
                 )}
 
-              {draftBackgroundMode !== "none" && (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between gap-4">
-                    <p className="text-sm font-medium">Darken/Brighten</p>
-                    <span className="min-w-[50px] text-right text-sm text-white/70">
-                      {brightnessValue}%
-                    </span>
+                {draftBackgroundMode === "url" && (
+                  <div className="space-y-2">
+                    <Label htmlFor="frame-bg-url-input">Image URL</Label>
+                    <Input
+                      id="frame-bg-url-input"
+                      type="url"
+                      placeholder="https://example.com/background.jpg"
+                      value={draftBackgroundUrl}
+                      onChange={(event) =>
+                        setDraftBackgroundUrl(event.target.value)}
+                    />
                   </div>
-                  <Slider
-                    value={[brightnessPercent]}
-                    max={100}
-                    step={1}
-                    onValueChange={([value]) => setBrightnessPercent(value)}
-                  />
+                )}
 
-                  <div className="flex items-center justify-between gap-4">
-                    <p className="text-sm font-medium">Blur</p>
-                    <span className="min-w-[50px] text-right text-sm text-white/70">
-                      {blurValue}px
-                    </span>
+                {(uploadPreview ||
+                  (draftBackgroundMode === "url" && draftBackgroundUrl) ||
+                  (draftBackgroundMode === "upload" &&
+                    existingBackgroundUrl)) && (
+                  <div className="relative h-40 w-full overflow-hidden rounded-md border border-white/10">
+                    <img
+                      src={uploadPreview || (draftBackgroundMode === "url"
+                        ? draftBackgroundUrl
+                        : existingBackgroundUrl)}
+                      alt="Background preview"
+                      className="h-full w-full object-cover"
+                    />
                   </div>
-                  <Slider
-                    value={[blurPercent]}
-                    max={100}
-                    step={1}
-                    onValueChange={([value]) => setBlurPercent(value)}
-                  />
-                </div>
-              )}
-            </TabsContent>
+                )}
 
-            <TabsContent value="style" className="space-y-3">
-              <p className="text-sm text-white/70">Widget style options coming here. Current section keeps dashboard default styling.</p>
-            </TabsContent>
-
-            <TabsContent value="properties" className="min-w-0 space-y-3 overflow-hidden">
-              <Label>{selectedSection?.label ?? "Cell"} widget</Label>
-              <WidgetPickerCard
-                title="Select widget"
-                compact
-                selectedLabel={widgetOptions.find((widget) => widget.value === selectedSection?.widgetType)?.label ?? selectedSection?.widgetType}
-              >
-                <div className="flex max-w-full snap-x gap-3 overflow-x-auto overscroll-x-contain pb-2">
-                  {widgetOptions.map((widget) => (
-                    <button
-                      key={widget.value}
-                      type="button"
-                      onClick={() => updateSelectedSection({ widgetType: widget.value })}
-                      className={`w-56 shrink-0 snap-start rounded-xl p-2 text-center transition ${
-                        selectedSection?.widgetType === widget.value
-                          ? "bg-white/15 ring-1 ring-primary"
-                          : "hover:bg-white/10"
-                      }`}
-                    >
-                      <div className="mb-2 h-24 overflow-hidden rounded-lg">
-                        {renderWidget({
-                          type: widget.value,
-                          params: {},
-                          className: "h-full w-full",
-                          isPreview: true,
-                        })}
-                      </div>
-                      <span className="block truncate text-sm text-white/80">{widget.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </WidgetPickerCard>
-              {selectedSection?.widgetType === "glanceable-clock" && glanceableOptions.length > 0 && (
-                <div className="space-y-2">
-                  <Label>Glanceables</Label>
-                  <div className="grid grid-cols-2 gap-3">
-                    {(["left", "right"] as const).map((side) => (
-                      <Select key={side} value={String(selectedSection?.params?.glanceables?.[side] ?? "")} onValueChange={(value) => updateSelectedSection({ params: { ...(selectedSection?.params ?? {}), glanceables: { ...(selectedSection?.params?.glanceables ?? {}), [side]: value } } })}>
-                        <SelectTrigger><SelectValue placeholder={`${side} glanceable`} /></SelectTrigger>
-                        <SelectContent>{glanceableOptions.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent>
-                      </Select>
-                    ))}
+                {draftBackgroundMode !== "none" && (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between gap-4">
+                      <p className="text-sm font-medium">Darken/Brighten</p>
+                      <span className="min-w-[50px] text-right text-sm text-white/70">
+                        {brightnessValue}%
+                      </span>
+                    </div>
+                    <Slider
+                      value={[brightnessPercent]}
+                      max={100}
+                      step={1}
+                      onValueChange={([value]) => setBrightnessPercent(value)}
+                    />
+                    <div className="flex items-center justify-between gap-4">
+                      <p className="text-sm font-medium">Blur</p>
+                      <span className="min-w-[50px] text-right text-sm text-white/70">
+                        {blurValue}px
+                      </span>
+                    </div>
+                    <Slider
+                      value={[blurPercent]}
+                      max={100}
+                      step={1}
+                      onValueChange={([value]) => setBlurPercent(value)}
+                    />
                   </div>
-                </div>
-              )}
-              <WidgetPropertiesForm
-                idPrefix={`frame-widget-${selectedSection?.id ?? "cell"}`}
-                schema={widgetSchemas[selectedSection?.widgetType ?? ""] ?? {}}
-                value={selectedSection?.params ?? {}}
-                onChange={(params) => updateSelectedSection({ params })}
-                onError={setWidgetParamsError}
-                error={widgetParamsError}
-              />
-            </TabsContent>
-            </Tabs>
+                )}
+              </div>
 
-            {error && <div className="text-sm text-red-400">{error}</div>}
-          </div>
+              {error && <div className="text-sm text-red-400">{error}</div>}
+            </div>
 
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => handleDialogChange(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleSaveFrame} disabled={uploading}>
-              {uploading
-                ? "Saving..."
-                : editFrameId
-                ? "Save Changes"
-                : "Add Frame"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            <div className="flex items-center justify-end gap-2">
+              <Button variant="ghost" onClick={() => handleDialogChange(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleSaveFrame} disabled={uploading}>
+                {uploading
+                  ? "Saving..."
+                  : editFrameId
+                  ? "Save Changes"
+                  : "Add Frame"}
+              </Button>
+            </div>
+          </section>
+        </div>
+      </div>
     </div>
   );
 }

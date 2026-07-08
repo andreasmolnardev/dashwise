@@ -93,6 +93,10 @@ function SshTerminalSession(
 
     terminal.loadAddon(fitAddon);
     terminal.open(container);
+    if (terminal.element) {
+      terminal.element.style.boxSizing = "border-box";
+      terminal.element.style.padding = "6px";
+    }
 
     terminalRef.current = terminal;
     fitAddonRef.current = fitAddon;
@@ -206,7 +210,7 @@ function SshTerminalSession(
       <div ref={terminalContainerRef} className="h-full max-h-full w-full min-h-0" />
     </div>
   );
-}
+  }
 
 export default function SshSessionsProvider({
   hosts,
@@ -308,7 +312,7 @@ export default function SshSessionsProvider({
                   return (
                     <div
                       key={session.hostId}
-                      className={`group min-w-44 rounded-lg frosted px-2 py-1 text-left transition-all duration-200 flex items-center gap-2 ${
+                      className={`group min-w-44 rounded-lg frosted px-2 text-left transition-all duration-200 flex items-center gap-2 ${
                         active ? "bg-white/10" : ""
                       }`}
                     >
