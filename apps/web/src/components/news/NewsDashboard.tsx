@@ -87,6 +87,7 @@ export default function NewsDashboardComponent() {
     const [saveListSelection, setSaveListSelection] = useState("readLater");
     const [newSaveListName, setNewSaveListName] = useState("");
     const [saveError, setSaveError] = useState<string | null>(null);
+    const [feedTotal, setFeedTotal] = useState(0);
 
     const itemsPerPage = 15;
     const { token, withAuth } = useAuth();
@@ -114,21 +115,27 @@ export default function NewsDashboardComponent() {
         }
     };
 
-    const loadFeed = async () => {
+    const loadFeed = async (page = 1) => {
         if (!token) return;
 
         try {
+            setFeed(null);
+            setFeedTotal(0);
+
             if (activeSavedList) {
                 const data = await withAuth((auth) => getNewsSavedArticlesAction(auth, activeSavedList));
                 setSavedArticlesData(data);
                 setFeed(data.articles.map((article) => article.json));
+                setFeedTotal(data.articles.length);
                 return;
             }
 
+            const limit = Math.max(50, page * itemsPerPage);
             const data = await withAuth((auth) =>
-                getNewsFeedAction(auth, activeFeedId)
+                getNewsFeedAction(auth, activeFeedId, limit)
             );
-            setFeed(Array.isArray(data) ? data : []);
+            setFeed(Array.isArray(data.items) ? data.items : []);
+            setFeedTotal(Number(data.total || 0));
         } catch (err) {
             console.error("Failed to load news:", err);
         }
@@ -141,7 +148,7 @@ export default function NewsDashboardComponent() {
 
     useEffect(() => {
         setCurrentPage(1);
-        loadFeed();
+        loadFeed(1);
     }, [token, activeFeedId]);
 
     useEffect(() => {
@@ -338,7 +345,7 @@ export default function NewsDashboardComponent() {
         try {
             await withAuth((auth) => refreshNewsFeedAction(auth, targetFeedIds));
             setRefreshStatus("Fetching latest articles…");
-            await loadFeed();
+            await loadFeed(currentPage);
         } catch (err) {
             console.error("Refresh failed:", err);
         } finally {
@@ -555,11 +562,17 @@ export default function NewsDashboardComponent() {
         )
         : [];
 
-    const totalPages = Math.ceil(allArticles.length / itemsPerPage);
+    const totalPages = Math.ceil(feedTotal / itemsPerPage);
     const paginatedArticles = allArticles.slice(
         (currentPage - 1) * itemsPerPage,
         currentPage * itemsPerPage,
     );
+
+    const handlePageChange = (page: number) => {
+        if (page === currentPage) return;
+        setCurrentPage(page);
+        void loadFeed(page);
+    };
 
     return (
         <div className="grid grid-rows-[auto_auto_1fr_auto] min-h-0 h-dvh p-0 overflow-hidden text-(--surface-foreground) bg-(--surface)">
@@ -649,9 +662,7 @@ export default function NewsDashboardComponent() {
                                                 onClick={(e) => {
                                                     e.preventDefault();
                                                     if (currentPage > 1) {
-                                                        setCurrentPage(
-                                                            currentPage - 1,
-                                                        );
+                                                        handlePageChange(currentPage - 1);
                                                     }
                                                 }}
                                                 className={currentPage === 1
@@ -677,9 +688,7 @@ export default function NewsDashboardComponent() {
                                                             href="#"
                                                             onClick={(e) => {
                                                                 e.preventDefault();
-                                                                setCurrentPage(
-                                                                    page,
-                                                                );
+                                                                handlePageChange(page);
                                                             }}
                                                             isActive={currentPage ===
                                                                 page}
@@ -710,9 +719,7 @@ export default function NewsDashboardComponent() {
                                                     if (
                                                         currentPage < totalPages
                                                     ) {
-                                                        setCurrentPage(
-                                                            currentPage + 1,
-                                                        );
+                                                        handlePageChange(currentPage + 1);
                                                     }
                                                 }}
                                                 className={currentPage ===

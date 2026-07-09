@@ -157,10 +157,10 @@ function RssFeedWidgetWrapper({
     const selectedFeedId = String(subscriptionId || feedId || "all").trim() || "all";
 
     setLoading(true);
-    void withAuth((auth) => getNewsFeedAction(auth, selectedFeedId))
+    void withAuth((auth) => getNewsFeedAction(auth, selectedFeedId, Math.max(maxItems, 50)))
       .then((feedItems) => {
         if (!cancelled) {
-          setItems(Array.isArray(feedItems) ? feedItems : []);
+          setItems(Array.isArray(feedItems?.items) ? feedItems.items : []);
         }
       })
       .catch((err) => {

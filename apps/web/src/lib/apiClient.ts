@@ -18,7 +18,7 @@ import config from "@/lib/config";
 import { client } from "./api/client.gen";
 import * as sdk from "./api/sdk.gen";
 
-const { getAppConfig, getAppInfo, postAuthLogin, postAuthChangePassword, postAuthSignup, postAuthValidateAuth, deleteAuthDeleteAccount, patchAuthUpdateUserProperty, getLinksCollections, postLinksCollections, putLinksCollectionsByCollectionId, postLinksTags, putLinksTagsByTagId, getLinksHomeGroups, postLinksHomeGroups, putLinksFoldersByFolderIdIcon, getLinksHome, getLinksFolders, postLinksFolders, getLinksItems, getLinksTags, postLinksItems, putLinksItemsByLinkId, deleteLinksItemsByLinkId, postLinksReorder, getIntegrations, postIntegrations, putIntegrationsById, deleteIntegrationsById, postIntegrationsTestEndpoint, getIntegrationsWidgetProperties, getWidgetsByIntegration, postIntegrationsConsumerData, getIntegrationsCaldavEvents, postIntegrationsProxyAction, getWidgets, getGlanceables, getGlanceablesByIntegration, getMonitoringStatus, postMonitoringStatus, getMonitors, getMonitorsById, putMonitorsById, postMonitors, deleteMonitorsById, getNewsFeedsById, getNewsFeedRecordsById, postNewsFeedRecords, getNewsSubscriptions, getNewsFeeds, getNewsFeedMetadata, postNewsFeedRefresh, postNewsFeedSubscribe, postNewsFeedUnsubscribe, postNewsFeedUpdate, postNewsFeedRecordsById, postNewsFixMissingTitles, getPageConfig, getPageConfigUserPages, putPageConfig, postPageConfigHome, postPageConfigMigrateLegacy, postPageConfigIntegrationData, getSearchItems, getSearchItemsFrequentlyUsed, postSearchItemsUsageStats, getLocations, getJobsPullIcons, postWallpapers, getNotifications, getNotificationsTopics, postNotificationsTopics, deleteNotificationsTopics, postNotificationsMarkAsRead, postNotificationsTest, getNotificationsTopicTokens, postNotificationsTopicTokens, deleteNotificationsTopicTokens, getNotificationsForwarders, postNotificationsForwarders, putNotificationsForwarders, deleteNotificationsForwarders } = sdk;
+const { getAppConfig, getAppInfo, postAuthLogin, postAuthChangePassword, postAuthSignup, postAuthValidateAuth, deleteAuthDeleteAccount, patchAuthUpdateUserProperty, getLinksCollections, postLinksCollections, putLinksCollectionsByCollectionId, postLinksTags, putLinksTagsByTagId, getLinksHomeGroups, postLinksHomeGroups, putLinksFoldersByFolderIdIcon, getLinksHome, getLinksFolders, postLinksFolders, getLinksItems, getLinksTags, postLinksItems, putLinksItemsByLinkId, deleteLinksItemsByLinkId, postLinksReorder, getIntegrations, postIntegrations, putIntegrationsById, deleteIntegrationsById, postIntegrationsTestEndpoint, getIntegrationsWidgetProperties, getWidgetsByIntegration, postIntegrationsConsumerData, getIntegrationsCaldavEvents, postIntegrationsProxyAction, getWidgets, getGlanceables, getGlanceablesByIntegration, getMonitoringStatus, postMonitoringStatus, getMonitors, getMonitorsById, putMonitorsById, postMonitors, deleteMonitorsById, getNewsFeedRecordsById, postNewsFeedRecords, getNewsSubscriptions, getNewsFeeds, getNewsFeedMetadata, postNewsFeedRefresh, postNewsFeedSubscribe, postNewsFeedUnsubscribe, postNewsFeedUpdate, postNewsFeedRecordsById, postNewsFixMissingTitles, getPageConfig, getPageConfigUserPages, putPageConfig, postPageConfigHome, postPageConfigMigrateLegacy, postPageConfigIntegrationData, getSearchItems, getSearchItemsFrequentlyUsed, postSearchItemsUsageStats, getLocations, getJobsPullIcons, postWallpapers, getNotifications, getNotificationsTopics, postNotificationsTopics, deleteNotificationsTopics, postNotificationsMarkAsRead, postNotificationsTest, getNotificationsTopicTokens, postNotificationsTopicTokens, deleteNotificationsTopicTokens, getNotificationsForwarders, postNotificationsForwarders, putNotificationsForwarders, deleteNotificationsForwarders } = sdk;
 export * from "./api/sdk.gen";
 export type { GenericObject, Error } from "./api/types.gen";
 
@@ -63,6 +63,12 @@ export type MonitoringSshHostInput = {
   password?: string;
   publicKey?: string;
   privateKey?: string;
+};
+
+export type NewsFeedPageResponse = {
+  items: NewsFeedItem[];
+  total: number;
+  limit: number;
 };
 
 function stringifyError(error: unknown) {
@@ -383,8 +389,13 @@ export async function updateMonitoringSshHostAction(auth: ActionAuth, hostId: st
 
 // --- News actions ---
 
-export async function getNewsFeedAction(auth: ActionAuth, feedId?: string | null): Promise<NewsFeedItem[]> {
-  return extractData(await getNewsFeedsById({ path: { id: feedId ?? "all" }, headers: authHeaders(auth) })) as Promise<NewsFeedItem[]>;
+export async function getNewsFeedAction(auth: ActionAuth, feedId?: string | null, limit?: number): Promise<NewsFeedPageResponse> {
+  return extractData(await client.get({
+    url: "/news/feeds/{id}",
+    path: { id: feedId ?? "all" },
+    query: limit ? { limit } : undefined,
+    headers: authHeaders(auth),
+  })) as Promise<NewsFeedPageResponse>;
 }
 
 export async function getNewsFeedRecordAction(auth: ActionAuth, feedId?: string | null): Promise<NewsFeedRecord | null> {
