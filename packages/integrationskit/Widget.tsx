@@ -417,9 +417,27 @@ function ColumnCell(
     const primary = col.stats?.primary ?? col.primary;
     const secondary = col.stats?.secondary ?? col.secondary;
     const shouldRenderLabel = !!col.label && col.label !== primary;
+    const statsCaption = hasStats ? col.primary : undefined;
 
     return (
-        <div className="flex flex-col items-center gap-1 py-1 w-full">
+        <div className="flex flex-col items-center gap-1.5 w-full">
+            {shouldRenderLabel && (
+                col.primaryAction
+                    ? (
+                        <a
+                            href={col.primaryAction}
+                            className="text-[11px] opacity-60 uppercase tracking-wide leading-tight text-center line-clamp-2"
+                        >
+                            {renderLocalizedText(col.label, formatters)}
+                        </a>
+                    )
+                    : (
+                        <p className="text-[11px] opacity-60 uppercase tracking-wide leading-tight text-center line-clamp-2">
+                            {renderLocalizedText(col.label, formatters)}
+                        </p>
+                    )
+            )}
+
             {!hasStats && hasProgress && (
                 <CircularProgress
                     value={col.progress!.value ?? 0}
@@ -461,19 +479,19 @@ function ColumnCell(
                 </p>
             )}
 
-            {shouldRenderLabel && (
+            {statsCaption && (
                 col.primaryAction
                     ? (
                         <a
                             href={col.primaryAction}
-                            className="text-[11px] opacity-60 uppercase tracking-wide leading-tight text-center line-clamp-2"
+                            className="block max-w-full text-sm font-semibold leading-tight text-center hover:text-primary transition-colors line-clamp-2"
                         >
-                            {renderLocalizedText(col.label, formatters)}
+                            {renderLocalizedText(statsCaption, formatters)}
                         </a>
                     )
                     : (
-                        <p className="text-[11px] opacity-60 uppercase tracking-wide leading-tight text-center line-clamp-2">
-                            {renderLocalizedText(col.label, formatters)}
+                        <p className="font-semibold text-sm leading-tight text-center line-clamp-2">
+                            {renderLocalizedText(statsCaption, formatters)}
                         </p>
                     )
             )}

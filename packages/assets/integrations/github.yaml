@@ -19,7 +19,7 @@ configuration:
     retention: 300
 
   rate_limit:
-    requests_per_second: 2
+    requests_per_second: 1
 
   environment_variables:
     REPOSITORY:

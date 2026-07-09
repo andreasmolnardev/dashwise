@@ -22,9 +22,10 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { ChevronDown, Edit3, Eye, EyeOff, GripVertical, PanelLeftDashed, Trash2 } from "lucide-react";
+import { ChevronDown, Edit3, Eye, EyeOff, GripVertical, PanelLeftDashed, Ruler, Trash2 } from "lucide-react";
 import WidgetPropertiesForm from "@dashwise/integrationskit/forms/WidgetPropertiesForm";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Dialog,
@@ -89,6 +90,8 @@ function WidgetTile({
   widgetConfig,
   onRemove,
   onUpdateInput,
+  onUpdateProperties,
+  availableHeightRefs,
   loadWidgetPreviewData,
   isActive,
   onEditClockPart,
@@ -99,6 +102,8 @@ function WidgetTile({
   widgetConfig?: WidgetCatalogItem;
   onRemove: () => void;
   onUpdateInput: (widgetId: string, input?: ColumnWidget["input"]) => void;
+  onUpdateProperties: (widgetId: string, properties: Record<string, any>) => void;
+  availableHeightRefs: string[];
   loadWidgetPreviewData?: (widgetKey: string, input?: Record<string, any>) => Promise<Record<string, any> | null>;
   isActive?: boolean;
   onEditClockPart?: (part: GlanceableSide | "clock") => void;
@@ -110,8 +115,10 @@ function WidgetTile({
     id: columnWidget.id,
   });
   const [isDataDialogOpen, setIsDataDialogOpen] = useState(false);
+  const [isHeightDialogOpen, setIsHeightDialogOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"input" | "displayed">("input");
   const [inputDraft, setInputDraft] = useState<Record<string, any>>({});
+  const [heightDraft, setHeightDraft] = useState("");
   const [dataError, setDataError] = useState<string | null>(null);
   const [previewResolved, setPreviewResolved] = useState<Record<string, any> | null>(null);
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
@@ -141,7 +148,7 @@ function WidgetTile({
   );
 
   useEffect(() => {
-    if (isDataDialogOpen) return;
+    if (isDataDialogOpen || isHeightDialogOpen) return;
     hasInitializedDisplayOrder.current = false;
     const baseInput = {
       ...(columnWidget.properties ?? {}),
@@ -155,7 +162,13 @@ function WidgetTile({
     setDisplayOrder([]);
     setHiddenIds([]);
     setActiveTab("input");
-  }, [isDataDialogOpen, columnWidget.input, columnWidget.properties, widgetConfig?.input]);
+    setHeightDraft(formatWidgetHeight(columnWidget.properties?.height));
+  }, [columnWidget.input, columnWidget.properties, isDataDialogOpen, isHeightDialogOpen, widgetConfig?.input]);
+
+  useEffect(() => {
+    if (!isHeightDialogOpen) return;
+    setHeightDraft(formatWidgetHeight(columnWidget.properties?.height));
+  }, [columnWidget.properties?.height, isHeightDialogOpen]);
 
   useEffect(() => {
     if (!isDataDialogOpen || !supportsUserCustomizations || !widgetConfig?.key) {
@@ -268,12 +281,20 @@ function WidgetTile({
   };
 
   const canEditData = hasEditableWidgetData(columnWidget, widgetConfig) || supportsUserCustomizations;
+  const isPlaceholderWidget = columnWidget.type === "placeholder";
   const params = {
     ...(widgetConfig?.properties ?? {}),
     ...(columnWidget.properties ?? {}),
     ...(columnWidget.input ?? {}),
   };
   const isClockWidget = columnWidget.type === "main-clock" || columnWidget.type === "glanceable-clock";
+  const handleSaveHeight = () => {
+    const nextHeight = parseWidgetHeight(heightDraft);
+    onUpdateProperties(columnWidget.id, nextHeight !== undefined
+      ? { ...(columnWidget.properties ?? {}), height: nextHeight }
+      : Object.fromEntries(Object.entries(columnWidget.properties ?? {}).filter(([key]) => key !== "height")));
+    setIsHeightDialogOpen(false);
+  };
 
   return (
     <div
@@ -405,6 +426,63 @@ function WidgetTile({
                     </Button>
                   </DialogFooter>
                 </DialogContent>
+                </Dialog>
+              )}
+              {isPlaceholderWidget && (
+                <Dialog open={isHeightDialogOpen} onOpenChange={setIsHeightDialogOpen}>
+                  <DialogTrigger asChild>
+                    <button
+                      type="button"
+                      aria-label="Edit placeholder height"
+                      className="rounded-full bg-white/10 p-2 hover:bg-white/20 backdrop-blur"
+                    >
+                      <Ruler className="h-4 w-4" />
+                    </button>
+                  </DialogTrigger>
+                  <DialogContent className="frosted">
+                    <DialogHeader>
+                      <DialogTitle>Edit Placeholder Height</DialogTitle>
+                      <DialogDescription>
+                        Set preview height in px, CSS length, or $ref.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-2 py-4">
+                      <Label htmlFor={`placeholder-height-${columnWidget.id}`}>Height</Label>
+                      <Input
+                        id={`placeholder-height-${columnWidget.id}`}
+                        value={heightDraft}
+                        onChange={(event) => setHeightDraft(event.target.value)}
+                        placeholder="180px"
+                      />
+                      <div className="space-y-2 pt-2">
+                        <p className="text-xs uppercase tracking-wide text-white/50">Available $refs</p>
+                        {availableHeightRefs.length > 0 ? (
+                          <div className="flex flex-wrap gap-2">
+                            {availableHeightRefs.map((ref) => (
+                              <button
+                                key={ref}
+                                type="button"
+                                onClick={() => setHeightDraft(`$${ref}`)}
+                                className="rounded-full border border-white/15 bg-white/5 px-2.5 py-1 text-xs text-white/80 hover:bg-white/10"
+                              >
+                                ${ref}
+                              </button>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-sm text-white/45">No refs available.</p>
+                        )}
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <Button type="button" variant="outline" onClick={() => setIsHeightDialogOpen(false)}>
+                        Cancel
+                      </Button>
+                      <Button type="button" onClick={handleSaveHeight}>
+                        Save height
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
                 </Dialog>
               )}
             </div>
@@ -801,6 +879,23 @@ export function DashboardWidgetPreview({
     [glanceablesCatalog],
   );
 
+  const availableHeightRefs = useMemo(() => {
+    const refs = new Set<string>();
+
+    if (hasMainClock) {
+      refs.add("main-clock");
+    }
+
+    for (const column of columns.left.concat(columns.middle, columns.right)) {
+      const height = column.properties?.height;
+      if (typeof height === "string" && height.startsWith("$") && height.length > 1) {
+        refs.add(height.slice(1));
+      }
+    }
+
+    return Array.from(refs).sort();
+  }, [columns.left, columns.middle, columns.right, hasMainClock]);
+
   const removeWidget = (column: ColumnName, widgetId: string) => {
     setColumns((prev) => ({
       ...prev,
@@ -978,6 +1073,13 @@ export function DashboardWidgetPreview({
                                 onEditClockPart={openClockEditor}
                                 clockSelection={clockSelection}
                                 glanceableNames={glanceableNames}
+                                availableHeightRefs={availableHeightRefs}
+                                onUpdateProperties={(widgetId, properties) => {
+                                  setColumns((prev) => ({
+                                    ...prev,
+                                    [column]: prev[column].map((item) => item.id === widgetId ? { ...item, properties } : item),
+                                  }));
+                                }}
                                 onUpdateInput={(widgetId, input) => {
                                   setColumns((prev) => ({
                                     ...prev,
@@ -1081,4 +1183,23 @@ export function DashboardWidgetPreview({
       </Dialog>
     </div>
   );
+}
+
+function formatWidgetHeight(height: unknown) {
+  if (typeof height === "number" && Number.isFinite(height)) {
+    return String(height);
+  }
+
+  if (typeof height === "string") {
+    return height;
+  }
+
+  return "";
+}
+
+function parseWidgetHeight(value: string) {
+  const next = value.trim();
+  if (!next) return undefined;
+  if (/^-?\d+(?:\.\d+)?$/.test(next)) return Number(next);
+  return next;
 }
