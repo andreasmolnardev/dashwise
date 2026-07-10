@@ -2,7 +2,10 @@
 migrate((app) => {
   const collection = app.findCollectionByNameOrId("pbc_3454427957")
 
-  // add field
+  removeFieldIfPresent(collection, "userId")
+  removeFieldIfPresent(collection, "similarityGroupingWordsBlacklist")
+  removeFieldIfPresent(collection, "enableTopicGrouping")
+
   collection.fields.addAt(1, new Field({
     "cascadeDelete": false,
     "collectionId": "_pb_users_auth_",
@@ -17,7 +20,6 @@ migrate((app) => {
     "type": "relation"
   }))
 
-  // add field
   collection.fields.addAt(8, new Field({
     "autogeneratePattern": "",
     "help": "Comma-separated topic grouping words to ignore. Prefix a default/global word with - to allow it.",
@@ -34,7 +36,6 @@ migrate((app) => {
     "type": "text"
   }))
 
-  // add field
   collection.fields.addAt(9, new Field({
     "hidden": false,
     "id": "bool2197385116",
@@ -84,3 +85,11 @@ migrate((app) => {
 
   return app.save(collection)
 })
+
+function removeFieldIfPresent(collection, name) {
+  try {
+    collection.fields.removeByName(name)
+  } catch (_) {
+    // Older data may not have this field yet.
+  }
+}

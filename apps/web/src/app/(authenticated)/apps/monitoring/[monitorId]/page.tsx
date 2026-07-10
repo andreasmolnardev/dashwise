@@ -222,7 +222,8 @@ function formatThresholdLabel(outlier: ParsedOutlier) {
     } from average)`;
 }
 
-function formatThresholdValue(outlier: ParsedOutlier) {
+function formatThresholdValue(outlier?: ParsedOutlier) {
+    if (!outlier) return null;
     const threshold = outlier.threshold;
     if (!threshold) return null;
     if (threshold.type === "relative") {
@@ -552,7 +553,7 @@ export default function MonitoringDetailPage() {
                 </div>
             </div>
 
-            <section className="frosted rounded-xl p-3 space-y-3">
+            <section className="frosted rounded-xl p-3 space-y-1">
                 <div className="grid grid-cols-[1fr_auto]">
                     <div className="text-2xl font-semibold text-white">
                         <span
@@ -580,6 +581,7 @@ export default function MonitoringDetailPage() {
                     dateChanged={latestPing?.created ?? monitor.updated ??
                         monitor.created ?? null}
                     durationChanged={latestChangeDurationSeconds}
+                    className="mt-2"
                 />
             </section>
             <section className="frosted rounded-xl p-3 space-y-3">

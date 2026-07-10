@@ -40,6 +40,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { renderWidget } from "@/components/widgets/Widget";
 import { EditGlanceablesView } from "@/components/settings/pages/EditGlanceablesView";
 import {
+  ClockGlanceableSelection,
   ColumnName,
   ColumnWidget,
   GlanceableSide,
@@ -76,8 +77,8 @@ type DashboardWidgetPreviewProps = {
   glanceablesCatalog: Array<{ type: string; name: string; exampleProps: Record<string, any> }>;
   selectedClockPart: GlanceableSide | "clock";
   setSelectedClockPart: (part: GlanceableSide | "clock") => void;
-  clockSelection: Record<GlanceableSide, string>;
-  setClockSelection: Dispatch<SetStateAction<Record<GlanceableSide, string>>>;
+  clockSelection: ClockGlanceableSelection;
+  setClockSelection: Dispatch<SetStateAction<ClockGlanceableSelection>>;
   clockGlanceables: Record<string, any>;
   setClockGlanceables: Dispatch<SetStateAction<Record<string, any>>>;
   clockStyle: Record<string, any>;
@@ -107,7 +108,7 @@ function WidgetTile({
   loadWidgetPreviewData?: (widgetKey: string, input?: Record<string, any>) => Promise<Record<string, any> | null>;
   isActive?: boolean;
   onEditClockPart?: (part: GlanceableSide | "clock") => void;
-  clockSelection?: Record<GlanceableSide, string>;
+  clockSelection?: ClockGlanceableSelection;
   glanceableNames?: Record<string, string>;
 }) {
   const { withAuth } = useAuth();
@@ -315,13 +316,13 @@ function WidgetTile({
         {isClockWidget ? (
           <div className="grid h-full grid-cols-3 items-center gap-2 p-2">
             <button type="button" onClick={() => onEditClockPart?.("left")} className="flex h-full flex-col items-center justify-center rounded-xl border border-white/10 bg-white/5 p-2 text-center hover:bg-white/10">
-              <span className="text-sm font-medium text-white/90">{glanceableNames?.[clockSelection?.left ?? ""] ?? "Left"}</span>
+              <span className="text-sm font-medium text-white/90">{clockSelection?.left.length ? `${clockSelection.left.length} glanceable${clockSelection.left.length === 1 ? "" : "s"}` : "Left"}</span>
             </button>
             <button type="button" onClick={() => onEditClockPart?.("clock")} className="flex h-full flex-col items-center justify-center rounded-xl border border-white/10 bg-white/5 p-2 text-center hover:bg-white/10">
               <span className="rounded-full border border-white/10 bg-white/10 px-3 py-2 text-xs font-medium text-white/80">Clock</span>
             </button>
             <button type="button" onClick={() => onEditClockPart?.("right")} className="flex h-full flex-col items-center justify-center rounded-xl border border-white/10 bg-white/5 p-2 text-center hover:bg-white/10">
-              <span className="text-sm font-medium text-white/90">{glanceableNames?.[clockSelection?.right ?? ""] ?? "Right"}</span>
+              <span className="text-sm font-medium text-white/90">{clockSelection?.right.length ? `${clockSelection.right.length} glanceable${clockSelection.right.length === 1 ? "" : "s"}` : "Right"}</span>
             </button>
           </div>
         ) : (
@@ -1166,7 +1167,7 @@ export function DashboardWidgetPreview({
       </DndContext>
 
       <Dialog open={clockDialogOpen} onOpenChange={setClockDialogOpen}>
-        <DialogContent className="frosted max-h-[90vh] overflow-y-auto text-foreground">
+        <DialogContent className="frosted max-h-[90vh] overflow-x-hidden overflow-y-auto text-foreground">
           <EditGlanceablesView
             hasMainClock={hasMainClock}
             glanceablesCatalog={glanceablesCatalog}

@@ -26,10 +26,13 @@ export type WidgetDefinition = {
 export type TemplateId = "main" | "left-middle" | "right-middle";
 export type ColumnName = "left" | "middle" | "right";
 export type GlanceableSide = "left" | "right";
+export type GlanceableSelection = { id: string; type: string };
+export type ClockGlanceableSelection = Record<GlanceableSide, GlanceableSelection[]>;
 
 export type GlanceableCatalogItem = {
   type: string;
   name: string;
+  appName?: string;
   exampleProps: Record<string, any>;
 };
 
@@ -310,6 +313,22 @@ export function readClockGlanceables(
       typeof mainClock.properties.glanceables === "object"
     ? (mainClock.properties.glanceables as Record<string, any>)
     : undefined;
+  const slots = overrides?.slots as Partial<Record<GlanceableSide, Array<{ type?: string; params?: Record<string, any> }>>> | undefined;
+
+  if (slots) {
+    const map: Record<string, any> = {};
+    const selected = Object.fromEntries((["left", "right"] as GlanceableSide[]).map((side) => [
+      side,
+      (Array.isArray(slots[side]) ? slots[side] : []).flatMap((entry, index) => {
+        const type = normalizeProgressKey(entry?.type);
+        if (!type) return [];
+        const id = `${side}-${index}`;
+        map[id] = entry?.params ?? {};
+        return [{ id, type }];
+      }),
+    ])) as ClockGlanceableSelection;
+    return { selected, map };
+  }
 
   const fallbackTypes = [
     ...fallbackGlanceables,
@@ -334,7 +353,10 @@ export function readClockGlanceables(
   }
 
   return {
-    selected: { left, right } as Record<GlanceableSide, string>,
+    selected: {
+      left: left ? [{ id: "left-0", type: left }] : [],
+      right: right ? [{ id: "right-0", type: right }] : [],
+    } as ClockGlanceableSelection,
     map,
   };
 }
@@ -345,9 +367,11 @@ export function getDefaultGlanceableSelection(catalogGlanceables: GlanceableCata
     .filter((entry): entry is string => typeof entry === "string");
 
   return {
-    left: fallbackTypes[0] ?? "",
-    right: fallbackTypes[1] ?? fallbackTypes[0] ?? "",
-  };
+    left: fallbackTypes[0] ? [{ id: "left-0", type: fallbackTypes[0] }] : [],
+    right: fallbackTypes[1] || fallbackTypes[0]
+      ? [{ id: "right-0", type: fallbackTypes[1] ?? fallbackTypes[0] }]
+      : [],
+  } satisfies ClockGlanceableSelection;
 }
 
 export function moveItem(
@@ -406,7 +430,7 @@ export function moveItem(
 export function buildPageConfigPatch(
   template: TemplateId,
   columns: Record<ColumnName, ColumnWidget[]>,
-  clockSelection: Record<GlanceableSide, string>,
+  clockSelection: ClockGlanceableSelection,
   clockGlanceables: Record<string, any>,
   clockStyle: Record<string, any>,
   glanceableCatalog?: GlanceableCatalogItem[],
@@ -420,13 +444,14 @@ export function buildPageConfigPatch(
       const widgetProps = { ...(widget.properties ?? {}) };
 
       if (widget.type === "main-clock") {
-        const leftRaw = clockSelection.left;
-        const rightRaw = clockSelection.right;
-        const left = resolveStoredGlanceableKey(leftRaw, glanceableCatalog);
-        const right = resolveStoredGlanceableKey(rightRaw, glanceableCatalog);
         widgetProps.glanceables = {
-          [left]: clockGlanceables[leftRaw] ?? clockGlanceables[left] ?? null,
-          [right]: clockGlanceables[rightRaw] ?? clockGlanceables[right] ?? null,
+          slots: Object.fromEntries((["left", "right"] as GlanceableSide[]).map((side) => [
+            side,
+            clockSelection[side].map((selection) => ({
+              type: resolveStoredGlanceableKey(selection.type, glanceableCatalog),
+              params: clockGlanceables[selection.id] ?? {},
+            })),
+          ])),
         };
         widgetProps["clock-style"] = { ...clockStyle };
       }

@@ -315,13 +315,14 @@ export async function getMonitoringStatus(userId: string, jobId?: string | null)
 
   const results: Record<
     string,
-    { status: string; dateChanged: string | null; durationChanged: number | null; endpoint?: string }
+    { id: string; status: string; dateChanged: string | null; durationChanged: number | null; endpoint?: string }
   > = {};
 
   for (const monitor of monitors) {
     const statusSummary = getLatestMonitorStatus(monitor);
     const key = monitor.sourcelinkId || monitor.linkId || monitor.id;
     results[key] = {
+      id: monitor.id,
       status: statusSummary.status,
       dateChanged: statusSummary.dateChanged,
       durationChanged: statusSummary.durationChanged,

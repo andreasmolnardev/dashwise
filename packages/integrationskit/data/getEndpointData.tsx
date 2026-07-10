@@ -937,7 +937,7 @@ function resolveMappingProperties(
 	return output;
 }
 
-function evaluateMappedFilter(filter: string, context: MappingContext) {
+function evaluateMappedFilter(filter: string, context: MappingContext): boolean {
 	const resolved = filter.replace(/\$\{([^}]+)\}/g, (_, key) => {
 		const expr = String(key).trim();
 		const mapped = resolveMappedPathFromContext(expr, context);

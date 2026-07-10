@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/useAuth";
 import { getMonitoringStatusAction } from '@/lib/apiClient';
 import {
@@ -9,7 +9,6 @@ import {
   updateHomeLinkFolderIconAction,
 } from '@/lib/apiClient';
 import { PaginatedCarouselViewComponent } from "./PaginatedCarouselView";
-import MonitoringDialog, { JobEntry } from "./MonitoringDialog";
 import type { LinkType } from "@dashwise/types/sdk";
 import {
   Popover,
@@ -56,7 +55,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { updateLinksOrderAction } from '@/lib/apiClient';
 
-const HOME_LINKS_CACHE_KEY = "dashwise_home_links_cache_v1";
+const HOME_LINKS_CACHE_PREFIX = "dashwise_home_links_cache_v1";
 const DEFAULT_LINK_GROUP = "Default";
 
 type Item =
@@ -70,11 +69,18 @@ type Item =
     links: LinkType[];
   };
 
-function readCachedHomeLinks(): LinkType[] | null {
+function getHomeLinksCacheKey(userId: string | null | undefined) {
+  return userId ? `${HOME_LINKS_CACHE_PREFIX}:${userId}` : null;
+}
+
+function readCachedHomeLinks(userId: string | null | undefined): LinkType[] | null {
   if (typeof window === "undefined") return null;
 
+  const cacheKey = getHomeLinksCacheKey(userId);
+  if (!cacheKey) return null;
+
   try {
-    const raw = window.localStorage.getItem(HOME_LINKS_CACHE_KEY);
+    const raw = window.localStorage.getItem(cacheKey);
     if (!raw) return null;
 
     const parsed = JSON.parse(raw);
@@ -87,12 +93,15 @@ function readCachedHomeLinks(): LinkType[] | null {
   return null;
 }
 
-function writeCachedHomeLinks(links: LinkType[]) {
+function writeCachedHomeLinks(userId: string | null | undefined, links: LinkType[]) {
   if (typeof window === "undefined") return;
+
+  const cacheKey = getHomeLinksCacheKey(userId);
+  if (!cacheKey) return;
 
   try {
     window.localStorage.setItem(
-      HOME_LINKS_CACHE_KEY,
+      cacheKey,
       JSON.stringify({ links, updatedAt: Date.now() }),
     );
   } catch {
@@ -184,11 +193,12 @@ function applyOptimisticLinkOrder(
 }
 
 export default function LinkView({ links = [] }: { links?: LinkType[] }) {
-  const { token, withAuth } = useAuth();
+  const { token, user, withAuth } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
   const [localLinks, setLocalLinks] = useState<LinkType[]>(() => {
     if (links.length > 0) return links;
-    return readCachedHomeLinks() ?? links;
+    return readCachedHomeLinks(user?.id) ?? links;
   });
 
   const [, setFolderPreviewRev] = useState(0);
@@ -209,13 +219,15 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
   }, []);
 
   useEffect(() => {
+    setLocalLinks(readCachedHomeLinks(user?.id) ?? links);
+
     const fetchLinks = async () => {
       try {
         const data = await withAuth((auth) => getHomeLinksAction(auth));
         if (Array.isArray(data)) {
           const nextLinks = data as LinkType[];
           setLocalLinks(nextLinks);
-          writeCachedHomeLinks(nextLinks);
+          writeCachedHomeLinks(user?.id, nextLinks);
         }
       } catch (err) {
         console.error("Failed to fetch home links:", err);
@@ -223,7 +235,7 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
     };
 
     fetchLinks();
-  }, [withAuth]);
+  }, [user?.id, withAuth]);
 
   const [activeCollection, setActiveCollection] = useState<string | null>(null);
 
@@ -287,7 +299,6 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
     }> | null
   >(null);
 
-  const [openDialogFor, setOpenDialogFor] = useState<string | null>(null);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [editingLink, setEditingLink] = useState<LinkType | null>(null);
   const [editingFolder, setEditingFolder] = useState<
@@ -368,22 +379,18 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
     };
   }, [fetchMonitoringStatuses]);
 
-  const selectedLink = openDialogFor
-    ? localLinks.find((link: LinkType) => link.id === openDialogFor)
-    : undefined;
-
   const refreshHomeLinks = React.useCallback(async () => {
     try {
       const data = await withAuth((auth) => getHomeLinksAction(auth));
       if (Array.isArray(data)) {
         const nextLinks = data as LinkType[];
         setLocalLinks(nextLinks);
-        writeCachedHomeLinks(nextLinks);
+        writeCachedHomeLinks(user?.id, nextLinks);
       }
     } catch (err) {
       console.error("Failed to refresh home links:", err);
     }
-  }, [withAuth]);
+  }, [user?.id, withAuth]);
 
   const handleOptimisticSave = React.useCallback(
     (
@@ -424,7 +431,7 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
                 : link
             );
 
-            writeCachedHomeLinks(nextLinks);
+            writeCachedHomeLinks(user?.id, nextLinks);
             return nextLinks;
           }
         }
@@ -446,13 +453,13 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
           },
         ];
 
-        writeCachedHomeLinks(nextLinks);
+        writeCachedHomeLinks(user?.id, nextLinks);
         return nextLinks;
       });
 
       return rollback;
     },
-    [],
+    [user?.id],
   );
 
   const sensors = useSensors(
@@ -534,7 +541,7 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
             activeCollection,
           );
 
-          writeCachedHomeLinks(nextLinks);
+          writeCachedHomeLinks(user?.id, nextLinks);
           return nextLinks;
         });
 
@@ -556,8 +563,8 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
             key={item.link.id || item.link.url || itemIdx}
             link={item.link}
             monitoringDetails={monitoringDetails}
-            setOpenDialogFor={setOpenDialogFor}
             setEditingLink={setEditingLink}
+            navigate={navigate}
             itemIdx={itemIdx}
             isDragging={dragging}
           />
@@ -574,12 +581,12 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
           monitoringDetails={monitoringDetails}
           setEditingFolder={setEditingFolder}
           setEditingLink={setEditingLink}
-          setOpenDialogFor={setOpenDialogFor}
+          navigate={navigate}
           toggleFolderPreview={toggleFolderPreview}
         />
       );
     },
-    [monitoringDetails, setEditingFolder, setEditingLink, setOpenDialogFor, toggleFolderPreview],
+    [monitoringDetails, navigate, setEditingFolder, setEditingLink, toggleFolderPreview],
   );
 
   return (
@@ -750,7 +757,7 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
                         ? { ...link, folderIcon: iconObj.url ?? "" }
                         : link
                     );
-                    writeCachedHomeLinks(nextLinks);
+                    writeCachedHomeLinks(user?.id, nextLinks);
                     return nextLinks;
                   });
                   setEditingFolder((current) =>
@@ -764,20 +771,6 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
           )}
         </DialogContent>
       </Dialog>
-
-      {selectedLink && (
-        <MonitoringDialog
-          open={!!selectedLink}
-          onOpenChange={(val) => {
-            if (!val) setOpenDialogFor(null);
-          }}
-          link={selectedLink}
-          onCheckTriggered={fetchMonitoringStatuses}
-          details={selectedLink.id && monitoringDetails
-            ? (monitoringDetails[selectedLink.id] as JobEntry)
-            : undefined}
-        />
-      )}
     </div>
   );
 }
@@ -796,8 +789,8 @@ function previewFirstFolderIcons(folderId: string): boolean {
 interface LinkTileProps {
   link: LinkType;
   monitoringDetails: any;
-  setOpenDialogFor: (id: string) => void;
   setEditingLink: (link: LinkType) => void;
+  navigate: (to: string) => void;
   itemIdx?: number;
   isDragging?: boolean;
 }
@@ -805,8 +798,8 @@ interface LinkTileProps {
 function LinkTile({
   link,
   monitoringDetails,
-  setOpenDialogFor,
   setEditingLink,
+  navigate,
   itemIdx,
   isDragging,
 }: LinkTileProps) {
@@ -859,11 +852,12 @@ function LinkTile({
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                if (link.id && monitoringDetails && monitoringDetails[link.id]) {
-                  setOpenDialogFor(link.id);
+                const monitorId = link.id && monitoringDetails?.[link.id]?.id;
+                if (monitorId) {
+                  navigate(`/apps/monitoring/${monitorId}`);
                 }
               }}
-              className="ml-2 flex items-center justify-center"
+              className="flex items-center justify-center"
             >
               <span
                 className="h-2 w-2 rounded-full inline-block hover:cursor-pointer hover:ring-2"
@@ -934,7 +928,7 @@ function LinkFolderPopover({
   monitoringDetails,
   setEditingFolder,
   setEditingLink,
-  setOpenDialogFor,
+  navigate,
   toggleFolderPreview,
 }: {
   folder: {
@@ -948,7 +942,7 @@ function LinkFolderPopover({
   monitoringDetails: any;
   setEditingFolder: (f: { id: string; name: string; icon?: string } | null) => void;
   setEditingLink: (link: LinkType) => void;
-  setOpenDialogFor: (id: string) => void;
+  navigate: (to: string) => void;
   toggleFolderPreview: (folderId: string) => void;
 }) {
   const folderId = folder.recordId || folder.key;
@@ -1092,8 +1086,8 @@ function LinkFolderPopover({
               key={child.id || child.url || childIdx}
               link={child}
               monitoringDetails={monitoringDetails}
-              setOpenDialogFor={setOpenDialogFor}
               setEditingLink={setEditingLink}
+              navigate={navigate}
             />
           ))}
         </div>

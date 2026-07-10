@@ -44,8 +44,7 @@ linksRoute
   }))
   .get("/api/v1/links/folders", withJson(async (c) => {
     const { userId } = await requireAuth({ token: readAuthToken(c) });
-    void userId;
-    return getLinksFolders(String(c.req.query("listId") ?? ""));
+    return getLinksFolders(userId, String(c.req.query("listId") ?? ""));
   }))
   .post("/api/v1/links/folders", withJson(async (c) => {
     const body = await readJsonBody<any>(c);
@@ -58,8 +57,7 @@ linksRoute
   }))
   .get("/api/v1/links/items", withJson(async (c) => {
     const { userId } = await requireAuth({ token: readAuthToken(c) });
-    void userId;
-    return getLinksItems(String(c.req.query("listId") ?? ""), c.req.query("folderId") ?? undefined);
+    return getLinksItems(userId, String(c.req.query("listId") ?? ""), c.req.query("folderId") ?? undefined);
   }))
   .post("/api/v1/links/items", withJson(async (c) => {
     const body = await readJsonBody<any>(c);

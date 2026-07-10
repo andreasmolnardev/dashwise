@@ -1,6 +1,7 @@
 "use client";
 
-import { type Dispatch, type SetStateAction, useEffect, useState } from "react";
+import { type Dispatch, type ReactNode, type SetStateAction, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { Plus, X } from "lucide-react";
 import ClockWidget from "@/components/widgets/ClockWidget";
 import GlanceableComponent from "@dashwise/integrationskit/Glanceable";
 import {
@@ -13,7 +14,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
-import { GlanceableSide } from "./utils";
+import { ClockGlanceableSelection, GlanceableSide } from "./utils";
 import { useLocalization } from "@/context/LocalizationContext";
 import useAuth from "@/context/useAuth";
 import { getIntegrationWithGlanceableAction } from '@/lib/apiClient';
@@ -28,15 +29,27 @@ const PROGRESS_PERIOD_OPTIONS = [
 type GlanceableCatalogItem = {
   type: string;
   name: string;
+  appName?: string;
+  integrationName?: string;
+  integrationDisplayName?: string;
   exampleProps: Record<string, any>;
 };
+
+function getGlanceableGroupName(entry?: Partial<GlanceableCatalogItem> & Record<string, any>) {
+  const rawLabel = entry?.integrationDisplayName ?? entry?.integrationName ?? entry?.appName ?? entry?.app;
+  if (typeof rawLabel === "string" && rawLabel.trim()) {
+    return rawLabel.trim();
+  }
+
+  return String(entry?.type === "weather" ? "Weather" : "Builtin");
+}
 
 type EditGlanceablesViewProps = {
   hasMainClock: boolean;
   glanceablesCatalog: GlanceableCatalogItem[];
   selectedClockPart: GlanceableSide | "clock";
-  clockSelection: Record<GlanceableSide, string>;
-  setClockSelection: Dispatch<SetStateAction<Record<GlanceableSide, string>>>;
+  clockSelection: ClockGlanceableSelection;
+  setClockSelection: Dispatch<SetStateAction<ClockGlanceableSelection>>;
   clockGlanceables: Record<string, any>;
   setClockGlanceables: Dispatch<SetStateAction<Record<string, any>>>;
   clockStyle: Record<string, any>;
@@ -65,16 +78,22 @@ export function EditGlanceablesView({
   const selectedClockSide: GlanceableSide = selectedClockPart === "right"
     ? "right"
     : "left";
-  const selectedClockType = clockSelection[selectedClockSide];
-  const selectedClockLabel = selectedClockPart === "clock"
-    ? "Clock"
-    : selectedClockPart === "left"
-      ? "Left Glanceable"
-      : "Right Glanceable";
-
+  const [selectedGlanceableId, setSelectedGlanceableId] = useState<string | null>(null);
+  const glanceablesForSide = clockSelection[selectedClockSide];
+  const selectedGlanceable = glanceablesForSide.find((item) => item.id === selectedGlanceableId) ?? glanceablesForSide[0];
+  const selectedClockType = selectedGlanceable?.type ?? "";
+  const selectedParams = selectedGlanceable ? clockGlanceables[selectedGlanceable.id] ?? {} : {};
   const [integrationInfo, setIntegrationInfo] = useState<{
     environmentDefinitions?: Record<string, { description?: string; required?: boolean; default?: string }>;
   } | null>(null);
+  const [selectedGlanceableApp, setSelectedGlanceableApp] = useState("Builtin");
+  const selectedCatalogItem = glanceablesCatalog.find((entry) => entry.type === selectedClockType);
+  const glanceableApps = Array.from(
+    new Set(glanceablesCatalog.map((entry) => getGlanceableGroupName(entry))),
+  );
+  const visibleGlanceables = glanceablesCatalog.filter(
+    (entry) => getGlanceableGroupName(entry) === selectedGlanceableApp,
+  );
 
   useEffect(() => {
     if (!selectedClockType || ["date", "greeting", "local-timezone", "world-clock", "progress"].includes(selectedClockType)) {
@@ -89,20 +108,48 @@ export function EditGlanceablesView({
       .catch(() => setIntegrationInfo(null));
   }, [selectedClockType, withAuth]);
 
-  const setGlanceableForSide = (side: GlanceableSide, type: string) => {
+  useEffect(() => {
+    setSelectedGlanceableId(glanceablesForSide[0]?.id ?? null);
+  }, [glanceablesForSide, selectedClockPart]);
+
+  const selectedCatalogAppName = getGlanceableGroupName(selectedCatalogItem);
+
+  useEffect(() => {
+    if (selectedCatalogAppName) setSelectedGlanceableApp(selectedCatalogAppName);
+  }, [selectedCatalogAppName]);
+
+  const updateSelectedParams = (patch: Record<string, any>) => {
+    if (!selectedGlanceable) return;
+    setClockGlanceables((prev) => ({
+      ...prev,
+      [selectedGlanceable.id]: { ...(prev[selectedGlanceable.id] ?? {}), ...patch },
+    }));
+  };
+
+  const addGlanceable = (side: GlanceableSide) => {
+    const type = glanceablesCatalog[0]?.type;
+    if (!type) return;
+    const id = `${side}-${Date.now()}`;
     setClockSelection((prev) => ({
       ...prev,
-      [side]: type,
+      [side]: [...prev[side], { id, type }],
     }));
-    setClockGlanceables((prev) => {
-      const leftType = side === "left" ? type : clockSelection.left;
-      const rightType = side === "right" ? type : clockSelection.right;
-      return {
-        ...prev,
-        [leftType]: prev[leftType] ?? {},
-        [rightType]: prev[rightType] ?? {},
-      };
-    });
+    setClockGlanceables((prev) => ({ ...prev, [id]: {} }));
+    setSelectedGlanceableId(id);
+  };
+
+  const setSelectedType = (type: string) => {
+    if (!selectedGlanceable) return;
+    setClockSelection((prev) => ({
+      ...prev,
+      [selectedClockSide]: prev[selectedClockSide].map((item) => item.id === selectedGlanceable.id ? { ...item, type } : item),
+    }));
+  };
+
+  const removeSelectedGlanceable = (id: string) => {
+    setClockSelection((prev) => ({ ...prev, [selectedClockSide]: prev[selectedClockSide].filter((item) => item.id !== id) }));
+    setClockGlanceables((prev) => Object.fromEntries(Object.entries(prev).filter(([key]) => key !== id)));
+    setSelectedGlanceableId(null);
   };
 
   if (!hasMainClock) {
@@ -110,7 +157,8 @@ export function EditGlanceablesView({
   }
 
   return (
-    <div className="space-y-4">
+    <AutoHeight>
+    <div className="min-w-0 space-y-4 overflow-x-hidden">
       <h2 className="text-lg font-semibold">{editorTitle}</h2>
 
       <div className="p-4">
@@ -128,11 +176,11 @@ export function EditGlanceablesView({
                   type={selectedClockType}
                   params={selectedClockType === "greeting"
                     ? {
-                      ...(clockGlanceables[selectedClockType] ?? {}),
-                      username: clockGlanceables[selectedClockType]?.username ??
+                      ...selectedParams,
+                      username: selectedParams.username ??
                         user?.username,
                     }
-                    : clockGlanceables[selectedClockType] ?? {}}
+                    : selectedParams}
                 formatters={{
                   formatTemperature: localization.formatTemperature,
                   formatTime: localization.formatTime,
@@ -143,60 +191,81 @@ export function EditGlanceablesView({
           ) : (
             <p className="text-sm text-white/60">No glanceable selected</p>
           )}
-          <p className={`text-xs ${selectedClockPart ? "font-semibold" : "text-white/70"}`}>
-            {selectedClockLabel}
-          </p>
         </div>
       </div>
 
       {selectedClockPart !== "clock" ? (
         <>
-          <h3 className="font-medium">Edit {selectedClockPart} Glanceable</h3>
-          <div className="grid gap-4 lg:grid-cols-[2fr_auto_1fr] lg:items-start">
-          <div className="flex max-w-full snap-x gap-3 overflow-x-auto pb-2">
-              {glanceablesCatalog.map((glanceable) => (
-                <button
-                  key={glanceable.type}
-                  type="button"
-                  onClick={() => setGlanceableForSide(selectedClockSide, glanceable.type)}
-                  className={`w-56 shrink-0 snap-start rounded-xl border p-3 text-left transition ${selectedClockType === glanceable.type ? "border-primary bg-white/10" : "border-white/10 bg-white/5 hover:bg-white/10"}`}
-                >
-                  <div className="mb-3 overflow-hidden rounded-lg">
-                    <GlanceableComponent
-                      type={glanceable.type}
-                      params={glanceable.exampleProps ?? {}}
-                      formatters={{
-                        formatTemperature: localization.formatTemperature,
-                        formatTime: localization.formatTime,
-                        formatDate: localization.formatDate,
-                      }}
-                      className="h-10 rounded-full px-2 py-0.5"
-                    />
-                  </div>
-                  <p className="truncate text-xs text-white/75">
-                    {glanceable.name}
-                  </p>
+          <div className="min-w-0 space-y-4 overflow-x-hidden">
+            <div className="flex max-w-full min-w-0 items-center gap-2 overflow-x-auto pb-1">
+              {glanceablesForSide.map((item) => (
+                <button key={item.id} type="button" onClick={() => setSelectedGlanceableId(item.id)} className={`group flex shrink-0 items-center gap-2 rounded-full border px-3 py-1.5 text-xs ${selectedGlanceable?.id === item.id ? "border-primary bg-white/15" : "border-white/20 bg-white/5"}`}>
+                  <span>{glanceablesCatalog.find((entry) => entry.type === item.type)?.name ?? item.type}</span>
+                  <X className="h-3 w-3 opacity-60 group-hover:opacity-100" onClick={(event) => { event.stopPropagation(); removeSelectedGlanceable(item.id); }} />
                 </button>
               ))}
+              <button type="button" onClick={() => addGlanceable(selectedClockSide)} aria-label="Add glanceable" className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-dashed border-white/30 text-white/70 hover:bg-white/10"><Plus className="h-4 w-4" /></button>
             </div>
-            <Separator orientation="vertical" />
-            <div className="space-y-4">
-              <h3 className="text-sm font-medium">Properties: {selectedClockType}</h3>
+
+            {selectedGlanceable ? <>
+              <div className="min-w-0 space-y-3 overflow-hidden">
+                <h3 className="font-medium">Select Glanceable</h3>
+                <div className="flex max-w-full min-w-0 items-center gap-2 overflow-x-auto pb-1">
+                  {glanceableApps.map((appName) => (
+                    <button
+                      key={appName}
+                      type="button"
+                      onClick={() => setSelectedGlanceableApp(appName)}
+                      className={`whitespace-nowrap rounded-full px-3 py-1.5 text-xs capitalize transition ${
+                        selectedGlanceableApp === appName
+                          ? "bg-white text-black"
+                          : "border border-white/25 text-white/80 hover:bg-white/10"
+                      }`}
+                    >
+                      {appName}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex max-w-full min-w-0 snap-x gap-2 overflow-x-auto pb-2">
+                  {visibleGlanceables.map((glanceable) => (
+                    <button
+                      key={glanceable.type}
+                      type="button"
+                      onClick={() => setSelectedType(glanceable.type)}
+                      className={`w-36 shrink-0 snap-start rounded-lg border p-2 text-left transition sm:w-40 ${
+                        selectedClockType === glanceable.type
+                          ? "border-primary bg-white/15"
+                          : "border-white/10 bg-white/5 hover:bg-white/10"
+                      }`}
+                    >
+                      <div className="mb-2 flex min-h-8 items-center justify-center overflow-hidden rounded-md bg-black/10 px-1.5">
+                        <GlanceableComponent
+                          type={glanceable.type}
+                          params={glanceable.exampleProps ?? {}}
+                          formatters={{
+                            formatTemperature: localization.formatTemperature,
+                            formatTime: localization.formatTime,
+                            formatDate: localization.formatDate,
+                          }}
+                          className="truncate rounded-full px-1.5 py-0.5 text-xs"
+                        />
+                      </div>
+                      <p className="truncate text-[11px] font-medium text-white/90">{glanceable.name}</p>
+                      <p className="truncate text-[10px] text-white/45">{getGlanceableGroupName(glanceable)}</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <Separator />
+              <div className="space-y-4">
+              <h3 className="text-sm font-medium">{selectedClockType} Properties</h3>
 
               {selectedClockType === "date" && (
                 <div className="space-y-2">
                   <p className="text-xs text-white/70">Date format</p>
                   <Input
-                    value={String(clockGlanceables[selectedClockType]?.format ?? "mmm/DD")}
-                    onChange={(e) => {
-                      setClockGlanceables((prev) => ({
-                        ...prev,
-                        [selectedClockType]: {
-                          ...(prev[selectedClockType] ?? {}),
-                          format: e.target.value,
-                        },
-                      }));
-                    }}
+                    value={String(selectedParams.format ?? "mmm/DD")}
+                    onChange={(e) => updateSelectedParams({ format: e.target.value })}
                     placeholder="e.g. YYYY-MM-DD"
                     className="h-9 min-w-32 rounded-full border-white/20 px-3 bg-transparent text-sm"
                   />
@@ -210,16 +279,8 @@ export function EditGlanceablesView({
                 <div className="space-y-2">
                   <p className="text-xs text-white/70">Period</p>
                   <Select
-                    value={String(clockGlanceables[selectedClockType]?.period ?? "day")}
-                    onValueChange={(value) => {
-                      setClockGlanceables((prev) => ({
-                        ...prev,
-                        [selectedClockType]: {
-                          ...(prev[selectedClockType] ?? {}),
-                          period: value,
-                        },
-                      }));
-                    }}
+                    value={String(selectedParams.period ?? "day")}
+                    onValueChange={(value) => updateSelectedParams({ period: value })}
                   >
                     <SelectTrigger className="h-9 min-w-32 rounded-full border-white/20">
                       <SelectValue placeholder="Day" />
@@ -239,16 +300,8 @@ export function EditGlanceablesView({
                 <div className="space-y-2">
                   <p className="text-xs text-white/70">Source</p>
                   <Select
-                    value={String(clockGlanceables[selectedClockType]?.source ?? "auto")}
-                    onValueChange={(value) => {
-                      setClockGlanceables((prev) => ({
-                        ...prev,
-                        [selectedClockType]: {
-                          ...(prev[selectedClockType] ?? {}),
-                          source: value,
-                        },
-                      }));
-                    }}
+                    value={String(selectedParams.source ?? "auto")}
+                    onValueChange={(value) => updateSelectedParams({ source: value })}
                   >
                     <SelectTrigger className="h-9 min-w-32 rounded-full border-white/20">
                       <SelectValue placeholder="Auto" />
@@ -266,17 +319,9 @@ export function EditGlanceablesView({
                   <label className="flex items-center gap-2 text-sm text-white/75">
                     <Checkbox
                       checked={Boolean(
-                        clockGlanceables[selectedClockType]?.showUsername,
+                        selectedParams.showUsername,
                       )}
-                      onCheckedChange={(checked) => {
-                        setClockGlanceables((prev) => ({
-                          ...prev,
-                          [selectedClockType]: {
-                            ...(prev[selectedClockType] ?? {}),
-                            showUsername: Boolean(checked),
-                          },
-                        }));
-                      }}
+                      onCheckedChange={(checked) => updateSelectedParams({ showUsername: Boolean(checked) })}
                     />
                     Show username
                   </label>
@@ -290,16 +335,8 @@ export function EditGlanceablesView({
                       {key} {def.required ? <span className="text-destructive">*</span> : ""}
                     </p>
                     <Input
-                      value={String(clockGlanceables[selectedClockType]?.[key] ?? "")}
-                      onChange={(e) => {
-                        setClockGlanceables((prev) => ({
-                          ...prev,
-                          [selectedClockType]: {
-                            ...(prev[selectedClockType] ?? {}),
-                            [key]: e.target.value,
-                          },
-                        }));
-                      }}
+                      value={String(selectedParams[key] ?? "")}
+                      onChange={(e) => updateSelectedParams({ [key]: e.target.value })}
                       placeholder={def.description ?? `Override ${key}`}
                       className="h-9 min-w-32 rounded-full border-white/20 px-3 bg-transparent text-sm"
                     />
@@ -314,7 +351,8 @@ export function EditGlanceablesView({
                   No configurable properties for this glanceable.
                 </p>
               )}
-            </div>
+              </div>
+            </> : <p className="text-sm text-white/60">Add a glanceable to configure this slot.</p>}
           </div>
         </>
       ) : (
@@ -435,6 +473,32 @@ export function EditGlanceablesView({
           </div>
         </div>
       )}
+    </div>
+    </AutoHeight>
+  );
+}
+
+function AutoHeight({ children }: { children: ReactNode }) {
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [height, setHeight] = useState<number | undefined>();
+
+  useLayoutEffect(() => {
+    const node = contentRef.current;
+    if (!node) return;
+
+    const updateHeight = () => setHeight(node.getBoundingClientRect().height);
+    updateHeight();
+    const observer = new ResizeObserver(updateHeight);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <div
+      className="overflow-hidden transition-[height] duration-300 ease-out"
+      style={{ height }}
+    >
+      <div ref={contentRef}>{children}</div>
     </div>
   );
 }

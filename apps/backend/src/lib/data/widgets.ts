@@ -33,6 +33,9 @@ type GlanceableCatalogItem = {
     type: string;
     displayName: string;
     integrationId?: string;
+    integrationName?: string;
+    integrationDisplayName?: string;
+    appName?: string;
     description?: string;
     exampleProps: Record<string, any>;
     properties?: Record<string, any>;
@@ -250,16 +253,30 @@ function mergeGlanceables(...groups: GlanceableCatalogItem[][]) {
 }
 
 async function getDefaultGlanceables(): Promise<GlanceableCatalogItem[]> {
+    const builtinGlanceables = normalizeGlanceables(defaultIntegrationsBlueprint?.configuration?.glanceables, {
+        date: "date",
+        greeting: "greeting",
+        "local timezone": "local-timezone",
+        "world clock": "world-clock",
+    }).map((entry) => ({
+        ...entry,
+        integrationName: "Builtin",
+        integrationDisplayName: "Builtin",
+        appName: "Builtin",
+    }));
+
+    const weatherGlanceables = normalizeGlanceables(weatherIntegrationBlueprint?.configuration?.glanceables, {
+        "local weather": "weather",
+    }).map((entry) => ({
+        ...entry,
+        integrationName: "Weather",
+        integrationDisplayName: "Weather",
+        appName: "Weather",
+    }));
+
     return mergeGlanceables(
-        normalizeGlanceables(defaultIntegrationsBlueprint?.configuration?.glanceables, {
-            date: "date",
-            greeting: "greeting",
-            "local timezone": "local-timezone",
-            "world clock": "world-clock",
-        }),
-        normalizeGlanceables(weatherIntegrationBlueprint?.configuration?.glanceables, {
-            "local weather": "weather",
-        }),
+        builtinGlanceables,
+        weatherGlanceables,
     );
 }
 
@@ -276,6 +293,14 @@ async function getIntegrationGlanceables(userId: string): Promise<GlanceableCata
         const config = record?.config;
         if (!config || typeof config !== "object") continue;
 
+        const details = (config as Record<string, any>).details;
+        const integrationDisplayName =
+            typeof details?.name === "string" && details.name.trim()
+                ? details.name.trim()
+                : typeof record?.name === "string" && record.name.trim()
+                    ? record.name.trim()
+                    : record.id;
+
         const rawGlanceables = (config as Record<string, any>)?.configuration?.glanceables;
         const normalized = normalizeGlanceables(rawGlanceables, {});
         if (normalized.length === 0) continue;
@@ -284,6 +309,9 @@ async function getIntegrationGlanceables(userId: string): Promise<GlanceableCata
             ...normalized.map((entry) => ({
                 ...entry,
                 integrationId: record.id,
+                integrationName: integrationDisplayName,
+                integrationDisplayName,
+                appName: integrationDisplayName,
                 type: `${record.id}#${entry.type}`,
             })),
         );
