@@ -378,3 +378,20 @@ configuration:
             show_if: "${SHOW_LOCATION} == false"
           - text: " in ${WEATHER_LOCATION.name}"
             show_if: "${SHOW_LOCATION} != false"
+
+    - name: "Sunrise / Sunset"
+      key: "sunrise-sunset"
+      description: "Shows today's sunrise and sunset times."
+      properties:
+        lat: "${WEATHER_LOCATION.lat}"
+        lon: "${WEATHER_LOCATION.lon}"
+        displayName: "${WEATHER_LOCATION.name}"
+      icon:
+        file: "fa6-solid:sun"
+        size: 16
+        description: "Sunrise and sunset"
+      text:
+        operation: stringadd
+        inputs:
+          - text: "Sunrise ${computed.weather.fields.sunrise:time}"
+          - text: " · Sunset ${computed.weather.fields.sunset:time}"
