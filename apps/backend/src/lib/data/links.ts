@@ -1,5 +1,6 @@
 import { ApiActionError } from "./auth";
-import { getServerPB } from "../pb/pocketbase";
+import { config } from "../config";
+import { getServerPB, getSuperuserPB } from "../pb/pocketbase";
 
 export interface LinkList {
     collectionId: string;
@@ -85,8 +86,19 @@ export async function getLinksCollections(userId: string) {
     }));
 }
 
-export async function getLinksFolders(listId: string) {
+async function requireUserList(pb: ReturnType<typeof getServerPB>, userId: string, listId: string) {
+    const list = await pb.collection("linksLists").getOne(listId);
+    if (list.user !== userId) {
+        throw new ApiActionError("Unauthorized", 401, { error: "Unauthorized" });
+    }
+
+    return list;
+}
+
+export async function getLinksFolders(userId: string, listId: string) {
     const pb = getServerPB();
+    await requireUserList(pb, userId, listId);
+
     const records = await pb.collection("linksFolders").getFullList({
         filter: `list = "${listId}"`,
         sort: "name",
@@ -110,11 +122,7 @@ export async function createLinksFolder(
     data: { list: string; name: string; parentFolder?: string; icon?: string },
 ) {
     const pb = getServerPB();
-    const listRecord = await pb.collection("linksLists").getOne(data.list);
-
-    if (listRecord.user !== userId) {
-        throw new ApiActionError("Unauthorized", 401, { error: "Unauthorized" });
-    }
+    await requireUserList(pb, userId, data.list);
 
     const normalizedName = String(data.name || "").trim();
     if (!normalizedName) {
@@ -158,8 +166,9 @@ export async function createLinksFolder(
     };
 }
 
-export async function getLinksItems(listId: string, folderId?: string) {
+export async function getLinksItems(userId: string, listId: string, folderId?: string) {
     const pb = getServerPB();
+    await requireUserList(pb, userId, listId);
 
     let filter = `collection = "${listId}"`;
     if (folderId !== undefined && folderId !== "") {
@@ -289,6 +298,98 @@ function buildFolderPathResolver(
     };
 }
 
+function getMonitorLinkId(monitor: { sourcelinkId?: string; linkId?: string }) {
+    return String(monitor.sourcelinkId || monitor.linkId || "").trim();
+}
+
+function parseStatusCodes(raw: unknown): number[] | undefined {
+    if (raw === undefined || raw === null || raw === "") return undefined;
+
+    const normalize = (value: unknown) => {
+        if (!Array.isArray(value)) return [] as number[];
+
+        return value
+            .map((entry) => Number(entry))
+            .filter((code) => Number.isInteger(code) && code >= 100 && code <= 599);
+    };
+
+    if (Array.isArray(raw)) {
+        const codes = normalize(raw);
+        return codes.length > 0 ? Array.from(new Set(codes)) : undefined;
+    }
+
+    if (typeof raw === "string") {
+        const trimmed = raw.trim();
+        if (!trimmed) return undefined;
+
+        try {
+            return parseStatusCodes(JSON.parse(trimmed));
+        } catch {
+            const codes = trimmed
+                .split(",")
+                .map((entry) => Number(entry.trim()))
+                .filter((code) => Number.isInteger(code) && code >= 100 && code <= 599);
+
+            return codes.length > 0 ? Array.from(new Set(codes)) : undefined;
+        }
+    }
+
+    if (typeof raw === "object") {
+        return parseStatusCodes((raw as { acceptStatusCodes?: unknown }).acceptStatusCodes);
+    }
+
+    return undefined;
+}
+
+async function syncHomeLinkMonitor(
+    userId: string,
+    linkId: string,
+    endpoint: string,
+    statusCheck?: boolean,
+) {
+    if (statusCheck === undefined) return;
+
+    try {
+        const pb = await getSuperuserPB();
+        const monitors = await pb.collection("monitors").getFullList({
+            filter: `userId = "${userId}"`,
+        });
+        const existing = monitors.find((monitor: any) => getMonitorLinkId(monitor) === linkId) as any;
+
+        if (statusCheck) {
+            const payload = {
+                userId,
+                endpoint,
+                method: existing?.method || "GET",
+                sourcelinkId: linkId,
+                status: existing?.status || "initiated",
+                pingAvgLatency: existing?.pingAvgLatency ?? JSON.stringify({ avgMs: 0, samples: 0 }),
+                pingOutliers: Array.isArray(existing?.pingOutliers) ? existing.pingOutliers : [],
+                pingOutlierThreshold: existing?.pingOutlierThreshold ?? {
+                    type: config.MONITORING_OUTLIER_THRESHOLD_TYPE,
+                    value: config.MONITORING_OUTLIER_THRESHOLD_VALUE,
+                },
+                notifyOnStatusChange: Boolean(existing?.notifyOnStatusChange),
+                notifyTopicId: String(existing?.notifyTopicId ?? ""),
+            };
+
+            if (existing) {
+                await pb.collection("monitors").update(existing.id, payload);
+                return;
+            }
+
+            await pb.collection("monitors").create(payload);
+            return;
+        }
+
+        if (existing) {
+            await pb.collection("monitors").delete(existing.id);
+        }
+    } catch (error) {
+        console.error("[links] failed to sync monitoring job", error);
+    }
+}
+
 const homeListIdByUser = new Map<string, string>();
 
 async function getHomeListId(userId: string) {
@@ -309,6 +410,19 @@ export async function getHomeLinks(userId: string) {
 
     const pb = getServerPB();
     const userHomeListId = await getHomeListId(userId);
+    const monitorByLinkId = new Map<string, any>();
+
+    try {
+        const monitorPB = await getSuperuserPB();
+        const monitors = await monitorPB.collection("monitors").getFullList({
+            filter: `userId = "${userId}"`,
+        });
+        for (const monitor of monitors as any[]) {
+            monitorByLinkId.set(getMonitorLinkId(monitor), monitor);
+        }
+    } catch {
+        // ignore monitoring lookup failures; home links should still load
+    }
 
     const [records, folders] = await Promise.all([
         pb.collection("linkItems").getFullList({
@@ -336,6 +450,7 @@ export async function getHomeLinks(userId: string) {
         const path = r.folder ? resolvePath(r.folder) : [];
         const collectionFolder = path[0];
         const nestedFolder = path[1];
+        const monitor = monitorByLinkId.get(String(r.id || "")) as any;
         return {
             id: r.id as string,
             url: r.url as string,
@@ -348,6 +463,11 @@ export async function getHomeLinks(userId: string) {
             folder: nestedFolder?.name ?? "",
             folderId: nestedFolder?.id,
             folderIcon: nestedFolder?.icon ?? "",
+            statusCheck: Boolean(monitor),
+            statusCheckEndpoint: monitor?.endpoint ?? r.url,
+            statusCheckMethod: monitor?.method || "GET",
+            statusCheckAuth: monitor?.endpointAuth,
+            statusCheckShowAsUp: parseStatusCodes(monitor?.responseUpFilter),
             tags: Array.isArray((r as any).tags)
                 ? (r as any).tags.map((tag: any) => (typeof tag === "string" ? tag : String(tag?.id ?? ""))).filter(Boolean)
                 : [],
@@ -487,6 +607,7 @@ export async function createHomeLinkItem(
         description?: string;
         linkGroup?: string;
         folder?: string;
+        statusCheck?: boolean;
     },
 ): Promise<
     {
@@ -543,6 +664,8 @@ export async function createHomeLinkItem(
         folder: folderId ?? "",
         position: nextPosition,
     });
+
+    await syncHomeLinkMonitor(userId, record.id, record.url, data.statusCheck);
 
     return {
         id: record.id,
@@ -642,6 +765,7 @@ export async function updateHomeLinkItem(
         description?: string;
         linkGroup?: string;
         folder?: string;
+        statusCheck?: boolean;
     },
 ): Promise<void> {
     const pb = getServerPB();
@@ -685,6 +809,7 @@ export async function updateHomeLinkItem(
     }
 
     await pb.collection("linkItems").update(linkId, updateData);
+    await syncHomeLinkMonitor(userId, linkId, String(updateData.url ?? item.url ?? ""), data.statusCheck);
 }
 
 export async function reorderLinks(
@@ -744,6 +869,21 @@ export async function deleteCollection(
             filter: `list = "${listId}"`,
         }),
     ]);
+
+    try {
+        const monitorPB = await getSuperuserPB();
+        const linkIds = new Set(items.map((item) => String(item.id || "")));
+        const monitors = await monitorPB.collection("monitors").getFullList({
+            filter: `userId = "${userId}"`,
+        });
+        await Promise.all(
+            monitors
+                .filter((monitor: any) => linkIds.has(getMonitorLinkId(monitor)))
+                .map((monitor: any) => monitorPB.collection("monitors").delete(monitor.id)),
+        );
+    } catch {
+        // ignore monitoring cleanup failures; collection delete should continue
+    }
 
     await Promise.all([
         ...items.map((i) => pb.collection("linkItems").delete(i.id)),
@@ -880,6 +1020,19 @@ export async function deleteLinkItem(
     const item = await pb.collection("linkItems").getOne(linkId);
     const list = await pb.collection("linksLists").getOne(item.collection);
     if (list.user !== userId) throw new ApiActionError("Unauthorized", 401, { error: "Unauthorized" });
+
+    try {
+        const monitorPB = await getSuperuserPB();
+        const monitors = await monitorPB.collection("monitors").getFullList({
+            filter: `userId = "${userId}"`,
+        });
+        const linkedMonitor = monitors.find((monitor: any) => getMonitorLinkId(monitor) === linkId) as any;
+        if (linkedMonitor) {
+            await monitorPB.collection("monitors").delete(linkedMonitor.id);
+        }
+    } catch (error) {
+        console.error("[links] failed to delete monitoring job", error);
+    }
 
     await pb.collection("linkItems").delete(linkId);
 }

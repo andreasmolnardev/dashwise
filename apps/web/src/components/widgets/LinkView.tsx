@@ -56,7 +56,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { updateLinksOrderAction } from '@/lib/apiClient';
 
-const HOME_LINKS_CACHE_KEY = "dashwise_home_links_cache_v1";
+const HOME_LINKS_CACHE_PREFIX = "dashwise_home_links_cache_v1";
 const DEFAULT_LINK_GROUP = "Default";
 
 type Item =
@@ -70,11 +70,18 @@ type Item =
     links: LinkType[];
   };
 
-function readCachedHomeLinks(): LinkType[] | null {
+function getHomeLinksCacheKey(userId: string | null | undefined) {
+  return userId ? `${HOME_LINKS_CACHE_PREFIX}:${userId}` : null;
+}
+
+function readCachedHomeLinks(userId: string | null | undefined): LinkType[] | null {
   if (typeof window === "undefined") return null;
 
+  const cacheKey = getHomeLinksCacheKey(userId);
+  if (!cacheKey) return null;
+
   try {
-    const raw = window.localStorage.getItem(HOME_LINKS_CACHE_KEY);
+    const raw = window.localStorage.getItem(cacheKey);
     if (!raw) return null;
 
     const parsed = JSON.parse(raw);
@@ -87,12 +94,15 @@ function readCachedHomeLinks(): LinkType[] | null {
   return null;
 }
 
-function writeCachedHomeLinks(links: LinkType[]) {
+function writeCachedHomeLinks(userId: string | null | undefined, links: LinkType[]) {
   if (typeof window === "undefined") return;
+
+  const cacheKey = getHomeLinksCacheKey(userId);
+  if (!cacheKey) return;
 
   try {
     window.localStorage.setItem(
-      HOME_LINKS_CACHE_KEY,
+      cacheKey,
       JSON.stringify({ links, updatedAt: Date.now() }),
     );
   } catch {
@@ -184,11 +194,11 @@ function applyOptimisticLinkOrder(
 }
 
 export default function LinkView({ links = [] }: { links?: LinkType[] }) {
-  const { token, withAuth } = useAuth();
+  const { token, user, withAuth } = useAuth();
   const location = useLocation();
   const [localLinks, setLocalLinks] = useState<LinkType[]>(() => {
     if (links.length > 0) return links;
-    return readCachedHomeLinks() ?? links;
+    return readCachedHomeLinks(user?.id) ?? links;
   });
 
   const [, setFolderPreviewRev] = useState(0);
@@ -209,13 +219,15 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
   }, []);
 
   useEffect(() => {
+    setLocalLinks(readCachedHomeLinks(user?.id) ?? links);
+
     const fetchLinks = async () => {
       try {
         const data = await withAuth((auth) => getHomeLinksAction(auth));
         if (Array.isArray(data)) {
           const nextLinks = data as LinkType[];
           setLocalLinks(nextLinks);
-          writeCachedHomeLinks(nextLinks);
+          writeCachedHomeLinks(user?.id, nextLinks);
         }
       } catch (err) {
         console.error("Failed to fetch home links:", err);
@@ -223,7 +235,7 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
     };
 
     fetchLinks();
-  }, [withAuth]);
+  }, [user?.id, withAuth]);
 
   const [activeCollection, setActiveCollection] = useState<string | null>(null);
 
@@ -378,12 +390,12 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
       if (Array.isArray(data)) {
         const nextLinks = data as LinkType[];
         setLocalLinks(nextLinks);
-        writeCachedHomeLinks(nextLinks);
+        writeCachedHomeLinks(user?.id, nextLinks);
       }
     } catch (err) {
       console.error("Failed to refresh home links:", err);
     }
-  }, [withAuth]);
+  }, [user?.id, withAuth]);
 
   const handleOptimisticSave = React.useCallback(
     (
@@ -424,7 +436,7 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
                 : link
             );
 
-            writeCachedHomeLinks(nextLinks);
+            writeCachedHomeLinks(user?.id, nextLinks);
             return nextLinks;
           }
         }
@@ -446,13 +458,13 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
           },
         ];
 
-        writeCachedHomeLinks(nextLinks);
+        writeCachedHomeLinks(user?.id, nextLinks);
         return nextLinks;
       });
 
       return rollback;
     },
-    [],
+    [user?.id],
   );
 
   const sensors = useSensors(
@@ -534,7 +546,7 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
             activeCollection,
           );
 
-          writeCachedHomeLinks(nextLinks);
+          writeCachedHomeLinks(user?.id, nextLinks);
           return nextLinks;
         });
 
@@ -750,7 +762,7 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
                         ? { ...link, folderIcon: iconObj.url ?? "" }
                         : link
                     );
-                    writeCachedHomeLinks(nextLinks);
+                    writeCachedHomeLinks(user?.id, nextLinks);
                     return nextLinks;
                   });
                   setEditingFolder((current) =>
@@ -863,7 +875,7 @@ function LinkTile({
                   setOpenDialogFor(link.id);
                 }
               }}
-              className="ml-2 flex items-center justify-center"
+              className="flex items-center justify-center"
             >
               <span
                 className="h-2 w-2 rounded-full inline-block hover:cursor-pointer hover:ring-2"

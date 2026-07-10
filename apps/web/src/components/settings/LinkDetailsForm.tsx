@@ -251,10 +251,8 @@ export default function LinkDetailsForm({
       iconUrl: icon?.url ?? "",
       linkGroup,
       folder,
+      statusCheck,
     };
-
-    // Note: statusCheck fields are not currently handled by the direct link CRUD actions
-    // but we'll focus on the core link functionality as requested.
 
     if (isEditing && link?.id) {
       return withAuth((auth) => updateHomeLinkItemAction(auth, link.id!, payload));
