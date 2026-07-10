@@ -378,3 +378,21 @@ configuration:
             show_if: "${SHOW_LOCATION} == false"
           - text: " in ${WEATHER_LOCATION.name}"
             show_if: "${SHOW_LOCATION} != false"
+    - name: "Sunrise / Sunset"
+      key: "sunrise-sunset"
+      icon: none
+      exampleProps:
+        sunrise: "2026-07-10T07:14:00"
+        sunset: "2026-07-10T20:41:00"
+      properties:
+        sunrise: "${computed.weather.fields.sunrise}"
+        sunset: "${computed.weather.fields.sunset}" 
+      columns:
+        - icon: "solar:sunrise-bold"
+          iconMaskFill: "bg-linear-to-b from-[#183B6B] via-[#4868A8] via-[55%] to-[#FFF7E3]"
+          text: "${computed.weather.fields.sunrise}"
+          format: "time"
+        - icon: "solar:sunset-bold"
+          iconMaskFill: "bg-linear-to-b from-[#101935] via-[#A63A79] to-[#F7C96D]"
+          text: "${computed.weather.fields.sunset}"
+          format: "time"

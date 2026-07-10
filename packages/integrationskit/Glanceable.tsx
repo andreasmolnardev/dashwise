@@ -32,6 +32,13 @@ export type GlanceableProps = {
   formatters?: TextFormatters;
 };
 
+type MultiColumnGlanceableItem = {
+  icon?: string | null;
+  text?: string;
+  value?: string;
+  format?: "time";
+};
+
 export default function Glanceable({
   glanceableJSON,
   integrationJSON,
@@ -43,23 +50,6 @@ export default function Glanceable({
   resolved,
   formatters,
 }: GlanceableProps) {
-  if (resolved) {
-    return (
-      <span
-        className={`inline-flex items-center gap-1 text-center ${className ?? ""}`}
-      >
-        {resolved.icon && (
-          <AppIcon source={resolved.icon} alt="" className="text-lg object-contain shrink-0" />
-        )}
-        <span>{renderLocalizedText(resolved.text, formatters)}</span>
-      </span>
-    );
-  }
-
-  if (!glanceableJSON && type) {
-    return <LegacyGlanceable type={type} params={params} className={className} formatters={formatters} />;
-  }
-
   const safeGlanceableJSON = useMemo(
     () => mergeGlanceableJSON(glanceableJSON ?? {}, params),
     [glanceableJSON, params],
@@ -135,6 +125,56 @@ export default function Glanceable({
       ...(resolvedRuntimeData ? flattenToEnv(resolvedRuntimeData) : {}),
     };
   }, [integrationJSON, isPreview, resolvedRuntimeData, safeGlanceableJSON]);
+
+
+  const multiColumnItems = Array.isArray(safeGlanceableJSON.columns)
+    ? safeGlanceableJSON.columns
+        .filter((entry): entry is MultiColumnGlanceableItem => !!entry && typeof entry === "object")
+        .map((entry) => {
+          const rawValue = typeof entry.value === "string"
+            ? resolveGlanceableText(entry.value, env, formatters)
+            : typeof entry.text === "string"
+              ? resolveGlanceableText(entry.text, env, formatters)
+              : "";
+
+          return {
+            icon: getGlanceableIconSource(entry.icon, env),
+            text: entry.format === "time" ? formatGlanceableTime(rawValue, formatters) : rawValue,
+          };
+        })
+    : null;
+
+  if (multiColumnItems && multiColumnItems.length > 0) {
+    return (
+      <span className={`flex w-full flex-wrap items-center justify-center gap-x-2 gap-y-1 text-center ${className ?? ""}`}>
+        {multiColumnItems.map((item, index) => (
+          <span key={index} className="inline-flex items-center gap-1 whitespace-nowrap">
+            {item.icon && (
+              <AppIcon source={item.icon} alt="" className="text-lg object-contain shrink-0" />
+            )}
+            <span>{item.text}</span>
+          </span>
+        ))}
+      </span>
+    );
+  }
+
+  if (resolved) {
+    return (
+      <span
+        className={`inline-flex items-center gap-1 text-center ${className ?? ""}`}
+      >
+        {resolved.icon && (
+          <AppIcon source={resolved.icon} alt="" className="text-lg object-contain shrink-0" />
+        )}
+        <span>{renderLocalizedText(resolved.text, formatters)}</span>
+      </span>
+    );
+  }
+
+  if (!glanceableJSON && type) {
+    return <LegacyGlanceable type={type} params={params} className={className} formatters={formatters} />;
+  }
 
   let text = "";
 
@@ -392,6 +432,15 @@ function formatWeather(params?: Record<string, any>, formatters?: TextFormatters
     ? formatters.formatTemperature(Number(temperature), params?.temperatureUnit ?? "c")
     : `${temperature}${unit}`;
   return `${emoji} ${temperatureText}${location}`.trim();
+}
+
+function formatGlanceableTime(value: string, formatters?: TextFormatters) {
+  if (!value.trim()) return "";
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+
+  return formatTime(date, undefined, formatters);
 }
 
 function getWeatherEmoji(weatherCode: unknown, description: unknown) {

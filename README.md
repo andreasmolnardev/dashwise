@@ -12,17 +12,14 @@ This is my attempt to solving that.
 
 
 ## Features
-- GUI Editing: Edit and manage links, search engines, your wallpapers in settings via the GUI instead of relying purely on a config.
-- Built-in Authentication: dashwise has Auth built right into it - and even features
-- SSO via OIDC: While tested with PocketId, it should work via OIDC - which can be configured in Pocketbase directly.
-- Links: store your most important links for quick access and group them into Link Groups and Folders coming. Links can also be monitored with downtime being logged.
-- Glanceables: Customizable bits of one-line information next to the clock.
-- Widgets: Modular blocks on the dashboard that show key info or actions at a glance. They can be moved and customized individually.
-- News: Subscribe to RSS feeds to stay on top of everything.
-- Notfications: Dashwise can receive notifications via PUSH requests to /api/v1/notifications/TOPIC-NAME
-- Wallpapers: Upload them to dashwise directly, or even change the default one for new users by mounting one into the container
-- Spotlight-like Search: Hit Ctrl+K from your dashboard, and you'll be able to search your links and integrations or use bangs for search engines specified in settings.
-- Integrations: directly integrates with your favourite self hosted apps. Supported services are Karakeep, Dashdot, Beszel and Jellyfin. More integrations are planned
+- **Principles**: Configure dashwise using its UI. No need to touch config files. Dashwise also has Authentication (including SSO) built in.
+- **Dashboards** show Glanceables and Widgets, for example Links (which can be grouped into Link groups and folders)
+- **Glanceables**: Customizable bits of one-line information next to the clock.
+- **Widgets**: Modular blocks on the dashboard that show key info or actions at a glance. They can be moved and customized individually.
+- **News**: Subscribe to RSS feeds to stay on top of everything.
+- **Notfications** : Dashwise can receive notifications via PUSH requests to /api/v1/notifications/TOPIC-NAME
+- **Spotlight-like Search**: Hit Ctrl+K from your dashboard, and you'll be able to search your links and integrations or use bangs for search engines specified in settings.
+- **Integrations**: directly integrates with your favourite self hosted apps. Supported services are Karakeep, Dashdot, Beszel and Jellyfin. More integrations are planned
 
 ## Installation
 For production depolyments, use the docker-compose.yaml (image is currently only built for arm, will change later).

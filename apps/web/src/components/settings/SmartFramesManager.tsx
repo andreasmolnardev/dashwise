@@ -41,6 +41,7 @@ const LOCAL_WIDGET_OPTIONS = [
   { value: "progress", label: "Calendar progress" },
   "countdown",
   "rss-feed",
+  "latest-links",
   "monitoring",
 ] as const;
 
@@ -68,6 +69,7 @@ const LOCAL_WIDGET_SCHEMAS: Record<string, Record<string, any>> = {
   "calendar-upcoming": { maxEvents: 5 },
   countdown: { date: "", date_format: "yyyy-MM-dd", label: "Countdown" },
   "rss-feed": { feedId: "all", maxItems: 8, title: "Latest Articles" },
+  "latest-links": { listId: "", maxItems: 8, title: "Latest Links" },
   progress: {
     period: {
       type: "select",
