@@ -17,6 +17,7 @@ import {
 } from "@dashwise/integrationskit/static-widgets/CalendarWidgets";
 import CountdownWidget from "@dashwise/integrationskit/static-widgets/CountdownWidget";
 import RssFeedWidget from "@dashwise/integrationskit/static-widgets/RssFeedWidget";
+import VerticalList from "@dashwise/integrationskit/templates/VerticalList";
 import LinkView from "./LinkView";
 import SearchBar from "./SearchBar";
 import IframeTemplate from "@dashwise/integrationskit/templates/IFrame";
@@ -27,6 +28,8 @@ import useAuth from "@/context/useAuth";
 import {
   getConsumerDataAction,
   getIntegrationCalendarEventsAction,
+  getLinksCollectionsAction,
+  getLinksItemsAction,
   getNewsFeedAction,
 } from '@/lib/apiClient';
 
@@ -91,6 +94,9 @@ export function renderWidget({
     case "latest-rss-feed":
       return <RssFeedWidgetWrapper className={finalClassName} {...renderParams} />;
 
+    case "latest-links":
+      return <LatestLinksWidgetWrapper className={finalClassName} {...renderParams} />;
+
     case "countdown":
       return <CountdownWidget className={finalClassName} {...renderParams} />;
 
@@ -121,6 +127,136 @@ export function renderWidget({
         />
       );
   }
+}
+
+type LatestLinkItem = {
+  id: string;
+  url?: string;
+  title?: string;
+  iconUrl?: string;
+  description?: string;
+  collection?: string;
+  created?: string;
+  updated?: string;
+};
+
+function LatestLinksWidgetWrapper({
+  className,
+  listId,
+  collectionId,
+  maxItems = 8,
+  title = "Latest Links",
+}: {
+  className?: string;
+  listId?: string;
+  collectionId?: string;
+  maxItems?: number;
+  title?: string;
+}) {
+  const { withAuth } = useAuth();
+  const [items, setItems] = useState<LatestLinkItem[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    const selectedListId = String(listId || collectionId || "").trim();
+
+    setLoading(true);
+
+    const fetchItems = async () => {
+      const links = await withAuth(async (auth) => {
+        if (selectedListId) {
+          const listItems = await getLinksItemsAction(auth, selectedListId);
+          return Array.isArray(listItems) ? listItems : [];
+        }
+
+        const collections = await getLinksCollectionsAction(auth);
+        const listIds = Array.isArray(collections)
+          ? collections.map((collection: any) => String(collection?.id ?? "").trim()).filter(Boolean)
+          : [];
+        const groupedItems = await Promise.all(
+          listIds.map(async (id) => {
+            try {
+              const listItems = await getLinksItemsAction(auth, id);
+              return Array.isArray(listItems) ? listItems : [];
+            } catch {
+              return [];
+            }
+          }),
+        );
+
+        return groupedItems.flat();
+      });
+
+      return Array.isArray(links) ? links : [];
+    };
+
+    void fetchItems()
+      .then((links) => {
+        if (!cancelled) {
+          setItems(sortLatestLinks(links).slice(0, maxItems));
+        }
+      })
+      .catch((err) => {
+        console.error("Failed to fetch latest links", err);
+        if (!cancelled) setItems([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [collectionId, listId, maxItems, withAuth]);
+
+  if (loading) {
+    return (
+      <div className={`rounded-lg p-2 flex flex-col ${className ?? ""}`}>
+        <div className="text-sm opacity-50 py-4 text-center text-foreground">
+          Loading...
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <VerticalList
+      className={className}
+      itemClassName="gap-1"
+      resolved={{
+        header: {
+          title,
+          show: true,
+          icon: "fa6-solid:link",
+          titleAction: "/apps/links",
+        },
+        list: items.map((item) => ({
+          title: item.title || "Untitled",
+          titleAction: item.url || undefined,
+          subtitle: [item.description || item.url, formatLatestLinkDate(item.created)].filter(Boolean) as string[],
+          thumbnail: item.iconUrl || undefined,
+          icon: "fa6-solid:link",
+        })),
+        raw: {},
+      }}
+    />
+  );
+}
+
+function sortLatestLinks(items: LatestLinkItem[]) {
+  return [...items].sort((left, right) => {
+    const leftTime = new Date(left.created || left.updated || 0).getTime();
+    const rightTime = new Date(right.created || right.updated || 0).getTime();
+    return (Number.isNaN(rightTime) ? 0 : rightTime) - (Number.isNaN(leftTime) ? 0 : leftTime);
+  });
+}
+
+function formatLatestLinkDate(value?: string) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleDateString([], { month: "short", day: "numeric" });
 }
 
 function resolveProgressPeriod(type: string, params?: Record<string, any>) {
