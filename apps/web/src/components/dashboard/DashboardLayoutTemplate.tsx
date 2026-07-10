@@ -1,9 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Icon } from "@iconify-icon/react";
+import { EyeOff, Maximize2, MoreHorizontal, RefreshCw } from "lucide-react";
 import PagesTabs from "../PagesTabs";
 import UpdateDetailsDialogComponent from "./UpdateDetailsDialog";
 import QuickLaunchPopover from "./QuickLaunchPopover";
@@ -14,9 +15,34 @@ import { renderWidget } from "../widgets/Widget";
 import PageNotFound from "../errorPages/PageNotFound";
 import { primePageIntegrationConsumerCache } from "@/lib/pageIntegrationDataCache";
 import config from "@/lib/config";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 const COLUMN_ORDER = ["left", "middle", "right"] as const;
 type Column = (typeof COLUMN_ORDER)[number];
+type WidgetSize = "auto" | "compact" | "tall";
+
+type WidgetMenuState = {
+    refreshVersion: number;
+    size: WidgetSize;
+    blurred: boolean;
+};
+
+const WIDGET_SIZE_CLASSNAME: Record<WidgetSize, string> = {
+    auto: "",
+    compact: "h-[180px] overflow-hidden rounded-xl",
+    tall: "h-[360px] overflow-hidden rounded-xl",
+};
+
+const PRIVACY_BLUR_LINES = [
+    "kJ8fL2pQwR9z",
+    "xN4vB7mC3sA1",
+    "tY6uI0oP5dF2",
+];
 
 const COLUMN_CLASSNAME: Record<Column, string> = {
     left:
@@ -83,7 +109,7 @@ export default function DashboardLayoutTemplate({
 
     const containerRef = useRef<HTMLDivElement | null>(null);
     const [activePanel, setActivePanel] = useState<number>(1);
-    const [integrationDataVersion, setIntegrationDataVersion] = useState(0);
+    const [widgetMenuState, setWidgetMenuState] = useState<Record<string, WidgetMenuState>>({});
 
     const heightRefs = useRef<Record<string, HTMLElement | null>>({});
     const heightRefCallbacks = useRef<
@@ -94,27 +120,24 @@ export default function DashboardLayoutTemplate({
         Record<string, number>
     >({});
 
-    if (!config && !isLoading) {
-        return <PageNotFound />;
-    }
-
     const columns = config?.columns as
         | Record<Column, Record<string, any>>
         | undefined;
+
+    const refreshPageIntegrationData = useCallback(async () => {
+        const response = await withAuth((auth) =>
+            getPageIntegrationDataAction(auth, pageName),
+        ) as any;
+        primePageIntegrationConsumerCache(response);
+    }, [pageName, withAuth]);
 
     useEffect(() => {
         let cancelled = false;
 
         const primeIntegrationData = async () => {
             try {
-                const response = await withAuth((auth) =>
-                    getPageIntegrationDataAction(auth, pageName),
-                ) as any;
-
+                await refreshPageIntegrationData();
                 if (cancelled) return;
-
-                primePageIntegrationConsumerCache(response);
-                setIntegrationDataVersion((current) => current + 1);
             } catch (error) {
                 if (!cancelled) {
                     console.error("Failed to prime page integration data", error);
@@ -132,14 +155,8 @@ export default function DashboardLayoutTemplate({
             if (intervalId) return;
             intervalId = window.setInterval(async () => {
                 try {
-                    const response = await withAuth((auth) =>
-                        getPageIntegrationDataAction(auth, pageName),
-                    ) as any;
-
+                    await refreshPageIntegrationData();
                     if (cancelled) return;
-
-                    primePageIntegrationConsumerCache(response);
-                    setIntegrationDataVersion((current) => current + 1);
                 } catch (error) {
                     if (!cancelled) console.error("Failed to poll page integration data", error);
                 }
@@ -156,7 +173,7 @@ export default function DashboardLayoutTemplate({
                 intervalId = null;
             }
         };
-    }, [pageName, token, withAuth]);
+    }, [refreshPageIntegrationData, token]);
 
     // Scroll to center panel on mobile first render
     useEffect(() => {
@@ -364,6 +381,119 @@ export default function DashboardLayoutTemplate({
         return cssVars;
     }, [measuredHeights]);
 
+    const getWidgetMenuState = (baseKey: string): WidgetMenuState =>
+        widgetMenuState[baseKey] ?? {
+            refreshVersion: 0,
+            size: "auto",
+            blurred: false,
+        };
+
+    const updateWidgetMenuState = (
+        baseKey: string,
+        updater: (current: WidgetMenuState) => WidgetMenuState,
+    ) => {
+        setWidgetMenuState((current) => {
+            const previous = current[baseKey] ?? {
+                refreshVersion: 0,
+                size: "auto" as WidgetSize,
+                blurred: false,
+            };
+            return { ...current, [baseKey]: updater(previous) };
+        });
+    };
+
+    const refreshWidget = (baseKey: string) => {
+        void refreshPageIntegrationData()
+            .catch((error) => {
+                console.error("Failed to refresh widget data", error);
+            })
+            .finally(() => {
+                updateWidgetMenuState(baseKey, (current) => ({
+                    ...current,
+                    refreshVersion: current.refreshVersion + 1,
+                }));
+            });
+    };
+
+    const resizeWidget = (baseKey: string) => {
+        updateWidgetMenuState(baseKey, (current) => ({
+            ...current,
+            size: current.size === "auto" ? "compact" : current.size === "compact" ? "tall" : "auto",
+        }));
+    };
+
+    const toggleWidgetBlur = (baseKey: string) => {
+        updateWidgetMenuState(baseKey, (current) => ({
+            ...current,
+            blurred: !current.blurred,
+        }));
+    };
+
+    const renderWidgetMenuWrapper = ({
+        baseKey,
+        wrapperClass,
+        children,
+        ref,
+        style,
+    }: {
+        baseKey: string;
+        wrapperClass: string;
+        children: ReactNode;
+        ref?: (node: HTMLElement | null) => void;
+        style?: CSSProperties;
+    }) => {
+        const state = getWidgetMenuState(baseKey);
+        const sizeClass = WIDGET_SIZE_CLASSNAME[state.size];
+        return (
+            <div
+                key={baseKey}
+                ref={ref}
+                className={[wrapperClass, "group/widget-menu relative", sizeClass].filter(Boolean).join(" ")}
+                style={style}
+            >
+                <div key={state.refreshVersion} className={state.size === "auto" ? undefined : "h-full"}>
+                    {children}
+                </div>
+                <div className="absolute right-2 top-2 z-30 opacity-0 transition-opacity group-hover/widget-menu:opacity-100 focus-within:opacity-100">
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <button
+                                type="button"
+                                aria-label="Widget options"
+                                className="flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-black/35 text-white shadow-lg backdrop-blur-md transition hover:bg-black/55 focus:outline-none focus:ring-2 focus:ring-white/40"
+                            >
+                                <MoreHorizontal className="h-4 w-4" />
+                            </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="frosted min-w-44 text-foreground">
+                            <DropdownMenuItem onClick={() => refreshWidget(baseKey)}>
+                                <RefreshCw className="h-4 w-4" />
+                                Refresh data
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => resizeWidget(baseKey)}>
+                                <Maximize2 className="h-4 w-4" />
+                                Resize widget
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => toggleWidgetBlur(baseKey)}>
+                                <EyeOff className="h-4 w-4" />
+                                {state.blurred ? "Unblur widget" : "Blur widget"}
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                </div>
+                {state.blurred && (
+                    <div className="pointer-events-none absolute inset-0 z-20 flex flex-col justify-center gap-2 rounded-xl bg-black/20 p-4 text-white/35 backdrop-blur-md">
+                        {PRIVACY_BLUR_LINES.map((line) => (
+                            <div key={line} className="h-3 w-full max-w-[85%] rounded-full bg-white/20 blur-[3px]">
+                                <span className="sr-only">{line}</span>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+        );
+    };
+
     const renderWidgetEntry = (
         columnName: Column,
         entryKey: string,
@@ -387,21 +517,16 @@ export default function DashboardLayoutTemplate({
                 } else if (typeof h === "number") {
                     heightStyle = `${h}px`;
                 }
-                return (
-                    <div
-                        key={baseKey}
-                        className={wrapperClass}
-                        style={heightStyle
-                            ? { height: heightStyle }
-                            : undefined}
-                    >
-                        {renderWidget({
-                            type: "placeholder",
-                            params: cfg.params,
-                            className: "h-full w-full",
-                        })}
-                    </div>
-                );
+                return renderWidgetMenuWrapper({
+                    baseKey,
+                    wrapperClass,
+                    style: heightStyle ? { height: heightStyle } : undefined,
+                    children: renderWidget({
+                        type: "placeholder",
+                        params: cfg.params,
+                        className: "h-full w-full",
+                    }),
+                });
             }
             case "main-clock": {
                 const ref = getHeightRefCallback("main-clock");
@@ -434,18 +559,18 @@ export default function DashboardLayoutTemplate({
                 );
             default:
                 // Fall back to integration widget-by-key renderer, then to generic widget.
-                return (
-                    <div key={baseKey} className={wrapperClass}>
-                        {renderWidget({
-                            type: entryKey,
-                            consumerKey: typeof cfg.configKey === "string" && cfg.configKey.trim()
-                                ? cfg.configKey.trim()
-                                : undefined,
-                            params: cfg,
-                            className: wrapperClass,
-                        })}
-                    </div>
-                );
+                return renderWidgetMenuWrapper({
+                    baseKey,
+                    wrapperClass,
+                    children: renderWidget({
+                        type: entryKey,
+                        consumerKey: typeof cfg.configKey === "string" && cfg.configKey.trim()
+                            ? cfg.configKey.trim()
+                            : undefined,
+                        params: cfg,
+                        className: wrapperClass,
+                    }),
+                });
         }
     };
 
@@ -537,6 +662,10 @@ export default function DashboardLayoutTemplate({
             </div>
         );
     };
+
+    if (!config && !isLoading) {
+        return <PageNotFound />;
+    }
 
     return (
         <>
