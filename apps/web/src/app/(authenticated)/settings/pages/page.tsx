@@ -17,8 +17,9 @@ import {
   inferTemplateFromColumns,
   normalizeColumns,
   readClockGlanceables,
-  type ColumnName,
-  type ColumnWidget,
+   type ColumnName,
+   type ColumnWidget,
+   type ClockGlanceableSelection,
   type GlanceableSide,
   type TemplateId,
   type WidgetDefinition,
@@ -41,8 +42,20 @@ type GlanceableCatalogItem = {
   type: string;
   name: string;
   integrationId?: string;
+  integrationName?: string;
+  integrationDisplayName?: string;
+  appName?: string;
   exampleProps: Record<string, any>;
 };
+
+function getGlanceableGroupName(entry: Partial<GlanceableCatalogItem> & Record<string, any>) {
+  const rawLabel = entry.integrationDisplayName ?? entry.integrationName ?? entry.appName ?? entry.app;
+  if (typeof rawLabel === "string" && rawLabel.trim()) {
+    return rawLabel.trim();
+  }
+
+  return String(entry.type === "weather" ? "Weather" : "Builtin");
+}
 
 export default function SettingsPagesPage() {
   const { pageConfig: homeConfig, refreshConfig: refreshHomeConfig } = usePageConfig({
@@ -70,9 +83,9 @@ export default function SettingsPagesPage() {
   const [selectedWidgetCategory, setSelectedWidgetCategory] = useState<string>("clock");
   const [selectedClockPart, setSelectedClockPart] = useState<GlanceableSide | "clock">("left");
   const [clockGlanceables, setClockGlanceables] = useState<Record<string, any>>({});
-  const [clockSelection, setClockSelection] = useState<Record<GlanceableSide, string>>({
-    left: "",
-    right: "",
+  const [clockSelection, setClockSelection] = useState<ClockGlanceableSelection>({
+    left: [],
+    right: [],
   });
   const [clockStyle, setClockStyle] = useState<Record<string, any>>(DEFAULT_CLOCK_STYLE);
   const [fonts, setFonts] = useState<Array<{ name: string; path: string }>>([]);
@@ -112,12 +125,15 @@ export default function SettingsPagesPage() {
   }, [withAuth]);
 
   useEffect(() => {
-    void withAuth((auth) => getUserGlanceableAction(auth))
+      void withAuth((auth) => getUserGlanceableAction(auth))
       .then((data) => {
         const catalog = Array.isArray(data)
           ? data.map((entry: any) => ({
               type: String(entry?.type ?? "weather"),
               name: String(entry?.displayName ?? entry?.name ?? entry?.type ?? "Glanceable"),
+              appName: getGlanceableGroupName(entry),
+              integrationName: typeof entry?.integrationName === "string" ? entry.integrationName : undefined,
+              integrationDisplayName: typeof entry?.integrationDisplayName === "string" ? entry.integrationDisplayName : undefined,
               integrationId:
                 typeof entry?.integrationId === "string" ? entry.integrationId : undefined,
               exampleProps: (entry?.exampleProps && typeof entry.exampleProps === "object")
@@ -147,7 +163,7 @@ export default function SettingsPagesPage() {
     setClockGlanceables(nextClock.map);
     const defaultSelection = getDefaultGlanceableSelection(glanceablesCatalog);
     const resolvedSelection =
-      nextClock.selected.left || nextClock.selected.right
+      nextClock.selected.left.length || nextClock.selected.right.length
         ? nextClock.selected
         : defaultSelection;
     setClockSelection(resolvedSelection);
@@ -172,7 +188,7 @@ export default function SettingsPagesPage() {
         glanceablesCatalog,
       ),
     );
-    hasLoadedConfigRef.current = !!(resolvedSelection.left || resolvedSelection.right);
+    hasLoadedConfigRef.current = resolvedSelection.left.length > 0 || resolvedSelection.right.length > 0;
   }, [glanceablesCatalog, selectedConfig]);
 
   useEffect(() => {
@@ -196,9 +212,6 @@ export default function SettingsPagesPage() {
     const nextPages = Array.from(new Set([...(pages ?? []), normalized]));
     await withAuth((auth) => updatePageConfigAction(auth, "home", { pages: nextPages }));
     const defaultSelection = getDefaultGlanceableSelection(glanceablesCatalog);
-    const defaultGlanceables = [defaultSelection.left, defaultSelection.right].filter(
-      (type): type is string => !!type,
-    );
     await withAuth((auth) =>
       updatePageConfigAction(auth, normalized, {
         template: "main",
@@ -207,7 +220,12 @@ export default function SettingsPagesPage() {
           middle: {
             "main-clock": {
               index: 0,
-              glanceables: Object.fromEntries(defaultGlanceables.map((type) => [type, null])),
+              glanceables: {
+                slots: Object.fromEntries((["left", "right"] as GlanceableSide[]).map((side) => [
+                  side,
+                  defaultSelection[side].map((selection) => ({ type: selection.type, params: {} })),
+                ])),
+              },
             },
             "search-bar": { index: 1 },
             "link-view": { index: 2 },

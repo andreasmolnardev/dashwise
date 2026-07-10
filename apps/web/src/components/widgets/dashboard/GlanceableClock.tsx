@@ -74,6 +74,7 @@ export default function GlanceableClockWidget({ className, params, isPreview }: 
     }
     return Object.keys(rest).length > 0 ? rest : undefined;
   };
+  const slots = glanceableOverrides?.slots as Partial<Record<"left" | "right", Array<{ type: string; params?: Record<string, any> }>>> | undefined;
 
   const previewGridStyle = isPreview
     ? { gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr)", gridTemplateRows: "minmax(0, 1fr)", gridTemplateAreas: '"gl1 clock gl2"' }
@@ -101,27 +102,42 @@ export default function GlanceableClockWidget({ className, params, isPreview }: 
         </div>
       </div>
       <div style={{ gridArea: "gl1" }} className="area-gl1 min-w-0 overflow-hidden">
-        {glanceableKeys[0] && (
-          <ResolvedGlanceable
-            type={glanceableKeys[0]}
-            params={getParams(glanceableKeys[0])}
-            formatters={localization}
-            className="font-medium"
-          />
-        )}
+        <GlanceableCarousel
+          items={slots?.left ?? (glanceableKeys[0] ? [{ type: glanceableKeys[0], params: getParams(glanceableKeys[0]) }] : [])}
+          formatters={localization}
+        />
       </div>
       <div style={{ gridArea: "gl2" }} className="area-gl2 min-w-0 overflow-hidden">
-        {glanceableKeys[1] && (
-          <ResolvedGlanceable
-            type={glanceableKeys[1]}
-            params={getParams(glanceableKeys[1])}
-            formatters={localization}
-            className="font-medium"
-          />
-        )}
+        <GlanceableCarousel
+          items={slots?.right ?? (glanceableKeys[1] ? [{ type: glanceableKeys[1], params: getParams(glanceableKeys[1]) }] : [])}
+          formatters={localization}
+        />
       </div>
     </section>
   );
+}
+
+function GlanceableCarousel({
+  items,
+  formatters,
+}: {
+  items: Array<{ type: string; params?: Record<string, any> }>;
+  formatters: LocalizationFormatters;
+}) {
+  const [index, setIndex] = useState(0);
+
+  useEffect(() => {
+    setIndex(0);
+    if (items.length < 2) return;
+    const interval = window.setInterval(
+      () => setIndex((current) => (current + 1) % items.length),
+      5000,
+    );
+    return () => window.clearInterval(interval);
+  }, [items.length]);
+
+  const item = items[index];
+  return item ? <ResolvedGlanceable type={item.type} params={item.params} formatters={formatters} className="font-medium" /> : null;
 }
 
 function ResolvedGlanceable({
