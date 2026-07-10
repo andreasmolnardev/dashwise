@@ -37,14 +37,3 @@ jobs:
             ${{ secrets.DOCKER_USERNAME }}/dashwise:latest
             ${{ secrets.DOCKER_USERNAME }}/dashwise:stable
       
-      - name: Build and Push Multi-Arch Pocketbase Docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: ./pocketbase/
-          file: ./pocketbase/Dockerfile
-          push: true
-          platforms: linux/amd64,linux/arm64
-          tags: |
-            ${{ secrets.DOCKER_USERNAME }}/dashwise-pb:${{ secrets.VERSION }}
-            ${{ secrets.DOCKER_USERNAME }}/dashwise-pb:latest
-            ${{ secrets.DOCKER_USERNAME }}/dashwise-pb:stable

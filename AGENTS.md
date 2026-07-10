@@ -32,6 +32,7 @@ This repository is a Bun-based monorepo for `dashwise`, a self-hosted homelab da
 - Avoid introducing new package managers or build systems.
 - Prefer modifying existing shared packages in `packages/` when changes affect both apps.
 - Preserve PocketBase migration structure in `pocketbase/migrations` when updating schema or collection configuration.
+- Use design.md standars for designing uis.
 
 ## Useful commands
 

@@ -66,8 +66,12 @@ function resolvePocketBaseRuntimePath() {
   );
 }
 
-async function waitForPocketBaseReady(healthUrl: string, pb?: Bun.Subprocess) {
-  const deadline = Date.now() + 30_000;
+async function waitForPocketBaseReady(
+  healthUrl: string,
+  pb?: Bun.Subprocess,
+  timeoutMs = 30_000,
+) {
+  const deadline = Date.now() + timeoutMs;
 
   while (Date.now() < deadline) {
     if (pb && pb.exitCode !== null) {
@@ -106,6 +110,21 @@ export async function startPocketbase(): Promise<PocketBaseStartResult> {
       setPocketBaseLogger(pbLogger);
     }
     return { process: null, pb };
+  }
+
+  try {
+    await waitForPocketBaseReady(healthUrl, undefined, 1_000);
+    logger.info(`Using already-running PocketBase at ${config.PB_URL}`);
+    const pb = await getSuperuserPB();
+    const pbLogger =
+      (pb as { logger?: () => Parameters<typeof setPocketBaseLogger>[0] })
+        .logger?.();
+    if (pbLogger) {
+      setPocketBaseLogger(pbLogger);
+    }
+    return { process: null, pb };
+  } catch {
+    // No existing server is ready; start the bundled PocketBase process below.
   }
 
   const monorepoRoot = findRepoRoot(__dirname);

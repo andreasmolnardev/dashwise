@@ -20,19 +20,6 @@ export default function Screensaver(
   const [frameBackgrounds, setFrameBackgrounds] = useState<Record<string, string>>({});
   const [scrollLeft, setScrollLeft] = useState(0);
   const scrollRef = useRef<HTMLDivElement | null>(null);
-  const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-  useEffect(() => {
-    if (isHovering) {
-      if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
-      hoverTimeoutRef.current = setTimeout(() => {
-        setIsHovering(false);
-      }, 3000);
-    }
-    return () => {
-      if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
-    };
-  }, [isHovering]);
 
   useEffect(() => {
     fetch("/fonts/index.json")
@@ -258,13 +245,31 @@ export default function Screensaver(
                   }}
                 />
               )}
-              <div className="relative z-10 scale-150 transform origin-center">
-                {renderWidget({
-                  type: frame.type,
-                  params: frame.params || {},
-                  className: "overflow-visible",
-                })}
-              </div>
+              {Array.isArray(frame.params?.sections) && frame.params?.layout ? (
+                <div
+                  className="relative z-10 grid h-[70vh] w-[70vw] gap-6"
+                  style={{ gridTemplateColumns: `repeat(${frame.params.layout.cols ?? 1}, minmax(0, 1fr))` }}
+                >
+                  {frame.params.sections.map((section: any) => (
+                    <div key={section.id} className="flex min-h-0 min-w-0 items-center justify-center overflow-hidden rounded-3xl">
+                      {renderWidget({
+                        type: section.widgetType || frame.type,
+                        consumerKey: section.consumerKey,
+                        params: section.params || {},
+                        className: "h-full w-full overflow-hidden",
+                      })}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="relative z-10 scale-150 transform origin-center">
+                  {renderWidget({
+                    type: frame.type,
+                    params: frame.params || {},
+                    className: "overflow-visible",
+                  })}
+                </div>
+              )}
             </div>
           );
         })}

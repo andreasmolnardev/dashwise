@@ -63,6 +63,10 @@ export type ResolvedColumn = {
   primary?: string;
   primaryAction?: string;
   secondary?: string;
+  stats?: {
+    primary?: string;
+    secondary?: string;
+  };
   progress?: {
     type?: string;
     value?: number;

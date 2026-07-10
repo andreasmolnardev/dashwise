@@ -62,6 +62,12 @@ function normalizeWidgetSlug(value: string) {
         .replace(/[^a-z0-9-]/g, "");
 }
 
+function normalizeProgressType(value: string) {
+    return value === "day-progress" || value === "week-progress" || value === "month-progress" || value === "year-progress"
+        ? "progress"
+        : value;
+}
+
 function normalizeWidgetList(rawWidgets: unknown): WidgetCatalogItem[] {
     if (!Array.isArray(rawWidgets)) return [];
 
@@ -201,10 +207,10 @@ function normalizeGlanceables(
             const explicitKey = typeof entry.key === "string" && entry.key.trim()
                 ? entry.key.trim()
                 : "";
-            const normalizedType =
-                explicitKey || (typeof entry.type === "string" && entry.type.trim()
-                    ? entry.type.trim()
-                    : fallbackTypes[displayName.toLowerCase()] ?? normalizeWidgetSlug(displayName));
+            const fallbackType = typeof entry.type === "string" && entry.type.trim()
+                ? entry.type.trim()
+                : fallbackTypes[displayName.toLowerCase()] ?? normalizeWidgetSlug(displayName);
+            const normalizedType = normalizeProgressType(explicitKey || fallbackType);
 
             const result: GlanceableCatalogItem = {
                 type: normalizedType,

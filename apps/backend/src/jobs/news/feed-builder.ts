@@ -76,10 +76,11 @@ export async function newsFeedBuilder(feedId?: string): Promise<{
         newsFeeds = [{ id: singleSubscription.id, subscriptionRefs: [singleSubscription.id] }];
       } else {
         const singleFeed = await getNewsFeedById(feedId);
-        newsFeeds = [singleFeed as NewsFeedRecord];
+        newsFeeds = singleFeed ? [singleFeed as NewsFeedRecord] : [];
       }
     } else {
-      newsFeeds = (await getAllNewsSubscriptions(2000)) as NewsFeedRecord[];
+      const records = await getAllNewsSubscriptions(2000);
+      newsFeeds = Array.isArray(records) ? (records as NewsFeedRecord[]) : [];
     }
   } catch (err: any) {
     logger.error("Failed to fetch news records", err);
@@ -88,6 +89,13 @@ export async function newsFeedBuilder(feedId?: string): Promise<{
       errors: 1,
       details: [{ action: feedId ? 'fetch_one_failed' : 'fetch_all_failed', feedId, error: err?.message || String(err) }],
     };
+  }
+
+  if (!newsFeeds.length) {
+    result.skipped = 1;
+    result.details.push({ action: feedId ? 'skipped' : 'skipped_all', feedId, reason: 'no news feeds' });
+    logger.info("News feed builder skipped: no news feeds found");
+    return result;
   }
 
   const processFeed = async (newsFeed: NewsFeedRecord) => {

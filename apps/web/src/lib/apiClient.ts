@@ -40,6 +40,31 @@ export function authHeaders(auth?: ActionAuth | null): Record<string, string> | 
   return auth?.token ? { Authorization: `Bearer ${auth.token}` } : undefined;
 }
 
+export type MonitoringSshHostRecord = {
+  id: string;
+  userId?: string;
+  name: string;
+  hostname: string;
+  port: number;
+  username: string;
+  authMethod: "password" | "key";
+  hasCredential?: boolean;
+  status?: string;
+  created?: string;
+  updated?: string;
+};
+
+export type MonitoringSshHostInput = {
+  name: string;
+  hostname: string;
+  port: number;
+  username: string;
+  authMethod: "password" | "key";
+  password?: string;
+  publicKey?: string;
+  privateKey?: string;
+};
+
 function stringifyError(error: unknown) {
   if (typeof error === "string") return error;
   if (error && typeof error === "object") {
@@ -326,6 +351,34 @@ export async function createMonitorAction(auth: ActionAuth, data: { resourceType
 
 export async function deleteMonitorAction(auth: ActionAuth, monitorId: string): Promise<void> {
   return extractData(await deleteMonitorsById({ path: { id: monitorId }, headers: authHeaders(auth) }));
+}
+
+async function fetchJsonAction<T>(auth: ActionAuth, path: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(backendUrl(`${apiBasePath}${path}`), {
+    ...init,
+    headers: {
+      "Content-Type": "application/json",
+      ...authHeaders(auth),
+      ...(init?.headers || {}),
+    },
+  });
+  const data = await response.json().catch(() => null);
+  if (!response.ok || data?._status >= 400) {
+    throw new Error(data?.error || data?.message || "Request failed");
+  }
+  return data as T;
+}
+
+export async function getMonitoringSshHostsAction(auth: ActionAuth): Promise<MonitoringSshHostRecord[]> {
+  return fetchJsonAction(auth, "/monitoring/ssh-hosts");
+}
+
+export async function createMonitoringSshHostAction(auth: ActionAuth, data: MonitoringSshHostInput): Promise<MonitoringSshHostRecord> {
+  return fetchJsonAction(auth, "/monitoring/ssh-hosts", { method: "POST", body: JSON.stringify(data) });
+}
+
+export async function updateMonitoringSshHostAction(auth: ActionAuth, hostId: string, data: Partial<MonitoringSshHostInput>): Promise<MonitoringSshHostRecord> {
+  return fetchJsonAction(auth, `/monitoring/ssh-hosts/${hostId}`, { method: "PUT", body: JSON.stringify(data) });
 }
 
 // --- News actions ---

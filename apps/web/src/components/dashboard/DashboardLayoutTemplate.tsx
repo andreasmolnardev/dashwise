@@ -722,7 +722,7 @@ function BottomNavbar({
                 )}
                 <li className="relative">
                     <Link
-                        to="/notifications"
+                        to="/apps/monitoring/notifications"
                         className="hidden md:flex frosted p-2.5 rounded-full group transition-colors duration-200 aspect-square items-center justify-center"
                     >
                         <Icon

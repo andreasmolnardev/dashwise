@@ -109,6 +109,15 @@ The backend scans the page config using [`collectPageConsumers(...)`](apps/backe
 - `glanceables` entries are treated as glanceable consumers.
 - Each consumer is deduplicated by `consumer:key:properties`.
 
+### Columns widget fields
+
+Columns support either:
+
+- `progress` with `type`, `value`, `thresholds`, and `zero_label`
+- `stats` with `primary` and `secondary`
+
+`stats.primary` and `stats.secondary` render like the legacy `primary` and `secondary` column fields.
+
 ### Runtime reuse
 
 The endpoint builds a single `sharedRuntimeCache` for the request.

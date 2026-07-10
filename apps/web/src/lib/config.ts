@@ -15,9 +15,7 @@ const env = ((typeof import.meta !== "undefined" && import.meta.env) ? import.me
   string,
   string | undefined
 >;
-declare const __DEV__: boolean;
-
-const isDev = typeof __DEV__ !== "undefined" && __DEV__;
+const isDev = Boolean(env.DEV);
 
 const allowInsecureCertsForIntegrationUrls =
   env.NEXT_PUBLIC_INTEGRATIONS_ENABLE_SSL === "true" ||

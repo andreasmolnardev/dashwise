@@ -140,9 +140,15 @@ export type NewsFeedRecordCreateInput = {
   title: string;
 };
 
+export type NewsFeedSummary = {
+  id: string;
+  title: string;
+};
+
 export type NewsFeedsResponse = {
   id: null;
-  feeds: { id: string; title: string }[];
+  feeds: NewsFeedSummary[];
+  subscriptions?: NewsFeedSummary[];
 };
 
 export type NewsSubscriptionsResponse = {

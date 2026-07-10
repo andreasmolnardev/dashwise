@@ -39,6 +39,8 @@ export function getRuntimeEnv(
   integrationJSON: Record<string, any> | null,
   baseEnv: Record<string, string> = {},
 ): Record<string, string> {
+	const now = new Date();
+	const now24HoursAgoIso = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
   const integrationEnv =
     integrationJSON?.configuration?.environment_variables &&
     typeof integrationJSON.configuration.environment_variables === "object"
@@ -51,6 +53,10 @@ export function getRuntimeEnv(
       : {};
 
   return {
+		NOW_ISO: now.toISOString(),
+		NOW_DATE: now.toISOString().slice(0, 10),
+		NOW_24H_AGO_ISO: now24HoursAgoIso,
+		NOW_24H_AGO_DATE: now24HoursAgoIso.slice(0, 10),
     ...integrationEnv,
     ...baseEnv,
   };
@@ -88,15 +94,16 @@ export async function resolveIntegrationRuntimeProperties(
     };
   }
 
-  const endpointResult = await resolveEndpointCatalog(
-    integrationConfig.endpoints,
-    {
-      env: runtimeEnv,
-      scope: {},
-      cache: endpointCache,
-    },
-    allowInsecureEndpoints,
-  );
+	const endpointResult = await resolveEndpointCatalog(
+		integrationConfig.endpoints,
+		{
+			env: runtimeEnv,
+			scope: {},
+			cache: endpointCache,
+			rateLimit: resolveEndpointRateLimit(integrationJSON, integrationConfig),
+		},
+		allowInsecureEndpoints,
+	);
 
   const computed = resolveComputedFields(integrationConfig.computed, {
     env: endpointResult.env,
@@ -120,6 +127,27 @@ export async function resolveIntegrationRuntimeProperties(
       ...flattenToEnv(runtimeScope),
     },
   };
+}
+
+function resolveEndpointRateLimit(
+	integrationJSON: Record<string, any> | null,
+	integrationConfig: Record<string, any>,
+) {
+	const rawRateLimit = integrationConfig.rate_limit ?? integrationConfig.rateLimit;
+	if (!rawRateLimit || typeof rawRateLimit !== "object") return null;
+
+	const requestsPerSecond = Number(
+		rawRateLimit.requests_per_second ?? rawRateLimit.requestsPerSecond,
+	);
+	if (!Number.isFinite(requestsPerSecond) || requestsPerSecond <= 0) return null;
+
+	const name = typeof integrationJSON?.details?.name === "string"
+		? integrationJSON.details.name
+		: "integration";
+	return {
+		key: `${name}:${requestsPerSecond}`,
+		requestsPerSecond,
+	};
 }
 
 type RuntimeDataResolutionOptions = {
@@ -359,7 +387,13 @@ function resolveColumnItem(
     label: resolveValue(c.label, env),
     primary: resolveValue(c.primary, env),
     primaryAction: resolveAction(c.primaryAction, env),
-    secondary: resolveValue(c.secondary, env),
+    secondary: resolveValue(c.secondary ?? c.stats?.secondary, env),
+    stats: c.stats
+      ? {
+        primary: resolveValue(c.stats.primary, env),
+        secondary: resolveValue(c.stats.secondary, env),
+      }
+      : undefined,
     title: resolveValue(c.title, env),
     titleAction: resolveAction(c.titleAction, env),
     thumbnail: resolveValue(c.thumbnail, env),
@@ -589,6 +623,12 @@ function deriveIterateeAlias(path: string): string | undefined {
 function buildEnv(opts: ResolveOptions): Record<string, string> {
   const { widgetJSON, integrationJSON, data, isPreview } = opts;
   const env: Record<string, string> = {};
+
+  const now = new Date();
+  env.NOW_ISO = now.toISOString();
+  env.NOW_DATE = now.toISOString().slice(0, 10);
+  env.NOW_24H_AGO_ISO = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
+  env.NOW_24H_AGO_DATE = env.NOW_24H_AGO_ISO.slice(0, 10);
 
   const envVarDefs: Record<string, any> =
     integrationJSON?.configuration?.environment_variables ?? {};

@@ -30,6 +30,8 @@ components:
 
 Dashwise utilizes a modern, glassmorphic design system that prioritizes depth, clarity, and readability. The interface evokes a premium, lightweight feel by layering semi-transparent "frosted" elements over blurred backgrounds. It is designed to be highly legible and dynamic, adapting seamlessly to both light and dark environments.
 
+Do not use capitalized text or wide tracking, ever.
+
 ## Colors
 
 The color palette is built exclusively using `oklch` for consistent perceived lightness across the entire spectrum. It relies on a strong neutral foundation and cool-toned accents.

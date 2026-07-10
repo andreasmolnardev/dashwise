@@ -8,8 +8,7 @@ import {
     updateUserConfigRecord,
 } from "../../lib/data/superuser";
 import { createLogger } from "../../lib/logger";
-
-type StatusCheckMethod = "GET" | "HEAD" | "POST" | "PUT" | "PATCH" | "DELETE" | "OPTIONS";
+import { getLinkIdFromSource, getLinkSource, isLinkSource, parseConfigObject, type StatusCheckMethod } from "./shared";
 
 type StatusCheckAuth =
     | { type: "bearer"; token: string }
@@ -87,7 +86,7 @@ export default async function indexStatusMonitoringJobs(): Promise<{
                     continue;
                 }
 
-                const source = `link ${link.id}`;
+                const source = getLinkSource(link.id);
                 desiredJobsBySource.set(source, {
                     endpoint,
                     endpointAuth: serializeStatusCheckAuth(link.statusCheckAuth),
@@ -105,7 +104,7 @@ export default async function indexStatusMonitoringJobs(): Promise<{
             }
 
             for (const [source, desired] of desiredJobsBySource.entries()) {
-                const linkId = source.startsWith('link ') ? source.slice(5) : undefined;
+                const linkId = getLinkIdFromSource(source);
                 const existing = existingBySource.get(source);
 
                 try {
@@ -157,21 +156,22 @@ export default async function indexStatusMonitoringJobs(): Promise<{
 
             for (const job of existingJobs) {
                 const source = String(job.source || '');
-                if (!source.startsWith('link ')) continue;
+                if (!isLinkSource(source)) continue;
                 if (desiredJobsBySource.has(source)) continue;
+                const linkId = getLinkIdFromSource(source);
                 if (job.status === 'disabled') {
                     result.skipped++;
-                    result.details.push({ userId, linkId: source.slice(5), endpoint: job.endpoint, action: 'already_disabled' });
+                    result.details.push({ userId, linkId, endpoint: job.endpoint, action: 'already_disabled' });
                     continue;
                 }
 
                 try {
                     await updateMonitoringJob(job.id, { status: 'disabled' });
                     result.disabled++;
-                    result.details.push({ userId, linkId: source.slice(5), endpoint: job.endpoint, action: 'disabled' });
+                    result.details.push({ userId, linkId, endpoint: job.endpoint, action: 'disabled' });
                 } catch (disableErr: any) {
                     result.errors++;
-                    result.details.push({ userId, linkId: source.slice(5), endpoint: job.endpoint, action: 'error', error: disableErr?.message || String(disableErr) });
+                    result.details.push({ userId, linkId, endpoint: job.endpoint, action: 'error', error: disableErr?.message || String(disableErr) });
                 }
             }
         }
@@ -238,18 +238,6 @@ export async function generateMissingLinkIds(userId: string): Promise<{
 // helper to generate random id
 function generateId(length = 8) {
     return Math.random().toString(36).substr(2, length);
-}
-
-function parseConfigObject(rawConfig: any): any {
-    if (!rawConfig) return {};
-    if (typeof rawConfig === 'string') {
-        try {
-            return JSON.parse(rawConfig);
-        } catch {
-            return {};
-        }
-    }
-    return rawConfig;
 }
 
 function serializeStatusCheckAuth(raw: unknown): string {

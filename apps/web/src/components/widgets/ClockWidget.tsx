@@ -42,7 +42,6 @@ export default function ClockWidget({
   const { user } = useAuth();
   const { formatTime, timeFormat } = useLocalization();
 
-  const [fonts, setFonts] = useState<FontEntry[]>([]);
   const [internalFont, setInternalFont] = useState<FontEntry>();
 
   const clockAppearance = user?.appearancePreferences?.clock as ClockAppearance | undefined;
@@ -55,8 +54,6 @@ export default function ClockWidget({
       .then((data: FontEntry[]) => {
         if (!mounted) return;
         const fixed = data.map((f: FontEntry) => ({ name: f.name, path: f.path }));
-        setFonts([{ name: "Default", path: "" }, ...fixed]);
-        
         const fontNameToUse = propFont || clockAppearance?.defaultFont;
         const foundFont = fixed.find(item => (item.name === fontNameToUse));
         

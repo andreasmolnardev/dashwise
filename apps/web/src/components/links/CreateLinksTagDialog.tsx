@@ -4,9 +4,9 @@ import { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import useAuth from "@/context/useAuth";
 import { createLinksTagAction, updateLinksTagAction } from '@/lib/apiClient';
+import { LinksFormAlert, type LinksFormAlertState } from "./LinksFormAlert";
 
 type Props = {
   open: boolean;
@@ -19,7 +19,7 @@ export default function CreateLinksTagDialog({ open, onOpenChange, tag, onSaved 
   const { withAuth } = useAuth();
   const [name, setName] = useState("");
   const [color, setColor] = useState("#0ea5e9");
-  const [alert, setAlert] = useState<{ open: boolean; title: string; description?: string; variant?: "success" | "error" }>({ open: false, title: "", description: "", variant: "success" });
+  const [alert, setAlert] = useState<LinksFormAlertState>({ open: false, title: "", description: "", variant: "success" });
   const isEditing = Boolean(tag?.id);
 
   useEffect(() => {
@@ -54,24 +54,7 @@ export default function CreateLinksTagDialog({ open, onOpenChange, tag, onSaved 
           <DialogTitle>{isEditing ? "Edit tag" : "Create new tag"}</DialogTitle>
         </DialogHeader>
 
-        {alert.open && (
-          <Alert className="mb-4">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <AlertTitle>{alert.title}</AlertTitle>
-                {alert.description && <AlertDescription>{alert.description}</AlertDescription>}
-              </div>
-              <button
-                type="button"
-                aria-label="Close alert"
-                onClick={() => setAlert((current) => ({ ...current, open: false }))}
-                className="rounded px-2 py-1 text-sm hover:bg-muted"
-              >
-                Close
-              </button>
-            </div>
-          </Alert>
-        )}
+        <LinksFormAlert alert={alert} onClose={() => setAlert((current) => ({ ...current, open: false }))} />
 
         <form
           className="space-y-4"

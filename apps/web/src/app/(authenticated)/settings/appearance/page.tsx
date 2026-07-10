@@ -101,7 +101,7 @@ export default function AppearanceSettingsPage() {
 
         {showSourceControl && (
           <>
-            <h3 className="text-lg font-medium">Source Control</h3>
+            <h3 className="text-lg font-medium">Source</h3>
             <WallpaperSourceControl />
           </>
         )}

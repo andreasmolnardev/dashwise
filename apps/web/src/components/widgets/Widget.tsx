@@ -59,12 +59,16 @@ export function renderWidget({
   defaultOpen,
 }: WidgetProps): ReactNode {
   const renderParams = stripWidgetIndex(params);
+  const resolvedType = type === "widget" && typeof renderParams?.key === "string" && renderParams.key.trim()
+    ? renderParams.key.trim()
+    : type;
   const finalClassName = `${className ?? ""} frosted`.trim();
+  const progressPeriod = resolveProgressPeriod(resolvedType, params);
 
-  switch (type) {
+  switch (resolvedType) {
     case "main-clock":
     case "glanceable-clock":
-      return <GlanceableClockWidget className={className} params={renderParams} />;
+      return <GlanceableClockWidget className={className} params={renderParams} isPreview={isPreview} />;
 
     case "search-bar":
       return <SearchBar useRedirect={false} defaultOpen={defaultOpen} />;
@@ -90,17 +94,12 @@ export function renderWidget({
     case "countdown":
       return <CountdownWidget className={finalClassName} {...renderParams} />;
 
+    case "progress":
     case "day-progress":
-      return <ProgressWidget type="day" className={finalClassName} />;
-
     case "week-progress":
-      return <ProgressWidget type="week" className={finalClassName} />;
-
     case "month-progress":
-      return <ProgressWidget type="month" className={finalClassName} />;
-
     case "year-progress":
-      return <ProgressWidget type="year" className={finalClassName} />;
+      return <ProgressWidget period={progressPeriod} className={finalClassName} />;
 
     case "link-view":
       return <LinkView />;
@@ -114,14 +113,26 @@ export function renderWidget({
     default:
       return (
         <IntegrationWidget
-          type={type}
-          consumerKey={consumerKey ?? (type.includes("#") ? type : undefined)}
+          type={resolvedType}
+          consumerKey={consumerKey ?? (resolvedType.includes("#") ? resolvedType : undefined)}
           isPreview={isPreview}
           properties={renderParams}
           className={finalClassName}
         />
       );
   }
+}
+
+function resolveProgressPeriod(type: string, params?: Record<string, any>) {
+  const candidate = String(params?.period ?? type ?? "day").trim();
+  if (candidate === "year" || candidate === "month" || candidate === "day" || candidate === "week") {
+    return candidate;
+  }
+
+  if (candidate === "year-progress") return "year";
+  if (candidate === "month-progress") return "month";
+  if (candidate === "week-progress") return "week";
+  return "day";
 }
 
 function RssFeedWidgetWrapper({

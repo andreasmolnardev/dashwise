@@ -6,7 +6,8 @@ import { Progress } from "@dashwise/integrationskit/templates/shadcn-components/
 type ProgressType = "day" | "week" | "month" | "year";
 
 type ProgressWidgetProps = {
-  type: ProgressType;
+  type?: ProgressType;
+  period?: ProgressType;
   className?: string;
   showLabel?: boolean;
   showPercentage?: boolean;
@@ -64,24 +65,26 @@ export function formatProgressPct(type: ProgressType): string {
 
 export default function ProgressWidget({
   type,
+  period,
   className = "",
   showLabel = true,
   showPercentage = true,
 }: ProgressWidgetProps) {
-  const [progress, setProgress] = useState(() => calcProgress(type));
+  const resolvedPeriod = period ?? type ?? "day";
+  const [progress, setProgress] = useState(() => calcProgress(resolvedPeriod));
 
   useEffect(() => {
     const interval = setInterval(() => {
-      setProgress(calcProgress(type));
+      setProgress(calcProgress(resolvedPeriod));
     }, 60000);
     return () => clearInterval(interval);
-  }, [type]);
+  }, [resolvedPeriod]);
 
   return (
     <div className={`frosted rounded-lg p-3 flex items-center justify-center flex-col ${className}`}>
       {showLabel && (
         <div className="flex items-center justify-between w-full mb-2">
-          <span className="text-sm font-medium">{LABELS[type]}</span>
+          <span className="text-sm font-medium">{LABELS[resolvedPeriod]}</span>
           {showPercentage && (
             <span className="text-sm font-semibold tabular-nums">
               {formatPct(progress)}
