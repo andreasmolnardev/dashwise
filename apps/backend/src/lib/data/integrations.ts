@@ -1,6 +1,6 @@
 import { Buffer } from "buffer";
 import { defaultIntegrationsManifest } from "@dashwise/assets";
-import { weatherIntegrationBlueprint } from "@dashwise/assets";
+import { tailscaleIntegrationBlueprint, weatherIntegrationBlueprint } from "@dashwise/assets";
 import { ApiActionError } from "./auth";
 import { getSuperuserPB } from "../pb/pocketbase";
 import { decodeBase64Json, parseNullableJson, tryParseJson, tryParseYaml } from "../parseHelpers";
@@ -65,6 +65,7 @@ const builtinManifest = isPlainObject(defaultIntegrationsManifest)
 
 const builtinConfigsBySource: Record<string, unknown> = {
     "/integrations/weather.yaml": weatherIntegrationBlueprint,
+    "/integrations/tailscale.yaml": tailscaleIntegrationBlueprint,
 };
 
 let builtinSeedsPromise: Promise<BuiltinSeed[]> | null = null;
