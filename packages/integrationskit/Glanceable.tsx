@@ -199,7 +199,7 @@ function LegacyGlanceable({
       return <span className={`inline-flex items-center text-center ${className ?? ""}`}>{formatDate(new Date(), params?.format, formatters)}</span>;
 
     case "greeting":
-      return <span className={`inline-flex items-center text-center ${className ?? ""}`}>Hello</span>;
+      return <GreetingGlanceable params={params} className={className} />;
 
     case "local-timezone":
       return <span className={`inline-flex items-center text-center ${className ?? ""}`}>{getLocalTimezoneLabel()}</span>;
@@ -245,6 +245,47 @@ function LegacyWorldClock({
   }, [formatters, timezone]);
 
   return <span className={`inline-flex items-center text-center ${className ?? ""}`}>{time}{location ? ` in ${location}` : ""}</span>;
+}
+
+function GreetingGlanceable({
+  params,
+  className,
+}: {
+  params?: Record<string, any>;
+  className?: string;
+}) {
+  const [now, setNow] = useState(() => new Date());
+
+  useEffect(() => {
+    const updateGreetingTime = () => setNow(new Date());
+
+    updateGreetingTime();
+    const interval = setInterval(updateGreetingTime, 60 * 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const greeting = getGreetingForHour(now.getHours());
+  const username = getGreetingUsername(params);
+  const showUsername = params?.showUsername === true;
+
+  return (
+    <span className={`inline-flex items-center text-center ${className ?? ""}`}>
+      {greeting}{showUsername && username ? `, ${username}` : ""}
+    </span>
+  );
+}
+
+function getGreetingForHour(hour: number) {
+  if (hour >= 5 && hour < 12) return "Good morning";
+  if (hour >= 12 && hour < 17) return "Good afternoon";
+  if (hour >= 17 && hour < 22) return "Good evening";
+  return "Good night";
+}
+
+function getGreetingUsername(params?: Record<string, any>) {
+  const username = params?.username;
+  if (typeof username !== "string") return "";
+  return username.trim();
 }
 
 type ProgressType = "day" | "week" | "month" | "year";

@@ -17,6 +17,7 @@ type ClockWidgetProps = {
   outlineColor?: string;
   outlineWidth?: number;
   className?: string;
+  isPreview?: boolean;
   style?: React.CSSProperties;
 };
 
@@ -36,6 +37,7 @@ export default function ClockWidget({
   outlineColor,
   outlineWidth,
   className,
+  isPreview,
   style,
 }: ClockWidgetProps) {
   const [time, setTime] = useState("");
@@ -105,7 +107,7 @@ export default function ClockWidget({
   return (
     <div
       className={cn(
-        "text-6xl text-center p-4",
+        isPreview ? "text-2xl text-center p-1 leading-none whitespace-nowrap" : "text-6xl text-center p-4 whitespace-nowrap",
         className
       )}
       style={finalStyle}

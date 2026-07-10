@@ -58,10 +58,20 @@ export default function GlanceableClockWidget({ className, params, isPreview }: 
 
   const getParams = (type: string) => {
     const override = glanceableOverrides?.[type];
-    if (override && typeof override === "object") return override;
+    if (override && typeof override === "object") {
+      return type === "greeting"
+        ? { ...override, username: override.username ?? user?.username }
+        : override;
+    }
     const fallback = defaultGlanceables.find((g) => g?.type === type);
     if (!fallback) return undefined;
     const { type: _t, ...rest } = fallback;
+    if (type === "greeting") {
+      return {
+        ...(Object.keys(rest).length > 0 ? rest : {}),
+        username: (rest as Record<string, any>).username ?? user?.username,
+      };
+    }
     return Object.keys(rest).length > 0 ? rest : undefined;
   };
 
@@ -86,6 +96,7 @@ export default function GlanceableClockWidget({ className, params, isPreview }: 
             outlineEnabled={clockStyle?.outlineEnabled}
             outlineColor={clockStyle?.outlineColor}
             outlineWidth={clockStyle?.outlineWidth}
+            isPreview={isPreview}
           />
         </div>
       </div>
