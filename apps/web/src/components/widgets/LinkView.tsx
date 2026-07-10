@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/useAuth";
 import { getMonitoringStatusAction } from '@/lib/apiClient';
 import {
@@ -9,7 +9,6 @@ import {
   updateHomeLinkFolderIconAction,
 } from '@/lib/apiClient';
 import { PaginatedCarouselViewComponent } from "./PaginatedCarouselView";
-import MonitoringDialog, { JobEntry } from "./MonitoringDialog";
 import type { LinkType } from "@dashwise/types/sdk";
 import {
   Popover,
@@ -196,6 +195,7 @@ function applyOptimisticLinkOrder(
 export default function LinkView({ links = [] }: { links?: LinkType[] }) {
   const { token, user, withAuth } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
   const [localLinks, setLocalLinks] = useState<LinkType[]>(() => {
     if (links.length > 0) return links;
     return readCachedHomeLinks(user?.id) ?? links;
@@ -299,7 +299,6 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
     }> | null
   >(null);
 
-  const [openDialogFor, setOpenDialogFor] = useState<string | null>(null);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [editingLink, setEditingLink] = useState<LinkType | null>(null);
   const [editingFolder, setEditingFolder] = useState<
@@ -379,10 +378,6 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
       clearInterval(id);
     };
   }, [fetchMonitoringStatuses]);
-
-  const selectedLink = openDialogFor
-    ? localLinks.find((link: LinkType) => link.id === openDialogFor)
-    : undefined;
 
   const refreshHomeLinks = React.useCallback(async () => {
     try {
@@ -568,8 +563,8 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
             key={item.link.id || item.link.url || itemIdx}
             link={item.link}
             monitoringDetails={monitoringDetails}
-            setOpenDialogFor={setOpenDialogFor}
             setEditingLink={setEditingLink}
+            navigate={navigate}
             itemIdx={itemIdx}
             isDragging={dragging}
           />
@@ -586,12 +581,12 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
           monitoringDetails={monitoringDetails}
           setEditingFolder={setEditingFolder}
           setEditingLink={setEditingLink}
-          setOpenDialogFor={setOpenDialogFor}
+          navigate={navigate}
           toggleFolderPreview={toggleFolderPreview}
         />
       );
     },
-    [monitoringDetails, setEditingFolder, setEditingLink, setOpenDialogFor, toggleFolderPreview],
+    [monitoringDetails, navigate, setEditingFolder, setEditingLink, toggleFolderPreview],
   );
 
   return (
@@ -776,20 +771,6 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
           )}
         </DialogContent>
       </Dialog>
-
-      {selectedLink && (
-        <MonitoringDialog
-          open={!!selectedLink}
-          onOpenChange={(val) => {
-            if (!val) setOpenDialogFor(null);
-          }}
-          link={selectedLink}
-          onCheckTriggered={fetchMonitoringStatuses}
-          details={selectedLink.id && monitoringDetails
-            ? (monitoringDetails[selectedLink.id] as JobEntry)
-            : undefined}
-        />
-      )}
     </div>
   );
 }
@@ -808,8 +789,8 @@ function previewFirstFolderIcons(folderId: string): boolean {
 interface LinkTileProps {
   link: LinkType;
   monitoringDetails: any;
-  setOpenDialogFor: (id: string) => void;
   setEditingLink: (link: LinkType) => void;
+  navigate: (to: string) => void;
   itemIdx?: number;
   isDragging?: boolean;
 }
@@ -817,8 +798,8 @@ interface LinkTileProps {
 function LinkTile({
   link,
   monitoringDetails,
-  setOpenDialogFor,
   setEditingLink,
+  navigate,
   itemIdx,
   isDragging,
 }: LinkTileProps) {
@@ -871,8 +852,9 @@ function LinkTile({
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                if (link.id && monitoringDetails && monitoringDetails[link.id]) {
-                  setOpenDialogFor(link.id);
+                const monitorId = link.id && monitoringDetails?.[link.id]?.id;
+                if (monitorId) {
+                  navigate(`/apps/monitoring/${monitorId}`);
                 }
               }}
               className="flex items-center justify-center"
@@ -946,7 +928,7 @@ function LinkFolderPopover({
   monitoringDetails,
   setEditingFolder,
   setEditingLink,
-  setOpenDialogFor,
+  navigate,
   toggleFolderPreview,
 }: {
   folder: {
@@ -960,7 +942,7 @@ function LinkFolderPopover({
   monitoringDetails: any;
   setEditingFolder: (f: { id: string; name: string; icon?: string } | null) => void;
   setEditingLink: (link: LinkType) => void;
-  setOpenDialogFor: (id: string) => void;
+  navigate: (to: string) => void;
   toggleFolderPreview: (folderId: string) => void;
 }) {
   const folderId = folder.recordId || folder.key;
@@ -1104,8 +1086,8 @@ function LinkFolderPopover({
               key={child.id || child.url || childIdx}
               link={child}
               monitoringDetails={monitoringDetails}
-              setOpenDialogFor={setOpenDialogFor}
               setEditingLink={setEditingLink}
+              navigate={navigate}
             />
           ))}
         </div>
