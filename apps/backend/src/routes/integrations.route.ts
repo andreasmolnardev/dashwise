@@ -1145,6 +1145,8 @@ function sanitizeCachedValue(value: unknown) {
     "mappedResponse" in value
   ) {
     value.rawResponse = null;
+    value.requestHeaders = {};
+    value.requestBody = null;
   }
 
   for (const child of Object.values(value)) {
