@@ -3,7 +3,7 @@ import { Hono } from "hono";
 import type { Context } from "hono";
 
 import { createNewsFeedRecordForUser, deleteNewsSavedArticle, deleteNewsSavedArticleList, getNewsFeed, getNewsFeedRecord, getNewsFeeds, getNewsSavedArticles, getNewsSubscriptions, saveNewsArticle, subscribeNewsFeed, unsubscribeNewsFeed, updateNewsFeed, updateNewsFeedRecordForUser, getNewsFeedMetadata, updateNewsSubscription, updateNewsSavedArticleReadState } from "../lib/data/news";
-import type { NewsFeedItem, NewsFeedMetadata, NewsFeedRecordCreateInput, NewsFeedRecordUpdateInput, NewsSubscribeInput, NewsUpdateInput } from "../lib/data/news";
+import type { NewsFeedItem, NewsFeedMetadata, NewsFeedRecordCreateInput, NewsFeedRecordUpdateInput, NewsSubscribeInput, NewsUpdateInput } from "@dashwise/types/sdk";
 
 import { readAuthToken, readJsonBody, requireAuth, withJson } from "./shared";
 import { createLogger } from "../lib/logger";
@@ -204,11 +204,17 @@ newsRoute
   }))
   .get("/api/v1/news/feeds/:id", withJson(async (c) => {
     const { userId } = await requireAuth({ token: readAuthToken(c) });
-    return getNewsFeed(userId, c.req.param("id"));
+    const limit = Number(c.req.query("limit") ?? "");
+    return getNewsFeed(userId, c.req.param("id"), {
+      limit: Number.isFinite(limit) && limit > 0 ? Math.floor(limit) : undefined,
+    });
   }))
   .get("/api/v1/news/feed", withJson(async (c) => {
     const { userId } = await requireAuth({ token: readAuthToken(c) });
-    return getNewsFeed(userId, c.req.query("feedId") ?? "all");
+    const limit = Number(c.req.query("limit") ?? "");
+    return getNewsFeed(userId, c.req.query("feedId") ?? "all", {
+      limit: Number.isFinite(limit) && limit > 0 ? Math.floor(limit) : undefined,
+    });
   }))
   .get("/api/v1/news/feed-records/:id", withJson(async (c) => {
     const { userId } = await requireAuth({ token: readAuthToken(c) });

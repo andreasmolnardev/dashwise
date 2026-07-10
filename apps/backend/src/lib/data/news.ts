@@ -16,10 +16,9 @@ import type {
   NewsSavedArticleList,
   NewsSavedArticlesResponse,
   NewsSubscribeInput,
-  NewsSubscription,
   NewsSubscriptionsResponse,
   NewsUpdateInput,
-} from "@dashwise/types/sdk-types";
+} from "@dashwise/types/sdk";
 import {
   deleteNewsSubscription,
   getAllNewsFeeds,
@@ -40,6 +39,23 @@ type NewsTopicDraft = {
   key: string;
   title: string;
   articles: NewsFeedItem[];
+};
+
+type NewsSubscription = {
+  id?: string;
+  userId?: string;
+  url?: string;
+  feedUrl?: string;
+  name?: string;
+  newFeedTitles?: string[];
+  linkReplaceRule?: Record<string, string>;
+  fallbackThumbnailUrl?: string;
+  thumbnailOverwriteUrl?: string;
+  similarityGroupingWordsBlacklist?: string;
+  enableTopicGrouping?: boolean;
+  json?: unknown;
+  title?: string;
+  icon?: string;
 };
 
 function escapeFilter(value: string) {
@@ -368,7 +384,7 @@ function normalizeSubscription(entry: Record<string, unknown> | null): NewsSubsc
   if (!url) return null;
 
   return {
-    id: entry.id ? String(entry.id) : undefined,
+    id: String(entry.id || ""),
     userId: entry.userId ? String(entry.userId) : undefined,
     url,
     feedUrl: url,
@@ -754,7 +770,11 @@ async function buildFeedFromSubscriptions(
   return feed.sort((left, right) => itemTime(right) - itemTime(left));
 }
 
-export async function getNewsFeed(userId: string, feedId?: string | null): Promise<NewsFeedItem[]> {
+export async function getNewsFeed(
+  userId: string,
+  feedId?: string | null,
+  options?: { limit?: number },
+): Promise<{ items: NewsFeedItem[]; total: number; limit: number }> {
   const feeds = await getUserFeeds(userId);
   const subscriptionIds = await getUserSubscriptionIdsFromFeeds(feeds);
   const excludedIds = await getUserExcludedSubscriptionIdsFromFeeds(feeds);
@@ -769,7 +789,16 @@ export async function getNewsFeed(userId: string, feedId?: string | null): Promi
     : subscriptions.filter((subscription) => !excludedIds.has(String(subscription.id || "")));
 
   const feed = await buildFeedFromSubscriptions(scopedSubscriptions, feedId, feeds);
-  return applyNewsTopics(userId, feed, scopedSubscriptions);
+  const limit = Number.isFinite(Number(options?.limit)) && Number(options?.limit) > 0
+    ? Math.floor(Number(options?.limit))
+    : 50;
+  const items = await applyNewsTopics(userId, feed, scopedSubscriptions);
+
+  return {
+    items: items.slice(0, limit),
+    total: items.length,
+    limit,
+  };
 }
 
 export async function getNewsSubscriptions(userId: string): Promise<NewsSubscriptionsResponse> {

@@ -10,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { GlanceableSide } from "./utils";
 import { useLocalization } from "@/context/LocalizationContext";
@@ -56,7 +56,7 @@ export function EditGlanceablesView({
   fonts,
 }: EditGlanceablesViewProps) {
   const localization = useLocalization();
-  const { withAuth } = useAuth();
+  const { withAuth, user } = useAuth();
   const editorTitle =
     selectedClockPart === "clock"
       ? "Edit Glanceable Clock"
@@ -125,7 +125,13 @@ export function EditGlanceablesView({
             <div className="flex min-h-10 items-center justify-center rounded-full px-2 py-0.5 frosted">
                 <GlanceableComponent
                   type={selectedClockType}
-                  params={clockGlanceables[selectedClockType] ?? {}}
+                  params={selectedClockType === "greeting"
+                    ? {
+                      ...(clockGlanceables[selectedClockType] ?? {}),
+                      username: clockGlanceables[selectedClockType]?.username ??
+                        user?.username,
+                    }
+                    : clockGlanceables[selectedClockType] ?? {}}
                 formatters={{
                   formatTemperature: localization.formatTemperature,
                   formatTime: localization.formatTime,
@@ -251,6 +257,28 @@ export function EditGlanceablesView({
                       <SelectItem value="manual">Manual</SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+              )}
+
+              {selectedClockType === "greeting" && (
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2 text-sm text-white/75">
+                    <Checkbox
+                      checked={Boolean(
+                        clockGlanceables[selectedClockType]?.showUsername,
+                      )}
+                      onCheckedChange={(checked) => {
+                        setClockGlanceables((prev) => ({
+                          ...prev,
+                          [selectedClockType]: {
+                            ...(prev[selectedClockType] ?? {}),
+                            showUsername: Boolean(checked),
+                          },
+                        }));
+                      }}
+                    />
+                    Show username
+                  </label>
                 </div>
               )}
 

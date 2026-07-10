@@ -135,6 +135,11 @@ configuration:
         - "open-prs"
         - "recent-open-prs"
         - "recent-stars"
+      inputs:
+        - name: "Repository"
+          key: "REPOSITORY"
+          type: "text"
+          required: true
       properties:
         header:
           title: "${REPOSITORY}"
