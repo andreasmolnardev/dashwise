@@ -1,10 +1,7 @@
 {
-    "weather": {
+    "weather": 
+       {
         "source": "/integrations/weather.yaml",
         "defaultEnv": {}
-    },
-    "tailscale": {
-        "source": "/integrations/tailscale.yaml",
-        "defaultEnv": {}
-    }
+       }
 }

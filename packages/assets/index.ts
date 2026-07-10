@@ -5,11 +5,9 @@ import integrationsDefaults from "./defaults/integrations.json";
 import shortcutsDefaults from "./defaults/shortcuts.json";
 import defaultIntegrations from "./integrations/default.yaml";
 import weatherIntegration from "./integrations/weather.yaml";
-import tailscaleIntegration from "./integrations/tailscale.yaml";
 
 export const defaultHomeConfig = homeDefaults;
 export const defaultIntegrationsManifest = integrationsDefaults;
 export const defaultShortcutsManifest = shortcutsDefaults;
 export const defaultIntegrationsBlueprint = defaultIntegrations;
 export const weatherIntegrationBlueprint = weatherIntegration;
-export const tailscaleIntegrationBlueprint = tailscaleIntegration;
