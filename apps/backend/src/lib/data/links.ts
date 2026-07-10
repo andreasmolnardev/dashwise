@@ -1,3 +1,4 @@
+import { ApiActionError } from "./auth";
 import { getServerPB } from "../pb/pocketbase";
 
 export interface LinkList {
@@ -112,7 +113,7 @@ export async function createLinksFolder(
     const listRecord = await pb.collection("linksLists").getOne(data.list);
 
     if (listRecord.user !== userId) {
-        throw new Error("Unauthorized");
+        throw new ApiActionError("Unauthorized", 401, { error: "Unauthorized" });
     }
 
     const normalizedName = String(data.name || "").trim();
@@ -235,7 +236,7 @@ export async function updateCollection(
     const pb = getServerPB();
 
     const list = await pb.collection("linksLists").getOne(listId);
-    if (list.user !== userId) throw new Error("Unauthorized");
+    if (list.user !== userId) throw new ApiActionError("Unauthorized", 401, { error: "Unauthorized" });
 
     const record = await pb.collection("linksLists").update(listId, {
         ...(data.name !== undefined && { name: String(data.name).trim() }),
@@ -288,18 +289,20 @@ function buildFolderPathResolver(
     };
 }
 
-let homeListId: string | null = null;
+const homeListIdByUser = new Map<string, string>();
 
 async function getHomeListId(userId: string) {
     const pb = getServerPB();
 
-    if (homeListId) return homeListId;
+    const cachedHomeListId = homeListIdByUser.get(userId);
+    if (cachedHomeListId) return cachedHomeListId;
+
     const list = await pb.collection("linksLists").getFirstListItem(
         `user = "${userId}" && type = "home"`,
         { fields: "id", skipTotal: true },
     );
-    homeListId = list.id;
-    return homeListId;
+    homeListIdByUser.set(userId, list.id);
+    return list.id;
 }
 
 export async function getHomeLinks(userId: string) {
@@ -461,7 +464,7 @@ export async function updateHomeLinkFolderIcon(
     const list = await pb.collection("linksLists").getOne(folder.list);
 
     if (list.user !== userId || list.type !== "home") {
-        throw new Error("Unauthorized");
+        throw new ApiActionError("Unauthorized", 401, { error: "Unauthorized" });
     }
 
     const updated = await pb.collection("linksFolders").update(folderId, {
@@ -646,7 +649,7 @@ export async function updateHomeLinkItem(
     const item = await pb.collection("linkItems").getOne(linkId);
     const list = await pb.collection("linksLists").getOne(item.collection);
     if (list.user !== userId || list.type !== "home") {
-        throw new Error("Unauthorized");
+        throw new ApiActionError("Unauthorized", 401, { error: "Unauthorized" });
     }
 
     const updateData: any = {};
@@ -731,7 +734,7 @@ export async function deleteCollection(
     const pb = getServerPB();
 
     const list = await pb.collection("linksLists").getOne(listId);
-    if (list.user !== userId) throw new Error("Unauthorized");
+    if (list.user !== userId) throw new ApiActionError("Unauthorized", 401, { error: "Unauthorized" });
 
     const [items, folders] = await Promise.all([
         pb.collection("linkItems").getFullList({
@@ -820,7 +823,7 @@ export async function createCollectionLinkItem(
     const list = await pb.collection("linksLists").getOne(data.collection);
 
     if (list.user !== userId) {
-        throw new Error("Unauthorized");
+        throw new ApiActionError("Unauthorized", 401, { error: "Unauthorized" });
     }
 
     return createLinkItem(data);
@@ -876,7 +879,7 @@ export async function deleteLinkItem(
 
     const item = await pb.collection("linkItems").getOne(linkId);
     const list = await pb.collection("linksLists").getOne(item.collection);
-    if (list.user !== userId) throw new Error("Unauthorized");
+    if (list.user !== userId) throw new ApiActionError("Unauthorized", 401, { error: "Unauthorized" });
 
     await pb.collection("linkItems").delete(linkId);
 }
