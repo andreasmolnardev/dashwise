@@ -16,6 +16,15 @@ configuration:
       key: "link-view"
       template: "link-view"
       category: "Links"
+    - name: "Latest Links"
+      key: "latest-links"
+      template: "latest-links"
+      category: "Links"
+      data:
+        input:
+          listId: ""
+          maxItems: 8
+          title: "Latest Links"
     - name: "Placeholder"
       key: "placeholder"
       template: "placeholder"
