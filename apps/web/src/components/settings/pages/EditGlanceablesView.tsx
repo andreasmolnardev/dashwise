@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { Separator } from "@/components/ui/separator";
 import { GlanceableSide } from "./utils";
 import { useLocalization } from "@/context/LocalizationContext";
 import useAuth from "@/context/useAuth";

@@ -228,6 +228,7 @@ function ResolvedGlanceable({
     return (
       <GlanceableComponent
         glanceableJSON={blueprint?.glanceableJSON}
+        data={resolved?.data}
         resolved={{
           text: blueprint?.text ?? "",
           icon: blueprint?.icon,
