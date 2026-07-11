@@ -547,11 +547,6 @@ function IntegrationWidget({
     };
   }, []);
 
-  // In IntegrationWidget
-  if (loading || !consumerPayload) {
-    return <WidgetLoadingState className={className} />;
-  }
-
   const consumerError = consumerPayload?.success === false
     ? typeof consumerPayload?.error === "string"
       ? consumerPayload.error
@@ -566,6 +561,10 @@ function IntegrationWidget({
         message={errorMessage}
       />
     );
+  }
+
+  if (loading || !consumerPayload) {
+    return <WidgetLoadingState className={className} />;
   }
 
   if (!consumerPayload?.blueprint?.widgetJSON) {

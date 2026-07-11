@@ -14,7 +14,6 @@ import {
 import { runVersionComparisonRunner } from "./updates/comparison-runner";
 import { runIntegrationUpdaterJob } from "./updates/integration-updater";
 import { runDefaultIntegrationsBootstrapJob } from "./updates/default-integrations";
-import { runPageConfigCleanupJob } from "./updates/pageconfig-cleanup";
 import { newsFeedBuilder } from "./news/feed-builder";
 import { processQueuedNotifications } from "./notifications/forwarder";
 import { createLogger } from "../lib/logger";
@@ -94,13 +93,6 @@ const runDefaultIntegrationsJob = (source: string) =>
     errorMessage: "Default integrations bootstrap failed",
   });
 
-const runPageConfigCleanup = (source: string) =>
-  runJob("pageConfigCleanup", runPageConfigCleanupJob, {
-    startMessage: `Triggered by ${source}`,
-    successMessage: "PageConfig cleanup completed",
-    errorMessage: "PageConfig cleanup failed",
-  });
-
 const runNewsFeedBuilderJob = (source: string, feedId?: string) =>
   runJob("newsFeedBuilder", () => newsFeedBuilder(feedId), {
     startMessage: `Triggered by ${source}${
@@ -160,7 +152,6 @@ export function registerJobsCron() {
   void runComparisonJob("initial run");
   void runIntegrationUpdateJob("initial run");
   void runDefaultIntegrationsJob("initial run");
-  void runPageConfigCleanup("initial run");
   Bun.cron(config.UPDATE_CHECK_SCHEDULE, async () => {
     await runComparisonJob("scheduled run");
     await runIntegrationUpdateJob("scheduled run");
@@ -168,10 +159,6 @@ export function registerJobsCron() {
 
   Bun.cron(config.DEFAULT_INTEGRATIONS_SCHEDULE, async () => {
     await runDefaultIntegrationsJob("scheduled run");
-  });
-
-  Bun.cron(config.PAGECONFIG_CLEANUP_SCHEDULE, async () => {
-    await runPageConfigCleanup("scheduled run");
   });
 
   void runNewsFeedBuilderJob("initial run");
@@ -192,7 +179,6 @@ export const jobsApi = {
   runComparisonJob,
   runIntegrationUpdateJob,
   runDefaultIntegrationsJob,
-  runPageConfigCleanup,
   runNewsFeedBuilderJob,
   runNotificationForwarderJob,
 };
