@@ -88,6 +88,7 @@ export default function NewsDashboardComponent() {
     const [newSaveListName, setNewSaveListName] = useState("");
     const [saveError, setSaveError] = useState<string | null>(null);
     const [feedTotal, setFeedTotal] = useState(0);
+    const [feedLoadedLimit, setFeedLoadedLimit] = useState(0);
 
     const itemsPerPage = 15;
     const { token, withAuth } = useAuth();
@@ -115,18 +116,23 @@ export default function NewsDashboardComponent() {
         }
     };
 
-    const loadFeed = async (page = 1) => {
+    const loadFeed = async (page = 1, options: { showLoading?: boolean } = {}) => {
         if (!token) return;
+        const showLoading = options.showLoading ?? true;
 
         try {
-            setFeed(null);
-            setFeedTotal(0);
+            if (showLoading) {
+                setFeed(null);
+                setFeedTotal(0);
+                setFeedLoadedLimit(0);
+            }
 
             if (activeSavedList) {
                 const data = await withAuth((auth) => getNewsSavedArticlesAction(auth, activeSavedList));
                 setSavedArticlesData(data);
                 setFeed(data.articles.map((article) => article.json));
                 setFeedTotal(data.articles.length);
+                setFeedLoadedLimit(data.articles.length);
                 return;
             }
 
@@ -136,6 +142,7 @@ export default function NewsDashboardComponent() {
             );
             setFeed(Array.isArray(data.items) ? data.items : []);
             setFeedTotal(Number(data.total || 0));
+            setFeedLoadedLimit(limit);
         } catch (err) {
             console.error("Failed to load news:", err);
         }
@@ -150,6 +157,16 @@ export default function NewsDashboardComponent() {
         setCurrentPage(1);
         loadFeed(1);
     }, [token, activeFeedId]);
+
+    useEffect(() => {
+        if (!token || activeSavedList || !feed || feedTotal <= feedLoadedLimit) return;
+
+        const nextPage = currentPage + 1;
+        if (nextPage > Math.ceil(feedTotal / itemsPerPage)) return;
+        if (feedLoadedLimit >= nextPage * itemsPerPage) return;
+
+        void loadFeed(nextPage, { showLoading: false });
+    }, [token, activeSavedList, feed, feedTotal, feedLoadedLimit, currentPage]);
 
     useEffect(() => {
         if (!token) return;
@@ -571,7 +588,9 @@ export default function NewsDashboardComponent() {
     const handlePageChange = (page: number) => {
         if (page === currentPage) return;
         setCurrentPage(page);
-        void loadFeed(page);
+        if (activeSavedList || feedLoadedLimit < page * itemsPerPage) {
+            void loadFeed(page);
+        }
     };
 
     return (

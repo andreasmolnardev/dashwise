@@ -1,39 +1,23 @@
-import Parser from "rss-parser";
-
 import {
   createNewsFeedItemsCache,
-  getAllNewsSubscriptions,
+  getAllNewsFeeds,
   getNewsFeedById,
   getNewsSubscriptionById,
   getNewsFeedItemsCacheByUrl,
+  updateNewsFeedRecord,
   updateNewsFeedItemsCache,
 } from "../../lib/data/superuser";
+import { applyNewsTopics, normalizeMaxFeedItems } from "../../lib/data/news";
 import { createLogger } from "../../lib/logger";
 import { getFeedItems } from "./helper";
 
-interface Subscription {
-  id?: string;
-  url?: string;
-  icon?: string;
-  title?: string;
-}
-
 interface NewsFeedRecord {
   id: string;
+  userId?: string;
   subscriptionRefs?: string[];
   excludedSubscriptionRefs?: string[];
+  maxFeedItems?: number;
   [k: string]: any;
-}
-
-interface NewsFeedItemsCacheRecord {
-  id: string;
-  url: string;
-  json: string;
-  [k: string]: any;
-}
-
-function escapeFilter(str: string) {
-  return str.replace(/"/g, '\\"');
 }
 
 interface FeedItem {
@@ -48,11 +32,6 @@ interface FeedItem {
   [key: string]: any;
 }
 
-type ParserItem = Parser.Item & FeedItem & {
-  'media:thumbnail'?: { $: { url: string } } | string;
-  enclosure?: { url: string; type: string };
-};
-
 const logger = createLogger("NewsFeedBuilder");
 
 export async function newsFeedBuilder(feedId?: string): Promise<{
@@ -63,8 +42,6 @@ export async function newsFeedBuilder(feedId?: string): Promise<{
   details: Array<any>;
 }> {
   const result = { processed: 0, skipped: 0, updated: 0, errors: 0, details: [] as any[] };
-
-  const maxItemsPerFeed = 50;
 
   logger.info("Running news feed builder");
 
@@ -79,7 +56,7 @@ export async function newsFeedBuilder(feedId?: string): Promise<{
         newsFeeds = singleFeed ? [singleFeed as NewsFeedRecord] : [];
       }
     } else {
-      const records = await getAllNewsSubscriptions(2000);
+      const records = await getAllNewsFeeds(2000);
       newsFeeds = Array.isArray(records) ? (records as NewsFeedRecord[]) : [];
     }
   } catch (err: any) {
@@ -100,6 +77,7 @@ export async function newsFeedBuilder(feedId?: string): Promise<{
 
   const processFeed = async (newsFeed: NewsFeedRecord) => {
     const feedResult = { processed: 1, skipped: 0, updated: 0, errors: 0, details: [] as any[] };
+    const maxFeedItems = normalizeMaxFeedItems(newsFeed.maxFeedItems);
     const subscriptions = newsFeed.subscriptionRefs?.length
       ? newsFeed.subscriptionRefs.map((subscriptionId) => ({ id: String(subscriptionId), url: String(subscriptionId) }))
       : newsFeed.id
@@ -129,9 +107,9 @@ export async function newsFeedBuilder(feedId?: string): Promise<{
       }
 
       try {
-        const feedItems = await getFeedItems({ 
-          feedUrl, 
-          maxItems: maxItemsPerFeed, 
+        const feedItems = await getFeedItems({
+          feedUrl,
+          maxItems: maxFeedItems,
           feedName: subscriptionRecord?.title || feedUrl,
           linkReplaceRule: subscriptionRecord?.linkReplaceRule as Record<string, string> | undefined,
           thumbnailOverwriteUrl: subscriptionRecord?.thumbnailOverwriteUrl,
@@ -140,6 +118,7 @@ export async function newsFeedBuilder(feedId?: string): Promise<{
         return {
           action: 'success',
           feedUrl,
+          subscription: subscriptionRecord,
           items: feedItems
         };
       } catch (err: any) {
@@ -153,10 +132,20 @@ export async function newsFeedBuilder(feedId?: string): Promise<{
     });
 
     const subResults = await Promise.all(subPromises);
+    const feedItems: Array<FeedItem & { subscription_id: string; subscription_name: string }> = [];
+    const topicSubscriptions: any[] = [];
 
     for (const res of subResults) {
       if (res.action === 'success') {
-        const items = (res.items ?? []).slice(0, maxItemsPerFeed);
+        const items = (res.items ?? []).slice(0, maxFeedItems);
+        const subscriptionId = String(res.subscription?.id || "");
+        const subscriptionName = String(res.subscription?.title || res.subscription?.name || res.feedUrl || "Subscription");
+        if (res.subscription) topicSubscriptions.push(res.subscription);
+        feedItems.push(...items.map((item) => ({
+          ...item,
+          subscription_id: subscriptionId,
+          subscription_name: subscriptionName,
+        })));
         try {
           const existing = await getNewsFeedItemsCacheByUrl(res.feedUrl!);
 
@@ -190,6 +179,25 @@ export async function newsFeedBuilder(feedId?: string): Promise<{
         feedResult.details.push({ feedId: newsFeed.id, ...res });
       } else {
         feedResult.details.push({ feedId: newsFeed.id, ...res });
+      }
+    }
+
+    if (newsFeed.userId) {
+      try {
+        const sortedItems = feedItems.sort((left, right) => new Date(right.pubDate).getTime() - new Date(left.pubDate).getTime());
+        const groupedItems = await applyNewsTopics(String(newsFeed.userId), sortedItems, topicSubscriptions);
+        await updateNewsFeedRecord(newsFeed.id, {
+          feedCache: groupedItems.slice(0, maxFeedItems),
+          maxFeedItems,
+        });
+        feedResult.updated++;
+      } catch (err: any) {
+        feedResult.errors++;
+        feedResult.details.push({
+          feedId: newsFeed.id,
+          action: 'feed_cache_update_error',
+          error: err?.message || String(err),
+        });
       }
     }
 

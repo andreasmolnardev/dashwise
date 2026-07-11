@@ -346,7 +346,7 @@ async function getUserTopicBlacklist(userId: string) {
   return effectiveTopicBlacklist(String(preferences.similarityGroupingWordsBlacklist || ""));
 }
 
-async function applyNewsTopics(userId: string, feed: NewsFeedItem[], subscriptions: NewsSubscription[]) {
+export async function applyNewsTopics(userId: string, feed: NewsFeedItem[], subscriptions: NewsSubscription[]) {
   const globalBlacklist = await getUserTopicBlacklist(userId).catch(() => topicStopWords);
   const topics = buildNewsTopics(feed, subscriptions, globalBlacklist);
   if (!topics.length) return feed;
@@ -504,6 +504,11 @@ function parseCachedItems(raw: unknown): NewsFeedItem[] {
   return [];
 }
 
+export function normalizeMaxFeedItems(value: unknown) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : 200;
+}
+
 function getSubscriptionItems(subscription: NewsSubscription): NewsFeedItem[] {
   return parseCachedItems(subscription.json);
 }
@@ -520,6 +525,8 @@ function normalizeFeedRecord(entry: Record<string, unknown> | null): NewsFeedRec
     excludedSubscriptionRefs: Array.isArray(entry.excludedSubscriptionRefs)
       ? entry.excludedSubscriptionRefs.map((value) => String(value).trim()).filter(Boolean)
       : [],
+    maxFeedItems: normalizeMaxFeedItems(entry.maxFeedItems),
+    feedCache: parseCachedItems(entry.feedCache),
   };
 }
 
@@ -549,6 +556,8 @@ export async function getNewsFeedRecord(userId: string, feedId: string): Promise
       title: "All feed",
       subscriptionRefs: [],
       excludedSubscriptionRefs: [],
+      maxFeedItems: 200,
+      feedCache: [],
     };
   }
 
@@ -576,6 +585,7 @@ export async function updateNewsFeedRecordForUser(
   const excludedSubscriptionRefs = Array.from(
     new Set((payload.excludedSubscriptionRefs ?? []).map((value) => String(value).trim()).filter(Boolean)),
   );
+  const maxFeedItems = normalizeMaxFeedItems(payload.maxFeedItems);
 
   if (normalizedFeedId === "all") {
     const existingFeed = (await getNewsFeedByTitle(userId, "All feed").catch(() => null)) as NewsFeedRecord | null;
@@ -584,6 +594,7 @@ export async function updateNewsFeedRecordForUser(
         title: title || "All feed",
         subscriptionRefs,
         excludedSubscriptionRefs,
+        maxFeedItems,
       });
     }
 
@@ -596,6 +607,8 @@ export async function updateNewsFeedRecordForUser(
       title: title || "All feed",
       subscriptionRefs: allSubscriptionRefs,
       excludedSubscriptionRefs,
+      maxFeedItems,
+      feedCache: [],
     });
   }
 
@@ -609,6 +622,7 @@ export async function updateNewsFeedRecordForUser(
     title: title || String((feedRecord as Record<string, unknown>).title ?? "").trim(),
     subscriptionRefs,
     excludedSubscriptionRefs,
+    maxFeedItems,
   });
 }
 
@@ -631,6 +645,8 @@ export async function createNewsFeedRecordForUser(
     title,
     subscriptionRefs: [],
     excludedSubscriptionRefs: [],
+    maxFeedItems: 200,
+    feedCache: [],
   })) as NewsFeedRecord;
 
   return normalizeFeedRecord(createdFeed as Record<string, unknown>);
@@ -776,6 +792,9 @@ export async function getNewsFeed(
   options?: { limit?: number },
 ): Promise<{ items: NewsFeedItem[]; total: number; limit: number }> {
   const feeds = await getUserFeeds(userId);
+  const selectedFeed = feedId && feedId !== "all"
+    ? feeds.find((feed) => String(feed.id) === String(feedId))
+    : feeds.find((feed) => String(feed.id) === "all" || String(feed.title || "").toLowerCase() === "all feed");
   const subscriptionIds = await getUserSubscriptionIdsFromFeeds(feeds);
   const excludedIds = await getUserExcludedSubscriptionIdsFromFeeds(feeds);
 
@@ -792,6 +811,14 @@ export async function getNewsFeed(
   const limit = Number.isFinite(Number(options?.limit)) && Number(options?.limit) > 0
     ? Math.floor(Number(options?.limit))
     : 50;
+  const cachedItems = parseCachedItems((selectedFeed as Record<string, unknown> | undefined)?.feedCache);
+  if (cachedItems.length) {
+    return {
+      items: cachedItems.slice(0, limit),
+      total: cachedItems.length,
+      limit,
+    };
+  }
   const items = await applyNewsTopics(userId, feed, scopedSubscriptions);
 
   return {

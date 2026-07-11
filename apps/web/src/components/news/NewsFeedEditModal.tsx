@@ -33,6 +33,7 @@ export default function NewsFeedEditModal({
     const [title, setTitle] = useState("");
     const [selectedSubscriptionIds, setSelectedSubscriptionIds] = useState<string[]>([]);
     const [query, setQuery] = useState("");
+    const [maxFeedItems, setMaxFeedItems] = useState("200");
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -47,6 +48,7 @@ export default function NewsFeedEditModal({
         setSelectedSubscriptionIds(isAllFeed
             ? [...(feed?.excludedSubscriptionRefs ?? [])]
             : [...(feed?.subscriptionRefs ?? [])]);
+        setMaxFeedItems(String(feed?.maxFeedItems || 200));
         setQuery("");
         setError(null);
     }, [feed, isAllFeed, open]);
@@ -101,6 +103,7 @@ export default function NewsFeedEditModal({
             }
 
             const normalizedTitle = title.trim();
+            const normalizedMaxFeedItems = Math.max(1, Math.floor(Number(maxFeedItems) || 200));
             const payload: NewsFeedRecordUpdateInput = {
                 feedId: feed.id,
                 title: isAllFeed ? "All" : normalizedTitle || String(feed.title || ""),
@@ -108,6 +111,7 @@ export default function NewsFeedEditModal({
                     ? sortedSubscriptions.map((entry) => entry.id)
                     : selectedSubscriptionIds,
                 excludedSubscriptionRefs: isAllFeed ? selectedSubscriptionIds : [],
+                maxFeedItems: normalizedMaxFeedItems,
             };
 
             await onSave(payload);
@@ -142,6 +146,19 @@ export default function NewsFeedEditModal({
                             value={isAllFeed ? "All" : title}
                             onChange={(event) => setTitle(event.target.value)}
                             disabled={saving || loading || isAllFeed}
+                        />
+                    </div>
+
+                    <div>
+                        <Label htmlFor="news-feed-max-items">Max feed items</Label>
+                        <Input
+                            id="news-feed-max-items"
+                            className="frosted mt-1"
+                            type="number"
+                            min={1}
+                            value={maxFeedItems}
+                            onChange={(event) => setMaxFeedItems(event.target.value)}
+                            disabled={saving || loading}
                         />
                     </div>
 
