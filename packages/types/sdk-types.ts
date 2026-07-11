@@ -71,6 +71,8 @@ export type NewsFeedRecord = {
   title: string;
   subscriptionRefs: string[];
   excludedSubscriptionRefs: string[];
+  maxFeedItems?: number;
+  feedCache?: NewsFeedItem[];
 };
 
 export type NewsFeedRecordUpdateInput = {
@@ -78,6 +80,7 @@ export type NewsFeedRecordUpdateInput = {
   title?: string;
   subscriptionRefs?: string[];
   excludedSubscriptionRefs?: string[];
+  maxFeedItems?: number;
 };
 
 export type NewsFeedDraft = {

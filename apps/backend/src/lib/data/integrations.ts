@@ -7,6 +7,7 @@ import { decodeBase64Json, parseNullableJson, tryParseJson, tryParseYaml } from 
 import { getEndpointCurl } from "@dashwise/integrationskit/data/getEndpointData";
 import { resolveIntegrationRuntimeProperties } from "@dashwise/integrationskit/data/resolveProperties";
 import { config } from "../config";
+import { prunePageConfigConsumersForIntegration } from "../../jobs/updates/pageconfig-cleanup";
 
 const TOKEN_REGEX = /\$\{([A-Za-z0-9_]+)\}/g;
 const UNRESOLVED_TOKEN_REGEX = /\$\{[A-Za-z0-9_]+\}/;
@@ -189,6 +190,8 @@ export async function deleteIntegration(userId: string, integrationId: string) {
     const pb = await getSuperuserPB();
     const record = await pb.collection("integrations").getOne(integrationId);
     if (!ownsIntegration(record, userId)) throw new ApiActionError("Not found", 404, { error: "Not found" });
+    const integration = mapIntegration(record);
+    await prunePageConfigConsumersForIntegration(userId, integrationId, integration.config as Record<string, any>);
     await pb.collection("integrations").delete(integrationId);
     return { success: true };
 }

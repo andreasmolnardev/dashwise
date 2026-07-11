@@ -69,32 +69,60 @@ export default function NewsLayout({ children }: { children: ReactNode }) {
 
         let mounted = true;
 
-        const loadSidebarData = async () => {
+        const loadFeedsAndSubscriptions = async () => {
             try {
-                const [subscriptionsData, feedsData, savedData]: any[] = await Promise.all([
+                const [subscriptionsData, feedsData]: any[] = await Promise.all([
                     withAuth((auth) => getNewsSubscriptionsAction(auth)),
                     withAuth((auth) => getNewsFeedsAction(auth)),
-                    withAuth((auth) => getNewsSavedArticlesAction(auth, activeSavedList)),
                 ]);
 
                 if (!mounted) return;
 
                 setSubscriptions(subscriptionsData?.subscriptions ?? []);
                 setFeeds(Array.isArray(feedsData?.feeds) ? feedsData.feeds : []);
-                setSavedLists(Array.isArray(savedData?.lists) ? savedData.lists : fallbackSavedLists);
-                setSavedArticles(Array.isArray(savedData?.articles) ? savedData.articles : []);
             } catch (error) {
-                console.error("Failed to load news subscriptions:", error);
+                console.error("Failed to load news feeds and subscriptions:", error);
                 if (mounted) {
                     setSubscriptions([]);
                     setFeeds([]);
+                }
+            }
+        };
+
+        loadFeedsAndSubscriptions();
+
+        return () => {
+            mounted = false;
+        };
+    }, [token, withAuth, sidebarRefreshVersion]);
+
+    useEffect(() => {
+        if (!token) {
+            setSavedLists([]);
+            setSavedArticles([]);
+            return;
+        }
+
+        let mounted = true;
+
+        const loadSavedArticles = async () => {
+            try {
+                const savedData = await withAuth((auth) => getNewsSavedArticlesAction(auth, activeSavedList));
+
+                if (!mounted) return;
+
+                setSavedLists(Array.isArray(savedData?.lists) ? savedData.lists : fallbackSavedLists);
+                setSavedArticles(Array.isArray(savedData?.articles) ? savedData.articles : []);
+            } catch (error) {
+                console.error("Failed to load news saved articles:", error);
+                if (mounted) {
                     setSavedLists([]);
                     setSavedArticles([]);
                 }
             }
         };
 
-        loadSidebarData();
+        loadSavedArticles();
 
         return () => {
             mounted = false;

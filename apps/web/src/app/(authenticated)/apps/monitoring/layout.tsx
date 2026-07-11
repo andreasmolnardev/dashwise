@@ -66,23 +66,46 @@ export default function MonitoringRootLayout() {
 
         const loadMonitors = async () => {
             try {
-                const [monitorList, sshHostList] = await Promise.all([
-                    withAuth((auth) => getMonitorsAction(auth)),
-                    withAuth((auth) => getMonitoringSshHostsAction(auth)),
-                ]);
+                const monitorList = await withAuth((auth) => getMonitorsAction(auth));
                 if (!mounted) return;
                 setMonitors(Array.isArray(monitorList) ? monitorList : []);
-                setSshHosts(Array.isArray(sshHostList) ? sshHostList : []);
             } catch (err) {
                 console.error("Failed to load monitors:", err);
                 if (mounted) {
                     setMonitors([]);
-                    setSshHosts([]);
                 }
             }
         };
 
         loadMonitors();
+
+        return () => {
+            mounted = false;
+        };
+    }, [token, withAuth]);
+
+    useEffect(() => {
+        if (!token) {
+            setSshHosts([]);
+            return;
+        }
+
+        let mounted = true;
+
+        const loadSshHosts = async () => {
+            try {
+                const sshHostList = await withAuth((auth) => getMonitoringSshHostsAction(auth));
+                if (!mounted) return;
+                setSshHosts(Array.isArray(sshHostList) ? sshHostList : []);
+            } catch (err) {
+                console.error("Failed to load SSH hosts:", err);
+                if (mounted) {
+                    setSshHosts([]);
+                }
+            }
+        };
+
+        loadSshHosts();
 
         return () => {
             mounted = false;
