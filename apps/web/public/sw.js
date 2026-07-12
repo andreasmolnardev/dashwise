@@ -1,4 +1,4 @@
-const CACHE_NAME = "background-cache-v1";
+const CACHE_NAME = "dashwise-cache-v2";
 
 self.addEventListener("install", event => {
   self.skipWaiting();
@@ -16,10 +16,23 @@ self.addEventListener("activate", event => {
 self.addEventListener("fetch", event => {
   const { request } = event;
 
-  if (request.destination === "image") {
+  const isGoogleFont =
+    request.url.startsWith("https://fonts.googleapis.com/") ||
+    request.url.startsWith("https://fonts.gstatic.com/");
+
+  if (request.destination === "image" || isGoogleFont) {
     event.respondWith(
       caches.match(request).then(cachedRes => {
         if (cachedRes) {
+          // Cached Geist assets can be used immediately while refreshing them
+          // in the background for future visits.
+          if (isGoogleFont) {
+            event.waitUntil(
+              fetch(request)
+                .then(networkRes => caches.open(CACHE_NAME).then(cache => cache.put(request, networkRes)))
+                .catch(() => undefined)
+            );
+          }
           return cachedRes;
         }
 
