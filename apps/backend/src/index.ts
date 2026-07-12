@@ -272,6 +272,7 @@ async function servePublicFile(requestPath: string) {
   return new Response(assetFile, {
     headers: {
       "Content-Type": contentType,
+      ...(isFont ? { "Cache-Control": "public, max-age=31536000, immutable" } : {}),
     },
   });
 }
