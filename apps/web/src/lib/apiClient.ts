@@ -33,6 +33,35 @@ client.setConfig({
   baseUrl: (getBaseUrl() ?? "").replace(/\/+$/, "") + apiBasePath,
 });
 
+function redirectToLoginAfterUnauthorized() {
+  if (typeof window === "undefined") return;
+
+  localStorage.removeItem("pb_user");
+  localStorage.removeItem("pb_token");
+  document.cookie = "pb_token=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax; Secure";
+  document.cookie = "pb_user=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax; Secure";
+
+  if (window.location.pathname !== "/auth/login") {
+    window.location.assign("/auth/login");
+  }
+}
+
+function handleUnauthorizedResponse(response?: Response) {
+  if (response?.status === 401) {
+    redirectToLoginAfterUnauthorized();
+  }
+}
+
+client.interceptors.response.use((response) => {
+  handleUnauthorizedResponse(response);
+  return response;
+});
+
+client.interceptors.error.use((error, response) => {
+  handleUnauthorizedResponse(response);
+  return error;
+});
+
 export function backendUrl(path: string) {
   return new URL(path.replace(/^\/+/, ""), getBaseUrl()).toString();
 }
@@ -108,9 +137,12 @@ function isWallpaperApiUrl(url: URL) {
   return url.pathname === "/api/v1/wallpapers" || url.pathname.endsWith("/api/v1/wallpapers");
 }
 
-export async function extractData<T>(result: { data?: T; error?: unknown }): Promise<T> {
+export async function extractData<T>(result: { data?: T; error?: unknown; response?: Response }): Promise<T> {
   if (result?.error) {
-    throw new Error(stringifyError(result.error));
+    const error = new Error(stringifyError(result.error)) as Error & { status?: number; body?: unknown };
+    error.status = result.response?.status;
+    error.body = result.error;
+    throw error;
   }
   return result?.data as T;
 }
@@ -122,6 +154,8 @@ export async function fetchWallpaperBlob(imageUrl: string, token?: string): Prom
     const response = await fetch(url.toString(), {
       headers: token ? { Authorization: `Bearer ${token}` } : undefined,
     });
+
+    handleUnauthorizedResponse(response);
 
     if (!response.ok) {
       throw new Error("Failed to fetch wallpaper");
@@ -391,9 +425,13 @@ async function fetchJsonAction<T>(auth: ActionAuth, path: string, init?: Request
       ...(init?.headers || {}),
     },
   });
+  handleUnauthorizedResponse(response);
   const data = await response.json().catch(() => null);
   if (!response.ok || data?._status >= 400) {
-    throw new Error(data?.error || data?.message || "Request failed");
+    const error = new Error(data?.error || data?.message || "Request failed") as Error & { status?: number; body?: unknown };
+    error.status = response.status;
+    error.body = data;
+    throw error;
   }
   return data as T;
 }
