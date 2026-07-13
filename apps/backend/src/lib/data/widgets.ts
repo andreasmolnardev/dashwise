@@ -277,6 +277,14 @@ async function getDefaultGlanceables(): Promise<GlanceableCatalogItem[]> {
     return mergeGlanceables(
         builtinGlanceables,
         weatherGlanceables,
+        [{
+            type: "latest-activities",
+            displayName: "Latest Activities",
+            exampleProps: {},
+            integrationName: "Builtin",
+            integrationDisplayName: "Builtin",
+            appName: "Builtin",
+        }],
     );
 }
 

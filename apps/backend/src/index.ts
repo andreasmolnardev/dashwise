@@ -55,6 +55,54 @@ app.route("/", dataRoute);
 
 app.get("/health", (c) => c.json({ status: "ok" }));
 
+app.get("/api/v1/activity", upgradeWebSocket((c) => {
+  let refreshTimer: ReturnType<typeof setInterval> | undefined;
+
+  return {
+    async onOpen(_event, ws) {
+      const token = c.req.query("token") || "";
+      try {
+        const { userId, pb } = await requireAuth({ token });
+        const sendSnapshot = async () => {
+          const [notificationResult, integrationResult] = await Promise.all([
+            getNotifications(userId),
+            listIntegrations(userId),
+          ]);
+          const calendarEvents = (await Promise.all(
+            integrationResult.integrations
+              .filter((integration) => integration.type === "caldav")
+              .map((integration) => getUpcomingEvents(
+                integration.environment,
+                integration.localData,
+                (localData) => pb.collection("integrations").update(integration.id, { localData }).then(() => undefined),
+              ).then((events) => events.map((event) => ({ ...event, id: `${integration.id}:${event.id}` }))).catch(() => [])),
+          )).flat().filter((event) => new Date(event.start).getTime() >= new Date().setHours(0, 0, 0, 0));
+          ws.send(JSON.stringify({ type: "activity:snapshot", notifications: notificationResult.items, calendarEvents }));
+        };
+
+        await sendSnapshot();
+        refreshTimer = setInterval(() => void sendSnapshot().catch(() => undefined), 30_000);
+        (ws as typeof ws & { data: { sendSnapshot: () => Promise<void> } }).data = { sendSnapshot };
+      } catch {
+        ws.close(1008, "Unauthorized");
+      }
+    },
+    onMessage(event, ws) {
+      try {
+        const message = JSON.parse(String(event.data));
+        if (message.type === "activity:subscribe" || message.type === "activity:refresh") {
+          void (ws as typeof ws & { data?: { sendSnapshot: () => Promise<void> } }).data?.sendSnapshot();
+        }
+      } catch {
+        // Ignore unsupported client activity messages.
+      }
+    },
+    onClose() {
+      if (refreshTimer) clearInterval(refreshTimer);
+    },
+  };
+}));
+
 app.get("/api/v1/monitoring/ssh-hosts/:id/console", upgradeWebSocket((c) => {
   let ssh: SshClient | null = null;
   let stream: import("ssh2").ClientChannel | null = null;

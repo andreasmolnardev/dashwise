@@ -26,9 +26,9 @@ import ProgressWidget from "./ProgressWidget";
 import ShortcutsWidget from "./ShortcutsWidget";
 import { useLocalization } from "@/context/LocalizationContext";
 import useAuth from "@/context/useAuth";
+import { useActivity } from "@/context/ActivityContext";
 import {
   getConsumerDataAction,
-  getIntegrationCalendarEventsAction,
   getLinksCollectionsAction,
   getLinksItemsAction,
   getNewsFeedAction,
@@ -345,61 +345,11 @@ function CalendarUpcomingWidgetWrapper({
   integrationId?: string;
   maxItems?: number;
 }) {
-  const { withAuth } = useAuth();
-  const [events, setEvents] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { calendarEvents } = useActivity();
 
-  useEffect(() => {
-    let cancelled = false;
-
-    const fetchEvents = async () => {
-      if (!integrationId) {
-        if (!withAuth) return;
-        try {
-          if (!cancelled) {
-            const eventsData = await withAuth((auth) =>
-              getIntegrationCalendarEventsAction(auth) // todo: take calendarId as param to fetch events for specific calendar
-            ) as any;
-            setEvents(eventsData?.events ?? []);
-          }
-        } catch (err) {
-          console.error("Failed to fetch calendar events", err);
-        } finally {
-          if (!cancelled) setLoading(false);
-        }
-        return;
-      }
-
-      try {
-        const eventsData = await withAuth((auth) =>
-          getIntegrationCalendarEventsAction(auth, integrationId)
-        ) as any;
-        if (!cancelled) {
-          setEvents(eventsData?.events ?? []);
-        }
-      } catch (err) {
-        console.error("Failed to fetch calendar events", err);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    };
-
-    void fetchEvents();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [integrationId, withAuth]);
-
-  if (loading) {
-    return (
-      <div className={`rounded-lg p-2 flex flex-col ${className}`}>
-        <div className="text-sm opacity-50 py-4 text-center text-foreground">
-          Loading...
-        </div>
-      </div>
-    );
-  }
+  const events = integrationId
+    ? calendarEvents.filter((event) => event.id.startsWith(`${integrationId}:`))
+    : calendarEvents;
 
   return (
     <CalendarUpcomingWidget

@@ -19,6 +19,7 @@ const FRONTEND_ONLY_GLANCEABLES = new Set([
   "greeting",
   "local-timezone",
   "world-clock",
+  "latest-activities",
 ]);
 
 type PageConsumerCandidate = {

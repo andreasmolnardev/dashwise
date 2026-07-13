@@ -46,6 +46,7 @@ const LOCAL_GLANCEABLE_TYPES = new Set([
   "week-progress",
   "month-progress",
   "year-progress",
+  "latest-activities",
 ]);
 
 const PROGRESS_GLANCEABLE_ALIASES = new Set([
