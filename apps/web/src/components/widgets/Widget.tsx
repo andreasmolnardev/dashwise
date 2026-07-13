@@ -23,6 +23,7 @@ import SearchBar from "./SearchBar";
 import IframeTemplate from "@dashwise/integrationskit/templates/IFrame";
 import Widget from "@dashwise/integrationskit/Widget";
 import ProgressWidget from "./ProgressWidget";
+import ShortcutsWidget from "./ShortcutsWidget";
 import { useLocalization } from "@/context/LocalizationContext";
 import useAuth from "@/context/useAuth";
 import {
@@ -109,6 +110,9 @@ export function renderWidget({
 
     case "link-view":
       return <LinkView />;
+
+    case "shortcuts":
+      return <ShortcutsWidget className={finalClassName} shortcutIds={Array.isArray(renderParams?.shortcutIds) ? renderParams.shortcutIds : []} />;
 
     case "placeholder":
       return <div className={`${className ?? ""}`} />;

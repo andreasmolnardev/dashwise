@@ -38,6 +38,7 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { renderWidget } from "@/components/widgets/Widget";
+import ShortcutsPicker from "@/components/widgets/ShortcutsPicker";
 import { EditGlanceablesView } from "@/components/settings/pages/EditGlanceablesView";
 import {
   ClockGlanceableSelection,
@@ -363,6 +364,7 @@ function WidgetTile({
                       <TabsContent value="input" className="space-y-4 pt-4 max-h-[50vh] overflow-y-auto">
                         <WidgetInputEditor
                           widgetId={columnWidget.id}
+                          widgetType={columnWidget.type}
                           schema={widgetConfig?.input ?? {}}
                           inputDraft={inputDraft}
                           onChange={setInputDraft}
@@ -409,6 +411,7 @@ function WidgetTile({
                     <div className="space-y-4 py-4">
                       <WidgetInputEditor
                         widgetId={columnWidget.id}
+                        widgetType={columnWidget.type}
                         schema={widgetConfig?.input ?? {}}
                         inputDraft={inputDraft}
                         onChange={setInputDraft}
@@ -513,6 +516,7 @@ function WidgetTile({
 
 function WidgetInputEditor({
   widgetId,
+  widgetType,
   schema,
   inputDraft,
   onChange,
@@ -520,12 +524,20 @@ function WidgetInputEditor({
   setDataError,
 }: {
   widgetId: string;
+  widgetType: string;
   schema?: Record<string, any>;
   inputDraft: Record<string, any>;
   onChange: (next: Record<string, any>) => void;
   dataError: string | null;
   setDataError: (value: string | null) => void;
 }) {
+  if (widgetType === "shortcuts") {
+    const shortcutIds = Array.isArray(inputDraft.shortcutIds)
+      ? inputDraft.shortcutIds.filter((id): id is string => typeof id === "string")
+      : [];
+    return <ShortcutsPicker value={shortcutIds} onChange={(nextIds) => onChange({ ...inputDraft, shortcutIds: nextIds })} />;
+  }
+
   return (
     <WidgetPropertiesForm
       idPrefix={`widget-input-${widgetId}`}
