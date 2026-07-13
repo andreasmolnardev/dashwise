@@ -11,6 +11,7 @@ import type {
   NewsFeedsResponse,
   NewsSubscribeInput,
   NewsSubscriptionsResponse,
+  NewsSubscriptionJsonResponse,
   NewsUpdateInput,
 } from "@dashwise/types/sdk";
 import type { PageConfig } from "@dashwise/types/sdk";
@@ -447,6 +448,10 @@ export async function createNewsFeedRecordAction(auth: ActionAuth, payload: News
 
 export async function getNewsSubscriptionsAction(auth: ActionAuth): Promise<NewsSubscriptionsResponse> {
   return extractData(await getNewsSubscriptions({ headers: authHeaders(auth) })) as Promise<NewsSubscriptionsResponse>;
+}
+
+export async function getNewsSubscriptionJsonAction(auth: ActionAuth, subscriptionId: string): Promise<NewsSubscriptionJsonResponse> {
+  return extractData(await sdk.getNewsSubscriptionsByIdJson({ path: { id: subscriptionId }, headers: authHeaders(auth) })) as Promise<NewsSubscriptionJsonResponse>;
 }
 
 export async function getNewsFeedsAction(auth: ActionAuth): Promise<NewsFeedsResponse> {

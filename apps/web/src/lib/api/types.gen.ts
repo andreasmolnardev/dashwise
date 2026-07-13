@@ -1643,6 +1643,24 @@ export type GetNewsSubscriptionsResponses = {
 
 export type GetNewsSubscriptionsResponse = GetNewsSubscriptionsResponses[keyof GetNewsSubscriptionsResponses];
 
+export type GetNewsSubscriptionsByIdJsonData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/news/subscriptions/{id}/json';
+};
+
+export type GetNewsSubscriptionsByIdJsonResponses = {
+    /**
+     * OK
+     */
+    200: GenericObject;
+};
+
+export type GetNewsSubscriptionsByIdJsonResponse = GetNewsSubscriptionsByIdJsonResponses[keyof GetNewsSubscriptionsByIdJsonResponses];
+
 export type GetNewsFeedsData = {
     body?: never;
     path?: never;

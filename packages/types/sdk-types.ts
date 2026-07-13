@@ -160,6 +160,11 @@ export type NewsSubscriptionsResponse = {
   subscriptions: NewsFeedDraft[];
 };
 
+export type NewsSubscriptionJsonResponse = {
+  id: string;
+  json: unknown;
+};
+
 export type NewsSubscribeInput = {
   feedUrl: string;
   name?: string;

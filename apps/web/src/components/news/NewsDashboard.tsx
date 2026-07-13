@@ -31,6 +31,7 @@ import {
     getNewsFeedAction,
     getNewsFeedRecordAction,
     getNewsFeedMetadataAction,
+    getNewsSubscriptionJsonAction,
     getNewsFeedsAction,
     getNewsSavedArticlesAction,
     getNewsSubscriptionsAction,
@@ -213,6 +214,16 @@ export default function NewsDashboardComponent() {
             if (target) {
                 setEditingFeed(target);
                 setAddOpen(true);
+
+                void withAuth((auth) => getNewsSubscriptionJsonAction(auth, String(target.id)))
+                    .then((feedJson) => {
+                        setEditingFeed((current) => current?.id === target.id
+                            ? { ...current, json: feedJson.json }
+                            : current);
+                    })
+                    .catch((err) => {
+                        console.error("Failed to load subscription feed JSON:", err);
+                    });
             }
             navigate(
                 `/apps/news/${activeFeedId === "all" ? "" : activeFeedId}`
@@ -784,6 +795,7 @@ export default function NewsDashboardComponent() {
                                     linkReplaceRule: editingFeed.linkReplaceRule,
                                     fallbackThumbnailUrl: editingFeed.fallbackThumbnailUrl,
                                     thumbnailOverwriteUrl: editingFeed.thumbnailOverwriteUrl,
+                                    json: editingFeed.json,
                                 }
                                 : newSubscriptionDefaults}
                             feeds={feeds}
