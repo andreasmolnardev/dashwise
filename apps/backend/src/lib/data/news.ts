@@ -56,6 +56,7 @@ type NewsSubscription = {
   json?: unknown;
   title?: string;
   icon?: string;
+  fetchErrors?: string;
 };
 
 function escapeFilter(value: string) {
@@ -397,6 +398,7 @@ function normalizeSubscription(entry: Record<string, unknown> | null): NewsSubsc
     thumbnailOverwriteUrl: entry.thumbnailOverwriteUrl ? String(entry.thumbnailOverwriteUrl) : undefined,
     similarityGroupingWordsBlacklist: entry.similarityGroupingWordsBlacklist ? String(entry.similarityGroupingWordsBlacklist) : "",
     enableTopicGrouping: entry.enableTopicGrouping !== false,
+    fetchErrors: entry.fetchErrors ? String(entry.fetchErrors) : "",
   };
 }
 
@@ -846,7 +848,6 @@ export async function getNewsSubscriptions(userId: string): Promise<NewsSubscrip
     url: subscription.url,
     feedUrl: String(subscription.feedUrl ?? subscription.url ?? ""),
     icon: subscription.icon,
-    json: subscription.json,
     title: subscription.title,
     name: subscription.name,
     feedIds: feeds
@@ -858,11 +859,30 @@ export async function getNewsSubscriptions(userId: string): Promise<NewsSubscrip
     thumbnailOverwriteUrl: subscription.thumbnailOverwriteUrl,
     similarityGroupingWordsBlacklist: subscription.similarityGroupingWordsBlacklist,
     enableTopicGrouping: subscription.enableTopicGrouping !== false,
+    fetchErrors: subscription.fetchErrors,
   }));
 
   return {
     id: null,
     subscriptions: subscriptionsWithFeedIds,
+  };
+}
+
+export async function getNewsSubscriptionJson(userId: string, subscriptionId: string): Promise<{ id: string; json: unknown }> {
+  const subscriptions = await getNewsSubscriptions(userId);
+  const subscription = subscriptions.subscriptions.find((entry) => String(entry.id || "") === subscriptionId);
+  if (!subscription?.id) {
+    throw new Error("News subscription not found");
+  }
+
+  const record = await getNewsSubscriptionById(subscription.id);
+  if (!record) {
+    throw new Error("News subscription not found");
+  }
+
+  return {
+    id: subscription.id,
+    json: (record as Record<string, unknown>).json ?? [],
   };
 }
 

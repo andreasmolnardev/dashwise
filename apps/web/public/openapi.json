@@ -1779,6 +1779,29 @@
 				}
 			}
 		},
+		"/news/subscriptions/{id}/json": {
+			"get": {
+				"tags": [
+					"news"
+				],
+				"summary": "Get cached news subscription feed JSON",
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"$ref": "#/components/responses/JsonOk"
+					}
+				}
+			}
+		},
 		"/news/feeds": {
 			"get": {
 				"tags": [

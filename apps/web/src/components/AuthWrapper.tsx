@@ -6,6 +6,7 @@ import useAuth from "@/context/useAuth";
 import { cn } from "@/lib/utils";
 import { fetchWallpaperBlob } from "@/lib/apiClient";
 import { LocalizationProvider } from "@/context/LocalizationContext";
+import { ActivityProvider } from "@/context/ActivityContext";
 import { normalizeWallpaperFilters } from "./settings/wallpaperFilterDefaults";
 
 type AuthWrapperProps = {
@@ -148,7 +149,9 @@ export default function AuthWrapper({ children }: AuthWrapperProps) {
   if (!isMounted) {
     return (
       <LocalizationProvider>
-        <div className={cn("min-h-screen overflow-hidden")}>{children}</div>
+        <ActivityProvider>
+          <div className={cn("min-h-screen overflow-hidden")}>{children}</div>
+        </ActivityProvider>
       </LocalizationProvider>
     );
   }
@@ -175,7 +178,7 @@ export default function AuthWrapper({ children }: AuthWrapperProps) {
           WebkitBackdropFilter: `blur(${blur}px) brightness(${appliedBrightness}%)`,
         }}
       >
-        {children}
+        <ActivityProvider>{children}</ActivityProvider>
       </div>
     </LocalizationProvider>
   );

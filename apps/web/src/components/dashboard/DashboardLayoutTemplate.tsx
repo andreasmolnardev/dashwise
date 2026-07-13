@@ -9,7 +9,7 @@ import PagesTabs from "../PagesTabs";
 import UpdateDetailsDialogComponent from "./UpdateDetailsDialog";
 import QuickLaunchPopover from "./QuickLaunchPopover";
 import useAuth from "@/context/useAuth";
-import { getNotificationsAction } from '@/lib/apiClient';
+import { useActivity } from "@/context/ActivityContext";
 import { getPageIntegrationDataAction } from '@/lib/apiClient';
 import { renderWidget } from "../widgets/Widget";
 import PageNotFound from "../errorPages/PageNotFound";
@@ -712,8 +712,8 @@ function BottomNavbar({
     showPages = true,
     columns,
 }: BottomNavbarProps) {
-    const { user, token, withAuth } = useAuth();
-    const [unreadCount, setUnreadCount] = useState<number>(0);
+    const { user } = useAuth();
+    const { unreadCount } = useActivity();
     const [showSmartFrameButton, setShowSmartFrameButton] = useState(false);
     const [isFullscreen, setIsFullscreen] = useState(() => {
         return typeof document !== "undefined" && !!document.fullscreenElement;
@@ -739,21 +739,6 @@ function BottomNavbar({
                 checkConfig,
             );
     }, [user?.screensaverPreferences]);
-
-    useEffect(() => {
-        const fetchNotifications = async () => {
-            if (!token) return;
-            try {
-                const data = await withAuth((auth) =>
-                    getNotificationsAction(auth, false, true)
-                ) as any;
-                setUnreadCount(data?.unread || 0);
-            } catch (err) {
-                console.error(err);
-            }
-        };
-        fetchNotifications();
-    }, [token, withAuth]);
 
     useEffect(() => {
         const onFullscreenChange = () => {

@@ -98,6 +98,7 @@ export type NewsFeedDraft = {
   thumbnailOverwriteUrl?: string;
   similarityGroupingWordsBlacklist?: string;
   enableTopicGrouping?: boolean;
+  fetchErrors?: string;
 };
 
 export type NewsFeedItem = {
@@ -157,6 +158,11 @@ export type NewsFeedsResponse = {
 export type NewsSubscriptionsResponse = {
   id: null;
   subscriptions: NewsFeedDraft[];
+};
+
+export type NewsSubscriptionJsonResponse = {
+  id: string;
+  json: unknown;
 };
 
 export type NewsSubscribeInput = {

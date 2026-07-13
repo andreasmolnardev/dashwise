@@ -21,11 +21,9 @@ import {
 import { Input } from "@/components/ui/input";
 import { Check, MoreHorizontal, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { NOTIFICATIONS_UPDATED_EVENT } from "@/lib/events";
 import {
     createNotificationTopicAction,
     deleteNotificationTopicAction,
-    getNotificationsAction,
     getNotificationTopicsAction,
     markNotificationsAsReadAction,
 } from '@/lib/apiClient';
@@ -34,6 +32,7 @@ import { listTopicTokensAction } from '@/lib/apiClient';
 import CreateForwarderDialogComponent from "@/components/notifications/CreateForwarderDialog";
 import CreateTopicTokenDialogComponent from "@/components/notifications/CreateTopicTokenDialog";
 import useAuth from "@/context/useAuth";
+import { useActivity } from "@/context/ActivityContext";
 
 export type NotificationItem = {
     id: string;
@@ -63,9 +62,63 @@ type TopicForwarderItem = {
     updated?: string | null;
 };
 
+function getNotificationTitle(notif: NotificationItem) {
+    return notif.title ||
+        (notif.content &&
+                typeof notif.content === "object" &&
+                "title" in notif.content
+            ? String(
+                (notif.content as { title?: string }).title || "",
+            )
+            : String(JSON.stringify(notif.content)));
+}
+
+function getNotificationDescription(notif: NotificationItem): React.ReactNode {
+    if (notif.description) return notif.description;
+
+    if (
+        notif.content &&
+        typeof notif.content === "object" &&
+        "description" in notif.content
+    ) {
+        return String(
+            (notif.content as { description?: string }).description,
+        );
+    }
+
+    const msg =
+        typeof notif.content === "string"
+            ? notif.content
+            : notif.content?.message as string | undefined;
+    if (!msg) return undefined;
+
+    const lines = msg.split(/\r?\n/).filter((line) => line.trim().length > 0);
+    if (lines.length === 1) return lines[0];
+
+    return (
+        <div className="flex flex-col gap-1">
+            {lines.map((line, index) => {
+                const dividerIndex = line.indexOf(":");
+                if (dividerIndex > 0) {
+                    const key = line.slice(0, dividerIndex).trim();
+                    const value = line.slice(dividerIndex + 1).trim();
+                    return (
+                        <div key={index}>
+                            <span className="font-medium">{key}:</span>{" "}
+                            {value}
+                        </div>
+                    );
+                }
+                return <div key={index}>{line}</div>;
+            })}
+        </div>
+    );
+}
+
 export default function NotificationsPage() {
     const { token, withAuth } = useAuth();
-    const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+    const { notifications: activityNotifications, refresh } = useActivity();
+    const notifications = activityNotifications as NotificationItem[];
     const [topics, setTopics] = useState<TopicItem[]>([]);
     const [activeTopic, setActiveTopic] = useState<string | null>(null);
     const [createTopicOpen, setCreateTopicOpen] = useState(false);
@@ -77,6 +130,10 @@ export default function NotificationsPage() {
     >(null);
     const [topicToDelete, setTopicToDelete] = useState<TopicItem | null>(null);
     const [helpOpen, setHelpOpen] = useState(false);
+    const [notificationDetailsOpen, setNotificationDetailsOpen] =
+        useState(false);
+    const [notificationDetails, setNotificationDetails] =
+        useState<NotificationItem | null>(null);
     const [topicDetailsOpen, setTopicDetailsOpen] = useState(false);
     const [topicDetailsTopic, setTopicDetailsTopic] = useState<TopicItem | null>(
         null
@@ -98,17 +155,8 @@ export default function NotificationsPage() {
         if (!token) return;
 
         try {
-            const [notResp, topicResp] = await withAuth((auth) =>
-                Promise.all([
-                    getNotificationsAction(auth),
-                    getNotificationTopicsAction(auth),
-                ])
-            );
-
-            const nextNotifications = notResp?.items || [];
+            const topicResp = await withAuth((auth) => getNotificationTopicsAction(auth));
             const nextTopics = topicResp?.items || [];
-
-            setNotifications(nextNotifications);
             setTopics(nextTopics);
             setActiveTopic((current) =>
                 current && !nextTopics.some((topic) => topic.id === current)
@@ -216,16 +264,7 @@ export default function NotificationsPage() {
             await withAuth((auth) =>
                 markNotificationsAsReadAction(auth, [notifId])
             );
-            setNotifications((prev) =>
-                prev.map((notification) =>
-                    notification.id === notifId
-                        ? { ...notification, status: "read" }
-                        : notification
-                )
-            );
-            if (typeof window !== "undefined") {
-                window.dispatchEvent(new Event(NOTIFICATIONS_UPDATED_EVENT));
-            }
+            refresh();
         } catch (err) {
             console.error("Failed to mark notification as read:", err);
         }
@@ -235,17 +274,17 @@ export default function NotificationsPage() {
         if (!token) return;
         try {
             await withAuth((auth) => markNotificationsAsReadAction(auth, []));
-            setNotifications((prev) =>
-                prev.map((notification) => ({
-                    ...notification,
-                    status: "read",
-                }))
-            );
-            if (typeof window !== "undefined") {
-                window.dispatchEvent(new Event(NOTIFICATIONS_UPDATED_EVENT));
-            }
+            refresh();
         } catch (err) {
             console.error("Failed to mark all notifications as read:", err);
+        }
+    };
+
+    const openNotificationDetails = (notification: NotificationItem) => {
+        setNotificationDetails(notification);
+        setNotificationDetailsOpen(true);
+        if (notification.status !== "read") {
+            markAsRead(notification.id);
         }
     };
 
@@ -475,81 +514,22 @@ export default function NotificationsPage() {
                                     minute: "2-digit",
                                 });
 
-                            const contentTitle = notif.title ||
-                                (notif.content &&
-                                        typeof notif.content === "object" &&
-                                        "title" in notif.content
-                                    ? String(
-                                        (notif.content as { title?: string })
-                                            .title || "",
-                                    )
-                                    : String(JSON.stringify(notif.content)));
-
-                            const contentDesc: React.ReactNode =
-                                notif.description ||
-                                (() => {
-                                    if (
-                                        notif.content &&
-                                        typeof notif.content === "object" &&
-                                        "description" in notif.content
-                                    ) {
-                                        return String(
-                                            (notif.content as {
-                                                description?: string;
-                                            }).description,
-                                        );
-                                    }
-
-                                    const msg =
-                                        typeof notif.content === "string"
-                                            ? notif.content
-                                            : (notif.content.message as
-                                                | string
-                                                | undefined);
-                                    if (!msg) return undefined;
-
-                                    const lines = msg.split(/\r?\n/).filter((
-                                        line,
-                                    ) => line.trim().length > 0);
-                                    if (lines.length === 1) return lines[0];
-
-                                    return (
-                                        <div className="flex flex-col gap-1">
-                                            {lines.map((line, index) => {
-                                                const dividerIndex = line
-                                                    .indexOf(":");
-                                                if (dividerIndex > 0) {
-                                                    const key = line.slice(
-                                                        0,
-                                                        dividerIndex,
-                                                    ).trim();
-                                                    const value = line.slice(
-                                                        dividerIndex + 1,
-                                                    ).trim();
-                                                    return (
-                                                        <div key={index}>
-                                                            <span className="font-medium">
-                                                                {key}:
-                                                            </span>{" "}
-                                                            {value}
-                                                        </div>
-                                                    );
-                                                }
-                                                return (
-                                                    <div key={index}>
-                                                        {line}
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    );
-                                })();
+                            const contentTitle = getNotificationTitle(notif);
+                            const contentDesc = getNotificationDescription(notif);
 
                             return (
                                 <div
                                     key={notif.id}
-                                    onClick={() => markAsRead(notif.id)}
-                                    className="frosted p-4 rounded-xl border border-white/20 backdrop-blur-md flex justify-between items-start shadow-lg group"
+                                    onClick={() => openNotificationDetails(notif)}
+                                    onKeyDown={(event) => {
+                                        if (event.key === "Enter" || event.key === " ") {
+                                            event.preventDefault();
+                                            openNotificationDetails(notif);
+                                        }
+                                    }}
+                                    role="button"
+                                    tabIndex={0}
+                                    className="frosted p-4 rounded-xl border border-white/20 backdrop-blur-md flex justify-between items-start shadow-lg group cursor-pointer"
                                 >
                                     <div className="flex flex-col gap-1 w-full">
                                         <div className="notification-header flex justify-between w-full">
@@ -578,25 +558,27 @@ export default function NotificationsPage() {
                                             </div>
                                         )}
                                         {contentDesc && (
-                                            <div className="text-sm text-foreground">
+                                            <div className="text-sm text-foreground line-clamp-4">
                                                 {contentDesc}
                                             </div>
                                         )}
                                     </div>
 
                                     <DropdownMenu>
-                                        <DropdownMenuTrigger asChild>
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                className="p-2"
-                                            >
+                                            <DropdownMenuTrigger asChild>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="p-2"
+                                                    onClick={(event) => event.stopPropagation()}
+                                                >
                                                 <MoreHorizontal />
                                             </Button>
                                         </DropdownMenuTrigger>
                                         <DropdownMenuContent
                                             align="end"
                                             className="frosted text-foreground"
+                                            onClick={(event) => event.stopPropagation()}
                                         >
                                             <DropdownMenuLabel className="font-semibold">
                                                 Actions
@@ -635,6 +617,41 @@ export default function NotificationsPage() {
                         })
                     )}
             </div>
+
+            <Dialog
+                open={notificationDetailsOpen}
+                onOpenChange={(open) => {
+                    setNotificationDetailsOpen(open);
+                    if (!open) setNotificationDetails(null);
+                }}
+            >
+                <DialogContent className="frosted text-foreground max-h-[85vh] max-w-2xl overflow-y-auto">
+                    {notificationDetails && (
+                        <>
+                            <DialogHeader>
+                                <DialogTitle>
+                                    {getNotificationTitle(notificationDetails)}
+                                </DialogTitle>
+                                <DialogDescription>
+                                    {notificationDetails.topicName} · {new Date(
+                                        notificationDetails.created,
+                                    ).toLocaleString()}
+                                </DialogDescription>
+                            </DialogHeader>
+
+                            {getNotificationDescription(notificationDetails) ? (
+                                <div className="whitespace-pre-wrap break-words text-sm leading-6 text-foreground/90">
+                                    {getNotificationDescription(notificationDetails)}
+                                </div>
+                            ) : (
+                                <p className="text-sm text-muted-foreground">
+                                    No description provided.
+                                </p>
+                            )}
+                        </>
+                    )}
+                </DialogContent>
+            </Dialog>
 
             <Dialog open={createTopicOpen} onOpenChange={setCreateTopicOpen}>
                 <DialogContent className="frosted text-foreground">

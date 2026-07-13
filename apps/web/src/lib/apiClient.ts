@@ -11,6 +11,7 @@ import type {
   NewsFeedsResponse,
   NewsSubscribeInput,
   NewsSubscriptionsResponse,
+  NewsSubscriptionJsonResponse,
   NewsUpdateInput,
 } from "@dashwise/types/sdk";
 import type { PageConfig } from "@dashwise/types/sdk";
@@ -52,6 +53,28 @@ export type MonitoringSshHostRecord = {
   status?: string;
   created?: string;
   updated?: string;
+};
+
+export type MonitoringHostRecord = MonitoringSshHostRecord & {
+  type?: "ssh" | "monitor";
+  systemInfo?: Record<string, unknown>;
+  lastConnectedAt?: string;
+};
+
+export type MonitoringHostStatsRecord = {
+  timestamp?: string;
+  created?: string;
+  stats?: Record<string, unknown>;
+  [key: string]: unknown;
+};
+
+export type MonitoringHostInput = {
+  name: string;
+  hostname: string;
+  port: number;
+  url: string;
+  liveUrl?: string;
+  token: string;
 };
 
 export type MonitoringSshHostInput = {
@@ -379,6 +402,23 @@ export async function getMonitoringSshHostsAction(auth: ActionAuth): Promise<Mon
   return fetchJsonAction(auth, "/monitoring/ssh-hosts");
 }
 
+export async function getMonitoringHostsAction(auth: ActionAuth): Promise<MonitoringHostRecord[]> {
+  return fetchJsonAction(auth, "/monitoring/hosts");
+}
+
+export async function createMonitoringHostAction(auth: ActionAuth, data: MonitoringHostInput): Promise<MonitoringHostRecord> {
+  return fetchJsonAction(auth, "/monitoring/hosts", { method: "POST", body: JSON.stringify(data) });
+}
+
+export async function getMonitoringHostHistoryAction(
+  auth: ActionAuth,
+  hostId: string,
+  timestamp?: string,
+): Promise<MonitoringHostStatsRecord[] | { records?: MonitoringHostStatsRecord[] }> {
+  const query = timestamp ? `?${new URLSearchParams({ timestamp })}` : "";
+  return fetchJsonAction(auth, `/monitoring/hosts/${hostId}/history${query}`);
+}
+
 export async function createMonitoringSshHostAction(auth: ActionAuth, data: MonitoringSshHostInput): Promise<MonitoringSshHostRecord> {
   return fetchJsonAction(auth, "/monitoring/ssh-hosts", { method: "POST", body: JSON.stringify(data) });
 }
@@ -408,6 +448,10 @@ export async function createNewsFeedRecordAction(auth: ActionAuth, payload: News
 
 export async function getNewsSubscriptionsAction(auth: ActionAuth): Promise<NewsSubscriptionsResponse> {
   return extractData(await getNewsSubscriptions({ headers: authHeaders(auth) })) as Promise<NewsSubscriptionsResponse>;
+}
+
+export async function getNewsSubscriptionJsonAction(auth: ActionAuth, subscriptionId: string): Promise<NewsSubscriptionJsonResponse> {
+  return extractData(await sdk.getNewsSubscriptionsByIdJson({ path: { id: subscriptionId }, headers: authHeaders(auth) })) as Promise<NewsSubscriptionJsonResponse>;
 }
 
 export async function getNewsFeedsAction(auth: ActionAuth): Promise<NewsFeedsResponse> {

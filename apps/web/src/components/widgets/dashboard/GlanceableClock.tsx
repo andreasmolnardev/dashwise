@@ -10,6 +10,8 @@ import GlanceableComponent from "@dashwise/integrationskit/Glanceable";
 import { usePageConfig } from "@/hooks/usePageConfig";
 import type { WidgetItemProps } from "../Widget";
 import { useLocalization } from "@/context/LocalizationContext";
+import { useActivity } from "@/context/ActivityContext";
+import { Bell, CalendarDays } from "lucide-react";
 import { readPageIntegrationConsumer } from "@/lib/pageIntegrationDataCache";
 import type { ClockAppearance } from "../../settings/ClockFontSelectionCarousel";
 
@@ -35,6 +37,7 @@ const LOCAL_ONLY_GLANCEABLES = new Set([
   "week-progress",
   "month-progress",
   "year-progress",
+  "latest-activities",
 ]);
 
 type GlanceableClockWidgetProps = WidgetItemProps & {
@@ -151,6 +154,7 @@ function ResolvedGlanceable({
   className?: string;
   formatters?: LocalizationFormatters;
 }) {
+  const { unreadCount, calendarEvents } = useActivity();
   const { withAuth } = useAuth();
   const [backendPayload, setBackendPayload] = useState<ResolvedGlanceablePayload | null>(null);
   const [loading, setLoading] = useState(false);
@@ -159,7 +163,7 @@ function ResolvedGlanceable({
   const resolved = preloaded?.consumer === "glanceable"
     ? (glanceableConsumerCache.set(cacheKey, preloaded as ResolvedGlanceablePayload), preloaded as ResolvedGlanceablePayload)
     : backendPayload ?? glanceableConsumerCache.get(cacheKey);
-  const shouldUseBackend = !LOCAL_ONLY_GLANCEABLES.has(type);
+  const shouldUseBackend = !LOCAL_ONLY_GLANCEABLES.has(type) && type !== "latest-activities";
   const blueprint = resolved?.blueprint;
   const hasBackendBlueprint = Boolean(blueprint?.text || blueprint?.icon || blueprint?.glanceableJSON);
 
@@ -224,6 +228,10 @@ function ResolvedGlanceable({
     };
   }, [cacheKey, params, preloaded, resolved, shouldUseBackend, type, withAuth]);
 
+  if (type === "latest-activities") {
+    return <LatestActivitiesGlanceable className={className} unreadCount={unreadCount} calendarEvents={calendarEvents} />;
+  }
+
   if (preloaded?.success === false) {
     return (
       <div className={`frosted rounded-md px-2 py-1 text-xs text-red-200 ${className ?? ""}`}>
@@ -265,6 +273,32 @@ function ResolvedGlanceable({
   }
 
   return <GlanceableComponent type={type} params={params} formatters={formatters} className={className} />;
+}
+
+function LatestActivitiesGlanceable({
+  className,
+  unreadCount,
+  calendarEvents,
+}: {
+  className?: string;
+  unreadCount: number;
+  calendarEvents: Array<{ id: string; title: string }>;
+}) {
+  const activities = [
+    ...(unreadCount > 0 ? [{ id: "notifications", icon: <Bell className="size-4" />, text: `${unreadCount} unread notification${unreadCount === 1 ? "" : "s"}` }] : []),
+    ...calendarEvents.slice(0, 5).map((event) => ({ id: event.id, icon: <CalendarDays className="size-4" />, text: event.title })),
+  ];
+  const [index, setIndex] = useState(0);
+
+  useEffect(() => {
+    setIndex(0);
+    if (activities.length < 2) return;
+    const interval = window.setInterval(() => setIndex((current) => (current + 1) % activities.length), 5_000);
+    return () => window.clearInterval(interval);
+  }, [activities.length]);
+
+  const activity = activities[index];
+  return activity ? <span className={`inline-flex items-center gap-1 text-center ${className ?? ""}`}>{activity.icon}{activity.text}</span> : null;
 }
 
 function stableStringify(value: Record<string, any>) {

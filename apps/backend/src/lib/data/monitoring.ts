@@ -54,10 +54,18 @@ export type MonitoringSshHostRecord = {
   credentialEncrypted?: string;
   hasCredential?: boolean;
   status?: string;
-  lastConnectedAt?: string;
   created?: string;
   updated?: string;
   [key: string]: unknown;
+};
+
+export type SystemAgentHostRecord = MonitoringSshHostRecord & {
+  type: "monitor";
+  systemInfo?: {
+    url?: string;
+    liveUrl?: string;
+    [key: string]: unknown;
+  };
 };
 
 type MonitorStatusSummary = {
@@ -263,14 +271,14 @@ export function getMonitoringSshHostCredentials<T = unknown>(host: MonitoringSsh
 
 export async function getMonitoringSshHosts(userId: string): Promise<MonitoringSshHostRecord[]> {
   const pb = await getSuperuserPB();
-  const hosts = await pb.collection("monitoringSSHHosts").getFullList({ filter: `userId = "${userId}"`, sort: "name" });
+  const hosts = await pb.collection("monitoringHosts").getFullList({ filter: `userId = "${userId}" && type = "ssh"`, sort: "name" });
   return hosts.map(sanitizeSshHost);
 }
 
 export async function getMonitoringSshHostById(userId: string, hostId: string): Promise<MonitoringSshHostRecord | null> {
   const pb = await getSuperuserPB();
-  const host = await pb.collection("monitoringSSHHosts").getOne(hostId).catch(() => null);
-  return host?.userId === userId ? host as any : null;
+  const host = await pb.collection("monitoringHosts").getOne(hostId).catch(() => null);
+  return host?.userId === userId && host.type === "ssh" ? host as any : null;
 }
 
 export async function getSafeMonitoringSshHostById(userId: string, hostId: string): Promise<MonitoringSshHostRecord | null> {
@@ -280,7 +288,7 @@ export async function getSafeMonitoringSshHostById(userId: string, hostId: strin
 
 export async function createMonitoringSshHost(userId: string, body: any): Promise<MonitoringSshHostRecord> {
   const pb = await getSuperuserPB();
-  const host = await pb.collection("monitoringSSHHosts").create(normalizeSshHostPayload(userId, body));
+  const host = await pb.collection("monitoringHosts").create({ ...normalizeSshHostPayload(userId, body), type: "ssh" });
   return sanitizeSshHost(host);
 }
 
@@ -288,7 +296,7 @@ export async function updateMonitoringSshHost(userId: string, hostId: string, bo
   const pb = await getSuperuserPB();
   const host = await getMonitoringSshHostById(userId, hostId);
   if (!host) return null;
-  const updated = await pb.collection("monitoringSSHHosts").update(hostId, normalizeSshHostPayload(userId, body, true));
+  const updated = await pb.collection("monitoringHosts").update(hostId, normalizeSshHostPayload(userId, body, true));
   return sanitizeSshHost(updated);
 }
 
@@ -296,8 +304,146 @@ export async function deleteMonitoringSshHost(userId: string, hostId: string) {
   const pb = await getSuperuserPB();
   const host = await getMonitoringSshHostById(userId, hostId);
   if (!host) return { _status: 404, error: "SSH host not found" };
-  await pb.collection("monitoringSSHHosts").delete(hostId);
+  await pb.collection("monitoringHosts").delete(hostId);
   return { success: true };
+}
+
+function normalizeSystemAgentPayload(userId: string, body: any, partial = false) {
+  const payload: Record<string, unknown> = { userId, type: "monitor", authType: "agent", username: "agent" };
+
+  if (!partial || body?.name !== undefined) {
+    const name = String(body?.name ?? "").trim();
+    if (!name) throw new Error("Host name is required");
+    payload.name = name;
+  }
+
+  if (!partial || body?.url !== undefined) {
+    const rawUrl = String(body?.url ?? "").trim();
+    let url: URL;
+    try {
+      url = new URL(rawUrl);
+    } catch {
+      throw new Error("System Agent URL must be a valid HTTP URL");
+    }
+    if (!["http:", "https:"].includes(url.protocol) || url.username || url.password || url.pathname !== "/" || url.search || url.hash) {
+      throw new Error("System Agent URL must be an HTTP origin without credentials or path");
+    }
+    payload.hostname = url.hostname;
+    payload.port = Number(url.port || (url.protocol === "https:" ? 443 : 80));
+    payload.systemInfo = { url: url.origin };
+  }
+
+  if (body?.liveUrl !== undefined) {
+    const liveUrl = String(body.liveUrl || "").trim();
+    if (liveUrl) {
+      let url: URL;
+      try {
+        url = new URL(liveUrl);
+      } catch {
+        throw new Error("System Agent live URL must be a valid WebSocket URL");
+      }
+      if (!["ws:", "wss:"].includes(url.protocol) || url.username || url.password) {
+        throw new Error("System Agent live URL must be a WebSocket URL without credentials");
+      }
+      payload.systemInfo = { ...(payload.systemInfo as object), liveUrl: url.toString() };
+    } else {
+      payload.systemInfo = { ...(payload.systemInfo as object), liveUrl: null };
+    }
+  }
+
+  if (body?.token !== undefined) {
+    const token = String(body.token || "").trim();
+    if (!token) throw new Error("System Agent token is required");
+    payload.credentialEncrypted = encryptSecret({ token });
+  } else if (!partial) {
+    throw new Error("System Agent token is required");
+  }
+
+  return payload;
+}
+
+export function getSystemAgentUrl(host: SystemAgentHostRecord): string {
+  const url = host.systemInfo?.url;
+  if (typeof url === "string" && url) return url;
+  return `http://${host.hostname}:${host.port}`;
+}
+
+export async function getSystemAgentHosts(userId: string): Promise<SystemAgentHostRecord[]> {
+  const pb = await getSuperuserPB();
+  const hosts = await pb.collection("monitoringHosts").getFullList({ filter: `userId = "${userId}" && type = "monitor"`, sort: "name" });
+  return hosts.map(sanitizeSshHost) as SystemAgentHostRecord[];
+}
+
+export async function getSystemAgentHostById(userId: string, hostId: string): Promise<SystemAgentHostRecord | null> {
+  const pb = await getSuperuserPB();
+  const host = await pb.collection("monitoringHosts").getOne(hostId).catch(() => null);
+  return host?.userId === userId && host.type === "monitor" ? host as unknown as SystemAgentHostRecord : null;
+}
+
+export async function getAllSystemAgentHosts(): Promise<SystemAgentHostRecord[]> {
+  const pb = await getSuperuserPB();
+  return await pb.collection("monitoringHosts").getFullList({ filter: `type = "monitor"` }) as unknown as SystemAgentHostRecord[];
+}
+
+export function getSystemAgentToken(host: SystemAgentHostRecord): string | null {
+  const credential = decryptSecret<{ token?: string }>(host.credentialEncrypted);
+  return typeof credential?.token === "string" && credential.token ? credential.token : null;
+}
+
+export async function createSystemAgentHost(userId: string, body: any): Promise<SystemAgentHostRecord> {
+  const pb = await getSuperuserPB();
+  const host = await pb.collection("monitoringHosts").create(normalizeSystemAgentPayload(userId, body));
+  return sanitizeSshHost(host) as SystemAgentHostRecord;
+}
+
+export async function updateSystemAgentHost(userId: string, hostId: string, body: any): Promise<SystemAgentHostRecord | null> {
+  const pb = await getSuperuserPB();
+  const host = await getSystemAgentHostById(userId, hostId);
+  if (!host) return null;
+  const payload = normalizeSystemAgentPayload(userId, body, true);
+  if (payload.systemInfo && host.systemInfo) payload.systemInfo = { ...host.systemInfo, ...(payload.systemInfo as object) };
+  const updated = await pb.collection("monitoringHosts").update(hostId, payload);
+  return sanitizeSshHost(updated) as SystemAgentHostRecord;
+}
+
+export async function deleteSystemAgentHost(userId: string, hostId: string) {
+  const pb = await getSuperuserPB();
+  const host = await getSystemAgentHostById(userId, hostId);
+  if (!host) return { _status: 404, error: "System Agent host not found" };
+  await Promise.all([
+    pb.collection("monitoringHosts").delete(hostId),
+    pb.collection("monitoringHostsStats").delete(hostId).catch(() => undefined),
+  ]);
+  return { success: true };
+}
+
+export async function saveSystemAgentStats(hostId: string, stats: Record<string, unknown>) {
+  const pb = await getSuperuserPB();
+  try {
+    return await pb.collection("monitoringHostsStats").update(hostId, { stats });
+  } catch {
+    try {
+      return await pb.collection("monitoringHostsStats").create({ id: hostId, stats });
+    } catch {
+      // HTTP polling and live updates may race while first stats record is created.
+      return pb.collection("monitoringHostsStats").update(hostId, { stats });
+    }
+  }
+}
+
+export async function getSystemAgentStats(userId: string, hostId: string) {
+  const host = await getSystemAgentHostById(userId, hostId);
+  if (!host) return null;
+  const pb = await getSuperuserPB();
+  return pb.collection("monitoringHostsStats").getOne(hostId).catch(() => null);
+}
+
+export async function updateSystemAgentConnection(hostId: string, status: "online" | "offline", systemInfo?: Record<string, unknown>) {
+  const pb = await getSuperuserPB();
+  return pb.collection("monitoringHosts").update(hostId, {
+    status,
+    ...(systemInfo ? { systemInfo: { ...systemInfo, lastConnectedAt: status === "online" ? new Date().toISOString() : systemInfo.lastConnectedAt } } : {}),
+  });
 }
 
 export async function getMonitoringStatus(userId: string, jobId?: string | null) {

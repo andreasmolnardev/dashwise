@@ -9,7 +9,11 @@ import { config } from "./lib/config";
 import { jobsApi, registerJobsCron } from "./jobs/index";
 import { startPocketbase } from "./pocketbase";
 import { createLogger } from "./lib/logger";
-import { getMonitoringSshHostById, getMonitoringSshHostCredentials } from "./lib/data/monitoring";
+import { getMonitoringSshHostById, getMonitoringSshHostCredentials, getSystemAgentHostById } from "./lib/data/monitoring";
+import { getNotifications } from "./lib/data/notifications/items";
+import { listIntegrations } from "./lib/data/integrations";
+import { getUpcomingEvents } from "./lib/calendar";
+import { systemAgentClient } from "./lib/systemAgent";
 import { requireAuth } from "./routes/shared";
 import authRoute from "./routes/auth.route";
 import systemRoute from "./routes/system.route";
@@ -33,6 +37,7 @@ type SshCredentials =
 
 const shutdown = () => {
   logger.info("Shutting down");
+  systemAgentClient.stop();
   process.exit(0);
 };
 
@@ -40,6 +45,7 @@ process.on("SIGTERM", shutdown);
 process.on("SIGINT", shutdown);
 
 registerJobsCron();
+void systemAgentClient.start();
 
 app.use("*", cors({ origin: "*" }));
 
@@ -48,6 +54,54 @@ app.route("/", systemRoute);
 app.route("/", dataRoute);
 
 app.get("/health", (c) => c.json({ status: "ok" }));
+
+app.get("/api/v1/activity", upgradeWebSocket((c) => {
+  let refreshTimer: ReturnType<typeof setInterval> | undefined;
+
+  return {
+    async onOpen(_event, ws) {
+      const token = c.req.query("token") || "";
+      try {
+        const { userId, pb } = await requireAuth({ token });
+        const sendSnapshot = async () => {
+          const [notificationResult, integrationResult] = await Promise.all([
+            getNotifications(userId),
+            listIntegrations(userId),
+          ]);
+          const calendarEvents = (await Promise.all(
+            integrationResult.integrations
+              .filter((integration) => integration.type === "caldav")
+              .map((integration) => getUpcomingEvents(
+                integration.environment,
+                integration.localData,
+                (localData) => pb.collection("integrations").update(integration.id, { localData }).then(() => undefined),
+              ).then((events) => events.map((event) => ({ ...event, id: `${integration.id}:${event.id}` }))).catch(() => [])),
+          )).flat().filter((event) => new Date(event.start).getTime() >= new Date().setHours(0, 0, 0, 0));
+          ws.send(JSON.stringify({ type: "activity:snapshot", notifications: notificationResult.items, calendarEvents }));
+        };
+
+        await sendSnapshot();
+        refreshTimer = setInterval(() => void sendSnapshot().catch(() => undefined), 30_000);
+        (ws as typeof ws & { data: { sendSnapshot: () => Promise<void> } }).data = { sendSnapshot };
+      } catch {
+        ws.close(1008, "Unauthorized");
+      }
+    },
+    onMessage(event, ws) {
+      try {
+        const message = JSON.parse(String(event.data));
+        if (message.type === "activity:subscribe" || message.type === "activity:refresh") {
+          void (ws as typeof ws & { data?: { sendSnapshot: () => Promise<void> } }).data?.sendSnapshot();
+        }
+      } catch {
+        // Ignore unsupported client activity messages.
+      }
+    },
+    onClose() {
+      if (refreshTimer) clearInterval(refreshTimer);
+    },
+  };
+}));
 
 app.get("/api/v1/monitoring/ssh-hosts/:id/console", upgradeWebSocket((c) => {
   let ssh: SshClient | null = null;
@@ -155,6 +209,35 @@ app.get("/api/v1/monitoring/ssh-hosts/:id/console", upgradeWebSocket((c) => {
   };
 }));
 
+app.get("/api/v1/monitoring/hosts/:id/stats/live", upgradeWebSocket((c) => {
+  let unsubscribe: (() => void) | undefined;
+  return {
+    async onOpen(_event, ws) {
+      const token = c.req.query("token") || c.req.header("Authorization")?.replace(/^Bearer\s+/i, "") || "";
+      try {
+        const { userId } = await requireAuth({ token });
+        const host = await getSystemAgentHostById(userId, c.req.param("id") || "");
+        if (!host) {
+          ws.close(1008, "Monitoring host not found");
+          return;
+        }
+        unsubscribe = systemAgentClient.subscribe(host.id, (entry) => {
+          try {
+            ws.send(JSON.stringify(entry));
+          } catch {
+            unsubscribe?.();
+          }
+        });
+      } catch {
+        ws.close(1008, "Unauthorized");
+      }
+    },
+    onClose() {
+      unsubscribe?.();
+    },
+  };
+}));
+
 app.get("/webhook/statusMonitoringIndexer", async (c) => {
   await jobsApi.runMonitoringIndexerJob("webhook");
   return c.json({ status: "success" });
@@ -248,6 +331,7 @@ async function servePublicFile(requestPath: string) {
   }
 
   const extension = assetPath.slice(assetPath.lastIndexOf(".")).toLowerCase();
+  const isFont = extension === ".ttf" || extension === ".woff" || extension === ".woff2";
   const contentType = {
     ".css": "text/css; charset=utf-8",
     ".html": "text/html; charset=utf-8",
