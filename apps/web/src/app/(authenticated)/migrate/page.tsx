@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import useAuth from "@/context/useAuth";
 import { Card } from "@/components/ui/card";
@@ -9,19 +9,22 @@ import { fixMissingTitlesAction } from '@/lib/apiClient';
 
 export default function MigratePage() {
   const [loading, setLoading] = useState(false);
-  const { token, user } = useAuth();
+  const { token, redirectToLogin, withAuthRedirect } = useAuth();
   const [result, setResult] = useState<string | null>(null);
 
-  const runMigration = async () => {
+  useEffect(() => {
     if (!token) {
-      setResult("Missing auth token");
-      return;
+      redirectToLogin();
     }
+  }, [redirectToLogin, token]);
 
+  if (!token) return null;
+
+  const runMigration = async () => {
     setLoading(true);
     setResult(null);
     try {
-      const res = await migrateLegacyPageConfigAction({ token });
+      const res = await withAuthRedirect(migrateLegacyPageConfigAction);
       setResult(JSON.stringify(res, null, 2));
     } catch (err) {
       setResult(String(err));
@@ -31,15 +34,10 @@ export default function MigratePage() {
   };
 
   const runFixMissingTitles = async () => {
-    if (!token) {
-      setResult("Missing auth token");
-      return;
-    }
-
     setLoading(true);
     setResult(null);
     try {
-      const res = await fixMissingTitlesAction({ token });
+      const res = await withAuthRedirect(fixMissingTitlesAction);
       setResult(JSON.stringify(res, null, 2));
     } catch (err) {
       setResult(String(err));

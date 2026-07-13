@@ -3,6 +3,7 @@
 import { updateUserPropertyAction } from '@/lib/apiClient';
 import type { ActionAuth, AuthUserRecord, UserPropertyValue } from "@dashwise/types/sdk";
 import { useCallback, useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 type AuthUser = AuthUserRecord;
 
@@ -16,6 +17,7 @@ function createUnauthorizedError() {
 }
 
 export function useAuth() {
+  const navigate = useNavigate();
   const [user, setUser] = useState<AuthUser>(() => {
     try {
       const raw = typeof window !== "undefined" ? localStorage.getItem("pb_user") : null;
@@ -133,6 +135,18 @@ export function useAuth() {
     [token]
   );
 
+  const redirectToLogin = useCallback(() => {
+    logout();
+    navigate("/auth/login", { replace: true });
+  }, [logout, navigate]);
+
+  const withAuthRedirect = useCallback(
+    async <T,>(fn: (auth: ActionAuth) => Promise<T>): Promise<T> => {
+      return withAuth(fn, redirectToLogin);
+    },
+    [redirectToLogin, withAuth]
+  );
+
   const updateUserProperty = useCallback(
     async (propertyName: string, propertyValue: UserPropertyValue) => {
       const updatedUser = await withAuth((auth) =>
@@ -145,7 +159,7 @@ export function useAuth() {
     [token, withAuth, setAuth]
   );
 
-  return { user, token, setAuth, setToken: setTokenOnly, logout, withAuth, updateUserProperty };
+  return { user, token, setAuth, setToken: setTokenOnly, logout, withAuth, withAuthRedirect, redirectToLogin, updateUserProperty };
 }
 
 
