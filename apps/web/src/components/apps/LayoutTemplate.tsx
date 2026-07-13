@@ -49,6 +49,7 @@ interface TabProps {
     isRoot?: boolean;
     fallbackIcon?: string;
     badge?: number | string;
+    hasError?: boolean;
     dropdownActions?: DropdownAction[];
 }
 
@@ -196,7 +197,7 @@ export default function AppTemplate({
 
 // ─── Tab ─────────────────────────────────────────────────────────────────────
 
-export function Tab({ dst, icon, title, group, isRoot, fallbackIcon, badge, dropdownActions }: TabProps) {
+export function Tab({ dst, icon, title, group, isRoot, fallbackIcon, badge, hasError, dropdownActions }: TabProps) {
     const { pathname, search, closeMobileSidebar } = useContext(SidebarContext);
     const destination = new URL(dst, "http://dashwise.local");
     const isActive = destination.search
@@ -207,7 +208,7 @@ export function Tab({ dst, icon, title, group, isRoot, fallbackIcon, badge, drop
 
     return (
         <div className="relative">
-            <div className="group flex items-center justify-between px-3 py-3 h-10 rounded-md relative z-10 select-none transition-all duration-150 frosted-lite">
+            <div className={`group flex items-center justify-between px-3 py-3 h-10 rounded-md relative z-10 select-none transition-all duration-150 frosted-lite ${hasError ? "bg-red-500/20 text-red-100" : ""}`}>
                 <Link
                     to={dst}
                     className="flex min-w-0 flex-1 items-center gap-2"
@@ -220,6 +221,8 @@ export function Tab({ dst, icon, title, group, isRoot, fallbackIcon, badge, drop
                         className={`h-4 w-4 shrink-0 transition-colors ${
                             isActive
                                 ? "text-primary"
+                                : hasError
+                                    ? "text-red-300"
                                 : "text-white/60 group-hover:text-primary"
                         }`}
                         imageClassName="object-contain"
@@ -228,6 +231,8 @@ export function Tab({ dst, icon, title, group, isRoot, fallbackIcon, badge, drop
                         className={`leading-none transition-colors ${
                             isActive
                                 ? "text-white"
+                                : hasError
+                                    ? "text-red-100"
                                 : "text-white/70 group-hover:text-white"
                         }`}
                     >

@@ -6,6 +6,7 @@ import {
   getNewsFeedItemsCacheByUrl,
   updateNewsFeedRecord,
   updateNewsFeedItemsCache,
+  updateNewsSubscription,
 } from "../../lib/data/superuser";
 import { applyNewsTopics, normalizeMaxFeedItems } from "../../lib/data/news";
 import { createLogger } from "../../lib/logger";
@@ -115,6 +116,9 @@ export async function newsFeedBuilder(feedId?: string): Promise<{
           thumbnailOverwriteUrl: subscriptionRecord?.thumbnailOverwriteUrl,
           fallbackThumbnailUrl: subscriptionRecord?.fallbackThumbnailUrl,
         }) as FeedItem[];
+        if (subscriptionRecord?.id) {
+          await updateNewsSubscription(subscriptionRecord.id, { fetchErrors: "" });
+        }
         return {
           action: 'success',
           feedUrl,
@@ -122,11 +126,17 @@ export async function newsFeedBuilder(feedId?: string): Promise<{
           items: feedItems
         };
       } catch (err: any) {
+        const error = err?.message || String(err);
+        const subName = subscriptionRecord?.title || subscriptionRecord?.name || subscriptionRecord?.url || sub.id;
+        if (subscriptionRecord?.id) {
+          await updateNewsSubscription(subscriptionRecord.id, { fetchErrors: error });
+        }
+        logger.error(`Error fetching feed "${subName}": ${error}`);
         return {
           action: 'feed_fetch_error',
-          subName: subscriptionRecord?.title || subscriptionRecord?.url || sub.id,
+          subName,
           feedUrl,
-          error: err?.message || String(err),
+          error,
         };
       }
     });

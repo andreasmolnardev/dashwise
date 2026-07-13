@@ -1,5 +1,4 @@
 import Parser from "rss-parser";
-import { createLogger } from "../../lib/logger";
 
 export interface FeedItem {
     title: string;
@@ -12,8 +11,6 @@ export interface FeedItem {
     summary?: string;
     [key: string]: any;
 }
-
-const logger = createLogger("NewsFeedBuilder");
 
 const FEED_REQUEST_HEADERS = {
     "User-Agent": "Dashwise RSS Reader (+https://github.com/andrew-d/dashwise)",
@@ -52,8 +49,6 @@ export async function getFeedItems({
     thumbnailOverwriteUrl?: string;
     fallbackThumbnailUrl?: string;
 }): Promise<FeedItem[]> {
-    const logger = createLogger("NewsFeedBuilder");
-
     const parser = new Parser<any, ParserItem>({
         headers: FEED_REQUEST_HEADERS,
         customFields: {
@@ -68,38 +63,33 @@ export async function getFeedItems({
         },
     });
 
-    try {
-        const feed = await parser.parseURL(feedUrl);
-        if (!feed.items?.length) return [];
+    const feed = await parser.parseURL(feedUrl);
+    if (!feed.items?.length) return [];
 
-        return feed.items
-            .map((item: ParserItem) => {
-                const pubDate = new Date(item.isoDate || item.pubDate || "");
-                
-                let link = item.link || "";
-                if (linkReplaceRule) {
-                    for (const [search, replace] of Object.entries(linkReplaceRule)) {
-                        link = link.replace(new RegExp(search, "g"), replace);
-                    }
+    return feed.items
+        .map((item: ParserItem) => {
+            const pubDate = new Date(item.isoDate || item.pubDate || "");
+
+            let link = item.link || "";
+            if (linkReplaceRule) {
+                for (const [search, replace] of Object.entries(linkReplaceRule)) {
+                    link = link.replace(new RegExp(search, "g"), replace);
                 }
+            }
 
-                return {
-                    title: stripHtml(item.title) || "No Title",
-                    link,
-                    description: truncateSentences(getBestDescription(item), 5),
-                    content: getContent(item),
-                    pubDate,
-                    thumbnailUrl: getThumbnail(item, thumbnailOverwriteUrl, fallbackThumbnailUrl || feed?.image?.url),
-                    author: item.author || (item as any).creator,
-                    source: feedName,
-                } as FeedItem;
-            })
-            .filter((item: FeedItem) => !isNaN(item.pubDate.getTime()))
-            .slice(0, maxItems);
-    } catch (error: any) {
-        logger.error(`Error fetching or parsing feed: ${feedUrl}`, error);
-        throw error;
-    }
+            return {
+                title: stripHtml(item.title) || "No Title",
+                link,
+                description: truncateSentences(getBestDescription(item), 5),
+                content: getContent(item),
+                pubDate,
+                thumbnailUrl: getThumbnail(item, thumbnailOverwriteUrl, fallbackThumbnailUrl || feed?.image?.url),
+                author: item.author || (item as any).creator,
+                source: feedName,
+            } as FeedItem;
+        })
+        .filter((item: FeedItem) => !isNaN(item.pubDate.getTime()))
+        .slice(0, maxItems);
 }
 
 function getDescription(item: ParserItem): string {

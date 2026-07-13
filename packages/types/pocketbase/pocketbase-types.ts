@@ -244,6 +244,7 @@ export type NewsFeedsRecord = {
 export type NewsSubscriptionsRecord<Tjson = unknown, TlinkReplaceRule = unknown> = {
 	created: IsoAutoDateString
 	fallbackThumbnailUrl?: string
+	fetchErrors?: string
 	icon?: string
 	id: string
 	json?: null | Tjson

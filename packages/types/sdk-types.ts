@@ -98,6 +98,7 @@ export type NewsFeedDraft = {
   thumbnailOverwriteUrl?: string;
   similarityGroupingWordsBlacklist?: string;
   enableTopicGrouping?: boolean;
+  fetchErrors?: string;
 };
 
 export type NewsFeedItem = {

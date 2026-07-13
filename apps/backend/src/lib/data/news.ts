@@ -56,6 +56,7 @@ type NewsSubscription = {
   json?: unknown;
   title?: string;
   icon?: string;
+  fetchErrors?: string;
 };
 
 function escapeFilter(value: string) {
@@ -397,6 +398,7 @@ function normalizeSubscription(entry: Record<string, unknown> | null): NewsSubsc
     thumbnailOverwriteUrl: entry.thumbnailOverwriteUrl ? String(entry.thumbnailOverwriteUrl) : undefined,
     similarityGroupingWordsBlacklist: entry.similarityGroupingWordsBlacklist ? String(entry.similarityGroupingWordsBlacklist) : "",
     enableTopicGrouping: entry.enableTopicGrouping !== false,
+    fetchErrors: entry.fetchErrors ? String(entry.fetchErrors) : "",
   };
 }
 
@@ -858,6 +860,7 @@ export async function getNewsSubscriptions(userId: string): Promise<NewsSubscrip
     thumbnailOverwriteUrl: subscription.thumbnailOverwriteUrl,
     similarityGroupingWordsBlacklist: subscription.similarityGroupingWordsBlacklist,
     enableTopicGrouping: subscription.enableTopicGrouping !== false,
+    fetchErrors: subscription.fetchErrors,
   }));
 
   return {

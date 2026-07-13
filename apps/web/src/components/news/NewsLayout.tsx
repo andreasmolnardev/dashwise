@@ -17,6 +17,7 @@ interface Subscription {
     url: string;
     icon?: string;
     feedIds?: string[];
+    fetchErrors?: string;
 }
 
 interface FeedRecord {
@@ -297,6 +298,7 @@ export default function NewsLayout({ children }: { children: ReactNode }) {
                         fallbackIcon="fa6-solid:rss"
                         title={subscription.title || subscription.url}
                         group="Subscriptions"
+                        hasError={Boolean(subscription.fetchErrors)}
                         dropdownActions={[
                             {
                                 label: "Edit",
