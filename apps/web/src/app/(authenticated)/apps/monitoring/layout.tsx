@@ -1,40 +1,42 @@
 "use client";
 
 import { Outlet, useSearchParams } from "react-router-dom";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import AppTemplate, { BottomTab, Content, GroupLabel, Sidebar, Tab } from "@/components/apps/LayoutTemplate";
 import useAuth from "@/context/useAuth";
 import { getMonitorsAction } from '@/lib/apiClient';
-import { getMonitoringSshHostsAction } from '@/lib/apiClient';
-import { getNotificationsAction } from '@/lib/apiClient';
-import type { MonitorRecord, MonitoringSshHostRecord } from '@/lib/apiClient';
-import { NOTIFICATIONS_UPDATED_EVENT } from "@/lib/events";
+import { getMonitoringHostsAction, getMonitoringSshHostsAction } from '@/lib/apiClient';
+import type { MonitorRecord, MonitoringHostRecord, MonitoringSshHostRecord } from '@/lib/apiClient';
+import { useActivity } from "@/context/ActivityContext";
 import config from "@/lib/config";
 import AddMonitoringResourceDialog from "@/components/monitoring/AddMonitoringResourceDialog";
 import SshHostDialog from "@/components/monitoring/SshHostDialog";
+import SystemAgentHostDialog from "@/components/monitoring/SystemAgentHostDialog";
 import { useMonitoringLinkLookup } from "@/components/monitoring/useMonitoringLinkLookup";
 import SshSessionsProvider from "@/components/monitoring/ssh/SshSessionsProvider";
 
 export default function MonitoringRootLayout() {
     const { token, withAuth } = useAuth();
+    const { unreadCount } = useActivity();
     const [monitors, setMonitors] = useState<MonitorRecord[]>([]);
     const [sshHosts, setSshHosts] = useState<MonitoringSshHostRecord[]>([]);
+    const [hosts, setHosts] = useState<MonitoringHostRecord[]>([]);
     const [sshHostDialogOpen, setSshHostDialogOpen] = useState(false);
+    const [systemAgentDialogOpen, setSystemAgentDialogOpen] = useState(false);
     const [editingSshHost, setEditingSshHost] = useState<MonitoringSshHostRecord | null>(null);
-    const [unreadCount, setUnreadCount] = useState<number>(0);
     const [searchParams, setSearchParams] = useSearchParams();
     const { entryById } = useMonitoringLinkLookup();
 
-    const fetchUnreadCount = useCallback(async () => {
-        if (!token) return;
-        try {
-            const data = await withAuth((auth) =>
-                getNotificationsAction(auth, false, true)
-            );
-            setUnreadCount(data?.unread || 0);
-        } catch (err) {
-            console.error(err);
+    useEffect(() => {
+        if (!token) {
+            setHosts([]);
+            return;
         }
+        let mounted = true;
+        void withAuth((auth) => getMonitoringHostsAction(auth))
+            .then((hostList) => { if (mounted) setHosts(Array.isArray(hostList) ? hostList : []); })
+            .catch((err) => { console.error("Failed to load monitoring hosts:", err); if (mounted) setHosts([]); });
+        return () => { mounted = false; };
     }, [token, withAuth]);
 
     const monitorDialogOpen = searchParams.get("newMonitor") === "true";
@@ -112,20 +114,6 @@ export default function MonitoringRootLayout() {
         };
     }, [token, withAuth]);
 
-    useEffect(() => {
-        fetchUnreadCount();
-    }, [fetchUnreadCount]);
-
-    useEffect(() => {
-        if (typeof window === "undefined") return;
-        window.addEventListener(NOTIFICATIONS_UPDATED_EVENT, fetchUnreadCount);
-        return () =>
-            window.removeEventListener(
-                NOTIFICATIONS_UPDATED_EVENT,
-                fetchUnreadCount,
-            );
-    }, [fetchUnreadCount]);
-
     return (
         <AppTemplate title="Monitoring">
              <Sidebar>
@@ -166,6 +154,11 @@ export default function MonitoringRootLayout() {
                     />
                         );
                     })()
+                ))}
+
+                <GroupLabel group="Hosts" title="Hosts" collapsible collapsed actions={[{ icon: "fa6-solid:plus", title: "Connect System Agent", action: () => setSystemAgentDialogOpen(true) }]} />
+                {hosts.map((host) => (
+                    <Tab key={host.id} dst={`/apps/monitoring/hosts/${host.id}`} icon="fa6-solid:hard-drive" title={host.name || host.hostname || host.id} group="Hosts" badge={host.status || undefined} />
                 ))}
 
                 <GroupLabel
@@ -210,6 +203,13 @@ export default function MonitoringRootLayout() {
                     setMonitors((current) => [monitor, ...current.filter((existing) => existing.id !== monitor.id)]);
                     closeMonitorDialog();
                 }}
+                onSystemAgentRequested={() => setSystemAgentDialogOpen(true)}
+            />
+
+            <SystemAgentHostDialog
+                open={systemAgentDialogOpen}
+                onOpenChange={setSystemAgentDialogOpen}
+                onSaved={(host) => setHosts((current) => [host, ...current.filter((existing) => existing.id !== host.id)])}
             />
 
             <SshHostDialog

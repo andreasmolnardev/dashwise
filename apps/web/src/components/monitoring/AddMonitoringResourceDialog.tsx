@@ -71,6 +71,7 @@ type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onCreated?: (monitor: MonitorRecord) => void;
+  onSystemAgentRequested?: () => void;
 };
 
 function LinkCombobox({
@@ -129,7 +130,7 @@ function LinkCombobox({
   );
 }
 
-export default function AddMonitoringResourceDialog({ open, onOpenChange, onCreated }: Props) {
+export default function AddMonitoringResourceDialog({ open, onOpenChange, onCreated, onSystemAgentRequested }: Props) {
   const { withAuth } = useAuth();
   const [collections, setCollections] = useState<LinkCollection[]>([]);
   const [items, setItems] = useState<LinkItem[]>([]);
@@ -313,15 +314,20 @@ export default function AddMonitoringResourceDialog({ open, onOpenChange, onCrea
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
               <Label>Resource Type</Label>
-              <Select value={resourceType} onValueChange={(value) => setResourceType(value as "link" | "system")}> 
+                <Select value={resourceType} onValueChange={(value) => {
+                  if (value === "system") {
+                    onOpenChange(false);
+                    onSystemAgentRequested?.();
+                    return;
+                  }
+                  setResourceType("link");
+                }}>
                 <SelectTrigger className="border-white/10 bg-white/5 text-white">
                   <SelectValue placeholder="Select resource type" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="link">Link</SelectItem>
-                  <SelectItem value="system" disabled>
-                    System
-                  </SelectItem>
+                  <SelectItem value="system">System Agent</SelectItem>
                 </SelectContent>
               </Select>
             </div>

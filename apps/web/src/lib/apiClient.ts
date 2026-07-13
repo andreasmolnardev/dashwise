@@ -54,6 +54,28 @@ export type MonitoringSshHostRecord = {
   updated?: string;
 };
 
+export type MonitoringHostRecord = MonitoringSshHostRecord & {
+  type?: "ssh" | "monitor";
+  systemInfo?: Record<string, unknown>;
+  lastConnectedAt?: string;
+};
+
+export type MonitoringHostStatsRecord = {
+  timestamp?: string;
+  created?: string;
+  stats?: Record<string, unknown>;
+  [key: string]: unknown;
+};
+
+export type MonitoringHostInput = {
+  name: string;
+  hostname: string;
+  port: number;
+  url: string;
+  liveUrl?: string;
+  token: string;
+};
+
 export type MonitoringSshHostInput = {
   name: string;
   hostname: string;
@@ -377,6 +399,23 @@ async function fetchJsonAction<T>(auth: ActionAuth, path: string, init?: Request
 
 export async function getMonitoringSshHostsAction(auth: ActionAuth): Promise<MonitoringSshHostRecord[]> {
   return fetchJsonAction(auth, "/monitoring/ssh-hosts");
+}
+
+export async function getMonitoringHostsAction(auth: ActionAuth): Promise<MonitoringHostRecord[]> {
+  return fetchJsonAction(auth, "/monitoring/hosts");
+}
+
+export async function createMonitoringHostAction(auth: ActionAuth, data: MonitoringHostInput): Promise<MonitoringHostRecord> {
+  return fetchJsonAction(auth, "/monitoring/hosts", { method: "POST", body: JSON.stringify(data) });
+}
+
+export async function getMonitoringHostHistoryAction(
+  auth: ActionAuth,
+  hostId: string,
+  timestamp?: string,
+): Promise<MonitoringHostStatsRecord[] | { records?: MonitoringHostStatsRecord[] }> {
+  const query = timestamp ? `?${new URLSearchParams({ timestamp })}` : "";
+  return fetchJsonAction(auth, `/monitoring/hosts/${hostId}/history${query}`);
 }
 
 export async function createMonitoringSshHostAction(auth: ActionAuth, data: MonitoringSshHostInput): Promise<MonitoringSshHostRecord> {

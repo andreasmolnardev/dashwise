@@ -9,7 +9,11 @@ import { config } from "./lib/config";
 import { jobsApi, registerJobsCron } from "./jobs/index";
 import { startPocketbase } from "./pocketbase";
 import { createLogger } from "./lib/logger";
-import { getMonitoringSshHostById, getMonitoringSshHostCredentials } from "./lib/data/monitoring";
+import { getMonitoringSshHostById, getMonitoringSshHostCredentials, getSystemAgentHostById } from "./lib/data/monitoring";
+import { getNotifications } from "./lib/data/notifications/items";
+import { listIntegrations } from "./lib/data/integrations";
+import { getUpcomingEvents } from "./lib/calendar";
+import { systemAgentClient } from "./lib/systemAgent";
 import { requireAuth } from "./routes/shared";
 import authRoute from "./routes/auth.route";
 import systemRoute from "./routes/system.route";
@@ -33,6 +37,7 @@ type SshCredentials =
 
 const shutdown = () => {
   logger.info("Shutting down");
+  systemAgentClient.stop();
   process.exit(0);
 };
 
@@ -40,6 +45,7 @@ process.on("SIGTERM", shutdown);
 process.on("SIGINT", shutdown);
 
 registerJobsCron();
+void systemAgentClient.start();
 
 app.use("*", cors({ origin: "*" }));
 
@@ -155,6 +161,35 @@ app.get("/api/v1/monitoring/ssh-hosts/:id/console", upgradeWebSocket((c) => {
   };
 }));
 
+app.get("/api/v1/monitoring/hosts/:id/stats/live", upgradeWebSocket((c) => {
+  let unsubscribe: (() => void) | undefined;
+  return {
+    async onOpen(_event, ws) {
+      const token = c.req.query("token") || c.req.header("Authorization")?.replace(/^Bearer\s+/i, "") || "";
+      try {
+        const { userId } = await requireAuth({ token });
+        const host = await getSystemAgentHostById(userId, c.req.param("id") || "");
+        if (!host) {
+          ws.close(1008, "Monitoring host not found");
+          return;
+        }
+        unsubscribe = systemAgentClient.subscribe(host.id, (entry) => {
+          try {
+            ws.send(JSON.stringify(entry));
+          } catch {
+            unsubscribe?.();
+          }
+        });
+      } catch {
+        ws.close(1008, "Unauthorized");
+      }
+    },
+    onClose() {
+      unsubscribe?.();
+    },
+  };
+}));
+
 app.get("/webhook/statusMonitoringIndexer", async (c) => {
   await jobsApi.runMonitoringIndexerJob("webhook");
   return c.json({ status: "success" });
@@ -248,6 +283,7 @@ async function servePublicFile(requestPath: string) {
   }
 
   const extension = assetPath.slice(assetPath.lastIndexOf(".")).toLowerCase();
+  const isFont = extension === ".ttf" || extension === ".woff" || extension === ".woff2";
   const contentType = {
     ".css": "text/css; charset=utf-8",
     ".html": "text/html; charset=utf-8",

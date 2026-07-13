@@ -517,7 +517,7 @@ export function Sidebar({ children }: { children: ReactNode }) {
                             const displayLabel = label?.props.title ?? label?.props.group;
                             const collapsible = Boolean(label?.props.collapsible);
                             const collapsed = collapsible
-                                ? (collapsedGroups[groupKey] ?? Boolean(label?.props.collapsed))
+                                ? (collapsedGroups[groupKey] ?? false)
                                 : false;
 
                             return (
@@ -537,16 +537,25 @@ export function Sidebar({ children }: { children: ReactNode }) {
                                         />
                                     )}
 
-                                    {!collapsed && groupTabs.map((tab, tabIndex) => (
+                                    {!collapsed && (groupTabs.length > 0 ? (
+                                        groupTabs.map((tab, tabIndex) => (
+                                            <div
+                                                key={`${groupKey || "ungrouped"}-tab-${tabIndex}`}
+                                                style={{
+                                                    animation: "tabDrop 0.24s ease-out both",
+                                                    animationDirection: collapsed ? "reverse" : "normal",
+                                                    animationDelay: `${tabIndex * 40}ms`,
+                                                }}
+                                            >
+                                                {tab}
+                                            </div>
+                                        ))
+                                    ) : (
                                         <div
-                                            key={`${groupKey || "ungrouped"}-tab-${tabIndex}`}
-                                            style={{
-                                                animation: "tabDrop 0.24s ease-out both",
-                                                animationDirection: collapsed ? "reverse" : "normal",
-                                                animationDelay: `${tabIndex * 40}ms`,
-                                            }}
-                                        >
-                                            {tab}
+                                            aria-disabled="true"
+                                            className="pointer-events-none px-3 py-2 text-sm text-white/35 select-none frosted-lite rounded-md"
+                                      >
+                                            No items available
                                         </div>
                                     ))}
                                 </div>

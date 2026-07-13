@@ -12,6 +12,13 @@ configuration:
       key: "search-bar"
       template: "search-bar"
       category: "Search"
+    - name: "Shortcuts"
+      key: "shortcuts"
+      template: "columns"
+      category: "Search"
+      data:
+        input:
+          shortcutIds: []
     - name: "Link View"
       key: "link-view"
       template: "link-view"
