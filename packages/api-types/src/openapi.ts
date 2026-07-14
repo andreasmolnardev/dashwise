@@ -887,7 +887,11 @@ export interface paths {
         /** Get news feed */
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    feedId?: string;
+                    limit?: number;
+                    offset?: number;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -2142,7 +2146,10 @@ export interface paths {
         /** Get news feed */
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    limit?: number;
+                    offset?: number;
+                };
                 header?: never;
                 path: {
                     id: string;

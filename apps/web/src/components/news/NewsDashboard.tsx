@@ -25,6 +25,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import NewsFeedEditModal from "./NewsFeedEditModal";
 import SubscriptionDetailsForm from "./SubscriptionDetailsForm";
+import { useNewsSidebarData } from "./NewsLayout";
 import {
     createNewsFeedRecordAction,
     deleteNewsSavedArticleAction,
@@ -32,9 +33,7 @@ import {
     getNewsFeedRecordAction,
     getNewsFeedMetadataAction,
     getNewsSubscriptionJsonAction,
-    getNewsFeedsAction,
     getNewsSavedArticlesAction,
-    getNewsSubscriptionsAction,
     refreshNewsFeedAction,
     saveNewsArticleAction,
     subscribeNewsFeedAction,
@@ -47,10 +46,7 @@ import type {
     NewsFeedDraft,
     NewsFeedItem,
     NewsFeedRecord,
-    NewsFeedSummary,
     NewsSavedArticlesResponse,
-    NewsFeedsResponse,
-    NewsSubscriptionsResponse,
 } from "@dashwise/types/sdk";
 
 export default function NewsDashboardComponent() {
@@ -67,10 +63,7 @@ export default function NewsDashboardComponent() {
     const editFeedRef = searchParams.get("feed");
 
     const [feed, setFeed] = useState<NewsFeedItem[] | null>(null);
-    const [subscriptions, setSubscriptions] = useState<NewsFeedDraft[] | null>(
-        null,
-    );
-    const [feeds, setFeeds] = useState<NewsFeedSummary[]>([]);
+    const { subscriptions, feeds, reloadSidebar } = useNewsSidebarData();
     const [currentPage, setCurrentPage] = useState(1);
     const [addOpen, setAddOpen] = useState(false);
     const [editingFeed, setEditingFeed] = useState<NewsFeedDraft | null>(null);
@@ -89,7 +82,6 @@ export default function NewsDashboardComponent() {
     const [newSaveListName, setNewSaveListName] = useState("");
     const [saveError, setSaveError] = useState<string | null>(null);
     const [feedTotal, setFeedTotal] = useState(0);
-    const [feedLoadedLimit, setFeedLoadedLimit] = useState(0);
 
     const itemsPerPage = 15;
     const { token, withAuth } = useAuth();
@@ -101,49 +93,28 @@ export default function NewsDashboardComponent() {
 
     if (!token) return null;
 
-    const loadSubscriptions = async () => {
+    const loadFeed = async (page = 1) => {
         if (!token) return;
 
         try {
-            const [subscriptionsData, feedsData]: [NewsSubscriptionsResponse, NewsFeedsResponse] = await Promise.all([
-                withAuth((auth) => getNewsSubscriptionsAction(auth)),
-                withAuth((auth) => getNewsFeedsAction(auth)),
-            ]);
-
-            setSubscriptions(subscriptionsData.subscriptions ?? []);
-            setFeeds(Array.isArray(feedsData.feeds) ? feedsData.feeds : []);
-        } catch (err) {
-            console.error("Failed to load subscriptions:", err);
-        }
-    };
-
-    const loadFeed = async (page = 1, options: { showLoading?: boolean } = {}) => {
-        if (!token) return;
-        const showLoading = options.showLoading ?? true;
-
-        try {
-            if (showLoading) {
-                setFeed(null);
-                setFeedTotal(0);
-                setFeedLoadedLimit(0);
-            }
+            setFeed(null);
+            setFeedTotal(0);
 
             if (activeSavedList) {
                 const data = await withAuth((auth) => getNewsSavedArticlesAction(auth, activeSavedList));
                 setSavedArticlesData(data);
                 setFeed(data.articles.map((article) => article.json));
                 setFeedTotal(data.articles.length);
-                setFeedLoadedLimit(data.articles.length);
                 return;
             }
 
-            const limit = Math.max(50, page * itemsPerPage);
+            const limit = itemsPerPage;
+            const offset = (page - 1) * itemsPerPage;
             const data = await withAuth((auth) =>
-                getNewsFeedAction(auth, activeFeedId, limit)
+                getNewsFeedAction(auth, activeFeedId, limit, offset)
             );
             setFeed(Array.isArray(data.items) ? data.items : []);
             setFeedTotal(Number(data.total || 0));
-            setFeedLoadedLimit(limit);
         } catch (err) {
             console.error("Failed to load news:", err);
         }
@@ -151,23 +122,9 @@ export default function NewsDashboardComponent() {
 
     // --- Fetch news ---
     useEffect(() => {
-        loadSubscriptions();
-    }, [token, withAuth]);
-
-    useEffect(() => {
         setCurrentPage(1);
         loadFeed(1);
     }, [token, activeFeedId]);
-
-    useEffect(() => {
-        if (!token || activeSavedList || !feed || feedTotal <= feedLoadedLimit) return;
-
-        const nextPage = currentPage + 1;
-        if (nextPage > Math.ceil(feedTotal / itemsPerPage)) return;
-        if (feedLoadedLimit >= nextPage * itemsPerPage) return;
-
-        void loadFeed(nextPage, { showLoading: false });
-    }, [token, activeSavedList, feed, feedTotal, feedLoadedLimit, currentPage]);
 
     useEffect(() => {
         if (!token) return;
@@ -321,8 +278,7 @@ export default function NewsDashboardComponent() {
 
         try {
             const createdFeed = await withAuth((auth) => createNewsFeedRecordAction(auth, { title }));
-            await loadSubscriptions();
-            window.dispatchEvent(new CustomEvent("dashwise:news-sidebar-refresh"));
+            reloadSidebar();
             closeCreateFeedModal();
 
             if (createdFeed?.id) {
@@ -400,7 +356,7 @@ export default function NewsDashboardComponent() {
             })
         );
 
-        await loadSubscriptions();
+        reloadSidebar();
         await refreshFeeds(
             String(feed.name ?? feed.title ?? feed.feedUrl ?? feed.url ?? "new feed"),
             feed.feedIds ?? [],
@@ -414,7 +370,7 @@ export default function NewsDashboardComponent() {
             unsubscribeNewsFeedAction(auth, String(subscription.id ?? subscription.url ?? ""))
         );
 
-        await loadSubscriptions();
+        reloadSidebar();
         await refreshFeeds(
             subscription.title || subscription.name || subscription.url || subscription.feedUrl || "feed",
             subscription.feedIds || [],
@@ -439,7 +395,7 @@ export default function NewsDashboardComponent() {
             })
         );
 
-        await loadSubscriptions();
+        reloadSidebar();
         await refreshFeeds(
             String(updatedFeed.name ?? updatedFeed.title ?? updatedFeed.feedUrl ?? updatedFeed.url ?? "feed"),
             updatedFeed.feedIds ?? [],
@@ -599,9 +555,7 @@ export default function NewsDashboardComponent() {
     const handlePageChange = (page: number) => {
         if (page === currentPage) return;
         setCurrentPage(page);
-        if (activeSavedList || feedLoadedLimit < page * itemsPerPage) {
-            void loadFeed(page);
-        }
+        void loadFeed(page);
     };
 
     return (
@@ -895,7 +849,7 @@ export default function NewsDashboardComponent() {
                     await withAuth((auth) => updateNewsFeedRecordAction(auth, payload));
                     setEditFeedOpen(false);
                     setEditingNewsFeed(null);
-                    await loadSubscriptions();
+                    reloadSidebar();
                 }}
             />
 

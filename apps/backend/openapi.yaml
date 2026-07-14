@@ -418,6 +418,24 @@ paths:
       tags:
         - news
       summary: Get news feed
+      parameters:
+        - name: feedId
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
       responses:
         "200":
           $ref: "#/components/responses/JsonOk"
@@ -1028,6 +1046,18 @@ paths:
           required: true
           schema:
             type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
       responses:
         "200":
           $ref: "#/components/responses/JsonOk"

@@ -467,11 +467,11 @@ export async function updateMonitoringSshHostAction(auth: ActionAuth, hostId: st
 
 // --- News actions ---
 
-export async function getNewsFeedAction(auth: ActionAuth, feedId?: string | null, limit?: number): Promise<NewsFeedPageResponse> {
+export async function getNewsFeedAction(auth: ActionAuth, feedId?: string | null, limit?: number, offset?: number): Promise<NewsFeedPageResponse> {
   return extractData(await client.get({
     url: "/news/feeds/{id}",
     path: { id: feedId ?? "all" },
-    query: limit ? { limit } : undefined,
+    query: limit || offset ? { limit, offset } : undefined,
     headers: authHeaders(auth),
   })) as Promise<NewsFeedPageResponse>;
 }
