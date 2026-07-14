@@ -109,12 +109,13 @@ export async function createJobLog(payload: Record<string, unknown>) {
 	return safeNull((pb) => pb.collection("jobLogs").create(payload, { requestKey: null }));
 }
 
-export async function getAllNewsFeeds(batchSize = 2000) {
-	return safeNull((pb) => pb.collection("newsFeeds").getFullList(batchSize));
+export async function getAllNewsFeeds(batchSize = 2000, options?: Record<string, unknown>) {
+	return safeNull((pb) => pb.collection("newsFeeds").getFullList(batchSize, options));
 }
 
-export async function getNewsFeedsByUserId(userId: string, batchSize = 2000) {
+export async function getNewsFeedsByUserId(userId: string, batchSize = 2000, options?: Record<string, unknown>) {
 	return safeNull((pb) => pb.collection("newsFeeds").getFullList(batchSize, {
+		...options,
 		filter: `userId="${userId.replace(/"/g, '\\"')}"`,
 	}));
 }
@@ -136,8 +137,8 @@ export async function updateNewsFeedRecord(
 	return safeNull((pb) => pb.collection("newsFeeds").update(feedId, payload));
 }
 
-export async function getAllNewsSubscriptions(batchSize = 2000) {
-	return safeNull((pb) => pb.collection("newsSubscriptions").getFullList(batchSize));
+export async function getAllNewsSubscriptions(batchSize = 2000, options?: Record<string, unknown>) {
+	return safeNull((pb) => pb.collection("newsSubscriptions").getFullList(batchSize, options));
 }
 
 export async function getNewsFeedById(feedId: string) {

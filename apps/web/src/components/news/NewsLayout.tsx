@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import useAuth from "@/context/useAuth";
 import {
@@ -11,7 +11,7 @@ import {
 } from '@/lib/apiClient';
 import AppTemplate, { Content, GroupLabel, Sidebar, Tab } from "@/components/apps/LayoutTemplate";
 
-interface Subscription {
+export interface Subscription {
     id?: string;
     title?: string;
     url: string;
@@ -20,7 +20,7 @@ interface Subscription {
     fetchErrors?: string;
 }
 
-interface FeedRecord {
+export interface FeedRecord {
     id: string;
     title?: string;
 }
@@ -39,6 +39,20 @@ interface SavedArticleRecord {
 }
 
 const fallbackSavedLists = [{ id: "readLater", name: "Read Later" }];
+
+type NewsSidebarContextValue = {
+    subscriptions: Subscription[];
+    feeds: FeedRecord[];
+    reloadSidebar: () => void;
+};
+
+const NewsSidebarContext = createContext<NewsSidebarContextValue | null>(null);
+
+export function useNewsSidebarData() {
+    const context = useContext(NewsSidebarContext);
+    if (!context) throw new Error("useNewsSidebarData must be used inside NewsLayout");
+    return context;
+}
 
 export default function NewsLayout({ children }: { children: ReactNode }) {
     const { token, withAuth } = useAuth();
@@ -70,27 +84,27 @@ export default function NewsLayout({ children }: { children: ReactNode }) {
 
         let mounted = true;
 
-        const loadFeedsAndSubscriptions = async () => {
+        const loadSubscriptions = async () => {
             try {
-                const [subscriptionsData, feedsData]: any[] = await Promise.all([
-                    withAuth((auth) => getNewsSubscriptionsAction(auth)),
-                    withAuth((auth) => getNewsFeedsAction(auth)),
-                ]);
-
-                if (!mounted) return;
-
-                setSubscriptions(subscriptionsData?.subscriptions ?? []);
-                setFeeds(Array.isArray(feedsData?.feeds) ? feedsData.feeds : []);
+                const data = await withAuth((auth) => getNewsSubscriptionsAction(auth));
+                if (mounted) setSubscriptions(data?.subscriptions ?? []);
             } catch (error) {
-                console.error("Failed to load news feeds and subscriptions:", error);
-                if (mounted) {
-                    setSubscriptions([]);
-                    setFeeds([]);
-                }
+                console.error("Failed to load news subscriptions:", error);
+                if (mounted) setSubscriptions([]);
             }
         };
 
-        loadFeedsAndSubscriptions();
+        const loadFeeds = async () => {
+            try {
+                const data = await withAuth((auth) => getNewsFeedsAction(auth));
+                if (mounted) setFeeds(Array.isArray(data?.feeds) ? data.feeds : []);
+            } catch (error) {
+                console.error("Failed to load news feeds:", error);
+                if (mounted) setFeeds([]);
+            }
+        };
+
+        void Promise.all([loadSubscriptions(), loadFeeds()]);
 
         return () => {
             mounted = false;
@@ -206,7 +220,10 @@ export default function NewsLayout({ children }: { children: ReactNode }) {
         }
     };
 
+    const reloadSidebar = () => setSidebarRefreshVersion((version) => version + 1);
+
     return (
+        <NewsSidebarContext.Provider value={{ subscriptions, feeds, reloadSidebar }}>
         <AppTemplate title="News">
             <Sidebar>
                 <GroupLabel
@@ -317,5 +334,6 @@ export default function NewsLayout({ children }: { children: ReactNode }) {
                 </>
             </Content>
         </AppTemplate>
+        </NewsSidebarContext.Provider>
     );
 }

@@ -21,7 +21,6 @@ import type {
 } from "@dashwise/types/sdk";
 import {
   deleteNewsSubscription,
-  getAllNewsFeeds,
   getAllNewsSubscriptions,
   getNewsFeedById,
   getNewsFeedByTitle,
@@ -403,8 +402,10 @@ function normalizeSubscription(entry: Record<string, unknown> | null): NewsSubsc
 }
 
 async function getUserFeeds(userId: string): Promise<NewsFeedRecord[]> {
-  const feeds = await getAllNewsFeeds(2000);
-  return (Array.isArray(feeds) ? feeds : []).filter((feed) => String((feed as Record<string, unknown>).userId || "") === userId);
+  const feeds = await getNewsFeedsByUserId(userId, 2000, {
+    fields: "id,userId,subscriptionRefs,title,excludedSubscriptionRefs,maxFeedItems",
+  });
+  return Array.isArray(feeds) ? feeds as NewsFeedRecord[] : [];
 }
 
 function buildFeedList(feeds: NewsFeedRecord[]) {
@@ -791,16 +792,39 @@ async function buildFeedFromSubscriptions(
 export async function getNewsFeed(
   userId: string,
   feedId?: string | null,
-  options?: { limit?: number },
+  options?: { limit?: number; offset?: number },
 ): Promise<{ items: NewsFeedItem[]; total: number; limit: number }> {
   const feeds = await getUserFeeds(userId);
   const selectedFeed = feedId && feedId !== "all"
     ? feeds.find((feed) => String(feed.id) === String(feedId))
     : feeds.find((feed) => String(feed.id) === "all" || String(feed.title || "").toLowerCase() === "all feed");
+  const limit = Number.isFinite(Number(options?.limit)) && Number(options?.limit) > 0
+    ? Math.floor(Number(options?.limit))
+    : 50;
+  const offset = Number.isFinite(Number(options?.offset)) && Number(options?.offset) >= 0
+    ? Math.floor(Number(options?.offset))
+    : 0;
+
+  // Feed caches are already grouped and sorted. Do not load or parse every
+  // subscription JSON before checking the selected feed cache.
+  const selectedFeedWithCache = selectedFeed?.id
+    ? await getNewsFeedById(String(selectedFeed.id)).catch(() => null) as Record<string, unknown> | null
+    : null;
+  const cachedItems = parseCachedItems(selectedFeedWithCache?.feedCache);
+  if (cachedItems.length) {
+    return {
+      items: cachedItems.slice(offset, offset + limit),
+      total: cachedItems.length,
+      limit,
+    };
+  }
+
   const subscriptionIds = await getUserSubscriptionIdsFromFeeds(feeds);
   const excludedIds = await getUserExcludedSubscriptionIdsFromFeeds(feeds);
 
-  const allSubscriptions = (await getAllNewsSubscriptions(2000)) as Array<NewsSubscriptionsRecord>;
+  const allSubscriptions = (await getAllNewsSubscriptions(2000, {
+    fields: "id,url,icon,title,json,linkReplaceRule,fallbackThumbnailUrl,thumbnailOverwriteUrl,userId,similarityGroupingWordsBlacklist,enableTopicGrouping,fetchErrors",
+  })) as Array<NewsSubscriptionsRecord>;
   const subscriptions = allSubscriptions
     .map(normalizeSubscription)
     .filter((entry: NewsSubscription | null): entry is NewsSubscription => Boolean(entry && (!entry.userId || entry.userId === userId)));
@@ -810,21 +834,10 @@ export async function getNewsFeed(
     : subscriptions.filter((subscription) => !excludedIds.has(String(subscription.id || "")));
 
   const feed = await buildFeedFromSubscriptions(scopedSubscriptions, feedId, feeds);
-  const limit = Number.isFinite(Number(options?.limit)) && Number(options?.limit) > 0
-    ? Math.floor(Number(options?.limit))
-    : 50;
-  const cachedItems = parseCachedItems((selectedFeed as Record<string, unknown> | undefined)?.feedCache);
-  if (cachedItems.length) {
-    return {
-      items: cachedItems.slice(0, limit),
-      total: cachedItems.length,
-      limit,
-    };
-  }
   const items = await applyNewsTopics(userId, feed, scopedSubscriptions);
 
   return {
-    items: items.slice(0, limit),
+    items: items.slice(offset, offset + limit),
     total: items.length,
     limit,
   };
@@ -834,7 +847,9 @@ export async function getNewsSubscriptions(userId: string): Promise<NewsSubscrip
   const feeds = await getUserFeeds(userId);
   const subscriptionIds = await getUserSubscriptionIdsFromFeeds(feeds);
 
-  const allSubscriptions = (await getAllNewsSubscriptions(2000)) as Array<NewsSubscriptionsRecord>;
+  const allSubscriptions = (await getAllNewsSubscriptions(2000, {
+    fields: "id,url,icon,title,linkReplaceRule,fallbackThumbnailUrl,thumbnailOverwriteUrl,userId,similarityGroupingWordsBlacklist,enableTopicGrouping,fetchErrors",
+  })) as Array<NewsSubscriptionsRecord>;
   const subscriptions = allSubscriptions
     .map(normalizeSubscription)
     .filter((entry: NewsSubscription | null): entry is NewsSubscription => Boolean(entry && (!entry.userId || entry.userId === userId)));
@@ -888,7 +903,9 @@ export async function getNewsSubscriptionJson(userId: string, subscriptionId: st
 
 export async function getNewsFeeds(userId: string): Promise<NewsFeedsResponse> {
   const feeds = await getUserFeeds(userId);
-  const allSubscriptions = (await getAllNewsSubscriptions(2000)) as Array<NewsSubscriptionsRecord>;
+  const allSubscriptions = (await getAllNewsSubscriptions(2000, {
+    fields: "id,url,title,userId",
+  })) as Array<NewsSubscriptionsRecord>;
   const subscriptions = allSubscriptions
     .map(normalizeSubscription)
     .filter((entry: NewsSubscription | null): entry is NewsSubscription => Boolean(entry && (!entry.userId || entry.userId === userId)))

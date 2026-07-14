@@ -2,7 +2,7 @@
 
 import React from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { createHomePageAction } from '@/lib/apiClient';
+import { createHomePageAction, validateAuthTokenAction } from '@/lib/apiClient';
 import useAuth from "@/context/useAuth";
 import {
 	Card,
@@ -19,10 +19,33 @@ type PageNotFoundProps = {
 };
 
 export default function PageNotFound({ pageName }: PageNotFoundProps) {
-	const { logout, withAuth } = useAuth();
+	const { token, logout, withAuth, withAuthRedirect, redirectToLogin } = useAuth();
 	const navigate = useNavigate();
 	const isHomePage = String(pageName ?? "").trim().toLowerCase() === "home";
 	const [creatingHomePage, setCreatingHomePage] = React.useState(false);
+
+	React.useEffect(() => {
+		if (!token) {
+			redirectToLogin();
+			return;
+		}
+
+		let cancelled = false;
+
+		const checkAuth = async () => {
+			try {
+				await withAuthRedirect(validateAuthTokenAction);
+			} catch {
+				if (cancelled) return;
+			}
+		};
+
+		checkAuth();
+
+		return () => {
+			cancelled = true;
+		};
+	}, [redirectToLogin, token, withAuthRedirect]);
 
 	const handleLogout = () => {
 		try {

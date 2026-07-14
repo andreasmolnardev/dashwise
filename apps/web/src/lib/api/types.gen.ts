@@ -667,7 +667,11 @@ export type GetNewsResponse = GetNewsResponses[keyof GetNewsResponses];
 export type GetNewsFeedData = {
     body?: never;
     path?: never;
-    query?: never;
+    query?: {
+        feedId?: string;
+        limit?: number;
+        offset?: number;
+    };
     url: '/news/feed';
 };
 
@@ -1544,7 +1548,10 @@ export type GetNewsFeedsByIdData = {
     path: {
         id: string;
     };
-    query?: never;
+    query?: {
+        limit?: number;
+        offset?: number;
+    };
     url: '/news/feeds/{id}';
 };
 

@@ -209,15 +209,19 @@ newsRoute
   .get("/api/v1/news/feeds/:id", withJson(async (c) => {
     const { userId } = await requireAuth({ token: readAuthToken(c) });
     const limit = Number(c.req.query("limit") ?? "");
+    const offset = Number(c.req.query("offset") ?? "");
     return getNewsFeed(userId, c.req.param("id"), {
       limit: Number.isFinite(limit) && limit > 0 ? Math.floor(limit) : undefined,
+      offset: Number.isFinite(offset) && offset >= 0 ? Math.floor(offset) : undefined,
     });
   }))
   .get("/api/v1/news/feed", withJson(async (c) => {
     const { userId } = await requireAuth({ token: readAuthToken(c) });
     const limit = Number(c.req.query("limit") ?? "");
+    const offset = Number(c.req.query("offset") ?? "");
     return getNewsFeed(userId, c.req.query("feedId") ?? "all", {
       limit: Number.isFinite(limit) && limit > 0 ? Math.floor(limit) : undefined,
+      offset: Number.isFinite(offset) && offset >= 0 ? Math.floor(offset) : undefined,
     });
   }))
   .get("/api/v1/news/feed-records/:id", withJson(async (c) => {
