@@ -28,6 +28,8 @@ export type ColumnName = "left" | "middle" | "right";
 export type GlanceableSide = "left" | "right";
 export type GlanceableSelection = { id: string; type: string };
 export type ClockGlanceableSelection = Record<GlanceableSide, GlanceableSelection[]>;
+export type ClockGlanceableIntervals = Record<GlanceableSide, number>;
+export const DEFAULT_GLANCEABLE_CAROUSEL_INTERVAL = 5;
 
 export type GlanceableCatalogItem = {
   type: string;
@@ -315,6 +317,11 @@ export function readClockGlanceables(
     ? (mainClock.properties.glanceables as Record<string, any>)
     : undefined;
   const slots = overrides?.slots as Partial<Record<GlanceableSide, Array<{ type?: string; params?: Record<string, any> }>>> | undefined;
+  const intervals = overrides?.intervals as Partial<Record<GlanceableSide, unknown>> | undefined;
+  const carouselIntervals = Object.fromEntries((["left", "right"] as GlanceableSide[]).map((side) => {
+    const interval = Number(intervals?.[side]);
+    return [side, Number.isFinite(interval) && interval >= 1 ? interval : DEFAULT_GLANCEABLE_CAROUSEL_INTERVAL];
+  })) as ClockGlanceableIntervals;
 
   if (slots) {
     const map: Record<string, any> = {};
@@ -328,7 +335,7 @@ export function readClockGlanceables(
         return [{ id, type }];
       }),
     ])) as ClockGlanceableSelection;
-    return { selected, map };
+    return { selected, map, intervals: carouselIntervals };
   }
 
   const fallbackTypes = [
@@ -359,6 +366,7 @@ export function readClockGlanceables(
       right: right ? [{ id: "right-0", type: right }] : [],
     } as ClockGlanceableSelection,
     map,
+    intervals: carouselIntervals,
   };
 }
 
@@ -380,6 +388,7 @@ export function moveItem(
   activeId: string,
   overId: string,
   overColumn: ColumnName,
+  overIndex?: number,
 ) {
   const findLocation = (widgetId: string) => {
     for (const column of Object.keys(columns) as ColumnName[]) {
@@ -397,7 +406,7 @@ export function moveItem(
   const isColumnSentinel = overId.startsWith("column:");
   const overWidgetLocation = isColumnSentinel ? null : findLocation(overId);
   const targetColumn = overWidgetLocation?.column ?? overColumn;
-  const targetIndex = overWidgetLocation?.index ?? columns[targetColumn].length;
+  const targetIndex = overIndex ?? overWidgetLocation?.index ?? columns[targetColumn].length;
 
   if (activeLocation.column === targetColumn) {
     return {
@@ -433,6 +442,7 @@ export function buildPageConfigPatch(
   columns: Record<ColumnName, ColumnWidget[]>,
   clockSelection: ClockGlanceableSelection,
   clockGlanceables: Record<string, any>,
+  clockGlanceableIntervals: ClockGlanceableIntervals,
   clockStyle: Record<string, any>,
   glanceableCatalog?: GlanceableCatalogItem[],
 ) {
@@ -453,6 +463,7 @@ export function buildPageConfigPatch(
               params: clockGlanceables[selection.id] ?? {},
             })),
           ])),
+          intervals: clockGlanceableIntervals,
         };
         widgetProps["clock-style"] = { ...clockStyle };
       }

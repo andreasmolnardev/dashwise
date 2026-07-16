@@ -10,6 +10,7 @@ import {
   DragOverEvent,
   DragOverlay,
   DragStartEvent,
+  KeyboardSensor,
   PointerSensor,
   useDroppable,
   useSensor,
@@ -17,6 +18,7 @@ import {
 } from "@dnd-kit/core";
 import {
   arrayMove,
+  sortableKeyboardCoordinates,
   SortableContext,
   useSortable,
   verticalListSortingStrategy,
@@ -41,6 +43,7 @@ import { renderWidget } from "@/components/widgets/Widget";
 import ShortcutsPicker from "@/components/widgets/ShortcutsPicker";
 import { EditGlanceablesView } from "@/components/settings/pages/EditGlanceablesView";
 import {
+  ClockGlanceableIntervals,
   ClockGlanceableSelection,
   ColumnName,
   ColumnWidget,
@@ -82,6 +85,8 @@ type DashboardWidgetPreviewProps = {
   setClockSelection: Dispatch<SetStateAction<ClockGlanceableSelection>>;
   clockGlanceables: Record<string, any>;
   setClockGlanceables: Dispatch<SetStateAction<Record<string, any>>>;
+  clockGlanceableIntervals: ClockGlanceableIntervals;
+  setClockGlanceableIntervals: Dispatch<SetStateAction<ClockGlanceableIntervals>>;
   clockStyle: Record<string, any>;
   setClockStyle: Dispatch<SetStateAction<Record<string, any>>>;
   fonts: Array<{ name: string; path: string }>;
@@ -867,6 +872,8 @@ export function DashboardWidgetPreview({
   setClockSelection,
   clockGlanceables,
   setClockGlanceables,
+  clockGlanceableIntervals,
+  setClockGlanceableIntervals,
   clockStyle,
   setClockStyle,
   fonts,
@@ -877,6 +884,7 @@ export function DashboardWidgetPreview({
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
   const filteredWidgetCatalog = useMemo(() => {
@@ -980,26 +988,30 @@ export function DashboardWidgetPreview({
     setDragOver(null);
   };
 
+  const resolveDropTarget = (event: DragEndEvent) => {
+    if (!event.over) return null;
+
+    const overId = String(event.over.id);
+    const overZone = findColumn(overId);
+    if (overZone && enabledColumns.includes(overZone)) {
+      const index = columns[overZone].findIndex((widget) => widget.id === overId);
+      return { zone: overZone, index: index >= 0 ? index : columns[overZone].length };
+    }
+
+    if (overId.startsWith("column:")) {
+      const column = overId.slice("column:".length) as ColumnName;
+      if (enabledColumns.includes(column)) {
+        return { zone: column, index: columns[column].length };
+      }
+    }
+
+    return null;
+  };
+
   const handleDragEnd = async (event: DragEndEvent) => {
     const activeIdStr = String(event.active.id);
     setActiveId(null);
-
-    const target = dragOver ?? (() => {
-      if (!event.over) return null;
-      const overId = String(event.over.id);
-      const overZone = findColumn(overId);
-      if (overZone) {
-        const idx = columns[overZone].findIndex((w) => w.id === overId);
-        return { zone: overZone, index: idx >= 0 ? idx : columns[overZone].length };
-      }
-      if (overId.startsWith("column:")) {
-        const col = overId.split(":")[1] as ColumnName;
-        if (["left", "middle", "right"].includes(col) && enabledColumns.includes(col)) {
-          return { zone: col as ColumnName, index: columns[col as ColumnName].length };
-        }
-      }
-      return null;
-    })();
+    const target = resolveDropTarget(event);
 
     setDragOver(null);
 
@@ -1031,9 +1043,20 @@ export function DashboardWidgetPreview({
     const activeColumn = findColumn(activeIdStr);
     if (!activeColumn) return;
 
-    const nextColumns = moveItem(columns, activeIdStr, event.over ? String(event.over.id) : `column:${target.zone}`, target.zone);
+    const nextColumns = moveItem(
+      columns,
+      activeIdStr,
+      event.over ? String(event.over.id) : `column:${target.zone}`,
+      target.zone,
+      target.index,
+    );
     setColumns(nextColumns);
     await onPersistColumns?.(nextColumns);
+  };
+
+  const handleDragCancel = () => {
+    setActiveId(null);
+    setDragOver(null);
   };
 
   return (
@@ -1046,6 +1069,7 @@ export function DashboardWidgetPreview({
         onDragStart={handleDragStart}
         onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
+        onDragCancel={handleDragCancel}
       >
         <div className="space-y-4">
           <div className="relative overflow-hidden rounded-lg p-4 frosted">
@@ -1188,6 +1212,8 @@ export function DashboardWidgetPreview({
             setClockSelection={setClockSelection}
             clockGlanceables={clockGlanceables}
             setClockGlanceables={setClockGlanceables}
+            clockGlanceableIntervals={clockGlanceableIntervals}
+            setClockGlanceableIntervals={setClockGlanceableIntervals}
             clockStyle={clockStyle}
             setClockStyle={setClockStyle}
             fonts={fonts}
