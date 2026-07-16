@@ -14,7 +14,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
-import { ClockGlanceableSelection, GlanceableSide } from "./utils";
+import { ClockGlanceableIntervals, ClockGlanceableSelection, DEFAULT_GLANCEABLE_CAROUSEL_INTERVAL, GlanceableSide } from "./utils";
 import { useLocalization } from "@/context/LocalizationContext";
 import useAuth from "@/context/useAuth";
 import { getIntegrationWithGlanceableAction } from '@/lib/apiClient';
@@ -52,6 +52,8 @@ type EditGlanceablesViewProps = {
   setClockSelection: Dispatch<SetStateAction<ClockGlanceableSelection>>;
   clockGlanceables: Record<string, any>;
   setClockGlanceables: Dispatch<SetStateAction<Record<string, any>>>;
+  clockGlanceableIntervals: ClockGlanceableIntervals;
+  setClockGlanceableIntervals: Dispatch<SetStateAction<ClockGlanceableIntervals>>;
   clockStyle: Record<string, any>;
   setClockStyle: Dispatch<SetStateAction<Record<string, any>>>;
   fonts: Array<{ name: string; path: string }>;
@@ -65,6 +67,8 @@ export function EditGlanceablesView({
   setClockSelection,
   clockGlanceables,
   setClockGlanceables,
+  clockGlanceableIntervals,
+  setClockGlanceableIntervals,
   clockStyle,
   setClockStyle,
   fonts,
@@ -208,6 +212,27 @@ export function EditGlanceablesView({
             </div>
 
             {selectedGlanceable ? <>
+              {glanceablesForSide.length > 1 && (
+                <div className="grid gap-3 sm:grid-cols-[120px_1fr] sm:items-center">
+                  <label htmlFor={`glanceable-interval-${selectedClockSide}`} className="text-sm text-white/75">Change interval</label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      id={`glanceable-interval-${selectedClockSide}`}
+                      type="number"
+                      min="1"
+                      step="1"
+                      value={clockGlanceableIntervals[selectedClockSide] ?? DEFAULT_GLANCEABLE_CAROUSEL_INTERVAL}
+                      onChange={(event) => {
+                        const interval = Number(event.target.value);
+                        if (!Number.isFinite(interval) || interval < 1) return;
+                        setClockGlanceableIntervals((prev) => ({ ...prev, [selectedClockSide]: interval }));
+                      }}
+                      className="h-9 w-24 rounded-full border-white/20 bg-transparent px-3 text-sm"
+                    />
+                    <span className="text-sm text-white/55">seconds</span>
+                  </div>
+                </div>
+              )}
               <div className="min-w-0 space-y-3 overflow-hidden">
                 <h3 className="font-medium">Select Glanceable</h3>
                 <div className="flex max-w-full min-w-0 items-center gap-2 overflow-x-auto pb-1">

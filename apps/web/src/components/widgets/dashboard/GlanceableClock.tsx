@@ -26,6 +26,8 @@ type ResolvedGlanceablePayload = {
 };
 
 const glanceableConsumerCache = new Map<string, ResolvedGlanceablePayload | null>();
+const DEFAULT_CAROUSEL_INTERVAL_SECONDS = 5;
+const CAROUSEL_FADE_DURATION_MS = 250;
 type LocalizationFormatters = Pick<ReturnType<typeof useLocalization>, "formatTemperature" | "formatTime" | "formatDate">;
 const LOCAL_ONLY_GLANCEABLES = new Set([
   "date",
@@ -78,6 +80,7 @@ export default function GlanceableClockWidget({ className, params, isPreview }: 
     return Object.keys(rest).length > 0 ? rest : undefined;
   };
   const slots = glanceableOverrides?.slots as Partial<Record<"left" | "right", Array<{ type: string; params?: Record<string, any> }>>> | undefined;
+  const carouselIntervals = glanceableOverrides?.intervals as Partial<Record<"left" | "right", unknown>> | undefined;
 
   const previewGridStyle = isPreview
     ? { gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr)", gridTemplateRows: "minmax(0, 1fr)", gridTemplateAreas: '"gl1 clock gl2"' }
@@ -107,12 +110,14 @@ export default function GlanceableClockWidget({ className, params, isPreview }: 
       <div style={{ gridArea: "gl1" }} className="area-gl1 min-w-0 overflow-hidden">
         <GlanceableCarousel
           items={slots?.left ?? (glanceableKeys[0] ? [{ type: glanceableKeys[0], params: getParams(glanceableKeys[0]) }] : [])}
+          intervalSeconds={getCarouselInterval(carouselIntervals?.left)}
           formatters={localization}
         />
       </div>
       <div style={{ gridArea: "gl2" }} className="area-gl2 min-w-0 overflow-hidden">
         <GlanceableCarousel
           items={slots?.right ?? (glanceableKeys[1] ? [{ type: glanceableKeys[1], params: getParams(glanceableKeys[1]) }] : [])}
+          intervalSeconds={getCarouselInterval(carouselIntervals?.right)}
           formatters={localization}
         />
       </div>
@@ -122,25 +127,50 @@ export default function GlanceableClockWidget({ className, params, isPreview }: 
 
 function GlanceableCarousel({
   items,
+  intervalSeconds,
   formatters,
 }: {
   items: Array<{ type: string; params?: Record<string, any> }>;
+  intervalSeconds: number;
   formatters: LocalizationFormatters;
 }) {
   const [index, setIndex] = useState(0);
+  const [isFading, setIsFading] = useState(false);
 
   useEffect(() => {
     setIndex(0);
+    setIsFading(false);
     if (items.length < 2) return;
-    const interval = window.setInterval(
-      () => setIndex((current) => (current + 1) % items.length),
-      5000,
-    );
-    return () => window.clearInterval(interval);
-  }, [items.length]);
+
+    const timeouts: number[] = [];
+    const advance = () => {
+      setIsFading(true);
+      timeouts.push(window.setTimeout(() => {
+        setIndex((current) => (current + 1) % items.length);
+        timeouts.push(window.setTimeout(() => setIsFading(false), 16));
+      }, CAROUSEL_FADE_DURATION_MS));
+    };
+    const interval = window.setInterval(advance, intervalSeconds * 1000);
+    return () => {
+      window.clearInterval(interval);
+      timeouts.forEach((timeout) => window.clearTimeout(timeout));
+    };
+  }, [intervalSeconds, items.length]);
 
   const item = items[index];
-  return item ? <ResolvedGlanceable type={item.type} params={item.params} formatters={formatters} className="font-medium" /> : null;
+  return item ? (
+    <div
+      className={`min-w-0 transition-opacity ease-out ${isFading ? "opacity-30" : "opacity-100"}`}
+      style={{ transitionDuration: `${CAROUSEL_FADE_DURATION_MS}ms` }}
+    >
+      <ResolvedGlanceable type={item.type} params={item.params} formatters={formatters} className="font-medium" />
+    </div>
+  ) : null;
+}
+
+function getCarouselInterval(value: unknown) {
+  const interval = Number(value);
+  return Number.isFinite(interval) && interval >= 1 ? interval : DEFAULT_CAROUSEL_INTERVAL_SECONDS;
 }
 
 function ResolvedGlanceable({

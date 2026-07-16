@@ -17,8 +17,10 @@ import {
   inferTemplateFromColumns,
   normalizeColumns,
   readClockGlanceables,
+  DEFAULT_GLANCEABLE_CAROUSEL_INTERVAL,
    type ColumnName,
    type ColumnWidget,
+   type ClockGlanceableIntervals,
    type ClockGlanceableSelection,
   type GlanceableSide,
   type TemplateId,
@@ -83,6 +85,10 @@ export default function SettingsPagesPage() {
   const [selectedWidgetCategory, setSelectedWidgetCategory] = useState<string>("clock");
   const [selectedClockPart, setSelectedClockPart] = useState<GlanceableSide | "clock">("left");
   const [clockGlanceables, setClockGlanceables] = useState<Record<string, any>>({});
+  const [clockGlanceableIntervals, setClockGlanceableIntervals] = useState<ClockGlanceableIntervals>({
+    left: DEFAULT_GLANCEABLE_CAROUSEL_INTERVAL,
+    right: DEFAULT_GLANCEABLE_CAROUSEL_INTERVAL,
+  });
   const [clockSelection, setClockSelection] = useState<ClockGlanceableSelection>({
     left: [],
     right: [],
@@ -161,6 +167,7 @@ export default function SettingsPagesPage() {
     const fallbackGlanceables = Array.isArray(selectedConfig?.glanceables) ? selectedConfig.glanceables : [];
     const nextClock = readClockGlanceables(normalizedColumns, fallbackGlanceables, glanceablesCatalog);
     setClockGlanceables(nextClock.map);
+    setClockGlanceableIntervals(nextClock.intervals);
     const defaultSelection = getDefaultGlanceableSelection(glanceablesCatalog);
     const resolvedSelection =
       nextClock.selected.left.length || nextClock.selected.right.length
@@ -184,6 +191,7 @@ export default function SettingsPagesPage() {
         normalizedColumns,
         resolvedSelection,
         nextClock.map,
+        nextClock.intervals,
         nextClockStyle,
         glanceablesCatalog,
       ),
@@ -240,8 +248,8 @@ export default function SettingsPagesPage() {
   };
 
   const pageConfigPatch = useMemo(
-    () => buildPageConfigPatch(template, columns, clockSelection, clockGlanceables, clockStyle, glanceablesCatalog),
-    [clockGlanceables, clockSelection, clockStyle, columns, template, glanceablesCatalog],
+    () => buildPageConfigPatch(template, columns, clockSelection, clockGlanceables, clockGlanceableIntervals, clockStyle, glanceablesCatalog),
+    [clockGlanceables, clockGlanceableIntervals, clockSelection, clockStyle, columns, template, glanceablesCatalog],
   );
 
   const pageConfigSignature = useMemo(() => JSON.stringify(pageConfigPatch), [pageConfigPatch]);
@@ -285,12 +293,13 @@ export default function SettingsPagesPage() {
           nextColumns,
           clockSelection,
           clockGlanceables,
+          clockGlanceableIntervals,
           clockStyle,
           glanceablesCatalog,
         ),
       ).then(() => undefined);
     },
-    [clockGlanceables, clockSelection, clockStyle, template, glanceablesCatalog, persistPageConfigPatch],
+    [clockGlanceables, clockGlanceableIntervals, clockSelection, clockStyle, template, glanceablesCatalog, persistPageConfigPatch],
   );
 
   const loadWidgetPreviewData = useCallback(
@@ -368,6 +377,8 @@ export default function SettingsPagesPage() {
         setClockSelection={setClockSelection}
         clockGlanceables={clockGlanceables}
         setClockGlanceables={setClockGlanceables}
+        clockGlanceableIntervals={clockGlanceableIntervals}
+        setClockGlanceableIntervals={setClockGlanceableIntervals}
         clockStyle={clockStyle}
         setClockStyle={setClockStyle}
         fonts={fonts}
