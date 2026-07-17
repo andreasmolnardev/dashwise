@@ -92,6 +92,7 @@ export const appRouter = createBrowserRouter([
              children: [
                 { index: true, element: <MonitoringPage /> },
                 { path: "notifications", element: <NotificationsPage /> },
+                { path: "ssh", element: <MonitoringSshPage /> },
                 { path: "ssh/:hostId", element: <MonitoringSshPage /> },
                 { path: "hosts/:hostId", element: <MonitoringHostPage /> },
                 { path: ":monitorId", element: <MonitoringDetailPage /> },

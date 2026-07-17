@@ -60,6 +60,12 @@ export default function RootLayout() {
 
   useEffect(() => {
     if (typeof document === "undefined") return;
+    if (
+      location.pathname === "/apps/monitoring/ssh" ||
+      location.pathname.startsWith("/apps/monitoring/ssh/")
+    ) {
+      return;
+    }
 
     document.title = getDocumentTitle(location.pathname);
   }, [location.pathname]);

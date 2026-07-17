@@ -47,6 +47,18 @@ process.on("SIGINT", shutdown);
 registerJobsCron();
 void systemAgentClient.start();
 
+app.use("*", async (c, next) => {
+  const startedAt = performance.now();
+  const timestamp = new Date().toISOString();
+
+  try {
+    await next();
+  } finally {
+    const processingTime = Math.round(performance.now() - startedAt);
+    logger.info(`[${timestamp}] ${c.req.method} ${c.req.path} ${processingTime}ms`);
+  }
+});
+
 app.use("*", cors({ origin: "*" }));
 
 app.route("/", authRoute);
