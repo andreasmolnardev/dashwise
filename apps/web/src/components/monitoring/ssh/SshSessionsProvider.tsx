@@ -16,6 +16,7 @@ import { FitAddon } from "xterm-addon-fit";
 
 import useAuth from "@/context/useAuth";
 import { backendUrl, type MonitoringSshHostRecord } from "@/lib/apiClient";
+import config from "@/lib/config";
 
 import "xterm/css/xterm.css";
 import AppIcon from "@dashwise/app-icon";
@@ -286,7 +287,17 @@ export default function SshSessionsProvider({
     );
   }, [hostById]);
 
-  const isSshRoute = location.pathname.startsWith("/apps/monitoring/ssh/");
+  const isSshRoute = location.pathname === "/apps/monitoring/ssh" ||
+    location.pathname.startsWith("/apps/monitoring/ssh/");
+
+  useEffect(() => {
+    if (!isSshRoute) return;
+
+    const activeHost = activeHostId ? hostById.get(activeHostId) : undefined;
+    document.title = activeHost?.hostname
+      ? `${activeHost.hostname} - ${config.instance_name || "Dashwise"} Monitoring SSH`
+      : `${config.instance_name || "Dashwise"} Monitoring SSH`;
+  }, [activeHostId, hostById, isSshRoute]);
 
   const value = useMemo(() => ({
     openSession,
