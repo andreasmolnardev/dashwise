@@ -517,16 +517,19 @@ export default function DashboardLayoutTemplate({
                 } else if (typeof h === "number") {
                     heightStyle = `${h}px`;
                 }
-                return renderWidgetMenuWrapper({
-                    baseKey,
-                    wrapperClass,
-                    style: heightStyle ? { height: heightStyle } : undefined,
-                    children: renderWidget({
-                        type: "placeholder",
-                        params: cfg.params,
-                        className: "h-full w-full",
-                    }),
-                });
+                return (
+                    <div
+                        key={baseKey}
+                        className={wrapperClass}
+                        style={heightStyle ? { height: heightStyle } : undefined}
+                    >
+                        {renderWidget({
+                            type: "placeholder",
+                            params: cfg.params,
+                            className: "h-full w-full",
+                        })}
+                    </div>
+                );
             }
             case "main-clock": {
                 const ref = getHeightRefCallback("main-clock");
