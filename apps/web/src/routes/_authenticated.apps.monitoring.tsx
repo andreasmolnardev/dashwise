@@ -1,0 +1,231 @@
+"use client";
+import { createFileRoute } from "@tanstack/react-router";
+
+import { Outlet, useSearchParams } from "react-router-dom";
+import { useEffect, useState } from "react";
+import AppTemplate, { BottomTab, Content, GroupLabel, Sidebar, Tab } from "@/components/apps/LayoutTemplate";
+import useAuth from "@/context/useAuth";
+import { getMonitorsAction } from '@/lib/apiClient';
+import { getMonitoringHostsAction, getMonitoringSshHostsAction } from '@/lib/apiClient';
+import type { MonitorRecord, MonitoringHostRecord, MonitoringSshHostRecord } from '@/lib/apiClient';
+import { useActivity } from "@/context/ActivityContext";
+import config from "@/lib/config";
+import AddMonitoringResourceDialog from "@/components/monitoring/AddMonitoringResourceDialog";
+import SshHostDialog from "@/components/monitoring/SshHostDialog";
+import SystemAgentHostDialog from "@/components/monitoring/SystemAgentHostDialog";
+import { useMonitoringLinkLookup } from "@/components/monitoring/useMonitoringLinkLookup";
+import SshSessionsProvider from "@/components/monitoring/ssh/SshSessionsProvider";
+
+export const Route = createFileRoute("/_authenticated/apps/monitoring")({ component: MonitoringRootLayout });
+
+export default function MonitoringRootLayout() {
+    const { token, withAuth } = useAuth();
+    const { unreadCount } = useActivity();
+    const [monitors, setMonitors] = useState<MonitorRecord[]>([]);
+    const [sshHosts, setSshHosts] = useState<MonitoringSshHostRecord[]>([]);
+    const [hosts, setHosts] = useState<MonitoringHostRecord[]>([]);
+    const [sshHostDialogOpen, setSshHostDialogOpen] = useState(false);
+    const [systemAgentDialogOpen, setSystemAgentDialogOpen] = useState(false);
+    const [editingSshHost, setEditingSshHost] = useState<MonitoringSshHostRecord | null>(null);
+    const [searchParams, setSearchParams] = useSearchParams();
+    const { entryById } = useMonitoringLinkLookup();
+
+    useEffect(() => {
+        if (!token) {
+            setHosts([]);
+            return;
+        }
+        let mounted = true;
+        void withAuth((auth) => getMonitoringHostsAction(auth))
+            .then((hostList) => { if (mounted) setHosts(Array.isArray(hostList) ? hostList : []); })
+            .catch((err) => { console.error("Failed to load monitoring hosts:", err); if (mounted) setHosts([]); });
+        return () => { mounted = false; };
+    }, [token, withAuth]);
+
+    const monitorDialogOpen = searchParams.get("newMonitor") === "true";
+
+    const openMonitorDialog = () => {
+        const next = new URLSearchParams(searchParams);
+        next.set("newMonitor", "true");
+        setSearchParams(next);
+    };
+
+    const closeMonitorDialog = () => {
+        const next = new URLSearchParams(searchParams);
+        next.delete("newMonitor");
+        setSearchParams(next);
+    };
+
+    const openSshHostDialog = (host?: MonitoringSshHostRecord) => {
+        setEditingSshHost(host ?? null);
+        setSshHostDialogOpen(true);
+    };
+
+    useEffect(() => {
+        if (!token) {
+            setMonitors([]);
+            return;
+        }
+
+        let mounted = true;
+
+        const loadMonitors = async () => {
+            try {
+                const monitorList = await withAuth((auth) => getMonitorsAction(auth));
+                if (!mounted) return;
+                setMonitors(Array.isArray(monitorList) ? monitorList : []);
+            } catch (err) {
+                console.error("Failed to load monitors:", err);
+                if (mounted) {
+                    setMonitors([]);
+                }
+            }
+        };
+
+        loadMonitors();
+
+        return () => {
+            mounted = false;
+        };
+    }, [token, withAuth]);
+
+    useEffect(() => {
+        if (!token) {
+            setSshHosts([]);
+            return;
+        }
+
+        let mounted = true;
+
+        const loadSshHosts = async () => {
+            try {
+                const sshHostList = await withAuth((auth) => getMonitoringSshHostsAction(auth));
+                if (!mounted) return;
+                setSshHosts(Array.isArray(sshHostList) ? sshHostList : []);
+            } catch (err) {
+                console.error("Failed to load SSH hosts:", err);
+                if (mounted) {
+                    setSshHosts([]);
+                }
+            }
+        };
+
+        loadSshHosts();
+
+        return () => {
+            mounted = false;
+        };
+    }, [token, withAuth]);
+
+    return (
+        <AppTemplate title="Monitoring">
+             <Sidebar>
+                 <Tab
+                     dst="/apps/monitoring"
+                     icon="fa6-solid:gauge-high"
+                     title="Overview"
+                     isRoot
+                 />
+                 
+                  <BottomTab
+                      dst="/apps/monitoring/notifications"
+                      icon="fa6-solid:bell"
+                      title="Notifications"
+                      isRoot
+                      badge={unreadCount > 0 ? unreadCount : undefined}
+                  />
+
+                <GroupLabel
+                    group="Monitors"
+                    title="Monitors"
+                    collapsible
+                    collapsed
+                    actions={[{ icon: "fa6-solid:plus", title: "Add Monitor", action: openMonitorDialog }]}
+                />
+
+                {monitors.map((monitor) => (
+                    (() => {
+                        const entry = entryById.get(String(monitor.sourcelinkId || monitor.linkId || ""));
+                        return (
+                    <Tab
+                        key={monitor.id}
+                        dst={`/apps/monitoring/${monitor.id}`}
+                        icon="fa6-solid:server"
+                        title={entry?.title || monitor.endpoint || monitor.sourcelinkId || monitor.source || monitor.id}
+                        group="Monitors"
+                        badge={monitor.status ? monitor.status : undefined}
+                    />
+                        );
+                    })()
+                ))}
+
+                <GroupLabel group="Hosts" title="Hosts" collapsible collapsed actions={[{ icon: "fa6-solid:plus", title: "Connect System Agent", action: () => setSystemAgentDialogOpen(true) }]} />
+                {hosts.map((host) => (
+                    <Tab key={host.id} dst={`/apps/monitoring/hosts/${host.id}`} icon="fa6-solid:hard-drive" title={host.name || host.hostname || host.id} group="Hosts" badge={host.status || undefined} />
+                ))}
+
+                <GroupLabel
+                    group="SSH"
+                    title="SSH"
+                    collapsible
+                    collapsed
+                    actions={[{ icon: "fa6-solid:plus", title: "Add SSH Host", action: () => openSshHostDialog() }]}
+                />
+
+                {sshHosts.map((host) => (
+                    <Tab
+                        key={host.id}
+                        dst={`/apps/monitoring/ssh/${host.id}`}
+                        icon="fa6-solid:terminal"
+                        title={host.name || `${host.hostname}:${host.port}`}
+                        group="SSH"
+                        badge={host.status || undefined}
+                        dropdownActions={[{ label: "Edit host", icon: "fa6-solid:pencil", action: () => openSshHostDialog(host) }]}
+                    />
+                ))}
+
+                
+            </Sidebar>
+
+            <Content>
+                <SshSessionsProvider hosts={sshHosts}>
+                    <Outlet />
+                </SshSessionsProvider>
+            </Content>
+
+            <AddMonitoringResourceDialog
+                open={monitorDialogOpen}
+                onOpenChange={(open) => {
+                    if (!open) {
+                        closeMonitorDialog();
+                    } else {
+                        openMonitorDialog();
+                    }
+                }}
+                onCreated={(monitor) => {
+                    setMonitors((current) => [monitor, ...current.filter((existing) => existing.id !== monitor.id)]);
+                    closeMonitorDialog();
+                }}
+                onSystemAgentRequested={() => setSystemAgentDialogOpen(true)}
+            />
+
+            <SystemAgentHostDialog
+                open={systemAgentDialogOpen}
+                onOpenChange={setSystemAgentDialogOpen}
+                onSaved={(host) => setHosts((current) => [host, ...current.filter((existing) => existing.id !== host.id)])}
+            />
+
+            <SshHostDialog
+                open={sshHostDialogOpen}
+                host={editingSshHost}
+                onOpenChange={(open) => {
+                    setSshHostDialogOpen(open);
+                    if (!open) setEditingSshHost(null);
+                }}
+                onSaved={(host) => {
+                    setSshHosts((current) => [host, ...current.filter((existing) => existing.id !== host.id)]);
+                }}
+            />
+        </AppTemplate>
+    );
+}

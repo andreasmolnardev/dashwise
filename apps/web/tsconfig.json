@@ -25,6 +25,9 @@
       "node"
     ],
     "paths": {
+      "react-router-dom": [
+        "./src/lib/router"
+      ],
       "@/*": [
         "./src/*"
       ],

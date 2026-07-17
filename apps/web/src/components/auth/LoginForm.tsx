@@ -1,6 +1,7 @@
 "use client"
 
-import { Link, useNavigate } from "react-router-dom"
+import { useNavigate } from "react-router-dom"
+import { Link } from "@tanstack/react-router"
 import { useEffect, useState } from "react"
 import { getAppConfigAction } from '@/lib/apiClient';
 import { loginUserAction, validateAuthTokenAction } from '@/lib/apiClient';

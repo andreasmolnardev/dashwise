@@ -1,6 +1,6 @@
 "use client";
 
-import { Link } from "react-router-dom";
+import { Link } from "@tanstack/react-router";
 import { Icon } from "@iconify-icon/react";
 import {
   Popover,

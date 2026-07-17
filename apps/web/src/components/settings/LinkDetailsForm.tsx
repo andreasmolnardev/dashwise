@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link } from "@tanstack/react-router";
 import useAuth from "@/context/useAuth";
 import { Button } from "@/components/ui/button";
 import { Label } from "@radix-ui/react-label";

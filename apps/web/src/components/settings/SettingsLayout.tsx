@@ -1,5 +1,6 @@
 "use client";
-import { Link, useLocation } from "react-router-dom";
+import { useLocation } from "react-router-dom";
+import { Link } from "@tanstack/react-router";
 import { usePageConfig } from "@/hooks/usePageConfig";
 import { useEffect, useRef } from "react";
 import { Label } from "@/components/ui/label";
@@ -14,7 +15,7 @@ const navItems = [
   { href: "/settings/search", label: "Search", icon: faMagnifyingGlass },
   { href: "/settings/integrations", label: "Integrations", icon: faPuzzlePiece },
   { href: "/settings/general", label: "General", icon: faSliders },
-];
+] as const;
 
 export default function SettingsLayout({ children }: { children: React.ReactNode }) {
   const pathname = useLocation().pathname;

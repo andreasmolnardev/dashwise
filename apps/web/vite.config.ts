@@ -1,13 +1,15 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
+import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import path from "path";
 
 export default defineConfig({
   envPrefix: ["VITE_", "NEXT_PUBLIC_"],
-  plugins: [react()],
+  plugins: [tanstackRouter(), react()],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      "react-router-dom": path.resolve(__dirname, "./src/lib/router.tsx"),
     },
     dedupe: ["react", "react-dom", "scheduler"],
   },
