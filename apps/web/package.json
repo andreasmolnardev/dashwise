@@ -4,13 +4,14 @@
   "private": true,
   "scripts": {
     "dev": "bunx vite --host 0.0.0.0 --port 5173",
-    "build": "bun run generate:openapi && bun run generate:api-sdk && bunx vite build",
+    "build": "bunx vite build",
     "start": "bunx vite preview --host 0.0.0.0 --port 4173",
     "lint": "eslint . --quiet",
     "lint:all": "eslint .",
-    "generate:openapi": "bun ../../scripts/generate-openapi-json.ts && bunx openapi-typescript ../../apps/backend/openapi.yaml -o ../../packages/api-types/src/openapi.ts",
-    "generate:api-sdk": "bunx openapi-ts -f openapi-ts.config.ts",
-    "generate:api-types": "bun run generate:openapi"
+    "generate": "bun --cwd ../.. run generate",
+    "generate:openapi": "bun run generate",
+    "generate:api-sdk": "bun run generate",
+    "generate:api-types": "bun run generate"
   },
   "dependencies": {
     "@dashwise/api-types": "workspace:*",

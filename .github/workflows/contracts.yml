@@ -1,0 +1,29 @@
+name: Contract pipeline
+
+on:
+  pull_request:
+  push:
+    branches: [dev, release]
+
+jobs:
+  generated-artifacts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.8
+      - run: bun install --frozen-lockfile
+      - run: bun run generate
+      - run: git diff --exit-code -- apps/web/public/openapi.json apps/web/src/lib/api packages/api-types/src/openapi.ts
+
+  contract-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.8
+      - run: bun install --frozen-lockfile
+      - run: bun run check
+      - run: bun run test:contract

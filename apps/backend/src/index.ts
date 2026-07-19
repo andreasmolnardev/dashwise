@@ -55,7 +55,9 @@ app.use("*", async (c, next) => {
     await next();
   } finally {
     const processingTime = Math.round(performance.now() - startedAt);
-    logger.info(`[${timestamp}] ${c.req.method} ${c.req.path} ${processingTime}ms`);
+    if (config.LOG_LEVEL?.trim().toLowerCase() === "info") {
+      logger.info(`[${timestamp}] ${c.req.method} ${c.req.path} ${processingTime}ms`);
+    }
   }
 });
 

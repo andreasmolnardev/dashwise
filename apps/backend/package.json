@@ -11,7 +11,8 @@
   "scripts": {
     "dev": "bun --hot src/index.ts",
     "start": "NODE_ENV=production bun src/index.ts",
-    "generate:openapi": "bun ../../scripts/generate-openapi-json.ts && bunx openapi-typescript openapi.yaml -o ../../packages/api-types/src/openapi.ts",
+    "generate": "bun --cwd ../.. run generate",
+    "generate:openapi": "bun run generate",
     "build": "bunx -p typescript@5.9.3 tsc -p tsconfig.json",
     "lint": "eslint . --quiet",
     "lint:all": "eslint ."
