@@ -69,7 +69,15 @@
 				"summary": "Get application config",
 				"responses": {
 					"200": {
-						"$ref": "#/components/responses/JsonOk"
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"additionalProperties": {}
+								}
+							}
+						}
 					}
 				}
 			}
@@ -82,7 +90,31 @@
 				"summary": "Get application info",
 				"responses": {
 					"200": {
-						"$ref": "#/components/responses/JsonOk"
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"updateAvailable": {
+											"type": "boolean"
+										},
+										"currentAppVersion": {
+											"type": "string"
+										},
+										"userSignupDisabled": {
+											"type": "boolean"
+										}
+									},
+									"required": [
+										"updateAvailable",
+										"currentAppVersion",
+										"userSignupDisabled"
+									],
+									"additionalProperties": false
+								}
+							}
+						}
 					}
 				}
 			}

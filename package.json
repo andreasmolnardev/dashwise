@@ -22,11 +22,19 @@
     "dev:testenv": "./scripts/dev-testenv.sh",
     "dev:backend": "bun --cwd apps/backend --hot src/index.ts",
     "dev:web": "cd apps/web && bunx dotenv-cli -e ../../.env -- bunx vite --host 0.0.0.0 --port 5173",
-    "generate:openapi": "bun scripts/generate-openapi-json.ts && bunx openapi-typescript apps/backend/openapi.yaml -o packages/api-types/src/openapi.ts",
+    "generate": "bun run generate:openapi-document && bun run generate:api-types && bun run generate:api-sdk && bun run mark-generated",
+    "generate:openapi-document": "bun scripts/generate-openapi-contracts.ts && bun scripts/generate-openapi-json.ts",
+    "generate:api-types": "cd apps/web && bunx openapi-typescript ../../apps/backend/openapi.yaml -o ../../packages/api-types/src/openapi.ts",
     "generate:api-sdk": "cd apps/web && bunx openapi-ts -f openapi-ts.config.ts",
+    "generate:openapi": "bun run generate",
+    "mark-generated": "bun scripts/mark-generated-artifacts.ts",
     "build": "bun run --workspaces --if-present build",
     "lint": "eslint . --quiet",
     "lint:all": "eslint .",
-    "typecheck": "bun run --workspaces --if-present typecheck"
+    "typecheck": "bun run --workspaces --if-present typecheck",
+    "test": "bun test",
+    "test:contract": "bun scripts/contract-smoke.ts",
+    "check:generated": "bun run generate && git diff --exit-code -- apps/web/public/openapi.json apps/web/src/lib/api packages/api-types/src/openapi.ts",
+    "check": "bun run lint && bun run typecheck && bun run check:generated"
   }
 }

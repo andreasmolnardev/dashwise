@@ -5,12 +5,16 @@ import { getLocations } from "../lib/data/misc";
 import { runPullIcons } from "../lib/data/jobs";
 
 import { jobsApi, validateJobsBasicAuth } from "../jobs/index";
-import { readAuthToken, requireAuth, withJson } from "./shared";
+import { readAuthToken, requireAuth, withGetContract, withJson } from "./shared";
+import {
+  appConfigContract,
+  appInfoContract,
+} from "../features/system/system.contract";
 
 const systemRoute = new Hono();
 
-systemRoute.get("/api/v1/appConfig", withJson(() => getAppConfig()));
-systemRoute.get("/api/v1/appInfo", withJson(() => getAppInfo()));
+systemRoute.get("/api/v1/appConfig", withGetContract(appConfigContract, () => getAppConfig()));
+systemRoute.get("/api/v1/appInfo", withGetContract(appInfoContract, () => getAppInfo()));
 
 systemRoute.get(
   "/api/v1/locations",

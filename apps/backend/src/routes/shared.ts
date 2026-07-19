@@ -6,6 +6,12 @@ import type { Context } from "hono";
 import { ApiActionError, requireUserAuth } from "../lib/data/auth";
 import { z } from "zod";
 
+import {
+  type GetContract,
+  validateContractQuery,
+  validateContractResponse,
+} from "../lib/http/contract";
+
 import { config } from "../lib/config";
 import { defaultHomeConfig } from "@dashwise/assets";
 
@@ -75,6 +81,17 @@ export function withJson<C extends (import("hono").Context<any, any, any>) = imp
       return c.json(response.body, response.status as any);
     }
   };
+}
+
+/** Validate request input at the route boundary and responses outside production. */
+export function withGetContract<Response extends z.ZodTypeAny>(
+  contract: GetContract<Response>,
+  handler: (c: Context) => Promise<unknown> | unknown,
+) {
+  return withJson(async (c) => {
+    validateContractQuery(contract, c.req.query());
+    return validateContractResponse(contract, await handler(c));
+  });
 }
 
 export function readAuthToken(c: Context) {
