@@ -2,9 +2,11 @@
 
 import { Link, useNavigate } from "react-router-dom"
 import { useEffect, useState } from "react"
+import { useMutation, useQuery } from "@tanstack/react-query"
 import { getAppConfigAction } from '@/lib/apiClient';
 import { loginUserAction, validateAuthTokenAction } from '@/lib/apiClient';
 import useAuth from "@/context/useAuth"
+import { queryKeys } from "@/lib/queryClient";
 
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -28,15 +30,13 @@ export default function LoginCard() {
   const [password, setPassword] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [enableSSO, setEnableSSO] = useState<boolean | null>(null);
+  const appConfigQuery = useQuery({ queryKey: queryKeys.appConfig, queryFn: getAppConfigAction });
+  const enableSSO = appConfigQuery.data?.enableSSO ?? false;
+  const loginMutation = useMutation({ mutationFn: loginUserAction });
 
 
   //on load: check for existing auth, validate using /api/v1/auth/validate-auth endpoint if returned success to /home
    useEffect(() => {
-    // Fetch runtime config (e.g. enableSSO)
-    getAppConfigAction().then(data => setEnableSSO(data.enableSSO ?? false)).catch(() => setEnableSSO(false));
-
     const validateAuth = async () => {
       const tokenToCheck = token;
       if (!tokenToCheck) return;
@@ -60,10 +60,8 @@ export default function LoginCard() {
     e.preventDefault();
     setError(null);
     setSuccess(null);
-    setLoading(true);
-
     try {
-      const { token: newToken, user } = await loginUserAction({ email, password });
+      const { token: newToken, user } = await loginMutation.mutateAsync({ email, password }) as { token: string; user: import("@dashwise/types/sdk").AuthUserRecord };
       setAuth(user, newToken);
 
       setSuccess("Login successful! Redirecting to home...");
@@ -75,8 +73,6 @@ export default function LoginCard() {
     } catch (err: any) {
       console.error(err);
       setError(err?.message || "Login failed");
-    } finally {
-      setLoading(false);
     }
   }
 
@@ -159,8 +155,8 @@ export default function LoginCard() {
             />
           </div>
 
-          <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? "Logging in..." : "Login"}
+          <Button type="submit" className="w-full" disabled={loginMutation.isPending}>
+            {loginMutation.isPending ? "Logging in..." : "Login"}
           </Button>
         </form>
       </CardContent>

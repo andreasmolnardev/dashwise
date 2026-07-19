@@ -1,7 +1,7 @@
 "use client";
 
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { createContext, useCallback, useContext, useEffect, useMemo, type ReactNode } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import useAuth from "@/context/useAuth";
 import {
     deleteNewsSavedArticleListAction,
@@ -10,6 +10,8 @@ import {
     getNewsSubscriptionsAction,
 } from '@/lib/apiClient';
 import AppTemplate, { Content, GroupLabel, Sidebar, Tab } from "@/components/apps/LayoutTemplate";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/queryClient";
 
 export interface Subscription {
     id?: string;
@@ -55,94 +57,61 @@ export function useNewsSidebarData() {
 }
 
 export default function NewsLayout({ children }: { children: ReactNode }) {
-    const { token, withAuth } = useAuth();
+    const { token } = useAuth();
     const navigate = useNavigate();
     const { feedId } = useParams();
-    const [searchParams] = useSearchParams();
-    const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
-    const [feeds, setFeeds] = useState<FeedRecord[]>([]);
-    const [savedLists, setSavedLists] = useState<SavedListRecord[]>([]);
-    const [savedArticles, setSavedArticles] = useState<SavedArticleRecord[]>([]);
-    const [sidebarRefreshVersion, setSidebarRefreshVersion] = useState(0);
+    const queryClient = useQueryClient();
     const activeSavedList = feedId?.startsWith("saved-") ? decodeURIComponent(feedId.slice("saved-".length)) : null;
 
+    const subscriptionsQuery = useQuery({
+        queryKey: queryKeys.news.subscriptions(token),
+        enabled: Boolean(token),
+        queryFn: () => getNewsSubscriptionsAction({ token }),
+    });
+    const feedsQuery = useQuery({
+        queryKey: queryKeys.news.feeds(token),
+        enabled: Boolean(token),
+        queryFn: () => getNewsFeedsAction({ token }),
+    });
+    const savedArticlesQuery = useQuery({
+        queryKey: queryKeys.news.savedArticles(token, activeSavedList),
+        enabled: Boolean(token),
+        queryFn: () => getNewsSavedArticlesAction({ token }, activeSavedList),
+    });
+    const subscriptions = useMemo(
+        () => (subscriptionsQuery.data?.subscriptions ?? []) as Subscription[],
+        [subscriptionsQuery.data],
+    );
+    const feeds = useMemo(
+        () => (feedsQuery.data?.feeds ?? []) as FeedRecord[],
+        [feedsQuery.data],
+    );
+    const savedLists = useMemo(
+        () => (savedArticlesQuery.data?.lists ?? []) as SavedListRecord[],
+        [savedArticlesQuery.data],
+    );
+    const savedArticles = useMemo(
+        () => (savedArticlesQuery.data?.articles ?? []) as SavedArticleRecord[],
+        [savedArticlesQuery.data],
+    );
+
+    const reloadSidebar = useCallback(() => {
+        void queryClient.invalidateQueries({ queryKey: ["news"] });
+    }, [queryClient]);
+
     useEffect(() => {
-        const refreshSidebar = () => setSidebarRefreshVersion((version) => version + 1);
+        const refreshSidebar = () => reloadSidebar();
         window.addEventListener("dashwise:news-sidebar-refresh", refreshSidebar);
 
         return () => {
             window.removeEventListener("dashwise:news-sidebar-refresh", refreshSidebar);
         };
-    }, []);
+    }, [reloadSidebar]);
 
-    useEffect(() => {
-        if (!token) {
-            setSubscriptions([]);
-            setFeeds([]);
-            return;
-        }
-
-        let mounted = true;
-
-        const loadSubscriptions = async () => {
-            try {
-                const data = await withAuth((auth) => getNewsSubscriptionsAction(auth));
-                if (mounted) setSubscriptions(data?.subscriptions ?? []);
-            } catch (error) {
-                console.error("Failed to load news subscriptions:", error);
-                if (mounted) setSubscriptions([]);
-            }
-        };
-
-        const loadFeeds = async () => {
-            try {
-                const data = await withAuth((auth) => getNewsFeedsAction(auth));
-                if (mounted) setFeeds(Array.isArray(data?.feeds) ? data.feeds : []);
-            } catch (error) {
-                console.error("Failed to load news feeds:", error);
-                if (mounted) setFeeds([]);
-            }
-        };
-
-        void Promise.all([loadSubscriptions(), loadFeeds()]);
-
-        return () => {
-            mounted = false;
-        };
-    }, [token, withAuth, sidebarRefreshVersion]);
-
-    useEffect(() => {
-        if (!token) {
-            setSavedLists([]);
-            setSavedArticles([]);
-            return;
-        }
-
-        let mounted = true;
-
-        const loadSavedArticles = async () => {
-            try {
-                const savedData = await withAuth((auth) => getNewsSavedArticlesAction(auth, activeSavedList));
-
-                if (!mounted) return;
-
-                setSavedLists(Array.isArray(savedData?.lists) ? savedData.lists : fallbackSavedLists);
-                setSavedArticles(Array.isArray(savedData?.articles) ? savedData.articles : []);
-            } catch (error) {
-                console.error("Failed to load news saved articles:", error);
-                if (mounted) {
-                    setSavedLists([]);
-                    setSavedArticles([]);
-                }
-            }
-        };
-
-        loadSavedArticles();
-
-        return () => {
-            mounted = false;
-        };
-    }, [token, withAuth, sidebarRefreshVersion, activeSavedList]);
+    const deleteSavedListMutation = useMutation({
+        mutationFn: (listId: string) => deleteNewsSavedArticleListAction({ token }, listId),
+        onSuccess: reloadSidebar,
+    });
 
     const userFeeds = useMemo(() => feeds.filter((entry) => entry.id && entry.id !== "all"), [feeds]);
     const savedSubscriptionRefs = useMemo(() => {
@@ -177,8 +146,6 @@ export default function NewsLayout({ children }: { children: ReactNode }) {
     };
 
     const activeFeedRoute = feedId ? `/apps/news/${feedId}` : "/apps/news";
-    const sidebarAction = searchParams.get("action");
-    const editFeedRef = searchParams.get("feed");
 
     const openSubscribeModal = () => {
         const params = new URLSearchParams({ action: "subscribe" });
@@ -212,15 +179,12 @@ export default function NewsLayout({ children }: { children: ReactNode }) {
         const confirmed = window.confirm(`Delete ${list.name} and all saved articles in it?`);
         if (!confirmed) return;
 
-        await withAuth((auth) => deleteNewsSavedArticleListAction(auth, list.id));
-        setSidebarRefreshVersion((version) => version + 1);
+        await deleteSavedListMutation.mutateAsync(list.id);
 
         if (activeSavedList === list.id || activeSavedList === list.name) {
             navigate("/apps/news");
         }
     };
-
-    const reloadSidebar = () => setSidebarRefreshVersion((version) => version + 1);
 
     return (
         <NewsSidebarContext.Provider value={{ subscriptions, feeds, reloadSidebar }}>

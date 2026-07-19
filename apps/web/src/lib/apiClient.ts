@@ -19,7 +19,7 @@ import config from "@/lib/config";
 import { client } from "./api/client.gen";
 import * as sdk from "./api/sdk.gen";
 
-const { getAppConfig, getAppInfo, postAuthLogin, postAuthChangePassword, postAuthSignup, postAuthValidateAuth, deleteAuthDeleteAccount, patchAuthUpdateUserProperty, getLinksCollections, postLinksCollections, putLinksCollectionsByCollectionId, postLinksTags, putLinksTagsByTagId, getLinksHomeGroups, postLinksHomeGroups, putLinksFoldersByFolderIdIcon, getLinksHome, getLinksFolders, postLinksFolders, getLinksItems, getLinksTags, postLinksItems, putLinksItemsByLinkId, deleteLinksItemsByLinkId, postLinksReorder, getIntegrations, postIntegrations, putIntegrationsById, deleteIntegrationsById, postIntegrationsTestEndpoint, getIntegrationsWidgetProperties, getWidgetsByIntegration, postIntegrationsConsumerData, getIntegrationsCaldavEvents, postIntegrationsProxyAction, getWidgets, getGlanceables, getGlanceablesByIntegration, getMonitoringStatus, postMonitoringStatus, getMonitors, getMonitorsById, putMonitorsById, postMonitors, deleteMonitorsById, getNewsFeedRecordsById, postNewsFeedRecords, getNewsSubscriptions, getNewsFeeds, getNewsFeedMetadata, postNewsFeedRefresh, postNewsFeedSubscribe, postNewsFeedUnsubscribe, postNewsFeedUpdate, postNewsFeedRecordsById, postNewsFixMissingTitles, getPageConfig, getPageConfigUserPages, putPageConfig, postPageConfigHome, postPageConfigMigrateLegacy, postPageConfigIntegrationData, getSearchItems, getSearchItemsFrequentlyUsed, postSearchItemsUsageStats, getLocations, getJobsPullIcons, postWallpapers, getNotifications, getNotificationsTopics, postNotificationsTopics, deleteNotificationsTopics, postNotificationsMarkAsRead, postNotificationsTest, getNotificationsTopicTokens, postNotificationsTopicTokens, deleteNotificationsTopicTokens, getNotificationsForwarders, postNotificationsForwarders, putNotificationsForwarders, deleteNotificationsForwarders } = sdk;
+const { getAppConfig, getAppInfo, postAuthLogin, postAuthChangePassword, postAuthSignup, postAuthValidateAuth, deleteAuthDeleteAccount, patchAuthUpdateUserProperty, getLinksCollections, postLinksCollections, putLinksCollectionsByCollectionId, postLinksTags, putLinksTagsByTagId, getLinksHomeGroups, postLinksHomeGroups, putLinksFoldersByFolderIdIcon, getLinksHome, getLinksFolders, postLinksFolders, getLinksItems, getLinksTags, postLinksItems, putLinksItemsByLinkId, deleteLinksItemsByLinkId, postLinksReorder, getIntegrations, postIntegrations, putIntegrationsById, deleteIntegrationsById, postIntegrationsTestEndpoint, getIntegrationsWidgetProperties, getWidgetsByIntegration, postIntegrationsConsumerData, getIntegrationsCaldavEvents, postIntegrationsProxyAction, getWidgets, getGlanceables, getGlanceablesByIntegration, getMonitoringStatus, postMonitoringStatus, getMonitoringSshHosts, postMonitoringSshHosts, putMonitoringSshHostsById, getMonitoringHosts, postMonitoringHosts, getMonitoringHostsByIdHistory, getMonitors, getMonitorsById, putMonitorsById, postMonitors, deleteMonitorsById, getNewsFeedRecordsById, postNewsFeedRecords, getNewsSubscriptions, getNewsFeeds, getNewsFeedMetadata, postNewsFeedRefresh, postNewsFeedSubscribe, postNewsFeedUnsubscribe, postNewsFeedUpdate, postNewsFeedRecordsById, postNewsFixMissingTitles, getPageConfig, getPageConfigUserPages, putPageConfig, postPageConfigHome, postPageConfigMigrateLegacy, postPageConfigIntegrationData, getSearchItems, getSearchItemsFrequentlyUsed, postSearchItemsUsageStats, getLocations, getJobsPullIcons, postWallpapers, getNotifications, getNotificationsTopics, postNotificationsTopics, deleteNotificationsTopics, postNotificationsMarkAsRead, postNotificationsTest, getNotificationsTopicTokens, postNotificationsTopicTokens, deleteNotificationsTopicTokens, getNotificationsForwarders, postNotificationsForwarders, putNotificationsForwarders, deleteNotificationsForwarders } = sdk;
 export * from "./api/sdk.gen";
 export type { GenericObject, Error } from "./api/types.gen";
 
@@ -416,36 +416,16 @@ export async function deleteMonitorAction(auth: ActionAuth, monitorId: string): 
   return extractData(await deleteMonitorsById({ path: { id: monitorId }, headers: authHeaders(auth) }));
 }
 
-async function fetchJsonAction<T>(auth: ActionAuth, path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(backendUrl(`${apiBasePath}${path}`), {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...authHeaders(auth),
-      ...(init?.headers || {}),
-    },
-  });
-  handleUnauthorizedResponse(response);
-  const data = await response.json().catch(() => null);
-  if (!response.ok || data?._status >= 400) {
-    const error = new Error(data?.error || data?.message || "Request failed") as Error & { status?: number; body?: unknown };
-    error.status = response.status;
-    error.body = data;
-    throw error;
-  }
-  return data as T;
-}
-
 export async function getMonitoringSshHostsAction(auth: ActionAuth): Promise<MonitoringSshHostRecord[]> {
-  return fetchJsonAction(auth, "/monitoring/ssh-hosts");
+  return extractData(await getMonitoringSshHosts({ headers: authHeaders(auth) })) as Promise<MonitoringSshHostRecord[]>;
 }
 
 export async function getMonitoringHostsAction(auth: ActionAuth): Promise<MonitoringHostRecord[]> {
-  return fetchJsonAction(auth, "/monitoring/hosts");
+  return extractData(await getMonitoringHosts({ headers: authHeaders(auth) })) as Promise<MonitoringHostRecord[]>;
 }
 
 export async function createMonitoringHostAction(auth: ActionAuth, data: MonitoringHostInput): Promise<MonitoringHostRecord> {
-  return fetchJsonAction(auth, "/monitoring/hosts", { method: "POST", body: JSON.stringify(data) });
+  return extractData(await postMonitoringHosts({ body: data, headers: authHeaders(auth) })) as Promise<MonitoringHostRecord>;
 }
 
 export async function getMonitoringHostHistoryAction(
@@ -453,16 +433,19 @@ export async function getMonitoringHostHistoryAction(
   hostId: string,
   timestamp?: string,
 ): Promise<MonitoringHostStatsRecord[] | { records?: MonitoringHostStatsRecord[] }> {
-  const query = timestamp ? `?${new URLSearchParams({ timestamp })}` : "";
-  return fetchJsonAction(auth, `/monitoring/hosts/${hostId}/history${query}`);
+  return extractData(await getMonitoringHostsByIdHistory({
+    path: { id: hostId },
+    query: timestamp ? { timestamp } : undefined,
+    headers: authHeaders(auth),
+  })) as Promise<MonitoringHostStatsRecord[] | { records?: MonitoringHostStatsRecord[] }>;
 }
 
 export async function createMonitoringSshHostAction(auth: ActionAuth, data: MonitoringSshHostInput): Promise<MonitoringSshHostRecord> {
-  return fetchJsonAction(auth, "/monitoring/ssh-hosts", { method: "POST", body: JSON.stringify(data) });
+  return extractData(await postMonitoringSshHosts({ body: data, headers: authHeaders(auth) })) as Promise<MonitoringSshHostRecord>;
 }
 
 export async function updateMonitoringSshHostAction(auth: ActionAuth, hostId: string, data: Partial<MonitoringSshHostInput>): Promise<MonitoringSshHostRecord> {
-  return fetchJsonAction(auth, `/monitoring/ssh-hosts/${hostId}`, { method: "PUT", body: JSON.stringify(data) });
+  return extractData(await putMonitoringSshHostsById({ path: { id: hostId }, body: data, headers: authHeaders(auth) })) as Promise<MonitoringSshHostRecord>;
 }
 
 // --- News actions ---

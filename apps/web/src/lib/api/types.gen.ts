@@ -12,6 +12,8 @@ export type Error = {
     [key: string]: unknown;
 };
 
+export type Id = string;
+
 export type JsonBody = GenericObject;
 
 export type GetAppConfigData = {
@@ -631,10 +633,6 @@ export type PostMonitoringStatusErrors = {
      * Bad Request
      */
     400: Error;
-    /**
-     * Unauthorized
-     */
-    401: Error;
 };
 
 export type PostMonitoringStatusError = PostMonitoringStatusErrors[keyof PostMonitoringStatusErrors];
@@ -647,6 +645,225 @@ export type PostMonitoringStatusResponses = {
 };
 
 export type PostMonitoringStatusResponse = PostMonitoringStatusResponses[keyof PostMonitoringStatusResponses];
+
+export type GetMonitoringSshHostsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/monitoring/ssh-hosts';
+};
+
+export type GetMonitoringSshHostsResponses = {
+    /**
+     * OK
+     */
+    200: GenericObject;
+};
+
+export type GetMonitoringSshHostsResponse = GetMonitoringSshHostsResponses[keyof GetMonitoringSshHostsResponses];
+
+export type PostMonitoringSshHostsData = {
+    body?: JsonBody;
+    path?: never;
+    query?: never;
+    url: '/monitoring/ssh-hosts';
+};
+
+export type PostMonitoringSshHostsResponses = {
+    /**
+     * OK
+     */
+    200: GenericObject;
+};
+
+export type PostMonitoringSshHostsResponse = PostMonitoringSshHostsResponses[keyof PostMonitoringSshHostsResponses];
+
+export type DeleteMonitoringSshHostsByIdData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/monitoring/ssh-hosts/{id}';
+};
+
+export type DeleteMonitoringSshHostsByIdResponses = {
+    /**
+     * OK
+     */
+    200: GenericObject;
+};
+
+export type DeleteMonitoringSshHostsByIdResponse = DeleteMonitoringSshHostsByIdResponses[keyof DeleteMonitoringSshHostsByIdResponses];
+
+export type PutMonitoringSshHostsByIdData = {
+    body?: JsonBody;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/monitoring/ssh-hosts/{id}';
+};
+
+export type PutMonitoringSshHostsByIdResponses = {
+    /**
+     * OK
+     */
+    200: GenericObject;
+};
+
+export type PutMonitoringSshHostsByIdResponse = PutMonitoringSshHostsByIdResponses[keyof PutMonitoringSshHostsByIdResponses];
+
+export type GetMonitoringHostsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/monitoring/hosts';
+};
+
+export type GetMonitoringHostsResponses = {
+    /**
+     * OK
+     */
+    200: GenericObject;
+};
+
+export type GetMonitoringHostsResponse = GetMonitoringHostsResponses[keyof GetMonitoringHostsResponses];
+
+export type PostMonitoringHostsData = {
+    body?: JsonBody;
+    path?: never;
+    query?: never;
+    url: '/monitoring/hosts';
+};
+
+export type PostMonitoringHostsResponses = {
+    /**
+     * OK
+     */
+    200: GenericObject;
+};
+
+export type PostMonitoringHostsResponse = PostMonitoringHostsResponses[keyof PostMonitoringHostsResponses];
+
+export type DeleteMonitoringHostsByIdData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/monitoring/hosts/{id}';
+};
+
+export type DeleteMonitoringHostsByIdResponses = {
+    /**
+     * OK
+     */
+    200: GenericObject;
+};
+
+export type DeleteMonitoringHostsByIdResponse = DeleteMonitoringHostsByIdResponses[keyof DeleteMonitoringHostsByIdResponses];
+
+export type GetMonitoringHostsByIdData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/monitoring/hosts/{id}';
+};
+
+export type GetMonitoringHostsByIdResponses = {
+    /**
+     * OK
+     */
+    200: GenericObject;
+};
+
+export type GetMonitoringHostsByIdResponse = GetMonitoringHostsByIdResponses[keyof GetMonitoringHostsByIdResponses];
+
+export type PutMonitoringHostsByIdData = {
+    body?: JsonBody;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/monitoring/hosts/{id}';
+};
+
+export type PutMonitoringHostsByIdResponses = {
+    /**
+     * OK
+     */
+    200: GenericObject;
+};
+
+export type PutMonitoringHostsByIdResponse = PutMonitoringHostsByIdResponses[keyof PutMonitoringHostsByIdResponses];
+
+export type GetMonitoringHostsByIdStatsData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/monitoring/hosts/{id}/stats';
+};
+
+export type GetMonitoringHostsByIdStatsResponses = {
+    /**
+     * OK
+     */
+    200: GenericObject;
+};
+
+export type GetMonitoringHostsByIdStatsResponse = GetMonitoringHostsByIdStatsResponses[keyof GetMonitoringHostsByIdStatsResponses];
+
+export type GetMonitoringHostsByIdHistoryData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: {
+        timestamp?: string;
+    };
+    url: '/monitoring/hosts/{id}/history';
+};
+
+export type GetMonitoringHostsByIdHistoryResponses = {
+    /**
+     * OK
+     */
+    200: GenericObject;
+};
+
+export type GetMonitoringHostsByIdHistoryResponse = GetMonitoringHostsByIdHistoryResponses[keyof GetMonitoringHostsByIdHistoryResponses];
+
+export type PostMonitoringHostsByIdRefreshData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/monitoring/hosts/{id}/refresh';
+};
+
+export type PostMonitoringHostsByIdRefreshErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Error;
+};
+
+export type PostMonitoringHostsByIdRefreshError = PostMonitoringHostsByIdRefreshErrors[keyof PostMonitoringHostsByIdRefreshErrors];
+
+export type PostMonitoringHostsByIdRefreshResponses = {
+    /**
+     * OK
+     */
+    200: GenericObject;
+};
+
+export type PostMonitoringHostsByIdRefreshResponse = PostMonitoringHostsByIdRefreshResponses[keyof PostMonitoringHostsByIdRefreshResponses];
 
 export type GetNewsData = {
     body?: never;

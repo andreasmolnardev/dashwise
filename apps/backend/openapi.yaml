@@ -403,6 +403,126 @@ paths:
           $ref: "#/components/responses/JsonOk"
         "400":
           $ref: "#/components/responses/JsonBadRequest"
+  /monitoring/ssh-hosts:
+    get:
+      tags:
+        - monitoring
+      summary: List SSH hosts
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+    post:
+      tags:
+        - monitoring
+      summary: Create SSH host
+      requestBody:
+        $ref: "#/components/requestBodies/JsonBody"
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+  /monitoring/ssh-hosts/{id}:
+    put:
+      tags:
+        - monitoring
+      summary: Update SSH host
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      requestBody:
+        $ref: "#/components/requestBodies/JsonBody"
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+    delete:
+      tags:
+        - monitoring
+      summary: Delete SSH host
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+  /monitoring/hosts:
+    get:
+      tags:
+        - monitoring
+      summary: List system-agent hosts
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+    post:
+      tags:
+        - monitoring
+      summary: Create system-agent host
+      requestBody:
+        $ref: "#/components/requestBodies/JsonBody"
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+  /monitoring/hosts/{id}:
+    get:
+      tags:
+        - monitoring
+      summary: Get system-agent host
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+    put:
+      tags:
+        - monitoring
+      summary: Update system-agent host
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      requestBody:
+        $ref: "#/components/requestBodies/JsonBody"
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+    delete:
+      tags:
+        - monitoring
+      summary: Delete system-agent host
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+  /monitoring/hosts/{id}/stats:
+    get:
+      tags:
+        - monitoring
+      summary: Get current system-agent host stats
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+  /monitoring/hosts/{id}/history:
+    get:
+      tags:
+        - monitoring
+      summary: Get system-agent host metric history
+      parameters:
+        - $ref: "#/components/parameters/Id"
+        - name: timestamp
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+  /monitoring/hosts/{id}/refresh:
+    post:
+      tags:
+        - monitoring
+      summary: Refresh a system-agent host
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
         "401":
           $ref: "#/components/responses/JsonUnauthorized"
   /news:
@@ -1181,6 +1301,13 @@ paths:
         "200":
           $ref: "#/components/responses/JsonOk"
 components:
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
   schemas:
     GenericObject:
       type: object

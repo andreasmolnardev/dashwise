@@ -2,9 +2,11 @@
 
 import { getPageConfigAction } from '@/lib/apiClient';
 import useAuth from "@/context/useAuth";
+import { queryKeys } from "@/lib/queryClient";
 import type { PageConfig } from "@dashwise/types/sdk";
-import { useLocation, useNavigate } from "react-router-dom";
-import { useCallback, useEffect, useMemo, useState, type SetStateAction } from "react";
+import { useLocation } from "react-router-dom";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCallback, useEffect, useMemo, type SetStateAction } from "react";
 
 const nonPageSegments = new Set(["settings", "notifications", "onboarding", "screensaver", "auth", "frame"]);
 
@@ -19,64 +21,47 @@ type UsePageConfigOptions = {
 
 export function usePageConfig(options?: UsePageConfigOptions) {
   const pathname = useLocation().pathname;
-  const navigate = useNavigate();
-  const { token, withAuth } = useAuth();
+  const { token } = useAuth();
   const resolvedPageName = useMemo(
     () => options?.pageName ?? resolveRequestedPageName(pathname),
     [options?.pageName, pathname]
   );
 
-  const [pageConfig, setPageConfig] = useState<PageConfig | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  const queryKey = useMemo(() => queryKeys.pageConfig(token, resolvedPageName), [resolvedPageName, token]);
+  const pageConfigQuery = useQuery({
+    queryKey,
+    enabled: Boolean(token),
+    queryFn: () => getPageConfigAction({ token }, resolvedPageName),
+  });
+  const pageConfig = pageConfigQuery.data === undefined
+    ? null
+    : (pageConfigQuery.data ?? {}) as PageConfig;
 
   const patchConfig = useCallback((updater: SetStateAction<PageConfig | null>) => {
-    setPageConfig((current) => (typeof updater === "function" ? updater(current) : updater));
-  }, []);
+    queryClient.setQueryData<PageConfig | null>(queryKey, (current) =>
+      typeof updater === "function" ? updater(current ?? null) : updater,
+    );
+  }, [queryClient, queryKey]);
 
   const refreshConfig = useCallback(async () => {
-    if (!token) {
-      setPageConfig(null);
-      setLoading(false);
-      return;
-    }
-
-    try {
-      setLoading(true);
-      const data = await withAuth(
-        (auth) => getPageConfigAction(auth, resolvedPageName),
-        () => navigate("/auth/login")
-      );
-      setPageConfig((data ?? {}) as PageConfig);
-      setError(null);
-    } catch (err: unknown) {
-      if (typeof err === "object" && err !== null && "status" in err && (err as { status?: number }).status === 401) {
-        return;
-      }
-      setError(err instanceof Error ? err.message : "Unknown error");
-    } finally {
-      setLoading(false);
-    }
-  }, [navigate, resolvedPageName, token, withAuth]);
-
-
-  useEffect(() => {
-    void refreshConfig();
-  }, [refreshConfig]);
+    if (!token) return;
+    await pageConfigQuery.refetch();
+  }, [pageConfigQuery, token]);
 
   useEffect(() => {
     const handleUpdated = () => {
-      void refreshConfig();
+      void queryClient.invalidateQueries({ queryKey });
     };
     window.addEventListener("config:updated", handleUpdated);
     return () => window.removeEventListener("config:updated", handleUpdated);
-  }, [refreshConfig]);
+  }, [queryClient, queryKey]);
 
   return {
     config: pageConfig,
     pageConfig,
-    loading,
-    error,
+    loading: pageConfigQuery.isLoading,
+    error: pageConfigQuery.error instanceof Error ? pageConfigQuery.error.message : null,
     pageName: resolvedPageName,
     patchConfig,
     refreshConfig,
