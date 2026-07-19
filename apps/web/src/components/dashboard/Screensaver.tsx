@@ -7,6 +7,8 @@ import { renderWidget } from "../widgets/Widget";
 import AppIcon from "@dashwise/app-icon";
 import { fetchWallpaperBlob } from "@/lib/apiClient";
 
+const TOUCH_CONTROLS_HIDE_DELAY = 2500;
+
 export default function Screensaver(
   { active, onExit }: { active: boolean; onExit: () => void },
 ) {
@@ -20,6 +22,28 @@ export default function Screensaver(
   const [frameBackgrounds, setFrameBackgrounds] = useState<Record<string, string>>({});
   const [scrollLeft, setScrollLeft] = useState(0);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const controlsHideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearControlsHideTimeout = () => {
+    if (controlsHideTimeoutRef.current) {
+      clearTimeout(controlsHideTimeoutRef.current);
+      controlsHideTimeoutRef.current = null;
+    }
+  };
+
+  const scheduleTouchControlsHide = () => {
+    clearControlsHideTimeout();
+    controlsHideTimeoutRef.current = setTimeout(() => {
+      setIsHovering(false);
+      controlsHideTimeoutRef.current = null;
+    }, TOUCH_CONTROLS_HIDE_DELAY);
+  };
+
+  useEffect(() => () => {
+    if (controlsHideTimeoutRef.current) {
+      clearTimeout(controlsHideTimeoutRef.current);
+    }
+  }, []);
 
   useEffect(() => {
     fetch("/fonts/index.json")
@@ -192,8 +216,29 @@ export default function Screensaver(
     <div
       className="fixed inset-0 bg-black backdrop-blur-xl z-50 flex flex-col"
       onMouseEnter={() => setIsHovering(true)}
-      onMouseLeave={() => setIsHovering(false)}
+      onMouseLeave={() => {
+        clearControlsHideTimeout();
+        setIsHovering(false);
+      }}
       onMouseMove={() => setIsHovering(true)}
+      onPointerEnter={(event) => {
+        if (event.pointerType === "touch") {
+          setIsHovering(true);
+          scheduleTouchControlsHide();
+        }
+      }}
+      onPointerDown={(event) => {
+        if (event.pointerType === "touch") {
+          setIsHovering(true);
+          scheduleTouchControlsHide();
+        }
+      }}
+      onPointerMove={(event) => {
+        if (event.pointerType === "touch") {
+          setIsHovering(true);
+          scheduleTouchControlsHide();
+        }
+      }}
     >
       <div
         ref={scrollRef}
