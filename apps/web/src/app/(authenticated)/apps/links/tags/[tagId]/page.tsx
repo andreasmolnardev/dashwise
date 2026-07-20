@@ -1,11 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { getLinksCollectionsAction, getLinksFoldersAction, getLinksItemsAction, getLinksTagsAction } from '@/lib/apiClient';
 import LinksDetailView, { type LinkFolderRecord, type LinkItemRecord, type LinkTagRecord } from "@/components/links/LinksDetailView";
 import CreateLinksItemDialog from "@/components/links/CreateLinksItemDialog";
 import useAuth from "@/context/useAuth";
+import { useApiQuery } from "@/hooks/useApiQuery";
+import { queryKeys } from "@/lib/queryClient";
+import { useQueryClient } from "@tanstack/react-query";
 
 type LinkCollection = {
     id: string;
@@ -44,63 +47,34 @@ function includeFolderAncestors(folderId: string | undefined, foldersById: Map<s
 
 export default function LinksTagDetailPage() {
     const { tagId = "" } = useParams();
-    const { token, withAuth } = useAuth();
-    const [collections, setCollections] = useState<LinkCollection[]>([]);
-    const [folders, setFolders] = useState<LinkFolderRecord[]>([]);
-    const [items, setItems] = useState<LinkItemRecord[]>([]);
-    const [tags, setTags] = useState<LinkTagRecord[]>([]);
+    const { token } = useAuth();
+    const queryClient = useQueryClient();
+    const detailQuery = useApiQuery(queryKeys.links.tagDetail(tagId), async (auth) => {
+        const collectionsData = await getLinksCollectionsAction(auth);
+        const tagsData = await getLinksTagsAction(auth);
+        const collectionRecords = Array.isArray(collectionsData) ? collectionsData as LinkCollection[] : [];
+        const collectionPayloads = await Promise.all(collectionRecords.map(async (collection) => {
+            const [foldersData, itemsData] = await Promise.all([
+                getLinksFoldersAction(auth, collection.id),
+                getLinksItemsAction(auth, collection.id),
+            ]);
+            return {
+                folders: Array.isArray(foldersData) ? foldersData as LinkFolderRecord[] : [],
+                items: Array.isArray(itemsData) ? itemsData as LinkItemRecord[] : [],
+            };
+        }));
+        return {
+            collections: collectionRecords,
+            tags: Array.isArray(tagsData) ? tagsData as LinkTagRecord[] : [],
+            folders: collectionPayloads.flatMap((entry) => entry.folders),
+            items: collectionPayloads.flatMap((entry) => entry.items),
+        };
+    }, { enabled: Boolean(tagId) });
+    const collections = detailQuery.data?.collections ?? [];
+    const folders = detailQuery.data?.folders ?? [];
+    const items = detailQuery.data?.items ?? [];
+    const tags = detailQuery.data?.tags ?? [];
     const [createLinkOpen, setCreateLinkOpen] = useState(false);
-
-    useEffect(() => {
-        if (!token || !tagId) return;
-
-        let mounted = true;
-
-        const load = async () => {
-            try {
-                const [collectionsData, tagsData] = await Promise.all([
-                    withAuth((auth) => getLinksCollectionsAction(auth)),
-                    withAuth((auth) => getLinksTagsAction(auth)),
-                ]);
-
-                if (!mounted) return;
-
-                const collectionRecords = Array.isArray(collectionsData) ? (collectionsData as LinkCollection[]) : [];
-                const collectionPayloads = await Promise.all(collectionRecords.map(async (collection) => {
-                    const [foldersData, itemsData] = await Promise.all([
-                        withAuth((auth) => getLinksFoldersAction(auth, collection.id)),
-                        withAuth((auth) => getLinksItemsAction(auth, collection.id)),
-                    ]);
-
-                    return {
-                        folders: Array.isArray(foldersData) ? (foldersData as LinkFolderRecord[]) : [],
-                        items: Array.isArray(itemsData) ? (itemsData as LinkItemRecord[]) : [],
-                    };
-                }));
-
-                if (!mounted) return;
-
-                setCollections(Array.isArray(collectionRecords) ? collectionRecords : []);
-                setTags(Array.isArray(tagsData) ? (tagsData as LinkTagRecord[]) : []);
-                setFolders(collectionPayloads.flatMap((entry) => entry.folders));
-                setItems(collectionPayloads.flatMap((entry) => entry.items));
-            } catch (error) {
-                console.error("Failed to load tag details:", error);
-                if (mounted) {
-                    setCollections([]);
-                    setFolders([]);
-                    setItems([]);
-                    setTags([]);
-                }
-            }
-        };
-
-        load();
-
-        return () => {
-            mounted = false;
-        };
-    }, [tagId, token, withAuth]);
 
     const tag = useMemo(
         () => tags.find((entry) => entry.id === tagId) ?? null,
@@ -171,7 +145,7 @@ export default function LinksTagDetailPage() {
                     const createdTagIds = normalizeTagIds(link.tags);
                     if (!createdTagIds.includes(tagId)) return;
 
-                    setItems((current) => [link as LinkItemRecord, ...current.filter((item) => item.id !== link.id)]);
+                    queryClient.setQueryData(["api", token, ...queryKeys.links.tagDetail(tagId)], (current: typeof detailQuery.data) => current ? { ...current, items: [link as LinkItemRecord, ...current.items.filter((item) => item.id !== link.id)] } : current);
                 }}
             />
         </>

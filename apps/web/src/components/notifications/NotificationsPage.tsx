@@ -33,6 +33,10 @@ import CreateForwarderDialogComponent from "@/components/notifications/CreateFor
 import CreateTopicTokenDialogComponent from "@/components/notifications/CreateTopicTokenDialog";
 import useAuth from "@/context/useAuth";
 import { useActivity } from "@/context/ActivityContext";
+import { useApiMutation } from "@/hooks/useApiMutation";
+import { useApiQuery } from "@/hooks/useApiQuery";
+import { queryKeys } from "@/lib/queryClient";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 export type NotificationItem = {
     id: string;
@@ -117,9 +121,15 @@ function getNotificationDescription(notif: NotificationItem): React.ReactNode {
 
 export default function NotificationsPage() {
     const { token, withAuth } = useAuth();
-    const { notifications: activityNotifications, refresh } = useActivity();
-    const notifications = activityNotifications as NotificationItem[];
-    const [topics, setTopics] = useState<TopicItem[]>([]);
+    const queryClient = useQueryClient();
+    const { refresh } = useActivity();
+    const notificationsQuery = useQuery<NotificationItem[]>({
+        queryKey: ["api", token, ...queryKeys.notifications.items(token)],
+        enabled: false,
+    });
+    const notifications = (notificationsQuery.data ?? []) as NotificationItem[];
+    const topicsQuery = useApiQuery(queryKeys.notifications.topics(token), getNotificationTopicsAction);
+    const topics = (topicsQuery.data?.items ?? []) as TopicItem[];
     const [activeTopic, setActiveTopic] = useState<string | null>(null);
     const [createTopicOpen, setCreateTopicOpen] = useState(false);
     const [createTopicTitle, setCreateTopicTitle] = useState("");
@@ -151,71 +161,26 @@ export default function NotificationsPage() {
     const tokensSectionRef = useRef<HTMLDivElement | null>(null);
     const forwardersSectionRef = useRef<HTMLDivElement | null>(null);
 
-    const fetchData = useCallback(async () => {
-        if (!token) return;
-
-        try {
-            const topicResp = await withAuth((auth) => getNotificationTopicsAction(auth));
-            const nextTopics = topicResp?.items || [];
-            setTopics(nextTopics);
-            setActiveTopic((current) =>
-                current && !nextTopics.some((topic) => topic.id === current)
-                    ? null
-                    : current
-            );
-        } catch (err) {
-            console.error("Notifications/topics fetch failed:", err);
-        }
-    }, [token, withAuth]);
-
-    useEffect(() => {
-        fetchData();
-    }, [fetchData]);
-
-    const fetchTopicDetails = useCallback(async () => {
-        if (!token || !topicDetailsTopic) return;
-
-        setTopicDetailsLoading(true);
-        try {
-            const [tokensResp, forwardersResp] = await withAuth((auth) =>
-                Promise.all([
-                    listTopicTokensAction(auth),
-                    getForwardersAction(auth),
-                ])
-            );
-
-            const tokens = (tokensResp?.items || []).filter(
-                (item: TopicTokenItem) => {
-                    const topicId =
-                        typeof item.topic === "string"
-                            ? item.topic
-                            : item.topic?.id;
-                    return topicId === topicDetailsTopic.id;
-                }
-            );
-            const forwarders = (forwardersResp?.items || []).filter(
-                (item: TopicForwarderItem) => {
-                    const topicId =
-                        typeof item.topic === "string"
-                            ? item.topic
-                            : item.topic?.id;
-                    return topicId === topicDetailsTopic.id;
-                }
-            );
-
-            setTopicDetailsTokens(tokens);
-            setTopicDetailsForwarders(forwarders);
-        } catch (err) {
-            console.error("Failed to load topic details:", err);
-        } finally {
-            setTopicDetailsLoading(false);
-        }
-    }, [token, withAuth, topicDetailsTopic]);
+    const tokensQuery = useApiQuery(queryKeys.notifications.tokens(token), listTopicTokensAction, { enabled: topicDetailsOpen });
+    const forwardersQuery = useApiQuery(queryKeys.notifications.forwarders(token), getForwardersAction, { enabled: topicDetailsOpen });
+    const topicTokens = (tokensQuery.data?.items ?? []) as TopicTokenItem[];
+    const topicForwarders = (forwardersQuery.data?.items ?? []) as TopicForwarderItem[];
 
     useEffect(() => {
         if (!topicDetailsOpen || !topicDetailsTopic) return;
-        fetchTopicDetails();
-    }, [fetchTopicDetails, topicDetailsOpen, topicDetailsTopic]);
+        const topicId = topicDetailsTopic.id;
+        setTopicDetailsTokens(topicTokens.filter((item) => (typeof item.topic === "string" ? item.topic : item.topic?.id) === topicId));
+        setTopicDetailsForwarders(topicForwarders.filter((item) => (typeof item.topic === "string" ? item.topic : item.topic?.id) === topicId));
+        setTopicDetailsLoading(tokensQuery.isLoading || forwardersQuery.isLoading);
+    }, [topicDetailsOpen, topicDetailsTopic, topicTokens, topicForwarders, tokensQuery.isLoading, forwardersQuery.isLoading]);
+
+    const invalidateNotifications = useCallback(() => {
+        void queryClient.invalidateQueries({ queryKey: ["api", token, "notifications"] });
+        refresh();
+    }, [queryClient, refresh, token]);
+    const markReadMutation = useApiMutation((auth, ids: string[]) => markNotificationsAsReadAction(auth, ids), { onSuccess: invalidateNotifications });
+    const createTopicMutation = useApiMutation((auth, title: string) => createNotificationTopicAction(auth, title), { onSuccess: invalidateNotifications });
+    const deleteTopicMutation = useApiMutation((auth, topicId: string) => deleteNotificationTopicAction(auth, topicId), { onSuccess: invalidateNotifications });
 
     useEffect(() => {
         if (!topicDetailsOpen || !topicDetailsSection) return;
@@ -261,10 +226,7 @@ export default function NotificationsPage() {
     const markAsRead = async (notifId: string) => {
         if (!token) return;
         try {
-            await withAuth((auth) =>
-                markNotificationsAsReadAction(auth, [notifId])
-            );
-            refresh();
+            await markReadMutation.mutateAsync([notifId]);
         } catch (err) {
             console.error("Failed to mark notification as read:", err);
         }
@@ -273,8 +235,7 @@ export default function NotificationsPage() {
     const markAllAsRead = async () => {
         if (!token) return;
         try {
-            await withAuth((auth) => markNotificationsAsReadAction(auth, []));
-            refresh();
+            await markReadMutation.mutateAsync([]);
         } catch (err) {
             console.error("Failed to mark all notifications as read:", err);
         }
@@ -294,12 +255,9 @@ export default function NotificationsPage() {
 
         setCreatingTopic(true);
         try {
-            const result = await withAuth((auth) =>
-                createNotificationTopicAction(auth, title)
-            );
+            const result = await createTopicMutation.mutateAsync(title);
             setCreateTopicTitle("");
             setCreateTopicOpen(false);
-            await fetchData();
             if (result?.topicId) {
                 setActiveTopic(result.topicId);
             }
@@ -319,14 +277,11 @@ export default function NotificationsPage() {
         if (!confirmed) return;
 
         try {
-            await withAuth((auth) =>
-                deleteNotificationTopicAction(auth, topic.id)
-            );
+            await deleteTopicMutation.mutateAsync(topic.id);
             setTopicToDelete(null);
             if (activeTopic === topic.id) {
                 setActiveTopic(null);
             }
-            await fetchData();
         } catch (err) {
             console.error("Failed to delete topic:", err);
             alert("Failed to delete topic");

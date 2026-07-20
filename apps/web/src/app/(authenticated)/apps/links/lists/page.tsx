@@ -1,9 +1,10 @@
 "use client";
 
 import { Link } from "react-router-dom";
-import { useEffect, useMemo, useState } from "react";
-import useAuth from "@/context/useAuth";
+import { useMemo } from "react";
 import { getLinksCollectionsAction } from '@/lib/apiClient';
+import { useApiQuery } from "@/hooks/useApiQuery";
+import { queryKeys } from "@/lib/queryClient";
 
 type LinkCollection = {
     id: string;
@@ -14,31 +15,8 @@ type LinkCollection = {
 };
 
 export default function LinksListsPage() {
-    const { token, withAuth } = useAuth();
-    const [collections, setCollections] = useState<LinkCollection[]>([]);
-
-    useEffect(() => {
-        if (!token) return;
-
-        let mounted = true;
-
-        const load = async () => {
-            try {
-                const data = await withAuth((auth) => getLinksCollectionsAction(auth));
-                if (!mounted) return;
-                setCollections(Array.isArray(data) ? (data as LinkCollection[]) : []);
-            } catch (error) {
-                console.error("Failed to load link lists:", error);
-                if (mounted) setCollections([]);
-            }
-        };
-
-        load();
-
-        return () => {
-            mounted = false;
-        };
-    }, [token, withAuth]);
+    const collectionsQuery = useApiQuery(queryKeys.links.collections, getLinksCollectionsAction);
+    const collections = (collectionsQuery.data ?? []) as LinkCollection[];
 
     const lists = useMemo(
         () => collections.filter((collection) => {

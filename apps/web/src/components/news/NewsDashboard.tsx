@@ -48,6 +48,8 @@ import type {
     NewsFeedRecord,
     NewsSavedArticlesResponse,
 } from "@dashwise/types/sdk";
+import { useApiQuery } from "@/hooks/useApiQuery";
+import { queryKeys } from "@/lib/queryClient";
 
 export default function NewsDashboardComponent() {
     const navigate = useNavigate();
@@ -85,6 +87,38 @@ export default function NewsDashboardComponent() {
 
     const itemsPerPage = 15;
     const { token, withAuth } = useAuth();
+    const feedQuery = useApiQuery(
+        activeSavedList
+            ? queryKeys.news.savedArticles(token, activeSavedList)
+            : queryKeys.news.feed(token, activeFeedId, currentPage),
+        async (auth) => activeSavedList
+            ? getNewsSavedArticlesAction(auth, activeSavedList)
+            : getNewsFeedAction(auth, activeFeedId, itemsPerPage, (currentPage - 1) * itemsPerPage),
+    );
+    const allSavedArticlesQuery = useApiQuery(
+        queryKeys.news.savedArticles(token, null),
+        (auth) => getNewsSavedArticlesAction(auth),
+        { enabled: !activeSavedList },
+    );
+
+    useEffect(() => {
+        setSavedArticlesData(null);
+    }, [activeFeedId]);
+
+    useEffect(() => {
+        if (!feedQuery.data) return;
+        if (activeSavedList) {
+            const data = feedQuery.data as NewsSavedArticlesResponse;
+            setSavedArticlesData(data);
+            setFeed(data.articles.map((article) => article.json));
+            setFeedTotal(data.articles.length);
+        } else {
+            const data = feedQuery.data as { items?: NewsFeedItem[]; total?: number };
+            setSavedArticlesData(allSavedArticlesQuery.data ?? null);
+            setFeed(Array.isArray(data.items) ? data.items : []);
+            setFeedTotal(Number(data.total || 0));
+        }
+    }, [activeSavedList, allSavedArticlesQuery.data, feedQuery.data]);
 
     // --- Auth redirect ---
     useEffect(() => {
@@ -93,45 +127,14 @@ export default function NewsDashboardComponent() {
 
     if (!token) return null;
 
-    const loadFeed = async (page = 1) => {
-        if (!token) return;
-
-        try {
-            setFeed(null);
-            setFeedTotal(0);
-
-            if (activeSavedList) {
-                const data = await withAuth((auth) => getNewsSavedArticlesAction(auth, activeSavedList));
-                setSavedArticlesData(data);
-                setFeed(data.articles.map((article) => article.json));
-                setFeedTotal(data.articles.length);
-                return;
-            }
-
-            const limit = itemsPerPage;
-            const offset = (page - 1) * itemsPerPage;
-            const data = await withAuth((auth) =>
-                getNewsFeedAction(auth, activeFeedId, limit, offset)
-            );
-            setFeed(Array.isArray(data.items) ? data.items : []);
-            setFeedTotal(Number(data.total || 0));
-        } catch (err) {
-            console.error("Failed to load news:", err);
-        }
+    const loadFeed = async () => {
+        await feedQuery.refetch();
     };
 
     // --- Fetch news ---
     useEffect(() => {
         setCurrentPage(1);
-        loadFeed(1);
-    }, [token, activeFeedId]);
-
-    useEffect(() => {
-        if (!token) return;
-        withAuth((auth) => getNewsSavedArticlesAction(auth))
-            .then(setSavedArticlesData)
-            .catch((err) => console.error("Failed to load saved articles:", err));
-    }, [token, withAuth]);
+    }, [activeFeedId]);
 
     useEffect(() => {
         if (!sidebarAction) return;
@@ -329,7 +332,7 @@ export default function NewsDashboardComponent() {
         try {
             await withAuth((auth) => refreshNewsFeedAction(auth, targetFeedIds));
             setRefreshStatus("Fetching latest articles…");
-            await loadFeed(currentPage);
+            await loadFeed();
         } catch (err) {
             console.error("Refresh failed:", err);
         } finally {
@@ -555,7 +558,7 @@ export default function NewsDashboardComponent() {
     const handlePageChange = (page: number) => {
         if (page === currentPage) return;
         setCurrentPage(page);
-        void loadFeed(page);
+        void loadFeed();
     };
 
     return (
@@ -634,6 +637,10 @@ export default function NewsDashboardComponent() {
                                     openSaveDialog={openSaveDialog}
                                 />
                             ))}
+
+                        {feed && activeSavedList && paginatedArticles.length === 0 && (
+                            <div className="opacity-60">No saved articles in this list</div>
+                        )}
 
                         {/* Pagination */}
                         {feed && totalPages > 1 && (

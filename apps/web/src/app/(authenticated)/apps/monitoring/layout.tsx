@@ -1,9 +1,8 @@
 "use client";
 
 import { Outlet, useSearchParams } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import AppTemplate, { BottomTab, Content, GroupLabel, Sidebar, Tab } from "@/components/apps/LayoutTemplate";
-import useAuth from "@/context/useAuth";
 import { getMonitorsAction } from '@/lib/apiClient';
 import { getMonitoringHostsAction, getMonitoringSshHostsAction } from '@/lib/apiClient';
 import type { MonitorRecord, MonitoringHostRecord, MonitoringSshHostRecord } from '@/lib/apiClient';
@@ -14,30 +13,27 @@ import SshHostDialog from "@/components/monitoring/SshHostDialog";
 import SystemAgentHostDialog from "@/components/monitoring/SystemAgentHostDialog";
 import { useMonitoringLinkLookup } from "@/components/monitoring/useMonitoringLinkLookup";
 import SshSessionsProvider from "@/components/monitoring/ssh/SshSessionsProvider";
+import { useApiQuery } from "@/hooks/useApiQuery";
+import { queryKeys } from "@/lib/queryClient";
+import { useQueryClient } from "@tanstack/react-query";
+import useAuth from "@/context/useAuth";
 
 export default function MonitoringRootLayout() {
-    const { token, withAuth } = useAuth();
+    const queryClient = useQueryClient();
+    const { token } = useAuth();
     const { unreadCount } = useActivity();
-    const [monitors, setMonitors] = useState<MonitorRecord[]>([]);
-    const [sshHosts, setSshHosts] = useState<MonitoringSshHostRecord[]>([]);
-    const [hosts, setHosts] = useState<MonitoringHostRecord[]>([]);
     const [sshHostDialogOpen, setSshHostDialogOpen] = useState(false);
     const [systemAgentDialogOpen, setSystemAgentDialogOpen] = useState(false);
     const [editingSshHost, setEditingSshHost] = useState<MonitoringSshHostRecord | null>(null);
     const [searchParams, setSearchParams] = useSearchParams();
     const { entryById } = useMonitoringLinkLookup();
 
-    useEffect(() => {
-        if (!token) {
-            setHosts([]);
-            return;
-        }
-        let mounted = true;
-        void withAuth((auth) => getMonitoringHostsAction(auth))
-            .then((hostList) => { if (mounted) setHosts(Array.isArray(hostList) ? hostList : []); })
-            .catch((err) => { console.error("Failed to load monitoring hosts:", err); if (mounted) setHosts([]); });
-        return () => { mounted = false; };
-    }, [token, withAuth]);
+    const monitorsQuery = useApiQuery(queryKeys.monitoring.monitors, getMonitorsAction);
+    const hostsQuery = useApiQuery(queryKeys.monitoring.hosts, getMonitoringHostsAction);
+    const sshHostsQuery = useApiQuery(queryKeys.monitoring.sshHosts, getMonitoringSshHostsAction);
+    const monitors = (monitorsQuery.data ?? []) as MonitorRecord[];
+    const hosts = (hostsQuery.data ?? []) as MonitoringHostRecord[];
+    const sshHosts = (sshHostsQuery.data ?? []) as MonitoringSshHostRecord[];
 
     const monitorDialogOpen = searchParams.get("newMonitor") === "true";
 
@@ -57,62 +53,6 @@ export default function MonitoringRootLayout() {
         setEditingSshHost(host ?? null);
         setSshHostDialogOpen(true);
     };
-
-    useEffect(() => {
-        if (!token) {
-            setMonitors([]);
-            return;
-        }
-
-        let mounted = true;
-
-        const loadMonitors = async () => {
-            try {
-                const monitorList = await withAuth((auth) => getMonitorsAction(auth));
-                if (!mounted) return;
-                setMonitors(Array.isArray(monitorList) ? monitorList : []);
-            } catch (err) {
-                console.error("Failed to load monitors:", err);
-                if (mounted) {
-                    setMonitors([]);
-                }
-            }
-        };
-
-        loadMonitors();
-
-        return () => {
-            mounted = false;
-        };
-    }, [token, withAuth]);
-
-    useEffect(() => {
-        if (!token) {
-            setSshHosts([]);
-            return;
-        }
-
-        let mounted = true;
-
-        const loadSshHosts = async () => {
-            try {
-                const sshHostList = await withAuth((auth) => getMonitoringSshHostsAction(auth));
-                if (!mounted) return;
-                setSshHosts(Array.isArray(sshHostList) ? sshHostList : []);
-            } catch (err) {
-                console.error("Failed to load SSH hosts:", err);
-                if (mounted) {
-                    setSshHosts([]);
-                }
-            }
-        };
-
-        loadSshHosts();
-
-        return () => {
-            mounted = false;
-        };
-    }, [token, withAuth]);
 
     return (
         <AppTemplate title="Monitoring">
@@ -200,7 +140,7 @@ export default function MonitoringRootLayout() {
                     }
                 }}
                 onCreated={(monitor) => {
-                    setMonitors((current) => [monitor, ...current.filter((existing) => existing.id !== monitor.id)]);
+                    queryClient.setQueryData<MonitorRecord[]>(["api", token, ...queryKeys.monitoring.monitors], (current = []) => [monitor, ...current.filter((existing) => existing.id !== monitor.id)]);
                     closeMonitorDialog();
                 }}
                 onSystemAgentRequested={() => setSystemAgentDialogOpen(true)}
@@ -209,7 +149,7 @@ export default function MonitoringRootLayout() {
             <SystemAgentHostDialog
                 open={systemAgentDialogOpen}
                 onOpenChange={setSystemAgentDialogOpen}
-                onSaved={(host) => setHosts((current) => [host, ...current.filter((existing) => existing.id !== host.id)])}
+                onSaved={(host) => queryClient.setQueryData<MonitoringHostRecord[]>(["api", token, ...queryKeys.monitoring.hosts], (current = []) => [host, ...current.filter((existing) => existing.id !== host.id)])}
             />
 
             <SshHostDialog
@@ -220,7 +160,7 @@ export default function MonitoringRootLayout() {
                     if (!open) setEditingSshHost(null);
                 }}
                 onSaved={(host) => {
-                    setSshHosts((current) => [host, ...current.filter((existing) => existing.id !== host.id)]);
+                    queryClient.setQueryData<MonitoringSshHostRecord[]>(["api", token, ...queryKeys.monitoring.sshHosts], (current = []) => [host, ...current.filter((existing) => existing.id !== host.id)]);
                 }}
             />
         </AppTemplate>
