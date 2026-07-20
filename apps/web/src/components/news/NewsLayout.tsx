@@ -8,6 +8,7 @@ import {
     getNewsFeedsAction,
     getNewsSavedArticlesAction,
     getNewsSubscriptionsAction,
+    renameNewsSavedArticleListAction,
 } from '@/lib/apiClient';
 import AppTemplate, { Content, GroupLabel, Sidebar, Tab } from "@/components/apps/LayoutTemplate";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -112,6 +113,10 @@ export default function NewsLayout({ children }: { children: ReactNode }) {
         mutationFn: (listId: string) => deleteNewsSavedArticleListAction({ token }, listId),
         onSuccess: reloadSidebar,
     });
+    const renameSavedListMutation = useMutation({
+        mutationFn: ({ listId, name }: { listId: string; name: string }) => renameNewsSavedArticleListAction({ token }, listId, name),
+        onSuccess: reloadSidebar,
+    });
 
     const userFeeds = useMemo(() => feeds.filter((entry) => entry.id && entry.id !== "all"), [feeds]);
     const savedSubscriptionRefs = useMemo(() => {
@@ -186,6 +191,15 @@ export default function NewsLayout({ children }: { children: ReactNode }) {
         }
     };
 
+    const renameSavedList = async (list: SavedListRecord) => {
+        if (!token) return;
+
+        const name = window.prompt("Rename saved list", list.name)?.trim();
+        if (!name || name === list.name) return;
+
+        await renameSavedListMutation.mutateAsync({ listId: list.id, name });
+    };
+
     return (
         <NewsSidebarContext.Provider value={{ subscriptions, feeds, reloadSidebar }}>
         <AppTemplate title="News">
@@ -250,7 +264,12 @@ export default function NewsLayout({ children }: { children: ReactNode }) {
                         group="Saved"
                         dropdownActions={[
                             {
-                                label: "Delete list",
+                                label: "Rename",
+                                icon: "fa6-solid:pen-to-square",
+                                action: () => renameSavedList(list),
+                            },
+                            {
+                                label: "Delete",
                                 icon: "fa6-solid:trash",
                                 action: () => deleteSavedList(list),
                             },

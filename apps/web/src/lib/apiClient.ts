@@ -1,4 +1,4 @@
-import type { ActionAuth, AuthUserRecord, UserPropertyValue } from "@dashwise/types/sdk";
+import type { ActionAuth, AuthUserRecord, MonitorRecord, UserPropertyValue } from "@dashwise/types/sdk";
 export type { MonitorRecord } from "@dashwise/types/sdk";
 import type {
   NewsFeedDraft,
@@ -514,6 +514,14 @@ export async function updateNewsSavedArticleReadStateAction(auth: ActionAuth, li
 export async function deleteNewsSavedArticleListAction(auth: ActionAuth, listId: string) {
   return extractData(await client.delete({
     url: `/news/saved-article-lists/${encodeURIComponent(listId)}`,
+    headers: authHeaders(auth),
+  }));
+}
+
+export async function renameNewsSavedArticleListAction(auth: ActionAuth, listId: string, name: string) {
+  return extractData(await client.patch({
+    url: `/news/saved-article-lists/${encodeURIComponent(listId)}`,
+    body: { name },
     headers: authHeaders(auth),
   }));
 }

@@ -1032,6 +1032,39 @@ export async function deleteNewsSavedArticleList(userId: string, list: string): 
   return { success: true, deletedArticles: matches.length };
 }
 
+export async function renameNewsSavedArticleList(userId: string, list: string, name: string): Promise<NewsSavedArticleList> {
+  const requestedList = String(list || "").trim();
+  const nextName = String(name || "").trim();
+  if (!requestedList) throw new Error("Saved list is required");
+  if (!nextName) throw new Error("Saved list name is required");
+
+  const defaultList = await ensureNewsDefaultList(userId);
+  const lists = await getNewsSavedArticleLists(userId, defaultList);
+  const targetList = lists.find((entry) => entry.id === requestedList || entry.name === requestedList);
+  if (!targetList) throw new Error("Saved list not found");
+
+  const pb = await getSuperuserPB();
+  const existing = await pb.collection("newsSavedArticleLists").getFullList(200, {
+    filter: `userId=\"${escapeFilter(userId)}\" && name=\"${escapeFilter(nextName)}\"`,
+  }) as Array<Record<string, unknown>>;
+  if (existing.some((record) => String(record.id || "") !== targetList.id)) {
+    throw new Error("A saved list with that name already exists");
+  }
+
+  const renamed = await pb.collection("newsSavedArticleLists").update(targetList.id, { name: nextName });
+  if (defaultList === targetList.name || (defaultList === "readLater" && targetList.name === "Read Later")) {
+    const user = await pb.collection("users").getOne(userId).catch(() => null) as Record<string, unknown> | null;
+    const current = user?.newsPreferences && typeof user.newsPreferences === "object"
+      ? user.newsPreferences as Record<string, unknown>
+      : {};
+    await pb.collection("users").update(userId, {
+      newsPreferences: { ...current, defaultList: nextName },
+    });
+  }
+
+  return normalizeSavedArticleList(renamed as Record<string, unknown>);
+}
+
 function normalizeRefreshFeedIds(feedIds?: string[] | string | null) {
   if (Array.isArray(feedIds)) {
     return Array.from(new Set(feedIds.map((feedId) => String(feedId).trim()).filter(Boolean)));
