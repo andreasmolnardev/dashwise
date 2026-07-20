@@ -49,7 +49,10 @@ RUN bun run --cwd apps/backend build
 FROM oven/bun:1-alpine
 WORKDIR /app
 
+RUN apk add --no-cache valkey
+
 COPY --from=pocketbase /usr/local/bin/pocketbase /usr/local/bin/pocketbase
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 ENV PB_BINARY_PATH=/usr/local/bin/pocketbase
 ENV NODE_PATH=/app/apps/backend:/app/packages
 
@@ -73,4 +76,5 @@ COPY --from=build /app/packages              /app/packages
 RUN bun install --production --frozen-lockfile
 
 EXPOSE 3000 8090
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 CMD ["bun", "run", "--cwd", "apps/backend", "start"]

@@ -1,14 +1,12 @@
 import {
-  createNewsFeedItemsCache,
   getAllNewsFeeds,
   getNewsFeedById,
   getNewsSubscriptionById,
-  getNewsFeedItemsCacheByUrl,
   updateNewsFeedRecord,
-  updateNewsFeedItemsCache,
   updateNewsSubscription,
 } from "../../lib/data/superuser";
 import { applyNewsTopics, normalizeMaxFeedItems } from "../../lib/data/news";
+import { writeFeedItemsCache } from "../../lib/cache/feed-items";
 import { createLogger } from "../../lib/logger";
 import { getFeedItems } from "./helper";
 
@@ -156,33 +154,6 @@ export async function newsFeedBuilder(feedId?: string): Promise<{
           subscription_id: subscriptionId,
           subscription_name: subscriptionName,
         })));
-        try {
-          const existing = await getNewsFeedItemsCacheByUrl(res.feedUrl!);
-
-          const existingItem = existing.items.length > 0 ? existing.items[0] : undefined;
-
-          if (existingItem) {
-            await updateNewsFeedItemsCache(existingItem.id, {
-              url: res.feedUrl,
-              json: JSON.stringify(items),
-            });
-          } else {
-            await createNewsFeedItemsCache({
-              url: res.feedUrl,
-              json: JSON.stringify(items),
-            });
-          }
-
-          cachedCount++;
-        } catch (err: any) {
-          feedResult.errors++;
-          feedResult.details.push({
-            feedId: newsFeed.id,
-            action: 'cache_upsert_error',
-            feedUrl: res.feedUrl,
-            error: err?.message || String(err),
-          });
-        }
       } else if (res.action === 'feed_fetch_error') {
         feedFetchErrors++;
         feedResult.errors++;
@@ -192,12 +163,14 @@ export async function newsFeedBuilder(feedId?: string): Promise<{
       }
     }
 
+    let cachedItems: Array<FeedItem & { subscription_id: string; subscription_name: string }> = feedItems;
     if (newsFeed.userId) {
       try {
         const sortedItems = feedItems.sort((left, right) => new Date(right.pubDate).getTime() - new Date(left.pubDate).getTime());
         const groupedItems = await applyNewsTopics(String(newsFeed.userId), sortedItems, topicSubscriptions);
+        cachedItems = groupedItems.slice(0, maxFeedItems) as typeof feedItems;
         await updateNewsFeedRecord(newsFeed.id, {
-          feedCache: groupedItems.slice(0, maxFeedItems),
+          feedCache: cachedItems,
           maxFeedItems,
         });
         feedResult.updated++;
@@ -209,6 +182,18 @@ export async function newsFeedBuilder(feedId?: string): Promise<{
           error: err?.message || String(err),
         });
       }
+    }
+
+    try {
+      await writeFeedItemsCache(newsFeed.id, cachedItems, [newsFeed.id]);
+      cachedCount++;
+    } catch (err: any) {
+      feedResult.errors++;
+      feedResult.details.push({
+        feedId: newsFeed.id,
+        action: 'redis_cache_write_error',
+        error: err?.message || String(err),
+      });
     }
 
     feedResult.updated += cachedCount;
