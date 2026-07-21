@@ -841,9 +841,9 @@ function LinkTile({
           </div>
         )}
 
-      <div className="flex items-center w-full justify-between relative">
-        <div className="flex items-center justify-center flex-1">
-          <span className="text-sm text-white truncate px-1">{link.title}</span>
+      <div className="flex items-center w-full min-w-0 justify-between relative">
+        <div className="flex items-center justify-center flex-1 min-w-0">
+          <span className="block min-w-0 text-sm text-white truncate px-1">{link.title}</span>
 
           {showDot && (
             <button

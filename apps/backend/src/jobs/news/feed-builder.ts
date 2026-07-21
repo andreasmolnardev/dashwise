@@ -115,6 +115,7 @@ export async function newsFeedBuilder(feedId?: string): Promise<{
           fallbackThumbnailUrl: subscriptionRecord?.fallbackThumbnailUrl,
         }) as FeedItem[];
         if (subscriptionRecord?.id) {
+          await writeFeedItemsCache(subscriptionRecord.id, feedItems, [subscriptionRecord.id]);
           await updateNewsSubscription(subscriptionRecord.id, { fetchErrors: "" });
         }
         return {
@@ -170,7 +171,6 @@ export async function newsFeedBuilder(feedId?: string): Promise<{
         const groupedItems = await applyNewsTopics(String(newsFeed.userId), sortedItems, topicSubscriptions);
         cachedItems = groupedItems.slice(0, maxFeedItems) as typeof feedItems;
         await updateNewsFeedRecord(newsFeed.id, {
-          feedCache: cachedItems,
           maxFeedItems,
         });
         feedResult.updated++;

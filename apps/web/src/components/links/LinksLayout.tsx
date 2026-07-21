@@ -34,8 +34,10 @@ export default function LinksLayout({ children }: { children: ReactNode }) {
     const collections = Array.isArray(collectionsQuery.data) ? collectionsQuery.data as LinkCollection[] : [];
     const tags = Array.isArray(tagsQuery.data) ? tagsQuery.data as LinkTag[] : [];
     const [createListOpen, setCreateListOpen] = useState(false);
+    const [renameListOpen, setRenameListOpen] = useState(false);
     const [createTagOpen, setCreateTagOpen] = useState(false);
     const [editingCollection, setEditingCollection] = useState<LinkCollection | null>(null);
+    const [renamingCollection, setRenamingCollection] = useState<LinkCollection | null>(null);
     const [editingTag, setEditingTag] = useState<LinkTag | null>(null);
 
     const userCollections = useMemo(
@@ -74,11 +76,19 @@ export default function LinksLayout({ children }: { children: ReactNode }) {
                         group="Lists"
                         dropdownActions={[
                             {
-                                label: "Edit list",
+                                label: "Edit",
                                 icon: "fa6-solid:pen-to-square",
                                 action: () => {
                                     setEditingCollection(collection);
                                     setCreateListOpen(true);
+                                },
+                            },
+                            {
+                                label: "Rename",
+                                icon: "fa6-solid:font",
+                                action: () => {
+                                    setRenamingCollection(collection);
+                                    setRenameListOpen(true);
                                 },
                             },
                         ]}
@@ -128,6 +138,22 @@ export default function LinksLayout({ children }: { children: ReactNode }) {
                     if (!open) setEditingCollection(null);
                 }}
                 collection={editingCollection}
+                onSaved={(collection) => {
+                    queryClient.setQueryData(["api", token, ...queryKeys.links.collections], (current: LinkCollection[] | undefined) =>
+                        [collection, ...(current ?? []).filter((item) => item.id !== collection.id)],
+                    );
+                    navigate(`/links/lists/${collection.id}`);
+                }}
+            />
+
+            <CreateLinksCollectionDialog
+                open={renameListOpen}
+                onOpenChange={(open) => {
+                    setRenameListOpen(open);
+                    if (!open) setRenamingCollection(null);
+                }}
+                collection={renamingCollection}
+                renameOnly
                 onSaved={(collection) => {
                     queryClient.setQueryData(["api", token, ...queryKeys.links.collections], (current: LinkCollection[] | undefined) =>
                         [collection, ...(current ?? []).filter((item) => item.id !== collection.id)],

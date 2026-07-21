@@ -72,6 +72,7 @@ export type NewsFeedRecord = {
   subscriptionRefs: string[];
   excludedSubscriptionRefs: string[];
   maxFeedItems?: number;
+  /** Populated from Redis, not persisted in PocketBase. */
   feedCache?: NewsFeedItem[];
 };
 
