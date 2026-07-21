@@ -13,6 +13,7 @@ dist/
 
 # editor settings
 .vscode/    
+.zed/
 
 # testing
 /coverage
