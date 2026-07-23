@@ -58,6 +58,7 @@ interface BottomTabProps {
     icon: string;
     title: string;
     isRoot?: boolean;
+    badge?: number | string;
 }
 
 interface ActionProps {
@@ -289,7 +290,7 @@ export function Tab({ dst, icon, title, group, isRoot, fallbackIcon, badge, hasE
 
 // ─── BottomTab ────────────────────────────────────────────────────────────────
 
-export function BottomTab({ dst, icon, title, isRoot }: BottomTabProps) {
+export function BottomTab({ dst, icon, title, isRoot, badge }: BottomTabProps) {
     const { pathname, search, closeMobileSidebar } = useContext(SidebarContext);
     const destination = new URL(dst, "http://dashwise.local");
     const isActive = destination.search
@@ -317,6 +318,11 @@ export function BottomTab({ dst, icon, title, isRoot }: BottomTabProps) {
             >
                 {title}
             </span>
+            {badge !== undefined && (
+                <span className="ml-auto rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-bold leading-none">
+                    {badge}
+                </span>
+            )}
         </Link>
     );
 }
@@ -456,7 +462,8 @@ function groupTabs(
     return groups;
 }
 
-export function Sidebar({ children }: { children: ReactNode }) {
+export function Sidebar({ children, dashboardPath = "/home" }: { children: ReactNode; dashboardPath?: string | false }) {
+    const { closeMobileSidebar } = useContext(SidebarContext);
     const tabs = Children.toArray(children).filter(
         (c) => isValidElement(c) && (c as React.ReactElement).type === Tab,
     ) as React.ReactElement<TabProps>[];
@@ -579,7 +586,7 @@ export function Sidebar({ children }: { children: ReactNode }) {
                     </div>
                 )}
 
-                <Link to="/home" className="block group">
+                {dashboardPath && <Link to={dashboardPath} onClick={() => closeMobileSidebar?.()} className="block group">
                     <div className="flex items-center gap-2 px-2 py-1.5 rounded-md">
                         <Icon
                             icon="fa6-solid:house"
@@ -590,6 +597,7 @@ export function Sidebar({ children }: { children: ReactNode }) {
                         </span>
                     </div>
                 </Link>
+                }
             </div>
         </div>
     );

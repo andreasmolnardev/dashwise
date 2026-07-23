@@ -79,6 +79,26 @@ export default tseslint.config(
     },
   },
   {
+    files: ["apps/web/src/modules/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": ["error", {
+        patterns: [
+          { group: ["@/modules/*/internal/*", "../*/internal/*", "../../*/internal/*"], message: "Import another module through its public API." },
+        ],
+      }],
+    },
+  },
+  {
+    files: ["apps/backend/src/modules/**/*.ts"],
+    rules: {
+      "no-restricted-imports": ["error", {
+        patterns: [
+          { group: ["../*/internal/*", "../../*/internal/*", "../../../*/internal/*"], message: "Import another module through its public API." },
+        ],
+      }],
+    },
+  },
+  {
     files: ["**/*.{js,cjs,mjs}"],
     languageOptions: {
       ecmaVersion: "latest",

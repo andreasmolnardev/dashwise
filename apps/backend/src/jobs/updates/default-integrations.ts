@@ -1,6 +1,6 @@
 import { getSuperuserPB } from "../../lib/pb/pocketbase";
 
-import { ensureBuiltinIntegrations } from "../../lib/data/integrations";
+import { ensureBuiltinIntegrations } from "../../platform/integrations";
 
 export async function runDefaultIntegrationsBootstrapJob() {
   const pb = await getSuperuserPB();

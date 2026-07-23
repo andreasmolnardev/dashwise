@@ -69,6 +69,8 @@ export const config = {
   JOBS_WEBHOOK_ENABLED: truthyEnv(getEnv("JOBS_WEBHOOK_ENABLE", "NEXT_PUBLIC_JOBS_WEBHOOK_ENABLE")) || !!getEnv("JOBS_URL", "NEXT_PUBLIC_JOBS_URL"),
   DEFAULT_BG_URL: getEnv("DEFAULT_BG_URL", "NEXT_PUBLIC_DEFAULT_BG_URL") || "/dashboard-wallpaper.png",
   allowInsecureCertsForIntegrationUrls: truthyEnv(getEnv("ALLOW_INSECURE_CERTS_FOR_INTEGRATION_URLS", "NEXT_PUBLIC_INTEGRATIONS_ENABLE_SSL")) || truthyEnv(env.ALLOW_SSL),
+  // Instance-level deployment policy; this never represents per-user access.
+  DISABLED_MODULES: (env.DISABLED_MODULES || "").split(",").map((moduleId) => moduleId.trim()).filter(Boolean),
 } as const;
 
 export type Config = typeof config;

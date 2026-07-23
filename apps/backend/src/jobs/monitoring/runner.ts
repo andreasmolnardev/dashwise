@@ -9,7 +9,7 @@ import {
 import {
     createNotificationByTopicId,
     queueNotificationForForwarding,
-} from "../../lib/data/notifications/publish";
+} from "../../modules/notifications";
 import { createLogger } from "../../lib/logger";
 import { getLinkIdFromSource, getLinkSource, parseConfigObject, type StatusCheckMethod } from "./shared";
 

@@ -1,4 +1,4 @@
-import { getHomeLinks } from "./links";
+import { getHomeLinks } from "../../modules/links";
 import { getSuperuserPB } from "../pb/pocketbase";
 import { defaultIntegrationsBlueprint, weatherIntegrationBlueprint } from "@dashwise/assets";
 import { readFile } from "fs/promises";

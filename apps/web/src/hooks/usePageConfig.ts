@@ -7,12 +7,15 @@ import type { PageConfig } from "@dashwise/types/sdk";
 import { useLocation } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, type SetStateAction } from "react";
-
-const nonPageSegments = new Set(["settings", "notifications", "onboarding", "screensaver", "auth", "frame"]);
+import { homelabProduct } from "@/products/homelab";
+import { resolvePageConfigName, routeMetadata } from "@/platform/routing/metadata";
+import { applicationRouteMetadata } from "@/platform/routing/application-routes";
 
 export function resolveRequestedPageName(pathname: string | null): string {
-  const firstSegment = pathname?.split("/").filter(Boolean)[0] ?? "home";
-  return nonPageSegments.has(firstSegment) ? "home" : firstSegment;
+  const normalizedPathname = pathname ?? "/home";
+  const pageConfig = (routeMetadata(normalizedPathname, homelabProduct.modules) ?? applicationRouteMetadata(normalizedPathname))?.pageConfig;
+  if (pageConfig) return resolvePageConfigName(normalizedPathname, pageConfig.mode, pageConfig.pageName);
+  return normalizedPathname.split("/").filter(Boolean)[0] ?? "home";
 }
 
 type UsePageConfigOptions = {

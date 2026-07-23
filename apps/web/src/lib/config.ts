@@ -9,6 +9,7 @@ interface Config {
   allowInsecureCertsForIntegrationUrls: boolean;
   enableSSO: boolean;
   disableUserSignup: boolean;
+  disabledModules: string[];
 }
 
 const env = ((typeof import.meta !== "undefined" && import.meta.env) ? import.meta.env : {}) as Record<
@@ -33,13 +34,19 @@ const enableJobsWebhook =
   !!env.NEXT_PUBLIC_JOBS_URL ||
   false;
 
+// Mirrors instance deployment policy for client route composition.
+const disabledModules = (env.NEXT_PUBLIC_DISABLED_MODULES || "")
+  .split(",")
+  .map((moduleId) => moduleId.trim())
+  .filter(Boolean);
+
 let backend_url = 'http://localhost:3000';
 
 if (!isDev){
   if (env.NEXT_PUBLIC_BACKEND_URL) {
     backend_url = env.NEXT_PUBLIC_BACKEND_URL;
   } else {
-    backend_url = window.location.origin;
+    backend_url = typeof window !== "undefined" ? window.location.origin : "";
   }
 }
 
@@ -58,7 +65,8 @@ const config: Config = {
 
   allowInsecureCertsForIntegrationUrls: allowInsecureCertsForIntegrationUrls || false,
   enableSSO: enableSSOLogin,
-  disableUserSignup: disableUserSignup
+  disableUserSignup: disableUserSignup,
+  disabledModules,
 };
 
 export default config;

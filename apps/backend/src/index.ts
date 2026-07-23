@@ -6,18 +6,20 @@ import { cors } from "hono/cors";
 import { Client as SshClient } from "ssh2";
 
 import { config } from "./lib/config";
-import { jobsApi, registerJobsCron } from "./jobs/index";
+import { dispatchEnabledModuleJob, jobsApi, registerJobsCron } from "./jobs/index";
 import { startPocketbase } from "./pocketbase";
 import { createLogger } from "./lib/logger";
-import { getMonitoringSshHostById, getMonitoringSshHostCredentials, getSystemAgentHostById } from "./lib/data/monitoring";
-import { getNotifications } from "./lib/data/notifications/items";
-import { listIntegrations } from "./lib/data/integrations";
+import { getMonitoringSshHostById, getMonitoringSshHostCredentials, getSystemAgentHostById } from "./modules/monitoring";
+import { getNotifications } from "./modules/notifications";
+import { listIntegrations } from "./platform/integrations";
 import { getUpcomingEvents } from "./lib/calendar";
-import { systemAgentClient } from "./lib/systemAgent";
+import { systemAgentClient } from "./modules/monitoring";
 import { requireAuth } from "./routes/shared";
 import authRoute from "./routes/auth.route";
 import systemRoute from "./routes/system.route";
 import dataRoute from "./routes/data.route";
+import { homelabProduct } from "./products/homelab";
+import { mountModuleRoutes } from "./platform/modules/compose";
 
 const app = new Hono();
 const devAutoLoginEmail = "testenv@dashwise.local";
@@ -44,8 +46,10 @@ const shutdown = () => {
 process.on("SIGTERM", shutdown);
 process.on("SIGINT", shutdown);
 
-registerJobsCron();
-void systemAgentClient.start();
+registerJobsCron(homelabProduct.modules);
+if (homelabProduct.modules.some((module) => module.id === "monitoring")) {
+  void systemAgentClient.start();
+}
 
 app.use("*", async (c, next) => {
   const startedAt = performance.now();
@@ -64,6 +68,7 @@ app.use("*", cors({ origin: "*" }));
 app.route("/", authRoute);
 app.route("/", systemRoute);
 app.route("/", dataRoute);
+mountModuleRoutes(app, homelabProduct.modules);
 
 app.get("/health", (c) => c.json({ status: "ok" }));
 
@@ -251,14 +256,21 @@ app.get("/api/v1/monitoring/hosts/:id/stats/live", upgradeWebSocket((c) => {
 }));
 
 app.get("/webhook/statusMonitoringIndexer", async (c) => {
-  await jobsApi.runMonitoringIndexerJob("webhook");
+  const result = await dispatchEnabledModuleJob(homelabProduct.modules, "statusMonitoringIndexer", "webhook");
+  if (result === null) return c.json({ error: "Job is unavailable" }, 404);
   return c.json({ status: "success" });
 });
 
 app.get("/webhook/statusMonitoringRunner", async (c) => {
   const source = c.req.query("source");
   const linkId = c.req.query("linkId");
-  await jobsApi.runMonitoringRunnerJob("webhook", { source, linkId });
+  const result = await dispatchEnabledModuleJob(
+    homelabProduct.modules,
+    "statusMonitoringRunner",
+    "webhook",
+    { source, linkId },
+  );
+  if (result === null) return c.json({ error: "Job is unavailable" }, 404);
   return c.json({ status: "success" });
 });
 
@@ -277,7 +289,13 @@ app.get("/webhook/newsFeedBuilder", async (c) => {
   }
 
   for (const feedId of feedIds) {
-    await jobsApi.runNewsFeedBuilderJob("webhook", feedId);
+    const result = await dispatchEnabledModuleJob(
+      homelabProduct.modules,
+      "newsFeedBuilder",
+      "webhook",
+      feedId,
+    );
+    if (result === null) return c.json({ error: "Job is unavailable" }, 404);
   }
 
   return c.json({ status: "success" });

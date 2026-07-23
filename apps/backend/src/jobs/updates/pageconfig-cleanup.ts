@@ -1,4 +1,4 @@
-import { getPageConfigJSON, getUserPages, updatePageConfig } from "../../lib/data/pageConfig";
+import { getPageConfigJSON, getUserPages, updatePageConfig } from "../../platform/page-config/service";
 
 const FRONTEND_ONLY_WIDGETS = new Set([
   "placeholder",

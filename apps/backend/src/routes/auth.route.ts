@@ -9,7 +9,7 @@ import {
   validateAuthToken,
 } from "../lib/data/auth";
 import type { UserPropertyValue } from "../lib/data/auth";
-import { ensureBuiltinIntegrations } from "../lib/data/integrations";
+import { ensureBuiltinIntegrations } from "../platform/integrations";
 import { getSuperuserPB } from "../lib/pb/pocketbase";
 
 import {

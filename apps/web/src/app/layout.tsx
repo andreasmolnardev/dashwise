@@ -2,6 +2,8 @@ import { Suspense, useEffect } from "react";
 import { Outlet, useLocation } from "react-router-dom";
 import "./globals.css";
 import config from "@/lib/config";
+import { homelabProduct } from "@/products/homelab";
+import { routeMetadata } from "@/platform/routing/metadata";
 
 function formatTitleSegment(segment: string) {
   return segment
@@ -12,6 +14,8 @@ function formatTitleSegment(segment: string) {
 }
 
 function getDocumentTitle(pathname: string) {
+  const routeTitle = routeMetadata(pathname, homelabProduct.modules)?.title;
+  if (routeTitle) return `${config.instance_name || "Dashwise"} ${routeTitle}`;
   const segments = pathname.split("/").filter(Boolean);
 
   if (segments.length === 0) return config.instance_name || "Dashwise";
@@ -27,8 +31,6 @@ function getDocumentTitle(pathname: string) {
     if (segments[1] === "monitoring") return `${config.instance_name || "Dashwise"} Monitoring`;
     return `${config.instance_name || "Dashwise"} ${formatTitleSegment(segments[1] || segments[0])}`;
   }
-
-  console.log(config.instance_name);
 
   const sectionTitles: Record<string, string> = {
     home: "Home | " + (config.instance_name || "Dashwise"),

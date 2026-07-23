@@ -13,7 +13,7 @@ import useAuth from "@/context/useAuth";
 import { useState } from "react";
 import { Icon } from "@iconify-icon/react";
 import { updateMonitoringStatusAction } from '@/lib/apiClient';
-import MonitoringTimeline from "@/components/monitoring/MonitoringTimeline";
+import { MonitoringTimeline } from "@/modules/monitoring";
 
 export type JobEntry = {
     status: "healthy" | "disabled" | "unhealthy";

@@ -5,18 +5,15 @@ import { promisify } from "node:util";
 import { runJob } from "./job-logger";
 import { config } from "../lib/config";
 import { _d } from "../lib/sdk";
-import { runSearchItemsIndexing } from "./search-indexer";
-import indexStatusMonitoringJobs from "./monitoring/indexer";
-import {
-  runStatusMonitoringJobs,
-  runStatusMonitoringJobsWithOptions,
-} from "./monitoring/runner";
+import { runSearchItemsIndexing } from "../platform/search/internal/service";
 import { runVersionComparisonRunner } from "./updates/comparison-runner";
 import { runIntegrationUpdaterJob } from "./updates/integration-updater";
 import { runDefaultIntegrationsBootstrapJob } from "./updates/default-integrations";
-import { newsFeedBuilder } from "./news/feed-builder";
-import { processQueuedNotifications } from "./notifications/forwarder";
 import { createLogger } from "../lib/logger";
+import { newsFeedBuilderJob } from "../modules/news/module";
+import { monitoringIndexerJob, monitoringRunnerJob } from "../modules/monitoring/module";
+import { notificationForwarderJob } from "../modules/notifications/module";
+import type { DashwiseBackendModule } from "../platform/modules/types";
 
 const execFileAsync = promisify(execFile);
 const logger = createLogger("Jobs");
@@ -47,7 +44,7 @@ const runPullIconsJob = (source: string) =>
   });
 
 const runMonitoringIndexerJob = (source: string) =>
-  runJob("statusMonitoringIndexer", indexStatusMonitoringJobs, {
+  runJob(monitoringIndexerJob.id, () => monitoringIndexerJob.run(), {
     startMessage: `Triggered by ${source}`,
     successMessage: "Status monitoring indexer completed",
     errorMessage: "Status monitoring indexer failed",
@@ -60,10 +57,7 @@ const runMonitoringRunnerJob = (
   runJob(
     "statusMonitoringRunner",
     () => {
-      if (options?.source || options?.linkId) {
-        return runStatusMonitoringJobsWithOptions(options);
-      }
-      return runStatusMonitoringJobs();
+      return monitoringRunnerJob.run(source, options);
     },
     {
       startMessage: `Triggered by ${source}`,
@@ -94,7 +88,7 @@ const runDefaultIntegrationsJob = (source: string) =>
   });
 
 const runNewsFeedBuilderJob = (source: string, feedId?: string) =>
-  runJob("newsFeedBuilder", () => newsFeedBuilder(feedId), {
+  runJob(newsFeedBuilderJob.id, () => newsFeedBuilderJob.run(source, feedId), {
     startMessage: `Triggered by ${source}${
       feedId ? ` for feed ${feedId}` : ""
     }`,
@@ -103,7 +97,7 @@ const runNewsFeedBuilderJob = (source: string, feedId?: string) =>
   });
 
 const runNotificationForwarderJob = (source: string) =>
-  runJob("notificationForwarder", processQueuedNotifications, {
+  runJob(notificationForwarderJob.id, () => notificationForwarderJob.run(), {
     startMessage: `Triggered by ${source}`,
     successMessage: "Notification forwarder completed",
     errorMessage: "Notification forwarder failed",
@@ -127,8 +121,25 @@ export function validateJobsBasicAuth(authorizationHeader: string | undefined) {
   }
 }
 
-export function registerJobsCron() {
+export async function dispatchEnabledModuleJob(
+  modules: readonly DashwiseBackendModule[],
+  jobId: string,
+  source: string,
+  ...args: unknown[]
+) {
+  const job = modules.flatMap((module) => module.jobs ?? []).find((candidate) => candidate.id === jobId);
+  if (!job) return null;
+
+  return runJob(job.id, () => job.run(source, ...args), {
+    startMessage: `Triggered by ${source}`,
+    successMessage: `${job.id} completed`,
+    errorMessage: `${job.id} failed`,
+  });
+}
+
+export function registerJobsCron(enabledModules: readonly { id: string }[]) {
   logger.debug("Dashwise SDK app config", _d.getAppConfig());
+  const isEnabled = (moduleId: string) => enabledModules.some((module) => module.id === moduleId);
 
   void runSearchItemsJob("server start");
   Bun.cron(config.SEARCHITEMS_SCHEDULE, async () => {
@@ -141,13 +152,14 @@ export function registerJobsCron() {
     });
   }
 
-  Bun.cron(config.MONITORING_INDEXER_SCHEDULE, async () => {
-    await runMonitoringIndexerJob("cron schedule");
-  });
-
-  Bun.cron(config.MONITORING_RUNNER_SCHEDULE, async () => {
-    await runMonitoringRunnerJob("cron schedule");
-  });
+  if (isEnabled("monitoring")) {
+    Bun.cron(monitoringIndexerJob.schedule, async () => {
+      await runMonitoringIndexerJob("cron schedule");
+    });
+    Bun.cron(monitoringRunnerJob.schedule, async () => {
+      await runMonitoringRunnerJob("cron schedule");
+    });
+  }
 
   void runComparisonJob("initial run");
   void runIntegrationUpdateJob("initial run");
@@ -161,14 +173,18 @@ export function registerJobsCron() {
     await runDefaultIntegrationsJob("scheduled run");
   });
 
-  void runNewsFeedBuilderJob("initial run");
-  Bun.cron(config.FEED_BUILDING_SCHEDULE, async () => {
-    await runNewsFeedBuilderJob("scheduled run");
-  });
+  if (isEnabled("news")) {
+    if (newsFeedBuilderJob.runOnStartup) void runNewsFeedBuilderJob("initial run");
+    Bun.cron(newsFeedBuilderJob.schedule, async () => {
+      await runNewsFeedBuilderJob("scheduled run");
+    });
+  }
 
-  Bun.cron(config.NOTIFICATION_FORWARDER_SCHEDULE, async () => {
-    await runNotificationForwarderJob("cron schedule");
-  });
+  if (isEnabled("notifications")) {
+    Bun.cron(notificationForwarderJob.schedule, async () => {
+      await runNotificationForwarderJob("cron schedule");
+    });
+  }
 }
 
 export const jobsApi = {
