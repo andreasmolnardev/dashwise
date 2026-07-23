@@ -4,6 +4,7 @@ import { updateUserPropertyAction } from '@/lib/apiClient';
 import type { ActionAuth, AuthUserRecord, UserPropertyValue } from "@dashwise/types/sdk";
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 type AuthUser = AuthUserRecord;
 
@@ -18,6 +19,7 @@ function createUnauthorizedError() {
 
 export function useAuth() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [user, setUser] = useState<AuthUser>(() => {
     try {
       const raw = typeof window !== "undefined" ? localStorage.getItem("pb_user") : null;
@@ -112,10 +114,14 @@ export function useAuth() {
         document.cookie = "pb_token=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax; Secure";
         document.cookie = "pb_user=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax; Secure";
       }
+      // The token is part of authenticated keys, but removing these entries as
+      // well prevents stale data accumulating across repeated account changes.
+      queryClient.removeQueries({ queryKey: ["api"] });
+      queryClient.removeQueries({ predicate: (query) => Array.isArray(query.queryKey) && query.queryKey.includes(token) });
     } catch (err) {
       // ignore
     }
-  }, [setAuth]);
+  }, [queryClient, setAuth, token]);
 
   const withAuth = useCallback(
     async <T,>(fn: (auth: ActionAuth) => Promise<T>, onUnauthorized?: () => void): Promise<T> => {
@@ -147,16 +153,16 @@ export function useAuth() {
     [redirectToLogin, withAuth]
   );
 
-  const updateUserProperty = useCallback(
-    async (propertyName: string, propertyValue: UserPropertyValue) => {
-      const updatedUser = await withAuth((auth) =>
-        updateUserPropertyAction(auth, propertyName, propertyValue)
-      );
+  const updateUserPropertyMutation = useMutation({
+    mutationFn: async ({ propertyName, propertyValue }: { propertyName: string; propertyValue: UserPropertyValue }) =>
+      withAuth((auth) => updateUserPropertyAction(auth, propertyName, propertyValue)),
+    onSuccess: (updatedUser) => setAuth(updatedUser, token),
+  });
 
-      setAuth(updatedUser, token);
-      return updatedUser;
-    },
-    [token, withAuth, setAuth]
+  const updateUserProperty = useCallback(
+    (propertyName: string, propertyValue: UserPropertyValue) =>
+      updateUserPropertyMutation.mutateAsync({ propertyName, propertyValue }),
+    [updateUserPropertyMutation],
   );
 
   return { user, token, setAuth, setToken: setTokenOnly, logout, withAuth, withAuthRedirect, redirectToLogin, updateUserProperty };

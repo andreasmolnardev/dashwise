@@ -166,27 +166,8 @@ export async function createNewsSubscription(payload: Record<string, unknown>) {
 	return safeNull((pb) => pb.collection("newsSubscriptions").create(payload));
 }
 
-export async function getNewsFeedItemsCacheByUrl(url: string) {
-	return safeNull((pb) => pb.collection("newsSubscriptions").getList(1, 1, {
-		filter: `url="${url.replace(/"/g, '\\"')}"`,
-	}));
-}
-
 export async function deleteNewsSubscription(subscriptionId: string) {
 	return safeNull((pb) => pb.collection("newsSubscriptions").delete(subscriptionId));
-}
-
-export async function updateNewsFeedItemsCache(
-	recordId: string,
-	payload: Record<string, unknown>,
-) {
-	return safeNull((pb) => pb.collection("newsSubscriptions").update(recordId, payload));
-}
-
-export async function createNewsFeedItemsCache(
-	payload: Record<string, unknown>,
-) {
-	return safeNull((pb) => pb.collection("newsSubscriptions").create(payload));
 }
 
 export async function getQueuedNotificationItems(batchSize = 100) {

@@ -12,10 +12,11 @@ type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   collection?: { id: string; name: string; description?: string; icon?: string; type?: string } | null;
+  renameOnly?: boolean;
   onSaved?: (collection: { id: string; name: string; description?: string; icon?: string; type?: string }) => void;
 };
 
-export default function CreateLinksCollectionDialog({ open, onOpenChange, collection, onSaved }: Props) {
+export default function CreateLinksCollectionDialog({ open, onOpenChange, collection, renameOnly = false, onSaved }: Props) {
   const { withAuth } = useAuth();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -53,7 +54,7 @@ export default function CreateLinksCollectionDialog({ open, onOpenChange, collec
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="frosted text-foreground">
         <DialogHeader>
-          <DialogTitle>{isEditing ? "Edit list" : "Create new list"}</DialogTitle>
+          <DialogTitle>{renameOnly ? "Rename list" : isEditing ? "Edit list" : "Create new list"}</DialogTitle>
         </DialogHeader>
 
         <LinksFormAlert alert={alert} onClose={() => setAlert((current) => ({ ...current, open: false }))} />
@@ -93,37 +94,41 @@ export default function CreateLinksCollectionDialog({ open, onOpenChange, collec
             />
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="list-description">Description</Label>
-            <textarea
-              id="list-description"
-              name="description"
-              rows={3}
-              value={description}
-              onChange={(event) => setDescription(event.target.value)}
-              className="w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-foreground outline-none transition-colors placeholder:text-white/35 focus:border-primary"
-              placeholder="Optional note about what belongs here"
-            />
-          </div>
+          {!renameOnly && (
+            <>
+              <div className="space-y-2">
+                <Label htmlFor="list-description">Description</Label>
+                <textarea
+                  id="list-description"
+                  name="description"
+                  rows={3}
+                  value={description}
+                  onChange={(event) => setDescription(event.target.value)}
+                  className="w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-foreground outline-none transition-colors placeholder:text-white/35 focus:border-primary"
+                  placeholder="Optional note about what belongs here"
+                />
+              </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="list-icon">Icon</Label>
-            <input
-              id="list-icon"
-              name="icon"
-              type="text"
-              value={icon}
-              onChange={(event) => setIcon(event.target.value)}
-              className="w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-foreground outline-none transition-colors placeholder:text-white/35 focus:border-primary"
-              placeholder="fa6-solid:folder-open or url:https://..."
-            />
-          </div>
+              <div className="space-y-2">
+                <Label htmlFor="list-icon">Icon</Label>
+                <input
+                  id="list-icon"
+                  name="icon"
+                  type="text"
+                  value={icon}
+                  onChange={(event) => setIcon(event.target.value)}
+                  className="w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-foreground outline-none transition-colors placeholder:text-white/35 focus:border-primary"
+                  placeholder="fa6-solid:folder-open or url:https://..."
+                />
+              </div>
+            </>
+          )}
 
           <div className="flex justify-end gap-2">
             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit">{isEditing ? "Save changes" : "Create list"}</Button>
+            <Button type="submit">{renameOnly ? "Rename list" : isEditing ? "Save changes" : "Create list"}</Button>
           </div>
         </form>
       </DialogContent>

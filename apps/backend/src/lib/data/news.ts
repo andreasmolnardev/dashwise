@@ -33,6 +33,7 @@ import {
   createNewsSubscription,
 } from "./superuser";
 import { getSuperuserPB } from "../pb/pocketbase";
+import { readFeedItemsCache } from "../cache/feed-items";
 
 type NewsTopicDraft = {
   key: string;
@@ -529,7 +530,6 @@ function normalizeFeedRecord(entry: Record<string, unknown> | null): NewsFeedRec
       ? entry.excludedSubscriptionRefs.map((value) => String(value).trim()).filter(Boolean)
       : [],
     maxFeedItems: normalizeMaxFeedItems(entry.maxFeedItems),
-    feedCache: parseCachedItems(entry.feedCache),
   };
 }
 
@@ -551,7 +551,10 @@ export async function getNewsFeedRecord(userId: string, feedId: string): Promise
   if (normalizedFeedId === "all") {
     const allFeedRecord = (await getNewsFeedByTitle(userId, "All feed").catch(() => null)) as NewsFeedRecord | null;
     if (allFeedRecord) {
-      return normalizeFeedRecord(allFeedRecord as Record<string, unknown>);
+      const normalized = normalizeFeedRecord(allFeedRecord as Record<string, unknown>);
+      return normalized
+        ? { ...normalized, feedCache: parseCachedItems(await readFeedItemsCache(String(normalized.id))) }
+        : null;
     }
 
     return {
@@ -560,7 +563,6 @@ export async function getNewsFeedRecord(userId: string, feedId: string): Promise
       subscriptionRefs: [],
       excludedSubscriptionRefs: [],
       maxFeedItems: 200,
-      feedCache: [],
     };
   }
 
@@ -570,7 +572,10 @@ export async function getNewsFeedRecord(userId: string, feedId: string): Promise
   const ownerId = String((feedRecord as Record<string, unknown>).userId ?? "").trim();
   if (ownerId && ownerId !== userId) return null;
 
-  return normalizeFeedRecord(feedRecord as Record<string, unknown>);
+  const normalized = normalizeFeedRecord(feedRecord as Record<string, unknown>);
+  return normalized
+    ? { ...normalized, feedCache: parseCachedItems(await readFeedItemsCache(String(normalized.id))) }
+    : null;
 }
 
 export async function updateNewsFeedRecordForUser(
@@ -611,7 +616,6 @@ export async function updateNewsFeedRecordForUser(
       subscriptionRefs: allSubscriptionRefs,
       excludedSubscriptionRefs,
       maxFeedItems,
-      feedCache: [],
     });
   }
 
@@ -649,7 +653,6 @@ export async function createNewsFeedRecordForUser(
     subscriptionRefs: [],
     excludedSubscriptionRefs: [],
     maxFeedItems: 200,
-    feedCache: [],
   })) as NewsFeedRecord;
 
   return normalizeFeedRecord(createdFeed as Record<string, unknown>);
@@ -807,10 +810,9 @@ export async function getNewsFeed(
 
   // Feed caches are already grouped and sorted. Do not load or parse every
   // subscription JSON before checking the selected feed cache.
-  const selectedFeedWithCache = selectedFeed?.id
-    ? await getNewsFeedById(String(selectedFeed.id)).catch(() => null) as Record<string, unknown> | null
-    : null;
-  const cachedItems = parseCachedItems(selectedFeedWithCache?.feedCache);
+  const cachedItems = selectedFeed?.id
+    ? parseCachedItems(await readFeedItemsCache(String(selectedFeed.id)))
+    : [];
   if (cachedItems.length) {
     return {
       items: cachedItems.slice(offset, offset + limit),
@@ -823,15 +825,21 @@ export async function getNewsFeed(
   const excludedIds = await getUserExcludedSubscriptionIdsFromFeeds(feeds);
 
   const allSubscriptions = (await getAllNewsSubscriptions(2000, {
-    fields: "id,url,icon,title,json,linkReplaceRule,fallbackThumbnailUrl,thumbnailOverwriteUrl,userId,similarityGroupingWordsBlacklist,enableTopicGrouping,fetchErrors",
+    fields: "id,url,icon,title,linkReplaceRule,fallbackThumbnailUrl,thumbnailOverwriteUrl,userId,similarityGroupingWordsBlacklist,enableTopicGrouping,fetchErrors",
   })) as Array<NewsSubscriptionsRecord>;
   const subscriptions = allSubscriptions
     .map(normalizeSubscription)
     .filter((entry: NewsSubscription | null): entry is NewsSubscription => Boolean(entry && (!entry.userId || entry.userId === userId)));
+  const subscriptionsWithCache = await Promise.all(
+    subscriptions.map(async (subscription) => ({
+      ...subscription,
+      json: await readFeedItemsCache(String(subscription.id || "")),
+    })),
+  );
 
   const scopedSubscriptions = subscriptionIds.size
-    ? subscriptions.filter((subscription) => subscription.id && subscriptionIds.has(String(subscription.id)) && !excludedIds.has(String(subscription.id)))
-    : subscriptions.filter((subscription) => !excludedIds.has(String(subscription.id || "")));
+    ? subscriptionsWithCache.filter((subscription) => subscription.id && subscriptionIds.has(String(subscription.id)) && !excludedIds.has(String(subscription.id)))
+    : subscriptionsWithCache.filter((subscription) => !excludedIds.has(String(subscription.id || "")));
 
   const feed = await buildFeedFromSubscriptions(scopedSubscriptions, feedId, feeds);
   const items = await applyNewsTopics(userId, feed, scopedSubscriptions);
@@ -890,14 +898,11 @@ export async function getNewsSubscriptionJson(userId: string, subscriptionId: st
     throw new Error("News subscription not found");
   }
 
-  const record = await getNewsSubscriptionById(subscription.id);
-  if (!record) {
-    throw new Error("News subscription not found");
-  }
+  const json = await readFeedItemsCache(subscription.id);
 
   return {
     id: subscription.id,
-    json: (record as Record<string, unknown>).json ?? [],
+    json: json ?? [],
   };
 }
 
@@ -1032,6 +1037,39 @@ export async function deleteNewsSavedArticleList(userId: string, list: string): 
   return { success: true, deletedArticles: matches.length };
 }
 
+export async function renameNewsSavedArticleList(userId: string, list: string, name: string): Promise<NewsSavedArticleList> {
+  const requestedList = String(list || "").trim();
+  const nextName = String(name || "").trim();
+  if (!requestedList) throw new Error("Saved list is required");
+  if (!nextName) throw new Error("Saved list name is required");
+
+  const defaultList = await ensureNewsDefaultList(userId);
+  const lists = await getNewsSavedArticleLists(userId, defaultList);
+  const targetList = lists.find((entry) => entry.id === requestedList || entry.name === requestedList);
+  if (!targetList) throw new Error("Saved list not found");
+
+  const pb = await getSuperuserPB();
+  const existing = await pb.collection("newsSavedArticleLists").getFullList(200, {
+    filter: `userId=\"${escapeFilter(userId)}\" && name=\"${escapeFilter(nextName)}\"`,
+  }) as Array<Record<string, unknown>>;
+  if (existing.some((record) => String(record.id || "") !== targetList.id)) {
+    throw new Error("A saved list with that name already exists");
+  }
+
+  const renamed = await pb.collection("newsSavedArticleLists").update(targetList.id, { name: nextName });
+  if (defaultList === targetList.name || (defaultList === "readLater" && targetList.name === "Read Later")) {
+    const user = await pb.collection("users").getOne(userId).catch(() => null) as Record<string, unknown> | null;
+    const current = user?.newsPreferences && typeof user.newsPreferences === "object"
+      ? user.newsPreferences as Record<string, unknown>
+      : {};
+    await pb.collection("users").update(userId, {
+      newsPreferences: { ...current, defaultList: nextName },
+    });
+  }
+
+  return normalizeSavedArticleList(renamed as Record<string, unknown>);
+}
+
 function normalizeRefreshFeedIds(feedIds?: string[] | string | null) {
   if (Array.isArray(feedIds)) {
     return Array.from(new Set(feedIds.map((feedId) => String(feedId).trim()).filter(Boolean)));
@@ -1071,7 +1109,6 @@ export async function subscribeNewsFeed(
       userId,
       url: sub.feedUrl,
       icon: sub.icon,
-      json: existing.json ?? [],
       linkReplaceRule: sub.linkReplaceRule,
       fallbackThumbnailUrl: sub.fallbackThumbnailUrl,
       thumbnailOverwriteUrl: sub.thumbnailOverwriteUrl,
@@ -1088,7 +1125,6 @@ export async function subscribeNewsFeed(
       url: sub.feedUrl,
       title: sub.name,
       icon: sub.icon,
-      json: [],
       linkReplaceRule: sub.linkReplaceRule,
       fallbackThumbnailUrl: sub.fallbackThumbnailUrl,
       thumbnailOverwriteUrl: sub.thumbnailOverwriteUrl,
@@ -1134,7 +1170,6 @@ export async function updateNewsFeed(
     url: payload.feedUrl,
     title: payload.title,
     icon: payload.icon || target.icon || "",
-    json: target.json ?? [],
     linkReplaceRule: payload.linkReplaceRule !== undefined ? payload.linkReplaceRule : target.linkReplaceRule,
     fallbackThumbnailUrl: payload.fallbackThumbnailUrl !== undefined ? payload.fallbackThumbnailUrl : target.fallbackThumbnailUrl,
     thumbnailOverwriteUrl: payload.thumbnailOverwriteUrl !== undefined ? payload.thumbnailOverwriteUrl : target.thumbnailOverwriteUrl,

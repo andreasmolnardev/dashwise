@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@iconify-icon/react";
-import useAuth from "@/context/useAuth";
 import { getMonitorsAction } from "@/lib/apiClient";
 import type { MonitorPing, MonitorRecord } from "@dashwise/types/sdk";
+import { useApiQuery } from "@/hooks/useApiQuery";
+import { queryKeys } from "@/lib/queryClient";
 
 type ParsedOutlier = {
     created: string;
@@ -150,50 +151,16 @@ function buildOutliers(monitors: MonitorRecord[]) {
 
 export default function MonitoringHomePage() {
     const [searchParams, setSearchParams] = useSearchParams();
-    const { token, withAuth } = useAuth();
-    const [monitors, setMonitors] = useState<MonitorRecord[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
+    const monitorsQuery = useApiQuery(queryKeys.monitoring.monitors, getMonitorsAction);
+    const monitors = (monitorsQuery.data ?? []) as MonitorRecord[];
+    const loading = monitorsQuery.isLoading;
+    const error = monitorsQuery.error ? "Unable to load monitoring overview." : null;
 
     const openMonitorDialog = () => {
         const next = new URLSearchParams(searchParams);
         next.set("newMonitor", "true");
         setSearchParams(next);
     };
-
-    useEffect(() => {
-        if (!token) {
-            setMonitors([]);
-            setLoading(false);
-            return;
-        }
-
-        let mounted = true;
-
-        const loadMonitors = async () => {
-            setLoading(true);
-            setError(null);
-            try {
-                const data = await withAuth((auth) => getMonitorsAction(auth));
-                if (!mounted) return;
-                setMonitors(Array.isArray(data) ? data : []);
-            } catch (err) {
-                console.error("Failed to load monitoring overview:", err);
-                if (mounted) {
-                    setError("Unable to load monitoring overview.");
-                    setMonitors([]);
-                }
-            } finally {
-                if (mounted) setLoading(false);
-            }
-        };
-
-        void loadMonitors();
-
-        return () => {
-            mounted = false;
-        };
-    }, [token, withAuth]);
 
     const summary = useMemo(() => {
         return monitors.reduce(

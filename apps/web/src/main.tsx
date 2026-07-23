@@ -2,6 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { RouterProvider } from 'react-router-dom';
 import { appRouter } from './router';
+import { QueryProvider } from '@/components/QueryProvider';
 import './app/globals.css';
 
 if ('serviceWorker' in navigator) {
@@ -12,6 +13,8 @@ if ('serviceWorker' in navigator) {
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>
-    <RouterProvider router={appRouter} />
+    <QueryProvider>
+      <RouterProvider router={appRouter} />
+    </QueryProvider>
   </React.StrictMode>
 );

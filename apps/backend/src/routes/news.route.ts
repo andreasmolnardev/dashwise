@@ -2,7 +2,7 @@ import Parser from "rss-parser";
 import { Hono } from "hono";
 import type { Context } from "hono";
 
-import { createNewsFeedRecordForUser, deleteNewsSavedArticle, deleteNewsSavedArticleList, getNewsFeed, getNewsFeedRecord, getNewsFeeds, getNewsSavedArticles, getNewsSubscriptions, getNewsSubscriptionJson, saveNewsArticle, subscribeNewsFeed, unsubscribeNewsFeed, updateNewsFeed, updateNewsFeedRecordForUser, getNewsFeedMetadata, updateNewsSubscription, updateNewsSavedArticleReadState } from "../lib/data/news";
+import { createNewsFeedRecordForUser, deleteNewsSavedArticle, deleteNewsSavedArticleList, getNewsFeed, getNewsFeedRecord, getNewsFeeds, getNewsSavedArticles, getNewsSubscriptions, getNewsSubscriptionJson, renameNewsSavedArticleList, saveNewsArticle, subscribeNewsFeed, unsubscribeNewsFeed, updateNewsFeed, updateNewsFeedRecordForUser, getNewsFeedMetadata, updateNewsSubscription, updateNewsSavedArticleReadState } from "../lib/data/news";
 import type { NewsFeedItem, NewsFeedMetadata, NewsFeedRecordCreateInput, NewsFeedRecordUpdateInput, NewsSubscribeInput, NewsUpdateInput } from "@dashwise/types/sdk";
 
 import { readAuthToken, readJsonBody, requireAuth, withJson } from "./shared";
@@ -205,6 +205,11 @@ newsRoute
   .delete("/api/v1/news/saved-article-lists/:id", withJson(async (c) => {
     const { userId } = await requireAuth({ token: readAuthToken(c) });
     return deleteNewsSavedArticleList(userId, String(c.req.param("id") ?? ""));
+  }))
+  .patch("/api/v1/news/saved-article-lists/:id", withJson(async (c) => {
+    const body = await readJsonBody<{ name?: string }>(c);
+    const { userId } = await requireAuth({ token: readAuthToken(c) });
+    return renameNewsSavedArticleList(userId, String(c.req.param("id") ?? ""), String(body?.name ?? ""));
   }))
   .get("/api/v1/news/feeds/:id", withJson(async (c) => {
     const { userId } = await requireAuth({ token: readAuthToken(c) });

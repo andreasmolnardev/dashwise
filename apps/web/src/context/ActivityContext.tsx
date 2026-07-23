@@ -3,6 +3,8 @@
 import { createContext, type ReactNode, useContext, useEffect, useRef, useState } from "react";
 import useAuth from "@/context/useAuth";
 import { backendUrl } from "@/lib/apiClient";
+import { useQueryClient } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/queryClient";
 
 export type ActivityNotification = {
   id: string;
@@ -40,6 +42,7 @@ function socketUrl(token: string) {
 
 export function ActivityProvider({ children }: { children: ReactNode }) {
   const { token } = useAuth();
+  const queryClient = useQueryClient();
   const socket = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<number | null>(null);
   const [notifications, setNotifications] = useState<ActivityNotification[]>([]);
@@ -49,6 +52,7 @@ export function ActivityProvider({ children }: { children: ReactNode }) {
     if (!token) {
       setNotifications([]);
       setCalendarEvents([]);
+      queryClient.removeQueries({ queryKey: ["api", token, ...queryKeys.notifications.items(null)] });
       return;
     }
 
@@ -61,8 +65,10 @@ export function ActivityProvider({ children }: { children: ReactNode }) {
         try {
           const message = JSON.parse(String(event.data));
           if (message.type !== "activity:snapshot") return;
-          setNotifications(Array.isArray(message.notifications) ? message.notifications : []);
-          setCalendarEvents(Array.isArray(message.calendarEvents) ? message.calendarEvents : []);
+           const nextNotifications = Array.isArray(message.notifications) ? message.notifications : [];
+           setNotifications(nextNotifications);
+           queryClient.setQueryData(["api", token, ...queryKeys.notifications.items(token)], nextNotifications);
+           setCalendarEvents(Array.isArray(message.calendarEvents) ? message.calendarEvents : []);
         } catch {
           // Ignore malformed activity messages and retain last known state.
         }
@@ -79,7 +85,7 @@ export function ActivityProvider({ children }: { children: ReactNode }) {
       socket.current?.close();
       socket.current = null;
     };
-  }, [token]);
+  }, [queryClient, token]);
 
   const refresh = () => {
     if (socket.current?.readyState === WebSocket.OPEN) {

@@ -2,6 +2,7 @@
 
 import { Link, useNavigate } from "react-router-dom"
 import { useEffect, useState } from "react"
+import { useMutation, useQuery } from "@tanstack/react-query"
 import { getAppConfigAction } from '@/lib/apiClient';
 import { signupUserAction, validateAuthTokenAction } from '@/lib/apiClient';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
@@ -12,6 +13,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome"
 import { faCircleCheck, faExclamationTriangle } from "@fortawesome/free-solid-svg-icons"
 import config from "@/lib/config";
+import { queryKeys } from "@/lib/queryClient";
 
 export default function SignupCard() {
   const [name, setName] = useState("");
@@ -20,15 +22,13 @@ export default function SignupCard() {
   const [confirmPassword, setConfirmPassword] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
-  const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
-  const [enableSSO, setEnableSSO] = useState<boolean | null>(null);
+  const appConfigQuery = useQuery({ queryKey: queryKeys.appConfig, queryFn: getAppConfigAction });
+  const enableSSO = appConfigQuery.data?.enableSSO ?? false;
+  const signupMutation = useMutation({ mutationFn: signupUserAction });
 
   //on load: check for existing auth, validate using /api/v1/auth/validate-auth endpoint if returned success to /home
   useEffect(() => {
-    // Fetch runtime config (e.g. enableSSO)
-    getAppConfigAction().then(res => setEnableSSO(res.enableSSO ?? false)).catch(() => setEnableSSO(false));
-
     const validateAuth = async () => {
       const token = localStorage.getItem('pb_token');
       if (!token) return;
@@ -63,9 +63,8 @@ export default function SignupCard() {
       return
     }
 
-    setLoading(true)
     try {
-      await signupUserAction({ _name: name, email, password, passwordConfirm: confirmPassword });
+      await signupMutation.mutateAsync({ _name: name, email, password, passwordConfirm: confirmPassword });
       setSuccess("Redirecting to login...")
 
       setTimeout(() => {
@@ -80,8 +79,6 @@ export default function SignupCard() {
     } catch (err) {
       console.error("Signup request failed:", err)
       setError((err as any)?.message || "Network error")
-    } finally {
-      setLoading(false)
     }
   }
 
@@ -156,8 +153,8 @@ export default function SignupCard() {
             />
           </div>
 
-          <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? "Creating account..." : "Create Account"}
+          <Button type="submit" className="w-full" disabled={signupMutation.isPending}>
+            {signupMutation.isPending ? "Creating account..." : "Create Account"}
           </Button>
         </form>
       </CardContent>

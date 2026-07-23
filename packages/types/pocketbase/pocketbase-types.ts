@@ -232,7 +232,6 @@ export type MonitorsRecord<TpingOutlierThreshold = unknown, TpingOutliers = unkn
 export type NewsFeedsRecord = {
 	created: IsoAutoDateString
 	excludedSubscriptionRefs?: RecordIdString[]
-	feedCache?: null | unknown
 	id: string
 	maxFeedItems?: number
 	subscriptionRefs?: RecordIdString[]
@@ -247,7 +246,6 @@ export type NewsSubscriptionsRecord<Tjson = unknown, TlinkReplaceRule = unknown>
 	fetchErrors?: string
 	icon?: string
 	id: string
-	json?: null | Tjson
 	linkReplaceRule?: null | TlinkReplaceRule
 	thumbnailOverwriteUrl?: string
 	title?: string

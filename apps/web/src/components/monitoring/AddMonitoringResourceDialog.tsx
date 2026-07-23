@@ -5,6 +5,7 @@ import { Check, ChevronsUpDown } from "lucide-react";
 import useAuth from "@/context/useAuth";
 import { createMonitorAction } from '@/lib/apiClient';
 import { getLinksCollectionsAction, getLinksItemsAction } from '@/lib/apiClient';
+import type { MonitorRecord } from '@/lib/apiClient';
 import { Button } from "@/components/ui/button";
 import {
   Command,
@@ -55,16 +56,6 @@ type LinkOption = {
   label: string;
   searchValue: string;
   url: string;
-};
-
-type MonitorRecord = {
-  id: string;
-  endpoint?: string;
-  source?: string;
-  sourcelinkId?: string;
-  status?: string;
-  created?: string;
-  updated?: string;
 };
 
 type Props = {

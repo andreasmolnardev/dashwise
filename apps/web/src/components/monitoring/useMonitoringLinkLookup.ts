@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import useAuth from "@/context/useAuth";
+import { useMemo } from "react";
 import { getHomeLinksAction, getLinksCollectionsAction, getLinksItemsAction } from '@/lib/apiClient';
+import { useApiQuery } from "@/hooks/useApiQuery";
 
 export type MonitoringLinkLookupEntry = {
   id: string;
@@ -14,26 +14,10 @@ export type MonitoringLinkLookupEntry = {
 };
 
 export function useMonitoringLinkLookup() {
-  const { token, withAuth } = useAuth();
-  const [entries, setEntries] = useState<MonitoringLinkLookupEntry[]>([]);
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    if (!token) {
-      setEntries([]);
-      setLoading(false);
-      return;
-    }
-
-    let mounted = true;
-
-    const load = async () => {
-      setLoading(true);
-
-      try {
+  const lookupQuery = useApiQuery(["monitoring", "link-lookup"], async (auth) => {
         const [homeLinks, collections] = await Promise.all([
-          withAuth((auth) => getHomeLinksAction(auth)),
-          withAuth((auth) => getLinksCollectionsAction(auth)),
+          getHomeLinksAction(auth),
+          getLinksCollectionsAction(auth),
         ]);
 
         const collectionRecords = Array.isArray(collections) ? collections : [];
@@ -46,12 +30,10 @@ export function useMonitoringLinkLookup() {
 
         const itemsByCollection = await Promise.all(
           collectionRecords.map(async (collection: any) => {
-            const items = await withAuth((auth) => getLinksItemsAction(auth, String(collection.id)));
+            const items = await getLinksItemsAction(auth, String(collection.id));
             return { collection, items: Array.isArray(items) ? items : [] };
           }),
         );
-
-        if (!mounted) return;
 
         const nextEntries: MonitoringLinkLookupEntry[] = [];
 
@@ -80,25 +62,10 @@ export function useMonitoringLinkLookup() {
           }
         }
 
-        setEntries(nextEntries);
-      } catch (err) {
-        console.error("Failed to load monitoring link lookup:", err);
-        if (mounted) {
-          setEntries([]);
-        }
-      } finally {
-        if (mounted) {
-          setLoading(false);
-        }
-      }
-    };
-
-    void load();
-
-    return () => {
-      mounted = false;
-    };
-  }, [token, withAuth]);
+        return nextEntries;
+  });
+  const entries = lookupQuery.data ?? [];
+  const loading = lookupQuery.isLoading;
 
   const entryById = useMemo(() => new Map(entries.map((entry) => [entry.id, entry])), [entries]);
 
