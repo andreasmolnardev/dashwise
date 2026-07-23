@@ -57,13 +57,3 @@ Feel free to contribute! I'll probably create a more detailed roadmap soon.
 
 ### Creating an integration
 Refer to docs/integrations.md for more
-
-## Star History
-
-<a href="https://www.star-history.com/#andreasmolnardev/dashwise&type=date&legend=top-left">
- <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=andreasmolnardev/dashwise-next&type=date&theme=dark&legend=top-left" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=andreasmolnardev/dashwise-next&type=date&legend=top-left" />
-   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=andreasmolnardev/dashwise-next&type=date&legend=top-left" />
- </picture>
-</a>
