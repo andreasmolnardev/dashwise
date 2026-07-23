@@ -1,0 +1,1 @@
+export { newsModule } from "./module";
