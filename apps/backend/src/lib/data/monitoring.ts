@@ -39,6 +39,13 @@ export interface MonitorRecord extends Pick<
 > {
   method?: string;
   linkId?: string;
+  expand?: {
+    sourcelinkId?: {
+      title?: string;
+      url?: string;
+    };
+    [key: string]: unknown;
+  };
   [key: string]: unknown;
 }
 
@@ -181,14 +188,19 @@ function getLatestMonitorStatus(monitor: any): MonitorStatusSummary {
 
 export async function getMonitors(userId: string) {
   const pb = await getSuperuserPB();
-  return pb.collection("monitors").getFullList({ filter: `userId = "${userId}"` });
+  return pb.collection("monitors").getFullList({
+    filter: `userId = "${userId}"`,
+    expand: "sourcelinkId",
+  });
 }
 
 export async function getMonitorById(userId: string, monitorId: string) {
   const pb = await getSuperuserPB();
 
   try {
-    const monitor = await pb.collection("monitors").getOne(monitorId);
+    const monitor = await pb.collection("monitors").getOne(monitorId, {
+      expand: "sourcelinkId",
+    });
     return monitor?.userId === userId ? monitor : null;
   } catch {
     return null;

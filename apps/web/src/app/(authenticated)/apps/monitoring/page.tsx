@@ -93,7 +93,7 @@ function formatStatusLabel(status?: string) {
 }
 
 function getMonitorTitle(monitor: MonitorRecord) {
-    return monitor.endpoint || monitor.sourcelinkId || monitor.source || monitor.id;
+    return monitor.expand?.sourcelinkId?.title || monitor.endpoint || monitor.sourcelinkId || monitor.source || monitor.id;
 }
 
 function getCurrentStatus(monitor: MonitorRecord) {

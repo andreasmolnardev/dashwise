@@ -63,6 +63,13 @@ export type MonitorRecord = {
   updated: string;
   method?: string;
   linkId?: string;
+  expand?: {
+    sourcelinkId?: {
+      title?: string;
+      url?: string;
+    };
+    [key: string]: unknown;
+  };
   [key: string]: unknown;
 };
 
