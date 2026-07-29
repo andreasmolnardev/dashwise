@@ -392,9 +392,9 @@ export default function MonitoringDetailPage() {
         );
     }
 
-    const monitorTitle = linkEntry?.title || monitor.endpoint ||
+    const monitorTitle = monitor.expand?.sourcelinkId?.title || linkEntry?.title || monitor.endpoint ||
         monitor.sourcelinkId || monitor.source || monitor.id;
-    const monitoredUrl = linkEntry?.url || monitor.endpoint || "Unknown";
+    const monitoredUrl = monitor.expand?.sourcelinkId?.url || linkEntry?.url || monitor.endpoint || "Unknown";
     const method = String(monitor.method || "GET").toUpperCase();
     const changeLabel = formatStatusLabel(currentStatus);
 

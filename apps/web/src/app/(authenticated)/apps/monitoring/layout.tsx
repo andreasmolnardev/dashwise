@@ -88,7 +88,7 @@ export default function MonitoringRootLayout() {
                         key={monitor.id}
                         dst={`/apps/monitoring/${monitor.id}`}
                         icon="fa6-solid:server"
-                        title={entry?.title || monitor.endpoint || monitor.sourcelinkId || monitor.source || monitor.id}
+                        title={monitor.expand?.sourcelinkId?.title || entry?.title || monitor.endpoint || monitor.sourcelinkId || monitor.source || monitor.id}
                         group="Monitors"
                         badge={monitor.status ? monitor.status : undefined}
                     />
