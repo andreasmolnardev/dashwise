@@ -550,15 +550,16 @@ export default function NewsDashboardComponent() {
         : [];
 
     const totalPages = Math.ceil(feedTotal / itemsPerPage);
-    const paginatedArticles = allArticles.slice(
-        (currentPage - 1) * itemsPerPage,
-        currentPage * itemsPerPage,
-    );
+    const paginatedArticles = activeSavedList
+        ? allArticles.slice(
+            (currentPage - 1) * itemsPerPage,
+            currentPage * itemsPerPage,
+        )
+        : allArticles;
 
     const handlePageChange = (page: number) => {
         if (page === currentPage) return;
         setCurrentPage(page);
-        void loadFeed();
     };
 
     return (
