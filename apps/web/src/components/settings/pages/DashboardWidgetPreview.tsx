@@ -8,7 +8,6 @@ import {
   DndContext,
   DragEndEvent,
   DragOverEvent,
-  DragOverlay,
   DragStartEvent,
   KeyboardSensor,
   PointerSensor,
@@ -958,6 +957,27 @@ export function DashboardWidgetPreview({
     return null;
   }, [activeId, columns, widgetCatalog]);
 
+  const renderActiveWidgetPreview = () => {
+    if (!activeWidget) return null;
+
+    const isLibrary = "key" in activeWidget;
+    const type = isLibrary ? (activeWidget as WidgetCatalogItem).key : (activeWidget as ColumnWidget).type;
+    const catalogItem = isLibrary
+      ? (activeWidget as WidgetCatalogItem)
+      : widgetCatalog.find((item) => item.key === type);
+    const params = {
+      ...(catalogItem?.properties ?? {}),
+      ...("properties" in activeWidget ? (activeWidget as ColumnWidget).properties : {}),
+      ...((activeWidget as ColumnWidget).input ?? {}),
+    };
+
+    return (
+      <div className="overflow-hidden rounded-lg opacity-70 ring-2 ring-blue-400/60">
+        {renderWidget({ type, params, className: "h-[90px] w-full", isPreview: true })}
+      </div>
+    );
+  };
+
   const handleDragStart = (event: DragStartEvent) => {
     setActiveId(String(event.active.id));
     setDragOver(null);
@@ -1100,7 +1120,9 @@ export function DashboardWidgetPreview({
                             <div key={widget.id}>
                               {/* Drop preview indicator */}
                               {dragOver?.zone === column && dragOver.index === i && (
-                                <div className="mb-2 h-22.5 rounded-lg border-2 border-dashed border-blue-400/60 bg-blue-500/10" />
+                                <div className="mb-2 rounded-lg border-2 border-dashed border-blue-400/60 bg-blue-500/10 p-1">
+                                  {renderActiveWidgetPreview()}
+                                </div>
                               )}
                               <WidgetTile
                                 columnWidget={widget}
@@ -1133,7 +1155,9 @@ export function DashboardWidgetPreview({
                           ))}
                           {/* Drop preview at end of list */}
                           {dragOver?.zone === column && dragOver.index === columns[column].length && (
-                            <div className="h-22.5 rounded-lg border-2 border-dashed border-blue-400/60 bg-blue-500/10" />
+                            <div className="rounded-lg border-2 border-dashed border-blue-400/60 bg-blue-500/10 p-1">
+                              {renderActiveWidgetPreview()}
+                            </div>
                           )}
                         </SortableContext>
                       </ColumnDropZone>
@@ -1180,26 +1204,6 @@ export function DashboardWidgetPreview({
           </div>
         </div>
 
-        {/* Floating drag overlay */}
-        <DragOverlay>
-          {activeWidget && (() => {
-            const isLibrary = "key" in activeWidget;
-            const type = isLibrary ? (activeWidget as WidgetCatalogItem).key : (activeWidget as ColumnWidget).type;
-            const catalogItem = isLibrary
-              ? (activeWidget as WidgetCatalogItem)
-              : widgetCatalog.find((i) => i.key === type);
-            const params = {
-              ...(catalogItem?.properties ?? {}),
-              ...("properties" in activeWidget ? (activeWidget as ColumnWidget).properties : {}),
-              ...((activeWidget as ColumnWidget).input ?? {}),
-            };
-            return (
-              <div className="w-48 rounded-lg overflow-hidden shadow-2xl opacity-90 rotate-1 scale-105">
-                {renderWidget({ type, params, className: "h-[90px] w-full" })}
-              </div>
-            );
-          })()}
-        </DragOverlay>
       </DndContext>
 
       <Dialog open={clockDialogOpen} onOpenChange={setClockDialogOpen}>
