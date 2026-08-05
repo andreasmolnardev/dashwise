@@ -156,10 +156,17 @@ function getHtmlContentCandidates(item: ParserItem): string[] {
         .filter((value): value is string => Boolean(value));
 }
 
-function stripHtml(text?: string): string {
-    if (!text) return "";
+function stripHtml(text?: unknown): string {
+    const value =
+        typeof text === "string"
+            ? text
+            : text && typeof text === "object" && "_" in text
+              ? (text as { _: unknown })._
+              : undefined;
+
+    if (typeof value !== "string" || !value) return "";
     return decodeHtmlEntities(
-        text
+        value
             .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, " ")
             .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, " ")
             .replace(/<[^>]+>/g, " ")
