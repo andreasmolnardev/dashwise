@@ -137,7 +137,7 @@ export default function NewsLayout({ children }: { children: ReactNode }) {
                         savedSubscriptionRefs.has(String(sub.url || ""));
                 }
 
-                if (!feedId || feedId === "all") return true;
+                if (!feedId || feedId === "all" || feedId === "overview") return true;
                 const isSelected = sub.id === feedId || sub.url === feedId;
                 if (isSelected) return true;
                 return Array.isArray(sub.feedIds) ? sub.feedIds.includes(feedId) : false;
@@ -150,7 +150,7 @@ export default function NewsLayout({ children }: { children: ReactNode }) {
         return subscription.id || subscription.url;
     };
 
-    const activeFeedRoute = feedId ? `/apps/news/${feedId}` : "/apps/news";
+    const activeFeedRoute = feedId && feedId !== "overview" ? `/apps/news/${feedId}` : "/apps/news";
 
     const openSubscribeModal = () => {
         const params = new URLSearchParams({ action: "subscribe" });
@@ -215,6 +215,13 @@ export default function NewsLayout({ children }: { children: ReactNode }) {
                             action: openCreateFeedModal,
                         },
                     ]}
+                />
+
+                <Tab
+                    dst="/apps/news/overview"
+                    icon="fa6-solid:layer-group"
+                    title="Overview"
+                    isRoot={true}
                 />
 
                 <Tab
