@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import useAuth from "@/context/useAuth";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Icon } from "@iconify-icon/react";
@@ -87,6 +88,7 @@ export default function NewsDashboardComponent() {
 
     const itemsPerPage = 15;
     const { token, withAuth } = useAuth();
+    const queryClient = useQueryClient();
     const feedQuery = useApiQuery(
         activeSavedList
             ? queryKeys.news.savedArticles(token, activeSavedList)
@@ -119,6 +121,39 @@ export default function NewsDashboardComponent() {
             setFeedTotal(Number(data.total || 0));
         }
     }, [activeSavedList, allSavedArticlesQuery.data, feedQuery.data]);
+
+    useEffect(() => {
+        if (activeSavedList || !token || !feedQuery.data) return;
+
+        const data = feedQuery.data as { total?: number };
+        const totalPages = Math.ceil(Number(data.total || 0) / itemsPerPage);
+        const nextPage = currentPage + 1;
+        if (nextPage > totalPages) return;
+
+        void queryClient.prefetchQuery({
+            queryKey: [
+                "api",
+                token,
+                ...queryKeys.news.feed(token, activeFeedId, nextPage),
+            ],
+            queryFn: () => withAuth((auth) =>
+                getNewsFeedAction(
+                    auth,
+                    activeFeedId,
+                    itemsPerPage,
+                    (nextPage - 1) * itemsPerPage,
+                )
+            ),
+        });
+    }, [
+        activeFeedId,
+        activeSavedList,
+        currentPage,
+        feedQuery.data,
+        queryClient,
+        token,
+        withAuth,
+    ]);
 
     // --- Auth redirect ---
     useEffect(() => {
@@ -543,13 +578,22 @@ export default function NewsDashboardComponent() {
         }
     };
 
-    const allArticles = feed
-        ? [...feed].sort((a, b) =>
+    const currentPageFeed = !activeSavedList && feedQuery.data
+        ? ((feedQuery.data as { items?: NewsFeedItem[] }).items ?? [])
+        : null;
+    const visibleFeed = activeSavedList ? feed : currentPageFeed;
+    const isPageLoading = feedQuery.isPending || !visibleFeed;
+    const visibleFeedTotal = currentPageFeed
+        ? Number((feedQuery.data as { total?: number }).total || 0)
+        : feedTotal;
+    const visibleTotalPages = Math.ceil(visibleFeedTotal / itemsPerPage);
+
+    const allArticles = visibleFeed
+        ? [...visibleFeed].sort((a, b) =>
             new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime()
         )
         : [];
 
-    const totalPages = Math.ceil(feedTotal / itemsPerPage);
     const paginatedArticles = activeSavedList
         ? allArticles.slice(
             (currentPage - 1) * itemsPerPage,
@@ -620,11 +664,11 @@ export default function NewsDashboardComponent() {
             "
                 >
                     <section className="space-y-3.5 pb-10">
-                        {!feed && (
+                        {isPageLoading && (
                             <div className="opacity-60">Loading news…</div>
                         )}
 
-                        {feed &&
+                        {!isPageLoading &&
                             paginatedArticles.map((item, idx) => (
                                 <NewsTopicGroup
                                     key={String(item.link || idx)}
@@ -639,12 +683,12 @@ export default function NewsDashboardComponent() {
                                 />
                             ))}
 
-                        {feed && activeSavedList && paginatedArticles.length === 0 && (
+                        {!isPageLoading && activeSavedList && paginatedArticles.length === 0 && (
                             <div className="opacity-60">No saved articles in this list</div>
                         )}
 
                         {/* Pagination */}
-                        {feed && totalPages > 1 && (
+                        {!isPageLoading && visibleTotalPages > 1 && (
                             <div className="py-8">
                                 <Pagination>
                                     <PaginationContent>
@@ -664,13 +708,13 @@ export default function NewsDashboardComponent() {
                                         </PaginationItem>
 
                                         {Array.from(
-                                            { length: totalPages },
+                                            { length: visibleTotalPages },
                                             (_, i) => i + 1,
                                         ).map((page) => {
                                             // Logic to show limited page numbers with ellipsis
                                             if (
                                                 page === 1 ||
-                                                page === totalPages ||
+                                                page === visibleTotalPages ||
                                                 (page >= currentPage - 1 &&
                                                     page <= currentPage + 1)
                                             ) {
@@ -709,13 +753,13 @@ export default function NewsDashboardComponent() {
                                                 onClick={(e) => {
                                                     e.preventDefault();
                                                     if (
-                                                        currentPage < totalPages
+                                                        currentPage < visibleTotalPages
                                                     ) {
                                                         handlePageChange(currentPage + 1);
                                                     }
                                                 }}
                                                 className={currentPage ===
-                                                        totalPages
+                                                        visibleTotalPages
                                                     ? "pointer-events-none opacity-50"
                                                     : "cursor-pointer"}
                                             />
