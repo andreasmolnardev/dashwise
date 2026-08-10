@@ -404,17 +404,20 @@ function normalizeSubscription(entry: Record<string, unknown> | null): NewsSubsc
 
 async function getUserFeeds(userId: string): Promise<NewsFeedRecord[]> {
   const feeds = await getNewsFeedsByUserId(userId, 2000, {
-    fields: "id,userId,subscriptionRefs,title,excludedSubscriptionRefs,maxFeedItems",
+    fields: "id,userId,subscriptionRefs,title,icon,excludedSubscriptionRefs,maxFeedItems",
   });
   return Array.isArray(feeds) ? feeds as NewsFeedRecord[] : [];
 }
 
 function buildFeedList(feeds: NewsFeedRecord[]) {
+  const allFeed = feeds.find((feed) => String(feed.id) === "all" || String(feed.title || "").toLowerCase() === "all feed");
+
   return [
-    { id: "all", title: "All feed" },
+    { id: "all", title: "All feed", icon: String(allFeed?.icon || "").trim() },
     ...feeds.filter((feed) => String(feed.id) !== "all" && String(feed.title || "").toLowerCase() !== "all feed").map((feed) => ({
       id: String(feed.id),
       title: String(feed.title || "Untitled feed"),
+      icon: String(feed.icon || "").trim(),
     })),
   ];
 }
@@ -523,6 +526,7 @@ function normalizeFeedRecord(entry: Record<string, unknown> | null): NewsFeedRec
   return {
     id: String(entry.id),
     title: String(entry.title ?? "").trim(),
+    icon: String(entry.icon ?? "").trim(),
     subscriptionRefs: Array.isArray(entry.subscriptionRefs)
       ? entry.subscriptionRefs.map((value) => String(value).trim()).filter(Boolean)
       : [],
@@ -594,12 +598,14 @@ export async function updateNewsFeedRecordForUser(
     new Set((payload.excludedSubscriptionRefs ?? []).map((value) => String(value).trim()).filter(Boolean)),
   );
   const maxFeedItems = normalizeMaxFeedItems(payload.maxFeedItems);
+  const icon = payload.icon === undefined ? undefined : String(payload.icon).trim();
 
   if (normalizedFeedId === "all") {
     const existingFeed = (await getNewsFeedByTitle(userId, "All feed").catch(() => null)) as NewsFeedRecord | null;
     if (existingFeed?.id) {
       return updateNewsFeedRecord(String(existingFeed.id), {
         title: title || "All feed",
+        ...(icon === undefined ? {} : { icon }),
         subscriptionRefs,
         excludedSubscriptionRefs,
         maxFeedItems,
@@ -613,6 +619,7 @@ export async function updateNewsFeedRecordForUser(
     return createNewsFeedRecord({
       userId,
       title: title || "All feed",
+      ...(icon === undefined ? {} : { icon }),
       subscriptionRefs: allSubscriptionRefs,
       excludedSubscriptionRefs,
       maxFeedItems,
@@ -627,6 +634,7 @@ export async function updateNewsFeedRecordForUser(
 
   return updateNewsFeedRecord(normalizedFeedId, {
     title: title || String((feedRecord as Record<string, unknown>).title ?? "").trim(),
+    ...(icon === undefined ? {} : { icon }),
     subscriptionRefs,
     excludedSubscriptionRefs,
     maxFeedItems,
@@ -650,6 +658,7 @@ export async function createNewsFeedRecordForUser(
   const createdFeed = (await createNewsFeedRecord({
     userId,
     title,
+    icon: String(payload.icon ?? "").trim(),
     subscriptionRefs: [],
     excludedSubscriptionRefs: [],
     maxFeedItems: 200,

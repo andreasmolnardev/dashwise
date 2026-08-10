@@ -232,6 +232,7 @@ export type MonitorsRecord<TpingOutlierThreshold = unknown, TpingOutliers = unkn
 export type NewsFeedsRecord = {
 	created: IsoAutoDateString
 	excludedSubscriptionRefs?: RecordIdString[]
+	icon?: string
 	id: string
 	maxFeedItems?: number
 	subscriptionRefs?: RecordIdString[]

@@ -76,6 +76,7 @@ export type MonitorRecord = {
 export type NewsFeedRecord = {
   id: string;
   title: string;
+  icon?: string;
   subscriptionRefs: string[];
   excludedSubscriptionRefs: string[];
   maxFeedItems?: number;
@@ -86,6 +87,7 @@ export type NewsFeedRecord = {
 export type NewsFeedRecordUpdateInput = {
   feedId: string;
   title?: string;
+  icon?: string;
   subscriptionRefs?: string[];
   excludedSubscriptionRefs?: string[];
   maxFeedItems?: number;
@@ -150,11 +152,13 @@ export type NewsFeedMetadata = {
 
 export type NewsFeedRecordCreateInput = {
   title: string;
+  icon?: string;
 };
 
 export type NewsFeedSummary = {
   id: string;
   title: string;
+  icon?: string;
 };
 
 export type NewsFeedsResponse = {

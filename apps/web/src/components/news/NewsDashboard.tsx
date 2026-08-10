@@ -21,9 +21,11 @@ import {
     DialogDescription,
     DialogHeader,
     DialogTitle,
+    DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import IconPickerComponent from "@/components/settings/IconPicker";
 import NewsFeedEditModal from "./NewsFeedEditModal";
 import SubscriptionDetailsForm from "./SubscriptionDetailsForm";
 import { useNewsSidebarData } from "./NewsLayout";
@@ -75,6 +77,8 @@ export default function NewsDashboardComponent() {
     const [editingNewsFeed, setEditingNewsFeed] = useState<NewsFeedRecord | null>(null);
     const [createFeedOpen, setCreateFeedOpen] = useState(false);
     const [newFeedTitle, setNewFeedTitle] = useState("");
+    const [newFeedIcon, setNewFeedIcon] = useState("");
+    const [createFeedIconPickerOpen, setCreateFeedIconPickerOpen] = useState(false);
     const [createFeedSaving, setCreateFeedSaving] = useState(false);
     const [createFeedError, setCreateFeedError] = useState<string | null>(null);
     const [loadingFeedRecord, setLoadingFeedRecord] = useState(false);
@@ -237,7 +241,7 @@ export default function NewsDashboardComponent() {
     });
 
     const createFeedMutation = useMutation({
-        mutationFn: (payload: { title: string }) =>
+        mutationFn: (payload: { title: string; icon?: string }) =>
             withAuth((auth) => createNewsFeedRecordAction(auth, payload)),
         onSuccess: reloadSidebar,
     });
@@ -309,6 +313,8 @@ export default function NewsDashboardComponent() {
         if (sidebarAction === "create-feed") {
             setCreateFeedOpen(true);
             setNewFeedTitle("");
+            setNewFeedIcon("");
+            setCreateFeedIconPickerOpen(false);
             setCreateFeedError(null);
             navigate(
                 `/apps/news/${activeFeedId === "all" ? "" : activeFeedId}`
@@ -420,6 +426,8 @@ export default function NewsDashboardComponent() {
     const closeCreateFeedModal = () => {
         setCreateFeedOpen(false);
         setNewFeedTitle("");
+        setNewFeedIcon("");
+        setCreateFeedIconPickerOpen(false);
         setCreateFeedError(null);
     };
 
@@ -436,7 +444,7 @@ export default function NewsDashboardComponent() {
         setCreateFeedError(null);
 
         try {
-            const createdFeed = await createFeedMutation.mutateAsync({ title });
+            const createdFeed = await createFeedMutation.mutateAsync({ title, icon: newFeedIcon });
             closeCreateFeedModal();
 
             if (createdFeed?.id) {
@@ -511,9 +519,7 @@ export default function NewsDashboardComponent() {
         }
     }, [currentPage, activeFeedId]);
 
-    const selectedSubscription = subscriptions?.find((subscription) => {
-        return subscription.id === activeFeedId;
-    }) || null;
+    const selectedSubscription = currentSubscription;
 
     const selectedFeed = feeds.find((entry) => entry.id === activeFeedId) ||
         null;
@@ -627,6 +633,10 @@ export default function NewsDashboardComponent() {
         )
         : allArticles;
 
+    const subscriptionFetchError = !activeSavedList
+        ? selectedSubscription?.fetchErrors?.trim()
+        : undefined;
+
     const handlePageChange = (page: number) => {
         if (page === currentPage) return;
         setCurrentPage(page);
@@ -694,7 +704,14 @@ export default function NewsDashboardComponent() {
                             <div className="opacity-60">Loading news…</div>
                         )}
 
-                        {!isPageLoading &&
+                        {!isPageLoading && subscriptionFetchError && (
+                            <NewsSubscriptionErrorCard
+                                subscriptionName={selectedSubscription?.title || selectedSubscription?.url}
+                                error={subscriptionFetchError}
+                            />
+                        )}
+
+                        {!isPageLoading && !subscriptionFetchError &&
                             paginatedArticles.map((item, idx) => (
                                 <NewsTopicGroup
                                     key={String(item.link || idx)}
@@ -709,12 +726,12 @@ export default function NewsDashboardComponent() {
                                 />
                             ))}
 
-                        {!isPageLoading && activeSavedList && paginatedArticles.length === 0 && (
+                        {!isPageLoading && !subscriptionFetchError && activeSavedList && paginatedArticles.length === 0 && (
                             <div className="opacity-60">No saved articles in this list</div>
                         )}
 
                         {/* Pagination */}
-                        {!isPageLoading && visibleTotalPages > 1 && (
+                        {!isPageLoading && !subscriptionFetchError && visibleTotalPages > 1 && (
                             <div className="py-8">
                                 <Pagination>
                                     <PaginationContent>
@@ -880,15 +897,43 @@ export default function NewsDashboardComponent() {
                     <form onSubmit={handleCreateFeed} className="space-y-4">
                         <div>
                             <Label htmlFor="new-news-feed-title">Feed name</Label>
-                            <Input
-                                id="new-news-feed-title"
-                                className="frosted mt-1"
-                                placeholder="Homelab"
-                                value={newFeedTitle}
-                                onChange={(event) => setNewFeedTitle(event.target.value)}
-                                disabled={createFeedSaving}
-                                autoFocus
-                            />
+                            <div className="mt-1 flex items-center gap-2">
+                                <Dialog open={createFeedIconPickerOpen} onOpenChange={setCreateFeedIconPickerOpen}>
+                                    <DialogTrigger asChild>
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            className="frosted h-10 w-10 shrink-0 p-0"
+                                            title="Pick feed icon"
+                                            disabled={createFeedSaving}
+                                        >
+                                            <Icon icon={newFeedIcon || "solar:document-text-bold"} className="text-lg" />
+                                            <span className="sr-only">Pick feed icon</span>
+                                        </Button>
+                                    </DialogTrigger>
+                                    <DialogContent className="frosted text-foreground w-[min(92vw,48rem)] max-w-none">
+                                        <DialogHeader>
+                                            <DialogTitle>Choose Feed Icon</DialogTitle>
+                                        </DialogHeader>
+                                        <IconPickerComponent
+                                            initialSelection={{ url: newFeedIcon }}
+                                            onSelect={(iconObj) => {
+                                                setNewFeedIcon(iconObj.url ?? "");
+                                                setCreateFeedIconPickerOpen(false);
+                                            }}
+                                        />
+                                    </DialogContent>
+                                </Dialog>
+                                <Input
+                                    id="new-news-feed-title"
+                                    className="frosted min-w-0 flex-1"
+                                    placeholder="Homelab"
+                                    value={newFeedTitle}
+                                    onChange={(event) => setNewFeedTitle(event.target.value)}
+                                    disabled={createFeedSaving}
+                                    autoFocus
+                                />
+                            </div>
                         </div>
 
                         {createFeedError && (
@@ -970,6 +1015,23 @@ export default function NewsDashboardComponent() {
             </Dialog>
 
             
+        </div>
+    );
+}
+
+function NewsSubscriptionErrorCard({ subscriptionName, error }: { subscriptionName?: string; error: string }) {
+    return (
+        <div
+            role="alert"
+            className="flex items-start gap-3 rounded-xl border border-red-400/30 bg-red-500/10 p-5 text-red-100"
+        >
+            <Icon icon="fa6-solid:triangle-exclamation" className="mt-0.5 shrink-0 text-lg text-red-300" />
+            <div className="min-w-0 space-y-1">
+                <h3 className="font-semibold">
+                    Unable to load {subscriptionName || "this subscription"}
+                </h3>
+                <p className="break-words text-sm text-red-100/80">{error}</p>
+            </div>
         </div>
     );
 }
