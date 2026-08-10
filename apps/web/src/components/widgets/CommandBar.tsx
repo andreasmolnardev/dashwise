@@ -334,18 +334,6 @@ export default function CommandBar(
     };
   }, [normalizedUrl]);
 
-  // open on cmd/ctrl + k
-  React.useEffect(() => {
-    const handleKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
-        e.preventDefault();
-        setOpen((prev) => !prev);
-      }
-    };
-    window.addEventListener("keydown", handleKey);
-    return () => window.removeEventListener("keydown", handleKey);
-  }, [setOpen]);
-
   // parse bang: returns {slug, rest} or null
   const parseBang = (q: string) => {
     const trimmed = q.trim();
