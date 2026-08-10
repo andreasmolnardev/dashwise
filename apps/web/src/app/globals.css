@@ -169,6 +169,24 @@
   display: none;             /* Chrome/Safari */
 }
 
+.scrollbar-visible {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(255 255 255 / 0.35) transparent;
+}
+.scrollbar-visible::-webkit-scrollbar {
+  height: 6px;
+}
+.scrollbar-visible::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-visible::-webkit-scrollbar-thumb {
+  border-radius: 9999px;
+  background: rgb(255 255 255 / 0.35);
+}
+.scrollbar-visible::-webkit-scrollbar-thumb:hover {
+  background: rgb(255 255 255 / 0.55);
+}
+
 .responsive-glance-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
