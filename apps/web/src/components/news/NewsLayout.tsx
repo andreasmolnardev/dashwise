@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, type ReactNode } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import useAuth from "@/context/useAuth";
 import {
     deleteNewsSavedArticleListAction,
@@ -58,8 +58,9 @@ export function useNewsSidebarData() {
 }
 
 export default function NewsLayout({ children }: { children: ReactNode }) {
-    const { token } = useAuth();
+    const { token, user, updateUserProperty } = useAuth();
     const navigate = useNavigate();
+    const location = useLocation();
     const { feedId } = useParams();
     const queryClient = useQueryClient();
     const activeSavedList = feedId?.startsWith("saved-") ? decodeURIComponent(feedId.slice("saved-".length)) : null;
@@ -152,6 +153,57 @@ export default function NewsLayout({ children }: { children: ReactNode }) {
 
     const activeFeedRoute = feedId && feedId !== "overview" ? `/apps/news/${feedId}` : "/apps/news";
 
+    const defaultNewsPage = (() => {
+        const value = user?.newsPreferences;
+        if (!value || typeof value !== "object") return null;
+
+        const page = (value as Record<string, unknown>).defaultNewsPage;
+        return typeof page === "string" && (page === "/apps/news" || page.startsWith("/apps/news/"))
+            ? page
+            : null;
+    })();
+
+    const setDefaultNewsPage = (page: string | null) => {
+        if (!token) return;
+
+        const value = user?.newsPreferences;
+        const currentPreferences = value && typeof value === "object"
+            ? value as Record<string, unknown>
+            : {};
+
+        const nextPreferences = { ...currentPreferences };
+        if (page) nextPreferences.defaultNewsPage = page;
+        else delete nextPreferences.defaultNewsPage;
+
+        void updateUserProperty("newsPreferences", nextPreferences).catch((error) => {
+            console.error("Failed to set default news page", error);
+        });
+    };
+
+    const defaultPageAction = (page: string) => {
+        const isDefault = defaultNewsPage === page;
+
+        return {
+            label: isDefault ? "Remove as default news page" : "Set as default news page",
+            icon: isDefault ? "fa6-solid:xmark" : "fa6-solid:thumbtack",
+            action: () => setDefaultNewsPage(isDefault ? null : page),
+        };
+    };
+
+    useEffect(() => {
+        if (
+            feedId ||
+            location.pathname !== "/apps/news" ||
+            location.search ||
+            !defaultNewsPage ||
+            defaultNewsPage === "/apps/news"
+        ) {
+            return;
+        }
+
+        navigate(defaultNewsPage, { replace: true });
+    }, [defaultNewsPage, feedId, location.pathname, location.search, navigate]);
+
     const openSubscribeModal = () => {
         const params = new URLSearchParams({ action: "subscribe" });
         navigate(`${activeFeedRoute}?${params.toString()}`);
@@ -210,6 +262,7 @@ export default function NewsLayout({ children }: { children: ReactNode }) {
                   icon="fa6-solid:layer-group"
                   title="Overview"
                   isRoot={true}
+                  dropdownActions={[defaultPageAction("/apps/news/overview")]}
             />
             
                 <GroupLabel
@@ -232,6 +285,7 @@ export default function NewsLayout({ children }: { children: ReactNode }) {
                     group="Feeds"
                     isRoot={true}
                     dropdownActions={[
+                        defaultPageAction("/apps/news"),
                         {
                             label: "Edit feed",
                             icon: "fa6-solid:pen-to-square",
@@ -248,6 +302,7 @@ export default function NewsLayout({ children }: { children: ReactNode }) {
                         title={feed.title || "Untitled feed"}
                         group="Feeds"
                         dropdownActions={[
+                            defaultPageAction(`/apps/news/${feed.id}`),
                             {
                                 label: "Edit feed",
                                 icon: "fa6-solid:pen-to-square",
@@ -271,6 +326,7 @@ export default function NewsLayout({ children }: { children: ReactNode }) {
                         title={list.name}
                         group="Saved"
                         dropdownActions={[
+                            defaultPageAction(`/apps/news/saved-${encodeURIComponent(list.id)}`),
                             {
                                 label: "Rename",
                                 icon: "fa6-solid:pen-to-square",
@@ -308,6 +364,7 @@ export default function NewsLayout({ children }: { children: ReactNode }) {
                         group="Subscriptions"
                         hasError={Boolean(subscription.fetchErrors)}
                         dropdownActions={[
+                            defaultPageAction(`/apps/news/${encodeSubscriptionRouteId(subscription)}`),
                             {
                                 label: "Edit",
                                 icon: "fa6-solid:pen-to-square",

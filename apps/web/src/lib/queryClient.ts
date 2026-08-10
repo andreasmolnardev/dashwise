@@ -50,7 +50,9 @@ export const queryKeys = {
   news: {
     subscriptions: (token: string | null) => ["news", token, "subscriptions"] as const,
     feeds: (token: string | null) => ["news", token, "feeds"] as const,
+    savedArticlesRoot: (token: string | null) => ["news", token, "saved-articles"] as const,
     savedArticles: (token: string | null, list: string | null) => ["news", token, "saved-articles", list] as const,
+    feedRoot: (token: string | null) => ["news", token, "feed"] as const,
     feed: (token: string | null, feedId: string, page: number) => ["news", token, "feed", feedId, page] as const,
     metadata: (token: string | null, feedId: string) => ["news", token, "metadata", feedId] as const,
   },
