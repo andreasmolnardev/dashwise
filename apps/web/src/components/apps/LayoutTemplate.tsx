@@ -218,11 +218,10 @@ export function Tab({ dst, icon, title, group, isRoot, fallbackIcon, badge, hasE
                         source={icon}
                         fallbackSource={fallbackIcon}
                         alt={title}
-                        className={`h-4 w-4 shrink-0 transition-colors ${
-                            isActive
+                        className={`h-4 w-4 shrink-0 transition-colors ${hasError
+                            ? "text-red-300"
+                            : isActive
                                 ? "text-primary"
-                                : hasError
-                                    ? "text-red-300"
                                 : "text-white/60 group-hover:text-primary"
                         }`}
                         imageClassName="object-contain"
