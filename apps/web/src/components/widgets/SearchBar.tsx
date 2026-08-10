@@ -9,6 +9,8 @@ import { queryKeys } from "@/lib/queryClient";
 type SearchBarProps = {
   useRedirect: boolean;
   defaultOpen?: boolean;
+  showTrigger?: boolean;
+  enableGlobalShortcut?: boolean;
 };
 
 type ProxyAction = {
@@ -48,7 +50,12 @@ function normalizeSearchItems(raw: unknown): SearchItem[] {
 }
 
 
-export default function SearchBar({ useRedirect, defaultOpen }: SearchBarProps) {
+export default function SearchBar({
+  useRedirect,
+  defaultOpen,
+  showTrigger = true,
+  enableGlobalShortcut = false,
+}: SearchBarProps) {
   const [redirecting, setRedirecting] = useState(false);
   const [open, setOpen] = useState(() => !!defaultOpen); // control CommandBar
   const didMountRef = useRef(false);
@@ -67,6 +74,20 @@ export default function SearchBar({ useRedirect, defaultOpen }: SearchBarProps) 
     if (defaultOpen) setOpen(true);
   }, [defaultOpen]);
 
+  useEffect(() => {
+    if (!enableGlobalShortcut) return;
+
+    const handleKey = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setOpen((previousOpen) => !previousOpen);
+      }
+    };
+
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [enableGlobalShortcut]);
+
 
   const handleFocus = () => {
     if (useRedirect) {
@@ -78,23 +99,24 @@ export default function SearchBar({ useRedirect, defaultOpen }: SearchBarProps) 
 
   return (
     <>
-      <div
-        className={`flex items-center justify-center border frosted rounded-lg
-        focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500
-        transition-transform duration-300 ${redirecting ? 'scale-105 opacity-70' : 'scale-100 opacity-100'}`}
-      >
-        <input
-          type="text"
-          data-slot="input"
-          className="w-full bg-transparent px-3 py-2 text-[0.875rem] font-medium text-gray dark:text-white placeholder-(--text-on-frosted) hover:placeholder-(--text-color)
-               focus:outline-none"
-          placeholder="Search..."
-          onFocus={handleFocus}
-        />
+      {showTrigger && (
+        <div
+          className={`flex items-center justify-center border frosted rounded-lg
+          focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500
+          transition-transform duration-300 ${redirecting ? 'scale-105 opacity-70' : 'scale-100 opacity-100'}`}
+        >
+          <input
+            type="text"
+            data-slot="input"
+            className="w-full bg-transparent px-3 py-2 text-[0.875rem] font-medium text-gray dark:text-white placeholder-(--text-on-frosted) hover:placeholder-(--text-color)
+                 focus:outline-none"
+            placeholder="Search..."
+            onFocus={handleFocus}
+          />
+        </div>
+      )}
 
-        {/* Pass fetched items into CommandBar */}
-        <CommandBar open={open} setOpen={setOpen} searchItems={searchItems} config={user?.searchPreferences ?? {}}/>
-      </div>
+      <CommandBar open={open} setOpen={setOpen} searchItems={searchItems} config={user?.searchPreferences ?? {}}/>
     </>
   );
 }

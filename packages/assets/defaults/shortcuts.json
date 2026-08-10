@@ -82,5 +82,12 @@
         "secondary": "Dashwise",
         "action": "url:/frame",
         "tags": ["QuickLaunch", "Frame"]
+    },
+    {
+        "name": "Frame Settings",
+        "icon": "fa6-solid:display",
+        "secondary": "Dashwise",
+        "action": "url:/settings/screensaver",
+        "tags": ["Settings", "Preferences", "Frame", "Screensaver"]
     }
 ]

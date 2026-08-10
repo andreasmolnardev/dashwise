@@ -18,6 +18,13 @@ const truthyEnv = (value?: string | null): boolean => {
   return value === "1" || value.toLowerCase() === "true";
 };
 
+const requestedLocalFeedCache = truthyEnv(env.USE_LOCAL_FEED_CACHE);
+const useLocalFeedCache = requestedLocalFeedCache && processEnvironment === "dev";
+
+if (requestedLocalFeedCache && !useLocalFeedCache) {
+  console.warn("USE_LOCAL_FEED_CACHE is only supported in development and will be ignored");
+}
+
 /**
  * Get env var with NEXT_PUBLIC_ fallback for backend compatibility.
  * Backend can use either the non-prefixed or NEXT_PUBLIC_ version.
@@ -33,6 +40,7 @@ const getLogLevel = (): string | undefined => {
 
 export const config = {
   ENVIRONMENT: processEnvironment === "dev" ? "dev" : "production",
+  USE_LOCAL_FEED_CACHE: useLocalFeedCache,
   PORT: Number(env.PORT) || 3000,
   PB_URL: getEnv("PB_URL", "NEXT_PUBLIC_PB_URL") || "http://127.0.0.1:8090",
   PB_BINARY_PATH: env.PB_BINARY_PATH,

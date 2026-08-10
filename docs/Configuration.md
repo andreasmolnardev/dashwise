@@ -11,6 +11,13 @@ You can use the following environment variables for the all-in-one container; th
 | START_POCKETBASE | No | `true` | Start the bundled PocketBase process; set to `false` to use an external instance |
 | PB_BINARY_PATH | No | - | Path to PocketBase binary (default: `pocketbase/pocketbase`) |
 | PORT | No | `3000` | HTTP port for the backend server |
+| ENVIRONMENT | No | `production` | Set to `dev` for development-only behavior |
+
+### Development-only Cache
+
+| Name | Required | Default Value | Description |
+| --- | --- | --- | --- |
+| USE_LOCAL_FEED_CACHE | No | `false` | Use process-local feed variables instead of Redis. Only honored when `ENVIRONMENT=dev`; not recommended for production because cache is lost on restart and is not shared between processes. |
 
 ### Authentication
 

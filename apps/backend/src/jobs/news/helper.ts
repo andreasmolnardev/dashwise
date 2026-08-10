@@ -93,35 +93,35 @@ export async function getFeedItems({
 }
 
 function getDescription(item: ParserItem): string {
-    const desc = item.description;
-    if (!desc) return "";
-
-    let value: string | undefined;
-
-    if (typeof desc === "object") {
-        value = desc._;
-    } else {
-        value = desc;
-    }
-
-    return stripHtml(value);
+    return stripHtml(item.description);
 }
 
 function getBestDescription(item: ParserItem): string {
-    return (
-        getDescription(item) ||
-        item["media:group"]?.["media:description"] ||
-        item["media:description"] ||
-        item.summary ||
-        ""
-    );
+    const descriptions = [
+        getDescription(item),
+        getNestedText(item["media:group"], "media:description"),
+        stripHtml(item["media:description"]),
+        stripHtml(item.summary),
+    ];
+
+    return descriptions.find(Boolean) ?? "";
+}
+
+function getNestedText(value: unknown, key: string): string {
+    if (Array.isArray(value)) {
+        return value.map((entry) => getNestedText(entry, key)).find(Boolean) ?? "";
+    }
+
+    if (!value || typeof value !== "object") return "";
+
+    return stripHtml((value as Record<string, unknown>)[key]);
 }
 
 function truncateSentences(value: string, maxSentences: number): string {
     const text = stripHtml(value).trim();
     if (!text) return "";
 
-    const sentences = text.match(/[^.!?]+[.!?]+(?:\s+|$)|[^.!?]+$/g) ?? [text];
+    const sentences = text.match(/.+?(?:[.!?]+(?=\s|$)|$)/g) ?? [text];
     return sentences.slice(0, maxSentences).join(" ").replace(/\s+/g, " ").trim();
 }
 
@@ -157,12 +157,7 @@ function getHtmlContentCandidates(item: ParserItem): string[] {
 }
 
 function stripHtml(text?: unknown): string {
-    const value =
-        typeof text === "string"
-            ? text
-            : text && typeof text === "object" && "_" in text
-              ? (text as { _: unknown })._
-              : undefined;
+    const value = textValue(text);
 
     if (typeof value !== "string" || !value) return "";
     return decodeHtmlEntities(
@@ -173,6 +168,20 @@ function stripHtml(text?: unknown): string {
             .replace(/\s+/g, " ")
             .trim(),
     );
+}
+
+function textValue(value: unknown): string | undefined {
+    if (typeof value === "string") return value;
+
+    if (Array.isArray(value)) {
+        return value.map(textValue).find(Boolean);
+    }
+
+    if (value && typeof value === "object" && "_" in value) {
+        return textValue((value as { _: unknown })._);
+    }
+
+    return undefined;
 }
 
 function decodeHtmlEntities(text: string): string {

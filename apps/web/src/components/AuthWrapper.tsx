@@ -9,6 +9,7 @@ import { fetchWallpaperBlob } from "@/lib/apiClient";
 import { LocalizationProvider } from "@/context/LocalizationContext";
 import { ActivityProvider } from "@/context/ActivityContext";
 import { normalizeWallpaperFilters } from "./settings/wallpaperFilterDefaults";
+import SearchBar from "./widgets/SearchBar";
 
 type AuthWrapperProps = {
   children: ReactNode;
@@ -169,7 +170,14 @@ export default function AuthWrapper({ children }: AuthWrapperProps) {
           WebkitBackdropFilter: `blur(${blur}px) brightness(${appliedBrightness}%)`,
         }}
       >
-        <ActivityProvider>{children}</ActivityProvider>
+        <ActivityProvider>
+          <SearchBar
+            useRedirect={false}
+            showTrigger={false}
+            enableGlobalShortcut
+          />
+          {children}
+        </ActivityProvider>
       </div>
     </LocalizationProvider>
   );
