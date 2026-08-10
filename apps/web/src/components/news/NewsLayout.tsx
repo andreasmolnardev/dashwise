@@ -204,6 +204,14 @@ export default function NewsLayout({ children }: { children: ReactNode }) {
         <NewsSidebarContext.Provider value={{ subscriptions, feeds, reloadSidebar }}>
         <AppTemplate title="News">
             <Sidebar>
+
+                <Tab
+                  dst="/apps/news/overview"
+                  icon="fa6-solid:layer-group"
+                  title="Overview"
+                  isRoot={true}
+            />
+            
                 <GroupLabel
                     group="Feeds"
                     title="Feeds"
@@ -215,13 +223,6 @@ export default function NewsLayout({ children }: { children: ReactNode }) {
                             action: openCreateFeedModal,
                         },
                     ]}
-                />
-
-                <Tab
-                    dst="/apps/news/overview"
-                    icon="fa6-solid:layer-group"
-                    title="Overview"
-                    isRoot={true}
                 />
 
                 <Tab
