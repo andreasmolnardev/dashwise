@@ -1,6 +1,5 @@
 "use client";
 
-import { useRef } from "react";
 import { Icon } from "@iconify-icon/react";
 import { useNavigate } from "react-router-dom";
 import useAuth from "@/context/useAuth";
@@ -53,7 +52,6 @@ function NewsFeedCarousel({
 }) {
     const navigate = useNavigate();
     const { token } = useAuth();
-    const carouselRef = useRef<HTMLDivElement>(null);
     const feedQuery = useApiQuery(
         queryKeys.news.feed(token, feed.id, 1),
         (auth) => getNewsFeedAction(auth, feed.id, overviewArticleLimit),
@@ -70,39 +68,31 @@ function NewsFeedCarousel({
         return subscription?.icon;
     };
 
-    const scroll = (direction: number) => {
-        carouselRef.current?.scrollBy({ left: direction * 380, behavior: "smooth" });
-    };
-
     return (
         <section className="space-y-3">
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center justify-between gap-3 w-full">
                 <button
                     type="button"
-                    className="group flex min-w-0 items-center gap-2 text-left"
+                    className="group w-full grid grid-cols-[1fr_auto] min-w-0 items-center gap-2 text-left"
                     onClick={() => navigate(`/apps/news/${feed.id}`)}
                 >
                     <span className="truncate text-lg font-semibold group-hover:text-primary md:text-xl">
                         {feed.title || "Untitled feed"}
                     </span>
+        
                     <Icon icon="fa6-solid:arrow-up-right-from-square" className="shrink-0 text-xs text-white/45" />
                 </button>
-                <div className="flex shrink-0 gap-1">
-                    <CarouselButton label="Previous articles" icon="fa6-solid:arrow-left" onClick={() => scroll(-1)} />
-                    <CarouselButton label="Next articles" icon="fa6-solid:arrow-right" onClick={() => scroll(1)} />
-                </div>
             </div>
 
             {feedQuery.isLoading && <OverviewLoading />}
             {feedQuery.isError && <p className="text-sm text-white/50">Unable to load this feed.</p>}
             {!feedQuery.isLoading && !feedQuery.isError && items.length === 0 && (
-                <p className="rounded-xl frosted p-4 text-sm text-white/50">No articles in this feed yet.</p>
+                <p className="rounded-xl text-sm text-white/50">Feed is empty.</p>
             )}
 
             {items.length > 0 && (
                 <div
-                    ref={carouselRef}
-                    className="flex snap-x gap-3 overflow-x-auto overscroll-x-contain pb-2 scrollbar-hide"
+                    className="flex snap-x gap-2.5 overflow-x-auto overscroll-x-contain pb-2"
                 >
                     {items.map((item, index) => (
                         <OverviewTopicCard
@@ -122,26 +112,25 @@ function OverviewTopicCard({ item, iconUrl }: { item: NewsFeedItem; iconUrl?: st
     const description = typeof item.description === "string" ? item.description : "";
 
     return (
-        <article className="flex w-[min(84vw,27rem)] shrink-0 snap-start flex-col overflow-hidden rounded-xl bg-(--surface-2)">
+        <article className="flex w-[min(84vw,20rem)] shrink-0 snap-start flex-col overflow-hidden bg-(--surface-2)">
             <a href={item.link} target="_blank" rel="noreferrer" className="group block">
-                <div className="relative h-40 overflow-hidden">
+                <div className="relative h-40 mb-3 overflow-hidden">
                     {item.thumbnailUrl ? (
                         <img
                             src={String(item.thumbnailUrl)}
                             alt=""
-                            className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-[1.04]"
+                            className="h-full w-full object-cover transition-transform duration-200 rounded-xl group-hover:scale-[1.04]"
                         />
                     ) : (
                         <div className="h-full w-full frosted" />
                     )}
-                    <div className="absolute inset-x-0 bottom-0 h-20 bg-linear-to-t from-black/75 to-transparent" />
                     {item.topicTitle && (
                         <span className="absolute bottom-2 left-3 max-w-[calc(100%-1.5rem)] truncate text-[10px] font-medium uppercase tracking-[0.14em] text-white/70">
                             {item.topicTitle}
                         </span>
                     )}
                 </div>
-                <div className="space-y-1.5 p-3">
+                <div className="space-y-1.5">
                     <h3 className="line-clamp-2 text-base font-semibold leading-snug group-hover:text-primary">
                         {item.title}
                     </h3>
@@ -176,20 +165,6 @@ function OverviewTopicCard({ item, iconUrl }: { item: NewsFeedItem; iconUrl?: st
                 </div>
             )}
         </article>
-    );
-}
-
-function CarouselButton({ label, icon, onClick }: { label: string; icon: string; onClick: () => void }) {
-    return (
-        <button
-            type="button"
-            aria-label={label}
-            title={label}
-            onClick={onClick}
-            className="flex h-8 w-8 items-center justify-center rounded-full frosted text-white/65 transition hover:bg-white/10 hover:text-white"
-        >
-            <Icon icon={icon} className="text-xs" />
-        </button>
     );
 }
 
