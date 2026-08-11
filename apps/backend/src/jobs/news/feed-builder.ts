@@ -209,8 +209,21 @@ async function buildUserFeed(
   result: { errors: number; updated: number; details: any[] },
 ) {
   const userSubscriptions = allSubscriptions.filter((subscription) => !subscription.userId || subscription.userId === userId);
-  const selectedSubscriptions = selectNewsFeedSubscriptions(userSubscriptions, record);
-  const maxFeedItems = normalizeMaxFeedItems(record?.maxFeedItems);
+  // The all-feed record is optional for users created before feed records were
+  // introduced. Keep the materialized `all` view dynamic in that case instead
+  // of treating a missing record like an empty custom feed.
+  const effectiveRecord = feedId === "all" && !record
+    ? {
+        id: "all",
+        title: "All feed",
+        feedType: "all" as const,
+        systemKey: "all",
+        subscriptionRefs: [],
+        excludedSubscriptionRefs: [],
+      }
+    : record;
+  const selectedSubscriptions = selectNewsFeedSubscriptions(userSubscriptions, effectiveRecord);
+  const maxFeedItems = normalizeMaxFeedItems(effectiveRecord?.maxFeedItems);
 
   try {
     const sortedItems = (await loadMaterializedArticles(selectedSubscriptions, allSubscriptions)).slice(0, maxFeedItems);
