@@ -80,6 +80,7 @@ export async function getFeedItems({
             return {
                 title: stripHtml(item.title) || "No Title",
                 link,
+                guid: item.guid || (item as any).id || (item as any)["dc:identifier"],
                 description: truncateSentences(getBestDescription(item), 5),
                 content: getContent(item),
                 pubDate,

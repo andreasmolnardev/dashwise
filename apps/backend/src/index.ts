@@ -278,9 +278,7 @@ app.get("/webhook/newsFeedBuilder", async (c) => {
     return c.json({ status: "success", message: "No feed IDs specified" });
   }
 
-  for (const feedId of feedIds) {
-    await jobsApi.runNewsFeedBuilderJob("webhook", feedId);
-  }
+  await jobsApi.runNewsFeedBuilderJob("webhook", undefined, undefined, feedIds);
 
   return c.json({ status: "success" });
 });

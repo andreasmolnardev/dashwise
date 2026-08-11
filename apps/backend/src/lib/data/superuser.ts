@@ -126,6 +126,12 @@ export async function getNewsFeedByTitle(userId: string, title: string) {
 	));
 }
 
+export async function getNewsFeedBySystemKey(userId: string, systemKey: string) {
+	return safeNull((pb) => pb.collection("newsFeeds").getFirstListItem(
+		`userId="${userId.replace(/"/g, '\\"')}" && systemKey="${systemKey.replace(/"/g, '\\"')}"`,
+	));
+}
+
 export async function createNewsFeedRecord(payload: Record<string, unknown>) {
 	return safeNull((pb) => pb.collection("newsFeeds").create(payload));
 }
