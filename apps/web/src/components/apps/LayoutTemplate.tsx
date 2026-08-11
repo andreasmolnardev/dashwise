@@ -3,6 +3,7 @@
 import { Link, useLocation } from "react-router-dom";
 import { Icon } from "@iconify-icon/react";
 import AppIcon from "@dashwise/app-icon";
+import SearchBar from "@/components/widgets/SearchBar";
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -577,6 +578,10 @@ export function Sidebar({ children }: { children: ReactNode }) {
                         {actions.map((a, i) => <div key={i}>{a}</div>)}
                     </div>
                 )}
+
+                <div className="mb-1">
+                    <SearchBar useRedirect={false} />
+                </div>
 
                 <Link to="/home" className="block group">
                     <div className="flex items-center gap-2 px-2 py-1.5 rounded-md">
