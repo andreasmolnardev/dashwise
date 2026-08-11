@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
+import { Icon } from '@iconify-icon/react';
 import useAuth from "@/context/useAuth";
 import CommandBar from './CommandBar';
 import { getSearchItemsAction } from '@/lib/apiClient';
@@ -11,6 +12,7 @@ type SearchBarProps = {
   defaultOpen?: boolean;
   showTrigger?: boolean;
   enableGlobalShortcut?: boolean;
+  triggerStyle?: 'bar' | 'nav';
 };
 
 type ProxyAction = {
@@ -55,6 +57,7 @@ export default function SearchBar({
   defaultOpen,
   showTrigger = true,
   enableGlobalShortcut = false,
+  triggerStyle = 'bar',
 }: SearchBarProps) {
   const [redirecting, setRedirecting] = useState(false);
   const [open, setOpen] = useState(() => !!defaultOpen); // control CommandBar
@@ -100,20 +103,39 @@ export default function SearchBar({
   return (
     <>
       {showTrigger && (
-        <div
-          className={`flex items-center justify-center border frosted rounded-lg
-          focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500
-          transition-transform duration-300 ${redirecting ? 'scale-105 opacity-70' : 'scale-100 opacity-100'}`}
-        >
-          <input
-            type="text"
-            data-slot="input"
-            className="w-full bg-transparent px-3 py-2 text-[0.875rem] font-medium text-gray dark:text-white placeholder-(--text-on-frosted) hover:placeholder-(--text-color)
-                 focus:outline-none"
-            placeholder="Search..."
-            onFocus={handleFocus}
-          />
-        </div>
+        triggerStyle === 'nav' ? (
+          <button
+            type="button"
+            onClick={handleFocus}
+            className="block group"
+            aria-label="Search"
+          >
+            <div className="flex items-center gap-2 px-2 py-1.5 rounded-md">
+              <Icon
+                icon="fa6-solid:magnifying-glass"
+                className="text-sm text-white/40 group-hover:text-primary transition-colors w-4"
+              />
+              <span className="text-sm text-white/50 group-hover:text-white transition-colors leading-none">
+                Search
+              </span>
+            </div>
+          </button>
+        ) : (
+          <div
+            className={`flex items-center justify-center border frosted rounded-lg
+            focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500
+            transition-transform duration-300 ${redirecting ? 'scale-105 opacity-70' : 'scale-100 opacity-100'}`}
+          >
+            <input
+              type="text"
+              data-slot="input"
+              className="w-full bg-transparent px-3 py-2 text-[0.875rem] font-medium text-gray dark:text-white placeholder-(--text-on-frosted) hover:placeholder-(--text-color)
+                   focus:outline-none"
+              placeholder="Search..."
+              onFocus={handleFocus}
+            />
+          </div>
+        )
       )}
 
       <CommandBar open={open} setOpen={setOpen} searchItems={searchItems} config={user?.searchPreferences ?? {}}/>

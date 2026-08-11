@@ -580,7 +580,7 @@ export function Sidebar({ children }: { children: ReactNode }) {
                 )}
 
                 <div className="mb-1">
-                    <SearchBar useRedirect={false} />
+                    <SearchBar useRedirect={false} triggerStyle="nav" />
                 </div>
 
                 <Link to="/home" className="block group">
