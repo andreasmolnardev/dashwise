@@ -5,7 +5,7 @@ export default function LinksRedirectPage() {
 	const navigate = useNavigate();
 
 	useEffect(() => {
-		navigate("/links/home", { replace: true });
+		navigate("/apps/links/home", { replace: true });
 	}, [navigate]);
 
 	return null;

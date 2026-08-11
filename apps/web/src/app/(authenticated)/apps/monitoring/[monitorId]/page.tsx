@@ -416,7 +416,7 @@ export default function MonitoringDetailPage() {
                                             type="button"
                                             onClick={() =>
                                                 navigate(
-                                                    `/links/lists/${linkEntry.collectionId}`,
+                                                    `/apps/links/lists/${linkEntry.collectionId}`,
                                                 )}
                                             className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-transparent text-white/75 transition-colors hover:bg-white/10 hover:backdrop-blur-md hover:text-white"
                                             aria-label="Open parent collection"

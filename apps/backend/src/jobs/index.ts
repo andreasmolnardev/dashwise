@@ -93,8 +93,8 @@ const runDefaultIntegrationsJob = (source: string) =>
     errorMessage: "Default integrations bootstrap failed",
   });
 
-const runNewsFeedBuilderJob = (source: string, feedId?: string) =>
-  runJob("newsFeedBuilder", () => newsFeedBuilder(feedId), {
+const runNewsFeedBuilderJob = (source: string, feedId?: string, userId?: string, feedIds?: string[]) =>
+  runJob("newsFeedBuilder", () => newsFeedBuilder(feedId, { userId, feedIds }), {
     startMessage: `Triggered by ${source}${
       feedId ? ` for feed ${feedId}` : ""
     }`,

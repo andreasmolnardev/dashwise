@@ -22,9 +22,7 @@ async function refreshNewsFeed(userId: string, options: { feedIds: string[] }) {
     return { status: "success", message: "No feed IDs specified" };
   }
 
-  for (const feedId of feedIds) {
-    await jobsApi.runNewsFeedBuilderJob("api", feedId);
-  }
+  await jobsApi.runNewsFeedBuilderJob("api", undefined, userId, feedIds);
 
   return { status: "success" };
 }

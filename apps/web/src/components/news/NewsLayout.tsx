@@ -26,6 +26,7 @@ export interface Subscription {
 export interface FeedRecord {
     id: string;
     title?: string;
+    icon?: string;
 }
 
 interface SavedListRecord {
@@ -280,7 +281,7 @@ export default function NewsLayout({ children }: { children: ReactNode }) {
 
                 <Tab
                     dst="/apps/news"
-                    icon="fa6-solid:newspaper"
+                    icon={feeds.find((feed) => feed.id === "all")?.icon || "fa6-solid:newspaper"}
                     title="All"
                     group="Feeds"
                     isRoot={true}
@@ -298,7 +299,7 @@ export default function NewsLayout({ children }: { children: ReactNode }) {
                     <Tab
                         key={feed.id}
                         dst={`/apps/news/${feed.id}`}
-                        icon="solar:document-text-bold"
+                        icon={feed.icon || "solar:document-text-bold"}
                         title={feed.title || "Untitled feed"}
                         group="Feeds"
                         dropdownActions={[
@@ -358,11 +359,15 @@ export default function NewsLayout({ children }: { children: ReactNode }) {
                     <Tab
                         key={subscription.id || subscription.url}
                         dst={`/apps/news/${encodeSubscriptionRouteId(subscription)}`}
-                        icon={subscription.icon ? `url:${subscription.icon}` : "fa6-solid:rss"}
+                        icon={subscription.fetchErrors?.trim()
+                            ? "fa6-solid:triangle-exclamation"
+                            : subscription.icon
+                                ? `url:${subscription.icon}`
+                                : "fa6-solid:rss"}
                         fallbackIcon="fa6-solid:rss"
                         title={subscription.title || subscription.url}
                         group="Subscriptions"
-                        hasError={Boolean(subscription.fetchErrors)}
+                        hasError={Boolean(subscription.fetchErrors?.trim())}
                         dropdownActions={[
                             defaultPageAction(`/apps/news/${encodeSubscriptionRouteId(subscription)}`),
                             {

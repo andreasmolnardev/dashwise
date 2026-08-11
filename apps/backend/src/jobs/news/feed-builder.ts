@@ -1,39 +1,235 @@
 import {
+  applyNewsTopics,
+  articleKey,
+  canonicalizeArticleUrl,
+  isAllNewsFeed,
+  normalizeMaxFeedItems,
+  normalizeSubscription,
+  type NewsSubscription,
+} from "../../lib/data/news";
+import {
   getAllNewsFeeds,
+  getAllNewsSubscriptions,
   getNewsFeedById,
   getNewsSubscriptionById,
-  updateNewsFeedRecord,
   updateNewsSubscription,
 } from "../../lib/data/superuser";
-import { applyNewsTopics, normalizeMaxFeedItems } from "../../lib/data/news";
-import { writeFeedItemsCache } from "../../lib/cache/feed-items";
+import {
+  readSubscriptionArticles,
+  type CachedArticle,
+  writeMaterializedFeed,
+  writeSubscriptionArticles,
+} from "../../lib/cache/feed-items";
 import { createLogger } from "../../lib/logger";
 import { getFeedItems } from "./helper";
+import type { NewsFeedItem } from "@dashwise/types/sdk";
 
-interface NewsFeedRecord {
+export type NewsFeedRecord = {
   id: string;
   userId?: string;
+  title?: string;
+  feedType?: "all" | "custom" | string;
+  systemKey?: string;
   subscriptionRefs?: string[];
   excludedSubscriptionRefs?: string[];
   maxFeedItems?: number;
-  [k: string]: any;
-}
+  [key: string]: unknown;
+};
 
-interface FeedItem {
-  title: string;
-  link: string;
-  pubDate: Date;
-  isoDate?: string;
-  content?: string;
-  thumbnailUrl?: string;
-  description?: string;
-  summary?: string;
-  [key: string]: any;
-}
+type BuilderOptions = { userId?: string; feedIds?: string[] };
 
 const logger = createLogger("NewsFeedBuilder");
+const SUBSCRIPTION_RETENTION = 500;
 
-export async function newsFeedBuilder(feedId?: string): Promise<{
+function itemTime(item: Record<string, unknown>) {
+  const value = item.pubDate;
+  const time = value instanceof Date ? value.getTime() : new Date(String(value || "")).getTime();
+  return Number.isFinite(time) ? time : 0;
+}
+
+function completeness(article: CachedArticle) {
+  const json = article.json;
+  return Object.values(json).reduce<number>((total, value) => total + (value == null ? 0 : String(value).length), 0);
+}
+
+function normalizeArticle(raw: Record<string, unknown>, subscription: NewsSubscription): CachedArticle | null {
+  const pubDate = new Date(String(raw.pubDate || raw.isoDate || ""));
+  if (!Number.isFinite(pubDate.getTime())) return null;
+
+  const item: Record<string, unknown> = {
+    ...raw,
+    title: String(raw.title || "No Title"),
+    link: String(raw.link || ""),
+    pubDate: pubDate.toISOString(),
+    subscription_id: String(subscription.id || ""),
+    subscription_name: String(subscription.title || subscription.name || subscription.url || "Subscription"),
+  };
+  const dedupeKey = articleKey(item as NewsFeedItem, String(subscription.url || ""));
+  if (!dedupeKey) return null;
+
+  return {
+    dedupeKey,
+    canonicalUrl: canonicalizeArticleUrl(String(item.link || "")) || undefined,
+    guid: String(item.guid || item.id || "") || undefined,
+    title: String(item.title || ""),
+    publishedAt: pubDate.getTime(),
+    json: { ...item, dedupeKey },
+  };
+}
+
+export function deduplicateSubscriptionArticles(items: Record<string, unknown>[], subscription: NewsSubscription) {
+  const deduped = new Map<string, CachedArticle>();
+  for (const item of items) {
+    const normalized = normalizeArticle(item, subscription);
+    if (!normalized) continue;
+    const existing = deduped.get(normalized.dedupeKey);
+    if (!existing || completeness(normalized) > completeness(existing)) deduped.set(normalized.dedupeKey, normalized);
+  }
+  return Array.from(deduped.values()).sort((left, right) => right.publishedAt - left.publishedAt);
+}
+
+async function fetchAndCacheSubscription(subscription: NewsSubscription, result: { errors: number; details: any[] }) {
+  const id = String(subscription.id || "");
+  const feedUrl = String(subscription.url || subscription.feedUrl || "");
+  if (!id || !feedUrl) return false;
+
+  try {
+    const raw = await getFeedItems({
+      feedUrl,
+      maxItems: SUBSCRIPTION_RETENTION,
+      feedName: subscription.title || feedUrl,
+      linkReplaceRule: subscription.linkReplaceRule,
+      thumbnailOverwriteUrl: subscription.thumbnailOverwriteUrl,
+      fallbackThumbnailUrl: subscription.fallbackThumbnailUrl,
+    });
+    const articles = deduplicateSubscriptionArticles(raw as unknown as Record<string, unknown>[], subscription);
+    await writeSubscriptionArticles(id, articles);
+    await updateNewsSubscription(id, { fetchErrors: "" });
+    return true;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    result.errors++;
+    result.details.push({ subscriptionId: id, action: "feed_fetch_error", error: message });
+    await updateNewsSubscription(id, { fetchErrors: message }).catch(() => undefined);
+    logger.error(`Error fetching feed "${subscription.title || feedUrl}": ${message}`);
+    // A failed fetch deliberately leaves the previous sorted-set cache intact.
+    return false;
+  }
+}
+
+function normalizeFeed(record: Record<string, unknown>): NewsFeedRecord | null {
+  if (!record.id) return null;
+  return {
+    ...record,
+    id: String(record.id),
+    userId: record.userId ? String(record.userId) : undefined,
+    title: String(record.title || ""),
+    feedType: record.feedType ? String(record.feedType) : undefined,
+    systemKey: record.systemKey ? String(record.systemKey) : undefined,
+    subscriptionRefs: Array.isArray(record.subscriptionRefs) ? record.subscriptionRefs.map(String) : [],
+    excludedSubscriptionRefs: Array.isArray(record.excludedSubscriptionRefs) ? record.excludedSubscriptionRefs.map(String) : [],
+  };
+}
+
+export function deduplicateUserArticles(
+  articles: CachedArticle[],
+  selectedSubscriptionIds: Set<string>,
+  subscriptionsById: Map<string, NewsSubscription>,
+) {
+  const deduped = new Map<string, CachedArticle>();
+  for (const article of articles) {
+    const existing = deduped.get(article.dedupeKey);
+    if (!existing || completeness(article) > completeness(existing)) deduped.set(article.dedupeKey, article);
+  }
+
+  return Array.from(deduped.values()).map((article) => {
+    const sourceIds = Array.from(new Set(article.sourceIds || []));
+    const selectedSourceId = sourceIds.find((id) => selectedSubscriptionIds.has(id)) ||
+      String(article.json.subscription_id || "");
+    const selectedSource = subscriptionsById.get(selectedSourceId);
+    const sourceSubscriptions = sourceIds
+      .map((id) => subscriptionsById.get(id))
+      .filter((subscription): subscription is NewsSubscription => Boolean(subscription && subscription.id))
+      .map((subscription) => ({
+        id: String(subscription.id),
+        title: String(subscription.title || subscription.name || subscription.url || "Subscription"),
+      }));
+
+    return {
+      ...article.json,
+      dedupeKey: article.dedupeKey,
+      subscription_id: selectedSourceId,
+      subscription_name: String(selectedSource?.title || selectedSource?.name || article.json.subscription_name || "Subscription"),
+      sourceSubscriptions,
+    } as NewsFeedItem;
+  });
+}
+
+export function selectNewsFeedSubscriptions(
+  userSubscriptions: NewsSubscription[],
+  record: NewsFeedRecord | null,
+) {
+  const exclusions = new Set((record?.excludedSubscriptionRefs || []).map(String));
+  if (isAllNewsFeed(record)) {
+    return userSubscriptions.filter((subscription) => subscription.id && !exclusions.has(String(subscription.id)));
+  }
+  const refs = new Set((record?.subscriptionRefs || []).map(String));
+  return userSubscriptions.filter((subscription) => subscription.id && refs.has(String(subscription.id)) && !exclusions.has(String(subscription.id)));
+}
+
+async function loadMaterializedArticles(
+  selectedSubscriptions: NewsSubscription[],
+  allSubscriptions: NewsSubscription[],
+) {
+  const selectedIds = new Set(selectedSubscriptions.map((subscription) => String(subscription.id || "")).filter(Boolean));
+  const subscriptionsById = new Map(allSubscriptions.map((subscription) => [String(subscription.id || ""), subscription]));
+  const sourceArticles: CachedArticle[] = [];
+
+  for (const subscription of selectedSubscriptions) {
+    const articles = await readSubscriptionArticles(String(subscription.id || ""));
+    for (const article of articles) {
+      const sourceIds = article.sourceIds || [];
+      if (!sourceIds.length) {
+        article.sourceIds = [String(subscription.id || "")];
+      }
+      sourceArticles.push(article);
+    }
+  }
+
+  return deduplicateUserArticles(sourceArticles, selectedIds, subscriptionsById)
+    .sort((left, right) => itemTime(right as Record<string, unknown>) - itemTime(left as Record<string, unknown>));
+}
+
+async function buildUserFeed(
+  userId: string,
+  feedId: string,
+  record: NewsFeedRecord | null,
+  allSubscriptions: NewsSubscription[],
+  sourceRevision: string,
+  result: { errors: number; updated: number; details: any[] },
+) {
+  const userSubscriptions = allSubscriptions.filter((subscription) => !subscription.userId || subscription.userId === userId);
+  const selectedSubscriptions = selectNewsFeedSubscriptions(userSubscriptions, record);
+  const maxFeedItems = normalizeMaxFeedItems(record?.maxFeedItems);
+
+  try {
+    const sortedItems = (await loadMaterializedArticles(selectedSubscriptions, allSubscriptions)).slice(0, maxFeedItems);
+    const groupedItems = await applyNewsTopics(userId, sortedItems, selectedSubscriptions);
+    const materialized = groupedItems.map((item) => ({
+      id: String(item.dedupeKey || articleKey(item)),
+      score: itemTime(item as Record<string, unknown>),
+      json: item as unknown as Record<string, unknown>,
+    }));
+    await writeMaterializedFeed(userId, feedId, materialized, sourceRevision);
+    result.updated++;
+    result.details.push({ userId, feedId, action: "view_cache_updated", itemCount: materialized.length });
+  } catch (error) {
+    result.errors++;
+    result.details.push({ userId, feedId, action: "view_cache_update_error", error: error instanceof Error ? error.message : String(error) });
+  }
+}
+
+export async function newsFeedBuilder(feedId?: string, options: BuilderOptions = {}): Promise<{
   processed: number;
   skipped: number;
   updated: number;
@@ -41,192 +237,98 @@ export async function newsFeedBuilder(feedId?: string): Promise<{
   details: Array<any>;
 }> {
   const result = { processed: 0, skipped: 0, updated: 0, errors: 0, details: [] as any[] };
-
+  const sourceRevision = `${Date.now()}`;
   logger.info("Running news feed builder");
 
-  let newsFeeds: NewsFeedRecord[] = [];
-  try {
-    if (feedId) {
-      const singleSubscription = await getNewsSubscriptionById(feedId).catch(() => null);
-      if (singleSubscription) {
-        newsFeeds = [{ id: singleSubscription.id, subscriptionRefs: [singleSubscription.id] }];
-      } else {
-        const singleFeed = await getNewsFeedById(feedId);
-        newsFeeds = singleFeed ? [singleFeed as NewsFeedRecord] : [];
-      }
-    } else {
-      const records = await getAllNewsFeeds(2000);
-      newsFeeds = Array.isArray(records) ? (records as NewsFeedRecord[]) : [];
-    }
-  } catch (err: any) {
-    logger.error("Failed to fetch news records", err);
-    return {
-      ...result,
-      errors: 1,
-      details: [{ action: feedId ? 'fetch_one_failed' : 'fetch_all_failed', feedId, error: err?.message || String(err) }],
-    };
-  }
-
-  if (!newsFeeds.length) {
-    result.skipped = 1;
-    result.details.push({ action: feedId ? 'skipped' : 'skipped_all', feedId, reason: 'no news feeds' });
-    logger.info("News feed builder skipped: no news feeds found");
+  const rawSubscriptions = await getAllNewsSubscriptions(2000, {
+    fields: "id,url,icon,title,linkReplaceRule,fallbackThumbnailUrl,thumbnailOverwriteUrl,userId,similarityGroupingWordsBlacklist,enableTopicGrouping,fetchErrors",
+  });
+  if (!Array.isArray(rawSubscriptions)) {
+    result.errors++;
+    result.details.push({ action: "fetch_subscriptions_failed" });
     return result;
   }
+  const allSubscriptions = (Array.isArray(rawSubscriptions) ? rawSubscriptions : [])
+    .map((record) => normalizeSubscription(record as Record<string, unknown>))
+    .filter((subscription): subscription is NewsSubscription => Boolean(subscription?.id));
+  const rawFeeds = await getAllNewsFeeds(2000);
+  const feeds = (Array.isArray(rawFeeds) ? rawFeeds : [])
+    .map((record) => normalizeFeed(record as Record<string, unknown>))
+    .filter((feed): feed is NewsFeedRecord => Boolean(feed));
 
-  const processFeed = async (newsFeed: NewsFeedRecord) => {
-    const feedResult = { processed: 1, skipped: 0, updated: 0, errors: 0, details: [] as any[] };
-    const maxFeedItems = normalizeMaxFeedItems(newsFeed.maxFeedItems);
-    const subscriptions = newsFeed.subscriptionRefs?.length
-      ? newsFeed.subscriptionRefs.map((subscriptionId) => ({ id: String(subscriptionId), url: String(subscriptionId) }))
-      : newsFeed.id
-        ? [{ id: newsFeed.id, url: newsFeed.id }]
-        : [];
+  let targetSubscriptionIds = new Set(allSubscriptions.map((subscription) => String(subscription.id)));
+  let targetUserIds = new Set<string>(options.userId ? [options.userId] : []);
 
-    if (!subscriptions.length) {
-      feedResult.skipped++;
-      feedResult.details.push({ feedId: newsFeed.id, action: 'skipped', reason: 'no subscriptions' });
-      return feedResult;
-    }
-
-    let feedFetchErrors = 0;
-    let cachedCount = 0;
-
-    // Fetch subscriptions in parallel
-    const subPromises = subscriptions.map(async (sub) => {
-      const subscriptionRecord = sub.id ? await getNewsSubscriptionById(sub.id).catch(() => null) : null;
-      const feedUrl = String(subscriptionRecord?.url || sub.url || "");
-
-      if (!feedUrl) {
-        return {
-          action: 'skip_subscription',
-          subName: subscriptionRecord?.title || subscriptionRecord?.url || sub.id,
-          reason: 'missing feedUrl',
-        };
-      }
-
-      try {
-        const feedItems = await getFeedItems({
-          feedUrl,
-          maxItems: maxFeedItems,
-          feedName: subscriptionRecord?.title || feedUrl,
-          linkReplaceRule: subscriptionRecord?.linkReplaceRule as Record<string, string> | undefined,
-          thumbnailOverwriteUrl: subscriptionRecord?.thumbnailOverwriteUrl,
-          fallbackThumbnailUrl: subscriptionRecord?.fallbackThumbnailUrl,
-        }) as FeedItem[];
-        if (subscriptionRecord?.id) {
-          await writeFeedItemsCache(subscriptionRecord.id, feedItems, [subscriptionRecord.id]);
-          await updateNewsSubscription(subscriptionRecord.id, { fetchErrors: "" });
+  const requestedIds = Array.from(new Set([...(options.feedIds || []), ...(feedId ? [feedId] : [])].map(String).filter(Boolean)));
+  if (requestedIds.length) {
+    targetSubscriptionIds = new Set<string>();
+    for (const requestedId of requestedIds) {
+      if (requestedId === "all" && options.userId) {
+        for (const subscription of allSubscriptions.filter((entry) => !entry.userId || entry.userId === options.userId)) {
+          if (subscription.id) targetSubscriptionIds.add(String(subscription.id));
         }
-        return {
-          action: 'success',
-          feedUrl,
-          subscription: subscriptionRecord,
-          items: feedItems
-        };
-      } catch (err: any) {
-        const error = err?.message || String(err);
-        const subName = subscriptionRecord?.title || subscriptionRecord?.name || subscriptionRecord?.url || sub.id;
-        if (subscriptionRecord?.id) {
-          await updateNewsSubscription(subscriptionRecord.id, { fetchErrors: error });
+        continue;
+      }
+      const subscription = allSubscriptions.find((entry) => String(entry.id) === requestedId) ||
+        normalizeSubscription(await getNewsSubscriptionById(requestedId).catch(() => null) as Record<string, unknown> | null);
+      if (subscription?.id) {
+        targetSubscriptionIds.add(String(subscription.id));
+        if (subscription.userId) targetUserIds.add(subscription.userId);
+        continue;
+      }
+
+      const targetFeed = feeds.find((feed) => String(feed.id) === requestedId) ||
+        normalizeFeed(await getNewsFeedById(requestedId).catch(() => null) as Record<string, unknown> || {});
+      if (targetFeed?.userId) targetUserIds.add(targetFeed.userId);
+      if (targetFeed && !isAllNewsFeed(targetFeed)) {
+        for (const id of targetFeed.subscriptionRefs || []) targetSubscriptionIds.add(String(id));
+      }
+      if (targetFeed && isAllNewsFeed(targetFeed) && targetFeed.userId) {
+        for (const subscription of allSubscriptions.filter((entry) => !entry.userId || entry.userId === targetFeed.userId)) {
+          if (subscription.id) targetSubscriptionIds.add(String(subscription.id));
         }
-        logger.error(`Error fetching feed "${subName}": ${error}`);
-        return {
-          action: 'feed_fetch_error',
-          subName,
-          feedUrl,
-          error,
-        };
-      }
-    });
-
-    const subResults = await Promise.all(subPromises);
-    const feedItems: Array<FeedItem & { subscription_id: string; subscription_name: string }> = [];
-    const topicSubscriptions: any[] = [];
-
-    for (const res of subResults) {
-      if (res.action === 'success') {
-        const items = (res.items ?? []).slice(0, maxFeedItems);
-        const subscriptionId = String(res.subscription?.id || "");
-        const subscriptionName = String(res.subscription?.title || res.subscription?.name || res.feedUrl || "Subscription");
-        if (res.subscription) topicSubscriptions.push(res.subscription);
-        feedItems.push(...items.map((item) => ({
-          ...item,
-          subscription_id: subscriptionId,
-          subscription_name: subscriptionName,
-        })));
-      } else if (res.action === 'feed_fetch_error') {
-        feedFetchErrors++;
-        feedResult.errors++;
-        feedResult.details.push({ feedId: newsFeed.id, ...res });
-      } else {
-        feedResult.details.push({ feedId: newsFeed.id, ...res });
       }
     }
-
-    let cachedItems: Array<FeedItem & { subscription_id: string; subscription_name: string }> = feedItems;
-    if (newsFeed.userId) {
-      try {
-        const sortedItems = feedItems.sort((left, right) => new Date(right.pubDate).getTime() - new Date(left.pubDate).getTime());
-        const groupedItems = await applyNewsTopics(String(newsFeed.userId), sortedItems, topicSubscriptions);
-        cachedItems = groupedItems.slice(0, maxFeedItems) as typeof feedItems;
-        await updateNewsFeedRecord(newsFeed.id, {
-          maxFeedItems,
-        });
-        feedResult.updated++;
-      } catch (err: any) {
-        feedResult.errors++;
-        feedResult.details.push({
-          feedId: newsFeed.id,
-          action: 'feed_cache_update_error',
-          error: err?.message || String(err),
-        });
-      }
-    }
-
-    try {
-      await writeFeedItemsCache(newsFeed.id, cachedItems, [newsFeed.id]);
-      cachedCount++;
-    } catch (err: any) {
-      feedResult.errors++;
-      feedResult.details.push({
-        feedId: newsFeed.id,
-        action: 'redis_cache_write_error',
-        error: err?.message || String(err),
-      });
-    }
-
-    feedResult.updated += cachedCount;
-    feedResult.details.push({
-      feedId: newsFeed.id,
-      action: 'cache_updated',
-      cached: cachedCount,
-      fetchErrors: feedFetchErrors,
-    });
-
-    return feedResult;
-  };
-
-  // Process all feeds in parallel
-  const feedPromises = newsFeeds.map(feed => processFeed(feed));
-  const allFeedResults = await Promise.all(feedPromises);
-
-  // Aggregate results
-  for (const fr of allFeedResults) {
-    result.processed += fr.processed;
-    result.skipped += fr.skipped;
-    result.updated += fr.updated;
-    result.errors += fr.errors;
-    result.details.push(...fr.details);
   }
 
-  logger.debug("News feed builder finished", result);
+  const fetchResults = await Promise.all(allSubscriptions
+    .filter((subscription) => targetSubscriptionIds.has(String(subscription.id)))
+    .map((subscription) => fetchAndCacheSubscription(subscription, result)));
+  result.processed = fetchResults.length;
 
-  if (result.errors === 0) {
-    logger.info(`News feed builder finished successfully: processed=${result.processed} updated=${result.updated} skipped=${result.skipped}`);
-  } else {
-    logger.warn(`News feed builder finished with errors: processed=${result.processed} updated=${result.updated} skipped=${result.skipped} errors=${result.errors}`);
+  const affectedUsers = new Set<string>(targetUserIds);
+  for (const subscription of allSubscriptions) {
+    if (targetSubscriptionIds.has(String(subscription.id)) && subscription.userId) affectedUsers.add(subscription.userId);
+  }
+  for (const feed of feeds) {
+    if (!feed.userId) continue;
+    const refs = new Set(feed.subscriptionRefs || []);
+    if (isAllNewsFeed(feed) || Array.from(targetSubscriptionIds).some((id) => refs.has(id))) affectedUsers.add(feed.userId);
+  }
+  if (!requestedIds.length && !options.userId) {
+    for (const feed of feeds) if (feed.userId) affectedUsers.add(feed.userId);
   }
 
+  for (const userId of affectedUsers) {
+    const userFeeds = feeds.filter((feed) => feed.userId === userId);
+    const allFeed = userFeeds.find((feed) => isAllNewsFeed(feed)) || null;
+    await buildUserFeed(userId, "all", allFeed, allSubscriptions, sourceRevision, result);
+    for (const feed of userFeeds.filter((entry) => !isAllNewsFeed(entry))) {
+      await buildUserFeed(userId, String(feed.id), feed, allSubscriptions, sourceRevision, result);
+    }
+    for (const subscription of allSubscriptions.filter((entry) => !entry.userId || entry.userId === userId)) {
+      if (!subscription.id) continue;
+      await buildUserFeed(userId, String(subscription.id), {
+        id: String(subscription.id),
+        title: String(subscription.title || subscription.name || subscription.url || "Subscription"),
+        feedType: "custom",
+        subscriptionRefs: [String(subscription.id)],
+        excludedSubscriptionRefs: [],
+      }, allSubscriptions, sourceRevision, result);
+    }
+  }
+
+  if (!affectedUsers.size) result.skipped = 1;
+  logger.info(`News feed builder finished: processed=${result.processed} updated=${result.updated} skipped=${result.skipped} errors=${result.errors}`);
   return result;
 }

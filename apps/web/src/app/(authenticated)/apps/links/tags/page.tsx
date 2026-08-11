@@ -33,7 +33,7 @@ export default function LinksTagsPage() {
                     {tags.map((tag) => (
                         <Link
                             key={tag.id}
-                            to={`/links/tags/${tag.id}`}
+                            to={`/apps/links/tags/${tag.id}`}
                             className="group rounded-2xl border border-white/10 bg-white/5 p-4 transition-colors hover:border-white/20 hover:bg-white/10"
                         >
                             <div className="flex items-start justify-between gap-3">

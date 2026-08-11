@@ -52,7 +52,7 @@ export default function LinksLayout({ children }: { children: ReactNode }) {
     return (
         <AppTemplate title="Links">
             <Sidebar>
-                <Tab dst="/links/home" icon="fa6-solid:house" title="Home" />
+                <Tab dst="/apps/links/home" icon="fa6-solid:house" title="Home" />
                 <GroupLabel
                     group="Lists"
                     title="Lists"
@@ -70,7 +70,7 @@ export default function LinksLayout({ children }: { children: ReactNode }) {
                 {userCollections.map((collection) => (
                     <Tab
                         key={collection.id}
-                        dst={`/links/lists/${collection.id}`}
+                        dst={`/apps/links/lists/${collection.id}`}
                         icon={collection.icon || "fa6-solid:folder-open"}
                         title={collection.name}
                         group="Lists"
@@ -111,7 +111,7 @@ export default function LinksLayout({ children }: { children: ReactNode }) {
                 {tags.map((tag) => (
                     <Tab
                         key={tag.id}
-                        dst={`/links/tags/${tag.id}`}
+                        dst={`/apps/links/tags/${tag.id}`}
                         icon="fa6-solid:hashtag"
                         title={tag.name}
                         group="Tags"
@@ -142,7 +142,7 @@ export default function LinksLayout({ children }: { children: ReactNode }) {
                     queryClient.setQueryData(["api", token, ...queryKeys.links.collections], (current: LinkCollection[] | undefined) =>
                         [collection, ...(current ?? []).filter((item) => item.id !== collection.id)],
                     );
-                    navigate(`/links/lists/${collection.id}`);
+                    navigate(`/apps/links/lists/${collection.id}`);
                 }}
             />
 
@@ -158,7 +158,7 @@ export default function LinksLayout({ children }: { children: ReactNode }) {
                     queryClient.setQueryData(["api", token, ...queryKeys.links.collections], (current: LinkCollection[] | undefined) =>
                         [collection, ...(current ?? []).filter((item) => item.id !== collection.id)],
                     );
-                    navigate(`/links/lists/${collection.id}`);
+                    navigate(`/apps/links/lists/${collection.id}`);
                 }}
             />
 
@@ -173,7 +173,7 @@ export default function LinksLayout({ children }: { children: ReactNode }) {
                     queryClient.setQueryData(["api", token, ...queryKeys.links.tags], (current: LinkTag[] | undefined) =>
                         [tag, ...(current ?? []).filter((item) => item.id !== tag.id)],
                     );
-                    navigate(`/links/tags/${tag.id}`);
+                    navigate(`/apps/links/tags/${tag.id}`);
                 }}
             />
         </AppTemplate>

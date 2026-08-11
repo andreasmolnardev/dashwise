@@ -38,6 +38,15 @@ const SettingsScreensaverPage = lazy(() => import("./app/(authenticated)/setting
 const FramePage = lazy(() => import("./app/(authenticated)/frame/page"));
 const MigratePage = lazy(() => import("./app/(authenticated)/migrate/page"));
 
+const linksRoutes = [
+  { index: true, element: <LinksPage /> },
+  { path: "home", element: <LinksHomePage /> },
+  { path: "lists", element: <LinksListsPage /> },
+  { path: "lists/:listId", element: <LinksListDetailPage /> },
+  { path: "tags", element: <LinksTagsPage /> },
+  { path: "tags/:tagId", element: <LinksTagDetailPage /> },
+];
+
 export const appRouter = createBrowserRouter([
   {
     path: "/",
@@ -77,14 +86,12 @@ export const appRouter = createBrowserRouter([
            {
              path: "links",
              element: <LinksLayout />,
-             children: [
-               { index: true, element: <LinksPage /> },
-               { path: "home", element: <LinksHomePage /> },
-               { path: "lists", element: <LinksListsPage /> },
-               { path: "lists/:listId", element: <LinksListDetailPage /> },
-               { path: "tags", element: <LinksTagsPage /> },
-               { path: "tags/:tagId", element: <LinksTagDetailPage /> },
-             ],
+             children: linksRoutes,
+           },
+           {
+             path: "apps/links",
+             element: <LinksLayout />,
+             children: linksRoutes,
            },
            {
              path: "apps/monitoring",

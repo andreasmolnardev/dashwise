@@ -76,6 +76,9 @@ export type MonitorRecord = {
 export type NewsFeedRecord = {
   id: string;
   title: string;
+  icon?: string;
+  feedType?: "all" | "custom" | string;
+  systemKey?: string;
   subscriptionRefs: string[];
   excludedSubscriptionRefs: string[];
   maxFeedItems?: number;
@@ -86,6 +89,9 @@ export type NewsFeedRecord = {
 export type NewsFeedRecordUpdateInput = {
   feedId: string;
   title?: string;
+  icon?: string;
+  feedType?: "all" | "custom" | string;
+  systemKey?: string;
   subscriptionRefs?: string[];
   excludedSubscriptionRefs?: string[];
   maxFeedItems?: number;
@@ -118,6 +124,8 @@ export type NewsFeedItem = {
   topicId?: string;
   topicTitle?: string;
   relatedArticles?: NewsFeedItem[];
+  dedupeKey?: string;
+  sourceSubscriptions?: Array<{ id: string; title: string }>;
   [key: string]: unknown;
 };
 
@@ -150,11 +158,13 @@ export type NewsFeedMetadata = {
 
 export type NewsFeedRecordCreateInput = {
   title: string;
+  icon?: string;
 };
 
 export type NewsFeedSummary = {
   id: string;
   title: string;
+  icon?: string;
 };
 
 export type NewsFeedsResponse = {

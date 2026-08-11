@@ -3,6 +3,7 @@
 import { Link, useLocation } from "react-router-dom";
 import { Icon } from "@iconify-icon/react";
 import AppIcon from "@dashwise/app-icon";
+import SearchBar from "@/components/widgets/SearchBar";
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -218,11 +219,10 @@ export function Tab({ dst, icon, title, group, isRoot, fallbackIcon, badge, hasE
                         source={icon}
                         fallbackSource={fallbackIcon}
                         alt={title}
-                        className={`h-4 w-4 shrink-0 transition-colors ${
-                            isActive
+                        className={`h-4 w-4 shrink-0 transition-colors ${hasError
+                            ? "text-red-300"
+                            : isActive
                                 ? "text-primary"
-                                : hasError
-                                    ? "text-red-300"
                                 : "text-white/60 group-hover:text-primary"
                         }`}
                         imageClassName="object-contain"
@@ -578,6 +578,10 @@ export function Sidebar({ children }: { children: ReactNode }) {
                         {actions.map((a, i) => <div key={i}>{a}</div>)}
                     </div>
                 )}
+
+                <div className="mb-1">
+                    <SearchBar useRedirect={false} />
+                </div>
 
                 <Link to="/home" className="block group">
                     <div className="flex items-center gap-2 px-2 py-1.5 rounded-md">

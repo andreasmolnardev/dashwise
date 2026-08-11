@@ -482,5 +482,9 @@ export async function updateUserProperty(
     [propertyName]: propertyValue,
   });
 
+  if (propertyName === "newsPreferences") {
+    void import("./news").then(({ rebuildNewsViews }) => rebuildNewsViews(userId)).catch(() => undefined);
+  }
+
   return updatedUser;
 }

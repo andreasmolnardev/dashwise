@@ -1,6 +1,6 @@
 import Parser from 'rss-parser';
+import { createHash } from 'node:crypto';
 import { channelId } from "@gonetone/get-youtube-id-by-url";
-import { config } from "../config";
 import { getFaviconFromDOM } from "../api/tools/faviconFromDom";
 import type { NewsSubscriptionsRecord } from "@dashwise/types";
 import type {
@@ -11,7 +11,6 @@ import type {
   NewsFeedRecordCreateInput,
   NewsFeedRecordUpdateInput,
   NewsFeedsResponse,
-  NewsFeedSummary,
   NewsSavedArticle,
   NewsSavedArticleList,
   NewsSavedArticlesResponse,
@@ -24,6 +23,7 @@ import {
   getAllNewsSubscriptions,
   getNewsFeedById,
   getNewsFeedByTitle,
+  getNewsFeedBySystemKey,
   getNewsFeedsByUserId,
   getNewsSubscriptionById,
   getNewsSubscriptionByUrl,
@@ -33,7 +33,12 @@ import {
   createNewsSubscription,
 } from "./superuser";
 import { getSuperuserPB } from "../pb/pocketbase";
-import { readFeedItemsCache } from "../cache/feed-items";
+import {
+  deleteSubscriptionArticleIndex,
+  readFeedItemsCache,
+  readMaterializedFeedItems,
+  readMaterializedFeedPage,
+} from "../cache/feed-items";
 
 type NewsTopicDraft = {
   key: string;
@@ -58,6 +63,13 @@ type NewsSubscription = {
   icon?: string;
   fetchErrors?: string;
 };
+
+type NewsFeedRecordWithSystemFields = NewsFeedRecord & {
+  feedType?: "all" | "custom" | string;
+  systemKey?: string;
+};
+
+export type { NewsSubscription };
 
 function escapeFilter(value: string) {
   return value.replace(/"/g, '\\"');
@@ -141,7 +153,7 @@ async function getNewsSavedArticleLists(userId: string, defaultList: string): Pr
   return lists.some((list) => list.id === defaultRecord.id) ? lists : [defaultRecord, ...lists];
 }
 
-function itemTime(item: NewsFeedItem): number {
+export function itemTime(item: NewsFeedItem): number {
   const value = item?.pubDate;
   if (value instanceof Date) return value.getTime();
   if (typeof value === "string") {
@@ -151,8 +163,53 @@ function itemTime(item: NewsFeedItem): number {
   return 0;
 }
 
-function articleKey(item: NewsFeedItem) {
-  return String(item.link || item.title || "").trim().toLowerCase();
+export function canonicalizeArticleUrl(value: string) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+
+  try {
+    const url = new URL(raw);
+    url.hostname = url.hostname.toLowerCase();
+    url.hash = "";
+    const tracking = url.search.slice(1).split("&").map((part) => {
+      const rawKey = part.split("=", 1)[0] || "";
+      try {
+        return decodeURIComponent(rawKey.replace(/\+/g, " "));
+      } catch {
+        return rawKey;
+      }
+    }).filter((key) => /^utm_/i.test(key) || ["fbclid", "gclid", "mc_cid", "mc_eid"].includes(key.toLowerCase()));
+    for (const key of tracking) url.searchParams.delete(key);
+    url.pathname = url.pathname.replace(/\/+$/, "") || "/";
+    return url.toString();
+  } catch {
+    return raw.toLowerCase().replace(/#.*$/, "").replace(/\/+$/, "");
+  }
+}
+
+function normalizedGuid(item: NewsFeedItem) {
+  return String(item.guid || item.id || (item as Record<string, unknown>)["dc:identifier"] || "").trim().toLowerCase();
+}
+
+export function articleKey(item: NewsFeedItem, sourceUrl = "") {
+  const canonicalUrl = canonicalizeArticleUrl(String(item.link || ""));
+  if (canonicalUrl) return `url:${canonicalUrl}`;
+
+  const guid = normalizedGuid(item);
+  if (guid) return `guid:${guid}`;
+
+  const title = String(item.title || "").trim().toLowerCase().replace(/\s+/g, " ");
+  if (!title) return "";
+  let sourceHost = String((item as Record<string, unknown>).sourceHost || "").trim().toLowerCase();
+  if (!sourceHost) {
+    try {
+      sourceHost = new URL(sourceUrl || String((item as Record<string, unknown>).source || "")).hostname.toLowerCase();
+    } catch {
+      sourceHost = String((item as Record<string, unknown>).source || "").trim().toLowerCase();
+    }
+  }
+  const publishedAt = new Date(String(item.pubDate || "")).getTime() || 0;
+  return `fallback:${createHash("sha256").update(`${title}|${sourceHost}|${publishedAt}`).digest("hex")}`;
 }
 
 function textValue(value: unknown) {
@@ -271,7 +328,7 @@ function topicTitleFor(articles: NewsFeedItem[]) {
   return title.length > 96 ? `${title.slice(0, 93)}...` : title;
 }
 
-function buildNewsTopics(feed: NewsFeedItem[], subscriptions: NewsSubscription[], globalBlacklist: Set<string>): NewsTopicDraft[] {
+export function buildNewsTopics(feed: NewsFeedItem[], subscriptions: NewsSubscription[], globalBlacklist: Set<string>): NewsTopicDraft[] {
   const topics: NewsTopicDraft[] = [];
   const assigned = new Set<string>();
   const subscriptionsById = new Map(subscriptions.filter((subscription) => subscription.id).map((subscription) => [String(subscription.id), subscription]));
@@ -378,7 +435,7 @@ export async function applyNewsTopics(userId: string, feed: NewsFeedItem[], subs
     .map((article) => leadByKey.get(articleKey(article)) ?? article);
 }
 
-function normalizeSubscription(entry: Record<string, unknown> | null): NewsSubscription | null {
+export function normalizeSubscription(entry: Record<string, unknown> | null): NewsSubscription | null {
   if (!entry) return null;
 
   const url = String(entry.url ?? entry.feedUrl ?? "").trim();
@@ -404,17 +461,20 @@ function normalizeSubscription(entry: Record<string, unknown> | null): NewsSubsc
 
 async function getUserFeeds(userId: string): Promise<NewsFeedRecord[]> {
   const feeds = await getNewsFeedsByUserId(userId, 2000, {
-    fields: "id,userId,subscriptionRefs,title,excludedSubscriptionRefs,maxFeedItems",
+    fields: "id,userId,subscriptionRefs,title,icon,excludedSubscriptionRefs,maxFeedItems,feedType,systemKey",
   });
   return Array.isArray(feeds) ? feeds as NewsFeedRecord[] : [];
 }
 
 function buildFeedList(feeds: NewsFeedRecord[]) {
+  const allFeed = feeds.find((feed) => isAllNewsFeed(feed));
+
   return [
-    { id: "all", title: "All feed" },
-    ...feeds.filter((feed) => String(feed.id) !== "all" && String(feed.title || "").toLowerCase() !== "all feed").map((feed) => ({
+    { id: "all", title: "All feed", icon: String(allFeed?.icon || "").trim() },
+    ...feeds.filter((feed) => !isAllNewsFeed(feed)).map((feed) => ({
       id: String(feed.id),
       title: String(feed.title || "Untitled feed"),
+      icon: String(feed.icon || "").trim(),
     })),
   ];
 }
@@ -492,29 +552,9 @@ export async function getNewsFeedMetadata(feedUrl: string): Promise<NewsFeedMeta
   }
 }
 
-function parseCachedItems(raw: unknown): NewsFeedItem[] {
-  if (!raw) return [];
-  if (Array.isArray(raw)) return raw;
-
-  if (typeof raw === "string") {
-    try {
-      const parsed = JSON.parse(raw);
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return [];
-    }
-  }
-
-  return [];
-}
-
 export function normalizeMaxFeedItems(value: unknown) {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : 200;
-}
-
-function getSubscriptionItems(subscription: NewsSubscription): NewsFeedItem[] {
-  return parseCachedItems(subscription.json);
 }
 
 function normalizeFeedRecord(entry: Record<string, unknown> | null): NewsFeedRecord | null {
@@ -523,6 +563,7 @@ function normalizeFeedRecord(entry: Record<string, unknown> | null): NewsFeedRec
   return {
     id: String(entry.id),
     title: String(entry.title ?? "").trim(),
+    icon: String(entry.icon ?? "").trim(),
     subscriptionRefs: Array.isArray(entry.subscriptionRefs)
       ? entry.subscriptionRefs.map((value) => String(value).trim()).filter(Boolean)
       : [],
@@ -530,18 +571,17 @@ function normalizeFeedRecord(entry: Record<string, unknown> | null): NewsFeedRec
       ? entry.excludedSubscriptionRefs.map((value) => String(value).trim()).filter(Boolean)
       : [],
     maxFeedItems: normalizeMaxFeedItems(entry.maxFeedItems),
+    feedType: entry.feedType ? String(entry.feedType) : undefined,
+    systemKey: entry.systemKey ? String(entry.systemKey) : undefined,
   };
 }
 
-async function getAllSubscriptionIdsForUser(userId: string) {
-  const subscriptions = await getNewsSubscriptions(userId);
-  return Array.from(
-    new Set(
-      (subscriptions.subscriptions ?? [])
-        .map((subscription) => String(subscription.id ?? "").trim())
-        .filter(Boolean),
-    ),
-  );
+export function isAllNewsFeed(entry: Record<string, unknown> | NewsFeedRecordWithSystemFields | null | undefined) {
+  if (!entry) return false;
+  return String(entry.feedType || "").toLowerCase() === "all" ||
+    String(entry.systemKey || "").toLowerCase() === "all" ||
+    String(entry.id || "") === "all" ||
+    String(entry.title || "").trim().toLowerCase() === "all feed";
 }
 
 export async function getNewsFeedRecord(userId: string, feedId: string): Promise<NewsFeedRecord | null> {
@@ -549,17 +589,20 @@ export async function getNewsFeedRecord(userId: string, feedId: string): Promise
   if (!normalizedFeedId) return null;
 
   if (normalizedFeedId === "all") {
-    const allFeedRecord = (await getNewsFeedByTitle(userId, "All feed").catch(() => null)) as NewsFeedRecord | null;
+    const allFeedRecord = (await getNewsFeedBySystemKey(userId, "all").catch(() => null) ||
+      await getNewsFeedByTitle(userId, "All feed").catch(() => null)) as NewsFeedRecord | null;
     if (allFeedRecord) {
       const normalized = normalizeFeedRecord(allFeedRecord as Record<string, unknown>);
       return normalized
-        ? { ...normalized, feedCache: parseCachedItems(await readFeedItemsCache(String(normalized.id))) }
+        ? { ...normalized, feedType: "all", systemKey: "all", feedCache: (await readMaterializedFeedItems(userId, "all") || []) as NewsFeedItem[] }
         : null;
     }
 
     return {
       id: "all",
       title: "All feed",
+      feedType: "all",
+      systemKey: "all",
       subscriptionRefs: [],
       excludedSubscriptionRefs: [],
       maxFeedItems: 200,
@@ -574,7 +617,7 @@ export async function getNewsFeedRecord(userId: string, feedId: string): Promise
 
   const normalized = normalizeFeedRecord(feedRecord as Record<string, unknown>);
   return normalized
-    ? { ...normalized, feedCache: parseCachedItems(await readFeedItemsCache(String(normalized.id))) }
+    ? { ...normalized, feedCache: (await readMaterializedFeedItems(userId, String(normalized.id)) || []) as NewsFeedItem[] }
     : null;
 }
 
@@ -588,35 +631,43 @@ export async function updateNewsFeedRecordForUser(
 
   const title = String(payload.title ?? "").trim();
   const subscriptionRefs = Array.from(
-    new Set((payload.subscriptionRefs ?? []).map((value) => String(value).trim()).filter(Boolean)),
+    new Set((payload.subscriptionRefs ?? []).map((value: string) => String(value).trim()).filter(Boolean)),
   );
   const excludedSubscriptionRefs = Array.from(
-    new Set((payload.excludedSubscriptionRefs ?? []).map((value) => String(value).trim()).filter(Boolean)),
+    new Set((payload.excludedSubscriptionRefs ?? []).map((value: string) => String(value).trim()).filter(Boolean)),
   );
   const maxFeedItems = normalizeMaxFeedItems(payload.maxFeedItems);
+  const icon = payload.icon === undefined ? undefined : String(payload.icon).trim();
 
   if (normalizedFeedId === "all") {
-    const existingFeed = (await getNewsFeedByTitle(userId, "All feed").catch(() => null)) as NewsFeedRecord | null;
+    const existingFeed = (await getNewsFeedBySystemKey(userId, "all").catch(() => null) ||
+      await getNewsFeedByTitle(userId, "All feed").catch(() => null)) as NewsFeedRecord | null;
     if (existingFeed?.id) {
-      return updateNewsFeedRecord(String(existingFeed.id), {
+      const updated = await updateNewsFeedRecord(String(existingFeed.id), {
         title: title || "All feed",
-        subscriptionRefs,
+        feedType: "all",
+        systemKey: "all",
+        ...(icon === undefined ? {} : { icon }),
+        subscriptionRefs: [],
         excludedSubscriptionRefs,
         maxFeedItems,
       });
+      void rebuildNewsViews(userId).catch(() => undefined);
+      return updated;
     }
 
-    const allSubscriptionRefs = subscriptionRefs.length
-      ? subscriptionRefs
-      : await getAllSubscriptionIdsForUser(userId);
-
-    return createNewsFeedRecord({
+    const created = await createNewsFeedRecord({
       userId,
       title: title || "All feed",
-      subscriptionRefs: allSubscriptionRefs,
+      feedType: "all",
+      systemKey: "all",
+      ...(icon === undefined ? {} : { icon }),
+      subscriptionRefs: [],
       excludedSubscriptionRefs,
       maxFeedItems,
     });
+    void rebuildNewsViews(userId).catch(() => undefined);
+    return created;
   }
 
   const feedRecord = (await getNewsFeedById(normalizedFeedId).catch(() => null)) as NewsFeedRecord | null;
@@ -625,12 +676,16 @@ export async function updateNewsFeedRecordForUser(
   const ownerId = String((feedRecord as Record<string, unknown>).userId ?? "").trim();
   if (ownerId && ownerId !== userId) return null;
 
-  return updateNewsFeedRecord(normalizedFeedId, {
+  const updated = await updateNewsFeedRecord(normalizedFeedId, {
     title: title || String((feedRecord as Record<string, unknown>).title ?? "").trim(),
+    feedType: "custom",
+    ...(icon === undefined ? {} : { icon }),
     subscriptionRefs,
     excludedSubscriptionRefs,
     maxFeedItems,
   });
+  void rebuildNewsViews(userId).catch(() => undefined);
+  return updated;
 }
 
 export async function createNewsFeedRecordForUser(
@@ -642,6 +697,17 @@ export async function createNewsFeedRecordForUser(
     return null;
   }
 
+  if (title.toLowerCase() === "all feed") {
+    return updateNewsFeedRecordForUser(userId, "all", {
+      title: "All feed",
+      feedType: "all",
+      systemKey: "all",
+      subscriptionRefs: [],
+      excludedSubscriptionRefs: [],
+      maxFeedItems: 200,
+    }) as Promise<NewsFeedRecord | null>;
+  }
+
   const existingFeed = (await getNewsFeedByTitle(userId, title).catch(() => null)) as NewsFeedRecord | null;
   if (existingFeed?.id) {
     return normalizeFeedRecord(existingFeed as Record<string, unknown>);
@@ -650,36 +716,15 @@ export async function createNewsFeedRecordForUser(
   const createdFeed = (await createNewsFeedRecord({
     userId,
     title,
+    feedType: "custom",
+    icon: String(payload.icon ?? "").trim(),
     subscriptionRefs: [],
     excludedSubscriptionRefs: [],
     maxFeedItems: 200,
   })) as NewsFeedRecord;
 
+  void rebuildNewsViews(userId).catch(() => undefined);
   return normalizeFeedRecord(createdFeed as Record<string, unknown>);
-}
-
-async function getUserSubscriptionIdsFromFeeds(feeds: NewsFeedRecord[]) {
-  const ids = new Set<string>();
-
-  for (const feed of feeds) {
-    for (const id of feed.subscriptionRefs ?? []) {
-      ids.add(String(id));
-    }
-  }
-
-  return ids;
-}
-
-async function getUserExcludedSubscriptionIdsFromFeeds(feeds: NewsFeedRecord[]) {
-  const ids = new Set<string>();
-
-  for (const feed of feeds) {
-    for (const id of feed.excludedSubscriptionRefs ?? []) {
-      ids.add(String(id));
-    }
-  }
-
-  return ids;
 }
 
 async function syncSubscriptionFeedRefs(
@@ -705,6 +750,7 @@ async function syncSubscriptionFeedRefs(
     const createdFeed = (await createNewsFeedRecord({
       userId,
       title,
+      feedType: "custom",
       subscriptionRefs: [subscriptionId],
       excludedSubscriptionRefs: [],
     })) as NewsFeedRecord;
@@ -714,6 +760,7 @@ async function syncSubscriptionFeedRefs(
   for (const feed of feeds) {
     const feedId = String(feed.id || "");
     if (!feedId) continue;
+    if (isAllNewsFeed(feed)) continue;
 
     const currentRefs = new Set((feed.subscriptionRefs ?? []).map(String));
     const hasSubscription = currentRefs.has(subscriptionId);
@@ -739,68 +786,11 @@ async function syncSubscriptionFeedRefs(
   return Array.from(selectedIds);
 }
 
-async function buildFeedFromSubscriptions(
-  subscriptions: NewsSubscription[],
-  feedId?: string | null,
-  feeds: NewsFeedRecord[] = [],
-) {
-  const byId = new Map(subscriptions.filter((subscription) => subscription.id).map((subscription) => [String(subscription.id), subscription] as const));
-
-  const selectByFeed = (feed: NewsFeedRecord) => {
-    const refs = new Set((feed.subscriptionRefs ?? []).map(String));
-    const exclusions = new Set((feed.excludedSubscriptionRefs ?? []).map(String));
-    return subscriptions.filter((subscription) => subscription.id && refs.has(String(subscription.id)) && !exclusions.has(String(subscription.id)));
-  };
-
-  let selectedSubscriptions: NewsSubscription[] = subscriptions;
-
-  if (feedId && feedId !== "all") {
-    const feedRecord = feeds.find((feed) => String(feed.id) === feedId);
-    if (feedRecord) {
-      selectedSubscriptions = selectByFeed(feedRecord);
-    } else if (byId.has(feedId)) {
-      selectedSubscriptions = [byId.get(feedId)!];
-    } else {
-      selectedSubscriptions = [];
-    }
-  } else {
-    const allFeedRecord = feeds.find((feed) => String(feed.id) === "all" || String(feed.title || "").toLowerCase() === "all feed");
-    if (allFeedRecord) {
-      selectedSubscriptions = selectByFeed(allFeedRecord);
-      if (!selectedSubscriptions.length) {
-        selectedSubscriptions = subscriptions;
-      }
-    }
-  }
-
-  const feed: NewsFeedItem[] = [];
-
-  for (const subscription of selectedSubscriptions) {
-    const subscriptionId = String(subscription.id || "");
-    const subscriptionName = String(subscription.title || subscription.name || subscription.url || "Subscription");
-    const items = getSubscriptionItems(subscription).sort((a, b) => itemTime(b) - itemTime(a));
-
-    for (const item of items) {
-      feed.push({
-        ...item,
-        subscription_id: subscriptionId,
-        subscription_name: subscriptionName,
-      });
-    }
-  }
-
-  return feed.sort((left, right) => itemTime(right) - itemTime(left));
-}
-
 export async function getNewsFeed(
   userId: string,
   feedId?: string | null,
   options?: { limit?: number; offset?: number },
 ): Promise<{ items: NewsFeedItem[]; total: number; limit: number }> {
-  const feeds = await getUserFeeds(userId);
-  const selectedFeed = feedId && feedId !== "all"
-    ? feeds.find((feed) => String(feed.id) === String(feedId))
-    : feeds.find((feed) => String(feed.id) === "all" || String(feed.title || "").toLowerCase() === "all feed");
   const limit = Number.isFinite(Number(options?.limit)) && Number(options?.limit) > 0
     ? Math.floor(Number(options?.limit))
     : 50;
@@ -808,52 +798,35 @@ export async function getNewsFeed(
     ? Math.floor(Number(options?.offset))
     : 0;
 
-  // Feed caches are already grouped and sorted. Do not load or parse every
-  // subscription JSON before checking the selected feed cache.
-  const cachedItems = selectedFeed?.id
-    ? parseCachedItems(await readFeedItemsCache(String(selectedFeed.id)))
-    : [];
-  if (cachedItems.length) {
-    return {
-      items: cachedItems.slice(offset, offset + limit),
-      total: cachedItems.length,
-      limit,
-    };
+  const normalizedFeedId = String(feedId || "all").trim() || "all";
+  const materializedFeedId = normalizedFeedId === "all" ? "all" : normalizedFeedId;
+  let page = await readMaterializedFeedPage(userId, materializedFeedId, offset, limit);
+
+  if (!page.exists) {
+    // Redis/Valkey can be flushed independently of PocketBase. Rebuild only
+    // this user's views on a cold cache, with a per-user single-flight guard.
+    const pending = newsFeedRebuilds.get(userId) || (async () => {
+      const { newsFeedBuilder } = await import("../../jobs/news/feed-builder");
+      await newsFeedBuilder(undefined, { userId });
+    })();
+    newsFeedRebuilds.set(userId, pending);
+    try {
+      await pending;
+    } catch {
+      // Preserve the API shape; the scheduled builder can retry later.
+    } finally {
+      if (newsFeedRebuilds.get(userId) === pending) newsFeedRebuilds.delete(userId);
+    }
+    page = await readMaterializedFeedPage(userId, materializedFeedId, offset, limit);
   }
 
-  const subscriptionIds = await getUserSubscriptionIdsFromFeeds(feeds);
-  const excludedIds = await getUserExcludedSubscriptionIdsFromFeeds(feeds);
-
-  const allSubscriptions = (await getAllNewsSubscriptions(2000, {
-    fields: "id,url,icon,title,linkReplaceRule,fallbackThumbnailUrl,thumbnailOverwriteUrl,userId,similarityGroupingWordsBlacklist,enableTopicGrouping,fetchErrors",
-  })) as Array<NewsSubscriptionsRecord>;
-  const subscriptions = allSubscriptions
-    .map(normalizeSubscription)
-    .filter((entry: NewsSubscription | null): entry is NewsSubscription => Boolean(entry && (!entry.userId || entry.userId === userId)));
-  const subscriptionsWithCache = await Promise.all(
-    subscriptions.map(async (subscription) => ({
-      ...subscription,
-      json: await readFeedItemsCache(String(subscription.id || "")),
-    })),
-  );
-
-  const scopedSubscriptions = subscriptionIds.size
-    ? subscriptionsWithCache.filter((subscription) => subscription.id && subscriptionIds.has(String(subscription.id)) && !excludedIds.has(String(subscription.id)))
-    : subscriptionsWithCache.filter((subscription) => !excludedIds.has(String(subscription.id || "")));
-
-  const feed = await buildFeedFromSubscriptions(scopedSubscriptions, feedId, feeds);
-  const items = await applyNewsTopics(userId, feed, scopedSubscriptions);
-
-  return {
-    items: items.slice(offset, offset + limit),
-    total: items.length,
-    limit,
-  };
+  return { items: page.items as NewsFeedItem[], total: page.total, limit };
 }
+
+const newsFeedRebuilds = new Map<string, Promise<void>>();
 
 export async function getNewsSubscriptions(userId: string): Promise<NewsSubscriptionsResponse> {
   const feeds = await getUserFeeds(userId);
-  const subscriptionIds = await getUserSubscriptionIdsFromFeeds(feeds);
 
   const allSubscriptions = (await getAllNewsSubscriptions(2000, {
     fields: "id,url,icon,title,linkReplaceRule,fallbackThumbnailUrl,thumbnailOverwriteUrl,userId,similarityGroupingWordsBlacklist,enableTopicGrouping,fetchErrors",
@@ -862,9 +835,7 @@ export async function getNewsSubscriptions(userId: string): Promise<NewsSubscrip
     .map(normalizeSubscription)
     .filter((entry: NewsSubscription | null): entry is NewsSubscription => Boolean(entry && (!entry.userId || entry.userId === userId)));
 
-  const scopedSubscriptions = subscriptionIds.size
-    ? subscriptions.filter((subscription) => subscription.id && subscriptionIds.has(String(subscription.id)))
-    : subscriptions;
+  const scopedSubscriptions = subscriptions;
 
   const subscriptionsWithFeedIds: NewsFeedDraft[] = scopedSubscriptions.map((subscription) => ({
     id: subscription.id,
@@ -874,7 +845,7 @@ export async function getNewsSubscriptions(userId: string): Promise<NewsSubscrip
     title: subscription.title,
     name: subscription.name,
     feedIds: feeds
-      .filter((feed) => (feed.subscriptionRefs ?? []).map(String).includes(String(subscription.id || "")))
+      .filter((feed) => !isAllNewsFeed(feed) && (feed.subscriptionRefs ?? []).map(String).includes(String(subscription.id || "")))
       .map((feed) => String(feed.id)),
     newFeedTitles: subscription.newFeedTitles,
     linkReplaceRule: subscription.linkReplaceRule,
@@ -893,7 +864,7 @@ export async function getNewsSubscriptions(userId: string): Promise<NewsSubscrip
 
 export async function getNewsSubscriptionJson(userId: string, subscriptionId: string): Promise<{ id: string; json: unknown }> {
   const subscriptions = await getNewsSubscriptions(userId);
-  const subscription = subscriptions.subscriptions.find((entry) => String(entry.id || "") === subscriptionId);
+  const subscription = subscriptions.subscriptions.find((entry: NewsFeedDraft) => String(entry.id || "") === subscriptionId);
   if (!subscription?.id) {
     throw new Error("News subscription not found");
   }
@@ -1083,7 +1054,16 @@ export async function refreshNewsFeed(
   userId: string,
   options?: { feedId?: string | null; feedIds?: string[] | null },
 ) {
+  const ids = normalizeRefreshFeedIds(options?.feedIds?.length ? options.feedIds : options?.feedId);
+  const { newsFeedBuilder } = await import("../../jobs/news/feed-builder");
+  if (!ids.length) await newsFeedBuilder(undefined, { userId });
+  else await newsFeedBuilder(undefined, { userId, feedIds: ids });
   return { message: "Internal refresh triggered" };
+}
+
+export async function rebuildNewsViews(userId: string, feedId?: string) {
+  const { newsFeedBuilder } = await import("../../jobs/news/feed-builder");
+  return newsFeedBuilder(feedId, { userId });
 }
 
 export async function subscribeNewsFeed(
@@ -1137,11 +1117,19 @@ export async function subscribeNewsFeed(
     }
   }
 
+  void rebuildNewsViews(userId).catch(() => undefined);
+
   return { message: "Feed successfully subscribed." };
 }
 
 export async function unsubscribeNewsFeed(userId: string, subscriptionId: string): Promise<{ message: string }> {
-  await deleteNewsSubscription(subscriptionId);
+  const target = (await getNewsSubscriptionById(subscriptionId).catch(() => null) ||
+    await getNewsSubscriptionByUrl(subscriptionId).catch(() => null)) as NewsSubscription | null;
+  if (target?.id && (!target.userId || target.userId === userId)) {
+    await deleteSubscriptionArticleIndex(String(target.id));
+    await deleteNewsSubscription(String(target.id));
+  }
+  void rebuildNewsViews(userId).catch(() => undefined);
   return { message: "Subscription removed." };
 }
 
@@ -1178,6 +1166,7 @@ export async function updateNewsFeed(
   });
 
   await syncSubscriptionFeedRefs(userId, subscriptionId, payload.feedIds ?? []);
+  void rebuildNewsViews(userId, subscriptionId).catch(() => undefined);
 
   return { message: "Subscription updated" };
 }

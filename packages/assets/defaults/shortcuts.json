@@ -38,11 +38,11 @@
         "name": "Notifications Inbox",
         "icon": "fa6-solid:bell",
         "secondary": "Dashwise",
-        "action": "url:/notifications/inbox",
+        "action": "url:/apps/monitoring/notifications",
         "tags": ["Notifications", "Inbox", "Alerts"]
     },
     {
-        "name": "Links Home",
+        "name": "Links",
         "icon": "fa6-solid:link",
         "secondary": "Dashwise",
         "action": "url:/apps/links/home",
