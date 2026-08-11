@@ -9,6 +9,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 type AuthUser = AuthUserRecord;
 
 const EMPTY_AUTH_USER: AuthUser = {};
+export const COMMAND_BAR_OPEN_EVENT = "dashwise:open-command-bar";
 
 function createUnauthorizedError() {
   const error = new Error("Unauthorized") as Error & { status: number; body: { error: string } };
@@ -146,6 +147,12 @@ export function useAuth() {
     navigate("/auth/login", { replace: true });
   }, [logout, navigate]);
 
+  const openCommandBar = useCallback(() => {
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new Event(COMMAND_BAR_OPEN_EVENT));
+    }
+  }, []);
+
   const withAuthRedirect = useCallback(
     async <T,>(fn: (auth: ActionAuth) => Promise<T>): Promise<T> => {
       return withAuth(fn, redirectToLogin);
@@ -165,7 +172,7 @@ export function useAuth() {
     [updateUserPropertyMutation],
   );
 
-  return { user, token, setAuth, setToken: setTokenOnly, logout, withAuth, withAuthRedirect, redirectToLogin, updateUserProperty };
+  return { user, token, setAuth, setToken: setTokenOnly, logout, withAuth, withAuthRedirect, redirectToLogin, openCommandBar, updateUserProperty };
 }
 
 
