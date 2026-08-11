@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import useAuth from "@/context/useAuth";
 import {
   getUserGlanceablesAction,
@@ -31,8 +32,15 @@ import {
 } from "@/lib/apiClient";
 import { normalizeWallpaperFilters } from "./wallpaperFilterDefaults";
 import { renderWidget } from "../widgets/Widget";
-import WidgetPropertiesForm from "@dashwise/integrationskit/forms/WidgetPropertiesForm";
+import WidgetPropertiesForm, { type GlanceableOption } from "@dashwise/integrationskit/forms/WidgetPropertiesForm";
 import LocationSelectFormComponent from "./LocationSelectForm";
+import { EditGlanceablesView } from "./pages/EditGlanceablesView";
+import {
+  DEFAULT_GLANCEABLE_CAROUSEL_INTERVAL,
+  type ClockGlanceableIntervals,
+  type ClockGlanceableSelection,
+  type GlanceableSide,
+} from "./pages/utils";
 
 const LOCAL_WIDGET_OPTIONS = [
   { value: "calendar-today", label: "Calendar Overview: Today" },
@@ -99,6 +107,64 @@ type Frame = {
 };
 
 type BackgroundMode = "current" | "none" | "upload" | "url";
+
+function isRecord(value: unknown): value is Record<string, any> {
+  return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+function createGlanceableDialogDraft(
+  value: unknown,
+  options: GlanceableOption[],
+  side: GlanceableSide,
+) {
+  const record = isRecord(value) && value.type !== "glanceables" ? value : {};
+  const rawSlots = isRecord(record.slots) ? record.slots : record;
+  const selection: ClockGlanceableSelection = { left: [], right: [] };
+  const params: Record<string, any> = {};
+
+  for (const currentSide of ["left", "right"] as const) {
+    const rawItems = Array.isArray(rawSlots[currentSide])
+      ? rawSlots[currentSide]
+      : rawSlots[currentSide] !== undefined
+      ? [rawSlots[currentSide]]
+      : [];
+    selection[currentSide] = rawItems.flatMap((item, index) => {
+      const type = typeof item === "string" ? item : isRecord(item) && typeof item.type === "string" ? item.type : "";
+      if (!type) return [];
+      const id = `${currentSide}-${index}-${Date.now()}`;
+      params[id] = isRecord(item) && isRecord(item.params) ? item.params : {};
+      return [{ id, type }];
+    });
+  }
+
+  const id = `${side}-new-${Date.now()}`;
+  selection[side] = [...selection[side], { id, type: options[0]?.value ?? "" }];
+  params[id] = options[0]?.exampleProps ?? {};
+
+  const intervals: ClockGlanceableIntervals = {
+    left: Number(isRecord(record.intervals) ? record.intervals.left : undefined) || DEFAULT_GLANCEABLE_CAROUSEL_INTERVAL,
+    right: Number(isRecord(record.intervals) ? record.intervals.right : undefined) || DEFAULT_GLANCEABLE_CAROUSEL_INTERVAL,
+  };
+
+  return { selection, params, intervals, newId: id };
+}
+
+function serializeGlanceableDialogDraft(
+  value: unknown,
+  selection: ClockGlanceableSelection,
+  params: Record<string, any>,
+  intervals: ClockGlanceableIntervals,
+) {
+  const base = isRecord(value) && value.type !== "glanceables" ? value : {};
+  return {
+    ...base,
+    slots: {
+      left: selection.left.map((item) => ({ type: item.type, params: params[item.id] ?? {} })),
+      right: selection.right.map((item) => ({ type: item.type, params: params[item.id] ?? {} })),
+    },
+    intervals,
+  };
+}
 
 function clampLayoutSize(value: number) {
   if (!Number.isFinite(value)) return 1;
@@ -275,9 +341,16 @@ export default function SmartFramesManager({
   const [widgetCategories, setWidgetCategories] = useState<string[]>([]);
   const [selectedWidgetCategory, setSelectedWidgetCategory] = useState("frame");
   const [isWidgetCarouselOpen, setIsWidgetCarouselOpen] = useState(false);
-  const [glanceableOptions, setGlanceableOptions] = useState<
-    Array<{ value: string; label: string }>
-  >([]);
+  const [glanceableOptions, setGlanceableOptions] = useState<GlanceableOption[]>([]);
+  const [glanceableDialogOpen, setGlanceableDialogOpen] = useState(false);
+  const [glanceableDialogSide, setGlanceableDialogSide] = useState<GlanceableSide>("left");
+  const [dialogClockSelection, setDialogClockSelection] = useState<ClockGlanceableSelection>({ left: [], right: [] });
+  const [dialogClockGlanceables, setDialogClockGlanceables] = useState<Record<string, any>>({});
+  const [dialogClockIntervals, setDialogClockIntervals] = useState<ClockGlanceableIntervals>({
+    left: DEFAULT_GLANCEABLE_CAROUSEL_INTERVAL,
+    right: DEFAULT_GLANCEABLE_CAROUSEL_INTERVAL,
+  });
+  const [dialogGlanceableId, setDialogGlanceableId] = useState<string | null>(null);
   const [widgetSchemas, setWidgetSchemas] = useState<
     Record<string, Record<string, any>>
   >({});
@@ -367,6 +440,40 @@ export default function SmartFramesManager({
     if (patch.widgetType) setDraftType(patch.widgetType);
   };
 
+  const openGlanceableDialog = (side: GlanceableSide) => {
+    if (!selectedSection || glanceableOptions.length === 0) return;
+
+    const draft = createGlanceableDialogDraft(selectedSection.params?.glanceables, glanceableOptions, side);
+    setGlanceableDialogSide(side);
+    setDialogClockSelection(draft.selection);
+    setDialogClockGlanceables(draft.params);
+    setDialogClockIntervals(draft.intervals);
+    setDialogGlanceableId(draft.newId);
+    setGlanceableDialogOpen(true);
+  };
+
+  const handleGlanceableDialogChange = (open: boolean) => {
+    if (open) {
+      setGlanceableDialogOpen(true);
+      return;
+    }
+
+    if (selectedSection) {
+      updateSelectedSection({
+        params: {
+          ...(selectedSection.params ?? {}),
+          glanceables: serializeGlanceableDialogDraft(
+            selectedSection.params?.glanceables,
+            dialogClockSelection,
+            dialogClockGlanceables,
+            dialogClockIntervals,
+          ),
+        },
+      });
+    }
+    setGlanceableDialogOpen(false);
+  };
+
   useEffect(() => {
     if (!uploadFile) {
       setUploadPreview(null);
@@ -429,6 +536,12 @@ export default function SmartFramesManager({
             glanceable.name ?? glanceable.displayName ?? glanceable.type ??
               glanceable.key ?? "Glanceable",
           ),
+          exampleProps: glanceable.exampleProps && typeof glanceable.exampleProps === "object"
+            ? glanceable.exampleProps
+            : {},
+          appName: typeof glanceable.appName === "string" ? glanceable.appName : undefined,
+          integrationName: typeof glanceable.integrationName === "string" ? glanceable.integrationName : undefined,
+          integrationDisplayName: typeof glanceable.integrationDisplayName === "string" ? glanceable.integrationDisplayName : undefined,
         })).filter((glanceable) => glanceable.value);
 
       setWidgetOptionsByCategory(nextWidgetOptionsByCategory);
@@ -942,40 +1055,6 @@ export default function SmartFramesManager({
                           </div>
                         </div>
                       </div>
-                      {selectedSection?.widgetType === "glanceable-clock" && glanceableOptions.length > 0 && (
-                        <div className="space-y-2">
-                          <Label>Glanceables</Label>
-                          <div className="grid grid-cols-2 gap-3">
-                            {(["left", "right"] as const).map((side) => (
-                              <Select
-                                key={side}
-                                value={String(selectedSection?.params?.glanceables?.[side] ?? "")}
-                                onValueChange={(value) =>
-                                  updateSelectedSection({
-                                    params: {
-                                      ...(selectedSection?.params ?? {}),
-                                      glanceables: {
-                                        ...(selectedSection?.params?.glanceables ?? {}),
-                                        [side]: value,
-                                      },
-                                    },
-                                  })}
-                              >
-                                <SelectTrigger>
-                                  <SelectValue placeholder={`${side} glanceable`} />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {glanceableOptions.map((item) => (
-                                    <SelectItem key={item.value} value={item.value}>
-                                      {item.label}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            ))}
-                          </div>
-                        </div>
-                      )}
                       {selectedSection?.widgetType === "weather" && (
                         <LocationSelectFormComponent
                           value={{
@@ -999,11 +1078,18 @@ export default function SmartFramesManager({
                       )}
                       <WidgetPropertiesForm
                         idPrefix={`frame-widget-${selectedSection?.id ?? "cell"}`}
-                        schema={widgetSchemas[selectedSection?.widgetType ?? ""] ?? {}}
+                        schema={{
+                          ...(selectedSection?.widgetType === "glanceable-clock"
+                            ? { glanceables: { type: "glanceables" } }
+                            : {}),
+                          ...(widgetSchemas[selectedSection?.widgetType ?? ""] ?? {}),
+                        }}
                         value={selectedSection?.params ?? {}}
                         onChange={(params) => updateSelectedSection({ params })}
                         onError={setWidgetParamsError}
                         error={widgetParamsError}
+                        glanceableOptions={selectedSection?.widgetType === "glanceable-clock" ? glanceableOptions : undefined}
+                        onAddGlanceable={selectedSection?.widgetType === "glanceable-clock" ? openGlanceableDialog : undefined}
                       />
                     </div>
 
@@ -1190,6 +1276,34 @@ export default function SmartFramesManager({
           </section>
         </div>
       </div>
+
+      <Dialog open={glanceableDialogOpen} onOpenChange={handleGlanceableDialogChange}>
+        <DialogContent className="frosted max-h-[90vh] overflow-x-hidden overflow-y-auto text-foreground">
+          <EditGlanceablesView
+            hasMainClock
+            glanceablesCatalog={glanceableOptions.map((option) => ({
+              type: option.value,
+              name: option.label,
+              exampleProps: option.exampleProps ?? {},
+              appName: option.appName,
+              integrationName: option.integrationName,
+              integrationDisplayName: option.integrationDisplayName,
+            }))}
+            selectedClockPart={glanceableDialogSide}
+            clockSelection={dialogClockSelection}
+            setClockSelection={setDialogClockSelection}
+            clockGlanceables={dialogClockGlanceables}
+            setClockGlanceables={setDialogClockGlanceables}
+            clockGlanceableIntervals={dialogClockIntervals}
+            setClockGlanceableIntervals={setDialogClockIntervals}
+            clockStyle={{}}
+            setClockStyle={() => undefined}
+            fonts={[]}
+            title="Add a Glanceable"
+            initialSelectedGlanceableId={dialogGlanceableId}
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

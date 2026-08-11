@@ -1,7 +1,7 @@
 "use client";
 
 import { type Dispatch, type ReactNode, type SetStateAction, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Plus, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Plus, X } from "lucide-react";
 import ClockWidget from "@/components/widgets/ClockWidget";
 import GlanceableComponent from "@dashwise/integrationskit/Glanceable";
 import {
@@ -57,6 +57,8 @@ type EditGlanceablesViewProps = {
   clockStyle: Record<string, any>;
   setClockStyle: Dispatch<SetStateAction<Record<string, any>>>;
   fonts: Array<{ name: string; path: string }>;
+  title?: string;
+  initialSelectedGlanceableId?: string | null;
 };
 
 export function EditGlanceablesView({
@@ -72,17 +74,20 @@ export function EditGlanceablesView({
   clockStyle,
   setClockStyle,
   fonts,
+  title,
+  initialSelectedGlanceableId,
 }: EditGlanceablesViewProps) {
   const localization = useLocalization();
   const { withAuth, user } = useAuth();
-  const editorTitle =
+  const editorTitle = title ?? (
     selectedClockPart === "clock"
       ? "Edit Glanceable Clock"
-      : `Edit ${selectedClockPart === "left" ? "Left" : "Right"} Glanceable`;
+      : `Edit ${selectedClockPart === "left" ? "Left" : "Right"} Glanceable`
+  );
   const selectedClockSide: GlanceableSide = selectedClockPart === "right"
     ? "right"
     : "left";
-  const [selectedGlanceableId, setSelectedGlanceableId] = useState<string | null>(null);
+  const [selectedGlanceableId, setSelectedGlanceableId] = useState<string | null>(initialSelectedGlanceableId ?? null);
   const glanceablesForSide = clockSelection[selectedClockSide];
   const selectedGlanceable = glanceablesForSide.find((item) => item.id === selectedGlanceableId) ?? glanceablesForSide[0];
   const selectedClockType = selectedGlanceable?.type ?? "";
@@ -113,8 +118,17 @@ export function EditGlanceablesView({
   }, [selectedClockType, withAuth]);
 
   useEffect(() => {
-    setSelectedGlanceableId(glanceablesForSide[0]?.id ?? null);
-  }, [glanceablesForSide, selectedClockPart]);
+    if (initialSelectedGlanceableId && glanceablesForSide.some((item) => item.id === initialSelectedGlanceableId)) {
+      setSelectedGlanceableId(initialSelectedGlanceableId);
+      return;
+    }
+
+    setSelectedGlanceableId((currentId) =>
+      currentId && glanceablesForSide.some((item) => item.id === currentId)
+        ? currentId
+        : glanceablesForSide[0]?.id ?? null,
+    );
+  }, [glanceablesForSide, initialSelectedGlanceableId, selectedClockPart]);
 
   const selectedCatalogAppName = getGlanceableGroupName(selectedCatalogItem);
 
@@ -154,6 +168,19 @@ export function EditGlanceablesView({
     setClockSelection((prev) => ({ ...prev, [selectedClockSide]: prev[selectedClockSide].filter((item) => item.id !== id) }));
     setClockGlanceables((prev) => Object.fromEntries(Object.entries(prev).filter(([key]) => key !== id)));
     setSelectedGlanceableId(null);
+  };
+
+  const moveGlanceable = (id: string, direction: -1 | 1) => {
+    setClockSelection((prev) => {
+      const current = prev[selectedClockSide];
+      const index = current.findIndex((item) => item.id === id);
+      const nextIndex = index + direction;
+      if (index < 0 || nextIndex < 0 || nextIndex >= current.length) return prev;
+
+      const next = [...current];
+      [next[index], next[nextIndex]] = [next[nextIndex], next[index]];
+      return { ...prev, [selectedClockSide]: next };
+    });
   };
 
   if (!hasMainClock) {
@@ -201,14 +228,52 @@ export function EditGlanceablesView({
       {selectedClockPart !== "clock" ? (
         <>
           <div className="min-w-0 space-y-4 overflow-x-hidden">
-            <div className="flex max-w-full min-w-0 items-center gap-2 overflow-x-auto pb-1">
-              {glanceablesForSide.map((item) => (
-                <button key={item.id} type="button" onClick={() => setSelectedGlanceableId(item.id)} className={`group flex shrink-0 items-center gap-2 rounded-full border px-3 py-1.5 text-xs ${selectedGlanceable?.id === item.id ? "border-primary bg-white/15" : "border-white/20 bg-white/5"}`}>
-                  <span>{glanceablesCatalog.find((entry) => entry.type === item.type)?.name ?? item.type}</span>
-                  <X className="h-3 w-3 opacity-60 group-hover:opacity-100" onClick={(event) => { event.stopPropagation(); removeSelectedGlanceable(item.id); }} />
-                </button>
-              ))}
-              <button type="button" onClick={() => addGlanceable(selectedClockSide)} aria-label="Add glanceable" className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-dashed border-white/30 text-white/70 hover:bg-white/10"><Plus className="h-4 w-4" /></button>
+            <div className="space-y-2">
+              <p className="text-sm font-medium">Glanceables on {selectedClockSide}</p>
+              {glanceablesForSide.length > 0 ? (
+                <div className="space-y-1.5">
+                  {glanceablesForSide.map((item, index) => (
+                    <div key={item.id} className={`flex items-center gap-2 rounded-lg border px-2 py-1.5 ${selectedGlanceable?.id === item.id ? "border-primary bg-white/15" : "border-white/20 bg-white/5"}`}>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedGlanceableId(item.id)}
+                        className="min-w-0 flex-1 truncate px-1 text-left text-xs"
+                      >
+                        {glanceablesCatalog.find((entry) => entry.type === item.type)?.name ?? item.type}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => moveGlanceable(item.id, -1)}
+                        disabled={index === 0}
+                        aria-label={`Move ${item.type} up`}
+                        className="rounded p-1 text-white/60 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-25"
+                      >
+                        <ArrowUp className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => moveGlanceable(item.id, 1)}
+                        disabled={index === glanceablesForSide.length - 1}
+                        aria-label={`Move ${item.type} down`}
+                        className="rounded p-1 text-white/60 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-25"
+                      >
+                        <ArrowDown className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => removeSelectedGlanceable(item.id)}
+                        aria-label={`Remove ${item.type}`}
+                        className="rounded p-1 text-white/60 hover:bg-red-500/30 hover:text-white"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-white/50">No glanceables added.</p>
+              )}
+              <button type="button" onClick={() => addGlanceable(selectedClockSide)} aria-label="Add glanceable" className="inline-flex items-center gap-1.5 rounded-full border border-dashed border-white/30 px-3 py-1.5 text-xs text-white/70 hover:bg-white/10"><Plus className="h-3.5 w-3.5" /> Add glanceable</button>
             </div>
 
             {selectedGlanceable ? <>
