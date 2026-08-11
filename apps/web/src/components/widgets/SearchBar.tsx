@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import useAuth from "@/context/useAuth";
+import useAuth, { COMMAND_BAR_OPEN_EVENT } from "@/context/useAuth";
 import CommandBar from './CommandBar';
 import { getSearchItemsAction } from '@/lib/apiClient';
 import { useApiQuery } from "@/hooks/useApiQuery";
@@ -88,6 +88,14 @@ export default function SearchBar({
     return () => window.removeEventListener("keydown", handleKey);
   }, [enableGlobalShortcut]);
 
+  useEffect(() => {
+    if (!enableGlobalShortcut) return;
+
+    const handleOpenCommandBar = () => setOpen(true);
+    window.addEventListener(COMMAND_BAR_OPEN_EVENT, handleOpenCommandBar);
+    return () => window.removeEventListener(COMMAND_BAR_OPEN_EVENT, handleOpenCommandBar);
+  }, [enableGlobalShortcut]);
+
 
   const handleFocus = () => {
     if (useRedirect) {
@@ -102,14 +110,14 @@ export default function SearchBar({
       {showTrigger && (
         <div
           className={`flex items-center justify-center border frosted rounded-lg
-          focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500
-          transition-transform duration-300 ${redirecting ? 'scale-105 opacity-70' : 'scale-100 opacity-100'}`}
+            focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500
+            transition-transform duration-300 ${redirecting ? 'scale-105 opacity-70' : 'scale-100 opacity-100'}`}
         >
           <input
             type="text"
             data-slot="input"
             className="w-full bg-transparent px-3 py-2 text-[0.875rem] font-medium text-gray dark:text-white placeholder-(--text-on-frosted) hover:placeholder-(--text-color)
-                 focus:outline-none"
+                   focus:outline-none"
             placeholder="Search..."
             onFocus={handleFocus}
           />

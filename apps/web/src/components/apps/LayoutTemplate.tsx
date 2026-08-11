@@ -3,7 +3,7 @@
 import { Link, useLocation } from "react-router-dom";
 import { Icon } from "@iconify-icon/react";
 import AppIcon from "@dashwise/app-icon";
-import SearchBar from "@/components/widgets/SearchBar";
+import useAuth from "@/context/useAuth";
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -457,6 +457,7 @@ function groupTabs(
 }
 
 export function Sidebar({ children }: { children: ReactNode }) {
+    const { openCommandBar } = useAuth();
     const tabs = Children.toArray(children).filter(
         (c) => isValidElement(c) && (c as React.ReactElement).type === Tab,
     ) as React.ReactElement<TabProps>[];
@@ -580,7 +581,22 @@ export function Sidebar({ children }: { children: ReactNode }) {
                 )}
 
                 <div className="mb-1">
-                    <SearchBar useRedirect={false} />
+                    <button
+                        type="button"
+                        onClick={openCommandBar}
+                        className="block group w-full"
+                        aria-label="Search"
+                    >
+                        <div className="flex gap-2 px-2 py-1.5 rounded-md">
+                            <Icon
+                                icon="fa6-solid:magnifying-glass"
+                                className="text-sm text-white/40 group-hover:text-primary transition-colors w-4"
+                            />
+                            <span className="text-sm text-white/50 group-hover:text-white transition-colors leading-none">
+                                Search
+                            </span>
+                        </div>
+                    </button>
                 </div>
 
                 <Link to="/home" className="block group">
@@ -589,7 +605,7 @@ export function Sidebar({ children }: { children: ReactNode }) {
                             icon="fa6-solid:house"
                             className="text-sm text-white/40 group-hover:text-primary transition-colors w-4"
                         />
-                        <span className="text-sm text-white/50 group-hover:text-white transition-colors leading-none">
+                        <span className="text-sm text-white/50 group-hover:text-white transition-colors w-full leading-none">
                             Go to dashboard
                         </span>
                     </div>
