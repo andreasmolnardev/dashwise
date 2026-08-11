@@ -690,7 +690,7 @@ export default function DashboardLayoutTemplate({
                     columns={columns}
                 />
             </div>
-            {openFromURL && !hasSearchBarWidget && (
+            {!isLoading && openFromURL && !hasSearchBarWidget && (
                 <div className="hidden">
                     {renderWidget({
                         type: "search-bar",
