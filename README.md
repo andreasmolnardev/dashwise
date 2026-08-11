@@ -1,4 +1,9 @@
 # <img src="./apps/web/public/dashwise-icon.svg" alt="Dashwise icon" width="32" /> dashwise: Your Homelab, in one place
+
+---
+
+[Extension](https://github.com/dashwise-homelab/chrome) · [Integrations](https://github.com/dashwise-homelab/integrations) · [Frame Companion](https://github.com/dashwise-homelab/framecompanion)
+
 I've been self hosting for a while but did not find a dashboard that suits my needs and that I like the look of.
 This is my attempt to solving that.
 
