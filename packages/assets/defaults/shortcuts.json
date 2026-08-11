@@ -42,7 +42,7 @@
         "tags": ["Notifications", "Inbox", "Alerts"]
     },
     {
-        "name": "Links Home",
+        "name": "Links",
         "icon": "fa6-solid:link",
         "secondary": "Dashwise",
         "action": "url:/apps/links/home",
