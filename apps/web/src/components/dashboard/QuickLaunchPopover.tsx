@@ -22,7 +22,7 @@ const quickLinks = [
     icon: "fa6-solid:newspaper",
   },
   {
-    href: "/links",
+    href: "/apps/links",
     label: "Links",
     icon: "fa6-solid:link",
   },

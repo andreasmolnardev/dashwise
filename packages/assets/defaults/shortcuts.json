@@ -38,7 +38,7 @@
         "name": "Notifications Inbox",
         "icon": "fa6-solid:bell",
         "secondary": "Dashwise",
-        "action": "url:/notifications/inbox",
+        "action": "url:/apps/monitoring/notifications",
         "tags": ["Notifications", "Inbox", "Alerts"]
     },
     {
