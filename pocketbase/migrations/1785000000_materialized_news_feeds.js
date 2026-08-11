@@ -50,7 +50,7 @@ migrate((app) => {
     allByUser[key] = record.id;
   }
 
-  collection.indexes.push("CREATE UNIQUE INDEX idx_newsFeeds_user_systemKey ON newsFeeds (userId, systemKey)");
+  collection.indexes.push("CREATE UNIQUE INDEX idx_newsFeeds_user_systemKey ON newsFeeds (userId, systemKey) WHERE systemKey != ''");
   return app.save(collection);
 }, (app) => {
   const collection = app.findCollectionByNameOrId("newsFeeds");
