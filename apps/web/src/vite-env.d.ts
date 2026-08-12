@@ -6,6 +6,7 @@ interface ImportMetaEnv {
   readonly NEXT_PUBLIC_PB_URL?: string;
   readonly NEXT_PUBLIC_JOBS_URL?: string;
   readonly NEXT_PUBLIC_DEFAULT_BG_URL?: string;
+  readonly NEXT_PUBLIC_VERSION?: string;
   readonly NEXT_PUBLIC_INTEGRATIONS_ENABLE_SSL?: string;
   readonly NEXT_PUBLIC_ENABLE_SSO?: string;
   readonly NEXT_PUBLIC_DISABLE_USER_SIGNUP?: string;

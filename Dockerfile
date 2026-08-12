@@ -72,6 +72,7 @@ COPY --from=build /app/packages/api-types/package.json /app/packages/api-types/p
 COPY --from=build /app/packages/types/package.json /app/packages/types/package.json
 COPY --from=build /app/pocketbase/migrations /app/pocketbase/migrations
 COPY --from=build /app/packages              /app/packages
+COPY --from=build /app/VERSION               /app/VERSION
 
 RUN bun install --production --frozen-lockfile
 
