@@ -191,19 +191,23 @@ export default function NewsLayout({ children }: { children: ReactNode }) {
         };
     };
 
+    const isNewsRootRedirect = !feedId &&
+        !location.search &&
+        location.pathname.replace(/\/+$/, "") === "/apps/news";
+
     useEffect(() => {
-        if (
-            feedId ||
-            location.pathname !== "/apps/news" ||
-            location.search ||
-            !defaultNewsPage ||
-            defaultNewsPage === "/apps/news"
-        ) {
+        if (!isNewsRootRedirect) {
             return;
         }
 
-        navigate(defaultNewsPage, { replace: true });
-    }, [defaultNewsPage, feedId, location.pathname, location.search, navigate]);
+        const preferredNewsPage = defaultNewsPage?.replace(/\/+$/, "");
+        navigate(
+            preferredNewsPage && preferredNewsPage !== "/apps/news"
+                ? preferredNewsPage
+                : "/apps/news/all",
+            { replace: true },
+        );
+    }, [defaultNewsPage, isNewsRootRedirect, navigate]);
 
     const openSubscribeModal = () => {
         const params = new URLSearchParams({ action: "subscribe" });
@@ -280,13 +284,13 @@ export default function NewsLayout({ children }: { children: ReactNode }) {
                 />
 
                 <Tab
-                    dst="/apps/news"
+                    dst="/apps/news/all"
                     icon={feeds.find((feed) => feed.id === "all")?.icon || "fa6-solid:newspaper"}
                     title="All"
                     group="Feeds"
                     isRoot={true}
                     dropdownActions={[
-                        defaultPageAction("/apps/news"),
+                        defaultPageAction("/apps/news/all"),
                         {
                             label: "Edit feed",
                             icon: "fa6-solid:pen-to-square",
@@ -383,7 +387,11 @@ export default function NewsLayout({ children }: { children: ReactNode }) {
             <Content>
                 <>
                 {/** <PageTitle> here</PageTitle> here*/}
-                {children}
+                {isNewsRootRedirect ? (
+                    <div className="flex h-full items-center justify-center text-white/50" role="status">
+                        Opening news…
+                    </div>
+                ) : children}
                 </>
             </Content>
         </AppTemplate>
