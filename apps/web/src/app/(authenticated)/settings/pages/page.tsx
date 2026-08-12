@@ -48,6 +48,7 @@ type GlanceableCatalogItem = {
   integrationDisplayName?: string;
   appName?: string;
   exampleProps: Record<string, any>;
+  properties?: Record<string, any>;
 };
 
 function getGlanceableGroupName(entry: Partial<GlanceableCatalogItem> & Record<string, any>) {
@@ -144,6 +145,9 @@ export default function SettingsPagesPage() {
                 typeof entry?.integrationId === "string" ? entry.integrationId : undefined,
               exampleProps: (entry?.exampleProps && typeof entry.exampleProps === "object")
                 ? entry.exampleProps
+                : {},
+              properties: (entry?.properties && typeof entry.properties === "object")
+                ? entry.properties
                 : {},
             }))
           : [];
