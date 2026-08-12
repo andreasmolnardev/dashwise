@@ -1,6 +1,5 @@
 # <img src="./apps/web/public/dashwise-icon.svg" alt="Dashwise icon" width="32" /> dashwise: Your Homelab, in one place
 
----
 
 [Extension](https://github.com/dashwise-homelab/chrome) · [Integrations](https://github.com/dashwise-homelab/integrations) · [Frame Companion](https://github.com/dashwise-homelab/framecompanion)
 
