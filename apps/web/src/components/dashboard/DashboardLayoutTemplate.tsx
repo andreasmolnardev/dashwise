@@ -110,7 +110,6 @@ export default function DashboardLayoutTemplate({
     const containerRef = useRef<HTMLDivElement | null>(null);
     const [activePanel, setActivePanel] = useState<number>(1);
     const [widgetMenuState, setWidgetMenuState] = useState<Record<string, WidgetMenuState>>({});
-
     const heightRefs = useRef<Record<string, HTMLElement | null>>({});
     const heightRefCallbacks = useRef<
         Record<string, (node: HTMLElement | null) => void>
@@ -435,12 +434,14 @@ export default function DashboardLayoutTemplate({
         children,
         ref,
         style,
+        showMenu = true,
     }: {
         baseKey: string;
         wrapperClass: string;
         children: ReactNode;
         ref?: (node: HTMLElement | null) => void;
         style?: CSSProperties;
+        showMenu?: boolean;
     }) => {
         const state = getWidgetMenuState(baseKey);
         const sizeClass = WIDGET_SIZE_CLASSNAME[state.size];
@@ -454,33 +455,35 @@ export default function DashboardLayoutTemplate({
                 <div key={state.refreshVersion} className={state.size === "auto" ? undefined : "h-full"}>
                     {children}
                 </div>
-                <div className="absolute right-2 top-2 z-30 opacity-0 transition-opacity group-hover/widget-menu:opacity-100 focus-within:opacity-100">
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <button
-                                type="button"
-                                aria-label="Widget options"
-                                className="flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-black/35 text-white shadow-lg backdrop-blur-md transition hover:bg-black/55 focus:outline-none focus:ring-2 focus:ring-white/40"
-                            >
-                                <MoreHorizontal className="h-4 w-4" />
-                            </button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="frosted min-w-44 text-foreground">
-                            <DropdownMenuItem onClick={() => refreshWidget(baseKey)}>
-                                <RefreshCw className="h-4 w-4" />
-                                Refresh data
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => resizeWidget(baseKey)}>
-                                <Maximize2 className="h-4 w-4" />
-                                Resize widget
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => toggleWidgetBlur(baseKey)}>
-                                <EyeOff className="h-4 w-4" />
-                                {state.blurred ? "Unblur widget" : "Blur widget"}
-                            </DropdownMenuItem>
-                        </DropdownMenuContent>
-                    </DropdownMenu>
-                </div>
+                {showMenu && (
+                    <div className="absolute right-2 top-2 z-30 opacity-0 transition-opacity group-hover/widget-menu:opacity-100 focus-within:opacity-100">
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <button
+                                    type="button"
+                                    aria-label="Widget options"
+                                    className="flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-black/35 text-white shadow-lg backdrop-blur-md transition hover:bg-black/55 focus:outline-none focus:ring-2 focus:ring-white/40"
+                                >
+                                    <MoreHorizontal className="h-4 w-4" />
+                                </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="frosted min-w-44 text-foreground">
+                                <DropdownMenuItem onClick={() => refreshWidget(baseKey)}>
+                                    <RefreshCw className="h-4 w-4" />
+                                    Refresh data
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => resizeWidget(baseKey)}>
+                                    <Maximize2 className="h-4 w-4" />
+                                    Resize widget
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => toggleWidgetBlur(baseKey)}>
+                                    <EyeOff className="h-4 w-4" />
+                                    {state.blurred ? "Unblur widget" : "Blur widget"}
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                    </div>
+                )}
                 {state.blurred && (
                     <div className="pointer-events-none absolute inset-0 z-20 flex flex-col justify-center gap-2 rounded-xl bg-black/20 p-4 text-white/35 backdrop-blur-md">
                         {PRIVACY_BLUR_LINES.map((line) => (
@@ -498,13 +501,12 @@ export default function DashboardLayoutTemplate({
         columnName: Column,
         entryKey: string,
         entryConfig: Record<string, any> | null | undefined,
-        entryIndex: number,
     ) => {
         const cfg = entryConfig ?? {};
         const wrapperClass = ["mb-3", cfg.className].filter(Boolean).join(
             " ",
         );
-        const baseKey = `${columnName}-${entryKey}-${entryIndex}`;
+        const baseKey = `${columnName}-${entryKey}`;
 
         switch (entryKey) {
             case "placeholder": {
@@ -518,53 +520,63 @@ export default function DashboardLayoutTemplate({
                     heightStyle = `${h}px`;
                 }
                 return (
-                    <div
-                        key={baseKey}
-                        className={wrapperClass}
-                        style={heightStyle ? { height: heightStyle } : undefined}
-                    >
-                        {renderWidget({
+                    renderWidgetMenuWrapper({
+                        baseKey,
+                        wrapperClass,
+                        style: heightStyle ? { height: heightStyle } : undefined,
+                        children: renderWidget({
                             type: "placeholder",
                             params: cfg.params,
                             className: "h-full w-full",
-                        })}
-                    </div>
+                        }),
+                    })
                 );
             }
             case "main-clock": {
                 const ref = getHeightRefCallback("main-clock");
                 return (
-                    <div key={baseKey} className={wrapperClass} ref={ref}>
-                        {renderWidget({
+                    renderWidgetMenuWrapper({
+                        baseKey,
+                        wrapperClass,
+                        ref,
+                        showMenu: false,
+                        children: renderWidget({
                             type: "main-clock",
                             params: cfg,
                             className: "w-full",
-                        })}
-                    </div>
+                        }),
+                    })
                 );
             }
             case "search-bar":
                 return (
-                    <div key={baseKey} className={wrapperClass}>
-                        {renderWidget({
+                    renderWidgetMenuWrapper({
+                        baseKey,
+                        wrapperClass,
+                        showMenu: false,
+                        children: renderWidget({
                             type: "search-bar",
                             defaultOpen: openFromURL ?? false,
-                        })}
-                    </div>
+                        }),
+                    })
                 );
             case "link-view":
                 return (
-                    <div key={baseKey} className={wrapperClass}>
-                        {renderWidget({
+                    renderWidgetMenuWrapper({
+                        baseKey,
+                        wrapperClass,
+                        showMenu: false,
+                        children: renderWidget({
                             type: "link-view",
-                        })}
-                    </div>
+                        }),
+                    })
                 );
             default:
                 // Fall back to integration widget-by-key renderer, then to generic widget.
                 return renderWidgetMenuWrapper({
                     baseKey,
                     wrapperClass,
+                    showMenu: entryKey !== "glanceable-clock",
                     children: renderWidget({
                         type: entryKey,
                         consumerKey: typeof cfg.configKey === "string" && cfg.configKey.trim()
@@ -639,6 +651,7 @@ export default function DashboardLayoutTemplate({
 
     const renderColumn = (columnName: Column) => {
         const entries = columns?.[columnName];
+        const sortedEntries = entries && typeof entries === "object" ? sortWidgetEntries(entries) : [];
         return (
             <div
                 key={columnName}
@@ -651,16 +664,14 @@ export default function DashboardLayoutTemplate({
                         renderColumnSkeleton(columnName)
                     )
                     : (
-                        entries && typeof entries === "object"
-                            ? sortWidgetEntries(entries).map(([key, cfg], i) =>
-                                renderWidgetEntry(
-                                    columnName,
-                                    key,
-                                    cfg as Record<string, any>,
-                                    i,
-                                )
-                            )
-                            : null
+                        sortedEntries.map(([key, cfg], index) =>
+                            renderWidgetEntry(
+                                columnName,
+                                key,
+                                cfg as Record<string, any>,
+                                index,
+                            ),
+                        )
                     )}
             </div>
         );

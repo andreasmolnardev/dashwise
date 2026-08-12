@@ -17,6 +17,8 @@ import { runDefaultIntegrationsBootstrapJob } from "./updates/default-integratio
 import { newsFeedBuilder } from "./news/feed-builder";
 import { processQueuedNotifications } from "./notifications/forwarder";
 import { createLogger } from "../lib/logger";
+import { migrateLegacyPageConfig } from "../lib/data/config";
+import { getSuperuserPB } from "../lib/pb/pocketbase";
 
 const execFileAsync = promisify(execFile);
 const logger = createLogger("Jobs");
@@ -109,6 +111,30 @@ const runNotificationForwarderJob = (source: string) =>
     errorMessage: "Notification forwarder failed",
   });
 
+const runLegacyUserConfigsMigration = async () => {
+  const pb = await getSuperuserPB();
+  const users = await pb.collection("users").getFullList<{ id: string }>(500, {
+    fields: "id",
+  });
+
+  let migrated = 0;
+  for (const user of users) {
+    if (!user.id) continue;
+
+    const result = await migrateLegacyPageConfig(user.id);
+    if (result.migrated) migrated += 1;
+  }
+
+  return { users: users.length, migrated };
+};
+
+const runLegacyUserConfigsMigrationJob = (source: string) =>
+  runJob("migrateLegacyUserConfigs", runLegacyUserConfigsMigration, {
+    startMessage: `Triggered by ${source}`,
+    successMessage: "Legacy user config migrations completed",
+    errorMessage: "Legacy user config migrations failed",
+  });
+
 export function validateJobsBasicAuth(authorizationHeader: string | undefined) {
   if (!authorizationHeader?.toLowerCase().startsWith("basic ")) {
     return false;
@@ -130,6 +156,7 @@ export function validateJobsBasicAuth(authorizationHeader: string | undefined) {
 export function registerJobsCron() {
   logger.debug("Dashwise SDK app config", _d.getAppConfig());
 
+  void runLegacyUserConfigsMigrationJob("server start");
   void runSearchItemsJob("server start");
   Bun.cron(config.SEARCHITEMS_SCHEDULE, async () => {
     await runSearchItemsJob("cron schedule");
@@ -181,4 +208,5 @@ export const jobsApi = {
   runDefaultIntegrationsJob,
   runNewsFeedBuilderJob,
   runNotificationForwarderJob,
+  runLegacyUserConfigsMigrationJob,
 };

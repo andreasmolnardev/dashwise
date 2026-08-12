@@ -51,7 +51,6 @@ import {
   WidgetCatalogItem,
   createWidgetId,
   hasEditableWidgetData,
-  moveItem,
 } from "./utils";
 
 type DisplayCustomizations = {
@@ -77,7 +76,12 @@ type DashboardWidgetPreviewProps = {
   selectedWidgetCategory: string;
   setSelectedWidgetCategory: (category: string) => void;
   hasMainClock: boolean;
-  glanceablesCatalog: Array<{ type: string; name: string; exampleProps: Record<string, any> }>;
+  glanceablesCatalog: Array<{
+    type: string;
+    name: string;
+    exampleProps: Record<string, any>;
+    properties?: Record<string, any>;
+  }>;
   selectedClockPart: GlanceableSide | "clock";
   setSelectedClockPart: (part: GlanceableSide | "clock") => void;
   clockSelection: ClockGlanceableSelection;
@@ -134,6 +138,15 @@ function WidgetTile({
   const customizationSensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
   );
+
+  useEffect(() => {
+    if (!isDragging) return;
+
+    document.body.style.cursor = "grabbing";
+    return () => {
+      document.body.style.cursor = "";
+    };
+  }, [isDragging]);
 
   const supportsUserCustomizations = useMemo(() => {
     const flags = widgetConfig?.properties?.columns?.user_customizations;
@@ -317,7 +330,7 @@ function WidgetTile({
       })}
 
       {/* Hover overlay with controls */}
-      <div className="absolute inset-0 rounded-lg bg-black/60 opacity-0 transition-opacity group-hover:opacity-100 backdrop-blur-[2px]">
+      <div className={`absolute inset-0 rounded-lg bg-black/60 transition-opacity backdrop-blur-[2px] ${isPlaceholderWidget ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}>
         {isClockWidget ? (
           <div className="grid h-full grid-cols-3 items-center gap-2 p-2">
             <button type="button" onClick={() => onEditClockPart?.("left")} className="flex h-full flex-col items-center justify-center rounded-xl border border-white/10 bg-white/5 p-2 text-center hover:bg-white/10">
@@ -329,6 +342,25 @@ function WidgetTile({
             <button type="button" onClick={() => onEditClockPart?.("right")} className="flex h-full flex-col items-center justify-center rounded-xl border border-white/10 bg-white/5 p-2 text-center hover:bg-white/10">
               <span className="text-sm font-medium text-white/90">{clockSelection?.right.length ? `${clockSelection.right.length} glanceable${clockSelection.right.length === 1 ? "" : "s"}` : "Right"}</span>
             </button>
+            <div className="absolute right-2 top-2 flex items-center gap-1">
+              <button
+                type="button"
+                aria-label={`Drag ${columnWidget.type}`}
+                className="rounded-full bg-white/10 p-2 hover:bg-white/20 backdrop-blur cursor-grab active:cursor-grabbing"
+                {...attributes}
+                {...listeners}
+              >
+                <GripVertical className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={onRemove}
+                aria-label={`Remove ${columnWidget.type}`}
+                className="rounded-full bg-white/10 p-2 hover:bg-red-500/40 backdrop-blur"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </div>
           </div>
         ) : (
           <div className="flex h-full flex-col items-center justify-center gap-2 p-2">
@@ -493,26 +525,26 @@ function WidgetTile({
                   </DialogContent>
                 </Dialog>
               )}
+              <button
+                type="button"
+                aria-label={`Drag ${columnWidget.type}`}
+                className="rounded-full bg-white/10 p-2 hover:bg-white/20 backdrop-blur cursor-grab active:cursor-grabbing"
+                {...attributes}
+                {...listeners}
+              >
+                <GripVertical className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={onRemove}
+                aria-label={`Remove ${columnWidget.type}`}
+                className="rounded-full bg-white/10 p-2 hover:bg-red-500/40 backdrop-blur"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
             </div>
           </div>
         )}
-        <button
-          type="button"
-          aria-label={`Drag ${columnWidget.type}`}
-          className="rounded-full bg-white/10 p-2 hover:bg-white/20 backdrop-blur cursor-grab active:cursor-grabbing"
-          {...attributes}
-          {...listeners}
-        >
-          <GripVertical className="h-4 w-4" />
-        </button>
-        <button
-          type="button"
-          onClick={onRemove}
-          aria-label={`Remove ${columnWidget.type}`}
-          className="rounded-full bg-white/10 p-2 hover:bg-red-500/40 backdrop-blur"
-        >
-          <Trash2 className="h-4 w-4" />
-        </button>
       </div>
     </div>
   );
@@ -880,6 +912,11 @@ export function DashboardWidgetPreview({
   const [activeId, setActiveId] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState<{ zone: ColumnName; index: number } | null>(null);
   const [clockDialogOpen, setClockDialogOpen] = useState(false);
+  const columnsRef = useRef(columns);
+
+  useEffect(() => {
+    columnsRef.current = columns;
+  }, [columns]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -942,42 +979,6 @@ export function DashboardWidgetPreview({
     setClockDialogOpen(true);
   };
 
-  // The widget (or library item) currently being dragged — for DragOverlay
-  const activeWidget = useMemo(() => {
-    if (!activeId) return null;
-    if (activeId.startsWith("library:")) {
-      const [, category, ...rest] = activeId.split(":");
-      const key = rest.join(":");
-      return widgetCatalog.find((item) => item.category === category && item.key === key) ?? null;
-    }
-    for (const col of ["left", "middle", "right"] as ColumnName[]) {
-      const found = columns[col].find((item) => item.id === activeId);
-      if (found) return found;
-    }
-    return null;
-  }, [activeId, columns, widgetCatalog]);
-
-  const renderActiveWidgetPreview = () => {
-    if (!activeWidget) return null;
-
-    const isLibrary = "key" in activeWidget;
-    const type = isLibrary ? (activeWidget as WidgetCatalogItem).key : (activeWidget as ColumnWidget).type;
-    const catalogItem = isLibrary
-      ? (activeWidget as WidgetCatalogItem)
-      : widgetCatalog.find((item) => item.key === type);
-    const params = {
-      ...(catalogItem?.properties ?? {}),
-      ...("properties" in activeWidget ? (activeWidget as ColumnWidget).properties : {}),
-      ...((activeWidget as ColumnWidget).input ?? {}),
-    };
-
-    return (
-      <div className="overflow-hidden rounded-lg opacity-70 ring-2 ring-blue-400/60">
-        {renderWidget({ type, params, className: "h-[90px] w-full", isPreview: true })}
-      </div>
-    );
-  };
-
   const handleDragStart = (event: DragStartEvent) => {
     setActiveId(String(event.active.id));
     setDragOver(null);
@@ -987,12 +988,40 @@ export function DashboardWidgetPreview({
     const over = event.over;
     if (!over) return setDragOver(null);
 
+    const activeIdStr = String(event.active.id);
     const overId = String(over.id);
     const overZone = findColumn(overId);
 
     if (overZone) {
       const index = columns[overZone].findIndex((w) => w.id === overId);
       setDragOver({ zone: overZone, index: index >= 0 ? index : columns[overZone].length });
+
+      // Move existing widgets during hover so adjacent widgets visibly make room.
+      if (!activeIdStr.startsWith("library:") && activeIdStr !== overId) {
+        setColumns((current) => {
+          const sourceZone = (Object.keys(current) as ColumnName[]).find((column) =>
+            current[column].some((widget) => widget.id === activeIdStr),
+          );
+          if (!sourceZone) return current;
+
+          const sourceIndex = current[sourceZone].findIndex((widget) => widget.id === activeIdStr);
+          const targetIndex = current[overZone].findIndex((widget) => widget.id === overId);
+          if (sourceIndex < 0 || targetIndex < 0) return current;
+
+          const next = {
+            left: [...current.left],
+            middle: [...current.middle],
+            right: [...current.right],
+          };
+          const [moving] = next[sourceZone].splice(sourceIndex, 1);
+          const insertIndex = sourceZone === overZone && sourceIndex < targetIndex
+            ? targetIndex - 1
+            : targetIndex;
+          next[overZone].splice(insertIndex, 0, moving);
+          columnsRef.current = next;
+          return next;
+        });
+      }
       return;
     }
 
@@ -1060,18 +1089,7 @@ export function DashboardWidgetPreview({
     }
 
     // Reorder / cross-column move
-    const activeColumn = findColumn(activeIdStr);
-    if (!activeColumn) return;
-
-    const nextColumns = moveItem(
-      columns,
-      activeIdStr,
-      event.over ? String(event.over.id) : `column:${target.zone}`,
-      target.zone,
-      target.index,
-    );
-    setColumns(nextColumns);
-    await onPersistColumns?.(nextColumns);
+    await onPersistColumns?.(columnsRef.current);
   };
 
   const handleDragCancel = () => {
@@ -1116,14 +1134,8 @@ export function DashboardWidgetPreview({
                           items={columns[column].map((item) => item.id)}
                           strategy={verticalListSortingStrategy}
                         >
-                          {columns[column].map((widget, i) => (
+                          {columns[column].map((widget) => (
                             <div key={widget.id}>
-                              {/* Drop preview indicator */}
-                              {dragOver?.zone === column && dragOver.index === i && (
-                                <div className="mb-2 rounded-lg border-2 border-dashed border-blue-400/60 bg-blue-500/10 p-1">
-                                  {renderActiveWidgetPreview()}
-                                </div>
-                              )}
                               <WidgetTile
                                 columnWidget={widget}
                                 widgetConfig={widgetCatalog.find((item) => item.key === widget.type)}
@@ -1153,12 +1165,6 @@ export function DashboardWidgetPreview({
                               />
                             </div>
                           ))}
-                          {/* Drop preview at end of list */}
-                          {dragOver?.zone === column && dragOver.index === columns[column].length && (
-                            <div className="rounded-lg border-2 border-dashed border-blue-400/60 bg-blue-500/10 p-1">
-                              {renderActiveWidgetPreview()}
-                            </div>
-                          )}
                         </SortableContext>
                       </ColumnDropZone>
                     </div>
