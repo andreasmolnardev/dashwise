@@ -4,16 +4,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Icon } from "@iconify-icon/react";
-import { closestCenter, DndContext, DragEndEvent, DragOverEvent, DragStartEvent, PointerSensor, useDroppable, useSensor, useSensors } from "@dnd-kit/core";
-import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
-import { EyeOff, GripVertical, Maximize2, MoreHorizontal, RefreshCw, Trash2 } from "lucide-react";
+import { EyeOff, Maximize2, MoreHorizontal, RefreshCw } from "lucide-react";
 import PagesTabs from "../PagesTabs";
 import UpdateDetailsDialogComponent from "./UpdateDetailsDialog";
 import QuickLaunchPopover from "./QuickLaunchPopover";
 import useAuth from "@/context/useAuth";
 import { useActivity } from "@/context/ActivityContext";
-import { getPageIntegrationDataAction, updatePageConfigAction } from '@/lib/apiClient';
+import { getPageIntegrationDataAction } from '@/lib/apiClient';
 import { renderWidget } from "../widgets/Widget";
 import PageNotFound from "../errorPages/PageNotFound";
 import { primePageIntegrationConsumerCache } from "@/lib/pageIntegrationDataCache";
@@ -61,66 +58,6 @@ const COLUMN_PANEL_IDS: Record<Column, string | undefined> = {
     middle: undefined,
     right: "right-widget-panel",
 };
-
-function SortableDashboardWidget({
-    id,
-    children,
-    isActive,
-}: {
-    id: string;
-    children: ReactNode;
-    isActive: boolean;
-}) {
-    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
-    return (
-        <div
-            ref={setNodeRef}
-            style={{ transform: isDragging ? undefined : CSS.Transform.toString(transform), transition }}
-            className={isActive ? "group relative opacity-40" : "group relative"}
-        >
-            {children}
-            <button
-                type="button"
-                aria-label={`Rearrange ${id}`}
-                className="absolute right-2 top-2 z-40 cursor-grab rounded-full bg-white/10 p-2 text-white opacity-0 backdrop-blur transition hover:bg-white/20 group-hover:opacity-100 focus:opacity-100 active:cursor-grabbing"
-                {...attributes}
-                {...listeners}
-            >
-                <GripVertical className="h-4 w-4" />
-            </button>
-        </div>
-    );
-}
-
-function WidgetDropPreview({ type, params }: { type: string; params?: Record<string, any> }) {
-    return (
-        <div className="mb-3 overflow-hidden rounded-lg border-2 border-dashed border-primary/70 bg-primary/10 p-1 opacity-80 transition-[height,opacity,transform] duration-200 ease-out animate-pulse">
-            {renderWidget({
-                type,
-                params,
-                className: "pointer-events-none h-[90px] w-full opacity-70",
-                isPreview: true,
-            })}
-        </div>
-    );
-}
-
-function DashboardColumnDropZone({
-    id,
-    panelId,
-    className,
-    style,
-    children,
-}: {
-    id: string;
-    panelId?: string;
-    className: string;
-    style: CSSProperties;
-    children: ReactNode;
-}) {
-    const { setNodeRef } = useDroppable({ id });
-    return <div ref={setNodeRef} id={panelId} className={className} style={style}>{children}</div>;
-}
 
 function sortWidgetEntries(entries: Record<string, any>) {
     return Object.entries(entries).sort(
@@ -173,14 +110,6 @@ export default function DashboardLayoutTemplate({
     const containerRef = useRef<HTMLDivElement | null>(null);
     const [activePanel, setActivePanel] = useState<number>(1);
     const [widgetMenuState, setWidgetMenuState] = useState<Record<string, WidgetMenuState>>({});
-    const [dashboardConfig, setDashboardConfig] = useState(config);
-    const [activeWidgetId, setActiveWidgetId] = useState<string | null>(null);
-    const [dragOver, setDragOver] = useState<{ column: Column; key: string | null } | null>(null);
-    const [dragPreview, setDragPreview] = useState<{ type: string; params?: Record<string, any> } | null>(null);
-    const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
-
-    useEffect(() => setDashboardConfig(config), [config]);
-
     const heightRefs = useRef<Record<string, HTMLElement | null>>({});
     const heightRefCallbacks = useRef<
         Record<string, (node: HTMLElement | null) => void>
@@ -190,7 +119,7 @@ export default function DashboardLayoutTemplate({
         Record<string, number>
     >({});
 
-    const columns = dashboardConfig?.columns as
+    const columns = config?.columns as
         | Record<Column, Record<string, any>>
         | undefined;
 
@@ -499,103 +428,20 @@ export default function DashboardLayoutTemplate({
         }));
     };
 
-    const persistColumns = async (nextColumns: Record<Column, Record<string, any>>) => {
-        if (!dashboardConfig) return;
-        const nextConfig = { ...dashboardConfig, columns: nextColumns };
-        setDashboardConfig(nextConfig);
-        try {
-            await withAuth((auth) => updatePageConfigAction(auth, pageName, nextConfig as any));
-        } catch (error) {
-            console.error("Failed to save dashboard widget layout", error);
-        }
-    };
-
-    const removeWidget = (widgetId: string) => {
-        if (!columns) return;
-        const nextColumns = { left: { ...columns.left }, middle: { ...columns.middle }, right: { ...columns.right } };
-        const [column, entryKey] = widgetId.split("::");
-        if (!column || !entryKey || !nextColumns[column as Column]?.[entryKey]) return;
-        delete nextColumns[column as Column][entryKey];
-        void persistColumns(nextColumns);
-    };
-
-    const handleWidgetDragEnd = (event: DragEndEvent) => {
-        setActiveWidgetId(null);
-        setDragOver(null);
-        setDragPreview(null);
-        if (!columns || !event.over) return;
-        const activeId = String(event.active.id);
-        const overId = String(event.over.id);
-        const [fromColumn, fromKey] = activeId.split("::");
-        const overParts = overId.split("::");
-        const toColumn = (overParts[0] === "column" ? overParts[1] : overParts[0]) as Column;
-        if (!COLUMN_ORDER.includes(fromColumn as Column) || !COLUMN_ORDER.includes(toColumn) || !fromKey) return;
-
-        const sourceEntries = sortWidgetEntries(columns[fromColumn as Column]);
-        const targetEntries = fromColumn === toColumn ? sourceEntries : sortWidgetEntries(columns[toColumn]);
-        const fromIndex = sourceEntries.findIndex(([key]) => key === fromKey);
-        if (fromIndex < 0) return;
-        const [moving] = sourceEntries.splice(fromIndex, 1);
-        const overKey = overParts[0] === "column" ? null : overParts[1];
-        const overIndex = overKey ? targetEntries.findIndex(([key]) => key === overKey) : targetEntries.length;
-        const insertIndex = Math.max(0, overIndex < 0 ? targetEntries.length : overIndex);
-        if (fromColumn === toColumn) {
-            sourceEntries.splice(insertIndex, 0, moving);
-        } else {
-            targetEntries.splice(insertIndex, 0, moving);
-        }
-
-        const nextColumns = { left: { ...columns.left }, middle: { ...columns.middle }, right: { ...columns.right } };
-        for (const column of COLUMN_ORDER) {
-            const entries = column === fromColumn ? sourceEntries : column === toColumn ? targetEntries : sortWidgetEntries(columns[column]);
-            nextColumns[column] = Object.fromEntries(entries.map(([key, value], index) => [key, { ...value, index }]));
-        }
-        void persistColumns(nextColumns);
-    };
-
-    const handleWidgetDragOver = (event: DragOverEvent) => {
-        if (!event.over) {
-            setDragOver(null);
-            return;
-        }
-
-        const [overType, overColumn, overKey] = String(event.over.id).split("::");
-        if (overType === "column" && COLUMN_ORDER.includes(overColumn as Column)) {
-            setDragOver({ column: overColumn as Column, key: null });
-            return;
-        }
-        if (COLUMN_ORDER.includes(overType as Column) && overKey) {
-            setDragOver({ column: overType as Column, key: overKey });
-        }
-    };
-
-    const handleWidgetDragStart = (event: DragStartEvent) => {
-        const activeId = String(event.active.id);
-        setActiveWidgetId(activeId);
-        const [column, key] = activeId.split("::");
-        const cfg = columns?.[column as Column]?.[key];
-        if (cfg) {
-            setDragPreview({
-                type: key,
-                params: key === "placeholder" ? cfg.params : cfg,
-            });
-        }
-    };
-
     const renderWidgetMenuWrapper = ({
         baseKey,
         wrapperClass,
         children,
         ref,
         style,
-        onRemove,
+        showMenu = true,
     }: {
         baseKey: string;
         wrapperClass: string;
         children: ReactNode;
         ref?: (node: HTMLElement | null) => void;
         style?: CSSProperties;
-        onRemove?: () => void;
+        showMenu?: boolean;
     }) => {
         const state = getWidgetMenuState(baseKey);
         const sizeClass = WIDGET_SIZE_CLASSNAME[state.size];
@@ -609,38 +455,35 @@ export default function DashboardLayoutTemplate({
                 <div key={state.refreshVersion} className={state.size === "auto" ? undefined : "h-full"}>
                     {children}
                 </div>
-                <div className="absolute right-12 top-2 z-30 flex items-center gap-1 opacity-0 transition-opacity group-hover/widget-menu:opacity-100 focus-within:opacity-100">
-                    {onRemove && (
-                        <button type="button" onClick={onRemove} aria-label={`Delete ${baseKey}`} className="rounded-full bg-white/10 p-2 text-white hover:bg-red-500/40 backdrop-blur">
-                            <Trash2 className="h-4 w-4" />
-                        </button>
-                    )}
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <button
-                                type="button"
-                                aria-label="Widget options"
-                                className="flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-black/35 text-white shadow-lg backdrop-blur-md transition hover:bg-black/55 focus:outline-none focus:ring-2 focus:ring-white/40"
-                            >
-                                <MoreHorizontal className="h-4 w-4" />
-                            </button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="frosted min-w-44 text-foreground">
-                            <DropdownMenuItem onClick={() => refreshWidget(baseKey)}>
-                                <RefreshCw className="h-4 w-4" />
-                                Refresh data
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => resizeWidget(baseKey)}>
-                                <Maximize2 className="h-4 w-4" />
-                                Resize widget
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => toggleWidgetBlur(baseKey)}>
-                                <EyeOff className="h-4 w-4" />
-                                {state.blurred ? "Unblur widget" : "Blur widget"}
-                            </DropdownMenuItem>
-                        </DropdownMenuContent>
-                    </DropdownMenu>
-                </div>
+                {showMenu && (
+                    <div className="absolute right-2 top-2 z-30 opacity-0 transition-opacity group-hover/widget-menu:opacity-100 focus-within:opacity-100">
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <button
+                                    type="button"
+                                    aria-label="Widget options"
+                                    className="flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-black/35 text-white shadow-lg backdrop-blur-md transition hover:bg-black/55 focus:outline-none focus:ring-2 focus:ring-white/40"
+                                >
+                                    <MoreHorizontal className="h-4 w-4" />
+                                </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="frosted min-w-44 text-foreground">
+                                <DropdownMenuItem onClick={() => refreshWidget(baseKey)}>
+                                    <RefreshCw className="h-4 w-4" />
+                                    Refresh data
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => resizeWidget(baseKey)}>
+                                    <Maximize2 className="h-4 w-4" />
+                                    Resize widget
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => toggleWidgetBlur(baseKey)}>
+                                    <EyeOff className="h-4 w-4" />
+                                    {state.blurred ? "Unblur widget" : "Blur widget"}
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                    </div>
+                )}
                 {state.blurred && (
                     <div className="pointer-events-none absolute inset-0 z-20 flex flex-col justify-center gap-2 rounded-xl bg-black/20 p-4 text-white/35 backdrop-blur-md">
                         {PRIVACY_BLUR_LINES.map((line) => (
@@ -664,7 +507,6 @@ export default function DashboardLayoutTemplate({
             " ",
         );
         const baseKey = `${columnName}-${entryKey}`;
-        const widgetId = `${columnName}::${entryKey}`;
 
         switch (entryKey) {
             case "placeholder": {
@@ -682,7 +524,6 @@ export default function DashboardLayoutTemplate({
                         baseKey,
                         wrapperClass,
                         style: heightStyle ? { height: heightStyle } : undefined,
-                        onRemove: () => removeWidget(widgetId),
                         children: renderWidget({
                             type: "placeholder",
                             params: cfg.params,
@@ -698,7 +539,7 @@ export default function DashboardLayoutTemplate({
                         baseKey,
                         wrapperClass,
                         ref,
-                        onRemove: () => removeWidget(widgetId),
+                        showMenu: false,
                         children: renderWidget({
                             type: "main-clock",
                             params: cfg,
@@ -712,7 +553,7 @@ export default function DashboardLayoutTemplate({
                     renderWidgetMenuWrapper({
                         baseKey,
                         wrapperClass,
-                        onRemove: () => removeWidget(widgetId),
+                        showMenu: false,
                         children: renderWidget({
                             type: "search-bar",
                             defaultOpen: openFromURL ?? false,
@@ -724,7 +565,7 @@ export default function DashboardLayoutTemplate({
                     renderWidgetMenuWrapper({
                         baseKey,
                         wrapperClass,
-                        onRemove: () => removeWidget(widgetId),
+                        showMenu: false,
                         children: renderWidget({
                             type: "link-view",
                         }),
@@ -735,6 +576,7 @@ export default function DashboardLayoutTemplate({
                 return renderWidgetMenuWrapper({
                     baseKey,
                     wrapperClass,
+                    showMenu: entryKey !== "glanceable-clock",
                     children: renderWidget({
                         type: entryKey,
                         consumerKey: typeof cfg.configKey === "string" && cfg.configKey.trim()
@@ -743,7 +585,6 @@ export default function DashboardLayoutTemplate({
                         params: cfg,
                         className: wrapperClass,
                     }),
-                    onRemove: () => removeWidget(widgetId),
                 });
         }
     };
@@ -811,19 +652,10 @@ export default function DashboardLayoutTemplate({
     const renderColumn = (columnName: Column) => {
         const entries = columns?.[columnName];
         const sortedEntries = entries && typeof entries === "object" ? sortWidgetEntries(entries) : [];
-    const dropPreviewIndex = dragOver?.column === columnName
-        ? dragOver.key === null
-            ? sortedEntries.length
-                : (() => {
-                    const index = sortedEntries.findIndex(([key]) => key === dragOver.key);
-                    return index < 0 ? sortedEntries.length : index;
-                })()
-        : -1;
         return (
-            <DashboardColumnDropZone
+            <div
                 key={columnName}
-                id={`column::${columnName}`}
-                panelId={COLUMN_PANEL_IDS[columnName]}
+                id={COLUMN_PANEL_IDS[columnName]}
                 className={COLUMN_CLASSNAME[columnName]}
                 style={{ scrollSnapStop: "always", touchAction: "pan-x" }}
             >
@@ -832,21 +664,16 @@ export default function DashboardLayoutTemplate({
                         renderColumnSkeleton(columnName)
                     )
                     : (
-                        <SortableContext items={sortedEntries.map(([key]) => `${columnName}::${key}`)} strategy={verticalListSortingStrategy}>
-                            {sortedEntries.flatMap(([key, cfg], index) => [
-                                dropPreviewIndex === index && dragPreview ? (
-                                    <WidgetDropPreview key={`preview-${columnName}-${key}`} type={dragPreview.type} params={dragPreview.params} />
-                                ) : null,
-                                <SortableDashboardWidget key={`${columnName}::${key}`} id={`${columnName}::${key}`} isActive={activeWidgetId === `${columnName}::${key}`}>
-                                    {renderWidgetEntry(columnName, key, cfg as Record<string, any>)}
-                                </SortableDashboardWidget>,
-                            ])}
-                            {dropPreviewIndex === sortedEntries.length && dragPreview ? (
-                                <WidgetDropPreview type={dragPreview.type} params={dragPreview.params} />
-                            ) : null}
-                        </SortableContext>
+                        sortedEntries.map(([key, cfg], index) =>
+                            renderWidgetEntry(
+                                columnName,
+                                key,
+                                cfg as Record<string, any>,
+                                index,
+                            ),
+                        )
                     )}
-            </DashboardColumnDropZone>
+            </div>
         );
     };
 
@@ -857,14 +684,6 @@ export default function DashboardLayoutTemplate({
     return (
         <>
             <div className="grid grid-rows-[minmax(0,1fr)_36px] h-dvh pt-5 p-2 overflow-x-hidden text-(--surface-foreground) bg-(--surface)">
-                <DndContext
-                    sensors={sensors}
-                    collisionDetection={closestCenter}
-                    onDragStart={handleWidgetDragStart}
-                    onDragOver={handleWidgetDragOver}
-                    onDragCancel={() => { setActiveWidgetId(null); setDragOver(null); setDragPreview(null); }}
-                    onDragEnd={handleWidgetDragEnd}
-                >
                 <main
                     id="page-content-container"
                     ref={containerRef}
@@ -876,7 +695,6 @@ export default function DashboardLayoutTemplate({
                 >
                     {COLUMN_ORDER.map(renderColumn)}
                 </main>
-                </DndContext>
 
                 <BottomNavbar
                     activePanel={activePanel}
