@@ -1,6 +1,6 @@
 "use client";
 
-import { type Dispatch, type ReactNode, type SetStateAction, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { type Dispatch, type SetStateAction, useEffect, useState } from "react";
 import { Plus, X } from "lucide-react";
 import ClockWidget from "@/components/widgets/ClockWidget";
 import GlanceableComponent from "@dashwise/integrationskit/Glanceable";
@@ -33,6 +33,7 @@ type GlanceableCatalogItem = {
   integrationName?: string;
   integrationDisplayName?: string;
   exampleProps: Record<string, any>;
+  properties?: Record<string, any>;
 };
 
 function getGlanceableGroupName(entry?: Partial<GlanceableCatalogItem> & Record<string, any>) {
@@ -89,9 +90,12 @@ export function EditGlanceablesView({
   const selectedParams = selectedGlanceable ? clockGlanceables[selectedGlanceable.id] ?? {} : {};
   const [integrationInfo, setIntegrationInfo] = useState<{
     environmentDefinitions?: Record<string, { description?: string; required?: boolean; default?: string }>;
+    glanceableJSON?: Record<string, any>;
+    integration?: Record<string, any>;
   } | null>(null);
   const [selectedGlanceableApp, setSelectedGlanceableApp] = useState("Builtin");
   const selectedCatalogItem = glanceablesCatalog.find((entry) => entry.type === selectedClockType);
+  const selectedProperties = selectedCatalogItem?.properties ?? {};
   const glanceableApps = Array.from(
     new Set(glanceablesCatalog.map((entry) => getGlanceableGroupName(entry))),
   );
@@ -113,7 +117,11 @@ export function EditGlanceablesView({
   }, [selectedClockType, withAuth]);
 
   useEffect(() => {
-    setSelectedGlanceableId(glanceablesForSide[0]?.id ?? null);
+    setSelectedGlanceableId((currentId) =>
+      glanceablesForSide.some((item) => item.id === currentId)
+        ? currentId
+        : glanceablesForSide[0]?.id ?? null,
+    );
   }, [glanceablesForSide, selectedClockPart]);
 
   const selectedCatalogAppName = getGlanceableGroupName(selectedCatalogItem);
@@ -161,7 +169,6 @@ export function EditGlanceablesView({
   }
 
   return (
-    <AutoHeight>
     <div className="min-w-0 space-y-4 overflow-x-hidden">
       <h2 className="text-lg font-semibold">{editorTitle}</h2>
 
@@ -178,13 +185,18 @@ export function EditGlanceablesView({
             <div className="flex min-h-10 items-center justify-center rounded-full px-2 py-0.5 frosted">
                 <GlanceableComponent
                   type={selectedClockType}
-                  params={selectedClockType === "greeting"
+                  glanceableJSON={integrationInfo?.glanceableJSON}
+                  integrationJSON={integrationInfo?.integration}
+                  params={{
+                    ...selectedProperties,
+                    ...selectedParams,
+                    ...(selectedClockType === "greeting"
                     ? {
-                      ...selectedParams,
                       username: selectedParams.username ??
                         user?.username,
                     }
-                    : selectedParams}
+                    : {}),
+                  }}
                 formatters={{
                   formatTemperature: localization.formatTemperature,
                   formatTime: localization.formatTime,
@@ -283,13 +295,13 @@ export function EditGlanceablesView({
               </div>
               <Separator />
               <div className="space-y-4">
-              <h3 className="text-sm font-medium">{selectedClockType} Properties</h3>
+              <h3 className="text-sm font-medium">{selectedCatalogItem?.name ?? "Glanceable"} Properties</h3>
 
               {selectedClockType === "date" && (
                 <div className="space-y-2">
                   <p className="text-xs text-white/70">Date format</p>
                   <Input
-                    value={String(selectedParams.format ?? "mmm/DD")}
+                    value={String(selectedParams.format ?? selectedProperties.format ?? "mmm/DD")}
                     onChange={(e) => updateSelectedParams({ format: e.target.value })}
                     placeholder="e.g. YYYY-MM-DD"
                     className="h-9 min-w-32 rounded-full border-white/20 px-3 bg-transparent text-sm"
@@ -304,7 +316,7 @@ export function EditGlanceablesView({
                 <div className="space-y-2">
                   <p className="text-xs text-white/70">Period</p>
                   <Select
-                    value={String(selectedParams.period ?? "day")}
+                    value={String(selectedParams.period ?? selectedProperties.period ?? "day")}
                     onValueChange={(value) => updateSelectedParams({ period: value })}
                   >
                     <SelectTrigger className="h-9 min-w-32 rounded-full border-white/20">
@@ -325,7 +337,7 @@ export function EditGlanceablesView({
                 <div className="space-y-2">
                   <p className="text-xs text-white/70">Source</p>
                   <Select
-                    value={String(selectedParams.source ?? "auto")}
+                    value={String(selectedParams.source ?? selectedProperties.source ?? "auto")}
                     onValueChange={(value) => updateSelectedParams({ source: value })}
                   >
                     <SelectTrigger className="h-9 min-w-32 rounded-full border-white/20">
@@ -343,9 +355,7 @@ export function EditGlanceablesView({
                 <div className="space-y-2">
                   <label className="flex items-center gap-2 text-sm text-white/75">
                     <Checkbox
-                      checked={Boolean(
-                        selectedParams.showUsername,
-                      )}
+                      checked={Boolean(selectedParams.showUsername ?? selectedProperties.showUsername)}
                       onCheckedChange={(checked) => updateSelectedParams({ showUsername: Boolean(checked) })}
                     />
                     Show username
@@ -360,7 +370,7 @@ export function EditGlanceablesView({
                       {key} {def.required ? <span className="text-destructive">*</span> : ""}
                     </p>
                     <Input
-                      value={String(selectedParams[key] ?? "")}
+                      value={String(selectedParams[key] ?? def.default ?? selectedProperties[key] ?? "")}
                       onChange={(e) => updateSelectedParams({ [key]: e.target.value })}
                       placeholder={def.description ?? `Override ${key}`}
                       className="h-9 min-w-32 rounded-full border-white/20 px-3 bg-transparent text-sm"
@@ -498,32 +508,6 @@ export function EditGlanceablesView({
           </div>
         </div>
       )}
-    </div>
-    </AutoHeight>
-  );
-}
-
-function AutoHeight({ children }: { children: ReactNode }) {
-  const contentRef = useRef<HTMLDivElement>(null);
-  const [height, setHeight] = useState<number | undefined>();
-
-  useLayoutEffect(() => {
-    const node = contentRef.current;
-    if (!node) return;
-
-    const updateHeight = () => setHeight(node.getBoundingClientRect().height);
-    updateHeight();
-    const observer = new ResizeObserver(updateHeight);
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, []);
-
-  return (
-    <div
-      className="overflow-hidden transition-[height] duration-300 ease-out"
-      style={{ height }}
-    >
-      <div ref={contentRef}>{children}</div>
     </div>
   );
 }
