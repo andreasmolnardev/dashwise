@@ -50,7 +50,7 @@ export default function MigratePage() {
     <div style={{ padding: 16, width: "50vw", marginInline: "auto" }} className="space-y-2">
       <h1 className="text-2xl font-bold">Migrations</h1>
       <p>Sometimes data doesn't persist fully across version updates.</p>
-      <Card className="p-2 frosted">
+      <Card className="p-2 frosted text-foreground">
         <h2 className="text-xl font-semibold">
           Legacy per-user config migration
         </h2>
@@ -63,7 +63,7 @@ export default function MigratePage() {
           {loading ? "Running migration…" : "Run migration"}
         </Button>
       </Card>
-      <Card className="frosted p-2">
+      <Card className="frosted p-2 text-foreground">
         <h2 className="text-xl font-semibold">
           News subscription add missing titles
         </h2>
@@ -77,7 +77,7 @@ export default function MigratePage() {
       </Card>
 
       {result && (
-        <Card className="p-2 frosted">
+        <Card className="p-2 frosted text-foreground">
           <h2 className="text-xl font-semibold">Result</h2>
           <pre style={{ marginTop: 12, whiteSpace: "pre-wrap" }}>{result}</pre>
         </Card>
