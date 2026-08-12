@@ -209,9 +209,10 @@ export function Tab({ dst, icon, title, group, isRoot, fallbackIcon, badge, hasE
 
     return (
         <div className="relative">
-            <div className={`group flex items-center justify-between px-3 py-3 h-10 rounded-md relative z-10 select-none transition-all duration-150 frosted-lite ${hasError ? "bg-red-500/20 text-red-100" : ""}`}>
+            <div className={`group flex items-center justify-between px-3 py-3 h-10 rounded-md relative z-10 select-none transition-all duration-150 frosted-lite ${hasError ? "bg-red-500/20 text-red-100" : isActive ? "bg-primary/15 ring-1 ring-primary/30" : ""}`}>
                 <Link
                     to={dst}
+                    aria-current={isActive ? "page" : undefined}
                     className="flex min-w-0 flex-1 items-center gap-2"
                     onClick={() => closeMobileSidebar?.()}
                 >
