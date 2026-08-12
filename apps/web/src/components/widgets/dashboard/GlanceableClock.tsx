@@ -142,24 +142,25 @@ function GlanceableCarousel({
     setIsFading(false);
     if (items.length < 2) return;
 
-    const timeouts: number[] = [];
+    let transitionTimeout: number | undefined;
     const advance = () => {
       setIsFading(true);
-      timeouts.push(window.setTimeout(() => {
+      transitionTimeout = window.setTimeout(() => {
         setIndex((current) => (current + 1) % items.length);
-        timeouts.push(window.setTimeout(() => setIsFading(false), 16));
-      }, CAROUSEL_FADE_DURATION_MS));
+        setIsFading(false);
+      }, CAROUSEL_FADE_DURATION_MS);
     };
     const interval = window.setInterval(advance, intervalSeconds * 1000);
     return () => {
       window.clearInterval(interval);
-      timeouts.forEach((timeout) => window.clearTimeout(timeout));
+      if (transitionTimeout !== undefined) window.clearTimeout(transitionTimeout);
     };
   }, [intervalSeconds, items.length]);
 
   const item = items[index];
   return item ? (
     <div
+      key={`${index}:${item.type}`}
       className={`min-w-0 transition-opacity ease-out ${isFading ? "opacity-30" : "opacity-100"}`}
       style={{ transitionDuration: `${CAROUSEL_FADE_DURATION_MS}ms` }}
     >
