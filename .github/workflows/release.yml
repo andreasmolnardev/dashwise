@@ -13,6 +13,16 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
+      - name: Read application version
+        id: version
+        run: |
+          VERSION="$(tr -d '[:space:]' < VERSION)"
+          if [ -z "$VERSION" ]; then
+            echo "VERSION file is empty" >&2
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
@@ -33,7 +43,7 @@ jobs:
           push: true
           platforms: linux/amd64,linux/arm64
           tags: |
-            ${{ secrets.DOCKER_USERNAME }}/dashwise:${{ secrets.VERSION }}
+            ${{ secrets.DOCKER_USERNAME }}/dashwise:${{ steps.version.outputs.version }}
             ${{ secrets.DOCKER_USERNAME }}/dashwise:latest
             ${{ secrets.DOCKER_USERNAME }}/dashwise:stable
       

@@ -13,6 +13,16 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
+      - name: Read application version
+        id: version
+        run: |
+          VERSION="$(tr -d '[:space:]' < VERSION)"
+          if [ -z "$VERSION" ]; then
+            echo "VERSION file is empty" >&2
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
       - name: Set up Bun
         uses: oven-sh/setup-bun@v1
 
@@ -41,4 +51,6 @@ jobs:
           file: ./Dockerfile
           push: true
           platforms: linux/amd64,linux/arm64
-          tags: ${{ secrets.DOCKER_USERNAME }}/dashwise:aio-preview
+          tags: |
+            ${{ secrets.DOCKER_USERNAME }}/dashwise:aio-preview
+            ${{ secrets.DOCKER_USERNAME }}/dashwise:${{ steps.version.outputs.version }}
