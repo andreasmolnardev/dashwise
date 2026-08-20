@@ -26,6 +26,7 @@ export function PaginatedCarouselViewComponent({
   const [currentPage, setCurrentPage] = useState(0);
 
   const containerRef = useRef<HTMLDivElement>(null);
+  const wheelLockRef = useRef<number | null>(null);
   const [containerWidth, setContainerWidth] = useState(0);
 
   useEffect(() => {
@@ -96,6 +97,47 @@ export function PaginatedCarouselViewComponent({
     const idx = Math.round(containerRef.current.scrollLeft / containerWidth);
     if (idx !== currentPage) setCurrentPage(idx);
   };
+
+  const onWheel = (event: React.WheelEvent<HTMLDivElement>) => {
+    const container = containerRef.current;
+    if (!container || !containerWidth) return;
+
+    // Keep vertical wheel gestures inside the link carousel. Otherwise they
+    // bubble to the dashboard's horizontal snap container and change panels.
+    if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    // There is no local page to advance to, but the gesture should still not
+    // change the dashboard panel while the pointer is over Link view.
+    if (pages.length < 2) return;
+
+    if (wheelLockRef.current !== null) return;
+
+    const currentIndex = Math.round(container.scrollLeft / containerWidth);
+    const nextIndex = Math.max(
+      0,
+      Math.min(pages.length - 1, currentIndex + (event.deltaY > 0 ? 1 : -1)),
+    );
+
+    if (nextIndex !== currentIndex) {
+      container.scrollTo({
+        left: nextIndex * containerWidth,
+        behavior: "smooth",
+      });
+    }
+
+    wheelLockRef.current = window.setTimeout(() => {
+      wheelLockRef.current = null;
+    }, 350);
+  };
+
+  useEffect(() => () => {
+    if (wheelLockRef.current !== null) {
+      window.clearTimeout(wheelLockRef.current);
+    }
+  }, []);
 
   /* smoother snap on mobile */
   useEffect(() => {
@@ -169,6 +211,7 @@ export function PaginatedCarouselViewComponent({
       <div
         ref={containerRef}
         onScroll={onScroll}
+        onWheel={onWheel}
         className="flex overflow-x-auto scrollbar-hide snap-x snap-mandatory gap-1.5"
         style={{
           touchAction: "pan-x",
