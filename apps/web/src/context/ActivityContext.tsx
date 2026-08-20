@@ -29,6 +29,7 @@ type ActivityContextValue = {
   unreadCount: number;
   calendarEvents: ActivityCalendarEvent[];
   refresh: () => void;
+  markNotificationsAsRead: (ids: string[]) => void;
 };
 
 const ActivityContext = createContext<ActivityContextValue | null>(null);
@@ -93,8 +94,22 @@ export function ActivityProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const markNotificationsAsRead = (ids: string[]) => {
+    const markAsRead = (currentNotifications: ActivityNotification[]) =>
+      currentNotifications.map((notification) =>
+        ids.length === 0 || ids.includes(notification.id)
+          ? { ...notification, status: "read" }
+          : notification,
+      );
+    setNotifications(markAsRead);
+    queryClient.setQueryData<ActivityNotification[]>(
+      ["api", token, ...queryKeys.notifications.items(token)],
+      (currentNotifications = []) => markAsRead(currentNotifications),
+    );
+  };
+
   const unreadCount = notifications.filter((notification) => notification.status !== "read").length;
-  return <ActivityContext.Provider value={{ notifications, unreadCount, calendarEvents, refresh }}>{children}</ActivityContext.Provider>;
+  return <ActivityContext.Provider value={{ notifications, unreadCount, calendarEvents, refresh, markNotificationsAsRead }}>{children}</ActivityContext.Provider>;
 }
 
 export function useActivity() {
