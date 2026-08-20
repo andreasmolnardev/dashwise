@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { cn } from "@/lib/utils";
 
 interface PaginatedCarouselViewProps {
@@ -98,7 +98,7 @@ export function PaginatedCarouselViewComponent({
     if (idx !== currentPage) setCurrentPage(idx);
   };
 
-  const onWheel = (event: React.WheelEvent<HTMLDivElement>) => {
+  const onWheel = useCallback((event: WheelEvent) => {
     const container = containerRef.current;
     if (!container || !containerWidth) return;
 
@@ -131,7 +131,17 @@ export function PaginatedCarouselViewComponent({
     wheelLockRef.current = window.setTimeout(() => {
       wheelLockRef.current = null;
     }, 350);
-  };
+  }, [containerWidth, pages.length]);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    // React's delegated wheel listener may be passive in some browsers. A
+    // native non-passive listener is required for preventDefault() here.
+    container.addEventListener("wheel", onWheel, { passive: false });
+    return () => container.removeEventListener("wheel", onWheel);
+  }, [onWheel]);
 
   useEffect(() => () => {
     if (wheelLockRef.current !== null) {
@@ -211,7 +221,6 @@ export function PaginatedCarouselViewComponent({
       <div
         ref={containerRef}
         onScroll={onScroll}
-        onWheel={onWheel}
         className="flex overflow-x-auto scrollbar-hide snap-x snap-mandatory gap-1.5"
         style={{
           touchAction: "pan-x",
