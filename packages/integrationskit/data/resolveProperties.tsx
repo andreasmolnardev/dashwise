@@ -275,10 +275,26 @@ function resolveImageProperties(
     url: url || undefined,
     action: resolveValue(props.click_action ?? props.clickAction ?? props.action ?? imageConfig.action, env),
     alt: resolveValue(props.alt ?? props.image_alt ?? imageConfig.alt, env),
+    showAltAsDescription: resolveBoolean(
+      props.show_alt_as_description ?? props.showAltAsDescription ??
+        imageConfig.show_alt_as_description ?? imageConfig.showAltAsDescription,
+      env,
+    ),
+    altDescriptionMaxLines: resolveNumber(
+      props.alt_description_max_lines ?? props.altDescriptionMaxLines ??
+        imageConfig.alt_description_max_lines ?? imageConfig.altDescriptionMaxLines,
+      env,
+    ),
     minHeight: resolveNumber(props.min_height ?? props.minHeight ?? imageConfig.min_height, env),
     maxHeight: resolveNumber(props.max_height ?? props.maxHeight ?? imageConfig.max_height, env),
     objectFit: resolveObjectFit(props.object_fit ?? props.objectFit ?? imageConfig.object_fit, env),
   };
+}
+
+function resolveBoolean(value: unknown, env: Record<string, string>) {
+  const resolved = resolveValue(value, env);
+  if (resolved === undefined) return undefined;
+  return ["true", "1", "yes", "on"].includes(resolved.trim().toLowerCase());
 }
 
 function getImagePath(value: unknown, path: string): unknown {

@@ -50,6 +50,8 @@ export type ResolvedWidget = {
     url?: string;
     action?: string;
     alt?: string;
+    showAltAsDescription?: boolean;
+    altDescriptionMaxLines?: number;
     minHeight?: number;
     maxHeight?: number;
     objectFit?: "contain" | "cover" | "fill" | "none" | "scale-down";
