@@ -21,6 +21,7 @@ import VerticalList from "@dashwise/integrationskit/templates/VerticalList";
 import LinkView from "./LinkView";
 import SearchBar from "./SearchBar";
 import IframeTemplate from "@dashwise/integrationskit/templates/IFrame";
+import ImageTemplate from "@dashwise/integrationskit/templates/Image";
 import Widget from "@dashwise/integrationskit/Widget";
 import ProgressWidget from "./ProgressWidget";
 import ShortcutsWidget from "./ShortcutsWidget";
@@ -32,6 +33,7 @@ import {
   getLinksCollectionsAction,
   getLinksItemsAction,
   getNewsFeedAction,
+  previewImageSourceAction,
 } from '@/lib/apiClient';
 
 export type WidgetProps = {
@@ -119,6 +121,9 @@ export function renderWidget({
 
     case "iframe":
       return <IframeWidget className={finalClassName} params={renderParams} />;
+
+    case "image":
+      return <ImageWidget className={finalClassName} params={renderParams} isPreview={isPreview} />;
 
     default:
       return (
@@ -396,6 +401,171 @@ function IframeWidget({
       }}
     />
   );
+}
+
+function ImageWidget({
+  className,
+  params,
+  isPreview,
+}: {
+  className?: string;
+  params?: Record<string, any>;
+  isPreview?: boolean;
+}) {
+  const localization = useLocalization();
+  const { withAuth } = useAuth();
+  const { url, image_url, imageUrl, alt, min_height, max_height, object_fit, click_action, clickAction, action, invalidate_after, invalidateAfter, title, icon, title_url, titleUrl, title_action } = params ?? {};
+  const sourceUrl = String(url || image_url || imageUrl || "").trim();
+  const imageUrlPath = String(params?.image_url_property ?? params?.image_url_path ?? params?.imageUrlProperty ?? "").trim();
+  const titleTemplate = typeof title === "string" ? title : "";
+  const [resolvedUrl, setResolvedUrl] = useState("");
+  const [resolvedTitle, setResolvedTitle] = useState(titleTemplate || imageFileName(sourceUrl));
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setError(null);
+
+    if (!sourceUrl) {
+      setResolvedUrl("");
+      setResolvedTitle(titleTemplate || imageFileName(sourceUrl));
+      setLoading(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    if (isImageUrl(sourceUrl)) {
+      setResolvedUrl(sourceUrl);
+      setResolvedTitle(titleTemplate || imageFileName(sourceUrl));
+      setLoading(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    setResolvedUrl("");
+    setResolvedTitle(titleTemplate);
+    setLoading(true);
+    void withAuth((auth) => previewImageSourceAction(auth, sourceUrl, invalidate_after ?? invalidateAfter))
+      .then((payload) => {
+        const selected = imageUrlPath
+          ? getImagePath(payload.body, imageUrlPath)
+          : findImageUrl(payload.body);
+        const nextUrl = typeof selected === "string" ? selected : findImageUrl(selected);
+        if (!nextUrl) throw new Error("No image URL found in response");
+        if (!cancelled) {
+          setResolvedUrl(nextUrl);
+          const resolvedTitle = resolveImageTitle(titleTemplate, payload.body);
+          setResolvedTitle(resolvedTitle || imageFileName(nextUrl));
+        }
+      })
+      .catch((reason) => {
+        if (!cancelled) setError(reason instanceof Error ? reason.message : String(reason));
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [imageUrlPath, isPreview, sourceUrl, titleTemplate, withAuth]);
+
+  if (loading) return <WidgetLoadingState className={className} />;
+  if (error) return <WidgetErrorState className={className} message={error} />;
+
+  return (
+    <ImageTemplate
+      resolved={{
+        header: {
+          title: resolvedTitle,
+          show: !!resolvedTitle,
+          icon: icon || "",
+          titleAction: title_url || titleUrl || title_action || "",
+        },
+        image: {
+          url: resolvedUrl,
+          action: click_action || clickAction || action || "",
+          alt: alt || resolvedTitle || title || "",
+          minHeight: min_height,
+          maxHeight: max_height,
+          objectFit: object_fit,
+        },
+        raw: params ?? {},
+      }}
+      className={className}
+      formatters={{
+        formatTemperature: localization.formatTemperature,
+        formatTime: localization.formatTime,
+        formatDate: localization.formatDate,
+      }}
+    />
+  );
+}
+
+function resolveImageTitle(template: string, body: unknown) {
+  if (!template.includes("${json")) return template;
+  return template.replace(/\$\{json(?:\.([^}]+))?\}/g, (_, path?: string) => {
+    const value = path ? getImagePath(body, path) : body;
+    if (value === undefined || value === null) return "";
+    return typeof value === "string" ? value : JSON.stringify(value);
+  });
+}
+
+function imageFileName(value: string) {
+  if (!value) return "";
+  const withoutQuery = value.split(/[?#]/, 1)[0];
+  const segment = withoutQuery.split("/").filter(Boolean).pop() ?? "";
+  if (!segment || segment.includes(":")) return "";
+  try {
+    return decodeURIComponent(segment);
+  } catch {
+    return segment;
+  }
+}
+
+function isImageUrl(value: string) {
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return false;
+  if (normalized.startsWith("data:image/")) return true;
+  return /(?:\.(?:avif|gif|jpe?g|png|svg|webp)|\/(?:avif|gif|jpe?g|png|svg|webp))(?:[?#].*)?$/.test(normalized);
+}
+
+function getImagePath(value: unknown, path: string): unknown {
+  return path.split(".").reduce<unknown>((current, segment) => {
+    if (current === null || current === undefined || typeof current !== "object") return undefined;
+    return (current as Record<string, unknown>)[segment];
+  }, value);
+}
+
+function findImageUrl(value: unknown, keyHint = ""): string | undefined {
+  if (typeof value === "string") {
+    const candidate = value.trim();
+    if (isImageUrl(candidate) || imageKeyScore(keyHint) > 0) return candidate;
+    return undefined;
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const found = findImageUrl(item, keyHint);
+      if (found) return found;
+    }
+    return undefined;
+  }
+  if (!value || typeof value !== "object") return undefined;
+
+  const entries = Object.entries(value as Record<string, unknown>)
+    .sort(([left], [right]) => imageKeyScore(right) - imageKeyScore(left));
+  for (const [key, child] of entries) {
+    const found = findImageUrl(child, key);
+    if (found) return found;
+  }
+  return undefined;
+}
+
+function imageKeyScore(key: string) {
+  return /^(image|img|thumbnail|thumb|src|url|href|path)(_url)?$/i.test(key) ? 2 : 0;
 }
 
 function IntegrationWidget({

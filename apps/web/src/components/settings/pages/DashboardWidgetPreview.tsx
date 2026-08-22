@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, useCallback, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import useAuth from "@/context/useAuth";
-import { getConsumerDataAction } from '@/lib/apiClient';
+import { getConsumerDataAction, previewImageSourceAction } from '@/lib/apiClient';
 import {
   closestCenter,
   DndContext,
@@ -93,6 +93,8 @@ type DashboardWidgetPreviewProps = {
   clockStyle: Record<string, any>;
   setClockStyle: Dispatch<SetStateAction<Record<string, any>>>;
   fonts: Array<{ name: string; path: string }>;
+  editWidgetRequest?: { column: ColumnName; widgetId: string; widgetIndex?: number } | null;
+  onEditWidgetRequestHandled?: () => void;
 };
 
 function WidgetTile({
@@ -107,6 +109,8 @@ function WidgetTile({
   onEditClockPart,
   clockSelection,
   glanceableNames,
+  openForEdit,
+  onEditWidgetRequestHandled,
 }: {
   columnWidget: ColumnWidget;
   widgetConfig?: WidgetCatalogItem;
@@ -119,6 +123,8 @@ function WidgetTile({
   onEditClockPart?: (part: GlanceableSide | "clock") => void;
   clockSelection?: ClockGlanceableSelection;
   glanceableNames?: Record<string, string>;
+  openForEdit?: boolean;
+  onEditWidgetRequestHandled?: () => void;
 }) {
   const { withAuth } = useAuth();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -307,6 +313,12 @@ function WidgetTile({
     ...(columnWidget.input ?? {}),
   };
   const isClockWidget = columnWidget.type === "main-clock" || columnWidget.type === "glanceable-clock";
+
+  useEffect(() => {
+    if (!openForEdit || !canEditData) return;
+    setIsDataDialogOpen(true);
+  }, [canEditData, openForEdit]);
+
   const handleSaveHeight = () => {
     const nextHeight = parseWidgetHeight(heightDraft);
     onUpdateProperties(columnWidget.id, nextHeight !== undefined
@@ -371,7 +383,13 @@ function WidgetTile({
             )}
             <div className="flex items-center justify-center gap-1">
               {canEditData && (
-                <Dialog open={isDataDialogOpen} onOpenChange={setIsDataDialogOpen}>
+                <Dialog
+                  open={isDataDialogOpen}
+                  onOpenChange={(open) => {
+                    setIsDataDialogOpen(open);
+                    if (!open) onEditWidgetRequestHandled?.();
+                  }}
+                >
                   <DialogTrigger asChild>
                     <button
                       type="button"
@@ -381,7 +399,7 @@ function WidgetTile({
                       <Edit3 className="h-4 w-4" />
                     </button>
                   </DialogTrigger>
-                <DialogContent className="frosted">
+                <DialogContent className="frosted max-h-[90vh] overflow-y-auto">
                   <DialogHeader>
                     <DialogTitle>{supportsUserCustomizations ? "Edit Widget Settings" : "Edit Widget Input"}</DialogTitle>
                     <DialogDescription>
@@ -574,6 +592,19 @@ function WidgetInputEditor({
     return <ShortcutsPicker value={shortcutIds} onChange={(nextIds) => onChange({ ...inputDraft, shortcutIds: nextIds })} />;
   }
 
+  if (widgetType === "image") {
+    return (
+      <ImageWidgetInputEditor
+        schema={schema}
+        inputDraft={inputDraft}
+        onChange={onChange}
+        dataError={dataError}
+        setDataError={setDataError}
+        widgetId={widgetId}
+      />
+    );
+  }
+
   return (
     <WidgetPropertiesForm
       idPrefix={`widget-input-${widgetId}`}
@@ -585,6 +616,185 @@ function WidgetInputEditor({
       emptyMessage="No input properties for this widget."
     />
   );
+}
+
+function ImageWidgetInputEditor({
+  schema,
+  inputDraft,
+  onChange,
+  dataError,
+  setDataError,
+  widgetId,
+}: {
+  schema?: Record<string, any>;
+  inputDraft: Record<string, any>;
+  onChange: (next: Record<string, any>) => void;
+  dataError: string | null;
+  setDataError: (value: string | null) => void;
+  widgetId: string;
+}) {
+  const { withAuth } = useAuth();
+  const imageUrl = inputDraft.url ?? inputDraft.image_url ?? inputDraft.imageUrl;
+  const imageUrlPath = inputDraft.image_url_property ?? inputDraft.image_url_path ?? inputDraft.imageUrlProperty ?? "";
+  const [resolvedUrl, setResolvedUrl] = useState("");
+  const [isResolvingUrl, setIsResolvingUrl] = useState(false);
+  const [urlError, setUrlError] = useState<string | null>(null);
+  const propertySchema = { ...(schema ?? {}) };
+  delete propertySchema.image_url_property;
+  delete propertySchema.image_url_path;
+  delete propertySchema.imageUrlProperty;
+  const formValue = { ...inputDraft };
+  delete formValue.image_url_property;
+  delete formValue.image_url_path;
+  delete formValue.imageUrlProperty;
+
+  useEffect(() => {
+    const sourceUrl = String(imageUrl ?? "").trim();
+    const path = String(imageUrlPath ?? "").trim();
+    let cancelled = false;
+
+    setUrlError(null);
+    if (!sourceUrl) {
+      setResolvedUrl("");
+      setIsResolvingUrl(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    if (isImageUrl(sourceUrl)) {
+      setResolvedUrl(sourceUrl);
+      setIsResolvingUrl(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    setResolvedUrl("");
+    setIsResolvingUrl(true);
+    void withAuth((auth) => previewImageSourceAction(
+      auth,
+      sourceUrl,
+      inputDraft.invalidate_after ?? inputDraft.invalidateAfter,
+    ))
+      .then((payload) => payload.body)
+      .then((body) => {
+        if (cancelled) return;
+        const selected = path ? getImagePath(body, path) : findImageUrl(body);
+        const nextUrl = typeof selected === "string" ? selected : findImageUrl(selected);
+        if (!nextUrl) throw new Error("No image URL found in response");
+        setResolvedUrl(nextUrl);
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setUrlError(error instanceof Error ? error.message : String(error));
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setIsResolvingUrl(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [imageUrl, imageUrlPath, withAuth]);
+
+  return (
+    <div className="space-y-3">
+      <WidgetPropertiesForm
+        idPrefix={`widget-input-${widgetId}`}
+        schema={propertySchema}
+        value={formValue}
+        onChange={(next) => onChange({ ...next, ...pickImageUrlProperty(inputDraft) })}
+        onError={setDataError}
+        error={dataError}
+        emptyMessage="No image input properties for this widget."
+      />
+      {!isImageUrl(String(imageUrl ?? "")) && (
+        <div className="space-y-1.5 rounded-lg border border-white/10 bg-black/15 p-3">
+          <label htmlFor={`widget-input-${widgetId}-image-url-property`} className="text-sm font-medium text-white">
+            Image URL Path
+          </label>
+          <p className="text-xs text-white/50">
+            JSON path containing image URL, for example <code>img.url</code> or <code>thumbnail</code>.
+          </p>
+          <input
+            id={`widget-input-${widgetId}-image-url-property`}
+            type="text"
+            value={String(inputDraft.image_url_property ?? inputDraft.image_url_path ?? "")}
+            onChange={(event) => onChange({ ...inputDraft, image_url_property: event.target.value })}
+            className="w-full rounded-md border border-white/15 bg-black/20 px-3 py-2 text-sm outline-none"
+            placeholder="img.url"
+          />
+        </div>
+      )}
+      <div className="rounded-lg border border-white/10 bg-black/15 p-3">
+        <p className="text-xs uppercase tracking-wide text-white/50">Resolved URL</p>
+        {isResolvingUrl ? (
+          <p className="mt-1 text-sm text-white/60">Resolving image URL...</p>
+        ) : resolvedUrl ? (
+          <p className="mt-1 break-all text-sm text-white/90">{resolvedUrl}</p>
+        ) : (
+          <p className="mt-1 text-sm text-white/60">{urlError ?? "No image URL resolved."}</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function pickImageUrlProperty(input: Record<string, any>) {
+  if (input.image_url_property !== undefined) {
+    return { image_url_property: input.image_url_property };
+  }
+  if (input.image_url_path !== undefined) {
+    return { image_url_path: input.image_url_path };
+  }
+  if (input.imageUrlProperty !== undefined) {
+    return { imageUrlProperty: input.imageUrlProperty };
+  }
+  return {};
+}
+
+function isImageUrl(value: string) {
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return false;
+  if (normalized.startsWith("data:image/")) return true;
+  return /(?:\.(?:avif|gif|jpe?g|png|svg|webp)|\/(?:avif|gif|jpe?g|png|svg|webp))(?:[?#].*)?$/.test(normalized);
+}
+
+function getImagePath(value: unknown, path: string): unknown {
+  return path.split(".").reduce<unknown>((current, segment) => {
+    if (current === null || current === undefined || typeof current !== "object") return undefined;
+    return (current as Record<string, unknown>)[segment];
+  }, value);
+}
+
+function findImageUrl(value: unknown, keyHint = ""): string | undefined {
+  if (typeof value === "string") {
+    const candidate = value.trim();
+    if (isImageUrl(candidate) || imageKeyScore(keyHint) > 0) return candidate;
+    return undefined;
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const found = findImageUrl(item, keyHint);
+      if (found) return found;
+    }
+    return undefined;
+  }
+  if (!value || typeof value !== "object") return undefined;
+
+  const entries = Object.entries(value as Record<string, unknown>)
+    .sort(([left], [right]) => imageKeyScore(right) - imageKeyScore(left));
+  for (const [key, child] of entries) {
+    const found = findImageUrl(child, key);
+    if (found) return found;
+  }
+  return undefined;
+}
+
+function imageKeyScore(key: string) {
+  return /^(image|img|thumbnail|thumb|src|url|href|path)(_url)?$/i.test(key) ? 2 : 0;
 }
 
 function DisplayedItemRow({
@@ -908,6 +1118,8 @@ export function DashboardWidgetPreview({
   clockStyle,
   setClockStyle,
   fonts,
+  editWidgetRequest,
+  onEditWidgetRequestHandled,
 }: DashboardWidgetPreviewProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState<{ zone: ColumnName; index: number } | null>(null);
@@ -1134,11 +1346,16 @@ export function DashboardWidgetPreview({
                           items={columns[column].map((item) => item.id)}
                           strategy={verticalListSortingStrategy}
                         >
-                          {columns[column].map((widget) => (
+                          {columns[column].map((widget, widgetIndex) => (
                             <div key={widget.id}>
                               <WidgetTile
                                 columnWidget={widget}
                                 widgetConfig={widgetCatalog.find((item) => item.key === widget.type)}
+                                openForEdit={editWidgetRequest?.column === column &&
+                                  (editWidgetRequest.widgetId === widget.id ||
+                                    (editWidgetRequest.widgetId === widget.type &&
+                                      (editWidgetRequest.widgetIndex === undefined || editWidgetRequest.widgetIndex === widgetIndex)))}
+                                onEditWidgetRequestHandled={onEditWidgetRequestHandled}
                                 isActive={activeId === widget.id}
                                 onRemove={() => removeWidget(column, widget.id)}
                                 onEditClockPart={openClockEditor}
