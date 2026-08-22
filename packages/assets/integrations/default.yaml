@@ -87,6 +87,8 @@ configuration:
           click_action: ""
           invalidate_after: "5 minutes"
           alt: "Image widget"
+          show_alt_as_description: false
+          alt_description_max_lines: 2
           max_height: 600
     - name: "Progress"
       key: "progress"

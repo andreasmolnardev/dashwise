@@ -419,6 +419,12 @@ function ImageWidget({
   const imageUrlPath = String(params?.image_url_property ?? params?.image_url_path ?? params?.imageUrlProperty ?? "").trim();
   const titleTemplate = typeof title === "string" ? title : "";
   const altTemplate = typeof alt === "string" ? alt : "";
+  const showAltAsDescription = resolveImageBoolean(
+    params?.show_alt_as_description ?? params?.showAltAsDescription,
+  );
+  const altDescriptionMaxLines = resolveImageDescriptionMaxLines(
+    params?.alt_description_max_lines ?? params?.altDescriptionMaxLines,
+  );
   const [resolvedUrl, setResolvedUrl] = useState("");
   const [resolvedTitle, setResolvedTitle] = useState(titleTemplate || imageFileName(sourceUrl));
   const [resolvedAlt, setResolvedAlt] = useState(altTemplate);
@@ -495,6 +501,8 @@ function ImageWidget({
           url: resolvedUrl,
           action: click_action || clickAction || action || "",
           alt: resolvedAlt || resolvedTitle || title || "",
+          showAltAsDescription,
+          altDescriptionMaxLines,
           minHeight: min_height,
           maxHeight: max_height,
           objectFit: object_fit,
@@ -518,6 +526,17 @@ function resolveImageTitle(template: string, body: unknown) {
     if (value === undefined || value === null) return "";
     return typeof value === "string" ? value : JSON.stringify(value);
   });
+}
+
+function resolveImageBoolean(value: unknown) {
+  if (typeof value === "boolean") return value;
+  if (typeof value !== "string") return false;
+  return ["true", "1", "yes", "on"].includes(value.trim().toLowerCase());
+}
+
+function resolveImageDescriptionMaxLines(value: unknown) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? Math.floor(parsed) : 2;
 }
 
 function imageFileName(value: string) {
