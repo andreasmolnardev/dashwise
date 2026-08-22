@@ -418,8 +418,10 @@ function ImageWidget({
   const sourceUrl = String(url || image_url || imageUrl || "").trim();
   const imageUrlPath = String(params?.image_url_property ?? params?.image_url_path ?? params?.imageUrlProperty ?? "").trim();
   const titleTemplate = typeof title === "string" ? title : "";
+  const altTemplate = typeof alt === "string" ? alt : "";
   const [resolvedUrl, setResolvedUrl] = useState("");
   const [resolvedTitle, setResolvedTitle] = useState(titleTemplate || imageFileName(sourceUrl));
+  const [resolvedAlt, setResolvedAlt] = useState(altTemplate);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -430,6 +432,7 @@ function ImageWidget({
     if (!sourceUrl) {
       setResolvedUrl("");
       setResolvedTitle(titleTemplate || imageFileName(sourceUrl));
+      setResolvedAlt(altTemplate);
       setLoading(false);
       return () => {
         cancelled = true;
@@ -439,6 +442,7 @@ function ImageWidget({
     if (isImageUrl(sourceUrl)) {
       setResolvedUrl(sourceUrl);
       setResolvedTitle(titleTemplate || imageFileName(sourceUrl));
+      setResolvedAlt(altTemplate);
       setLoading(false);
       return () => {
         cancelled = true;
@@ -447,6 +451,7 @@ function ImageWidget({
 
     setResolvedUrl("");
     setResolvedTitle(titleTemplate);
+    setResolvedAlt(altTemplate);
     setLoading(true);
     void withAuth((auth) => previewImageSourceAction(auth, sourceUrl, invalidate_after ?? invalidateAfter))
       .then((payload) => {
@@ -459,6 +464,7 @@ function ImageWidget({
           setResolvedUrl(nextUrl);
           const resolvedTitle = resolveImageTitle(titleTemplate, payload.body);
           setResolvedTitle(resolvedTitle || imageFileName(nextUrl));
+          setResolvedAlt(resolveImageTitle(altTemplate, payload.body));
         }
       })
       .catch((reason) => {
@@ -471,7 +477,7 @@ function ImageWidget({
     return () => {
       cancelled = true;
     };
-  }, [imageUrlPath, isPreview, sourceUrl, titleTemplate, withAuth]);
+  }, [altTemplate, imageUrlPath, isPreview, sourceUrl, titleTemplate, withAuth]);
 
   if (loading) return <WidgetLoadingState className={className} />;
   if (error) return <WidgetErrorState className={className} message={error} />;
@@ -488,7 +494,7 @@ function ImageWidget({
         image: {
           url: resolvedUrl,
           action: click_action || clickAction || action || "",
-          alt: alt || resolvedTitle || title || "",
+          alt: resolvedAlt || resolvedTitle || title || "",
           minHeight: min_height,
           maxHeight: max_height,
           objectFit: object_fit,
