@@ -39,6 +39,7 @@ import {
 } from "./shared";
 import { config } from "src/lib/config";
 import { getUpcomingEvents } from "src/lib/calendar";
+import { createLogger } from "../lib/logger";
 
 type ConsumerType = "widget" | "glanceable";
 type CachePolicy = "strict" | "cache-first";
@@ -62,6 +63,7 @@ const previewRedis = new RedisClient(
 const previewJsonMaxBytes = 1_048_576;
 const previewJsonTimeoutMs = 10_000;
 let previewRedisUnavailable = false;
+const imagePreviewLogger = createLogger("ImagePreview");
 
 const integrationsRoute = new Hono();
 
@@ -182,91 +184,110 @@ integrationsRoute
   .post(
     "/api/v1/integrations/preview-json",
     withJson(async (c) => {
-      const { userId } = await requireAuth({ token: readAuthToken(c) });
-      const body = await readJsonBody<any>(c);
-      const target = String(body?.url ?? "").trim();
-      let targetUrl: URL;
+      let previewUserId = "unknown";
+      let targetLabel = "unknown";
       try {
-        targetUrl = new URL(target);
-      } catch {
-        throw new ApiActionError("Invalid preview URL", 400, {
-          error: "Preview URL must be an absolute HTTP or HTTPS URL",
-        });
-      }
-
-      if (!['http:', 'https:'].includes(targetUrl.protocol)) {
-        throw new ApiActionError("Unsupported preview URL", 400, {
-          error: "Preview URL must use HTTP or HTTPS",
-        });
-      }
-
-      if (!(Bun.env.ALLOW_PRIVATE_PREVIEW_URLS === "true" || Bun.env.ALLOW_PRIVATE_PREVIEW_URLS === "1")) {
-        if (await isPrivatePreviewTarget(targetUrl)) {
-          throw new ApiActionError("Private preview URLs are disabled", 403, {
-            error: "Private preview URLs require ALLOW_PRIVATE_PREVIEW_URLS=true",
-          });
-        }
-      }
-
-      const cacheSeconds = parsePreviewCacheSeconds(
-        body?.invalidateAfter ?? body?.invalidate_after,
-      );
-      const cacheKey = createPreviewCacheKey(userId, target, cacheSeconds);
-      const cached = await getPreviewJsonCache(cacheKey);
-      if (cached !== null) {
-        return { body: cached.body };
-      }
-
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), previewJsonTimeoutMs);
-      try {
-        const response = await fetch(targetUrl, {
-          headers: { Accept: "application/json" },
-          signal: controller.signal,
-          ...(config.ALLOW_SSL
-            ? ({ tls: { rejectUnauthorized: false } } as any)
-            : {}),
-        } as any);
-        if (!response.ok) {
-          throw new ApiActionError(`Preview request returned HTTP ${response.status}`, 502, {
-            error: `Preview request returned HTTP ${response.status}`,
-          });
-        }
-
-        const contentType = response.headers.get("content-type") ?? "";
-        if (!contentType.includes("json")) {
-          throw new ApiActionError("Preview response is not JSON", 422, {
-            error: "Image endpoint preview must return JSON",
-          });
-        }
-
-        const contentLength = Number(response.headers.get("content-length"));
-        if (Number.isFinite(contentLength) && contentLength > previewJsonMaxBytes) {
-          throw new ApiActionError("Preview response is too large", 413, {
-            error: "Image endpoint JSON response exceeds 1 MiB",
-          });
-        }
-
-        const text = await response.text();
-        if (Buffer.byteLength(text, "utf8") > previewJsonMaxBytes) {
-          throw new ApiActionError("Preview response is too large", 413, {
-            error: "Image endpoint JSON response exceeds 1 MiB",
-          });
-        }
-
-        let parsed: unknown;
+        const { userId } = await requireAuth({ token: readAuthToken(c) });
+        previewUserId = userId;
+        const body = await readJsonBody<any>(c);
+        const target = String(body?.url ?? "").trim();
+        let targetUrl: URL;
+        targetLabel = "invalid-url";
         try {
-          parsed = JSON.parse(text);
+          targetUrl = new URL(target);
+          targetLabel = `${targetUrl.origin}${targetUrl.pathname}`;
         } catch {
-          throw new ApiActionError("Preview response is invalid JSON", 422, {
-            error: "Image endpoint returned invalid JSON",
+          throw new ApiActionError("Invalid preview URL", 400, {
+            error: "Preview URL must be an absolute HTTP or HTTPS URL",
           });
         }
 
-        await setPreviewJsonCache(cacheKey, parsed, cacheSeconds);
-        return { body: parsed };
-      } finally {
-        clearTimeout(timeout);
+        if (!['http:', 'https:'].includes(targetUrl.protocol)) {
+          throw new ApiActionError("Unsupported preview URL", 400, {
+            error: "Preview URL must use HTTP or HTTPS",
+          });
+        }
+
+        if (!(Bun.env.ALLOW_PRIVATE_PREVIEW_URLS === "true" || Bun.env.ALLOW_PRIVATE_PREVIEW_URLS === "1")) {
+          if (await isPrivatePreviewTarget(targetUrl)) {
+            throw new ApiActionError("Private preview URLs are disabled", 403, {
+              error: "Private preview URLs require ALLOW_PRIVATE_PREVIEW_URLS=true",
+            });
+          }
+        }
+
+        const cacheSeconds = parsePreviewCacheSeconds(
+          body?.invalidateAfter ?? body?.invalidate_after,
+        );
+        const cacheKey = createPreviewCacheKey(userId, target, cacheSeconds);
+        const cached = await getPreviewJsonCache(cacheKey);
+        if (cached !== null) {
+          return { body: cached.body };
+        }
+
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), previewJsonTimeoutMs);
+        try {
+          const response = await fetch(targetUrl, {
+            headers: { Accept: "application/json" },
+            signal: controller.signal,
+            ...(config.ALLOW_SSL
+              ? ({ tls: { rejectUnauthorized: false } } as any)
+              : {}),
+          } as any);
+          if (!response.ok) {
+            throw new ApiActionError(`Preview request returned HTTP ${response.status}`, 502, {
+              error: `Preview request returned HTTP ${response.status}`,
+            });
+          }
+
+          const contentType = response.headers.get("content-type") ?? "";
+          if (!contentType.includes("json")) {
+            throw new ApiActionError("Preview response is not JSON", 422, {
+              error: "Image endpoint preview must return JSON",
+            });
+          }
+
+          const contentLength = Number(response.headers.get("content-length"));
+          if (Number.isFinite(contentLength) && contentLength > previewJsonMaxBytes) {
+            throw new ApiActionError("Preview response is too large", 413, {
+              error: "Image endpoint JSON response exceeds 1 MiB",
+            });
+          }
+
+          const text = await response.text();
+          if (Buffer.byteLength(text, "utf8") > previewJsonMaxBytes) {
+            throw new ApiActionError("Preview response is too large", 413, {
+              error: "Image endpoint JSON response exceeds 1 MiB",
+            });
+          }
+
+          let parsed: unknown;
+          try {
+            parsed = JSON.parse(text);
+          } catch {
+            throw new ApiActionError("Preview response is invalid JSON", 422, {
+              error: "Image endpoint returned invalid JSON",
+            });
+          }
+
+          await setPreviewJsonCache(cacheKey, parsed, cacheSeconds);
+          return { body: parsed };
+        } finally {
+          clearTimeout(timeout);
+        }
+      } catch (error) {
+        imagePreviewLogger.error(
+          "JSON image preview failed",
+          {
+            userId: previewUserId,
+            target: targetLabel,
+            error: error instanceof Error
+              ? `${error.name}: ${error.message}\n${error.stack ?? ""}`
+              : String(error),
+          },
+        );
+        throw error;
       }
     }),
   )
