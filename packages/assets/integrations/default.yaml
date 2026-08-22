@@ -75,6 +75,19 @@ configuration:
           url: "https://www.wikipedia.org"
           min_height: 300
           max_height: 600
+    - name: "Image"
+      key: "image"
+      template: "image"
+      category: "Tools"
+      data:
+        input:
+          url: "https://placehold.co/800x450/png"
+          title: ""
+          title_url: ""
+          click_action: ""
+          invalidate_after: "5 minutes"
+          alt: "Image widget"
+          max_height: 600
     - name: "Progress"
       key: "progress"
       template: "progress"

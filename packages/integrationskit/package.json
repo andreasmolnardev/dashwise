@@ -42,6 +42,16 @@
       "import": "./templates/IFrame.tsx",
       "default": "./templates/IFrame.tsx"
     },
+    "./templates/Image": {
+      "types": "./templates/Image.tsx",
+      "import": "./templates/Image.tsx",
+      "default": "./templates/Image.tsx"
+    },
+    "./templates/image": {
+      "types": "./templates/Image.tsx",
+      "import": "./templates/Image.tsx",
+      "default": "./templates/Image.tsx"
+    },
     "./templates/*": "./templates/*.tsx",
     "./templates/WidgetColumn": "./templates/WidgetColumn.tsx",
     "./static-widgets/CalendarWidgets": "./static-widgets/CalendarWidgets.tsx",
