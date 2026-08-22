@@ -93,6 +93,8 @@ type DashboardWidgetPreviewProps = {
   clockStyle: Record<string, any>;
   setClockStyle: Dispatch<SetStateAction<Record<string, any>>>;
   fonts: Array<{ name: string; path: string }>;
+  editWidgetRequest?: { column: ColumnName; widgetId: string; widgetIndex?: number } | null;
+  onEditWidgetRequestHandled?: () => void;
 };
 
 function WidgetTile({
@@ -107,6 +109,8 @@ function WidgetTile({
   onEditClockPart,
   clockSelection,
   glanceableNames,
+  openForEdit,
+  onEditWidgetRequestHandled,
 }: {
   columnWidget: ColumnWidget;
   widgetConfig?: WidgetCatalogItem;
@@ -119,6 +123,8 @@ function WidgetTile({
   onEditClockPart?: (part: GlanceableSide | "clock") => void;
   clockSelection?: ClockGlanceableSelection;
   glanceableNames?: Record<string, string>;
+  openForEdit?: boolean;
+  onEditWidgetRequestHandled?: () => void;
 }) {
   const { withAuth } = useAuth();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -307,6 +313,12 @@ function WidgetTile({
     ...(columnWidget.input ?? {}),
   };
   const isClockWidget = columnWidget.type === "main-clock" || columnWidget.type === "glanceable-clock";
+
+  useEffect(() => {
+    if (!openForEdit || !canEditData) return;
+    setIsDataDialogOpen(true);
+  }, [canEditData, openForEdit]);
+
   const handleSaveHeight = () => {
     const nextHeight = parseWidgetHeight(heightDraft);
     onUpdateProperties(columnWidget.id, nextHeight !== undefined
@@ -371,7 +383,13 @@ function WidgetTile({
             )}
             <div className="flex items-center justify-center gap-1">
               {canEditData && (
-                <Dialog open={isDataDialogOpen} onOpenChange={setIsDataDialogOpen}>
+                <Dialog
+                  open={isDataDialogOpen}
+                  onOpenChange={(open) => {
+                    setIsDataDialogOpen(open);
+                    if (!open) onEditWidgetRequestHandled?.();
+                  }}
+                >
                   <DialogTrigger asChild>
                     <button
                       type="button"
@@ -381,7 +399,7 @@ function WidgetTile({
                       <Edit3 className="h-4 w-4" />
                     </button>
                   </DialogTrigger>
-                <DialogContent className="frosted">
+                <DialogContent className="frosted max-h-[90vh] overflow-y-auto">
                   <DialogHeader>
                     <DialogTitle>{supportsUserCustomizations ? "Edit Widget Settings" : "Edit Widget Input"}</DialogTitle>
                     <DialogDescription>
@@ -1100,6 +1118,8 @@ export function DashboardWidgetPreview({
   clockStyle,
   setClockStyle,
   fonts,
+  editWidgetRequest,
+  onEditWidgetRequestHandled,
 }: DashboardWidgetPreviewProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState<{ zone: ColumnName; index: number } | null>(null);
@@ -1326,11 +1346,16 @@ export function DashboardWidgetPreview({
                           items={columns[column].map((item) => item.id)}
                           strategy={verticalListSortingStrategy}
                         >
-                          {columns[column].map((widget) => (
+                          {columns[column].map((widget, widgetIndex) => (
                             <div key={widget.id}>
                               <WidgetTile
                                 columnWidget={widget}
                                 widgetConfig={widgetCatalog.find((item) => item.key === widget.type)}
+                                openForEdit={editWidgetRequest?.column === column &&
+                                  (editWidgetRequest.widgetId === widget.id ||
+                                    (editWidgetRequest.widgetId === widget.type &&
+                                      (editWidgetRequest.widgetIndex === undefined || editWidgetRequest.widgetIndex === widgetIndex)))}
+                                onEditWidgetRequestHandled={onEditWidgetRequestHandled}
                                 isActive={activeId === widget.id}
                                 onRemove={() => removeWidget(column, widget.id)}
                                 onEditClockPart={openClockEditor}

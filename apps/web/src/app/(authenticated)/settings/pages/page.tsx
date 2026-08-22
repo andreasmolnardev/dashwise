@@ -1,5 +1,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { usePageConfig } from "@/hooks/usePageConfig";
 import { updatePageConfigAction } from '@/lib/apiClient';
 import { getConsumerDataAction } from '@/lib/apiClient';
@@ -71,6 +72,7 @@ export default function SettingsPagesPage() {
   }, [homeConfig?.pages]);
 
   const [selectedPage, setSelectedPage] = useState("home");
+  const [searchParams, setSearchParams] = useSearchParams();
   const { pageConfig: selectedConfig } = usePageConfig({
     pageName: selectedPage,
   });
@@ -97,6 +99,13 @@ export default function SettingsPagesPage() {
   const [clockStyle, setClockStyle] = useState<Record<string, any>>(DEFAULT_CLOCK_STYLE);
   const [fonts, setFonts] = useState<Array<{ name: string; path: string }>>([]);
   const [glanceablesCatalog, setGlanceablesCatalog] = useState<GlanceableCatalogItem[]>([]);
+
+  useEffect(() => {
+    const requestedPage = searchParams.get("editPage");
+    if (requestedPage && pages.includes(requestedPage) && requestedPage !== selectedPage) {
+      setSelectedPage(requestedPage);
+    }
+  }, [pages, searchParams, selectedPage]);
 
   const hasLoadedConfigRef = useRef(false);
   const lastSavedSignatureRef = useRef("");
@@ -320,6 +329,27 @@ export default function SettingsPagesPage() {
     [withAuth],
   );
 
+  const editWidgetRequest = useMemo(() => {
+    const requestedPage = searchParams.get("editPage") ?? "home";
+    const rawTarget = searchParams.get("editWidget") ?? "";
+    const parts = rawTarget.split(":");
+    if (requestedPage !== selectedPage || parts.length < 2) return null;
+    const column = parts[0];
+    const hasIndex = parts.length >= 3 && /^\d+$/.test(parts[parts.length - 1]);
+    const widgetIndex = hasIndex ? Number(parts[parts.length - 1]) : undefined;
+    const widgetId = parts.slice(1, hasIndex ? -1 : undefined).join(":");
+    if (!(["left", "middle", "right"] as ColumnName[]).includes(column as ColumnName) || !widgetId) return null;
+    return { column: column as ColumnName, widgetId, widgetIndex };
+  }, [searchParams, selectedPage]);
+
+  const handleEditWidgetRequestHandled = useCallback(() => {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      next.delete("editWidget");
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
+
   useEffect(() => {
     if (!hasLoadedConfigRef.current) {
       return;
@@ -386,6 +416,8 @@ export default function SettingsPagesPage() {
         clockStyle={clockStyle}
         setClockStyle={setClockStyle}
         fonts={fonts}
+        editWidgetRequest={editWidgetRequest}
+        onEditWidgetRequestHandled={handleEditWidgetRequestHandled}
       />
     </div>
   );
