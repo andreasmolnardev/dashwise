@@ -216,7 +216,7 @@ export default function DashboardLayoutTemplate({
 }) {
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
-    const { token, withAuth } = useAuth();
+    const { token, user, withAuth } = useAuth();
     const openFromURL = searchParams.get("search") === "1";
     const hasSearchBarWidget = useMemo(() => {
         const columns = config?.columns as
@@ -237,6 +237,7 @@ export default function DashboardLayoutTemplate({
     const containerRef = useRef<HTMLDivElement | null>(null);
     const [activePanel, setActivePanel] = useState<number>(1);
     const [widgetMenuState, setWidgetMenuState] = useState<Record<string, WidgetMenuState>>({});
+    const dashboardPrivacyMode = user?.searchPreferences?.privacyMode === true;
     const heightRefs = useRef<Record<string, HTMLElement | null>>({});
     const heightRefCallbacks = useRef<
         Record<string, (node: HTMLElement | null) => void>
@@ -582,6 +583,7 @@ export default function DashboardLayoutTemplate({
     }) => {
         const state = getWidgetMenuState(baseKey);
         const sizeClass = WIDGET_SIZE_CLASSNAME[state.size];
+        const isBlurred = dashboardPrivacyMode || state.blurred;
         const privacySourceId = `dashwise-widget-content-${baseKey}`;
         return (
             <div
@@ -594,7 +596,7 @@ export default function DashboardLayoutTemplate({
                     id={privacySourceId}
                     key={state.refreshVersion}
                     className={state.size === "auto" ? undefined : "h-full"}
-                    style={{ visibility: state.blurred ? "hidden" : undefined }}
+                    style={{ visibility: isBlurred ? "hidden" : undefined }}
                 >
                     {children}
                 </div>
@@ -631,15 +633,22 @@ export default function DashboardLayoutTemplate({
                                     <Maximize2 className="h-4 w-4" />
                                     Resize widget
                                 </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => toggleWidgetBlur(baseKey)}>
+                                <DropdownMenuItem
+                                    disabled={dashboardPrivacyMode}
+                                    onClick={() => toggleWidgetBlur(baseKey)}
+                                >
                                     <EyeOff className="h-4 w-4" />
-                                    {state.blurred ? "Unblur widget" : "Blur widget"}
+                                    {dashboardPrivacyMode
+                                        ? "Privacy mode enabled"
+                                        : state.blurred
+                                            ? "Unblur widget"
+                                            : "Blur widget"}
                                 </DropdownMenuItem>
                             </DropdownMenuContent>
                         </DropdownMenu>
                     </div>
                 )}
-                {state.blurred && (
+                {isBlurred && (
                     <WidgetPrivacyOverlay sourceId={privacySourceId} refreshVersion={state.refreshVersion} />
                 )}
             </div>
