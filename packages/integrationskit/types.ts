@@ -45,6 +45,17 @@ export type ResolvedWidget = {
     minHeight?: number;
     maxHeight?: number;
   };
+  /** Populated for template: "image" */
+  image?: {
+    url?: string;
+    action?: string;
+    alt?: string;
+    showAltAsDescription?: boolean;
+    altDescriptionMaxLines?: number;
+    minHeight?: number;
+    maxHeight?: number;
+    objectFit?: "contain" | "cover" | "fill" | "none" | "scale-down";
+  };
   /** The raw properties object, passed through for custom consumers */
   raw: Record<string, any>;
   progress?: number | null;

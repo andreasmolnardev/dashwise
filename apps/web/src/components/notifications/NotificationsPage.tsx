@@ -122,7 +122,7 @@ function getNotificationDescription(notif: NotificationItem): React.ReactNode {
 export default function NotificationsPage() {
     const { token, withAuth } = useAuth();
     const queryClient = useQueryClient();
-    const { refresh } = useActivity();
+    const { refresh, markNotificationsAsRead: updateNotifications } = useActivity();
     const notificationsQuery = useQuery<NotificationItem[]>({
         queryKey: ["api", token, ...queryKeys.notifications.items(token)],
         enabled: false,
@@ -178,7 +178,15 @@ export default function NotificationsPage() {
         void queryClient.invalidateQueries({ queryKey: ["api", token, "notifications"] });
         refresh();
     }, [queryClient, refresh, token]);
-    const markReadMutation = useApiMutation((auth, ids: string[]) => markNotificationsAsReadAction(auth, ids), { onSuccess: invalidateNotifications });
+    const markReadMutation = useApiMutation(
+        (auth, ids: string[]) => markNotificationsAsReadAction(auth, ids),
+        {
+            onSuccess: (_data, ids) => {
+                updateNotifications(ids);
+                invalidateNotifications();
+            },
+        },
+    );
     const createTopicMutation = useApiMutation((auth, title: string) => createNotificationTopicAction(auth, title), { onSuccess: invalidateNotifications });
     const deleteTopicMutation = useApiMutation((auth, topicId: string) => deleteNotificationTopicAction(auth, topicId), { onSuccess: invalidateNotifications });
 

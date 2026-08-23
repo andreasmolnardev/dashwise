@@ -85,6 +85,14 @@ configuration:
               cpu: "usage.cpu"
               memory: "usage.mem"
 
+    camera:
+      method: GET
+      url: "${URL}/camera"
+      response:
+        type: json
+        invalidate:
+          every: "1 hour"
+
   # Computed Fields
   # Process and aggregate data from endpoints.
   computed:
@@ -199,6 +207,24 @@ configuration:
         url: "${URL}/dashboard"
         min_height: 240
         max_height: 720
+
+    - name: "Remote Image"
+      key: "remote-image"
+      template: "image"
+      properties:
+        header:
+          title: "Camera"
+          icon: "fa6-solid:image"
+        endpoint: camera
+        image_url_property: "img.url"
+        title_url: "${CAMERA_URL}"
+        alt: "Camera image"
+        min_height: 180
+        max_height: 600
+
+  # Image endpoints can cache their JSON response. `after` is a duration from
+  # fetch time; `every` uses the next aligned hour/day/week/month boundary.
+  # Examples: "6 hours", "2 days", "every 2 hours", "every week".
 
 # ---------------------------------------------------------
 # 3. Shortcuts

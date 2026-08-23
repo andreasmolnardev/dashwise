@@ -124,7 +124,6 @@ export async function resolveEndpointCatalog(
 
 		const endpoint = work.splice(idx, 1)[0];
 		const endpointKey = resolveEndpointCacheKey(endpoint);
-		const ttlSeconds = resolveInvalidateAfterSeconds(endpoint);
 
 		let resolvedEndpoint: ResolvedEndpointData | null = null;
 		if (endpointKey && context.cache) {
@@ -143,8 +142,8 @@ export async function resolveEndpointCatalog(
 				},
 			}, allowInsecureEndpoints);
 
-			if (endpointKey && context.cache && ttlSeconds !== null) {
-				const expiresAt = Date.now() + ttlSeconds * 1000;
+			const expiresAt = resolveEndpointInvalidatesAt(endpoint, Date.now());
+			if (endpointKey && context.cache && expiresAt !== null) {
 				context.cache.set(endpointKey, resolvedEndpoint, expiresAt);
 			}
 		}
@@ -442,8 +441,9 @@ function resolveEndpointCacheKey(endpoint: EndpointDefinition): string | null {
 	return null;
 }
 
-function resolveInvalidateAfterSeconds(
+function resolveEndpointInvalidatesAt(
 	endpoint: EndpointDefinition,
+	now: number,
 ): number | null {
 	const responseDirective = isPlainObject(endpoint.response)
 		? endpoint.response
@@ -451,12 +451,104 @@ function resolveInvalidateAfterSeconds(
 	const invalidate = isPlainObject(responseDirective?.invalidate)
 		? responseDirective.invalidate
 		: null;
-	const afterRaw = invalidate?.after ?? endpoint.cache_ttl;
-	const parsed = Number(afterRaw);
-	if (!Number.isFinite(parsed) || parsed <= 0) {
-		return null;
+	const after = parseCacheDuration(
+		invalidate?.after ?? invalidate?.duration ?? endpoint.invalidate_after ?? endpoint.cache_ttl,
+	);
+	if (after !== null) return now + after * 1000;
+
+	const every = parseCacheInterval(
+		invalidate?.every ?? invalidate?.schedule ?? endpoint.invalidate_every,
+	);
+	return every ? getNextCacheBoundary(every, now) : null;
+}
+
+type CacheInterval = {
+	count: number;
+	unit: "second" | "minute" | "hour" | "day" | "week" | "month";
+};
+
+function parseCacheDuration(value: unknown): number | null {
+	if (typeof value === "number") {
+		return Number.isFinite(value) && value > 0 ? value : null;
 	}
-	return parsed;
+
+	if (typeof value !== "string") return null;
+	const match = value.trim().toLowerCase().match(
+		/^(\d+(?:\.\d+)?)\s*(s|sec|secs|second|seconds|m|min|mins|minute|minutes|h|hr|hrs|hour|hours|d|day|days|w|week|weeks|mo|month|months)$/,
+	);
+	if (!match) return null;
+
+	const amount = Number(match[1]);
+	if (!Number.isFinite(amount) || amount <= 0) return null;
+	const unit = match[2];
+	const multiplier = /^s/.test(unit) || unit === "second" || unit === "seconds"
+		? 1
+		: /^(m|min)/.test(unit) || unit === "minute" || unit === "minutes"
+		? 60
+		: /^(h|hr)/.test(unit) || unit === "hour" || unit === "hours"
+		? 60 * 60
+		: /^(d|day)/.test(unit)
+		? 24 * 60 * 60
+		: /^(w|week)/.test(unit)
+		? 7 * 24 * 60 * 60
+		: 30 * 24 * 60 * 60;
+	return amount * multiplier;
+}
+
+function parseCacheInterval(value: unknown): CacheInterval | null {
+	if (typeof value !== "string") return null;
+	const match = value.trim().toLowerCase().replace(/^every\s+/, "").match(
+		/^(\d+(?:\.\d+)?)?\s*(s|sec|secs|second|seconds|m|min|mins|minute|minutes|h|hr|hrs|hour|hours|d|day|days|w|week|weeks|mo|month|months)$/,
+	);
+	if (!match) return null;
+
+	const count = match[1] ? Number(match[1]) : 1;
+	if (!Number.isFinite(count) || count <= 0) return null;
+	const rawUnit = match[2];
+	const unit: CacheInterval["unit"] = /^(s|sec|secs|second|seconds)$/.test(rawUnit)
+		? "second"
+		: /^(m|min|mins|minute|minutes)$/.test(rawUnit)
+		? "minute"
+		: /^(h|hr|hrs|hour|hours)$/.test(rawUnit)
+		? "hour"
+		: /^(d|day|days)$/.test(rawUnit)
+		? "day"
+		: /^(w|week|weeks)$/.test(rawUnit)
+		? "week"
+		: "month";
+	return { count, unit };
+}
+
+function getNextCacheBoundary(interval: CacheInterval, now: number) {
+	const date = new Date(now);
+	if (interval.unit === "month") {
+		const monthIndex = date.getFullYear() * 12 + date.getMonth();
+		const nextMonth = Math.floor(monthIndex / interval.count + 1) * interval.count;
+		return new Date(Math.floor(nextMonth / 12), nextMonth % 12, 1).getTime();
+	}
+
+	if (interval.unit === "day") {
+		const next = new Date(date.getFullYear(), date.getMonth(), date.getDate() + interval.count);
+		return next.getTime();
+	}
+
+	if (interval.unit === "week") {
+		const mondayOffset = (date.getDay() + 6) % 7;
+		const next = new Date(
+			date.getFullYear(),
+			date.getMonth(),
+			date.getDate() - mondayOffset + interval.count * 7,
+		);
+		return next.getTime();
+	}
+
+	const unitMs = interval.unit === "second"
+		? 1000
+		: interval.unit === "minute"
+		? 60 * 1000
+		: 60 * 60 * 1000;
+	const next = Math.floor(now / (unitMs * interval.count) + 1) * unitMs * interval.count;
+	return next > now ? next : now + unitMs;
 }
 
 function getOrCreateEndpointFetchPromise(

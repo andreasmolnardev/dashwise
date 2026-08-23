@@ -10,6 +10,7 @@ import WidgetColumnTemplate from "./templates/WidgetColumn";
 import VerticalList from "./templates/VerticalList";
 import ItemDetailsCard from "./templates/ItemDetailsCard";
 import IframeTemplate from "./templates/IFrame";
+import ImageTemplate from "./templates/Image";
 import AppIcon from "@dashwise/app-icon";
 import type { ResolvedWidget } from "./types";
 
@@ -203,6 +204,24 @@ export default function Widget({
         case "icon-details-card":
             return (
                 <ItemDetailsCard
+                    resolved={renderedResolved}
+                    className={className}
+                    formatters={formatters}
+                />
+            );
+
+        case "image":
+            return (
+                <ImageTemplate
+                    resolved={renderedResolved}
+                    className={className}
+                    formatters={formatters}
+                />
+            );
+
+        case "iframe":
+            return (
+                <IframeTemplate
                     resolved={renderedResolved}
                     className={className}
                     formatters={formatters}

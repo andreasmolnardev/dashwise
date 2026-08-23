@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Icon } from "@iconify-icon/react";
-import { EyeOff, Maximize2, MoreHorizontal, RefreshCw } from "lucide-react";
+import { Edit3, EyeOff, Maximize2, MoreHorizontal, RefreshCw } from "lucide-react";
 import PagesTabs from "../PagesTabs";
 import UpdateDetailsDialogComponent from "./UpdateDetailsDialog";
 import QuickLaunchPopover from "./QuickLaunchPopover";
@@ -30,7 +30,15 @@ type WidgetMenuState = {
     refreshVersion: number;
     size: WidgetSize;
     blurred: boolean;
+    menuOpen: boolean;
 };
+
+function hasWidgetProperties(config: Record<string, any>) {
+    const ignored = new Set(["className", "height", "index", "configKey", "input", "properties"]);
+    return Object.keys(config).some((key) => !ignored.has(key)) ||
+        Object.keys(config.input ?? {}).length > 0 ||
+        Object.keys(config.properties ?? {}).some((key) => !ignored.has(key));
+}
 
 const WIDGET_SIZE_CLASSNAME: Record<WidgetSize, string> = {
     auto: "",
@@ -89,6 +97,7 @@ export default function DashboardLayoutTemplate({
     isLoading?: boolean;
 }) {
     const [searchParams] = useSearchParams();
+    const navigate = useNavigate();
     const { token, withAuth } = useAuth();
     const openFromURL = searchParams.get("search") === "1";
     const hasSearchBarWidget = useMemo(() => {
@@ -385,6 +394,7 @@ export default function DashboardLayoutTemplate({
             refreshVersion: 0,
             size: "auto",
             blurred: false,
+            menuOpen: false,
         };
 
     const updateWidgetMenuState = (
@@ -396,6 +406,7 @@ export default function DashboardLayoutTemplate({
                 refreshVersion: 0,
                 size: "auto" as WidgetSize,
                 blurred: false,
+                menuOpen: false,
             };
             return { ...current, [baseKey]: updater(previous) };
         });
@@ -428,6 +439,10 @@ export default function DashboardLayoutTemplate({
         }));
     };
 
+    const editWidgetProperties = (columnName: Column, entryKey: string, entryIndex: number) => {
+        navigate(`/settings/pages?editPage=${encodeURIComponent(pageName ?? "home")}&editWidget=${encodeURIComponent(`${columnName}:${entryKey}:${entryIndex}`)}`);
+    };
+
     const renderWidgetMenuWrapper = ({
         baseKey,
         wrapperClass,
@@ -435,6 +450,8 @@ export default function DashboardLayoutTemplate({
         ref,
         style,
         showMenu = true,
+        onEditProperties,
+        darkenOnMenu = false,
     }: {
         baseKey: string;
         wrapperClass: string;
@@ -442,6 +459,8 @@ export default function DashboardLayoutTemplate({
         ref?: (node: HTMLElement | null) => void;
         style?: CSSProperties;
         showMenu?: boolean;
+        onEditProperties?: () => void;
+        darkenOnMenu?: boolean;
     }) => {
         const state = getWidgetMenuState(baseKey);
         const sizeClass = WIDGET_SIZE_CLASSNAME[state.size];
@@ -455,9 +474,15 @@ export default function DashboardLayoutTemplate({
                 <div key={state.refreshVersion} className={state.size === "auto" ? undefined : "h-full"}>
                     {children}
                 </div>
+                {darkenOnMenu && state.menuOpen && (
+                    <div className="pointer-events-none absolute inset-0 z-10 rounded-xl bg-black/50" />
+                )}
                 {showMenu && (
                     <div className="absolute right-2 top-2 z-30 opacity-0 transition-opacity group-hover/widget-menu:opacity-100 focus-within:opacity-100">
-                        <DropdownMenu>
+                        <DropdownMenu
+                            open={state.menuOpen}
+                            onOpenChange={(open) => updateWidgetMenuState(baseKey, (current) => ({ ...current, menuOpen: open }))}
+                        >
                             <DropdownMenuTrigger asChild>
                                 <button
                                     type="button"
@@ -472,6 +497,12 @@ export default function DashboardLayoutTemplate({
                                     <RefreshCw className="h-4 w-4" />
                                     Refresh data
                                 </DropdownMenuItem>
+                                {onEditProperties && (
+                                    <DropdownMenuItem onClick={onEditProperties}>
+                                        <Edit3 className="h-4 w-4" />
+                                        Edit properties
+                                    </DropdownMenuItem>
+                                )}
                                 <DropdownMenuItem onClick={() => resizeWidget(baseKey)}>
                                     <Maximize2 className="h-4 w-4" />
                                     Resize widget
@@ -501,6 +532,7 @@ export default function DashboardLayoutTemplate({
         columnName: Column,
         entryKey: string,
         entryConfig: Record<string, any> | null | undefined,
+        entryIndex: number,
     ) => {
         const cfg = entryConfig ?? {};
         const wrapperClass = ["mb-3", cfg.className].filter(Boolean).join(
@@ -577,6 +609,10 @@ export default function DashboardLayoutTemplate({
                     baseKey,
                     wrapperClass,
                     showMenu: entryKey !== "glanceable-clock",
+                    onEditProperties: (entryKey === "image" || hasWidgetProperties(cfg))
+                        ? () => editWidgetProperties(columnName, entryKey, entryIndex)
+                        : undefined,
+                    darkenOnMenu: entryKey === "image",
                     children: renderWidget({
                         type: entryKey,
                         consumerKey: typeof cfg.configKey === "string" && cfg.configKey.trim()

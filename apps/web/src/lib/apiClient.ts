@@ -330,6 +330,27 @@ export async function testIntegrationEndpointAction(auth: ActionAuth, target: st
   return extractData(await postIntegrationsTestEndpoint({ body: { auth, target }, headers: authHeaders(auth) }));
 }
 
+export async function previewImageSourceAction(
+  auth: ActionAuth,
+  url: string,
+  invalidateAfter?: string | number,
+) {
+  const response = await fetch(backendUrl("/api/v1/integrations/preview-json"), {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+      ...(authHeaders(auth) ?? {}),
+    },
+    body: JSON.stringify({ url, invalidateAfter }),
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(typeof payload?.error === "string" ? payload.error : "Image preview request failed");
+  }
+  return payload as { body?: unknown };
+}
+
 export async function getWidgetPropertiesAction(auth: ActionAuth, widgetSlug: string) {
   return extractData(await getIntegrationsWidgetProperties({ query: { widgetSlug }, headers: authHeaders(auth) }));
 }
