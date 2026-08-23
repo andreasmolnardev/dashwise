@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Icon } from "@iconify-icon/react";
@@ -46,11 +46,129 @@ const WIDGET_SIZE_CLASSNAME: Record<WidgetSize, string> = {
     tall: "h-[360px] overflow-hidden rounded-xl",
 };
 
-const PRIVACY_BLUR_LINES = [
-    "kJ8fL2pQwR9z",
-    "xN4vB7mC3sA1",
-    "tY6uI0oP5dF2",
-];
+const PRIVACY_RANDOM_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789";
+const PRIVACY_TEXT_ATTRIBUTES = ["alt", "aria-label", "placeholder", "title", "value"];
+
+function randomPrivacyString(length: number) {
+    const safeLength = Math.max(1, length);
+    const values = new Uint32Array(safeLength);
+
+    if (typeof crypto !== "undefined" && typeof crypto.getRandomValues === "function") {
+        crypto.getRandomValues(values);
+        return Array.from(values, (value) =>
+            PRIVACY_RANDOM_CHARS[value % PRIVACY_RANDOM_CHARS.length],
+        ).join("");
+    }
+
+    return Array.from(
+        { length: safeLength },
+        () => PRIVACY_RANDOM_CHARS[Math.floor(Math.random() * PRIVACY_RANDOM_CHARS.length)],
+    ).join("");
+}
+
+function randomizePrivacyText(value: string) {
+    return value.replace(/\S+/g, (token) => randomPrivacyString(token.length));
+}
+
+function sanitizePrivacyClone(root: HTMLElement) {
+    const textWalker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    const textNodes: Text[] = [];
+    let currentNode = textWalker.nextNode();
+
+    while (currentNode) {
+        const textNode = currentNode as Text;
+        const parentTagName = textNode.parentElement?.tagName;
+        if (
+            textNode.nodeValue?.trim() &&
+            parentTagName !== "SCRIPT" &&
+            parentTagName !== "STYLE" &&
+            parentTagName !== "NOSCRIPT"
+        ) {
+            textNodes.push(textNode);
+        }
+        currentNode = textWalker.nextNode();
+    }
+
+    for (const textNode of textNodes) {
+        textNode.nodeValue = randomizePrivacyText(textNode.nodeValue ?? "");
+    }
+
+    const elements = [root, ...Array.from(root.querySelectorAll<HTMLElement>("*"))];
+    for (const element of elements) {
+        element.removeAttribute("id");
+        for (const attribute of PRIVACY_TEXT_ATTRIBUTES) {
+            const value = element.getAttribute(attribute);
+            if (value?.trim()) element.setAttribute(attribute, randomizePrivacyText(value));
+        }
+
+        if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) {
+            if (element.value.trim()) element.value = randomizePrivacyText(element.value);
+        }
+    }
+
+    root.setAttribute("aria-hidden", "true");
+}
+
+function WidgetPrivacyOverlay({
+    sourceId,
+    refreshVersion,
+}: {
+    sourceId: string;
+    refreshVersion: number;
+}) {
+    const cloneHostRef = useRef<HTMLDivElement | null>(null);
+
+    useLayoutEffect(() => {
+        const source = document.getElementById(sourceId);
+        const cloneHost = cloneHostRef.current;
+        if (!source || !cloneHost) return;
+
+        let frameId: number | null = null;
+
+        const renderPrivacyClone = () => {
+            cloneHost.replaceChildren();
+            const clone = source.cloneNode(true) as HTMLDivElement;
+            clone.style.visibility = "visible";
+            clone.style.width = "100%";
+            clone.style.height = "100%";
+            clone.style.overflow = "hidden";
+            clone.style.filter = "blur(3px)";
+            clone.style.userSelect = "none";
+            sanitizePrivacyClone(clone);
+            cloneHost.appendChild(clone);
+        };
+
+        const schedulePrivacyClone = () => {
+            if (frameId !== null) cancelAnimationFrame(frameId);
+            frameId = requestAnimationFrame(() => {
+                frameId = null;
+                renderPrivacyClone();
+            });
+        };
+
+        renderPrivacyClone();
+        const observer = new MutationObserver(schedulePrivacyClone);
+        observer.observe(source, {
+            attributes: true,
+            childList: true,
+            characterData: true,
+            subtree: true,
+        });
+
+        return () => {
+            observer.disconnect();
+            if (frameId !== null) cancelAnimationFrame(frameId);
+            cloneHost.replaceChildren();
+        };
+    }, [refreshVersion, sourceId]);
+
+    return (
+        <div className="pointer-events-none absolute inset-0 z-20 overflow-hidden rounded-xl bg-black/20 backdrop-blur-md">
+            <div ref={cloneHostRef} className="absolute inset-0 overflow-hidden opacity-80" />
+            <div className="absolute inset-0 bg-black/20 backdrop-blur-md" />
+        </div>
+    );
+}
 
 const COLUMN_CLASSNAME: Record<Column, string> = {
     left:
@@ -464,6 +582,7 @@ export default function DashboardLayoutTemplate({
     }) => {
         const state = getWidgetMenuState(baseKey);
         const sizeClass = WIDGET_SIZE_CLASSNAME[state.size];
+        const privacySourceId = `dashwise-widget-content-${baseKey}`;
         return (
             <div
                 key={baseKey}
@@ -471,7 +590,12 @@ export default function DashboardLayoutTemplate({
                 className={[wrapperClass, "group/widget-menu relative", sizeClass].filter(Boolean).join(" ")}
                 style={style}
             >
-                <div key={state.refreshVersion} className={state.size === "auto" ? undefined : "h-full"}>
+                <div
+                    id={privacySourceId}
+                    key={state.refreshVersion}
+                    className={state.size === "auto" ? undefined : "h-full"}
+                    style={{ visibility: state.blurred ? "hidden" : undefined }}
+                >
                     {children}
                 </div>
                 {darkenOnMenu && state.menuOpen && (
@@ -516,13 +640,7 @@ export default function DashboardLayoutTemplate({
                     </div>
                 )}
                 {state.blurred && (
-                    <div className="pointer-events-none absolute inset-0 z-20 flex flex-col justify-center gap-2 rounded-xl bg-black/20 p-4 text-white/35 backdrop-blur-md">
-                        {PRIVACY_BLUR_LINES.map((line) => (
-                            <div key={line} className="h-3 w-full max-w-[85%] rounded-full bg-white/20 blur-[3px]">
-                                <span className="sr-only">{line}</span>
-                            </div>
-                        ))}
-                    </div>
+                    <WidgetPrivacyOverlay sourceId={privacySourceId} refreshVersion={state.refreshVersion} />
                 )}
             </div>
         );
