@@ -27,17 +27,12 @@ import useAuth from "@/context/useAuth";
 export default function SearchSettingsPage() {
   const { user, updateUserProperty } = useAuth();
   const [engines, setEngines] = useState<SearchEngine[]>(user.searchPreferences?.searchEngines || []);
-  const [privacyMode, setPrivacyMode] = useState(user.searchPreferences?.privacyMode === true);
   const [activeTab, setActiveTab] = useState("manual");
 
   // sync when config changes
   useEffect(() => {
     setEngines(user.searchPreferences?.searchEngines || []);
   }, [user.searchPreferences?.searchEngines]);
-
-  useEffect(() => {
-    setPrivacyMode(user.searchPreferences?.privacyMode === true);
-  }, [user.searchPreferences?.privacyMode]);
 
   const handleOpenChange = (open: boolean) => {
     setCreateOpen(open);
@@ -59,21 +54,6 @@ export default function SearchSettingsPage() {
     } catch (err) {
       console.error("Failed to persist search engines:", err);
       // NOTE: we don't revert local state here — you can add error recovery if desired
-    }
-  }
-
-  async function togglePrivacyMode(enabled: boolean) {
-    const previousValue = privacyMode;
-    setPrivacyMode(enabled);
-
-    try {
-      await updateUserProperty("searchPreferences", {
-        ...user.searchPreferences,
-        privacyMode: enabled,
-      });
-    } catch (err) {
-      setPrivacyMode(previousValue);
-      console.error("Failed to persist dashboard privacy mode:", err);
     }
   }
 
@@ -127,18 +107,6 @@ export default function SearchSettingsPage() {
     <>
       <h1 className="text-2xl font-semibold mb-4">Search</h1>
       <div className="content space-y-4 flex flex-col gap-2">
-        <div className="frosted rounded-2xl p-4 flex items-center justify-between gap-4">
-          <div>
-            <h2 className="text-lg font-medium">Dashboard privacy mode</h2>
-            <p className="text-sm text-gray-100">Blur and anonymize text across every widget on dashboard pages.</p>
-          </div>
-          <Switch
-            checked={privacyMode}
-            onCheckedChange={togglePrivacyMode}
-            aria-label="Dashboard privacy mode"
-          />
-        </div>
-
         <div className="flex justify-between items-center">
           <h2 className="text-xl font-semibold mb-2">Search engines</h2>
           <div className="flex items-center gap-2">

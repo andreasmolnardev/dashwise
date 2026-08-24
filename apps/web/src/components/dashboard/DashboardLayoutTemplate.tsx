@@ -70,51 +70,79 @@ function randomizePrivacyText(value: string) {
     return value.replace(/\S+/g, (token) => randomPrivacyString(token.length));
 }
 
-function sanitizePrivacyClone(root: HTMLElement) {
-    const textWalker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-    const textNodes: Text[] = [];
-    let currentNode = textWalker.nextNode();
+function sanitizePrivacyClone(root: HTMLElement, targetSelector?: string) {
+    const privacyRoots = targetSelector
+        ? Array.from(root.querySelectorAll<HTMLElement>(targetSelector))
+        : [root];
 
-    while (currentNode) {
-        const textNode = currentNode as Text;
-        const parentTagName = textNode.parentElement?.tagName;
-        if (
-            textNode.nodeValue?.trim() &&
-            parentTagName !== "SCRIPT" &&
-            parentTagName !== "STYLE" &&
-            parentTagName !== "NOSCRIPT"
-        ) {
-            textNodes.push(textNode);
+    for (const privacyRoot of privacyRoots) {
+        const textWalker = document.createTreeWalker(privacyRoot, NodeFilter.SHOW_TEXT);
+        const textNodes: Text[] = [];
+        let currentNode = textWalker.nextNode();
+
+        while (currentNode) {
+            const textNode = currentNode as Text;
+            const parentTagName = textNode.parentElement?.tagName;
+            if (
+                textNode.nodeValue?.trim() &&
+                parentTagName !== "SCRIPT" &&
+                parentTagName !== "STYLE" &&
+                parentTagName !== "NOSCRIPT"
+            ) {
+                textNodes.push(textNode);
+            }
+            currentNode = textWalker.nextNode();
         }
-        currentNode = textWalker.nextNode();
+
+        for (const textNode of textNodes) {
+            const randomizedText = randomizePrivacyText(textNode.nodeValue ?? "");
+            textNode.nodeValue = randomizedText;
+
+            const parent = textNode.parentElement;
+            if (!parent) {
+                continue;
+            }
+
+            if (parent.namespaceURI === "http://www.w3.org/2000/svg") {
+                if (["text", "tspan"].includes(parent.tagName.toLowerCase())) {
+                    parent.style.filter = "blur(3px)";
+                }
+                continue;
+            }
+
+            const textSpan = document.createElement("span");
+            textSpan.textContent = randomizedText;
+            textSpan.style.filter = "blur(3px)";
+            textNode.replaceWith(textSpan);
+        }
+
+        const elements = [privacyRoot, ...Array.from(privacyRoot.querySelectorAll<HTMLElement>("*"))];
+        for (const element of elements) {
+            for (const attribute of PRIVACY_TEXT_ATTRIBUTES) {
+                const value = element.getAttribute(attribute);
+                if (value?.trim()) element.setAttribute(attribute, randomizePrivacyText(value));
+            }
+
+            if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) {
+                if (element.value.trim()) element.value = randomizePrivacyText(element.value);
+            }
+        }
     }
 
-    for (const textNode of textNodes) {
-        textNode.nodeValue = randomizePrivacyText(textNode.nodeValue ?? "");
-    }
-
-    const elements = [root, ...Array.from(root.querySelectorAll<HTMLElement>("*"))];
-    for (const element of elements) {
+    for (const element of [root, ...Array.from(root.querySelectorAll<HTMLElement>("*"))]) {
         element.removeAttribute("id");
-        for (const attribute of PRIVACY_TEXT_ATTRIBUTES) {
-            const value = element.getAttribute(attribute);
-            if (value?.trim()) element.setAttribute(attribute, randomizePrivacyText(value));
-        }
-
-        if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) {
-            if (element.value.trim()) element.value = randomizePrivacyText(element.value);
-        }
     }
-
     root.setAttribute("aria-hidden", "true");
 }
 
 function WidgetPrivacyOverlay({
     sourceId,
     refreshVersion,
+    targetSelector,
 }: {
     sourceId: string;
     refreshVersion: number;
+    targetSelector?: string;
 }) {
     const cloneHostRef = useRef<HTMLDivElement | null>(null);
 
@@ -132,9 +160,8 @@ function WidgetPrivacyOverlay({
             clone.style.width = "100%";
             clone.style.height = "100%";
             clone.style.overflow = "hidden";
-            clone.style.filter = "blur(3px)";
             clone.style.userSelect = "none";
-            sanitizePrivacyClone(clone);
+            sanitizePrivacyClone(clone, targetSelector);
             cloneHost.appendChild(clone);
         };
 
@@ -160,12 +187,11 @@ function WidgetPrivacyOverlay({
             if (frameId !== null) cancelAnimationFrame(frameId);
             cloneHost.replaceChildren();
         };
-    }, [refreshVersion, sourceId]);
+    }, [refreshVersion, sourceId, targetSelector]);
 
     return (
-        <div className="pointer-events-none absolute inset-0 z-20 overflow-hidden rounded-xl bg-black/20 backdrop-blur-md">
-            <div ref={cloneHostRef} className="absolute inset-0 overflow-hidden opacity-80" />
-            <div className="absolute inset-0 bg-black/20 backdrop-blur-md" />
+        <div className="pointer-events-none absolute inset-0 z-20 overflow-hidden rounded-xl">
+            <div ref={cloneHostRef} className="absolute inset-0 overflow-hidden" />
         </div>
     );
 }
@@ -571,6 +597,7 @@ export default function DashboardLayoutTemplate({
         showMenu = true,
         onEditProperties,
         darkenOnMenu = false,
+        privacyTargetSelector,
     }: {
         baseKey: string;
         wrapperClass: string;
@@ -580,10 +607,12 @@ export default function DashboardLayoutTemplate({
         showMenu?: boolean;
         onEditProperties?: () => void;
         darkenOnMenu?: boolean;
+        privacyTargetSelector?: string | false;
     }) => {
         const state = getWidgetMenuState(baseKey);
         const sizeClass = WIDGET_SIZE_CLASSNAME[state.size];
-        const isBlurred = dashboardPrivacyMode || state.blurred;
+        const privacyBlurred = dashboardPrivacyMode && privacyTargetSelector !== false;
+        const isBlurred = privacyBlurred || state.blurred;
         const privacySourceId = `dashwise-widget-content-${baseKey}`;
         return (
             <div
@@ -649,7 +678,11 @@ export default function DashboardLayoutTemplate({
                     </div>
                 )}
                 {isBlurred && (
-                    <WidgetPrivacyOverlay sourceId={privacySourceId} refreshVersion={state.refreshVersion} />
+                    <WidgetPrivacyOverlay
+                        sourceId={privacySourceId}
+                        refreshVersion={state.refreshVersion}
+                        targetSelector={privacyBlurred ? privacyTargetSelector : undefined}
+                    />
                 )}
             </div>
         );
@@ -699,6 +732,7 @@ export default function DashboardLayoutTemplate({
                         wrapperClass,
                         ref,
                         showMenu: false,
+                        privacyTargetSelector: ".area-gl1, .area-gl2",
                         children: renderWidget({
                             type: "main-clock",
                             params: cfg,
@@ -713,6 +747,7 @@ export default function DashboardLayoutTemplate({
                         baseKey,
                         wrapperClass,
                         showMenu: false,
+                        privacyTargetSelector: false,
                         children: renderWidget({
                             type: "search-bar",
                             defaultOpen: openFromURL ?? false,
@@ -725,6 +760,7 @@ export default function DashboardLayoutTemplate({
                         baseKey,
                         wrapperClass,
                         showMenu: false,
+                        privacyTargetSelector: false,
                         children: renderWidget({
                             type: "link-view",
                         }),
@@ -740,6 +776,9 @@ export default function DashboardLayoutTemplate({
                         ? () => editWidgetProperties(columnName, entryKey, entryIndex)
                         : undefined,
                     darkenOnMenu: entryKey === "image",
+                    privacyTargetSelector: entryKey === "glanceable-clock"
+                        ? ".area-gl1, .area-gl2"
+                        : undefined,
                     children: renderWidget({
                         type: entryKey,
                         consumerKey: typeof cfg.configKey === "string" && cfg.configKey.trim()

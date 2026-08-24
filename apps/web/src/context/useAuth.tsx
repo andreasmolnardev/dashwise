@@ -10,6 +10,7 @@ type AuthUser = AuthUserRecord;
 
 const EMPTY_AUTH_USER: AuthUser = {};
 export const COMMAND_BAR_OPEN_EVENT = "dashwise:open-command-bar";
+export const AUTH_USER_UPDATED_EVENT = "dashwise:auth-user-updated";
 
 function createUnauthorizedError() {
   const error = new Error("Unauthorized") as Error & { status: number; body: { error: string } };
@@ -54,21 +55,30 @@ export function useAuth() {
   });
 
   useEffect(() => {
+    const syncStoredUser = () => {
+      try {
+        const raw = localStorage.getItem("pb_user");
+        setUser(raw ? (JSON.parse(raw) as AuthUser) : EMPTY_AUTH_USER);
+      } catch {
+        setUser(EMPTY_AUTH_USER);
+      }
+    };
+
     const onStorage = (e: StorageEvent) => {
       if (e.key === "pb_user") {
-        try {
-          setUser(e.newValue ? (JSON.parse(e.newValue) as AuthUser) : EMPTY_AUTH_USER);
-        } catch (err) {
-          setUser(EMPTY_AUTH_USER);
-        }
+        syncStoredUser();
       }
       if (e.key === "pb_token") {
         setToken(e.newValue);
       }
     };
 
+    window.addEventListener(AUTH_USER_UPDATED_EVENT, syncStoredUser);
     window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
+    return () => {
+      window.removeEventListener(AUTH_USER_UPDATED_EVENT, syncStoredUser);
+      window.removeEventListener("storage", onStorage);
+    };
   }, []);
 
   const setAuth = useCallback((u: AuthUser | null, t?: string | null) => {
@@ -88,6 +98,8 @@ export function useAuth() {
         localStorage.setItem("pb_token", t);
         setToken(t);
       }
+
+      window.dispatchEvent(new Event(AUTH_USER_UPDATED_EVENT));
     } catch (err) {
       // ignore storage errors
     }
