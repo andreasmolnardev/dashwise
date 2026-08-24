@@ -474,7 +474,7 @@ function normalizeTimezone(raw: unknown): string | undefined {
   if (!parsed) return undefined;
 
   try {
-    new Intl.DateTimeFormat("en-US", { timeZone: parsed });
+    new Intl.DateTimeFormat(undefined, { timeZone: parsed });
     return parsed;
   } catch {
     return undefined;

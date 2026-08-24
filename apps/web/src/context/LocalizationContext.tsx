@@ -40,6 +40,14 @@ function normalizeUnit(value: unknown): TemperatureUnit {
   return "c";
 }
 
+function getBrowserLocale() {
+  try {
+    return new Intl.DateTimeFormat().resolvedOptions().locale || "en-US";
+  } catch {
+    return "en-US";
+  }
+}
+
 function toDate(input?: Date | string | number): Date {
   if (!input) return new Date();
   return input instanceof Date ? input : new Date(input);
@@ -51,7 +59,7 @@ export function LocalizationProvider({ children }: { children: ReactNode }) {
 
   const localizationPreferences = user?.localizationPreferences ?? {};
 
-  const locale = localizationPreferences.locale || "en-US";
+  const locale = localizationPreferences.locale || getBrowserLocale();
   const timeFormat = normalizeTimeFormat(
     localizationPreferences.timeFormat ?? localizationPreferences["time-format"]
   );

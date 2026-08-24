@@ -205,7 +205,6 @@ export async function getEndpointData(
 		requestKey,
 		async () => {
 			try {
-				const now = new Date().toLocaleTimeString("en-GB", { hour12: false });
 				const fetchOptions: RequestInit = {
 					method,
 					headers: requestHeaders,

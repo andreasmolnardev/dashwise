@@ -62,7 +62,6 @@
   "localization": {
     "dateFormat": "MM-DD-YYYY",
     "language": "en",
-    "locale": "en-US",
     "searchEngineShortcutFallback": "ddg",
     "timeFormat": "12-hour",
     "weatherLocation": "{\"name\":\"New York, New York, United States\",\"lat\":\"40.7128\",\"lon\":\"-74.0060\"}",
