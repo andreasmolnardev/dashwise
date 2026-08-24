@@ -25,6 +25,7 @@ import config from "@/lib/config";
 import {
     createNotificationTopicAction,
     deleteNotificationTopicAction,
+    getNotificationsAction,
     getNotificationTopicsAction,
     markNotificationsAsReadAction,
     testForwarderAction,
@@ -38,7 +39,7 @@ import { useActivity } from "@/context/ActivityContext";
 import { useApiMutation } from "@/hooks/useApiMutation";
 import { useApiQuery } from "@/hooks/useApiQuery";
 import { queryKeys } from "@/lib/queryClient";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 
 export type NotificationItem = {
     id: string;
@@ -122,14 +123,14 @@ function getNotificationDescription(notif: NotificationItem): React.ReactNode {
 }
 
 export default function NotificationsPage() {
-    const { token, withAuth } = useAuth();
+    const { token } = useAuth();
     const queryClient = useQueryClient();
     const { refresh, markNotificationsAsRead: updateNotifications } = useActivity();
-    const notificationsQuery = useQuery<NotificationItem[]>({
-        queryKey: ["api", token, ...queryKeys.notifications.items(token)],
-        enabled: false,
-    });
-    const notifications = (notificationsQuery.data ?? []) as NotificationItem[];
+    const notificationsQuery = useApiQuery(
+        queryKeys.notifications.items(token),
+        getNotificationsAction,
+    );
+    const notifications = (notificationsQuery.data?.items ?? []) as NotificationItem[];
     const topicsQuery = useApiQuery(queryKeys.notifications.topics(token), getNotificationTopicsAction);
     const topics = (topicsQuery.data?.items ?? []) as TopicItem[];
     const [activeTopic, setActiveTopic] = useState<string | null>(null);
@@ -392,9 +393,10 @@ export default function NotificationsPage() {
                                 <Check className="h-4 w-4" />
                             </Button>
                         </div>
-                    )}
-                </div>
-                <div className="flex items-center gap-2">
+                                 )}
+                             </div>
+
+                  <div className="flex items-center gap-2">
                     <Button
                         variant="ghost"
                         size="sm"

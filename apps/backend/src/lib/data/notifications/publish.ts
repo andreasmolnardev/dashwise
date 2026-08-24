@@ -1,5 +1,6 @@
 import { getServerPB, getSuperuserPB } from "../../pb/pocketbase";
-import { config } from "../../config";
+import { broadcastActivity } from "../../activity";
+import { processQueuedNotifications } from "../../../jobs/notifications/forwarder";
 import { resolveTopicToken } from "./topicTokens";
 import type { NotificationItemsResponse, NotificationTopicsResponse } from "@dashwise/types";
 
@@ -24,6 +25,8 @@ export async function createNotificationWithTopicToken(topicToken: string, conte
     source: "token",
     forwardStatus: "none",
   })) as NotificationItemsResponse;
+  broadcastActivity(resolved.userId);
+  await queueNotificationForForwarding(createdItem.id);
 
   return {
     topicId: resolved.topicId,
@@ -62,6 +65,8 @@ export async function createNotificationForUserTopic(input: PublishToUserTopicIn
     source,
     forwardStatus: "none",
   })) as NotificationItemsResponse;
+  broadcastActivity(userId);
+  await queueNotificationForForwarding(notificationItem.id);
 
   return {
     topicId,
@@ -75,6 +80,7 @@ export async function createNotificationByTopicId(
   source = "system",
 ) {
   const pb = await getSuperuserPB();
+  const topicRecord = (await pb.collection("notificationTopics").getOne(topicId)) as NotificationTopicsResponse;
   const notificationItem = (await pb.collection("notificationItems").create({
     topicId,
     content,
@@ -82,6 +88,8 @@ export async function createNotificationByTopicId(
     source,
     forwardStatus: "none",
   })) as NotificationItemsResponse;
+  broadcastActivity(topicRecord.userId);
+  await queueNotificationForForwarding(notificationItem.id);
 
   return {
     topicId,
@@ -94,14 +102,5 @@ export async function queueNotificationForForwarding(itemId: string) {
   await pb.collection("notificationItems").update(itemId, {
     forwardStatus: "queued",
   });
-
-  try {
-    const jobsUrl = config.JOBS_WEBHOOK_URL;
-    await fetch(jobsUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ trigger: "notification-queued", itemId }),
-    });
-  } catch {
-  }
+  await processQueuedNotifications();
 }

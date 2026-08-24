@@ -6,10 +6,7 @@ import {
     getUserConfigsByAssociatedUserId,
     updateMonitoringJob,
 } from "../../lib/data/superuser";
-import {
-    createNotificationByTopicId,
-    queueNotificationForForwarding,
-} from "../../lib/data/notifications/publish";
+import { createNotificationByTopicId } from "../../lib/data/notifications/publish";
 import { createLogger } from "../../lib/logger";
 import { getLinkIdFromSource, getLinkSource, parseConfigObject, type StatusCheckMethod } from "./shared";
 
@@ -185,8 +182,7 @@ export async function runStatusMonitoringJobsWithOptions(options?: {
                 if (job.notifyOnStatusChange && job.notifyTopicId) {
                     try {
                         const content = `Monitor "${job.title || job.endpoint || job.source || 'Unnamed'}" changed from ${currentStatus} to ${newStatus}`;
-                        const { itemId } = await createNotificationByTopicId(job.notifyTopicId, content, 'monitoring');
-                        await queueNotificationForForwarding(itemId);
+                        await createNotificationByTopicId(job.notifyTopicId, content, 'monitoring');
                     } catch (err: any) {
                         logger.error("Failed to send notification for monitor status change", { jobId: job.id, error: err.message });
                     }
@@ -241,8 +237,7 @@ export async function runStatusMonitoringJobsWithOptions(options?: {
                     if (job.notifyOnStatusChange && job.notifyTopicId) {
                         try {
                             const content = `Monitor "${job.title || job.endpoint || job.source || 'Unnamed'}" changed from ${currentStatus} to unhealthy (fetch error)`;
-                            const { itemId } = await createNotificationByTopicId(job.notifyTopicId, content, 'monitoring');
-                            await queueNotificationForForwarding(itemId);
+                            await createNotificationByTopicId(job.notifyTopicId, content, 'monitoring');
                         } catch (nerr: any) {
                             logger.error("Failed to send notification for monitor status change (error)", { jobId: job.id, error: nerr.message });
                         }

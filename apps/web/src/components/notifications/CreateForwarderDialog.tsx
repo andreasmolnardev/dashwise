@@ -12,6 +12,8 @@ import {
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Checkbox } from "../ui/checkbox";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { AlertTriangle } from "lucide-react";
 import TopicCombobox, { type Topic } from "./TopicCombobox";
 import { createForwarderAction, testForwarderTargetAction } from '@/lib/apiClient';
 export type ForwarderItem = { 
@@ -44,6 +46,7 @@ export default function CreateForwarderDialogComponent({
   const [target, setTarget] = useState("");
   const [isActive, setIsActive] = useState(true);
   const [creating, setCreating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const { withAuth } = useAuth();
 
@@ -53,6 +56,7 @@ export default function CreateForwarderDialogComponent({
     setSelectedTopic(initialTopic);
     setTarget("");
     setIsActive(true);
+    setError(null);
   }, [open, initialTopic]);
 
   const handleTopicChange = (topic: Topic) => {
@@ -65,6 +69,7 @@ export default function CreateForwarderDialogComponent({
       return;
     }
     setCreating(true);
+    setError(null);
 
     try {
       await withAuth((auth) => testForwarderTargetAction(auth, target));
@@ -86,8 +91,7 @@ export default function CreateForwarderDialogComponent({
         isActive,
       });
     } catch (err) {
-      console.error(err);
-      alert("Failed to create forwarder");
+      setError(err instanceof Error ? err.message : "Failed to create forwarder or send test notification");
     } finally {
       setCreating(false);
     }
@@ -99,6 +103,14 @@ export default function CreateForwarderDialogComponent({
         <DialogHeader>
           <DialogTitle>New Forwarder</DialogTitle>
         </DialogHeader>
+
+        {error && (
+          <Alert variant="destructive" className="bg-destructive/10 border-destructive/20 text-destructive-foreground">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Forwarder test failed</AlertTitle>
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
 
         <div className="space-y-4">
           <div className="space-y-2">
@@ -115,7 +127,10 @@ export default function CreateForwarderDialogComponent({
             <Input
               placeholder="e.g., discord://webhook-url or slack://token/channel"
               value={target}
-              onChange={(e) => setTarget(e.target.value)}
+              onChange={(e) => {
+                setTarget(e.target.value);
+                setError(null);
+              }}
             />
             <a className="text-xs text-gray-400 mt-1 hover:text-foreground" href="https://shoutrrr.nickfedor.com/">
               For more info, visit Shoutrrr's docs
