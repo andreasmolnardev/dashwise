@@ -70,6 +70,25 @@ describe("materialized news selection", () => {
     expect(selectNewsFeedSubscriptions(subs, custom).map((entry) => entry.id)).toEqual(["two"]);
   });
 
+  test("includes nested feed subscriptions and keeps child exclusions", () => {
+    const subs = [subscription("one"), subscription("two"), subscription("three")];
+    const child: NewsFeedRecord = {
+      id: "child",
+      title: "Child",
+      subscriptionRefs: ["one", "two"],
+      excludedSubscriptionRefs: ["two"],
+    };
+    const parent: NewsFeedRecord = {
+      id: "parent",
+      title: "Parent",
+      subscriptionRefs: ["three"],
+      includedFeedRefs: ["child"],
+      excludedSubscriptionRefs: [],
+    };
+
+    expect(selectNewsFeedSubscriptions(subs, parent, [parent, child]).map((entry) => entry.id)).toEqual(["one", "three"]);
+  });
+
   test("groups topics only after exact article deduplication", () => {
     const subs = [subscription("one"), subscription("two")];
     const items = deduplicateUserArticles([

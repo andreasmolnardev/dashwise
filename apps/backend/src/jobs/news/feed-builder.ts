@@ -31,6 +31,7 @@ export type NewsFeedRecord = {
   feedType?: "all" | "custom" | string;
   systemKey?: string;
   subscriptionRefs?: string[];
+  includedFeedRefs?: string[];
   excludedSubscriptionRefs?: string[];
   maxFeedItems?: number;
   [key: string]: unknown;
@@ -127,6 +128,7 @@ function normalizeFeed(record: Record<string, unknown>): NewsFeedRecord | null {
     feedType: record.feedType ? String(record.feedType) : undefined,
     systemKey: record.systemKey ? String(record.systemKey) : undefined,
     subscriptionRefs: Array.isArray(record.subscriptionRefs) ? record.subscriptionRefs.map(String) : [],
+    includedFeedRefs: Array.isArray(record.includedFeedRefs) ? record.includedFeedRefs.map(String) : [],
     excludedSubscriptionRefs: Array.isArray(record.excludedSubscriptionRefs) ? record.excludedSubscriptionRefs.map(String) : [],
   };
 }
@@ -168,12 +170,29 @@ export function deduplicateUserArticles(
 export function selectNewsFeedSubscriptions(
   userSubscriptions: NewsSubscription[],
   record: NewsFeedRecord | null,
+  feeds: NewsFeedRecord[] = [],
 ) {
   const exclusions = new Set((record?.excludedSubscriptionRefs || []).map(String));
   if (isAllNewsFeed(record)) {
     return userSubscriptions.filter((subscription) => subscription.id && !exclusions.has(String(subscription.id)));
   }
-  const refs = new Set((record?.subscriptionRefs || []).map(String));
+  const feedsById = new Map(feeds.map((feed) => [String(feed.id), feed]));
+  const refs = new Set<string>();
+  const visited = new Set<string>();
+  const collectRefs = (current: NewsFeedRecord | null) => {
+    if (!current) return;
+    const currentId = String(current.id || "");
+    if (currentId && visited.has(currentId)) return;
+    if (currentId) visited.add(currentId);
+    const currentExclusions = new Set((current.excludedSubscriptionRefs || []).map(String));
+    for (const subscriptionId of current.subscriptionRefs || []) {
+      if (!currentExclusions.has(String(subscriptionId))) refs.add(String(subscriptionId));
+    }
+    for (const childId of current.includedFeedRefs || []) {
+      collectRefs(feedsById.get(String(childId)) || null);
+    }
+  };
+  collectRefs(record);
   return userSubscriptions.filter((subscription) => subscription.id && refs.has(String(subscription.id)) && !exclusions.has(String(subscription.id)));
 }
 
@@ -205,6 +224,7 @@ async function buildUserFeed(
   feedId: string,
   record: NewsFeedRecord | null,
   allSubscriptions: NewsSubscription[],
+  userFeeds: NewsFeedRecord[],
   sourceRevision: string,
   result: { errors: number; updated: number; details: any[] },
 ) {
@@ -222,7 +242,7 @@ async function buildUserFeed(
         excludedSubscriptionRefs: [],
       }
     : record;
-  const selectedSubscriptions = selectNewsFeedSubscriptions(userSubscriptions, effectiveRecord);
+  const selectedSubscriptions = selectNewsFeedSubscriptions(userSubscriptions, effectiveRecord, userFeeds);
   const maxFeedItems = normalizeMaxFeedItems(effectiveRecord?.maxFeedItems);
 
   try {
@@ -294,7 +314,14 @@ export async function newsFeedBuilder(feedId?: string, options: BuilderOptions =
         normalizeFeed(await getNewsFeedById(requestedId).catch(() => null) as Record<string, unknown> || {});
       if (targetFeed?.userId) targetUserIds.add(targetFeed.userId);
       if (targetFeed && !isAllNewsFeed(targetFeed)) {
-        for (const id of targetFeed.subscriptionRefs || []) targetSubscriptionIds.add(String(id));
+        const targetSubscriptions = selectNewsFeedSubscriptions(
+          allSubscriptions.filter((entry) => !entry.userId || entry.userId === targetFeed.userId),
+          targetFeed,
+          feeds.filter((entry) => entry.userId === targetFeed.userId),
+        );
+        for (const subscription of targetSubscriptions) {
+          if (subscription.id) targetSubscriptionIds.add(String(subscription.id));
+        }
       }
       if (targetFeed && isAllNewsFeed(targetFeed) && targetFeed.userId) {
         for (const subscription of allSubscriptions.filter((entry) => !entry.userId || entry.userId === targetFeed.userId)) {
@@ -315,8 +342,14 @@ export async function newsFeedBuilder(feedId?: string, options: BuilderOptions =
   }
   for (const feed of feeds) {
     if (!feed.userId) continue;
-    const refs = new Set(feed.subscriptionRefs || []);
-    if (isAllNewsFeed(feed) || Array.from(targetSubscriptionIds).some((id) => refs.has(id))) affectedUsers.add(feed.userId);
+    const selectedSubscriptions = selectNewsFeedSubscriptions(
+      allSubscriptions.filter((entry) => !entry.userId || entry.userId === feed.userId),
+      feed,
+      feeds.filter((entry) => entry.userId === feed.userId),
+    );
+    if (isAllNewsFeed(feed) || selectedSubscriptions.some((subscription) => targetSubscriptionIds.has(String(subscription.id)))) {
+      affectedUsers.add(feed.userId);
+    }
   }
   if (!requestedIds.length && !options.userId) {
     for (const feed of feeds) if (feed.userId) affectedUsers.add(feed.userId);
@@ -325,9 +358,9 @@ export async function newsFeedBuilder(feedId?: string, options: BuilderOptions =
   for (const userId of affectedUsers) {
     const userFeeds = feeds.filter((feed) => feed.userId === userId);
     const allFeed = userFeeds.find((feed) => isAllNewsFeed(feed)) || null;
-    await buildUserFeed(userId, "all", allFeed, allSubscriptions, sourceRevision, result);
+    await buildUserFeed(userId, "all", allFeed, allSubscriptions, userFeeds, sourceRevision, result);
     for (const feed of userFeeds.filter((entry) => !isAllNewsFeed(entry))) {
-      await buildUserFeed(userId, String(feed.id), feed, allSubscriptions, sourceRevision, result);
+      await buildUserFeed(userId, String(feed.id), feed, allSubscriptions, userFeeds, sourceRevision, result);
     }
     for (const subscription of allSubscriptions.filter((entry) => !entry.userId || entry.userId === userId)) {
       if (!subscription.id) continue;
@@ -336,8 +369,9 @@ export async function newsFeedBuilder(feedId?: string, options: BuilderOptions =
         title: String(subscription.title || subscription.name || subscription.url || "Subscription"),
         feedType: "custom",
         subscriptionRefs: [String(subscription.id)],
+        includedFeedRefs: [],
         excludedSubscriptionRefs: [],
-      }, allSubscriptions, sourceRevision, result);
+      }, allSubscriptions, userFeeds, sourceRevision, result);
     }
   }
 

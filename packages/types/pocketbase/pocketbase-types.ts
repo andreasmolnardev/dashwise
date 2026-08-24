@@ -233,6 +233,7 @@ export type NewsFeedsRecord = {
   created: IsoAutoDateString
   excludedSubscriptionRefs?: RecordIdString[]
   feedType?: string
+  includedFeedRefs?: RecordIdString[]
   icon?: string
   id: string
   maxFeedItems?: number

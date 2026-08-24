@@ -461,7 +461,7 @@ export function normalizeSubscription(entry: Record<string, unknown> | null): Ne
 
 async function getUserFeeds(userId: string): Promise<NewsFeedRecord[]> {
   const feeds = await getNewsFeedsByUserId(userId, 2000, {
-    fields: "id,userId,subscriptionRefs,title,icon,excludedSubscriptionRefs,maxFeedItems,feedType,systemKey",
+    fields: "id,userId,subscriptionRefs,includedFeedRefs,title,icon,excludedSubscriptionRefs,maxFeedItems,feedType,systemKey",
   });
   return Array.isArray(feeds) ? feeds as NewsFeedRecord[] : [];
 }
@@ -475,6 +475,9 @@ function buildFeedList(feeds: NewsFeedRecord[]) {
       id: String(feed.id),
       title: String(feed.title || "Untitled feed"),
       icon: String(feed.icon || "").trim(),
+      includedFeedRefs: Array.isArray(feed.includedFeedRefs)
+        ? feed.includedFeedRefs.map(String).filter(Boolean)
+        : [],
     })),
   ];
 }
@@ -570,6 +573,9 @@ function normalizeFeedRecord(entry: Record<string, unknown> | null): NewsFeedRec
     excludedSubscriptionRefs: Array.isArray(entry.excludedSubscriptionRefs)
       ? entry.excludedSubscriptionRefs.map((value) => String(value).trim()).filter(Boolean)
       : [],
+    includedFeedRefs: Array.isArray(entry.includedFeedRefs)
+      ? entry.includedFeedRefs.map((value) => String(value).trim()).filter(Boolean)
+      : [],
     maxFeedItems: normalizeMaxFeedItems(entry.maxFeedItems),
     feedType: entry.feedType ? String(entry.feedType) : undefined,
     systemKey: entry.systemKey ? String(entry.systemKey) : undefined,
@@ -604,6 +610,7 @@ export async function getNewsFeedRecord(userId: string, feedId: string): Promise
       feedType: "all",
       systemKey: "all",
       subscriptionRefs: [],
+      includedFeedRefs: [],
       excludedSubscriptionRefs: [],
       maxFeedItems: 200,
     };
@@ -649,6 +656,7 @@ export async function updateNewsFeedRecordForUser(
         systemKey: "all",
         ...(icon === undefined ? {} : { icon }),
         subscriptionRefs: [],
+        includedFeedRefs: [],
         excludedSubscriptionRefs,
         maxFeedItems,
       });
@@ -663,6 +671,7 @@ export async function updateNewsFeedRecordForUser(
       systemKey: "all",
       ...(icon === undefined ? {} : { icon }),
       subscriptionRefs: [],
+      includedFeedRefs: [],
       excludedSubscriptionRefs,
       maxFeedItems,
     });
@@ -676,11 +685,43 @@ export async function updateNewsFeedRecordForUser(
   const ownerId = String((feedRecord as Record<string, unknown>).userId ?? "").trim();
   if (ownerId && ownerId !== userId) return null;
 
+  const requestedIncludedFeedRefs = Array.from(
+    new Set((payload.includedFeedRefs ?? (feedRecord.includedFeedRefs ?? []))
+      .map((value: string) => String(value).trim()).filter(Boolean)),
+  );
+
+  const userFeeds = await getUserFeeds(userId);
+  const availableFeedIds = new Set(userFeeds
+    .filter((feed) => !isAllNewsFeed(feed) && String(feed.id) !== normalizedFeedId)
+    .map((feed) => String(feed.id)));
+  const includedFeedRefs = requestedIncludedFeedRefs.filter((feedId) => availableFeedIds.has(feedId));
+  const feedById = new Map(userFeeds.map((feed) => [String(feed.id), feed]));
+  const visiting = new Set<string>();
+  const visited = new Set<string>();
+  const hasCycle = (currentId: string): boolean => {
+    if (visiting.has(currentId)) return true;
+    if (visited.has(currentId)) return false;
+    visiting.add(currentId);
+    const current = currentId === normalizedFeedId
+      ? { includedFeedRefs }
+      : feedById.get(currentId);
+    for (const childId of current?.includedFeedRefs ?? []) {
+      if (childId === "all" || hasCycle(String(childId))) return true;
+    }
+    visiting.delete(currentId);
+    visited.add(currentId);
+    return false;
+  };
+  if (hasCycle(normalizedFeedId)) {
+    throw new Error("Feed hierarchy cannot contain cycles");
+  }
+
   const updated = await updateNewsFeedRecord(normalizedFeedId, {
     title: title || String((feedRecord as Record<string, unknown>).title ?? "").trim(),
     feedType: "custom",
     ...(icon === undefined ? {} : { icon }),
     subscriptionRefs,
+    includedFeedRefs,
     excludedSubscriptionRefs,
     maxFeedItems,
   });
@@ -703,6 +744,7 @@ export async function createNewsFeedRecordForUser(
       feedType: "all",
       systemKey: "all",
       subscriptionRefs: [],
+      includedFeedRefs: [],
       excludedSubscriptionRefs: [],
       maxFeedItems: 200,
     }) as Promise<NewsFeedRecord | null>;
@@ -719,6 +761,7 @@ export async function createNewsFeedRecordForUser(
     feedType: "custom",
     icon: String(payload.icon ?? "").trim(),
     subscriptionRefs: [],
+    includedFeedRefs: [],
     excludedSubscriptionRefs: [],
     maxFeedItems: 200,
   })) as NewsFeedRecord;
@@ -752,6 +795,7 @@ async function syncSubscriptionFeedRefs(
       title,
       feedType: "custom",
       subscriptionRefs: [subscriptionId],
+      includedFeedRefs: [],
       excludedSubscriptionRefs: [],
     })) as NewsFeedRecord;
     selectedIds.add(String(createdFeed.id));

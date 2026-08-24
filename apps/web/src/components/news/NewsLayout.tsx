@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useMemo, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import useAuth from "@/context/useAuth";
 import {
@@ -27,6 +27,7 @@ export interface FeedRecord {
     id: string;
     title?: string;
     icon?: string;
+    includedFeedRefs?: string[];
 }
 
 interface SavedListRecord {
@@ -64,6 +65,7 @@ export default function NewsLayout({ children }: { children: ReactNode }) {
     const location = useLocation();
     const { feedId } = useParams();
     const queryClient = useQueryClient();
+    const [expandedFeedIds, setExpandedFeedIds] = useState<Set<string>>(new Set());
     const activeSavedList = feedId?.startsWith("saved-") ? decodeURIComponent(feedId.slice("saved-".length)) : null;
 
     const subscriptionsQuery = useQuery({
@@ -121,6 +123,12 @@ export default function NewsLayout({ children }: { children: ReactNode }) {
     });
 
     const userFeeds = useMemo(() => feeds.filter((entry) => entry.id && entry.id !== "all"), [feeds]);
+    const topLevelFeeds = useMemo(() => {
+        const includedIds = new Set(userFeeds.flatMap((feed) => feed.includedFeedRefs ?? []));
+        const topLevel = userFeeds.filter((feed) => !includedIds.has(feed.id));
+        return topLevel.length > 0 ? topLevel : userFeeds;
+    }, [userFeeds]);
+
     const savedSubscriptionRefs = useMemo(() => {
         if (!activeSavedList) return null;
 
@@ -235,6 +243,60 @@ export default function NewsLayout({ children }: { children: ReactNode }) {
         navigate(`${activeFeedRoute}?${params.toString()}`);
     };
 
+    const renderFeedTabs = (parentId?: string, depth = 0, ancestors: Set<string> = new Set()): ReactNode[] => {
+        const parentFeed = parentId ? userFeeds.find((feed) => feed.id === parentId) : null;
+        const parentFeeds = parentFeed
+            ? parentFeed.includedFeedRefs
+                ?.map((childId) => userFeeds.find((feed) => feed.id === childId))
+                .filter((feed): feed is FeedRecord => Boolean(feed)) ?? []
+            : topLevelFeeds;
+
+        return parentFeeds.flatMap((feed) => {
+            if (ancestors.has(feed.id)) return [];
+            const nextAncestors = new Set(ancestors).add(feed.id);
+            const children = (feed.includedFeedRefs ?? [])
+                .map((childId) => userFeeds.find((candidate) => candidate.id === childId))
+                .filter((candidate): candidate is FeedRecord => Boolean(candidate));
+            const expanded = expandedFeedIds.has(feed.id);
+            const tab = (
+                <Tab
+                    key={`${parentId || "root"}-${feed.id}`}
+                    dst={`/apps/news/${feed.id}`}
+                    icon={feed.icon || "solar:document-text-bold"}
+                    title={feed.title || "Untitled feed"}
+                    group="Feeds"
+                    depth={depth}
+                    expandable={children.length > 0}
+                    expanded={expanded}
+                    onToggleExpand={() => setExpandedFeedIds((current) => {
+                        const next = new Set(current);
+                        if (next.has(feed.id)) next.delete(feed.id);
+                        else next.add(feed.id);
+                        return next;
+                    })}
+                    onOpen={() => setExpandedFeedIds((current) => {
+                        const next = new Set(current);
+                        if (next.has(feed.id)) next.delete(feed.id);
+                        else next.add(feed.id);
+                        return next;
+                    })}
+                    dropdownActions={[
+                        defaultPageAction(`/apps/news/${feed.id}`),
+                        {
+                            label: "Edit feed",
+                            icon: "fa6-solid:pen-to-square",
+                            action: () => openEditFeedModal(feed),
+                        },
+                    ]}
+                />
+            );
+
+            return expanded
+                ? [tab, ...renderFeedTabs(feed.id, depth + 1, nextAncestors)]
+                : [tab];
+        });
+    };
+
     const deleteSavedList = async (list: SavedListRecord) => {
         if (!token) return;
 
@@ -299,23 +361,7 @@ export default function NewsLayout({ children }: { children: ReactNode }) {
                     ]}
                 />
 
-                {userFeeds.map((feed) => (
-                    <Tab
-                        key={feed.id}
-                        dst={`/apps/news/${feed.id}`}
-                        icon={feed.icon || "solar:document-text-bold"}
-                        title={feed.title || "Untitled feed"}
-                        group="Feeds"
-                        dropdownActions={[
-                            defaultPageAction(`/apps/news/${feed.id}`),
-                            {
-                                label: "Edit feed",
-                                icon: "fa6-solid:pen-to-square",
-                                action: () => openEditFeedModal(feed),
-                            },
-                        ]}
-                    />
-                ))}
+                {renderFeedTabs()}
 
                 <GroupLabel
                     group="Saved"
