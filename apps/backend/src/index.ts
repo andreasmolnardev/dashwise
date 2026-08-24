@@ -6,6 +6,7 @@ import { cors } from "hono/cors";
 import { Client as SshClient } from "ssh2";
 
 import { config } from "./lib/config";
+import { subscribeActivity } from "./lib/activity";
 import { jobsApi, registerJobsCron } from "./jobs/index";
 import { startPocketbase } from "./pocketbase";
 import { createLogger } from "./lib/logger";
@@ -71,6 +72,7 @@ app.get("/health", (c) => c.json({ status: "ok" }));
 
 app.get("/api/v1/activity", upgradeWebSocket((c) => {
   let refreshTimer: ReturnType<typeof setInterval> | undefined;
+  let unsubscribeActivity: (() => void) | undefined;
 
   return {
     async onOpen(_event, ws) {
@@ -94,6 +96,7 @@ app.get("/api/v1/activity", upgradeWebSocket((c) => {
           ws.send(JSON.stringify({ type: "activity:snapshot", notifications: notificationResult.items, calendarEvents }));
         };
 
+        unsubscribeActivity = subscribeActivity(userId, sendSnapshot);
         await sendSnapshot();
         refreshTimer = setInterval(() => void sendSnapshot().catch(() => undefined), 30_000);
         (ws as typeof ws & { data: { sendSnapshot: () => Promise<void> } }).data = { sendSnapshot };
@@ -113,6 +116,7 @@ app.get("/api/v1/activity", upgradeWebSocket((c) => {
     },
     onClose() {
       if (refreshTimer) clearInterval(refreshTimer);
+      unsubscribeActivity?.();
     },
   };
 }));
@@ -251,42 +255,6 @@ app.get("/api/v1/monitoring/hosts/:id/stats/live", upgradeWebSocket((c) => {
     },
   };
 }));
-
-app.get("/webhook/statusMonitoringIndexer", async (c) => {
-  await jobsApi.runMonitoringIndexerJob("webhook");
-  return c.json({ status: "success" });
-});
-
-app.get("/webhook/statusMonitoringRunner", async (c) => {
-  const source = c.req.query("source");
-  const linkId = c.req.query("linkId");
-  await jobsApi.runMonitoringRunnerJob("webhook", { source, linkId });
-  return c.json({ status: "success" });
-});
-
-app.get("/webhook/newsFeedBuilder", async (c) => {
-  const url = new URL(c.req.url);
-  const feedIds = [
-    ...url.searchParams.getAll("feedIds"),
-    ...url.searchParams.getAll("feedId"),
-  ]
-    .flatMap((entry) => String(entry || "").split(","))
-    .map((feedId) => feedId.trim())
-    .filter(Boolean);
-
-  if (!feedIds.length) {
-    return c.json({ status: "success", message: "No feed IDs specified" });
-  }
-
-  await jobsApi.runNewsFeedBuilderJob("webhook", undefined, undefined, feedIds);
-
-  return c.json({ status: "success" });
-});
-
-app.post("/api/forward-notifications", async (c) => {
-  await jobsApi.runNotificationForwarderJob("api");
-  return c.json({ status: "success" });
-});
 
 async function serveWorkspaceAsset(scope: keyof typeof assetRoots, requestPath: string) {
   const prefix = `/${scope}`;
