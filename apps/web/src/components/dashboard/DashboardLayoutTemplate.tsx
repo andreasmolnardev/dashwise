@@ -198,11 +198,11 @@ function WidgetPrivacyOverlay({
 
 const COLUMN_CLASSNAME: Record<Column, string> = {
     left:
-        "flex-shrink-0 w-screen snap-start md:w-auto md:basis-auto space-y-2 overflow-y-visible min-w-0 min-h-0 h-fit p-1",
+        "flex-shrink-0 w-full snap-start md:w-auto md:basis-auto space-y-2 overflow-y-visible min-w-0 min-h-0 h-fit p-1",
     middle:
-        "flex-shrink-0 w-screen snap-start md:w-auto md:basis-auto space-y-2 overflow-x-hidden min-w-0 min-h-0 h-fit p-1",
+        "flex-shrink-0 w-full snap-start md:w-auto md:basis-auto space-y-2 overflow-x-hidden min-w-0 min-h-0 h-fit p-1",
     right:
-        "flex-shrink-0 w-screen snap-start md:w-auto md:basis-auto space-y-2 overflow-y-visible min-w-0 min-h-0 h-fit p-1",
+        "flex-shrink-0 w-full snap-start md:w-auto md:basis-auto space-y-2 overflow-y-visible min-w-0 min-h-0 h-fit p-1",
 };
 
 const COLUMN_PANEL_IDS: Record<Column, string | undefined> = {
@@ -588,6 +588,17 @@ export default function DashboardLayoutTemplate({
         navigate(`/settings/pages?editPage=${encodeURIComponent(pageName ?? "home")}&editWidget=${encodeURIComponent(`${columnName}:${entryKey}:${entryIndex}`)}`);
     };
 
+    const selectPanel = useCallback((panel: number) => {
+        const element = containerRef.current;
+        if (!element) return;
+
+        const width = element.clientWidth || window.innerWidth;
+        const lastPanel = Math.max(0, Math.ceil(element.scrollWidth / width) - 1);
+        const nextPanel = Math.min(lastPanel, Math.max(0, panel));
+        element.scrollTo({ left: nextPanel * width, behavior: "smooth" });
+        setActivePanel(nextPanel);
+    }, []);
+
     const renderWidgetMenuWrapper = ({
         baseKey,
         wrapperClass,
@@ -901,6 +912,7 @@ export default function DashboardLayoutTemplate({
                 <BottomNavbar
                     activePanel={activePanel}
                     columns={columns}
+                    onSelectPanel={selectPanel}
                 />
             </div>
             {!isLoading && openFromURL && !hasSearchBarWidget && (
@@ -920,6 +932,7 @@ interface BottomNavbarProps {
     setScreensaverActive?: (active: boolean) => void;
     showPages?: boolean;
     columns?: Record<string, any>;
+    onSelectPanel?: (panel: number) => void;
 }
 
 function BottomNavbar({
@@ -927,6 +940,7 @@ function BottomNavbar({
     setScreensaverActive,
     showPages = true,
     columns,
+    onSelectPanel,
 }: BottomNavbarProps) {
     const { user } = useAuth();
     const { unreadCount } = useActivity();
@@ -1030,6 +1044,7 @@ function BottomNavbar({
                         <DotIndicator
                             showThreeDots={showThreeDots}
                             active={activePanel}
+                            onSelectPanel={onSelectPanel}
                         />
                     </div>
                 </div>
@@ -1104,22 +1119,40 @@ function BottomNavbar({
 }
 
 function DotIndicator(
-    { showThreeDots, active }: { showThreeDots: boolean; active: number },
+    {
+        showThreeDots,
+        active,
+        onSelectPanel,
+    }: {
+        showThreeDots: boolean;
+        active: number;
+        onSelectPanel?: (panel: number) => void;
+    },
 ) {
     const dotBase =
         "inline-block w-2.5 h-2.5 rounded-full transition-transform transition-opacity";
     const activeClasses = "scale-110 opacity-100";
     const inactiveClasses = "scale-100 opacity-60";
+    const buttonBase =
+        "flex h-8 w-8 items-center justify-center rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60";
 
     if (!showThreeDots) {
         return (
             <div className="flex items-center gap-2">
-                <span
-                    className={`${dotBase} ${
-                        active === 1 ? activeClasses : inactiveClasses
-                    } bg-white`}
-                    aria-hidden
-                />
+                <button
+                    type="button"
+                    aria-label="Show main panel"
+                    aria-current={active === 1 ? "true" : undefined}
+                    className={buttonBase}
+                    onClick={() => onSelectPanel?.(1)}
+                >
+                    <span
+                        className={`${dotBase} ${
+                            active === 1 ? activeClasses : inactiveClasses
+                        } bg-white`}
+                        aria-hidden
+                    />
+                </button>
             </div>
         );
     }
@@ -1127,13 +1160,21 @@ function DotIndicator(
     return (
         <div className="flex items-center gap-2">
             {[0, 1, 2].map((i) => (
-                <span
+                <button
                     key={i}
-                    aria-hidden
-                    className={`${dotBase} ${
-                        active === i ? activeClasses : inactiveClasses
-                    } bg-white`}
-                />
+                    type="button"
+                    aria-label={`Show ${i === 0 ? "left" : i === 1 ? "main" : "right"} panel`}
+                    aria-current={active === i ? "true" : undefined}
+                    className={buttonBase}
+                    onClick={() => onSelectPanel?.(i)}
+                >
+                    <span
+                        className={`${dotBase} ${
+                            active === i ? activeClasses : inactiveClasses
+                        } bg-white`}
+                        aria-hidden
+                    />
+                </button>
             ))}
         </div>
     );

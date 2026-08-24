@@ -205,6 +205,17 @@
   display: none;             /* Chrome/Safari */
 }
 
+@media (max-width: 767px) {
+  .scrollbar-hidden {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .scrollbar-hidden::-webkit-scrollbar {
+    display: none;
+  }
+}
+
 .scrollbar-visible {
   scrollbar-width: thin;
   scrollbar-color: rgb(255 255 255 / 0.35) transparent;
