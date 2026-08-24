@@ -48,6 +48,7 @@ export const config = {
   PORT: Number(env.PORT) || 3000,
   PB_URL: getEnv("PB_URL", "NEXT_PUBLIC_PB_URL") || "http://127.0.0.1:8090",
   PB_BINARY_PATH: env.PB_BINARY_PATH,
+  SHOUTRRR_BINARY_PATH: env.SHOUTRRR_BINARY_PATH,
   LOG_LEVEL: getLogLevel(),
   START_POCKETBASE:
     processStartPocketBase == null
@@ -76,9 +77,6 @@ export const config = {
   INSTANCE_NAME: getEnv("INSTANCE_NAME", "NEXT_PUBLIC_INSTANCE_NAME") || "Dashwise",
   DISABLE_USER_SIGNUP: truthyEnv(getEnv("DISABLE_USER_SIGNUP", "NEXT_PUBLIC_DISABLE_USER_SIGNUP")),
   ENABLE_SSO: truthyEnv(getEnv("ENABLE_SSO", "NEXT_PUBLIC_ENABLE_SSO")),
-  JOBS_URL: getEnv("JOBS_URL", "NEXT_PUBLIC_JOBS_URL") || "http://127.0.0.1:3001",
-  JOBS_WEBHOOK_URL: env.JOBS_WEBHOOK_URL || "http://jobs:3000/api/forward-notifications",
-  JOBS_WEBHOOK_ENABLED: truthyEnv(getEnv("JOBS_WEBHOOK_ENABLE", "NEXT_PUBLIC_JOBS_WEBHOOK_ENABLE")) || !!getEnv("JOBS_URL", "NEXT_PUBLIC_JOBS_URL"),
   DEFAULT_BG_URL: getEnv("DEFAULT_BG_URL", "NEXT_PUBLIC_DEFAULT_BG_URL") || "/dashboard-wallpaper.png",
   allowInsecureCertsForIntegrationUrls: truthyEnv(getEnv("ALLOW_INSECURE_CERTS_FOR_INTEGRATION_URLS", "NEXT_PUBLIC_INTEGRATIONS_ENABLE_SSL")) || truthyEnv(env.ALLOW_SSL),
 } as const;

@@ -1,7 +1,8 @@
-import { exec } from "child_process";
+import { execFile } from "child_process";
 import { promisify } from "util";
+import { config } from "../../config";
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 export function formatNotificationMessage(content: unknown): string {
   if (typeof content === "string") {
@@ -38,16 +39,11 @@ export async function sendViaShoutrrr(target: string, message: string): Promise<
     throw new Error("Invalid target");
   }
 
-  const safeTarget = target.replace(/'/g, "'\\''");
-  const safeMessage = message.replace(/'/g, "'\\''");
-
   try {
-    const { stderr } = await execAsync(
-      `shoutrrr send --url '${safeTarget}' --message '${safeMessage}'`,
-      {
-        env: { ...process.env },
-        timeout: 30000,
-      }
+    const { stderr } = await execFileAsync(
+      config.SHOUTRRR_BINARY_PATH || "shoutrrr",
+      ["send", "--url", target, "--message", message],
+      { env: { ...process.env }, timeout: 30000 },
     );
 
     if (stderr) {
