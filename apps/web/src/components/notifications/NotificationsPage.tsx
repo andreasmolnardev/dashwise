@@ -361,8 +361,8 @@ export default function NotificationsPage() {
                         className={cn(
                             "px-4 py-2 rounded-xl text-sm font-medium transition whitespace-nowrap",
                             activeTopic === null
-                                ? "bg-white/20 backdrop-blur-md text-white border border-primary"
-                                : "bg-white/10 text-gray-100 hover:bg-white/20",
+                                ? "frosted-lite-control-active backdrop-blur-md text-white border border-primary"
+                                : "frosted-lite-control text-gray-100",
                         )}
                     >
                         All
@@ -378,8 +378,8 @@ export default function NotificationsPage() {
                                 className={cn(
                                     "px-4 py-2 rounded-l-xl rounded-r-sm text-sm font-medium transition whitespace-nowrap",
                                     activeTopic === topic.id
-                                        ? "bg-white/20 backdrop-blur-md text-white border border-primary"
-                                        : "bg-white/10 text-gray-100 hover:bg-white/20",
+                                        ? "frosted-lite-control-active backdrop-blur-md text-white border border-primary"
+                                        : "frosted-lite-control text-gray-100",
                                 )}
                             >
                                 {topic.title}
@@ -390,7 +390,7 @@ export default function NotificationsPage() {
                                     <Button
                                         variant="ghost"
                                         size="sm"
-                                        className="h-9 w-9 rounded-r-xl rounded-l-sm bg-white/10 hover:bg-white/20"
+                                        className="h-9 w-9 rounded-r-xl rounded-l-sm frosted-lite-control"
                                     >
                                         <MoreHorizontal className="h-4 w-4" />
                                     </Button>

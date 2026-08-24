@@ -38,7 +38,7 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
           <div className="space-y-1">
             <div
               ref={activeBgRef}
-              className="absolute left-0 w-[95%] rounded-md bg-white/20 transition-all duration-300"
+              className="frosted-lite-control-active absolute left-0 w-[95%] rounded-md transition-all duration-300"
               style={{ zIndex: 0 }}
             />
 
