@@ -156,6 +156,7 @@ export type NewsFeedMetadata = {
   feedUrl: string;
   title: string;
   icon: string;
+  suggestedBlacklistWords?: string[];
 };
 
 export type NewsFeedRecordCreateInput = {

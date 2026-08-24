@@ -8,6 +8,7 @@ import type { NewsFeedItem, NewsFeedMetadata, NewsFeedRecordCreateInput, NewsFee
 import { readAuthToken, readJsonBody, requireAuth, withJson } from "./shared";
 import { createLogger } from "../lib/logger";
 import { jobsApi } from "../jobs/index";
+import { suggestCommonBlacklistWords } from "../lib/news/topic-suggestions";
 
 const logger = createLogger("API");
 
@@ -99,6 +100,12 @@ async function getFeedMetadata(feedUrl: string): Promise<NewsFeedMetadata> {
       headers: FEED_REQUEST_HEADERS,
       customFields: {
         feed: ["image", "icon"],
+        item: [
+          ["content:encoded", "content:encoded"],
+          ["media:description", "media:description"],
+          ["description", "description", { keepArray: false }],
+          ["category", "category", { keepArray: true }],
+        ],
       },
     });
 
@@ -112,6 +119,7 @@ async function getFeedMetadata(feedUrl: string): Promise<NewsFeedMetadata> {
       feedUrl: normalizedFeedUrl,
       title,
       icon,
+      suggestedBlacklistWords: suggestCommonBlacklistWords(Array.isArray(feed.items) ? feed.items : []),
     };
   } catch (error) {
     logger.error(`Error fetching feed metadata for ${normalizedFeedUrl}`, error);
@@ -122,9 +130,10 @@ async function getFeedMetadata(feedUrl: string): Promise<NewsFeedMetadata> {
         feedUrl: normalizedFeedUrl,
         title: "",
         icon: `${parsed.origin}/favicon.ico`,
+        suggestedBlacklistWords: [],
       };
     } catch {
-      return { feedUrl: normalizedFeedUrl, title: "", icon: "" };
+      return { feedUrl: normalizedFeedUrl, title: "", icon: "", suggestedBlacklistWords: [] };
     }
   }
 }

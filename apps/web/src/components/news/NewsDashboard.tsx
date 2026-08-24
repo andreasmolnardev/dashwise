@@ -845,6 +845,8 @@ export default function NewsDashboardComponent() {
                                     linkReplaceRule: editingFeed.linkReplaceRule,
                                     fallbackThumbnailUrl: editingFeed.fallbackThumbnailUrl,
                                     thumbnailOverwriteUrl: editingFeed.thumbnailOverwriteUrl,
+                                    similarityGroupingWordsBlacklist: editingFeed.similarityGroupingWordsBlacklist,
+                                    enableTopicGrouping: editingFeed.enableTopicGrouping,
                                     json: editingFeed.json,
                                 }
                                 : newSubscriptionDefaults}

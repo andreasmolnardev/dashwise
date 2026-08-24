@@ -32,7 +32,11 @@ interface SubscriptionDetailsFormProps {
   onClose?: () => void | Promise<void>;
   onSave?: (feed: NewsFeedDraft) => Promise<void> | void;
   onDelete?: (feedId: string) => Promise<void> | void;
-  resolveFeedMetadata?: (feedUrl: string) => Promise<{ title?: string; icon?: string } | null | undefined>;
+  resolveFeedMetadata?: (feedUrl: string) => Promise<{
+    title?: string;
+    icon?: string;
+    suggestedBlacklistWords?: string[];
+  } | null | undefined>;
 }
 
 export default function SubscriptionDetailsForm({
@@ -60,6 +64,7 @@ export default function SubscriptionDetailsForm({
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [metadataLoading, setMetadataLoading] = useState(false);
+  const [serverGroupingWords, setServerGroupingWords] = useState<string[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const nameRef = useRef<string>(name);
   const iconRef = useRef<string>(icon);
@@ -124,6 +129,7 @@ export default function SubscriptionDetailsForm({
     if (!resolveFeedMetadata) return;
 
     const trimmedUrl = feedUrl.trim();
+    setServerGroupingWords(null);
     if (!trimmedUrl) return;
 
     let cancelled = false;
@@ -139,6 +145,8 @@ export default function SubscriptionDetailsForm({
       try {
         const metadata = await resolveFeedMetadata(trimmedUrl);
         if (cancelled || !metadata) return;
+
+        setServerGroupingWords(metadata.suggestedBlacklistWords ?? []);
 
         const resolvedTitle = metadata.title?.trim();
         if (resolvedTitle) {
@@ -191,7 +199,7 @@ export default function SubscriptionDetailsForm({
 
   const allSelectedLabels = [...selectedFeedTitles, ...selectedNewTitles];
 
-  const commonGroupingWords = useMemo(() => {
+  const cachedGroupingWords = useMemo(() => {
     const items = Array.isArray(feed?.json) ? feed.json : [];
     const counts = new Map<string, number>();
 
@@ -217,6 +225,8 @@ export default function SubscriptionDetailsForm({
       .slice(0, 18)
       .map(([word]) => word);
   }, [feed?.json]);
+
+  const commonGroupingWords = serverGroupingWords ?? cachedGroupingWords;
 
   const addBlacklistWord = (word: string) => {
     const nextWord = word.trim();
@@ -628,9 +638,13 @@ export default function SubscriptionDetailsForm({
               <p className="mt-1 text-xs text-white/50">Comma-separated, case-insensitive words. Prefix a default word with - to allow it again.</p>
             </div>
 
+            {metadataLoading && serverGroupingWords === null && feedUrl.trim() && (
+              <p className="text-xs text-white/50">Analyzing recent articles for feed-specific words...</p>
+            )}
+
             {commonGroupingWords.length > 0 && (
               <div>
-                <Label className="text-xs">Common Words</Label>
+                <Label className="text-xs">Suggested Blacklist Words</Label>
                 <div className="mt-2 flex flex-wrap gap-2">
                   {commonGroupingWords.map((word) => (
                     <button
