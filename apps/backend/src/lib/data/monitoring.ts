@@ -1,4 +1,5 @@
 import { config } from "../config";
+import { runStatusMonitoringJobsWithOptions } from "../../jobs/monitoring/runner";
 import { decryptSecret, encryptSecret } from "../crypto";
 import { getSuperuserPB } from "../pb/pocketbase";
 import type { MonitorsResponse } from "@dashwise/types";
@@ -603,25 +604,12 @@ export async function runMonitoringStatus(userId: string, body: any) {
     return { _status: 404, error: "Monitoring job not found for this user" };
   }
 
-  if (!config.JOBS_WEBHOOK_ENABLED) {
-    return { _status: 400, error: "Jobs webhook is disabled" };
-  }
-
   const targetMonitor = existingMonitors[0];
   const sourceLinkId = targetMonitor.sourcelinkId || targetMonitor.linkId;
-
-  const webhookUrl = `${config.JOBS_URL}/webhook/statusMonitoringRunner${
-    sourceLinkId ? `?linkId=${encodeURIComponent(sourceLinkId)}` : ""
-  }`;
-  const webhookResponse = await fetch(webhookUrl, {
-    ...(webhookUrl.startsWith("https://")
-      ? { tls: { rejectUnauthorized: false } }
-      : {}),
-  } as any);
-  const webhookContentType = webhookResponse.headers.get("content-type") || "";
-  const webhookData = webhookContentType.includes("application/json")
-    ? await webhookResponse.json()
-    : await webhookResponse.text();
+  const runnerData = await runStatusMonitoringJobsWithOptions({
+    source: targetMonitor.source,
+    linkId: sourceLinkId,
+  });
 
   const refreshedMonitors = await pb
     .collection("monitors")
@@ -629,9 +617,7 @@ export async function runMonitoringStatus(userId: string, body: any) {
   const refreshedMonitor = refreshedMonitors[0] || targetMonitor;
   const statusSummary = getLatestMonitorStatus(refreshedMonitor);
 
-  const runnerDetails = typeof webhookData === "object" && webhookData
-    ? (webhookData as any)?.result?.details
-    : undefined;
+  const runnerDetails = runnerData.details;
   const matchingRunnerDetail = Array.isArray(runnerDetails)
     ? runnerDetails.find((entry: any) => entry?.jobId === refreshedMonitor.id) || runnerDetails[0]
     : undefined;
@@ -656,6 +642,6 @@ export async function runMonitoringStatus(userId: string, body: any) {
     httpStatus: matchingRunnerDetail?.httpStatus,
     method: matchingRunnerDetail?.method,
     result: matchingRunnerDetail,
-    webhookResult: webhookData,
+    runnerResult: runnerData,
   };
 }

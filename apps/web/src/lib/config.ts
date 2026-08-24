@@ -2,8 +2,6 @@ interface Config {
   instance_name?: string | undefined;
   backend_url: string;
   pb_url: string;
-  jobs_url?: string | undefined;
-  jobs_webhook_enabled: boolean;
   default_bg_url: string;
   version: string;
   allowInsecureCertsForIntegrationUrls: boolean;
@@ -27,12 +25,6 @@ const enableSSOLogin =
 const disableUserSignup =
   env.NEXT_PUBLIC_DISABLE_USER_SIGNUP === "true" || env.NEXT_PUBLIC_DISABLE_USER_SIGNUP === "1" || false;
 
-const enableJobsWebhook =
-  env.NEXT_PUBLIC_JOBS_WEBHOOK_ENABLE === "true" ||
-  env.NEXT_PUBLIC_JOBS_WEBHOOK_ENABLE === "1" ||
-  !!env.NEXT_PUBLIC_JOBS_URL ||
-  false;
-
 let backend_url = 'http://localhost:3000';
 
 if (!isDev){
@@ -48,9 +40,6 @@ const config: Config = {
   backend_url: backend_url,
 
   pb_url: env.NEXT_PUBLIC_PB_URL || "http://127.0.0.1:8090",
-
-  jobs_webhook_enabled: enableJobsWebhook,
-  jobs_url: env.NEXT_PUBLIC_JOBS_URL || "http://127.0.0.1:3001",
 
   default_bg_url: env.NEXT_PUBLIC_DEFAULT_BG_URL || "/dashboard-wallpaper.png",
 

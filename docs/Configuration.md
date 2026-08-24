@@ -32,7 +32,7 @@ You can use the following environment variables for the all-in-one container; th
 | --- | --- | --- | --- |
 | NEXT_PUBLIC_APP_URL / APP_BASE_URL | No | `http://localhost:3000` | Public URL of the application |
 | NEXT_PUBLIC_BACKEND_URL | No | - | Backend URL for frontend API calls (fallback: window.location.origin in production) |
-| DASHWISE_URL | No | - | Internal Dashwise URL for jobs container communication |
+| DASHWISE_URL | No | - | Internal Dashwise URL used for server-side callbacks |
 
 ### Appearance & Features
 
@@ -50,13 +50,10 @@ You can use the following environment variables for the all-in-one container; th
 | ALLOW_SSL | No | `false` | Enable SSL for internal service communication |
 | LOG_LEVEL / BACKEND_LOG_LEVEL | No | - | Backend log level (debug, info, warn, error) |
 
-### Jobs & Background Processing
+### Background Processing
 
 | Name | Required | Default Value | Description |
 | --- | --- | --- | --- |
-| JOBS_URL / NEXT_PUBLIC_JOBS_URL | No | `http://127.0.0.1:3001` | URL of the jobs service |
-| JOBS_WEBHOOK_ENABLE / NEXT_PUBLIC_JOBS_WEBHOOK_ENABLE | No | `false` | Enable the jobs webhook when set to `1` or `true`. Setting either jobs URL variable also enables the webhook, so `false` cannot disable it while `JOBS_URL` or `NEXT_PUBLIC_JOBS_URL` is set. |
-| JOBS_WEBHOOK_URL | No | `http://jobs:3000/api/forward-notifications` | Webhook URL for forwarding notifications to jobs |
 | JOBS_MONITORING_RETRY_AFTER | No | `5000` | Time in milliseconds to wait before retrying a failed monitoring ping |
 
 ### Scheduled Jobs (Cron Expressions)

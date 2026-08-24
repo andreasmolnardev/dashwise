@@ -1,5 +1,5 @@
 import { getSuperuserPB } from "../../pb/pocketbase";
-import { config } from "../../config";
+import { queueNotificationForForwarding } from "./publish";
 import type {
   NotificationForwardersResponse,
   NotificationItemsResponse,
@@ -151,15 +151,7 @@ export async function sendTestNotification(userId: string, topicId: string) {
     forwardStatus: "queued",
   });
 
-  try {
-    const jobsUrl = config.JOBS_WEBHOOK_URL;
-    await fetch(jobsUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ trigger: "notification-queued", itemId: item.id }),
-    });
-  } catch {
-  }
+  await queueNotificationForForwarding(item.id);
 
   return { ok: true, itemId: item.id };
 }

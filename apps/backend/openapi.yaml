@@ -695,6 +695,16 @@ paths:
       responses:
         "200":
           $ref: "#/components/responses/JsonOk"
+  /notifications/forwarders/test:
+    post:
+      tags:
+        - notifications
+      summary: Test forwarder
+      requestBody:
+        $ref: "#/components/requestBodies/JsonBody"
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
   /notifications/markAsRead:
     post:
       tags:
@@ -752,6 +762,15 @@ paths:
       tags:
         - notifications
       summary: Create topic token
+      requestBody:
+        $ref: "#/components/requestBodies/JsonBody"
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+    put:
+      tags:
+        - notifications
+      summary: Update topic token
       requestBody:
         $ref: "#/components/requestBodies/JsonBody"
       responses:
