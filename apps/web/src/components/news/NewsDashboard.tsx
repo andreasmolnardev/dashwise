@@ -385,6 +385,7 @@ export default function NewsDashboardComponent() {
             id: editFeedRef,
             title: feedSummary?.title || (editFeedRef === "all" ? "All feed" : "Untitled feed"),
             subscriptionRefs: derivedSubscriptionRefs,
+            includedFeedRefs: feedSummary?.includedFeedRefs ?? [],
             excludedSubscriptionRefs: [],
         };
 
@@ -966,6 +967,12 @@ export default function NewsDashboardComponent() {
                     .map((subscription) => ({
                         id: String(subscription.id),
                         title: String(subscription.title || subscription.name || subscription.url || "Untitled subscription"),
+                    }))}
+                feeds={(feeds ?? [])
+                    .filter((feed) => feed.id !== "all" && feed.id !== editFeedRef)
+                    .map((feed) => ({
+                        id: feed.id,
+                        title: String(feed.title || "Untitled feed"),
                     }))}
                 onClose={closeFeedEditor}
                 onSave={async (payload) => {

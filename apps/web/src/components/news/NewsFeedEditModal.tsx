@@ -14,10 +14,16 @@ interface SubscriptionOption {
     title: string;
 }
 
+interface FeedOption {
+    id: string;
+    title: string;
+}
+
 interface NewsFeedEditModalProps {
     open: boolean;
     feed: NewsFeedRecord | null;
     subscriptions: SubscriptionOption[];
+    feeds: FeedOption[];
     loading?: boolean;
     onClose: () => void | Promise<void>;
     onSave: (payload: NewsFeedRecordUpdateInput) => Promise<void> | void;
@@ -27,6 +33,7 @@ export default function NewsFeedEditModal({
     open,
     feed,
     subscriptions,
+    feeds,
     loading = false,
     onClose,
     onSave,
@@ -35,6 +42,7 @@ export default function NewsFeedEditModal({
     const [icon, setIcon] = useState("");
     const [iconPickerOpen, setIconPickerOpen] = useState(false);
     const [selectedSubscriptionIds, setSelectedSubscriptionIds] = useState<string[]>([]);
+    const [selectedFeedIds, setSelectedFeedIds] = useState<string[]>([]);
     const [query, setQuery] = useState("");
     const [maxFeedItems, setMaxFeedItems] = useState("200");
     const [saving, setSaving] = useState(false);
@@ -52,6 +60,7 @@ export default function NewsFeedEditModal({
         setSelectedSubscriptionIds(isAllFeed
             ? [...(feed?.excludedSubscriptionRefs ?? [])]
             : [...(feed?.subscriptionRefs ?? [])]);
+        setSelectedFeedIds(isAllFeed ? [] : [...(feed?.includedFeedRefs ?? [])]);
         setMaxFeedItems(String(feed?.maxFeedItems || 200));
         setQuery("");
         setError(null);
@@ -67,6 +76,14 @@ export default function NewsFeedEditModal({
     const subscriptionsById = useMemo(() => {
         return new Map(sortedSubscriptions.map((entry) => [entry.id, entry] as const));
     }, [sortedSubscriptions]);
+
+    const sortedFeeds = useMemo(
+        () => feeds
+            .filter((entry) => entry.id !== "all")
+            .slice()
+            .sort((left, right) => left.title.localeCompare(right.title)),
+        [feeds],
+    );
 
     const filteredSubscriptions = useMemo(() => {
         const normalizedQuery = query.trim().toLowerCase();
@@ -96,6 +113,12 @@ export default function NewsFeedEditModal({
         });
     };
 
+    const toggleFeed = (feedId: string) => {
+        setSelectedFeedIds((current) => current.includes(feedId)
+            ? current.filter((entryId) => entryId !== feedId)
+            : [...current, feedId]);
+    };
+
     const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
         setSaving(true);
@@ -116,6 +139,7 @@ export default function NewsFeedEditModal({
                     ? sortedSubscriptions.map((entry) => entry.id)
                     : selectedSubscriptionIds,
                 excludedSubscriptionRefs: isAllFeed ? selectedSubscriptionIds : [],
+                includedFeedRefs: isAllFeed ? [] : selectedFeedIds,
                 maxFeedItems: normalizedMaxFeedItems,
             };
 
@@ -195,6 +219,36 @@ export default function NewsFeedEditModal({
                         />
                     </div>
 
+                    {!isAllFeed && (
+                        <div>
+                            <div className="flex items-center justify-between gap-3">
+                                <Label>Included feeds</Label>
+                                <span className="text-xs text-white/50">{selectedFeedIds.length} selected</span>
+                            </div>
+                            <div className="mt-3 rounded-2xl border border-white/10 bg-black/20 p-2">
+                                {sortedFeeds.length === 0 && (
+                                    <div className="px-3 py-2 text-sm text-white/50">No other feeds available.</div>
+                                )}
+                                {sortedFeeds.map((includedFeed) => {
+                                    const isSelected = selectedFeedIds.includes(includedFeed.id);
+                                    return (
+                                        <button
+                                            key={includedFeed.id}
+                                            type="button"
+                                            onClick={() => toggleFeed(includedFeed.id)}
+                                            aria-pressed={isSelected}
+                                            className={`flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left transition-colors ${isSelected ? "bg-white/10 text-white" : "text-white/75 hover:bg-white/5 hover:text-white"}`}
+                                            disabled={saving || loading}
+                                        >
+                                            <Icon icon={isSelected ? "fa6-solid:check" : "fa6-regular:square"} className="text-sm" />
+                                            <span className="min-w-0 flex-1 truncate">{includedFeed.title}</span>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
+
                     <div>
                         <div className="flex items-center justify-between gap-3">
                             <Label htmlFor="news-feed-search">
@@ -237,6 +291,7 @@ export default function NewsFeedEditModal({
                                                 key={subscription.id}
                                                 type="button"
                                                 onClick={() => toggleSubscription(subscription.id)}
+                                                aria-pressed={isSelected}
                                                 className={`flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left transition-colors ${
                                                     isSelected
                                                         ? "bg-white/10 text-white"
@@ -246,7 +301,7 @@ export default function NewsFeedEditModal({
                                             >
                                                 <span className="mt-0.5">
                                                     <Icon
-                                                        icon={isSelected ? "fa6-solid:check-square" : "fa6-regular:square"}
+                                                        icon={isSelected ? "fa6-solid:check" : "fa6-regular:square"}
                                                         className="text-sm"
                                                     />
                                                 </span>

@@ -15,7 +15,9 @@ const overviewArticleLimit = 12;
 export default function NewsOverview() {
     const { token } = useAuth();
     const { feeds, subscriptions } = useNewsSidebarData();
-    const overviewFeeds = feeds.filter((feed) => feed.id !== "all");
+    const customFeeds = feeds.filter((feed) => feed.id !== "all");
+    const includedFeedIds = new Set(customFeeds.flatMap((feed) => feed.includedFeedRefs ?? []));
+    const overviewFeeds = customFeeds.filter((feed) => !includedFeedIds.has(feed.id));
     const feedsToDisplay = overviewFeeds.length > 0 ? overviewFeeds : feeds.filter((feed) => feed.id === "all");
 
     return (
