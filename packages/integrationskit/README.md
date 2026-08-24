@@ -68,11 +68,14 @@ The widget resolver supports templates:
 - `columns`
 - `vertical-list`
 - `icon-details-card`
+- `iframe`
 
 It resolves values for:
 - `header` and `header.show_if`
-- columns, list items, icons, badges, progress bars, thumbnails, titles, and actions
+- columns, list items, icons, badges, progress bars, stats blocks, thumbnails, titles, and actions
 - integration icon references through environment interpolation
+
+Columns support either `progress` or `stats.primary` / `stats.secondary` in each item.
 
 ## React component usage
 

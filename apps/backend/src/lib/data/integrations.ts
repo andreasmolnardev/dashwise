@@ -1,11 +1,13 @@
 import { Buffer } from "buffer";
 import { defaultIntegrationsManifest } from "@dashwise/assets";
+import { weatherIntegrationBlueprint } from "@dashwise/assets";
 import { ApiActionError } from "./auth";
 import { getSuperuserPB } from "../pb/pocketbase";
 import { decodeBase64Json, parseNullableJson, tryParseJson, tryParseYaml } from "../parseHelpers";
 import { getEndpointCurl } from "@dashwise/integrationskit/data/getEndpointData";
 import { resolveIntegrationRuntimeProperties } from "@dashwise/integrationskit/data/resolveProperties";
 import { config } from "../config";
+import { prunePageConfigConsumersForIntegration } from "../../jobs/updates/pageconfig-cleanup";
 
 const TOKEN_REGEX = /\$\{([A-Za-z0-9_]+)\}/g;
 const UNRESOLVED_TOKEN_REGEX = /\$\{[A-Za-z0-9_]+\}/;
@@ -62,6 +64,10 @@ const builtinManifest = isPlainObject(defaultIntegrationsManifest)
     ? (defaultIntegrationsManifest as Record<string, { source: string; defaultEnv?: Record<string, unknown> }>)
     : {};
 
+const builtinConfigsBySource: Record<string, unknown> = {
+    "/integrations/weather.yaml": weatherIntegrationBlueprint,
+};
+
 let builtinSeedsPromise: Promise<BuiltinSeed[]> | null = null;
 
 function loadBuiltinSeeds(): Promise<BuiltinSeed[]> {
@@ -86,6 +92,9 @@ function loadBuiltinSeeds(): Promise<BuiltinSeed[]> {
 }
 
 async function fetchBuiltinConfig(source: string): Promise<Record<string, unknown> | null> {
+    const bundled = builtinConfigsBySource[source];
+    if (isPlainObject(bundled)) return bundled;
+
     try {
         const response = await fetch(new URL(source, config.APP_BASE_URL).toString());
         if (!response.ok) return null;
@@ -181,6 +190,8 @@ export async function deleteIntegration(userId: string, integrationId: string) {
     const pb = await getSuperuserPB();
     const record = await pb.collection("integrations").getOne(integrationId);
     if (!ownsIntegration(record, userId)) throw new ApiActionError("Not found", 404, { error: "Not found" });
+    const integration = mapIntegration(record);
+    await prunePageConfigConsumersForIntegration(userId, integrationId, integration.config as Record<string, any>);
     await pb.collection("integrations").delete(integrationId);
     return { success: true };
 }
@@ -275,7 +286,9 @@ export async function getWidgetProperties(userId: string, widgetSlug: string) {
         for (const w of widgets) {
             if (!isPlainObject(w)) continue;
             const id = resolveWidgetId(w);
-            if (id?.toLowerCase() === slug) return { widget: { ...w, slug: id }, integration: { id: integration.id, name: integration.name } };
+            if (normalizeProgressType(id ?? "").toLowerCase() === normalizeProgressType(slug).toLowerCase()) {
+                return { widget: { ...w, slug: id }, integration: { id: integration.id, name: integration.name } };
+            }
         }
     }
     return { widget: null, integration: null };
@@ -321,7 +334,7 @@ export async function getIntegrationWithConsumer(userId: string, options: { widg
             const normalizedGlanceableType = glanceableType.toLowerCase();
 
             const matches = widgetKey
-                ? resolvedWidgetKey !== null && resolvedWidgetKey === widgetKey
+                ? resolvedWidgetKey !== null && normalizeProgressType(resolvedWidgetKey) === normalizeProgressType(widgetKey)
                 : (() => {
                     if (!normalizedGlanceableType) return false;
                     return glanceableAliases.some((alias) => alias.toLowerCase() === normalizedGlanceableType);
@@ -354,9 +367,87 @@ export async function getIntegrationWithConsumer(userId: string, options: { widg
         }
     }
 
+    if (widgetKey) {
+        const builtin = await getBuiltinConsumerMatch({
+            widgetKey,
+            glanceableType: "",
+            integrationId: "builtin-weather",
+            integration: weatherIntegrationBlueprint as Record<string, unknown>,
+            source: "/integrations/weather.yaml",
+        });
+        if (builtin) return builtin;
+    }
+
     return widgetKey
         ? { integrationId: null, integration: null, widgetJSON: null, localData: null }
         : { integrationId: null, integration: null, glanceableJSON: null, localData: null };
+}
+
+async function getBuiltinConsumerMatch(opts: {
+    widgetKey: string;
+    glanceableType: string;
+    integrationId: string;
+    integration: Record<string, unknown>;
+    source: string;
+}) {
+    const widgetKey = opts.widgetKey.trim();
+    const glanceableType = opts.glanceableType.trim();
+    const seed = {
+        source: opts.source,
+        name: typeof opts.integration?.details === "object" && opts.integration.details && typeof (opts.integration.details as Record<string, unknown>).name === "string"
+            ? String((opts.integration.details as Record<string, unknown>).name)
+            : null,
+        config: opts.integration,
+        defaultEnv: {},
+    } satisfies BuiltinSeed;
+
+    const cfg = seed.config;
+    const configuration = cfg?.configuration as Record<string, unknown> | undefined;
+    const collection = widgetKey ? "widgets" : "glanceables";
+    const items = configuration?.[collection];
+    if (!Array.isArray(items)) return null;
+
+    for (const item of items) {
+        if (!isPlainObject(item)) continue;
+
+        const resolvedWidgetKey = resolveWidgetId(item);
+        const glanceableAliases = resolveGlanceableAliases(item);
+        const normalizedGlanceableType = glanceableType.toLowerCase();
+
+        const matches = widgetKey
+            ? resolvedWidgetKey !== null && normalizeProgressType(resolvedWidgetKey) === normalizeProgressType(widgetKey)
+            : (() => {
+                if (!normalizedGlanceableType) return false;
+                return glanceableAliases.some((alias) => alias.toLowerCase() === normalizedGlanceableType);
+            })();
+
+        if (!matches) continue;
+
+        const sharedIntegration = {
+            ...cfg,
+            configuration: { ...configuration, environment_variables: {} },
+        };
+
+        if (widgetKey) {
+            return {
+                integrationId: opts.integrationId,
+                integration: sharedIntegration,
+                environmentDefinitions: configuration?.environment_variables,
+                widgetJSON: { ...item, key: resolveWidgetId(item) },
+                localData: null,
+            };
+        }
+
+        return {
+            integrationId: opts.integrationId,
+            integration: sharedIntegration,
+            environmentDefinitions: configuration?.environment_variables,
+            glanceableJSON: { ...item, type: resolveGlanceableId(item) },
+            localData: null,
+        };
+    }
+
+    return null;
 }
 
 export function parseCompositeConsumerKey(compositeKey: string) {
@@ -612,16 +703,23 @@ function prepareRequest(ep: ResolvedEndpoint, envMap: Record<string, string>, is
 
     const resolvedAuth = interpolate(ep.resolvedAuth || ep.auth || "", envMap);
     const authKey = Object.keys(headers).find((k) => k.toLowerCase() === "authorization");
+    const hasResolvedAuth = resolvedAuth && !UNRESOLVED_TOKEN_REGEX.test(resolvedAuth);
 
     if (isProvider) {
-        if (!authKey && resolvedAuth && !UNRESOLVED_TOKEN_REGEX.test(resolvedAuth)) {
+        if (!authKey && hasResolvedAuth) {
             headers.Authorization = resolvedAuth;
+        } else if (authKey && UNRESOLVED_TOKEN_REGEX.test(headers[authKey]) && hasResolvedAuth) {
+            headers[authKey] = resolvedAuth;
+        } else if (authKey && UNRESOLVED_TOKEN_REGEX.test(headers[authKey])) {
+            delete headers[authKey];
         }
     } else {
-        if (!authKey && resolvedAuth) {
+        if (!authKey && hasResolvedAuth) {
             headers.Authorization = resolvedAuth;
-        } else if (authKey && UNRESOLVED_TOKEN_REGEX.test(headers[authKey]) && resolvedAuth) {
+        } else if (authKey && UNRESOLVED_TOKEN_REGEX.test(headers[authKey]) && hasResolvedAuth) {
             headers[authKey] = resolvedAuth;
+        } else if (authKey && UNRESOLVED_TOKEN_REGEX.test(headers[authKey])) {
+            delete headers[authKey];
         }
     }
 
@@ -790,26 +888,36 @@ function ownsIntegration(record: any, userId: string): boolean {
 }
 
 function resolveWidgetId(w: Record<string, unknown>): string | null {
-    if (typeof w.key === "string" && w.key.trim()) return w.key.trim();
-    if (typeof w.slug === "string" && w.slug.trim()) return w.slug.trim();
+    const key = typeof w.key === "string" && w.key.trim() ? w.key.trim() : null;
+    const slug = typeof w.slug === "string" && w.slug.trim() ? w.slug.trim() : null;
+    const resolved = normalizeProgressType(key ?? slug ?? "");
+    if (resolved) return resolved;
     const name = typeof w.name === "string" ? w.name : null;
-    return name ? name.toLowerCase().trim().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "") || null : null;
+    return name ? normalizeProgressType(name.toLowerCase().trim().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "")) || null : null;
 }
 
 function resolveGlanceableId(g: Record<string, unknown>): string | null {
-    if (typeof g.key === "string" && g.key.trim()) return g.key.trim();
-    if (typeof g.type === "string" && g.type.trim()) return g.type.trim();
-    if (typeof g.slug === "string" && g.slug.trim()) return g.slug.trim();
+    const key = typeof g.key === "string" && g.key.trim() ? g.key.trim() : null;
+    const type = typeof g.type === "string" && g.type.trim() ? g.type.trim() : null;
+    const slug = typeof g.slug === "string" && g.slug.trim() ? g.slug.trim() : null;
+    const resolved = normalizeProgressType(key ?? type ?? slug ?? "");
+    if (resolved) return resolved;
     const name = typeof g.name === "string" ? g.name : typeof g.displayName === "string" ? g.displayName : null;
-    return name ? name.toLowerCase().trim().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "") || null : null;
+    return name ? normalizeProgressType(name.toLowerCase().trim().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "")) || null : null;
 }
 
 function resolveGlanceableAliases(g: Record<string, unknown>) {
     const aliases = new Set<string>();
 
-    if (typeof g.key === "string" && g.key.trim()) aliases.add(g.key.trim());
-    if (typeof g.type === "string" && g.type.trim()) aliases.add(g.type.trim());
-    if (typeof g.slug === "string" && g.slug.trim()) aliases.add(g.slug.trim());
+    if (typeof g.key === "string" && g.key.trim()) {
+        addGlanceableAliases(aliases, g.key.trim());
+    }
+    if (typeof g.type === "string" && g.type.trim()) {
+        addGlanceableAliases(aliases, g.type.trim());
+    }
+    if (typeof g.slug === "string" && g.slug.trim()) {
+        addGlanceableAliases(aliases, g.slug.trim());
+    }
 
     const name = typeof g.name === "string"
         ? g.name
@@ -818,10 +926,33 @@ function resolveGlanceableAliases(g: Record<string, unknown>) {
             : null;
     if (name) {
         const normalized = name.toLowerCase().trim().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
-        if (normalized) aliases.add(normalized);
+        if (normalized) {
+            addGlanceableAliases(aliases, normalized);
+        }
     }
 
     return Array.from(aliases);
+}
+
+function addGlanceableAliases(target: Set<string>, value: string) {
+    const normalized = normalizeProgressType(value);
+    target.add(value);
+    target.add(normalized);
+
+    if (normalized === "progress") {
+        target.add("day-progress");
+        target.add("week-progress");
+        target.add("month-progress");
+        target.add("year-progress");
+    }
+}
+
+function normalizeProgressType(value: string) {
+    if (value === "day-progress" || value === "week-progress" || value === "month-progress" || value === "year-progress") {
+        return "progress";
+    }
+
+    return value;
 }
 
 function extractValueAtPath(body: unknown, path?: string): unknown {

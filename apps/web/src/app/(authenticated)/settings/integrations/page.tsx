@@ -107,6 +107,7 @@ export default function IntegrationsModularSettingsPage() {
   const [updateDialogOpen, setUpdateDialogOpen] = useState(false);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [checkingUpdates, setCheckingUpdates] = useState(false);
 
   const [editConfigDialogOpen, setEditConfigDialogOpen] = useState(false);
   const [editingConfigId, setEditingConfigId] = useState<string | null>(null);
@@ -209,6 +210,85 @@ export default function IntegrationsModularSettingsPage() {
     });
   }, [newConfig]);
 
+  const checkIntegrationUpdates = useCallback(
+    async (list: IntegrationRecord[]) => {
+      if (!token) {
+        return list;
+      }
+
+      const candidates = list.filter((integration) => {
+        const source = getIntegrationYamlSource(integration.config);
+        const version = getIntegrationVersion(integration.config);
+        return Boolean(source && version);
+      });
+
+      if (candidates.length === 0) {
+        return list;
+      }
+
+      setCheckingUpdates(true);
+      const updates = new Map<string, Partial<IntegrationRecord["localData"]>>();
+
+      await Promise.all(
+        candidates.map(async (integration) => {
+          const source = getIntegrationYamlSource(integration.config);
+          const currentVersion = getIntegrationVersion(integration.config);
+          if (!source || !currentVersion) return;
+
+          try {
+            const response = await fetch(source);
+            if (!response.ok) return;
+
+            const remoteConfig = await response.text();
+            const parsedRemote = parseConfigValue(remoteConfig);
+            if (!isRecord(parsedRemote)) return;
+
+            const remoteVersion = getIntegrationVersion(parsedRemote);
+            const updateAvailable = Boolean(
+              remoteVersion && isNewerSemver(remoteVersion, currentVersion)
+            );
+
+            const nextLocalData = {
+              ...(integration.localData ?? {}),
+              updateAvailable,
+              remoteVersion: updateAvailable ? remoteVersion : undefined,
+              remoteConfig: updateAvailable ? remoteConfig : undefined,
+            };
+
+            updates.set(integration.id, nextLocalData);
+
+            const currentLocalData = integration.localData ?? {};
+            if (
+              currentLocalData.updateAvailable !== nextLocalData.updateAvailable ||
+              currentLocalData.remoteVersion !== nextLocalData.remoteVersion ||
+              currentLocalData.remoteConfig !== nextLocalData.remoteConfig
+            ) {
+              await withAuth((auth) =>
+                updateIntegrationAction(auth, integration.id, { localData: nextLocalData })
+              );
+            }
+          } catch (err) {
+            console.warn("Unable to check integration update", integration.id, err);
+          }
+        })
+      );
+
+      setCheckingUpdates(false);
+
+      if (updates.size === 0) {
+        return list;
+      }
+
+      return list.map((integration) => ({
+        ...integration,
+        localData: updates.has(integration.id)
+          ? { ...(integration.localData ?? {}), ...updates.get(integration.id) }
+          : integration.localData,
+      }));
+    },
+    [token, withAuth]
+  );
+
   const fetchIntegrations = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -225,6 +305,7 @@ export default function IntegrationsModularSettingsPage() {
         ? ((response as { integrations: IntegrationRecord[] }).integrations ?? [])
         : ([] as IntegrationRecord[]);
       setIntegrations(list);
+      void checkIntegrationUpdates(list).then(setIntegrations);
       setSelectedId((current) => {
         if (current && list.some((item: any) => item.id === current)) {
           return current;
@@ -237,7 +318,7 @@ export default function IntegrationsModularSettingsPage() {
     } finally {
       setLoading(false);
     }
-  }, [token, withAuth]);
+  }, [checkIntegrationUpdates, token, withAuth]);
 
   useEffect(() => {
     void fetchIntegrations();
@@ -321,6 +402,8 @@ export default function IntegrationsModularSettingsPage() {
           localData: {
             ...integration.localData,
             updateAvailable: false,
+            remoteVersion: undefined,
+            remoteConfig: undefined,
           },
         })
       );
@@ -455,6 +538,40 @@ export default function IntegrationsModularSettingsPage() {
         <Card className="border border-destructive/40 bg-destructive/5 text-destructive-foreground">
           <CardContent>
             <p className="text-sm">{error}</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {checkingUpdates && !loading && (
+        <Card className="border border-primary/20 bg-primary/5">
+          <CardContent>
+            <p className="text-sm">Checking integration sources for updates...</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {integrations.some((integration) => integration.localData?.updateAvailable) && (
+        <Card className="border border-amber-500/30 bg-amber-500/10">
+          <CardContent className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p className="text-sm font-semibold">Integration update available</p>
+              <p className="text-xs text-muted-foreground">
+                {formatUpdateList(integrations)}
+              </p>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                const firstUpdate = integrations.find((integration) => integration.localData?.updateAvailable);
+                if (firstUpdate) {
+                  setUpdatingId(firstUpdate.id);
+                  setUpdateDialogOpen(true);
+                }
+              }}
+            >
+              Review update
+            </Button>
           </CardContent>
         </Card>
       )}
@@ -782,5 +899,79 @@ function getEndpointCount(config?: Record<string, unknown>) {
   if (isRecord(candidate)) {
     return Object.keys(candidate).length;
   }
+  return 0;
+}
+
+function formatUpdateList(integrations: IntegrationRecord[]) {
+  const names = integrations
+    .filter((integration) => integration.localData?.updateAvailable)
+    .map((integration) => `${integration.name ?? "Unnamed"} ${integration.localData?.remoteVersion ?? ""}`.trim());
+
+  if (names.length === 1) {
+    return `${names[0]} has an update available.`;
+  }
+
+  return `${names.join(", ")} have updates available.`;
+}
+
+function getIntegrationYamlSource(config?: Record<string, unknown>) {
+  const source = (config?.details as Record<string, unknown> | undefined)?.source;
+  return typeof source === "string" && source.trim() ? source.trim() : null;
+}
+
+function getIntegrationVersion(config?: Record<string, unknown>) {
+  const version = (config?.details as Record<string, unknown> | undefined)?.version;
+  return typeof version === "string" && version.trim() ? version.trim() : null;
+}
+
+function isNewerSemver(candidate: string, current: string) {
+  const candidateParts = parseSemver(candidate);
+  const currentParts = parseSemver(current);
+  if (!candidateParts || !currentParts) {
+    return false;
+  }
+
+  for (let index = 0; index < 3; index += 1) {
+    if (candidateParts[index] > currentParts[index]) return true;
+    if (candidateParts[index] < currentParts[index]) return false;
+  }
+
+  return comparePrerelease(candidateParts[3], currentParts[3]) > 0;
+}
+
+function parseSemver(value: string): [number, number, number, string | null] | null {
+  const match = value.trim().replace(/^v/i, "").match(/^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/);
+  if (!match) {
+    return null;
+  }
+  return [Number(match[1]), Number(match[2]), Number(match[3]), match[4] ?? null];
+}
+
+function comparePrerelease(candidate: string | null, current: string | null) {
+  if (candidate === current) return 0;
+  if (!candidate) return 1;
+  if (!current) return -1;
+
+  const candidateParts = candidate.split(".");
+  const currentParts = current.split(".");
+  const length = Math.max(candidateParts.length, currentParts.length);
+
+  for (let index = 0; index < length; index += 1) {
+    const left = candidateParts[index];
+    const right = currentParts[index];
+    if (left === undefined) return -1;
+    if (right === undefined) return 1;
+    if (left === right) continue;
+
+    const leftNumber = /^\d+$/.test(left) ? Number(left) : null;
+    const rightNumber = /^\d+$/.test(right) ? Number(right) : null;
+    if (leftNumber !== null && rightNumber !== null) {
+      return leftNumber > rightNumber ? 1 : -1;
+    }
+    if (leftNumber !== null) return -1;
+    if (rightNumber !== null) return 1;
+    return left > right ? 1 : -1;
+  }
+
   return 0;
 }

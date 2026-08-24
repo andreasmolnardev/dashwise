@@ -63,21 +63,38 @@ export type MonitorRecord = {
   updated: string;
   method?: string;
   linkId?: string;
+  expand?: {
+    sourcelinkId?: {
+      title?: string;
+      url?: string;
+    };
+    [key: string]: unknown;
+  };
   [key: string]: unknown;
 };
 
 export type NewsFeedRecord = {
   id: string;
   title: string;
+  icon?: string;
+  feedType?: "all" | "custom" | string;
+  systemKey?: string;
   subscriptionRefs: string[];
   excludedSubscriptionRefs: string[];
+  maxFeedItems?: number;
+  /** Populated from Redis, not persisted in PocketBase. */
+  feedCache?: NewsFeedItem[];
 };
 
 export type NewsFeedRecordUpdateInput = {
   feedId: string;
   title?: string;
+  icon?: string;
+  feedType?: "all" | "custom" | string;
+  systemKey?: string;
   subscriptionRefs?: string[];
   excludedSubscriptionRefs?: string[];
+  maxFeedItems?: number;
 };
 
 export type NewsFeedDraft = {
@@ -95,6 +112,7 @@ export type NewsFeedDraft = {
   thumbnailOverwriteUrl?: string;
   similarityGroupingWordsBlacklist?: string;
   enableTopicGrouping?: boolean;
+  fetchErrors?: string;
 };
 
 export type NewsFeedItem = {
@@ -106,6 +124,8 @@ export type NewsFeedItem = {
   topicId?: string;
   topicTitle?: string;
   relatedArticles?: NewsFeedItem[];
+  dedupeKey?: string;
+  sourceSubscriptions?: Array<{ id: string; title: string }>;
   [key: string]: unknown;
 };
 
@@ -138,16 +158,29 @@ export type NewsFeedMetadata = {
 
 export type NewsFeedRecordCreateInput = {
   title: string;
+  icon?: string;
+};
+
+export type NewsFeedSummary = {
+  id: string;
+  title: string;
+  icon?: string;
 };
 
 export type NewsFeedsResponse = {
   id: null;
-  feeds: { id: string; title: string }[];
+  feeds: NewsFeedSummary[];
+  subscriptions?: NewsFeedSummary[];
 };
 
 export type NewsSubscriptionsResponse = {
   id: null;
   subscriptions: NewsFeedDraft[];
+};
+
+export type NewsSubscriptionJsonResponse = {
+  id: string;
+  json: unknown;
 };
 
 export type NewsSubscribeInput = {

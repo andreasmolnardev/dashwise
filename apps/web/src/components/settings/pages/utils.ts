@@ -26,10 +26,15 @@ export type WidgetDefinition = {
 export type TemplateId = "main" | "left-middle" | "right-middle";
 export type ColumnName = "left" | "middle" | "right";
 export type GlanceableSide = "left" | "right";
+export type GlanceableSelection = { id: string; type: string };
+export type ClockGlanceableSelection = Record<GlanceableSide, GlanceableSelection[]>;
+export type ClockGlanceableIntervals = Record<GlanceableSide, number>;
+export const DEFAULT_GLANCEABLE_CAROUSEL_INTERVAL = 5;
 
 export type GlanceableCatalogItem = {
   type: string;
   name: string;
+  appName?: string;
   exampleProps: Record<string, any>;
 };
 
@@ -38,6 +43,16 @@ const LOCAL_GLANCEABLE_TYPES = new Set([
   "greeting",
   "local-timezone",
   "world-clock",
+  "progress",
+  "day-progress",
+  "week-progress",
+  "month-progress",
+  "year-progress",
+  "latest-activities",
+]);
+
+const PROGRESS_GLANCEABLE_ALIASES = new Set([
+  "progress",
   "day-progress",
   "week-progress",
   "month-progress",
@@ -118,6 +133,11 @@ function normalizeWidgetConfig(config: unknown) {
       );
 
   return { index, input, properties };
+}
+
+function normalizeProgressKey(key: unknown) {
+  const value = String(key ?? "").trim();
+  return PROGRESS_GLANCEABLE_ALIASES.has(value) ? "progress" : value;
 }
 
 export const TEMPLATE_OPTIONS: Array<{ id: TemplateId; label: string }> = [
@@ -296,30 +316,57 @@ export function readClockGlanceables(
       typeof mainClock.properties.glanceables === "object"
     ? (mainClock.properties.glanceables as Record<string, any>)
     : undefined;
+  const slots = overrides?.slots as Partial<Record<GlanceableSide, Array<{ type?: string; params?: Record<string, any> }>>> | undefined;
+  const intervals = overrides?.intervals as Partial<Record<GlanceableSide, unknown>> | undefined;
+  const carouselIntervals = Object.fromEntries((["left", "right"] as GlanceableSide[]).map((side) => {
+    const interval = Number(intervals?.[side]);
+    return [side, Number.isFinite(interval) && interval >= 1 ? interval : DEFAULT_GLANCEABLE_CAROUSEL_INTERVAL];
+  })) as ClockGlanceableIntervals;
+
+  if (slots) {
+    const map: Record<string, any> = {};
+    const selected = Object.fromEntries((["left", "right"] as GlanceableSide[]).map((side) => [
+      side,
+      (Array.isArray(slots[side]) ? slots[side] : []).flatMap((entry, index) => {
+        const type = normalizeProgressKey(entry?.type);
+        if (!type) return [];
+        const id = `${side}-${index}`;
+        map[id] = entry?.params ?? {};
+        return [{ id, type }];
+      }),
+    ])) as ClockGlanceableSelection;
+    return { selected, map, intervals: carouselIntervals };
+  }
 
   const fallbackTypes = [
     ...fallbackGlanceables,
     ...catalogGlanceables,
   ]
     .map((entry) => entry?.type)
+    .map((entry) => normalizeProgressKey(entry))
     .filter((entry: unknown): entry is string => typeof entry === "string");
 
-  const selectedFromOverrides = overrides ? Object.keys(overrides) : [];
+  const overrideEntries = overrides ? Object.entries(overrides) : [];
+  const selectedFromOverrides = overrideEntries.map(([key]) => normalizeProgressKey(key));
   const left = selectedFromOverrides[0] ?? fallbackTypes[0] ?? "";
   const right = selectedFromOverrides[1] ?? fallbackTypes[1] ?? fallbackTypes[0] ?? "";
 
   const map: Record<string, any> = {};
-  if (overrides && Object.keys(overrides).length > 0) {
-    map[left] = overrides[left] ?? null;
-    map[right] = overrides[right] ?? null;
+  if (overrideEntries.length > 0) {
+    if (left) map[left] = overrideEntries[0]?.[1] ?? null;
+    if (right) map[right] = overrideEntries[1]?.[1] ?? null;
   } else {
     map[left] = null;
     map[right] = null;
   }
 
   return {
-    selected: { left, right } as Record<GlanceableSide, string>,
+    selected: {
+      left: left ? [{ id: "left-0", type: left }] : [],
+      right: right ? [{ id: "right-0", type: right }] : [],
+    } as ClockGlanceableSelection,
     map,
+    intervals: carouselIntervals,
   };
 }
 
@@ -329,9 +376,11 @@ export function getDefaultGlanceableSelection(catalogGlanceables: GlanceableCata
     .filter((entry): entry is string => typeof entry === "string");
 
   return {
-    left: fallbackTypes[0] ?? "",
-    right: fallbackTypes[1] ?? fallbackTypes[0] ?? "",
-  };
+    left: fallbackTypes[0] ? [{ id: "left-0", type: fallbackTypes[0] }] : [],
+    right: fallbackTypes[1] || fallbackTypes[0]
+      ? [{ id: "right-0", type: fallbackTypes[1] ?? fallbackTypes[0] }]
+      : [],
+  } satisfies ClockGlanceableSelection;
 }
 
 export function moveItem(
@@ -339,6 +388,7 @@ export function moveItem(
   activeId: string,
   overId: string,
   overColumn: ColumnName,
+  overIndex?: number,
 ) {
   const findLocation = (widgetId: string) => {
     for (const column of Object.keys(columns) as ColumnName[]) {
@@ -356,7 +406,7 @@ export function moveItem(
   const isColumnSentinel = overId.startsWith("column:");
   const overWidgetLocation = isColumnSentinel ? null : findLocation(overId);
   const targetColumn = overWidgetLocation?.column ?? overColumn;
-  const targetIndex = overWidgetLocation?.index ?? columns[targetColumn].length;
+  const targetIndex = overIndex ?? overWidgetLocation?.index ?? columns[targetColumn].length;
 
   if (activeLocation.column === targetColumn) {
     return {
@@ -390,8 +440,9 @@ export function moveItem(
 export function buildPageConfigPatch(
   template: TemplateId,
   columns: Record<ColumnName, ColumnWidget[]>,
-  clockSelection: Record<GlanceableSide, string>,
+  clockSelection: ClockGlanceableSelection,
   clockGlanceables: Record<string, any>,
+  clockGlanceableIntervals: ClockGlanceableIntervals,
   clockStyle: Record<string, any>,
   glanceableCatalog?: GlanceableCatalogItem[],
 ) {
@@ -404,13 +455,15 @@ export function buildPageConfigPatch(
       const widgetProps = { ...(widget.properties ?? {}) };
 
       if (widget.type === "main-clock") {
-        const leftRaw = clockSelection.left;
-        const rightRaw = clockSelection.right;
-        const left = resolveStoredGlanceableKey(leftRaw, glanceableCatalog);
-        const right = resolveStoredGlanceableKey(rightRaw, glanceableCatalog);
         widgetProps.glanceables = {
-          [left]: clockGlanceables[leftRaw] ?? clockGlanceables[left] ?? null,
-          [right]: clockGlanceables[rightRaw] ?? clockGlanceables[right] ?? null,
+          slots: Object.fromEntries((["left", "right"] as GlanceableSide[]).map((side) => [
+            side,
+            clockSelection[side].map((selection) => ({
+              type: resolveStoredGlanceableKey(selection.type, glanceableCatalog),
+              params: clockGlanceables[selection.id] ?? {},
+            })),
+          ])),
+          intervals: clockGlanceableIntervals,
         };
         widgetProps["clock-style"] = { ...clockStyle };
       }
@@ -440,6 +493,7 @@ function resolveStoredGlanceableKey(
   const trimmed = String(selectedKey ?? "").trim();
   if (!trimmed) return "";
   if (trimmed.includes("#")) return trimmed;
+  if (PROGRESS_GLANCEABLE_ALIASES.has(trimmed)) return "progress";
   if (LOCAL_GLANCEABLE_TYPES.has(trimmed)) return trimmed;
   if (!Array.isArray(catalogGlanceables) || catalogGlanceables.length === 0) {
     return trimmed;

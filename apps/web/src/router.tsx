@@ -24,6 +24,8 @@ const LinksTagDetailPage = lazy(() => import("./app/(authenticated)/apps/links/t
 const MonitoringLayout = lazy(() => import("./app/(authenticated)/apps/monitoring/layout"));
 const MonitoringPage = lazy(() => import("./app/(authenticated)/apps/monitoring/page"));
 const MonitoringDetailPage = lazy(() => import("./app/(authenticated)/apps/monitoring/[monitorId]/page"));
+const MonitoringSshPage = lazy(() => import("./app/(authenticated)/apps/monitoring/ssh/page"));
+const MonitoringHostPage = lazy(() => import("./app/(authenticated)/apps/monitoring/hosts/page"));
 const SettingsLayout = lazy(() => import("./app/(authenticated)/settings/layout"));
 const SettingsPage = lazy(() => import("./app/(authenticated)/settings/page"));
 const SettingsGeneralPage = lazy(() => import("./app/(authenticated)/settings/general/page"));
@@ -35,6 +37,15 @@ const SettingsSearchPage = lazy(() => import("./app/(authenticated)/settings/sea
 const SettingsScreensaverPage = lazy(() => import("./app/(authenticated)/settings/screensaver/page"));
 const FramePage = lazy(() => import("./app/(authenticated)/frame/page"));
 const MigratePage = lazy(() => import("./app/(authenticated)/migrate/page"));
+
+const linksRoutes = [
+  { index: true, element: <LinksPage /> },
+  { path: "home", element: <LinksHomePage /> },
+  { path: "lists", element: <LinksListsPage /> },
+  { path: "lists/:listId", element: <LinksListDetailPage /> },
+  { path: "tags", element: <LinksTagsPage /> },
+  { path: "tags/:tagId", element: <LinksTagDetailPage /> },
+];
 
 export const appRouter = createBrowserRouter([
   {
@@ -75,22 +86,23 @@ export const appRouter = createBrowserRouter([
            {
              path: "links",
              element: <LinksLayout />,
-             children: [
-               { index: true, element: <LinksPage /> },
-               { path: "home", element: <LinksHomePage /> },
-               { path: "lists", element: <LinksListsPage /> },
-               { path: "lists/:listId", element: <LinksListDetailPage /> },
-               { path: "tags", element: <LinksTagsPage /> },
-               { path: "tags/:tagId", element: <LinksTagDetailPage /> },
-             ],
+             children: linksRoutes,
+           },
+           {
+             path: "apps/links",
+             element: <LinksLayout />,
+             children: linksRoutes,
            },
            {
              path: "apps/monitoring",
              element: <MonitoringLayout />,
              children: [
-               { index: true, element: <MonitoringPage /> },
-               { path: "notifications", element: <NotificationsPage /> },
-               { path: ":monitorId", element: <MonitoringDetailPage /> },
+                { index: true, element: <MonitoringPage /> },
+                { path: "notifications", element: <NotificationsPage /> },
+                { path: "ssh", element: <MonitoringSshPage /> },
+                { path: "ssh/:hostId", element: <MonitoringSshPage /> },
+                { path: "hosts/:hostId", element: <MonitoringHostPage /> },
+                { path: ":monitorId", element: <MonitoringDetailPage /> },
              ],
            },
            {

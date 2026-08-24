@@ -14,13 +14,21 @@ export type { EndpointRuntimeCacheAdapter, ResolvedEndpointData } from "../types
 export type EndpointDefinition = Record<string, any>;
 
 export type EndpointResolutionContext = {
-  env: Record<string, string>;
-  scope?: Record<string, any>;
-  signal?: AbortSignal;
-  cache?: EndpointRuntimeCacheAdapter;
+	env: Record<string, string>;
+	scope?: Record<string, any>;
+	signal?: AbortSignal;
+	cache?: EndpointRuntimeCacheAdapter;
+	rateLimit?: EndpointRateLimitConfig | null;
+};
+
+export type EndpointRateLimitConfig = {
+	key: string;
+	requestsPerSecond: number;
 };
 
 const inFlightEndpointRequests = new Map<string, Promise<ResolvedEndpointData>>();
+const endpointRateLimitQueues = new Map<string, Promise<void>>();
+const endpointRateLimitNextAt = new Map<string, number>();
 
 export type EndpointCurlRequest = {
 	url: string;
@@ -116,7 +124,6 @@ export async function resolveEndpointCatalog(
 
 		const endpoint = work.splice(idx, 1)[0];
 		const endpointKey = resolveEndpointCacheKey(endpoint);
-		const ttlSeconds = resolveInvalidateAfterSeconds(endpoint);
 
 		let resolvedEndpoint: ResolvedEndpointData | null = null;
 		if (endpointKey && context.cache) {
@@ -124,6 +131,8 @@ export async function resolveEndpointCatalog(
 		}
 
 		if (!resolvedEndpoint) {
+			await waitForEndpointRateLimit(context.rateLimit, context.signal);
+
 			resolvedEndpoint = await getEndpointData(endpoint, {
 				...context,
 				env: nextEnv,
@@ -133,8 +142,8 @@ export async function resolveEndpointCatalog(
 				},
 			}, allowInsecureEndpoints);
 
-			if (endpointKey && context.cache && ttlSeconds !== null) {
-				const expiresAt = Date.now() + ttlSeconds * 1000;
+			const expiresAt = resolveEndpointInvalidatesAt(endpoint, Date.now());
+			if (endpointKey && context.cache && expiresAt !== null) {
 				context.cache.set(endpointKey, resolvedEndpoint, expiresAt);
 			}
 		}
@@ -209,29 +218,55 @@ export async function getEndpointData(
 					};
 				}
 
-				const response = await fetch(resolvedUrl, fetchOptions);
-				const contentType = response.headers.get("content-type") ?? "";
-				const rawResponse = contentType.includes("application/json")
-					? await response.json().catch(async () => await response.text())
-					: await response.text();
+					const response = await fetch(resolvedUrl, fetchOptions);
+					const contentType = response.headers.get("content-type") ?? "";
+					const rawResponse = contentType.includes("application/json")
+						? await response.json().catch(async () => await response.text())
+						: await response.text();
 
-				if (!response.ok) {
-					const responseSummary = typeof rawResponse === "string"
-						? rawResponse.trim()
-						: JSON.stringify(rawResponse);
-					const suffix = responseSummary ? ` - ${responseSummary}` : "";
-					console.error(
-						`Non-OK response for endpoint "${endpointLabel}" (${method} ${resolvedUrl}):`,
-						{
-							status: response.status,
-							statusText: response.statusText,
-							body: rawResponse,
-						},
-					);
-					throw new Error(
-						`Failed to fetch endpoint "${endpointLabel}" (${method} ${resolvedUrl}): ${response.status} ${response.statusText}${suffix}`,
-					);
-				}
+					if (response.status === 401 && hasAuthorizationHeader(requestHeaders)) {
+						const retryHeaders = withoutAuthorizationHeader(requestHeaders);
+						const retryResponse = await fetch(resolvedUrl, {
+							...fetchOptions,
+							headers: retryHeaders,
+						});
+						const retryContentType = retryResponse.headers.get("content-type") ?? "";
+						const retryRawResponse = retryContentType.includes("application/json")
+							? await retryResponse.json().catch(async () => await retryResponse.text())
+							: await retryResponse.text();
+
+						if (retryResponse.ok) {
+							return {
+								id: typeof endpoint.id === "string" ? endpoint.id : null,
+								name: typeof endpoint.name === "string" ? endpoint.name : null,
+								method,
+								url: typeof endpoint.url === "string" ? endpoint.url : "",
+								resolvedUrl,
+								requestHeaders: retryHeaders,
+								requestBody,
+								rawResponse: retryRawResponse,
+								mappedResponse: mapResponseBody(retryRawResponse, endpoint, context.env),
+							};
+						}
+
+						return throwEndpointFetchError({
+							endpointLabel,
+							method,
+							resolvedUrl,
+							response: retryResponse,
+							rawResponse: retryRawResponse,
+						});
+					}
+
+					if (!response.ok) {
+						return throwEndpointFetchError({
+							endpointLabel,
+							method,
+							resolvedUrl,
+							response,
+							rawResponse,
+						});
+					}
 
 				return {
 					id: typeof endpoint.id === "string" ? endpoint.id : null,
@@ -242,7 +277,7 @@ export async function getEndpointData(
 					requestHeaders,
 					requestBody,
 					rawResponse,
-					mappedResponse: mapResponseBody(rawResponse, endpoint),
+					mappedResponse: mapResponseBody(rawResponse, endpoint, context.env),
 				};
 			} catch (error) {
 				console.error(
@@ -406,8 +441,9 @@ function resolveEndpointCacheKey(endpoint: EndpointDefinition): string | null {
 	return null;
 }
 
-function resolveInvalidateAfterSeconds(
+function resolveEndpointInvalidatesAt(
 	endpoint: EndpointDefinition,
+	now: number,
 ): number | null {
 	const responseDirective = isPlainObject(endpoint.response)
 		? endpoint.response
@@ -415,12 +451,104 @@ function resolveInvalidateAfterSeconds(
 	const invalidate = isPlainObject(responseDirective?.invalidate)
 		? responseDirective.invalidate
 		: null;
-	const afterRaw = invalidate?.after ?? endpoint.cache_ttl;
-	const parsed = Number(afterRaw);
-	if (!Number.isFinite(parsed) || parsed <= 0) {
-		return null;
+	const after = parseCacheDuration(
+		invalidate?.after ?? invalidate?.duration ?? endpoint.invalidate_after ?? endpoint.cache_ttl,
+	);
+	if (after !== null) return now + after * 1000;
+
+	const every = parseCacheInterval(
+		invalidate?.every ?? invalidate?.schedule ?? endpoint.invalidate_every,
+	);
+	return every ? getNextCacheBoundary(every, now) : null;
+}
+
+type CacheInterval = {
+	count: number;
+	unit: "second" | "minute" | "hour" | "day" | "week" | "month";
+};
+
+function parseCacheDuration(value: unknown): number | null {
+	if (typeof value === "number") {
+		return Number.isFinite(value) && value > 0 ? value : null;
 	}
-	return parsed;
+
+	if (typeof value !== "string") return null;
+	const match = value.trim().toLowerCase().match(
+		/^(\d+(?:\.\d+)?)\s*(s|sec|secs|second|seconds|m|min|mins|minute|minutes|h|hr|hrs|hour|hours|d|day|days|w|week|weeks|mo|month|months)$/,
+	);
+	if (!match) return null;
+
+	const amount = Number(match[1]);
+	if (!Number.isFinite(amount) || amount <= 0) return null;
+	const unit = match[2];
+	const multiplier = /^s/.test(unit) || unit === "second" || unit === "seconds"
+		? 1
+		: /^(m|min)/.test(unit) || unit === "minute" || unit === "minutes"
+		? 60
+		: /^(h|hr)/.test(unit) || unit === "hour" || unit === "hours"
+		? 60 * 60
+		: /^(d|day)/.test(unit)
+		? 24 * 60 * 60
+		: /^(w|week)/.test(unit)
+		? 7 * 24 * 60 * 60
+		: 30 * 24 * 60 * 60;
+	return amount * multiplier;
+}
+
+function parseCacheInterval(value: unknown): CacheInterval | null {
+	if (typeof value !== "string") return null;
+	const match = value.trim().toLowerCase().replace(/^every\s+/, "").match(
+		/^(\d+(?:\.\d+)?)?\s*(s|sec|secs|second|seconds|m|min|mins|minute|minutes|h|hr|hrs|hour|hours|d|day|days|w|week|weeks|mo|month|months)$/,
+	);
+	if (!match) return null;
+
+	const count = match[1] ? Number(match[1]) : 1;
+	if (!Number.isFinite(count) || count <= 0) return null;
+	const rawUnit = match[2];
+	const unit: CacheInterval["unit"] = /^(s|sec|secs|second|seconds)$/.test(rawUnit)
+		? "second"
+		: /^(m|min|mins|minute|minutes)$/.test(rawUnit)
+		? "minute"
+		: /^(h|hr|hrs|hour|hours)$/.test(rawUnit)
+		? "hour"
+		: /^(d|day|days)$/.test(rawUnit)
+		? "day"
+		: /^(w|week|weeks)$/.test(rawUnit)
+		? "week"
+		: "month";
+	return { count, unit };
+}
+
+function getNextCacheBoundary(interval: CacheInterval, now: number) {
+	const date = new Date(now);
+	if (interval.unit === "month") {
+		const monthIndex = date.getFullYear() * 12 + date.getMonth();
+		const nextMonth = Math.floor(monthIndex / interval.count + 1) * interval.count;
+		return new Date(Math.floor(nextMonth / 12), nextMonth % 12, 1).getTime();
+	}
+
+	if (interval.unit === "day") {
+		const next = new Date(date.getFullYear(), date.getMonth(), date.getDate() + interval.count);
+		return next.getTime();
+	}
+
+	if (interval.unit === "week") {
+		const mondayOffset = (date.getDay() + 6) % 7;
+		const next = new Date(
+			date.getFullYear(),
+			date.getMonth(),
+			date.getDate() - mondayOffset + interval.count * 7,
+		);
+		return next.getTime();
+	}
+
+	const unitMs = interval.unit === "second"
+		? 1000
+		: interval.unit === "minute"
+		? 60 * 1000
+		: 60 * 60 * 1000;
+	const next = Math.floor(now / (unitMs * interval.count) + 1) * unitMs * interval.count;
+	return next > now ? next : now + unitMs;
 }
 
 function getOrCreateEndpointFetchPromise(
@@ -468,6 +596,56 @@ function waitForEndpointFetch(
 	]);
 }
 
+async function waitForEndpointRateLimit(
+	rateLimit?: EndpointRateLimitConfig | null,
+	signal?: AbortSignal,
+) {
+	if (!rateLimit || !rateLimit.key || rateLimit.requestsPerSecond <= 0) return;
+
+	const intervalMs = Math.ceil(1000 / rateLimit.requestsPerSecond);
+	const previous = endpointRateLimitQueues.get(rateLimit.key) ?? Promise.resolve();
+
+	const next = previous.catch(() => {}).then(async () => {
+		if (signal?.aborted) throw abortError();
+
+		const now = Date.now();
+		const availableAt = endpointRateLimitNextAt.get(rateLimit.key) ?? now;
+		const delayMs = Math.max(0, availableAt - now);
+
+		if (delayMs > 0) {
+			await delayWithAbort(delayMs, signal);
+		}
+
+		endpointRateLimitNextAt.set(rateLimit.key, Date.now() + intervalMs);
+	});
+
+	endpointRateLimitQueues.set(rateLimit.key, next.finally(() => {
+		if (endpointRateLimitQueues.get(rateLimit.key) === next) {
+			endpointRateLimitQueues.delete(rateLimit.key);
+		}
+	}));
+
+	await next;
+}
+
+function delayWithAbort(ms: number, signal?: AbortSignal) {
+	if (!signal) return new Promise<void>((resolve) => setTimeout(resolve, ms));
+	if (signal.aborted) return Promise.reject(abortError());
+
+	return new Promise<void>((resolve, reject) => {
+		const timeout = setTimeout(() => {
+			signal.removeEventListener("abort", onAbort);
+			resolve();
+		}, ms);
+		const onAbort = () => {
+			clearTimeout(timeout);
+			signal.removeEventListener("abort", onAbort);
+			reject(abortError());
+		};
+		signal.addEventListener("abort", onAbort, { once: true });
+	});
+}
+
 function abortError() {
 	return new Error("Endpoint fetch aborted");
 }
@@ -490,6 +668,40 @@ function createEndpointRequestKey(input: {
 		requestHeaders,
 		allowSsl: input.allowSsl,
 	});
+}
+
+function hasAuthorizationHeader(headers: Record<string, string>) {
+	return Object.keys(headers).some((key) => key.toLowerCase() === "authorization");
+}
+
+function withoutAuthorizationHeader(headers: Record<string, string>) {
+	return Object.fromEntries(
+		Object.entries(headers).filter(([key]) => key.toLowerCase() !== "authorization"),
+	);
+}
+
+function throwEndpointFetchError(input: {
+	endpointLabel: string;
+	method: string;
+	resolvedUrl: string;
+	response: Response;
+	rawResponse: unknown;
+}): never {
+	const responseSummary = typeof input.rawResponse === "string"
+		? input.rawResponse.trim()
+		: JSON.stringify(input.rawResponse);
+	const suffix = responseSummary ? ` - ${responseSummary}` : "";
+	console.error(
+		`Non-OK response for endpoint "${input.endpointLabel}" (${input.method} ${input.resolvedUrl}):`,
+		{
+			status: input.response.status,
+			statusText: input.response.statusText,
+			body: input.rawResponse,
+		},
+	);
+	throw new Error(
+		`Failed to fetch endpoint "${input.endpointLabel}" (${input.method} ${input.resolvedUrl}): ${input.response.status} ${input.response.statusText}${suffix}`,
+	);
 }
 
 function getErrorMessage(error: unknown) {
@@ -525,20 +737,55 @@ function resolveHeaders(
 
 	const headers: Record<string, string> = {};
 	for (const [key, value] of Object.entries(rawHeaders)) {
-		headers[key] = resolveStringValue(String(value ?? ""), context);
+		const resolved = resolveStringValue(String(value ?? ""), context).trim();
+		if (!resolved) continue;
+		if (key.toLowerCase() === "authorization" && isEmptyAuthorizationHeader(resolved)) continue;
+		headers[key] = resolved;
 	}
 
-	const auth = resolveStringValue(String(endpoint.auth ?? ""), context);
-	if (
-		auth &&
-		!Object.keys(headers).some((key) =>
-			key.toLowerCase() === "authorization"
-		)
-	) {
+	const auth = resolveAuthHeaderValue(endpoint.auth, context);
+	if (auth && !Object.keys(headers).some((key) => key.toLowerCase() === "authorization")) {
 		headers.Authorization = auth;
 	}
 
+	if (!Object.keys(headers).some((key) => key.toLowerCase() === "user-agent")) {
+		headers["User-Agent"] = "Dashwise";
+	}
+
 	return headers;
+}
+
+function isEmptyAuthorizationHeader(value: string) {
+	return /^(bearer|token|basic)\s*$/i.test(value.trim());
+}
+
+function resolveAuthHeaderValue(
+	authDefinition: unknown,
+	context: EndpointResolutionContext,
+) {
+	if (authDefinition === undefined || authDefinition === null) return "";
+
+	if (typeof authDefinition === "string") {
+		const auth = resolveStringValue(authDefinition, context).trim();
+		if (!auth || /^(bearer|basic|token)$/i.test(auth)) return "";
+		return auth;
+	}
+
+	if (!isPlainObject(authDefinition)) return "";
+
+	const type = String(authDefinition.type ?? "").trim().toLowerCase();
+	if (type === "bearer" || type === "token") {
+		const token = resolveStringValue(String(authDefinition.token ?? ""), context).trim();
+		return token ? `Bearer ${token}` : "";
+	}
+
+	if (type === "basic") {
+		const username = resolveStringValue(String(authDefinition.username ?? ""), context);
+		const password = resolveStringValue(String(authDefinition.password ?? ""), context);
+		return username || password ? `Basic ${btoa(`${username}:${password}`)}` : "";
+	}
+
+	return "";
 }
 
 function resolveBody(
@@ -557,7 +804,7 @@ function resolveBody(
 		: JSON.stringify(resolvedBody);
 }
 
-function mapResponseBody(body: unknown, endpoint: EndpointDefinition) {
+function mapResponseBody(body: unknown, endpoint: EndpointDefinition, env: Record<string, string> = {}) {
 	const responseDirective = isPlainObject(endpoint.response)
 		? endpoint.response
 		: null;
@@ -605,13 +852,14 @@ function mapResponseBody(body: unknown, endpoint: EndpointDefinition) {
 	for (const mapping of mappings) {
 		if (!isPlainObject(mapping)) continue;
 		for (const [target, source] of Object.entries(mapping)) {
-			mapped[target] = resolveMappedNode(source, {
-				root: wrappedBody as Record<string, any>,
-				current: wrappedBody as Record<string, any>,
-				groupBy: typeof endpoint.group_by === "string"
-					? endpoint.group_by
-					: undefined,
-			});
+				mapped[target] = resolveMappedNode(source, {
+					root: wrappedBody as Record<string, any>,
+					current: wrappedBody as Record<string, any>,
+					groupBy: typeof endpoint.group_by === "string"
+						? endpoint.group_by
+						: undefined,
+					env,
+				});
 		}
 	}
 
@@ -623,6 +871,7 @@ type MappingContext = {
 	current: any;
 	groupBy?: string;
 	index?: number;
+	env?: Record<string, string>;
 };
 
 function resolveMappedNode(node: any, context: MappingContext): any {
@@ -672,22 +921,32 @@ function resolveMappedNode(node: any, context: MappingContext): any {
 		const slice = typeof node.slice === "string"
 			? parseSlice(node.slice)
 			: null;
-		const sliced = slice ? items.slice(slice.start, slice.end) : items;
-		const mappingShape = isPlainObject(node.mappingProperties)
-			? node.mappingProperties
+			const sliced = slice ? items.slice(slice.start, slice.end) : items;
+			const filtered = typeof node.filter === "string"
+				? sliced.filter((item, index) => evaluateMappedFilter(node.filter, {
+					root: context.root,
+					current: item,
+					groupBy: context.groupBy,
+					index,
+					env: context.env,
+				}))
+				: sliced;
+			const mappingShape = isPlainObject(node.mappingProperties)
+				? node.mappingProperties
 			: isPlainObject(node.properties)
 			? node.properties
 			: isPlainObject(node.fields)
 			? node.fields
 			: node;
-		return sliced.map((item, index) =>
-			resolveMappingProperties(mappingShape, {
-				root: context.root,
-				current: item,
-				groupBy: context.groupBy,
-				index,
-			})
-		);
+			return filtered.map((item, index) =>
+				resolveMappingProperties(mappingShape, {
+					root: context.root,
+					current: item,
+					groupBy: context.groupBy,
+					index,
+					env: context.env,
+				})
+			);
 	}
 
 	if (typeof node.aggregate_over === "string") {
@@ -752,8 +1011,9 @@ function resolveMappingProperties(
 				"iterate_over",
 				"mappingProperties",
 				"aggregate_over",
-				"slice",
-				"group_by",
+					"slice",
+					"filter",
+					"group_by",
 			].includes(key)
 		) {
 			continue;
@@ -763,9 +1023,49 @@ function resolveMappingProperties(
 			current: context.current,
 			groupBy: context.groupBy,
 			index: context.index ?? index,
+			env: context.env,
 		});
 	}
 	return output;
+}
+
+function evaluateMappedFilter(filter: string, context: MappingContext): boolean {
+	const resolved = filter.replace(/\$\{([^}]+)\}/g, (_, key) => {
+		const expr = String(key).trim();
+		const mapped = resolveMappedPathFromContext(expr, context);
+		if (mapped !== undefined && mapped !== null) return String(mapped);
+		return context.env?.[expr] ?? "";
+	}).trim();
+
+	const andParts = resolved.split(/\s+and\s+/i).map((part) => part.trim()).filter(Boolean);
+	if (andParts.length > 1) {
+		return andParts.every((part) => evaluateMappedFilter(part, context));
+	}
+
+	const comparison = resolved.match(/^(.+?)\s*(>=|<=|==|!=|>|<)\s*'?([^']+)'?\s*$/);
+	if (!comparison) return Boolean(resolveMappedPathFromContext(resolved, context) ?? resolved);
+
+	const left = normalizeMappedFilterValue(resolveMappedPathFromContext(comparison[1].trim(), context) ?? comparison[1]);
+	const right = normalizeMappedFilterValue(comparison[3]);
+
+	switch (comparison[2]) {
+		case "==": return left === right;
+		case "!=": return left !== right;
+		case ">=": return left >= right;
+		case "<=": return left <= right;
+		case ">": return left > right;
+		case "<": return left < right;
+		default: return false;
+	}
+}
+
+function normalizeMappedFilterValue(value: unknown) {
+	const raw = String(value ?? "").replace(/^['"](.*)['"]$/, "$1").trim();
+	const timestamp = Date.parse(raw);
+	if (Number.isFinite(timestamp)) return timestamp;
+	const number = Number(raw);
+	if (Number.isFinite(number)) return number;
+	return raw;
 }
 
 function resolveMappedString(template: string, context: MappingContext) {
@@ -893,6 +1193,13 @@ function resolveMappedOperation(
 			}
 		}
 		return fallback;
+	}
+
+	if (operation === "count" || operation === "length") {
+		const resolved = resolveMappedNode(source, context);
+		if (Array.isArray(resolved) || typeof resolved === "string") return resolved.length;
+		if (resolved && typeof resolved === "object") return Object.keys(resolved).length;
+		return fallback ?? 0;
 	}
 
 	const resolved = resolveMappedNode(source, context);

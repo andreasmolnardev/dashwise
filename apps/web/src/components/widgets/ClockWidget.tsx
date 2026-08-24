@@ -17,6 +17,7 @@ type ClockWidgetProps = {
   outlineColor?: string;
   outlineWidth?: number;
   className?: string;
+  isPreview?: boolean;
   style?: React.CSSProperties;
 };
 
@@ -36,13 +37,13 @@ export default function ClockWidget({
   outlineColor,
   outlineWidth,
   className,
+  isPreview,
   style,
 }: ClockWidgetProps) {
   const [time, setTime] = useState("");
   const { user } = useAuth();
   const { formatTime, timeFormat } = useLocalization();
 
-  const [fonts, setFonts] = useState<FontEntry[]>([]);
   const [internalFont, setInternalFont] = useState<FontEntry>();
 
   const clockAppearance = user?.appearancePreferences?.clock as ClockAppearance | undefined;
@@ -55,8 +56,6 @@ export default function ClockWidget({
       .then((data: FontEntry[]) => {
         if (!mounted) return;
         const fixed = data.map((f: FontEntry) => ({ name: f.name, path: f.path }));
-        setFonts([{ name: "Default", path: "" }, ...fixed]);
-        
         const fontNameToUse = propFont || clockAppearance?.defaultFont;
         const foundFont = fixed.find(item => (item.name === fontNameToUse));
         
@@ -108,7 +107,7 @@ export default function ClockWidget({
   return (
     <div
       className={cn(
-        "text-6xl text-center p-4",
+        isPreview ? "text-2xl text-center p-1 leading-none whitespace-nowrap" : "text-6xl text-center p-4 whitespace-nowrap",
         className
       )}
       style={finalStyle}

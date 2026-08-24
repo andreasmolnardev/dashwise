@@ -1,5 +1,4 @@
 import Parser from "rss-parser";
-import { createLogger } from "../../lib/logger";
 
 export interface FeedItem {
     title: string;
@@ -12,8 +11,6 @@ export interface FeedItem {
     summary?: string;
     [key: string]: any;
 }
-
-const logger = createLogger("NewsFeedBuilder");
 
 const FEED_REQUEST_HEADERS = {
     "User-Agent": "Dashwise RSS Reader (+https://github.com/andrew-d/dashwise)",
@@ -52,8 +49,6 @@ export async function getFeedItems({
     thumbnailOverwriteUrl?: string;
     fallbackThumbnailUrl?: string;
 }): Promise<FeedItem[]> {
-    const logger = createLogger("NewsFeedBuilder");
-
     const parser = new Parser<any, ParserItem>({
         headers: FEED_REQUEST_HEADERS,
         customFields: {
@@ -68,70 +63,66 @@ export async function getFeedItems({
         },
     });
 
-    try {
-        const feed = await parser.parseURL(feedUrl);
-        if (!feed.items?.length) return [];
+    const feed = await parser.parseURL(feedUrl);
+    if (!feed.items?.length) return [];
 
-        return feed.items
-            .map((item: ParserItem) => {
-                const pubDate = new Date(item.isoDate || item.pubDate || "");
-                
-                let link = item.link || "";
-                if (linkReplaceRule) {
-                    for (const [search, replace] of Object.entries(linkReplaceRule)) {
-                        link = link.replace(new RegExp(search, "g"), replace);
-                    }
+    return feed.items
+        .map((item: ParserItem) => {
+            const pubDate = new Date(item.isoDate || item.pubDate || "");
+
+            let link = item.link || "";
+            if (linkReplaceRule) {
+                for (const [search, replace] of Object.entries(linkReplaceRule)) {
+                    link = link.replace(new RegExp(search, "g"), replace);
                 }
+            }
 
-                return {
-                    title: stripHtml(item.title) || "No Title",
-                    link,
-                    description: truncateSentences(getBestDescription(item), 5),
-                    content: getContent(item),
-                    pubDate,
-                    thumbnailUrl: getThumbnail(item, thumbnailOverwriteUrl, fallbackThumbnailUrl || feed?.image?.url),
-                    author: item.author || (item as any).creator,
-                    source: feedName,
-                } as FeedItem;
-            })
-            .filter((item: FeedItem) => !isNaN(item.pubDate.getTime()))
-            .slice(0, maxItems);
-    } catch (error: any) {
-        logger.error(`Error fetching or parsing feed: ${feedUrl}`, error);
-        throw error;
-    }
+            return {
+                title: stripHtml(item.title) || "No Title",
+                link,
+                guid: item.guid || (item as any).id || (item as any)["dc:identifier"],
+                description: truncateSentences(getBestDescription(item), 5),
+                content: getContent(item),
+                pubDate,
+                thumbnailUrl: getThumbnail(item, thumbnailOverwriteUrl, fallbackThumbnailUrl || feed?.image?.url),
+                author: item.author || (item as any).creator,
+                source: feedName,
+            } as FeedItem;
+        })
+        .filter((item: FeedItem) => !isNaN(item.pubDate.getTime()))
+        .slice(0, maxItems);
 }
 
 function getDescription(item: ParserItem): string {
-    const desc = item.description;
-    if (!desc) return "";
-
-    let value: string | undefined;
-
-    if (typeof desc === "object") {
-        value = desc._;
-    } else {
-        value = desc;
-    }
-
-    return stripHtml(value);
+    return stripHtml(item.description);
 }
 
 function getBestDescription(item: ParserItem): string {
-    return (
-        getDescription(item) ||
-        item["media:group"]?.["media:description"] ||
-        item["media:description"] ||
-        item.summary ||
-        ""
-    );
+    const descriptions = [
+        getDescription(item),
+        getNestedText(item["media:group"], "media:description"),
+        stripHtml(item["media:description"]),
+        stripHtml(item.summary),
+    ];
+
+    return descriptions.find(Boolean) ?? "";
+}
+
+function getNestedText(value: unknown, key: string): string {
+    if (Array.isArray(value)) {
+        return value.map((entry) => getNestedText(entry, key)).find(Boolean) ?? "";
+    }
+
+    if (!value || typeof value !== "object") return "";
+
+    return stripHtml((value as Record<string, unknown>)[key]);
 }
 
 function truncateSentences(value: string, maxSentences: number): string {
     const text = stripHtml(value).trim();
     if (!text) return "";
 
-    const sentences = text.match(/[^.!?]+[.!?]+(?:\s+|$)|[^.!?]+$/g) ?? [text];
+    const sentences = text.match(/.+?(?:[.!?]+(?=\s|$)|$)/g) ?? [text];
     return sentences.slice(0, maxSentences).join(" ").replace(/\s+/g, " ").trim();
 }
 
@@ -166,16 +157,32 @@ function getHtmlContentCandidates(item: ParserItem): string[] {
         .filter((value): value is string => Boolean(value));
 }
 
-function stripHtml(text?: string): string {
-    if (!text) return "";
+function stripHtml(text?: unknown): string {
+    const value = textValue(text);
+
+    if (typeof value !== "string" || !value) return "";
     return decodeHtmlEntities(
-        text
+        value
             .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, " ")
             .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, " ")
             .replace(/<[^>]+>/g, " ")
             .replace(/\s+/g, " ")
             .trim(),
     );
+}
+
+function textValue(value: unknown): string | undefined {
+    if (typeof value === "string") return value;
+
+    if (Array.isArray(value)) {
+        return value.map(textValue).find(Boolean);
+    }
+
+    if (value && typeof value === "object" && "_" in value) {
+        return textValue((value as { _: unknown })._);
+    }
+
+    return undefined;
 }
 
 function decodeHtmlEntities(text: string): string {

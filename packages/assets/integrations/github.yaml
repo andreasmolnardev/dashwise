@@ -1,0 +1,163 @@
+# Dashwise Integration YAML
+details:
+  name: GitHub Repository
+  description: Repo overview widget for issues, pull requests, and stars.
+  author: Dashwise
+  version: 1.0.0
+  repository: "https://github.com/dashwise"
+  icon: "/icons/png/github-light.png"
+  links:
+    website: "https://github.com/${REPOSITORY_OWNER}/${REPOSITORY_NAME}"
+    documentation: "https://docs.github.com/"
+    support: "https://github.com/${REPOSITORY_OWNER}/${REPOSITORY_NAME}/issues"
+  categories:
+    - Development
+
+configuration:
+  cache:
+    policy: "cache-first"
+    retention: 900
+
+  environment_variables:
+    REPOSITORY_OWNER:
+      required: true
+      description: "GitHub repository owner, eg. andreasmolnardev"
+    REPOSITORY_NAME:
+      required: true
+      description: "GitHub repository name, eg. dashwise"
+    GITHUB_TOKEN:
+      required: true
+      edit: "overwrite-only"
+      description: "GitHub token required for GraphQL API access"
+
+  endpoints:
+    repository-stats:
+      method: POST
+      url: "https://api.github.com/graphql"
+      cache_ttl: 900
+      custom_headers:
+        Accept: "application/vnd.github+json"
+        Content-Type: "application/json"
+        Authorization: "Bearer ${GITHUB_TOKEN}"
+      body:
+        query: |
+          query RepositoryStats($owner: String!, $name: String!, $recentIssuesQuery: String!, $recentPrsQuery: String!) {
+            repository(owner: $owner, name: $name) {
+              nameWithOwner
+              stargazerCount
+              issues(states: OPEN) { totalCount }
+              pullRequests(states: OPEN) { totalCount }
+              recentStargazers: stargazers(last: 100) { edges { starredAt } }
+            }
+            recentIssues: search(type: ISSUE, query: $recentIssuesQuery, first: 1) { issueCount }
+            recentPullRequests: search(type: ISSUE, query: $recentPrsQuery, first: 1) { issueCount }
+          }
+        variables:
+          owner: "${REPOSITORY_OWNER}"
+          name: "${REPOSITORY_NAME}"
+          recentIssuesQuery: "repo:${REPOSITORY_OWNER}/${REPOSITORY_NAME} is:issue is:open created:>=${NOW_24H_AGO_DATE}"
+          recentPrsQuery: "repo:${REPOSITORY_OWNER}/${REPOSITORY_NAME} is:pr is:open created:>=${NOW_24H_AGO_DATE}"
+      response_mapping:
+        full_name: "data.repository.nameWithOwner"
+        stars: "data.repository.stargazerCount"
+        open_issues: "data.repository.issues.totalCount"
+        open_prs: "data.repository.pullRequests.totalCount"
+        recent_open_issues: "data.recentIssues.issueCount"
+        recent_open_prs: "data.recentPullRequests.issueCount"
+        recent_stars_count:
+          operation: "count"
+          value:
+            iterate: "data.repository.recentStargazers.edges"
+            filter: "starredAt >= '${NOW_24H_AGO_ISO}'"
+
+  widgets:
+    - name: "Repository Stats"
+      key: "github-repo-stats"
+      template: "columns"
+      depends_on:
+        - "repository-stats"
+      inputs:
+        - name: "Repository Owner"
+          key: "REPOSITORY_OWNER"
+          type: "text"
+          required: true
+        - name: "Repository Name"
+          key: "REPOSITORY_NAME"
+          type: "text"
+          required: true
+      properties:
+        header:
+          title: "${REPOSITORY_OWNER}/${REPOSITORY_NAME}"
+          icon: "fa6-brands:github"
+          titleAction: "url:https://github.com/${REPOSITORY_OWNER}/${REPOSITORY_NAME}"
+        columns:
+          - id: "issues"
+            primary: "Issues"
+            primaryAction: "url:https://github.com/${REPOSITORY_OWNER}/${REPOSITORY_NAME}/issues"
+            titleAction: "url:https://github.com/${REPOSITORY_OWNER}/${REPOSITORY_NAME}/issues"
+            stats:
+              primary: "${endpoints.repository-stats.mappedResponse.open_issues}"
+              secondary: "(+ ${endpoints.repository-stats.mappedResponse.recent_open_issues})"
+          - id: "prs"
+            primary: "Pull Requests"
+            primaryAction: "url:https://github.com/${REPOSITORY_OWNER}/${REPOSITORY_NAME}/pulls"
+            titleAction: "url:https://github.com/${REPOSITORY_OWNER}/${REPOSITORY_NAME}/pulls"
+            stats:
+              primary: "${endpoints.repository-stats.mappedResponse.open_prs}"
+              secondary: "(+ ${endpoints.repository-stats.mappedResponse.recent_open_prs})"
+          - id: "stars"
+            primary: "Stars"
+            primaryAction: "url:https://github.com/${REPOSITORY_OWNER}/${REPOSITORY_NAME}/stargazers"
+            titleAction: "url:https://github.com/${REPOSITORY_OWNER}/${REPOSITORY_NAME}/stargazers"
+            stats:
+              primary: "${endpoints.repository-stats.mappedResponse.stars}"
+              secondary: "(+ ${endpoints.repository-stats.mappedResponse.recent_stars_count})"
+
+  shortcuts:
+    - main:
+        - id: "repo"
+          name: "Repository"
+          icon: "fa6-brands:github"
+          secondaryInfo: "${endpoints.repository-stats.mappedResponse.full_name}"
+          type: "githubRepo"
+          action: "url:https://github.com/${REPOSITORY_OWNER}/${REPOSITORY_NAME}"
+          tags:
+            - "GitHub"
+            - "Repository"
+            - "${REPOSITORY_OWNER}/${REPOSITORY_NAME}"
+        - id: "issues"
+          name: "Issues"
+          icon: "fa6-solid:triangle-exclamation"
+          secondaryInfo: "${endpoints.repository-stats.mappedResponse.open_issues} open"
+          type: "githubIssues"
+          action: "url:https://github.com/${REPOSITORY_OWNER}/${REPOSITORY_NAME}/issues"
+          tags:
+            - "GitHub"
+            - "Issues"
+        - id: "pull-requests"
+          name: "Pull Requests"
+          icon: "fa6-solid:code-pull-request"
+          secondaryInfo: "${endpoints.repository-stats.mappedResponse.open_prs} open"
+          type: "githubPullRequests"
+          action: "url:https://github.com/${REPOSITORY_OWNER}/${REPOSITORY_NAME}/pulls"
+          tags:
+            - "GitHub"
+            - "Pull Requests"
+
+  glanceables:
+    - name: "GitHub Repo"
+      type: "github-repo"
+      icon:
+        file: "fa6-brands:github"
+        size: 16
+      properties:
+        repository: "${REPOSITORY_OWNER}/${REPOSITORY_NAME}"
+      text: "${endpoints.repository-stats.mappedResponse.full_name} • ${endpoints.repository-stats.mappedResponse.stars} stars"
+    - name: "24h Activity"
+      type: "github-activity"
+      icon:
+        file: "fa6-solid:chart-line"
+        size: 16
+      properties:
+        repository: "${REPOSITORY_OWNER}/${REPOSITORY_NAME}"
+      text: "${endpoints.repository-stats.mappedResponse.recent_open_issues} issues, ${endpoints.repository-stats.mappedResponse.recent_open_prs} PRs, ${endpoints.repository-stats.mappedResponse.recent_stars_count} stars in 24h"

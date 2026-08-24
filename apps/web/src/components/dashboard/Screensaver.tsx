@@ -7,6 +7,8 @@ import { renderWidget } from "../widgets/Widget";
 import AppIcon from "@dashwise/app-icon";
 import { fetchWallpaperBlob } from "@/lib/apiClient";
 
+const TOUCH_CONTROLS_HIDE_DELAY = 2500;
+
 export default function Screensaver(
   { active, onExit }: { active: boolean; onExit: () => void },
 ) {
@@ -20,19 +22,28 @@ export default function Screensaver(
   const [frameBackgrounds, setFrameBackgrounds] = useState<Record<string, string>>({});
   const [scrollLeft, setScrollLeft] = useState(0);
   const scrollRef = useRef<HTMLDivElement | null>(null);
-  const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const controlsHideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => {
-    if (isHovering) {
-      if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
-      hoverTimeoutRef.current = setTimeout(() => {
-        setIsHovering(false);
-      }, 3000);
+  const clearControlsHideTimeout = () => {
+    if (controlsHideTimeoutRef.current) {
+      clearTimeout(controlsHideTimeoutRef.current);
+      controlsHideTimeoutRef.current = null;
     }
-    return () => {
-      if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
-    };
-  }, [isHovering]);
+  };
+
+  const scheduleTouchControlsHide = () => {
+    clearControlsHideTimeout();
+    controlsHideTimeoutRef.current = setTimeout(() => {
+      setIsHovering(false);
+      controlsHideTimeoutRef.current = null;
+    }, TOUCH_CONTROLS_HIDE_DELAY);
+  };
+
+  useEffect(() => () => {
+    if (controlsHideTimeoutRef.current) {
+      clearTimeout(controlsHideTimeoutRef.current);
+    }
+  }, []);
 
   useEffect(() => {
     fetch("/fonts/index.json")
@@ -205,8 +216,29 @@ export default function Screensaver(
     <div
       className="fixed inset-0 bg-black backdrop-blur-xl z-50 flex flex-col"
       onMouseEnter={() => setIsHovering(true)}
-      onMouseLeave={() => setIsHovering(false)}
+      onMouseLeave={() => {
+        clearControlsHideTimeout();
+        setIsHovering(false);
+      }}
       onMouseMove={() => setIsHovering(true)}
+      onPointerEnter={(event) => {
+        if (event.pointerType === "touch") {
+          setIsHovering(true);
+          scheduleTouchControlsHide();
+        }
+      }}
+      onPointerDown={(event) => {
+        if (event.pointerType === "touch") {
+          setIsHovering(true);
+          scheduleTouchControlsHide();
+        }
+      }}
+      onPointerMove={(event) => {
+        if (event.pointerType === "touch") {
+          setIsHovering(true);
+          scheduleTouchControlsHide();
+        }
+      }}
     >
       <div
         ref={scrollRef}
@@ -258,13 +290,31 @@ export default function Screensaver(
                   }}
                 />
               )}
-              <div className="relative z-10 scale-150 transform origin-center">
-                {renderWidget({
-                  type: frame.type,
-                  params: frame.params || {},
-                  className: "overflow-visible",
-                })}
-              </div>
+              {Array.isArray(frame.params?.sections) && frame.params?.layout ? (
+                <div
+                  className="relative z-10 grid h-[70vh] w-[70vw] gap-6"
+                  style={{ gridTemplateColumns: `repeat(${frame.params.layout.cols ?? 1}, minmax(0, 1fr))` }}
+                >
+                  {frame.params.sections.map((section: any) => (
+                    <div key={section.id} className="flex min-h-0 min-w-0 items-center justify-center overflow-hidden rounded-3xl">
+                      {renderWidget({
+                        type: section.widgetType || frame.type,
+                        consumerKey: section.consumerKey,
+                        params: section.params || {},
+                        className: "h-full w-full overflow-hidden",
+                      })}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="relative z-10 scale-150 transform origin-center">
+                  {renderWidget({
+                    type: frame.type,
+                    params: frame.params || {},
+                    className: "overflow-visible",
+                  })}
+                </div>
+              )}
             </div>
           );
         })}

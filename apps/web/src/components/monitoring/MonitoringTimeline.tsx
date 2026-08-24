@@ -13,6 +13,7 @@ type MonitoringTimelineProps = {
   status?: string | null;
   dateChanged?: string | null;
   durationChanged?: number | null;
+  className?: string;
 };
 
 function formatDate(date: Date) {
@@ -34,7 +35,7 @@ function formatStateLabel(status?: "up" | "down") {
 }
 
 export default function MonitoringTimeline(
-  { status, dateChanged, durationChanged }: MonitoringTimelineProps,
+  { status, dateChanged, durationChanged, className }: MonitoringTimelineProps,
 ) {
   const segments = useMemo<TimelineSegment[]>(() => {
     const now = new Date();
@@ -77,7 +78,7 @@ export default function MonitoringTimeline(
   }, [dateChanged, durationChanged, status]);
 
   return (
-    <div>
+    <div className={className}>
       <div className="text-xl font-semibold mb-2">Recent Activity</div>
 
       <div className="flex items-stretch gap-2 h-8">

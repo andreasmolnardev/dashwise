@@ -2,14 +2,14 @@
 
 import { useEffect, useMemo, useRef, useState, useCallback, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import useAuth from "@/context/useAuth";
-import { getConsumerDataAction } from '@/lib/apiClient';
+import { getConsumerDataAction, previewImageSourceAction } from '@/lib/apiClient';
 import {
   closestCenter,
   DndContext,
   DragEndEvent,
   DragOverEvent,
-  DragOverlay,
   DragStartEvent,
+  KeyboardSensor,
   PointerSensor,
   useDroppable,
   useSensor,
@@ -17,13 +17,16 @@ import {
 } from "@dnd-kit/core";
 import {
   arrayMove,
+  sortableKeyboardCoordinates,
   SortableContext,
   useSortable,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Edit3, Eye, EyeOff, GripVertical, PanelLeftDashed, Trash2 } from "lucide-react";
+import { ChevronDown, Edit3, Eye, EyeOff, GripVertical, PanelLeftDashed, Ruler, Trash2 } from "lucide-react";
+import WidgetPropertiesForm from "@dashwise/integrationskit/forms/WidgetPropertiesForm";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Dialog,
@@ -36,14 +39,18 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { renderWidget } from "@/components/widgets/Widget";
+import ShortcutsPicker from "@/components/widgets/ShortcutsPicker";
+import { EditGlanceablesView } from "@/components/settings/pages/EditGlanceablesView";
 import {
+  ClockGlanceableIntervals,
+  ClockGlanceableSelection,
   ColumnName,
   ColumnWidget,
+  GlanceableSide,
   TemplateId,
   WidgetCatalogItem,
   createWidgetId,
   hasEditableWidgetData,
-  moveItem,
 } from "./utils";
 
 type DisplayCustomizations = {
@@ -68,6 +75,26 @@ type DashboardWidgetPreviewProps = {
   widgetCategories: string[];
   selectedWidgetCategory: string;
   setSelectedWidgetCategory: (category: string) => void;
+  hasMainClock: boolean;
+  glanceablesCatalog: Array<{
+    type: string;
+    name: string;
+    exampleProps: Record<string, any>;
+    properties?: Record<string, any>;
+  }>;
+  selectedClockPart: GlanceableSide | "clock";
+  setSelectedClockPart: (part: GlanceableSide | "clock") => void;
+  clockSelection: ClockGlanceableSelection;
+  setClockSelection: Dispatch<SetStateAction<ClockGlanceableSelection>>;
+  clockGlanceables: Record<string, any>;
+  setClockGlanceables: Dispatch<SetStateAction<Record<string, any>>>;
+  clockGlanceableIntervals: ClockGlanceableIntervals;
+  setClockGlanceableIntervals: Dispatch<SetStateAction<ClockGlanceableIntervals>>;
+  clockStyle: Record<string, any>;
+  setClockStyle: Dispatch<SetStateAction<Record<string, any>>>;
+  fonts: Array<{ name: string; path: string }>;
+  editWidgetRequest?: { column: ColumnName; widgetId: string; widgetIndex?: number } | null;
+  onEditWidgetRequestHandled?: () => void;
 };
 
 function WidgetTile({
@@ -75,22 +102,39 @@ function WidgetTile({
   widgetConfig,
   onRemove,
   onUpdateInput,
+  onUpdateProperties,
+  availableHeightRefs,
   loadWidgetPreviewData,
   isActive,
+  onEditClockPart,
+  clockSelection,
+  glanceableNames,
+  openForEdit,
+  onEditWidgetRequestHandled,
 }: {
   columnWidget: ColumnWidget;
   widgetConfig?: WidgetCatalogItem;
   onRemove: () => void;
   onUpdateInput: (widgetId: string, input?: ColumnWidget["input"]) => void;
+  onUpdateProperties: (widgetId: string, properties: Record<string, any>) => void;
+  availableHeightRefs: string[];
   loadWidgetPreviewData?: (widgetKey: string, input?: Record<string, any>) => Promise<Record<string, any> | null>;
   isActive?: boolean;
+  onEditClockPart?: (part: GlanceableSide | "clock") => void;
+  clockSelection?: ClockGlanceableSelection;
+  glanceableNames?: Record<string, string>;
+  openForEdit?: boolean;
+  onEditWidgetRequestHandled?: () => void;
 }) {
+  const { withAuth } = useAuth();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: columnWidget.id,
   });
   const [isDataDialogOpen, setIsDataDialogOpen] = useState(false);
+  const [isHeightDialogOpen, setIsHeightDialogOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"input" | "displayed">("input");
   const [inputDraft, setInputDraft] = useState<Record<string, any>>({});
+  const [heightDraft, setHeightDraft] = useState("");
   const [dataError, setDataError] = useState<string | null>(null);
   const [previewResolved, setPreviewResolved] = useState<Record<string, any> | null>(null);
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
@@ -100,6 +144,15 @@ function WidgetTile({
   const customizationSensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
   );
+
+  useEffect(() => {
+    if (!isDragging) return;
+
+    document.body.style.cursor = "grabbing";
+    return () => {
+      document.body.style.cursor = "";
+    };
+  }, [isDragging]);
 
   const supportsUserCustomizations = useMemo(() => {
     const flags = widgetConfig?.properties?.columns?.user_customizations;
@@ -120,7 +173,7 @@ function WidgetTile({
   );
 
   useEffect(() => {
-    if (isDataDialogOpen) return;
+    if (isDataDialogOpen || isHeightDialogOpen) return;
     hasInitializedDisplayOrder.current = false;
     const baseInput = {
       ...(columnWidget.properties ?? {}),
@@ -134,12 +187,16 @@ function WidgetTile({
     setDisplayOrder([]);
     setHiddenIds([]);
     setActiveTab("input");
-  }, [isDataDialogOpen, columnWidget.input, columnWidget.properties, widgetConfig?.input]);
-
-  const { withAuth } = useAuth();
+    setHeightDraft(formatWidgetHeight(columnWidget.properties?.height));
+  }, [columnWidget.input, columnWidget.properties, isDataDialogOpen, isHeightDialogOpen, widgetConfig?.input]);
 
   useEffect(() => {
-    if (!isDataDialogOpen || !supportsUserCustomizations || !widgetConfig?.key || !withAuth) {
+    if (!isHeightDialogOpen) return;
+    setHeightDraft(formatWidgetHeight(columnWidget.properties?.height));
+  }, [columnWidget.properties?.height, isHeightDialogOpen]);
+
+  useEffect(() => {
+    if (!isDataDialogOpen || !supportsUserCustomizations || !widgetConfig?.key) {
       return;
     }
 
@@ -151,9 +208,13 @@ function WidgetTile({
       ...stripDisplayCustomizations(columnWidget.input ?? {}),
     };
 
-    void withAuth((auth) =>
-      getConsumerDataAction(auth, widgetConfig.key, previewInput ?? {}, { type: "widget", isPreview: false }),
-    )
+    const resolvePreviewData = loadWidgetPreviewData
+      ? loadWidgetPreviewData(widgetConfig.key, previewInput ?? {})
+      : withAuth((auth) =>
+        getConsumerDataAction(auth, widgetConfig.key, previewInput ?? {}, { type: "widget", isPreview: true }),
+      );
+
+    void resolvePreviewData
       .then((payload) => {
         if (cancelled) return;
         setPreviewResolved(payload as any);
@@ -171,7 +232,7 @@ function WidgetTile({
     return () => {
       cancelled = true;
     };
-  }, [columnWidget.input, columnWidget.properties, isDataDialogOpen, supportsUserCustomizations, widgetConfig?.key, withAuth]);
+  }, [columnWidget.input, columnWidget.properties, isDataDialogOpen, loadWidgetPreviewData, supportsUserCustomizations, widgetConfig?.key, withAuth]);
 
   useEffect(() => {
     if (!isDataDialogOpen || !supportsUserCustomizations || hasInitializedDisplayOrder.current) {
@@ -245,10 +306,25 @@ function WidgetTile({
   };
 
   const canEditData = hasEditableWidgetData(columnWidget, widgetConfig) || supportsUserCustomizations;
+  const isPlaceholderWidget = columnWidget.type === "placeholder";
   const params = {
     ...(widgetConfig?.properties ?? {}),
     ...(columnWidget.properties ?? {}),
     ...(columnWidget.input ?? {}),
+  };
+  const isClockWidget = columnWidget.type === "main-clock" || columnWidget.type === "glanceable-clock";
+
+  useEffect(() => {
+    if (!openForEdit || !canEditData) return;
+    setIsDataDialogOpen(true);
+  }, [canEditData, openForEdit]);
+
+  const handleSaveHeight = () => {
+    const nextHeight = parseWidgetHeight(heightDraft);
+    onUpdateProperties(columnWidget.id, nextHeight !== undefined
+      ? { ...(columnWidget.properties ?? {}), height: nextHeight }
+      : Object.fromEntries(Object.entries(columnWidget.properties ?? {}).filter(([key]) => key !== "height")));
+    setIsHeightDialogOpen(false);
   };
 
   return (
@@ -262,241 +338,463 @@ function WidgetTile({
         type: columnWidget.type,
         params,
         className: "w-full h-[90px]",
+        isPreview: true,
       })}
 
       {/* Hover overlay with controls */}
-      <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg backdrop-blur-[2px]">
-        {widgetConfig?.name && (
-          <p className="font-bold py-0.5 text-sm text-center">
-            {widgetConfig.name}
-          </p>
-        )}
-        <div className="flex items-center justify-center gap-1">
-          {canEditData && (
-            <Dialog open={isDataDialogOpen} onOpenChange={setIsDataDialogOpen}>
-              <DialogTrigger asChild>
-                <button
-                  type="button"
-                  aria-label={`Edit input for ${columnWidget.type}`}
-                  className="rounded-full bg-white/10 p-2 hover:bg-white/20 backdrop-blur"
+      <div className={`absolute inset-0 rounded-lg bg-black/60 transition-opacity backdrop-blur-[2px] ${isPlaceholderWidget ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}>
+        {isClockWidget ? (
+          <div className="grid h-full grid-cols-3 items-center gap-2 p-2">
+            <button type="button" onClick={() => onEditClockPart?.("left")} className="flex h-full flex-col items-center justify-center rounded-xl border border-white/10 bg-white/5 p-2 text-center hover:bg-white/10">
+              <span className="text-sm font-medium text-white/90">{clockSelection?.left.length ? `${clockSelection.left.length} glanceable${clockSelection.left.length === 1 ? "" : "s"}` : "Left"}</span>
+            </button>
+            <button type="button" onClick={() => onEditClockPart?.("clock")} className="flex h-full flex-col items-center justify-center rounded-xl border border-white/10 bg-white/5 p-2 text-center hover:bg-white/10">
+              <span className="rounded-full border border-white/10 bg-white/10 px-3 py-2 text-xs font-medium text-white/80">Clock</span>
+            </button>
+            <button type="button" onClick={() => onEditClockPart?.("right")} className="flex h-full flex-col items-center justify-center rounded-xl border border-white/10 bg-white/5 p-2 text-center hover:bg-white/10">
+              <span className="text-sm font-medium text-white/90">{clockSelection?.right.length ? `${clockSelection.right.length} glanceable${clockSelection.right.length === 1 ? "" : "s"}` : "Right"}</span>
+            </button>
+            <div className="absolute right-2 top-2 flex items-center gap-1">
+              <button
+                type="button"
+                aria-label={`Drag ${columnWidget.type}`}
+                className="rounded-full bg-white/10 p-2 hover:bg-white/20 backdrop-blur cursor-grab active:cursor-grabbing"
+                {...attributes}
+                {...listeners}
+              >
+                <GripVertical className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={onRemove}
+                aria-label={`Remove ${columnWidget.type}`}
+                className="rounded-full bg-white/10 p-2 hover:bg-red-500/40 backdrop-blur"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex h-full flex-col items-center justify-center gap-2 p-2">
+            {widgetConfig?.name && (
+              <p className="font-bold py-0.5 text-sm text-center">
+                {widgetConfig.name}
+              </p>
+            )}
+            <div className="flex items-center justify-center gap-1">
+              {canEditData && (
+                <Dialog
+                  open={isDataDialogOpen}
+                  onOpenChange={(open) => {
+                    setIsDataDialogOpen(open);
+                    if (!open) onEditWidgetRequestHandled?.();
+                  }}
                 >
-                  <Edit3 className="h-4 w-4" />
-                </button>
-              </DialogTrigger>
-            <DialogContent className="frosted">
-              <DialogHeader>
-                <DialogTitle>{supportsUserCustomizations ? "Edit Widget Settings" : "Edit Widget Input"}</DialogTitle>
-                <DialogDescription>
-                  {supportsUserCustomizations
-                    ? "Adjust the input payload and displayed items for this widget instance."
-                    : "Customize the per-widget input payload used by the preview and saved page config."}
-                </DialogDescription>
-              </DialogHeader>
-              {supportsUserCustomizations ? (
-                <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "input" | "displayed")} className="py-4">
-                  <TabsList className="grid w-full grid-cols-2 frosted rounded-full">
-                    <TabsTrigger value="input" className="rounded-full">Input</TabsTrigger>
-                    <TabsTrigger value="displayed" className="rounded-full">Displayed Items</TabsTrigger>
-                  </TabsList>
+                  <DialogTrigger asChild>
+                    <button
+                      type="button"
+                      aria-label={`Edit input for ${columnWidget.type}`}
+                      className="rounded-full bg-white/10 p-2 hover:bg-white/20 backdrop-blur"
+                    >
+                      <Edit3 className="h-4 w-4" />
+                    </button>
+                  </DialogTrigger>
+                <DialogContent className="frosted max-h-[90vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle>{supportsUserCustomizations ? "Edit Widget Settings" : "Edit Widget Input"}</DialogTitle>
+                    <DialogDescription>
+                      {supportsUserCustomizations
+                        ? "Adjust the input payload and displayed items for this widget instance."
+                        : "Customize the per-widget input payload used by the preview and saved page config."}
+                    </DialogDescription>
+                  </DialogHeader>
+                  {supportsUserCustomizations ? (
+                    <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "input" | "displayed")} className="py-4">
+                      <TabsList className="grid w-full grid-cols-2 frosted rounded-full">
+                        <TabsTrigger value="input" className="rounded-full">Input</TabsTrigger>
+                        <TabsTrigger value="displayed" className="rounded-full">Displayed Items</TabsTrigger>
+                      </TabsList>
 
-                  <TabsContent value="input" className="space-y-4 pt-4 max-h-[50vh] overflow-y-auto">
-                    <WidgetInputEditor
-                      widgetId={columnWidget.id}
-                      inputDraft={inputDraft}
-                      onChange={setInputDraft}
-                      dataError={dataError}
-                      setDataError={setDataError}
-                    />
-                    {dataError ? <p className="text-sm text-red-400">{dataError}</p> : null}
-                  </TabsContent>
+                      <TabsContent value="input" className="space-y-4 pt-4 max-h-[50vh] overflow-y-auto">
+                        <WidgetInputEditor
+                          widgetId={columnWidget.id}
+                          widgetType={columnWidget.type}
+                          schema={widgetConfig?.input ?? {}}
+                          inputDraft={inputDraft}
+                          onChange={setInputDraft}
+                          dataError={dataError}
+                          setDataError={setDataError}
+                        />
+                        {dataError ? <p className="text-sm text-red-400">{dataError}</p> : null}
+                      </TabsContent>
 
-                  <TabsContent value="displayed" className="space-y-3 pt-4">
-                    {isPreviewLoading ? (
-                      <p className="text-sm text-white/60">Loading items...</p>
-                    ) : integrationDataEntries.length > 0 ? (
-                      <DndContext
-                        collisionDetection={closestCenter}
-                        onDragEnd={handleCustomizationDragEnd}
-                        sensors={customizationSensors}
-                      >
-                        <SortableContext items={displayOrder} strategy={verticalListSortingStrategy}>
-                          <div className="space-y-2">
-                            {displayOrder.map((itemId) => {
-                              const item = integrationDataEntriesById.get(itemId);
-                              if (!item) return null;
-                              return (
-                                <DisplayedItemRow
-                                  key={itemId}
-                                  id={itemId}
-                                  title={item.title}
-                                  subtitle={item.subtitle}
-                                  hidden={hiddenIds.includes(itemId)}
-                                  onToggleHidden={() => toggleHidden(itemId)}
-                                />
-                              );
-                            })}
-                          </div>
-                        </SortableContext>
-                      </DndContext>
-                    ) : (
-                      <p className="text-sm text-white/60">This widget has no items yet.</p>
-                    )}
-                  </TabsContent>
-                </Tabs>
-              ) : (
-                <div className="space-y-4 py-4">
-                  <WidgetInputEditor
-                    widgetId={columnWidget.id}
-                    inputDraft={inputDraft}
-                    onChange={setInputDraft}
-                    dataError={dataError}
-                    setDataError={setDataError}
-                  />
-                  {dataError ? <p className="text-sm text-red-400">{dataError}</p> : null}
-                </div>
+                      <TabsContent value="displayed" className="space-y-3 pt-4">
+                        {isPreviewLoading ? (
+                          <p className="text-sm text-white/60">Loading items...</p>
+                        ) : integrationDataEntries.length > 0 ? (
+                          <DndContext
+                            collisionDetection={closestCenter}
+                            onDragEnd={handleCustomizationDragEnd}
+                            sensors={customizationSensors}
+                          >
+                            <SortableContext items={displayOrder} strategy={verticalListSortingStrategy}>
+                              <div className="space-y-2">
+                                {displayOrder.map((itemId) => {
+                                  const item = integrationDataEntriesById.get(itemId);
+                                  if (!item) return null;
+                                  return (
+                                    <DisplayedItemRow
+                                      key={itemId}
+                                      id={itemId}
+                                      title={item.title}
+                                      subtitle={item.subtitle}
+                                      hidden={hiddenIds.includes(itemId)}
+                                      onToggleHidden={() => toggleHidden(itemId)}
+                                    />
+                                  );
+                                })}
+                              </div>
+                            </SortableContext>
+                          </DndContext>
+                        ) : (
+                          <p className="text-sm text-white/60">This widget has no items yet.</p>
+                        )}
+                      </TabsContent>
+                    </Tabs>
+                  ) : (
+                    <div className="space-y-4 py-4">
+                      <WidgetInputEditor
+                        widgetId={columnWidget.id}
+                        widgetType={columnWidget.type}
+                        schema={widgetConfig?.input ?? {}}
+                        inputDraft={inputDraft}
+                        onChange={setInputDraft}
+                        dataError={dataError}
+                        setDataError={setDataError}
+                      />
+                      {dataError ? <p className="text-sm text-red-400">{dataError}</p> : null}
+                    </div>
+                  )}
+                  <DialogFooter>
+                    <Button type="button" variant="outline" onClick={() => setIsDataDialogOpen(false)}>
+                      Cancel
+                    </Button>
+                    <Button type="button" onClick={handleSaveData}>
+                      Save input
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+                </Dialog>
               )}
-              <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setIsDataDialogOpen(false)}>
-                  Cancel
-                </Button>
-                <Button type="button" onClick={handleSaveData}>
-                  Save input
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+              {isPlaceholderWidget && (
+                <Dialog open={isHeightDialogOpen} onOpenChange={setIsHeightDialogOpen}>
+                  <DialogTrigger asChild>
+                    <button
+                      type="button"
+                      aria-label="Edit placeholder height"
+                      className="rounded-full bg-white/10 p-2 hover:bg-white/20 backdrop-blur"
+                    >
+                      <Ruler className="h-4 w-4" />
+                    </button>
+                  </DialogTrigger>
+                  <DialogContent className="frosted">
+                    <DialogHeader>
+                      <DialogTitle>Edit Placeholder Height</DialogTitle>
+                      <DialogDescription>
+                        Set preview height in px, CSS length, or $ref.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-2 py-4">
+                      <Label htmlFor={`placeholder-height-${columnWidget.id}`}>Height</Label>
+                      <Input
+                        id={`placeholder-height-${columnWidget.id}`}
+                        value={heightDraft}
+                        onChange={(event) => setHeightDraft(event.target.value)}
+                        placeholder="180px"
+                      />
+                      <div className="space-y-2 pt-2">
+                        <p className="text-xs uppercase tracking-wide text-white/50">Available $refs</p>
+                        {availableHeightRefs.length > 0 ? (
+                          <div className="flex flex-wrap gap-2">
+                            {availableHeightRefs.map((ref) => (
+                              <button
+                                key={ref}
+                                type="button"
+                                onClick={() => setHeightDraft(`$${ref}`)}
+                                className="rounded-full border border-white/15 bg-white/5 px-2.5 py-1 text-xs text-white/80 hover:bg-white/10"
+                              >
+                                ${ref}
+                              </button>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-sm text-white/45">No refs available.</p>
+                        )}
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <Button type="button" variant="outline" onClick={() => setIsHeightDialogOpen(false)}>
+                        Cancel
+                      </Button>
+                      <Button type="button" onClick={handleSaveHeight}>
+                        Save height
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              )}
+              <button
+                type="button"
+                aria-label={`Drag ${columnWidget.type}`}
+                className="rounded-full bg-white/10 p-2 hover:bg-white/20 backdrop-blur cursor-grab active:cursor-grabbing"
+                {...attributes}
+                {...listeners}
+              >
+                <GripVertical className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={onRemove}
+                aria-label={`Remove ${columnWidget.type}`}
+                className="rounded-full bg-white/10 p-2 hover:bg-red-500/40 backdrop-blur"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
         )}
-        <button
-          type="button"
-          aria-label={`Drag ${columnWidget.type}`}
-          className="rounded-full bg-white/10 p-2 hover:bg-white/20 backdrop-blur cursor-grab active:cursor-grabbing"
-          {...attributes}
-          {...listeners}
-        >
-          <GripVertical className="h-4 w-4" />
-        </button>
-        <button
-          type="button"
-          onClick={onRemove}
-          aria-label={`Remove ${columnWidget.type}`}
-          className="rounded-full bg-white/10 p-2 hover:bg-red-500/40 backdrop-blur"
-        >
-          <Trash2 className="h-4 w-4" />
-        </button>
       </div>
     </div>
-  </div>
-);
+  );
 }
 
 function WidgetInputEditor({
   widgetId,
+  widgetType,
+  schema,
   inputDraft,
   onChange,
   dataError,
   setDataError,
 }: {
   widgetId: string;
+  widgetType: string;
+  schema?: Record<string, any>;
   inputDraft: Record<string, any>;
   onChange: (next: Record<string, any>) => void;
   dataError: string | null;
   setDataError: (value: string | null) => void;
 }) {
-  const inputEntries = Object.entries(inputDraft ?? {});
-  if (inputEntries.length === 0) {
-    return <p className="text-sm text-white/60">No input properties for this widget.</p>;
+  if (widgetType === "shortcuts") {
+    const shortcutIds = Array.isArray(inputDraft.shortcutIds)
+      ? inputDraft.shortcutIds.filter((id): id is string => typeof id === "string")
+      : [];
+    return <ShortcutsPicker value={shortcutIds} onChange={(nextIds) => onChange({ ...inputDraft, shortcutIds: nextIds })} />;
+  }
+
+  if (widgetType === "image") {
+    return (
+      <ImageWidgetInputEditor
+        schema={schema}
+        inputDraft={inputDraft}
+        onChange={onChange}
+        dataError={dataError}
+        setDataError={setDataError}
+        widgetId={widgetId}
+      />
+    );
   }
 
   return (
+    <WidgetPropertiesForm
+      idPrefix={`widget-input-${widgetId}`}
+      schema={schema}
+      value={inputDraft}
+      onChange={onChange}
+      onError={setDataError}
+      error={dataError}
+      emptyMessage="No input properties for this widget."
+    />
+  );
+}
+
+function ImageWidgetInputEditor({
+  schema,
+  inputDraft,
+  onChange,
+  dataError,
+  setDataError,
+  widgetId,
+}: {
+  schema?: Record<string, any>;
+  inputDraft: Record<string, any>;
+  onChange: (next: Record<string, any>) => void;
+  dataError: string | null;
+  setDataError: (value: string | null) => void;
+  widgetId: string;
+}) {
+  const { withAuth } = useAuth();
+  const imageUrl = inputDraft.url ?? inputDraft.image_url ?? inputDraft.imageUrl;
+  const imageUrlPath = inputDraft.image_url_property ?? inputDraft.image_url_path ?? inputDraft.imageUrlProperty ?? "";
+  const [resolvedUrl, setResolvedUrl] = useState("");
+  const [isResolvingUrl, setIsResolvingUrl] = useState(false);
+  const [urlError, setUrlError] = useState<string | null>(null);
+  const propertySchema = { ...(schema ?? {}) };
+  delete propertySchema.image_url_property;
+  delete propertySchema.image_url_path;
+  delete propertySchema.imageUrlProperty;
+  const formValue = { ...inputDraft };
+  delete formValue.image_url_property;
+  delete formValue.image_url_path;
+  delete formValue.imageUrlProperty;
+
+  useEffect(() => {
+    const sourceUrl = String(imageUrl ?? "").trim();
+    const path = String(imageUrlPath ?? "").trim();
+    let cancelled = false;
+
+    setUrlError(null);
+    if (!sourceUrl) {
+      setResolvedUrl("");
+      setIsResolvingUrl(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    if (isImageUrl(sourceUrl)) {
+      setResolvedUrl(sourceUrl);
+      setIsResolvingUrl(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    setResolvedUrl("");
+    setIsResolvingUrl(true);
+    void withAuth((auth) => previewImageSourceAction(
+      auth,
+      sourceUrl,
+      inputDraft.invalidate_after ?? inputDraft.invalidateAfter,
+    ))
+      .then((payload) => payload.body)
+      .then((body) => {
+        if (cancelled) return;
+        const selected = path ? getImagePath(body, path) : findImageUrl(body);
+        const nextUrl = typeof selected === "string" ? selected : findImageUrl(selected);
+        if (!nextUrl) throw new Error("No image URL found in response");
+        setResolvedUrl(nextUrl);
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setUrlError(error instanceof Error ? error.message : String(error));
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setIsResolvingUrl(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [imageUrl, imageUrlPath, withAuth]);
+
+  return (
     <div className="space-y-3">
-      {inputEntries.map(([key, value]) => {
-        const inputId = `widget-input-${widgetId}-${key}`;
-        const isBoolean = typeof value === "boolean";
-        const isNumber = typeof value === "number" && Number.isFinite(value);
-        const isText = typeof value === "string" || value === null || value === undefined;
-
-        if (isBoolean) {
-          return (
-            <label key={key} htmlFor={inputId} className="flex items-center justify-between gap-3 rounded-md border border-white/10 bg-black/20 px-3 py-2">
-              <span className="text-sm text-white">{key}</span>
-              <input
-                id={inputId}
-                type="checkbox"
-                checked={Boolean(value)}
-                onChange={(event) => {
-                  setDataError(null);
-                  onChange({ ...inputDraft, [key]: event.target.checked });
-                }}
-                className="h-4 w-4 accent-white"
-              />
-            </label>
-          );
-        }
-
-        if (isNumber) {
-          return (
-            <div key={key} className="space-y-1.5">
-              <Label htmlFor={inputId}>{key}</Label>
-              <input
-                id={inputId}
-                type="number"
-                value={value}
-                onChange={(event) => {
-                  const nextValue = event.target.value;
-                  setDataError(null);
-                  onChange({
-                    ...inputDraft,
-                    [key]: nextValue === "" ? null : Number(nextValue),
-                  });
-                }}
-                className="w-full rounded-md border border-white/15 bg-black/20 px-3 py-2 text-sm outline-none"
-              />
-            </div>
-          );
-        }
-
-        if (isText) {
-          return (
-            <div key={key} className="space-y-1.5">
-              <Label htmlFor={inputId}>{key}</Label>
-              <input
-                id={inputId}
-                type="text"
-                value={value ?? ""}
-                onChange={(event) => {
-                  setDataError(null);
-                  onChange({ ...inputDraft, [key]: event.target.value });
-                }}
-                className="w-full rounded-md border border-white/15 bg-black/20 px-3 py-2 text-sm outline-none"
-              />
-            </div>
-          );
-        }
-
-        return (
-          <div key={key} className="space-y-1.5">
-            <Label htmlFor={inputId}>{key}</Label>
-            <textarea
-              id={inputId}
-              value={JSON.stringify(value, null, 2)}
-              onChange={(event) => {
-                try {
-                  const parsed = JSON.parse(event.target.value);
-                  setDataError(null);
-                  onChange({ ...inputDraft, [key]: parsed });
-                } catch {
-                  setDataError("Input must be valid JSON.");
-                }
-              }}
-              className="min-h-24 w-full rounded-md border border-white/15 bg-black/20 p-3 text-sm outline-none"
-              spellCheck={false}
-            />
-            {dataError ? <p className="text-xs text-red-400">{dataError}</p> : null}
-          </div>
-        );
-      })}
+      <WidgetPropertiesForm
+        idPrefix={`widget-input-${widgetId}`}
+        schema={propertySchema}
+        value={formValue}
+        onChange={(next) => onChange({ ...next, ...pickImageUrlProperty(inputDraft) })}
+        onError={setDataError}
+        error={dataError}
+        emptyMessage="No image input properties for this widget."
+      />
+      {!isImageUrl(String(imageUrl ?? "")) && (
+        <div className="space-y-1.5 rounded-lg border border-white/10 bg-black/15 p-3">
+          <label htmlFor={`widget-input-${widgetId}-image-url-property`} className="text-sm font-medium text-white">
+            Image URL Path
+          </label>
+          <p className="text-xs text-white/50">
+            JSON path containing image URL, for example <code>img.url</code> or <code>thumbnail</code>.
+          </p>
+          <input
+            id={`widget-input-${widgetId}-image-url-property`}
+            type="text"
+            value={String(inputDraft.image_url_property ?? inputDraft.image_url_path ?? "")}
+            onChange={(event) => onChange({ ...inputDraft, image_url_property: event.target.value })}
+            className="w-full rounded-md border border-white/15 bg-black/20 px-3 py-2 text-sm outline-none"
+            placeholder="img.url"
+          />
+        </div>
+      )}
+      <div className="rounded-lg border border-white/10 bg-black/15 p-3">
+        <p className="text-xs uppercase tracking-wide text-white/50">Resolved URL</p>
+        {isResolvingUrl ? (
+          <p className="mt-1 text-sm text-white/60">Resolving image URL...</p>
+        ) : resolvedUrl ? (
+          <p className="mt-1 break-all text-sm text-white/90">{resolvedUrl}</p>
+        ) : (
+          <p className="mt-1 text-sm text-white/60">{urlError ?? "No image URL resolved."}</p>
+        )}
+      </div>
     </div>
   );
+}
+
+function pickImageUrlProperty(input: Record<string, any>) {
+  if (input.image_url_property !== undefined) {
+    return { image_url_property: input.image_url_property };
+  }
+  if (input.image_url_path !== undefined) {
+    return { image_url_path: input.image_url_path };
+  }
+  if (input.imageUrlProperty !== undefined) {
+    return { imageUrlProperty: input.imageUrlProperty };
+  }
+  return {};
+}
+
+function isImageUrl(value: string) {
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return false;
+  if (normalized.startsWith("data:image/")) return true;
+  return /(?:\.(?:avif|gif|jpe?g|png|svg|webp)|\/(?:avif|gif|jpe?g|png|svg|webp))(?:[?#].*)?$/.test(normalized);
+}
+
+function getImagePath(value: unknown, path: string): unknown {
+  return path.split(".").reduce<unknown>((current, segment) => {
+    if (current === null || current === undefined || typeof current !== "object") return undefined;
+    return (current as Record<string, unknown>)[segment];
+  }, value);
+}
+
+function findImageUrl(value: unknown, keyHint = ""): string | undefined {
+  if (typeof value === "string") {
+    const candidate = value.trim();
+    if (isImageUrl(candidate) || imageKeyScore(keyHint) > 0) return candidate;
+    return undefined;
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const found = findImageUrl(item, keyHint);
+      if (found) return found;
+    }
+    return undefined;
+  }
+  if (!value || typeof value !== "object") return undefined;
+
+  const entries = Object.entries(value as Record<string, unknown>)
+    .sort(([left], [right]) => imageKeyScore(right) - imageKeyScore(left));
+  for (const [key, child] of entries) {
+    const found = findImageUrl(child, key);
+    if (found) return found;
+  }
+  return undefined;
+}
+
+function imageKeyScore(key: string) {
+  return /^(image|img|thumbnail|thumb|src|url|href|path)(_url)?$/i.test(key) ? 2 : 0;
 }
 
 function DisplayedItemRow({
@@ -751,7 +1049,7 @@ function LibraryItem({ item }: { item: WidgetCatalogItem }) {
 
   return (
     <div
-      className={`rounded-xl ${isDragging ? "opacity-40" : "opacity-100"}`}
+      className={`w-56 shrink-0 snap-start space-y-2 rounded-xl border border-white/10 bg-white/5 p-2 ${isDragging ? "opacity-40" : "opacity-100"}`}
       ref={setNodeRef}
       {...listeners}
       {...attributes}
@@ -761,7 +1059,38 @@ function LibraryItem({ item }: { item: WidgetCatalogItem }) {
         params: mergedPreviewParams,
         className: "h-[110px] w-full",
         previewTemplate,
+        isPreview: true,
       })}
+      <p className="text-center text-xs text-white/70">{item.name}</p>
+    </div>
+  );
+}
+
+export function WidgetPickerCard({
+  title = "Add a widget",
+  description = "Open widget list",
+  selectedLabel,
+  compact,
+  children,
+}: {
+  title?: string;
+  description?: string;
+  selectedLabel?: string;
+  compact?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <div className="min-w-0 max-w-full space-y-3 overflow-hidden">
+      <div className={`flex max-w-full items-center justify-between gap-3 rounded-xl border border-white/15 bg-white/5 text-left ${compact ? "w-fit min-w-48 px-3 py-2" : "w-full p-4"}`}>
+        <span className="min-w-0">
+          <span className="block text-sm font-semibold">{title}</span>
+          <span className="block truncate text-xs text-white/65">{selectedLabel ?? description}</span>
+        </span>
+        <ChevronDown className="h-4 w-4 shrink-0 text-white/60 opacity-0" />
+      </div>
+      <div className="min-w-0 max-w-full overflow-hidden rounded-xl border border-white/15 p-3">
+        {children}
+      </div>
     </div>
   );
 }
@@ -776,18 +1105,65 @@ export function DashboardWidgetPreview({
   widgetCategories,
   selectedWidgetCategory,
   setSelectedWidgetCategory,
+  hasMainClock,
+  glanceablesCatalog,
+  selectedClockPart,
+  setSelectedClockPart,
+  clockSelection,
+  setClockSelection,
+  clockGlanceables,
+  setClockGlanceables,
+  clockGlanceableIntervals,
+  setClockGlanceableIntervals,
+  clockStyle,
+  setClockStyle,
+  fonts,
+  editWidgetRequest,
+  onEditWidgetRequestHandled,
 }: DashboardWidgetPreviewProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState<{ zone: ColumnName; index: number } | null>(null);
+  const [clockDialogOpen, setClockDialogOpen] = useState(false);
+  const columnsRef = useRef(columns);
+
+  useEffect(() => {
+    columnsRef.current = columns;
+  }, [columns]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
   const filteredWidgetCatalog = useMemo(() => {
     if (!selectedWidgetCategory) return widgetCatalog;
     return widgetCatalog.filter((item) => item.category === selectedWidgetCategory);
   }, [selectedWidgetCategory, widgetCatalog]);
+
+  const glanceableNames = useMemo(
+    () =>
+      Object.fromEntries(
+        glanceablesCatalog.map((item) => [item.type, item.name] as const),
+      ),
+    [glanceablesCatalog],
+  );
+
+  const availableHeightRefs = useMemo(() => {
+    const refs = new Set<string>();
+
+    if (hasMainClock) {
+      refs.add("main-clock");
+    }
+
+    for (const column of columns.left.concat(columns.middle, columns.right)) {
+      const height = column.properties?.height;
+      if (typeof height === "string" && height.startsWith("$") && height.length > 1) {
+        refs.add(height.slice(1));
+      }
+    }
+
+    return Array.from(refs).sort();
+  }, [columns.left, columns.middle, columns.right, hasMainClock]);
 
   const removeWidget = (column: ColumnName, widgetId: string) => {
     setColumns((prev) => ({
@@ -810,20 +1186,10 @@ export function DashboardWidgetPreview({
     [columns]
   );
 
-  // The widget (or library item) currently being dragged — for DragOverlay
-  const activeWidget = useMemo(() => {
-    if (!activeId) return null;
-    if (activeId.startsWith("library:")) {
-      const [, category, ...rest] = activeId.split(":");
-      const key = rest.join(":");
-      return widgetCatalog.find((item) => item.category === category && item.key === key) ?? null;
-    }
-    for (const col of ["left", "middle", "right"] as ColumnName[]) {
-      const found = columns[col].find((item) => item.id === activeId);
-      if (found) return found;
-    }
-    return null;
-  }, [activeId, columns, widgetCatalog]);
+  const openClockEditor = (part: GlanceableSide | "clock") => {
+    setSelectedClockPart(part);
+    setClockDialogOpen(true);
+  };
 
   const handleDragStart = (event: DragStartEvent) => {
     setActiveId(String(event.active.id));
@@ -834,12 +1200,40 @@ export function DashboardWidgetPreview({
     const over = event.over;
     if (!over) return setDragOver(null);
 
+    const activeIdStr = String(event.active.id);
     const overId = String(over.id);
     const overZone = findColumn(overId);
 
     if (overZone) {
       const index = columns[overZone].findIndex((w) => w.id === overId);
       setDragOver({ zone: overZone, index: index >= 0 ? index : columns[overZone].length });
+
+      // Move existing widgets during hover so adjacent widgets visibly make room.
+      if (!activeIdStr.startsWith("library:") && activeIdStr !== overId) {
+        setColumns((current) => {
+          const sourceZone = (Object.keys(current) as ColumnName[]).find((column) =>
+            current[column].some((widget) => widget.id === activeIdStr),
+          );
+          if (!sourceZone) return current;
+
+          const sourceIndex = current[sourceZone].findIndex((widget) => widget.id === activeIdStr);
+          const targetIndex = current[overZone].findIndex((widget) => widget.id === overId);
+          if (sourceIndex < 0 || targetIndex < 0) return current;
+
+          const next = {
+            left: [...current.left],
+            middle: [...current.middle],
+            right: [...current.right],
+          };
+          const [moving] = next[sourceZone].splice(sourceIndex, 1);
+          const insertIndex = sourceZone === overZone && sourceIndex < targetIndex
+            ? targetIndex - 1
+            : targetIndex;
+          next[overZone].splice(insertIndex, 0, moving);
+          columnsRef.current = next;
+          return next;
+        });
+      }
       return;
     }
 
@@ -855,26 +1249,30 @@ export function DashboardWidgetPreview({
     setDragOver(null);
   };
 
+  const resolveDropTarget = (event: DragEndEvent) => {
+    if (!event.over) return null;
+
+    const overId = String(event.over.id);
+    const overZone = findColumn(overId);
+    if (overZone && enabledColumns.includes(overZone)) {
+      const index = columns[overZone].findIndex((widget) => widget.id === overId);
+      return { zone: overZone, index: index >= 0 ? index : columns[overZone].length };
+    }
+
+    if (overId.startsWith("column:")) {
+      const column = overId.slice("column:".length) as ColumnName;
+      if (enabledColumns.includes(column)) {
+        return { zone: column, index: columns[column].length };
+      }
+    }
+
+    return null;
+  };
+
   const handleDragEnd = async (event: DragEndEvent) => {
     const activeIdStr = String(event.active.id);
     setActiveId(null);
-
-    const target = dragOver ?? (() => {
-      if (!event.over) return null;
-      const overId = String(event.over.id);
-      const overZone = findColumn(overId);
-      if (overZone) {
-        const idx = columns[overZone].findIndex((w) => w.id === overId);
-        return { zone: overZone, index: idx >= 0 ? idx : columns[overZone].length };
-      }
-      if (overId.startsWith("column:")) {
-        const col = overId.split(":")[1] as ColumnName;
-        if (["left", "middle", "right"].includes(col) && enabledColumns.includes(col)) {
-          return { zone: col as ColumnName, index: columns[col as ColumnName].length };
-        }
-      }
-      return null;
-    })();
+    const target = resolveDropTarget(event);
 
     setDragOver(null);
 
@@ -903,12 +1301,12 @@ export function DashboardWidgetPreview({
     }
 
     // Reorder / cross-column move
-    const activeColumn = findColumn(activeIdStr);
-    if (!activeColumn) return;
+    await onPersistColumns?.(columnsRef.current);
+  };
 
-    const nextColumns = moveItem(columns, activeIdStr, event.over ? String(event.over.id) : `column:${target.zone}`, target.zone);
-    setColumns(nextColumns);
-    await onPersistColumns?.(nextColumns);
+  const handleDragCancel = () => {
+    setActiveId(null);
+    setDragOver(null);
   };
 
   return (
@@ -921,6 +1319,7 @@ export function DashboardWidgetPreview({
         onDragStart={handleDragStart}
         onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
+        onDragCancel={handleDragCancel}
       >
         <div className="space-y-4">
           <div className="relative overflow-hidden rounded-lg p-4 frosted">
@@ -947,17 +1346,28 @@ export function DashboardWidgetPreview({
                           items={columns[column].map((item) => item.id)}
                           strategy={verticalListSortingStrategy}
                         >
-                          {columns[column].map((widget, i) => (
+                          {columns[column].map((widget, widgetIndex) => (
                             <div key={widget.id}>
-                              {/* Drop preview indicator */}
-                              {dragOver?.zone === column && dragOver.index === i && (
-                                <div className="mb-2 h-22.5 rounded-lg border-2 border-dashed border-blue-400/60 bg-blue-500/10" />
-                              )}
                               <WidgetTile
                                 columnWidget={widget}
                                 widgetConfig={widgetCatalog.find((item) => item.key === widget.type)}
+                                openForEdit={editWidgetRequest?.column === column &&
+                                  (editWidgetRequest.widgetId === widget.id ||
+                                    (editWidgetRequest.widgetId === widget.type &&
+                                      (editWidgetRequest.widgetIndex === undefined || editWidgetRequest.widgetIndex === widgetIndex)))}
+                                onEditWidgetRequestHandled={onEditWidgetRequestHandled}
                                 isActive={activeId === widget.id}
                                 onRemove={() => removeWidget(column, widget.id)}
+                                onEditClockPart={openClockEditor}
+                                clockSelection={clockSelection}
+                                glanceableNames={glanceableNames}
+                                availableHeightRefs={availableHeightRefs}
+                                onUpdateProperties={(widgetId, properties) => {
+                                  setColumns((prev) => ({
+                                    ...prev,
+                                    [column]: prev[column].map((item) => item.id === widgetId ? { ...item, properties } : item),
+                                  }));
+                                }}
                                 onUpdateInput={(widgetId, input) => {
                                   setColumns((prev) => ({
                                     ...prev,
@@ -972,10 +1382,6 @@ export function DashboardWidgetPreview({
                               />
                             </div>
                           ))}
-                          {/* Drop preview at end of list */}
-                          {dragOver?.zone === column && dragOver.index === columns[column].length && (
-                            <div className="h-22.5 rounded-lg border-2 border-dashed border-blue-400/60 bg-blue-500/10" />
-                          )}
                         </SortableContext>
                       </ColumnDropZone>
                     </div>
@@ -989,65 +1395,77 @@ export function DashboardWidgetPreview({
           </div>
 
           <div className="space-y-3">
-            <div>
-              <h3 className="text-sm font-semibold">Add a widget</h3>
-              <p className="text-xs text-white/70">Drag&apos;n&apos;drop a widget into the desired column</p>
-            </div>
+            <div className="space-y-3 rounded-xl border border-white/15 bg-white/5 p-4">
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                  {widgetCategories.map((category) => (
+                    <button
+                      key={category}
+                      type="button"
+                      onClick={() => setSelectedWidgetCategory(category)}
+                      className={`whitespace-nowrap rounded-full px-3 py-1.5 text-xs capitalize transition ${
+                        selectedWidgetCategory === category
+                          ? "bg-white text-black"
+                          : "border border-white/25 text-white/80"
+                      }`}
+                    >
+                      {category.replace(/^integration-/, "")}
+                    </button>
+                  ))}
+                </div>
 
-            <div className="flex items-center gap-2 overflow-x-auto pb-1">
-              {widgetCategories.map((category) => (
-                <button
-                  key={category}
-                  type="button"
-                  onClick={() => setSelectedWidgetCategory(category)}
-                  className={`whitespace-nowrap rounded-full px-3 py-1.5 text-xs capitalize transition ${
-                    selectedWidgetCategory === category
-                      ? "bg-white text-black"
-                      : "border border-white/25 text-white/80"
-                  }`}
+                <SortableContext
+                  items={filteredWidgetCatalog.map((item) => `library:${item.category}:${item.key}`)}
+                  strategy={verticalListSortingStrategy}
                 >
-                  {category.replace(/^integration-/, "")}
-                </button>
-              ))}
-            </div>
-
-            <SortableContext
-              items={filteredWidgetCatalog.map((item) => `library:${item.category}:${item.key}`)}
-              strategy={verticalListSortingStrategy}
-            >
-              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                {filteredWidgetCatalog.map((item) => (
-                  <div key={`${item.category}:${item.key}`} className="space-y-2 border-transparent">
-                    <LibraryItem item={item} />
-                    <p className="text-center text-xs text-white/70">{item.name}</p>
+                  <div className="flex snap-x gap-3 overflow-x-auto pb-2">
+                    {filteredWidgetCatalog.map((item) => <LibraryItem key={`${item.category}:${item.key}`} item={item} />)}
                   </div>
-                ))}
+                </SortableContext>
               </div>
-            </SortableContext>
+            </div>
           </div>
         </div>
 
-        {/* Floating drag overlay */}
-        <DragOverlay>
-          {activeWidget && (() => {
-            const isLibrary = "key" in activeWidget;
-            const type = isLibrary ? (activeWidget as WidgetCatalogItem).key : (activeWidget as ColumnWidget).type;
-            const catalogItem = isLibrary
-              ? (activeWidget as WidgetCatalogItem)
-              : widgetCatalog.find((i) => i.key === type);
-            const params = {
-              ...(catalogItem?.properties ?? {}),
-              ...("properties" in activeWidget ? (activeWidget as ColumnWidget).properties : {}),
-              ...((activeWidget as ColumnWidget).input ?? {}),
-            };
-            return (
-              <div className="w-48 rounded-lg overflow-hidden shadow-2xl opacity-90 rotate-1 scale-105">
-                {renderWidget({ type, params, className: "h-[90px] w-full" })}
-              </div>
-            );
-          })()}
-        </DragOverlay>
       </DndContext>
+
+      <Dialog open={clockDialogOpen} onOpenChange={setClockDialogOpen}>
+        <DialogContent className="frosted max-h-[90vh] overflow-x-hidden overflow-y-auto text-foreground">
+          <EditGlanceablesView
+            hasMainClock={hasMainClock}
+            glanceablesCatalog={glanceablesCatalog}
+            selectedClockPart={selectedClockPart}
+            clockSelection={clockSelection}
+            setClockSelection={setClockSelection}
+            clockGlanceables={clockGlanceables}
+            setClockGlanceables={setClockGlanceables}
+            clockGlanceableIntervals={clockGlanceableIntervals}
+            setClockGlanceableIntervals={setClockGlanceableIntervals}
+            clockStyle={clockStyle}
+            setClockStyle={setClockStyle}
+            fonts={fonts}
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   );
+}
+
+function formatWidgetHeight(height: unknown) {
+  if (typeof height === "number" && Number.isFinite(height)) {
+    return String(height);
+  }
+
+  if (typeof height === "string") {
+    return height;
+  }
+
+  return "";
+}
+
+function parseWidgetHeight(value: string) {
+  const next = value.trim();
+  if (!next) return undefined;
+  if (/^-?\d+(?:\.\d+)?$/.test(next)) return Number(next);
+  return next;
 }

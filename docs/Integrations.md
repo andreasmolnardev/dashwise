@@ -44,6 +44,43 @@ References can use runtime paths such as:
 
 Endpoints define HTTP calls to fetch data from external services. Each endpoint includes configuration for the request and `response_mapping` to transform the response into structured data.
 
+### Image widgets
+
+The `image` template supports a direct image URL or an endpoint response. Use `endpoint` with an optional `image_url_property` path when the endpoint returns JSON:
+
+```yaml
+configuration:
+  endpoints:
+    camera:
+      method: GET
+      url: "${CAMERA_URL}/snapshot"
+      response:
+        type: json
+        invalidate:
+          every: "5 minutes"
+  widgets:
+    - name: Camera
+      key: camera-image
+      template: image
+      properties:
+        header:
+         title: Camera
+         title_url: "${CAMERA_URL}"
+         endpoint: camera
+        image_url_property: "img.url"
+        alt: Camera snapshot
+```
+
+If `image_url_property` is omitted, Dashwise searches response JSON for common image fields such as `image`, `img`, `thumbnail`, `src`, and `url`. A direct URL uses `url` instead. Supported image properties include `alt`, `min_height`, `max_height`, and `object_fit`. `click_action` links image itself; `title_url` links header title independently.
+
+Built-in image JSON previews are fetched through the authenticated backend proxy. Private or local targets are blocked by default; set `ALLOW_PRIVATE_PREVIEW_URLS=true` when intentionally using a homelab-local endpoint.
+
+Endpoint caching accepts a duration in `response.invalidate.after` or an aligned recurring boundary in `response.invalidate.every`:
+
+- `after: "6 hours"`, `after: "2 days"`
+- `every: "2 hours"`, `every: "day"`, `every: "week"`, `every: "month"`
+- Existing numeric `cache_ttl` values remain seconds.
+
 ### Response mapping with `iterate`
 
 The `iterate` property in `response_mapping` specifies which array to iterate over when mapping endpoint responses:
@@ -108,6 +145,15 @@ The backend scans the page config using [`collectPageConsumers(...)`](apps/backe
 - `main-clock` is special: its nested glanceables are extracted as glanceable consumers.
 - `glanceables` entries are treated as glanceable consumers.
 - Each consumer is deduplicated by `consumer:key:properties`.
+
+### Columns widget fields
+
+Columns support either:
+
+- `progress` with `type`, `value`, `thresholds`, and `zero_label`
+- `stats` with `primary` and `secondary`
+
+`stats.primary` and `stats.secondary` render like the legacy `primary` and `secondary` column fields.
 
 ### Runtime reuse
 
@@ -212,6 +258,8 @@ The backend tracks integration cache behavior using:
 - `cache.staleReturned`
 
 Runtime snapshots are persisted and may be served from cache when the integration configuration allows it.
+
+Built-in image JSON previews use Redis when `REDIS_URL` or `VALKEY_URL` is configured. The default connection is `redis://127.0.0.1:6379`. Redis keys are scoped by user and contain a hash of the URL and TTL; raw URLs are not used as key names. If Redis is unavailable, a bounded process-memory fallback is used.
 
 ## Summary
 

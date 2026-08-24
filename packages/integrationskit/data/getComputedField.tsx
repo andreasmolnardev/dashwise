@@ -5,6 +5,7 @@
 // computed-field evaluation, and widget rendering.
 
 import getLookupTableValue from "./resolvers/lookupTable";
+import { clamp, humanBytes } from "./resolvers/format";
 import { ExpressionParser, evaluateMathJsExpression, resolveMathOperation, tokenizeExpression } from "./resolvers/math";
 
 export type ComputedResolutionContext = {
@@ -89,27 +90,6 @@ function normalizeComputedExpression(expression: string) {
 
 function isPlainObject(value: unknown): value is Record<string, any> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function clamp(value: number, min: number, max: number) {
-	return Math.min(max, Math.max(min, value));
-}
-
-function humanBytes(value: any) {
-	const bytes = Number(value);
-	if (!Number.isFinite(bytes)) return value === undefined || value === null ? "" : String(value);
-	const units = ["B", "KB", "MB", "GB", "TB", "PB"];
-	let next = Math.abs(bytes);
-	let unit = 0;
-
-	while (next >= 1024 && unit < units.length - 1) {
-		next /= 1024;
-		unit += 1;
-	}
-
-	const sign = bytes < 0 ? "-" : "";
-	const rounded = next >= 10 ? Math.round(next) : Math.round(next * 10) / 10;
-	return `${sign}${rounded} ${units[unit]}`;
 }
 
 function coerceComparableValue(value: any) {

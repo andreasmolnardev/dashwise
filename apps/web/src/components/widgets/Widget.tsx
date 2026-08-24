@@ -17,17 +17,23 @@ import {
 } from "@dashwise/integrationskit/static-widgets/CalendarWidgets";
 import CountdownWidget from "@dashwise/integrationskit/static-widgets/CountdownWidget";
 import RssFeedWidget from "@dashwise/integrationskit/static-widgets/RssFeedWidget";
+import VerticalList from "@dashwise/integrationskit/templates/VerticalList";
 import LinkView from "./LinkView";
 import SearchBar from "./SearchBar";
 import IframeTemplate from "@dashwise/integrationskit/templates/IFrame";
+import ImageTemplate from "@dashwise/integrationskit/templates/Image";
 import Widget from "@dashwise/integrationskit/Widget";
 import ProgressWidget from "./ProgressWidget";
+import ShortcutsWidget from "./ShortcutsWidget";
 import { useLocalization } from "@/context/LocalizationContext";
 import useAuth from "@/context/useAuth";
+import { useActivity } from "@/context/ActivityContext";
 import {
   getConsumerDataAction,
-  getIntegrationCalendarEventsAction,
+  getLinksCollectionsAction,
+  getLinksItemsAction,
   getNewsFeedAction,
+  previewImageSourceAction,
 } from '@/lib/apiClient';
 
 export type WidgetProps = {
@@ -59,12 +65,16 @@ export function renderWidget({
   defaultOpen,
 }: WidgetProps): ReactNode {
   const renderParams = stripWidgetIndex(params);
+  const resolvedType = type === "widget" && typeof renderParams?.key === "string" && renderParams.key.trim()
+    ? renderParams.key.trim()
+    : type;
   const finalClassName = `${className ?? ""} frosted`.trim();
+  const progressPeriod = resolveProgressPeriod(resolvedType, params);
 
-  switch (type) {
+  switch (resolvedType) {
     case "main-clock":
     case "glanceable-clock":
-      return <GlanceableClockWidget className={className} params={renderParams} />;
+      return <GlanceableClockWidget className={className} params={renderParams} isPreview={isPreview} />;
 
     case "search-bar":
       return <SearchBar useRedirect={false} defaultOpen={defaultOpen} />;
@@ -87,23 +97,24 @@ export function renderWidget({
     case "latest-rss-feed":
       return <RssFeedWidgetWrapper className={finalClassName} {...renderParams} />;
 
+    case "latest-links":
+      return <LatestLinksWidgetWrapper className={finalClassName} {...renderParams} />;
+
     case "countdown":
       return <CountdownWidget className={finalClassName} {...renderParams} />;
 
+    case "progress":
     case "day-progress":
-      return <ProgressWidget type="day" className={finalClassName} />;
-
     case "week-progress":
-      return <ProgressWidget type="week" className={finalClassName} />;
-
     case "month-progress":
-      return <ProgressWidget type="month" className={finalClassName} />;
-
     case "year-progress":
-      return <ProgressWidget type="year" className={finalClassName} />;
+      return <ProgressWidget period={progressPeriod} className={finalClassName} />;
 
     case "link-view":
       return <LinkView />;
+
+    case "shortcuts":
+      return <ShortcutsWidget className={finalClassName} shortcutIds={Array.isArray(renderParams?.shortcutIds) ? renderParams.shortcutIds : []} />;
 
     case "placeholder":
       return <div className={`${className ?? ""}`} />;
@@ -111,17 +122,162 @@ export function renderWidget({
     case "iframe":
       return <IframeWidget className={finalClassName} params={renderParams} />;
 
+    case "image":
+      return <ImageWidget className={finalClassName} params={renderParams} isPreview={isPreview} />;
+
     default:
       return (
         <IntegrationWidget
-          type={type}
-          consumerKey={consumerKey ?? (type.includes("#") ? type : undefined)}
+          type={resolvedType}
+          consumerKey={consumerKey ?? (resolvedType.includes("#") ? resolvedType : undefined)}
           isPreview={isPreview}
           properties={renderParams}
           className={finalClassName}
         />
       );
   }
+}
+
+type LatestLinkItem = {
+  id: string;
+  url?: string;
+  title?: string;
+  iconUrl?: string;
+  description?: string;
+  collection?: string;
+  created?: string;
+  updated?: string;
+};
+
+function LatestLinksWidgetWrapper({
+  className,
+  listId,
+  collectionId,
+  maxItems = 8,
+  title = "Latest Links",
+}: {
+  className?: string;
+  listId?: string;
+  collectionId?: string;
+  maxItems?: number;
+  title?: string;
+}) {
+  const { withAuth } = useAuth();
+  const [items, setItems] = useState<LatestLinkItem[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    const selectedListId = String(listId || collectionId || "").trim();
+
+    setLoading(true);
+
+    const fetchItems = async () => {
+      const links = await withAuth(async (auth) => {
+        if (selectedListId) {
+          const listItems = await getLinksItemsAction(auth, selectedListId);
+          return Array.isArray(listItems) ? listItems : [];
+        }
+
+        const collections = await getLinksCollectionsAction(auth);
+        const listIds = Array.isArray(collections)
+          ? collections.map((collection: any) => String(collection?.id ?? "").trim()).filter(Boolean)
+          : [];
+        const groupedItems = await Promise.all(
+          listIds.map(async (id) => {
+            try {
+              const listItems = await getLinksItemsAction(auth, id);
+              return Array.isArray(listItems) ? listItems : [];
+            } catch {
+              return [];
+            }
+          }),
+        );
+
+        return groupedItems.flat();
+      });
+
+      return Array.isArray(links) ? links : [];
+    };
+
+    void fetchItems()
+      .then((links) => {
+        if (!cancelled) {
+          setItems(sortLatestLinks(links).slice(0, maxItems));
+        }
+      })
+      .catch((err) => {
+        console.error("Failed to fetch latest links", err);
+        if (!cancelled) setItems([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [collectionId, listId, maxItems, withAuth]);
+
+  if (loading) {
+    return (
+      <div className={`rounded-lg p-2 flex flex-col ${className ?? ""}`}>
+        <div className="text-sm opacity-50 py-4 text-center text-foreground">
+          Loading...
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <VerticalList
+      className={className}
+      itemClassName="gap-1"
+      resolved={{
+        header: {
+          title,
+          show: true,
+          icon: "fa6-solid:link",
+          titleAction: "/apps/links",
+        },
+        list: items.map((item) => ({
+          title: item.title || "Untitled",
+          titleAction: item.url || undefined,
+          subtitle: [item.description || item.url, formatLatestLinkDate(item.created)].filter(Boolean) as string[],
+          thumbnail: item.iconUrl || undefined,
+          icon: "fa6-solid:link",
+        })),
+        raw: {},
+      }}
+    />
+  );
+}
+
+function sortLatestLinks(items: LatestLinkItem[]) {
+  return [...items].sort((left, right) => {
+    const leftTime = new Date(left.created || left.updated || 0).getTime();
+    const rightTime = new Date(right.created || right.updated || 0).getTime();
+    return (Number.isNaN(rightTime) ? 0 : rightTime) - (Number.isNaN(leftTime) ? 0 : leftTime);
+  });
+}
+
+function formatLatestLinkDate(value?: string) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleDateString([], { month: "short", day: "numeric" });
+}
+
+function resolveProgressPeriod(type: string, params?: Record<string, any>) {
+  const candidate = String(params?.period ?? type ?? "day").trim();
+  if (candidate === "year" || candidate === "month" || candidate === "day" || candidate === "week") {
+    return candidate;
+  }
+
+  if (candidate === "year-progress") return "year";
+  if (candidate === "month-progress") return "month";
+  if (candidate === "week-progress") return "week";
+  return "day";
 }
 
 function RssFeedWidgetWrapper({
@@ -146,10 +302,10 @@ function RssFeedWidgetWrapper({
     const selectedFeedId = String(subscriptionId || feedId || "all").trim() || "all";
 
     setLoading(true);
-    void withAuth((auth) => getNewsFeedAction(auth, selectedFeedId))
+    void withAuth((auth) => getNewsFeedAction(auth, selectedFeedId, Math.max(maxItems, 50)))
       .then((feedItems) => {
         if (!cancelled) {
-          setItems(Array.isArray(feedItems) ? feedItems : []);
+          setItems(Array.isArray(feedItems?.items) ? feedItems.items : []);
         }
       })
       .catch((err) => {
@@ -194,61 +350,11 @@ function CalendarUpcomingWidgetWrapper({
   integrationId?: string;
   maxItems?: number;
 }) {
-  const { withAuth } = useAuth();
-  const [events, setEvents] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { calendarEvents } = useActivity();
 
-  useEffect(() => {
-    let cancelled = false;
-
-    const fetchEvents = async () => {
-      if (!integrationId) {
-        if (!withAuth) return;
-        try {
-          if (!cancelled) {
-            const eventsData = await withAuth((auth) =>
-              getIntegrationCalendarEventsAction(auth) // todo: take calendarId as param to fetch events for specific calendar
-            ) as any;
-            setEvents(eventsData?.events ?? []);
-          }
-        } catch (err) {
-          console.error("Failed to fetch calendar events", err);
-        } finally {
-          if (!cancelled) setLoading(false);
-        }
-        return;
-      }
-
-      try {
-        const eventsData = await withAuth((auth) =>
-          getIntegrationCalendarEventsAction(auth, integrationId)
-        ) as any;
-        if (!cancelled) {
-          setEvents(eventsData?.events ?? []);
-        }
-      } catch (err) {
-        console.error("Failed to fetch calendar events", err);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    };
-
-    void fetchEvents();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [integrationId, withAuth]);
-
-  if (loading) {
-    return (
-      <div className={`rounded-lg p-2 flex flex-col ${className}`}>
-        <div className="text-sm opacity-50 py-4 text-center text-foreground">
-          Loading...
-        </div>
-      </div>
-    );
-  }
+  const events = integrationId
+    ? calendarEvents.filter((event) => event.id.startsWith(`${integrationId}:`))
+    : calendarEvents;
 
   return (
     <CalendarUpcomingWidget
@@ -295,6 +401,196 @@ function IframeWidget({
       }}
     />
   );
+}
+
+function ImageWidget({
+  className,
+  params,
+  isPreview,
+}: {
+  className?: string;
+  params?: Record<string, any>;
+  isPreview?: boolean;
+}) {
+  const localization = useLocalization();
+  const { withAuth } = useAuth();
+  const { url, image_url, imageUrl, alt, min_height, max_height, object_fit, click_action, clickAction, action, invalidate_after, invalidateAfter, title, icon, title_url, titleUrl, title_action } = params ?? {};
+  const sourceUrl = String(url || image_url || imageUrl || "").trim();
+  const imageUrlPath = String(params?.image_url_property ?? params?.image_url_path ?? params?.imageUrlProperty ?? "").trim();
+  const titleTemplate = typeof title === "string" ? title : "";
+  const altTemplate = typeof alt === "string" ? alt : "";
+  const showAltAsDescription = resolveImageBoolean(
+    params?.show_alt_as_description ?? params?.showAltAsDescription,
+  );
+  const altDescriptionMaxLines = resolveImageDescriptionMaxLines(
+    params?.alt_description_max_lines ?? params?.altDescriptionMaxLines,
+  );
+  const [resolvedUrl, setResolvedUrl] = useState("");
+  const [resolvedTitle, setResolvedTitle] = useState(titleTemplate || imageFileName(sourceUrl));
+  const [resolvedAlt, setResolvedAlt] = useState(altTemplate);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setError(null);
+
+    if (!sourceUrl) {
+      setResolvedUrl("");
+      setResolvedTitle(titleTemplate || imageFileName(sourceUrl));
+      setResolvedAlt(altTemplate);
+      setLoading(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    if (isImageUrl(sourceUrl)) {
+      setResolvedUrl(sourceUrl);
+      setResolvedTitle(titleTemplate || imageFileName(sourceUrl));
+      setResolvedAlt(altTemplate);
+      setLoading(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    setResolvedUrl("");
+    setResolvedTitle(titleTemplate);
+    setResolvedAlt(altTemplate);
+    setLoading(true);
+    void withAuth((auth) => previewImageSourceAction(auth, sourceUrl, invalidate_after ?? invalidateAfter))
+      .then((payload) => {
+        const selected = imageUrlPath
+          ? getImagePath(payload.body, imageUrlPath)
+          : findImageUrl(payload.body);
+        const nextUrl = typeof selected === "string" ? selected : findImageUrl(selected);
+        if (!nextUrl) throw new Error("No image URL found in response");
+        if (!cancelled) {
+          setResolvedUrl(nextUrl);
+          const resolvedTitle = resolveImageTitle(titleTemplate, payload.body);
+          setResolvedTitle(resolvedTitle || imageFileName(nextUrl));
+          setResolvedAlt(resolveImageTitle(altTemplate, payload.body));
+        }
+      })
+      .catch((reason) => {
+        if (!cancelled) setError(reason instanceof Error ? reason.message : String(reason));
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [altTemplate, imageUrlPath, isPreview, sourceUrl, titleTemplate, withAuth]);
+
+  if (loading) return <WidgetLoadingState className={className} />;
+  if (error) return <WidgetErrorState className={className} message={error} />;
+
+  return (
+    <ImageTemplate
+      resolved={{
+        header: {
+          title: resolvedTitle,
+          show: !!resolvedTitle,
+          icon: icon || "",
+          titleAction: title_url || titleUrl || title_action || "",
+        },
+        image: {
+          url: resolvedUrl,
+          action: click_action || clickAction || action || "",
+          alt: resolvedAlt || resolvedTitle || title || "",
+          showAltAsDescription,
+          altDescriptionMaxLines,
+          minHeight: min_height,
+          maxHeight: max_height,
+          objectFit: object_fit,
+        },
+        raw: params ?? {},
+      }}
+      className={className}
+      formatters={{
+        formatTemperature: localization.formatTemperature,
+        formatTime: localization.formatTime,
+        formatDate: localization.formatDate,
+      }}
+    />
+  );
+}
+
+function resolveImageTitle(template: string, body: unknown) {
+  if (!template.includes("${json")) return template;
+  return template.replace(/\$\{json(?:\.([^}]+))?\}/g, (_, path?: string) => {
+    const value = path ? getImagePath(body, path) : body;
+    if (value === undefined || value === null) return "";
+    return typeof value === "string" ? value : JSON.stringify(value);
+  });
+}
+
+function resolveImageBoolean(value: unknown) {
+  if (typeof value === "boolean") return value;
+  if (typeof value !== "string") return false;
+  return ["true", "1", "yes", "on"].includes(value.trim().toLowerCase());
+}
+
+function resolveImageDescriptionMaxLines(value: unknown) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? Math.floor(parsed) : 2;
+}
+
+function imageFileName(value: string) {
+  if (!value) return "";
+  const withoutQuery = value.split(/[?#]/, 1)[0];
+  const segment = withoutQuery.split("/").filter(Boolean).pop() ?? "";
+  if (!segment || segment.includes(":")) return "";
+  try {
+    return decodeURIComponent(segment);
+  } catch {
+    return segment;
+  }
+}
+
+function isImageUrl(value: string) {
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return false;
+  if (normalized.startsWith("data:image/")) return true;
+  return /(?:\.(?:avif|gif|jpe?g|png|svg|webp)|\/(?:avif|gif|jpe?g|png|svg|webp))(?:[?#].*)?$/.test(normalized);
+}
+
+function getImagePath(value: unknown, path: string): unknown {
+  return path.split(".").reduce<unknown>((current, segment) => {
+    if (current === null || current === undefined || typeof current !== "object") return undefined;
+    return (current as Record<string, unknown>)[segment];
+  }, value);
+}
+
+function findImageUrl(value: unknown, keyHint = ""): string | undefined {
+  if (typeof value === "string") {
+    const candidate = value.trim();
+    if (isImageUrl(candidate) || imageKeyScore(keyHint) > 0) return candidate;
+    return undefined;
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const found = findImageUrl(item, keyHint);
+      if (found) return found;
+    }
+    return undefined;
+  }
+  if (!value || typeof value !== "object") return undefined;
+
+  const entries = Object.entries(value as Record<string, unknown>)
+    .sort(([left], [right]) => imageKeyScore(right) - imageKeyScore(left));
+  for (const [key, child] of entries) {
+    const found = findImageUrl(child, key);
+    if (found) return found;
+  }
+  return undefined;
+}
+
+function imageKeyScore(key: string) {
+  return /^(image|img|thumbnail|thumb|src|url|href|path)(_url)?$/i.test(key) ? 2 : 0;
 }
 
 function IntegrationWidget({
@@ -400,11 +696,6 @@ function IntegrationWidget({
     };
   }, []);
 
-  // In IntegrationWidget
-  if (loading || !consumerPayload) {
-    return <WidgetLoadingState className={className} />;
-  }
-
   const consumerError = consumerPayload?.success === false
     ? typeof consumerPayload?.error === "string"
       ? consumerPayload.error
@@ -419,6 +710,10 @@ function IntegrationWidget({
         message={errorMessage}
       />
     );
+  }
+
+  if (loading || !consumerPayload) {
+    return <WidgetLoadingState className={className} />;
   }
 
   if (!consumerPayload?.blueprint?.widgetJSON) {

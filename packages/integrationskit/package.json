@@ -9,8 +9,13 @@
   },
   "dependencies": {
     "@dashwise/app-icon": "workspace:*",
+    "@iconify-icon/react": "^3.0.3",
+    "@radix-ui/react-progress": "^1.1.7",
     "date-fns": "^4.1.0",
     "mathjs": "^15.2.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.7"
   },
   "exports": {
     "./AppIcon": "./templates/AppIcon.tsx",
@@ -18,6 +23,11 @@
     "./GlanceableComponent": "./Glanceable.tsx",
     "./Shortcuts": "./Shortcuts.tsx",
     "./Widget": "./Widget.tsx",
+    "./forms/WidgetPropertiesForm": {
+      "types": "./forms/WidgetPropertiesForm.tsx",
+      "import": "./forms/WidgetPropertiesForm.tsx",
+      "default": "./forms/WidgetPropertiesForm.tsx"
+    },
     "./static-widgets/CountdownWidget": {
       "types": "./static-widgets/CountdownWidget.tsx",
       "import": "./static-widgets/CountdownWidget.tsx",
@@ -31,6 +41,16 @@
       "types": "./templates/IFrame.tsx",
       "import": "./templates/IFrame.tsx",
       "default": "./templates/IFrame.tsx"
+    },
+    "./templates/Image": {
+      "types": "./templates/Image.tsx",
+      "import": "./templates/Image.tsx",
+      "default": "./templates/Image.tsx"
+    },
+    "./templates/image": {
+      "types": "./templates/Image.tsx",
+      "import": "./templates/Image.tsx",
+      "default": "./templates/Image.tsx"
     },
     "./templates/*": "./templates/*.tsx",
     "./templates/WidgetColumn": "./templates/WidgetColumn.tsx",

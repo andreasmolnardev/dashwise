@@ -1,14 +1,13 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { usePageConfig } from "@/hooks/usePageConfig";
 import { updatePageConfigAction } from '@/lib/apiClient';
 import { getConsumerDataAction } from '@/lib/apiClient';
 import { getUserGlanceableAction, getUserWidgetsAction } from '@/lib/apiClient';
-import { updatePageIntegrationConsumerCache } from "@/lib/pageIntegrationDataCache";
 import useAuth from "@/context/useAuth";
 import { PageSelectTabs } from "@/components/settings/pages/PageSelectTabs";
 import { TemplateOptions } from "@/components/settings/pages/TemplateOptions";
-import { EditGlanceablesView } from "@/components/settings/pages/EditGlanceablesView";
 import { DashboardWidgetPreview } from "@/components/settings/pages/DashboardWidgetPreview";
 import {
   buildPageConfigPatch,
@@ -19,8 +18,11 @@ import {
   inferTemplateFromColumns,
   normalizeColumns,
   readClockGlanceables,
-  type ColumnName,
-  type ColumnWidget,
+  DEFAULT_GLANCEABLE_CAROUSEL_INTERVAL,
+   type ColumnName,
+   type ColumnWidget,
+   type ClockGlanceableIntervals,
+   type ClockGlanceableSelection,
   type GlanceableSide,
   type TemplateId,
   type WidgetDefinition,
@@ -43,8 +45,21 @@ type GlanceableCatalogItem = {
   type: string;
   name: string;
   integrationId?: string;
+  integrationName?: string;
+  integrationDisplayName?: string;
+  appName?: string;
   exampleProps: Record<string, any>;
+  properties?: Record<string, any>;
 };
+
+function getGlanceableGroupName(entry: Partial<GlanceableCatalogItem> & Record<string, any>) {
+  const rawLabel = entry.integrationDisplayName ?? entry.integrationName ?? entry.appName ?? entry.app;
+  if (typeof rawLabel === "string" && rawLabel.trim()) {
+    return rawLabel.trim();
+  }
+
+  return String(entry.type === "weather" ? "Weather" : "Builtin");
+}
 
 export default function SettingsPagesPage() {
   const { pageConfig: homeConfig, refreshConfig: refreshHomeConfig } = usePageConfig({
@@ -57,6 +72,7 @@ export default function SettingsPagesPage() {
   }, [homeConfig?.pages]);
 
   const [selectedPage, setSelectedPage] = useState("home");
+  const [searchParams, setSearchParams] = useSearchParams();
   const { pageConfig: selectedConfig } = usePageConfig({
     pageName: selectedPage,
   });
@@ -72,13 +88,24 @@ export default function SettingsPagesPage() {
   const [selectedWidgetCategory, setSelectedWidgetCategory] = useState<string>("clock");
   const [selectedClockPart, setSelectedClockPart] = useState<GlanceableSide | "clock">("left");
   const [clockGlanceables, setClockGlanceables] = useState<Record<string, any>>({});
-  const [clockSelection, setClockSelection] = useState<Record<GlanceableSide, string>>({
-    left: "",
-    right: "",
+  const [clockGlanceableIntervals, setClockGlanceableIntervals] = useState<ClockGlanceableIntervals>({
+    left: DEFAULT_GLANCEABLE_CAROUSEL_INTERVAL,
+    right: DEFAULT_GLANCEABLE_CAROUSEL_INTERVAL,
+  });
+  const [clockSelection, setClockSelection] = useState<ClockGlanceableSelection>({
+    left: [],
+    right: [],
   });
   const [clockStyle, setClockStyle] = useState<Record<string, any>>(DEFAULT_CLOCK_STYLE);
   const [fonts, setFonts] = useState<Array<{ name: string; path: string }>>([]);
   const [glanceablesCatalog, setGlanceablesCatalog] = useState<GlanceableCatalogItem[]>([]);
+
+  useEffect(() => {
+    const requestedPage = searchParams.get("editPage");
+    if (requestedPage && pages.includes(requestedPage) && requestedPage !== selectedPage) {
+      setSelectedPage(requestedPage);
+    }
+  }, [pages, searchParams, selectedPage]);
 
   const hasLoadedConfigRef = useRef(false);
   const lastSavedSignatureRef = useRef("");
@@ -114,16 +141,22 @@ export default function SettingsPagesPage() {
   }, [withAuth]);
 
   useEffect(() => {
-    void withAuth((auth) => getUserGlanceableAction(auth))
+      void withAuth((auth) => getUserGlanceableAction(auth))
       .then((data) => {
         const catalog = Array.isArray(data)
           ? data.map((entry: any) => ({
               type: String(entry?.type ?? "weather"),
               name: String(entry?.displayName ?? entry?.name ?? entry?.type ?? "Glanceable"),
+              appName: getGlanceableGroupName(entry),
+              integrationName: typeof entry?.integrationName === "string" ? entry.integrationName : undefined,
+              integrationDisplayName: typeof entry?.integrationDisplayName === "string" ? entry.integrationDisplayName : undefined,
               integrationId:
                 typeof entry?.integrationId === "string" ? entry.integrationId : undefined,
               exampleProps: (entry?.exampleProps && typeof entry.exampleProps === "object")
                 ? entry.exampleProps
+                : {},
+              properties: (entry?.properties && typeof entry.properties === "object")
+                ? entry.properties
                 : {},
             }))
           : [];
@@ -147,9 +180,10 @@ export default function SettingsPagesPage() {
     const fallbackGlanceables = Array.isArray(selectedConfig?.glanceables) ? selectedConfig.glanceables : [];
     const nextClock = readClockGlanceables(normalizedColumns, fallbackGlanceables, glanceablesCatalog);
     setClockGlanceables(nextClock.map);
+    setClockGlanceableIntervals(nextClock.intervals);
     const defaultSelection = getDefaultGlanceableSelection(glanceablesCatalog);
     const resolvedSelection =
-      nextClock.selected.left || nextClock.selected.right
+      nextClock.selected.left.length || nextClock.selected.right.length
         ? nextClock.selected
         : defaultSelection;
     setClockSelection(resolvedSelection);
@@ -170,11 +204,12 @@ export default function SettingsPagesPage() {
         normalizedColumns,
         resolvedSelection,
         nextClock.map,
+        nextClock.intervals,
         nextClockStyle,
         glanceablesCatalog,
       ),
     );
-    hasLoadedConfigRef.current = !!(resolvedSelection.left || resolvedSelection.right);
+    hasLoadedConfigRef.current = resolvedSelection.left.length > 0 || resolvedSelection.right.length > 0;
   }, [glanceablesCatalog, selectedConfig]);
 
   useEffect(() => {
@@ -198,9 +233,6 @@ export default function SettingsPagesPage() {
     const nextPages = Array.from(new Set([...(pages ?? []), normalized]));
     await withAuth((auth) => updatePageConfigAction(auth, "home", { pages: nextPages }));
     const defaultSelection = getDefaultGlanceableSelection(glanceablesCatalog);
-    const defaultGlanceables = [defaultSelection.left, defaultSelection.right].filter(
-      (type): type is string => !!type,
-    );
     await withAuth((auth) =>
       updatePageConfigAction(auth, normalized, {
         template: "main",
@@ -209,7 +241,12 @@ export default function SettingsPagesPage() {
           middle: {
             "main-clock": {
               index: 0,
-              glanceables: Object.fromEntries(defaultGlanceables.map((type) => [type, null])),
+              glanceables: {
+                slots: Object.fromEntries((["left", "right"] as GlanceableSide[]).map((side) => [
+                  side,
+                  defaultSelection[side].map((selection) => ({ type: selection.type, params: {} })),
+                ])),
+              },
             },
             "search-bar": { index: 1 },
             "link-view": { index: 2 },
@@ -224,8 +261,8 @@ export default function SettingsPagesPage() {
   };
 
   const pageConfigPatch = useMemo(
-    () => buildPageConfigPatch(template, columns, clockSelection, clockGlanceables, clockStyle, glanceablesCatalog),
-    [clockGlanceables, clockSelection, clockStyle, columns, template, glanceablesCatalog],
+    () => buildPageConfigPatch(template, columns, clockSelection, clockGlanceables, clockGlanceableIntervals, clockStyle, glanceablesCatalog),
+    [clockGlanceables, clockGlanceableIntervals, clockSelection, clockStyle, columns, template, glanceablesCatalog],
   );
 
   const pageConfigSignature = useMemo(() => JSON.stringify(pageConfigPatch), [pageConfigPatch]);
@@ -269,12 +306,13 @@ export default function SettingsPagesPage() {
           nextColumns,
           clockSelection,
           clockGlanceables,
+          clockGlanceableIntervals,
           clockStyle,
           glanceablesCatalog,
         ),
       ).then(() => undefined);
     },
-    [clockGlanceables, clockSelection, clockStyle, template, glanceablesCatalog, persistPageConfigPatch],
+    [clockGlanceables, clockGlanceableIntervals, clockSelection, clockStyle, template, glanceablesCatalog, persistPageConfigPatch],
   );
 
   const loadWidgetPreviewData = useCallback(
@@ -282,30 +320,35 @@ export default function SettingsPagesPage() {
       const payload = await withAuth((auth) =>
         getConsumerDataAction(auth, widgetKey, input ?? {}, {
           type: "widget",
+          isPreview: true,
         }),
       ) as any;
-
-      if (payload?.success) {
-        const canonicalConsumerKey = widgetKey.includes("#")
-          ? widgetKey
-          : payload.integrationId
-            ? `${payload.integrationId}#${widgetKey}`
-            : `widget:${widgetKey}:${JSON.stringify(input ?? {})}`;
-
-        updatePageIntegrationConsumerCache({
-          ...payload,
-          consumer: "widget",
-          key: widgetKey,
-          integrationId: payload.integrationId ?? null,
-          properties: input ?? {},
-          consumerKey: canonicalConsumerKey,
-        });
-      }
 
       return payload ?? null;
     },
     [withAuth],
   );
+
+  const editWidgetRequest = useMemo(() => {
+    const requestedPage = searchParams.get("editPage") ?? "home";
+    const rawTarget = searchParams.get("editWidget") ?? "";
+    const parts = rawTarget.split(":");
+    if (requestedPage !== selectedPage || parts.length < 2) return null;
+    const column = parts[0];
+    const hasIndex = parts.length >= 3 && /^\d+$/.test(parts[parts.length - 1]);
+    const widgetIndex = hasIndex ? Number(parts[parts.length - 1]) : undefined;
+    const widgetId = parts.slice(1, hasIndex ? -1 : undefined).join(":");
+    if (!(["left", "middle", "right"] as ColumnName[]).includes(column as ColumnName) || !widgetId) return null;
+    return { column: column as ColumnName, widgetId, widgetIndex };
+  }, [searchParams, selectedPage]);
+
+  const handleEditWidgetRequestHandled = useCallback(() => {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      next.delete("editWidget");
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
 
   useEffect(() => {
     if (!hasLoadedConfigRef.current) {
@@ -349,22 +392,6 @@ export default function SettingsPagesPage() {
       <h2 className="text-lg font-semibold">Template</h2>
       <TemplateOptions template={template} onTemplateChange={setTemplate} />
 
-      {hasMainClock ? (
-        <EditGlanceablesView
-          hasMainClock={hasMainClock}
-          glanceablesCatalog={glanceablesCatalog}
-          selectedClockPart={selectedClockPart}
-          setSelectedClockPart={setSelectedClockPart}
-          clockSelection={clockSelection}
-          setClockSelection={setClockSelection}
-          clockGlanceables={clockGlanceables}
-          setClockGlanceables={setClockGlanceables}
-          clockStyle={clockStyle}
-          setClockStyle={setClockStyle}
-          fonts={fonts}
-        />
-      ) : null}
-
       <DashboardWidgetPreview
         template={template}
         columns={columns}
@@ -376,6 +403,21 @@ export default function SettingsPagesPage() {
         widgetCategories={widgetCategories}
         selectedWidgetCategory={selectedWidgetCategory}
         setSelectedWidgetCategory={setSelectedWidgetCategory}
+        hasMainClock={hasMainClock}
+        glanceablesCatalog={glanceablesCatalog}
+        selectedClockPart={selectedClockPart}
+        setSelectedClockPart={setSelectedClockPart}
+        clockSelection={clockSelection}
+        setClockSelection={setClockSelection}
+        clockGlanceables={clockGlanceables}
+        setClockGlanceables={setClockGlanceables}
+        clockGlanceableIntervals={clockGlanceableIntervals}
+        setClockGlanceableIntervals={setClockGlanceableIntervals}
+        clockStyle={clockStyle}
+        setClockStyle={setClockStyle}
+        fonts={fonts}
+        editWidgetRequest={editWidgetRequest}
+        onEditWidgetRequestHandled={handleEditWidgetRequestHandled}
       />
     </div>
   );

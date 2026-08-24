@@ -1,12 +1,15 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import AppTemplate, { GroupLabel, Sidebar, Tab, Content } from "@/components/apps/LayoutTemplate";
-import useAuth from "@/context/useAuth";
 import { getLinksCollectionsAction, getLinksTagsAction } from '@/lib/apiClient';
 import CreateLinksCollectionDialog from "@/components/links/CreateLinksCollectionDialog";
 import CreateLinksTagDialog from "@/components/links/CreateLinksTagDialog";
+import { useApiQuery } from "@/hooks/useApiQuery";
+import { queryKeys } from "@/lib/queryClient";
+import { useQueryClient } from "@tanstack/react-query";
+import useAuth from "@/context/useAuth";
 
 type LinkCollection = {
     id: string;
@@ -23,50 +26,19 @@ type LinkTag = {
 };
 
 export default function LinksLayout({ children }: { children: ReactNode }) {
-    const { token, withAuth } = useAuth();
     const navigate = useNavigate();
-    const [collections, setCollections] = useState<LinkCollection[]>([]);
-    const [tags, setTags] = useState<LinkTag[]>([]);
+    const queryClient = useQueryClient();
+    const { token } = useAuth();
+    const collectionsQuery = useApiQuery(queryKeys.links.collections, getLinksCollectionsAction);
+    const tagsQuery = useApiQuery(queryKeys.links.tags, getLinksTagsAction);
+    const collections = Array.isArray(collectionsQuery.data) ? collectionsQuery.data as LinkCollection[] : [];
+    const tags = Array.isArray(tagsQuery.data) ? tagsQuery.data as LinkTag[] : [];
     const [createListOpen, setCreateListOpen] = useState(false);
+    const [renameListOpen, setRenameListOpen] = useState(false);
     const [createTagOpen, setCreateTagOpen] = useState(false);
     const [editingCollection, setEditingCollection] = useState<LinkCollection | null>(null);
+    const [renamingCollection, setRenamingCollection] = useState<LinkCollection | null>(null);
     const [editingTag, setEditingTag] = useState<LinkTag | null>(null);
-
-    useEffect(() => {
-        if (!token) {
-            setCollections([]);
-            setTags([]);
-            return;
-        }
-
-        let mounted = true;
-
-        const load = async () => {
-            try {
-                const [collectionsData, tagsData] = await Promise.all([
-                    withAuth((auth) => getLinksCollectionsAction(auth)),
-                    withAuth((auth) => getLinksTagsAction(auth)),
-                ]);
-
-                if (!mounted) return;
-
-                setCollections(Array.isArray(collectionsData) ? (collectionsData as LinkCollection[]) : []);
-                setTags(Array.isArray(tagsData) ? (tagsData as LinkTag[]) : []);
-            } catch (error) {
-                console.error("Failed to load links navigation data:", error);
-                if (mounted) {
-                    setCollections([]);
-                    setTags([]);
-                }
-            }
-        };
-
-        load();
-
-        return () => {
-            mounted = false;
-        };
-    }, [token, withAuth]);
 
     const userCollections = useMemo(
         () => collections.filter((collection) => {
@@ -80,7 +52,7 @@ export default function LinksLayout({ children }: { children: ReactNode }) {
     return (
         <AppTemplate title="Links">
             <Sidebar>
-                <Tab dst="/links/home" icon="fa6-solid:house" title="Home" />
+                <Tab dst="/apps/links/home" icon="fa6-solid:house" title="Home" />
                 <GroupLabel
                     group="Lists"
                     title="Lists"
@@ -98,17 +70,25 @@ export default function LinksLayout({ children }: { children: ReactNode }) {
                 {userCollections.map((collection) => (
                     <Tab
                         key={collection.id}
-                        dst={`/links/lists/${collection.id}`}
+                        dst={`/apps/links/lists/${collection.id}`}
                         icon={collection.icon || "fa6-solid:folder-open"}
                         title={collection.name}
                         group="Lists"
                         dropdownActions={[
                             {
-                                label: "Edit list",
+                                label: "Edit",
                                 icon: "fa6-solid:pen-to-square",
                                 action: () => {
                                     setEditingCollection(collection);
                                     setCreateListOpen(true);
+                                },
+                            },
+                            {
+                                label: "Rename",
+                                icon: "fa6-solid:font",
+                                action: () => {
+                                    setRenamingCollection(collection);
+                                    setRenameListOpen(true);
                                 },
                             },
                         ]}
@@ -131,7 +111,7 @@ export default function LinksLayout({ children }: { children: ReactNode }) {
                 {tags.map((tag) => (
                     <Tab
                         key={tag.id}
-                        dst={`/links/tags/${tag.id}`}
+                        dst={`/apps/links/tags/${tag.id}`}
                         icon="fa6-solid:hashtag"
                         title={tag.name}
                         group="Tags"
@@ -159,8 +139,26 @@ export default function LinksLayout({ children }: { children: ReactNode }) {
                 }}
                 collection={editingCollection}
                 onSaved={(collection) => {
-                    setCollections((current) => [collection, ...current.filter((item) => item.id !== collection.id)]);
-                    navigate(`/links/lists/${collection.id}`);
+                    queryClient.setQueryData(["api", token, ...queryKeys.links.collections], (current: LinkCollection[] | undefined) =>
+                        [collection, ...(current ?? []).filter((item) => item.id !== collection.id)],
+                    );
+                    navigate(`/apps/links/lists/${collection.id}`);
+                }}
+            />
+
+            <CreateLinksCollectionDialog
+                open={renameListOpen}
+                onOpenChange={(open) => {
+                    setRenameListOpen(open);
+                    if (!open) setRenamingCollection(null);
+                }}
+                collection={renamingCollection}
+                renameOnly
+                onSaved={(collection) => {
+                    queryClient.setQueryData(["api", token, ...queryKeys.links.collections], (current: LinkCollection[] | undefined) =>
+                        [collection, ...(current ?? []).filter((item) => item.id !== collection.id)],
+                    );
+                    navigate(`/apps/links/lists/${collection.id}`);
                 }}
             />
 
@@ -172,8 +170,10 @@ export default function LinksLayout({ children }: { children: ReactNode }) {
                 }}
                 tag={editingTag}
                 onSaved={(tag) => {
-                    setTags((current) => [tag, ...current.filter((item) => item.id !== tag.id)]);
-                    navigate(`/links/tags/${tag.id}`);
+                    queryClient.setQueryData(["api", token, ...queryKeys.links.tags], (current: LinkTag[] | undefined) =>
+                        [tag, ...(current ?? []).filter((item) => item.id !== tag.id)],
+                    );
+                    navigate(`/apps/links/tags/${tag.id}`);
                 }}
             />
         </AppTemplate>

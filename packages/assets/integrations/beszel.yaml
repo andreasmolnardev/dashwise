@@ -163,11 +163,11 @@ configuration:
           initial_value: 100
           iterate_over: lookup_tables.system_properties as prop
           operation: if
-          condition: system[prop.property] >= prop.threshold_warn # return false when prop is not available for this system 
+          condition: "${system[${prop.property}]} >= ${prop.threshold_warn}" # return false when prop is not available for this system 
           and: system.info.status == "up" # system is up
           then: 
             operation: math # todo: replace with math.js
-            susbtract: prop.multiplier * (system[prop.property] - prop.threshold_warn)
+            subtract: "${prop.multiplier} * (${system[${prop.property}]} - ${prop.threshold_warn})"
             from: system.health
           else: 
             condition: system.info.status != "up"
@@ -175,22 +175,25 @@ configuration:
         warnings:
           iterate_over: lookup_tables.system_properties as prop
           operation: if
-          condition: system[prop.property] >= prop.threshold_warn # return empty string when prop is not available for this system
+          condition: "${system[${prop.property}]} >= ${prop.threshold_warn}" # return empty string when prop is not available for this system
           then: "${prop.name} usage high"
 
   lookup_tables:
     system_properties:
       - cpu: 
+        name: "CPU"
         multiplier: 2.5
         property: "usage.cpu_usage_percent"
         threshold_warn: "${THRESHOLD_CPU_WARN}"
         threshold_critical: "${THRESHOLD_CPU_CRITICAL}"
       - memory: 
+        name: "Memory"
         multiplier: 1
         property: "usage.memory_usage_percent"
         threshold_warn: "${THRESHOLD_MEM_WARN}"
         threshold_critical: "${THRESHOLD_MEM_CRITICAL}"
       - disk: 
+        name: "Disk"
         multiplier: 4
         property: "usage.disk_usage_percent"
         threshold_warn: "${THRESHOLD_DISK_WARN}"

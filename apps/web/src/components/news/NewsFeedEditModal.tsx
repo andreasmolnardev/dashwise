@@ -4,9 +4,10 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Icon } from "@iconify-icon/react";
 import type { NewsFeedRecord, NewsFeedRecordUpdateInput } from "@dashwise/types/sdk";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import IconPickerComponent from "@/components/settings/IconPicker";
 
 interface SubscriptionOption {
     id: string;
@@ -31,8 +32,11 @@ export default function NewsFeedEditModal({
     onSave,
 }: NewsFeedEditModalProps) {
     const [title, setTitle] = useState("");
+    const [icon, setIcon] = useState("");
+    const [iconPickerOpen, setIconPickerOpen] = useState(false);
     const [selectedSubscriptionIds, setSelectedSubscriptionIds] = useState<string[]>([]);
     const [query, setQuery] = useState("");
+    const [maxFeedItems, setMaxFeedItems] = useState("200");
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -44,9 +48,11 @@ export default function NewsFeedEditModal({
         }
 
         setTitle(feed?.title || (isAllFeed ? "All feed" : ""));
+        setIcon(feed?.icon || "");
         setSelectedSubscriptionIds(isAllFeed
             ? [...(feed?.excludedSubscriptionRefs ?? [])]
             : [...(feed?.subscriptionRefs ?? [])]);
+        setMaxFeedItems(String(feed?.maxFeedItems || 200));
         setQuery("");
         setError(null);
     }, [feed, isAllFeed, open]);
@@ -101,13 +107,16 @@ export default function NewsFeedEditModal({
             }
 
             const normalizedTitle = title.trim();
+            const normalizedMaxFeedItems = Math.max(1, Math.floor(Number(maxFeedItems) || 200));
             const payload: NewsFeedRecordUpdateInput = {
                 feedId: feed.id,
                 title: isAllFeed ? "All" : normalizedTitle || String(feed.title || ""),
+                icon,
                 subscriptionRefs: isAllFeed
                     ? sortedSubscriptions.map((entry) => entry.id)
                     : selectedSubscriptionIds,
                 excludedSubscriptionRefs: isAllFeed ? selectedSubscriptionIds : [],
+                maxFeedItems: normalizedMaxFeedItems,
             };
 
             await onSave(payload);
@@ -136,12 +145,53 @@ export default function NewsFeedEditModal({
                 <form onSubmit={handleSubmit} className="space-y-5">
                     <div>
                         <Label htmlFor="news-feed-title">Feed name</Label>
+                        <div className="mt-1 flex items-center gap-2">
+                            <Dialog open={iconPickerOpen} onOpenChange={setIconPickerOpen}>
+                                <DialogTrigger asChild>
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        className="frosted h-10 w-10 shrink-0 p-0"
+                                        title="Pick feed icon"
+                                        disabled={saving || loading}
+                                    >
+                                        <Icon icon={icon || "solar:document-text-bold"} className="text-lg" />
+                                        <span className="sr-only">Pick feed icon</span>
+                                    </Button>
+                                </DialogTrigger>
+                                <DialogContent className="frosted text-foreground w-[min(92vw,48rem)] max-w-none">
+                                    <DialogHeader>
+                                        <DialogTitle>Change Feed Icon</DialogTitle>
+                                    </DialogHeader>
+                                    <IconPickerComponent
+                                        initialSelection={{ url: icon }}
+                                        onSelect={(iconObj) => {
+                                            setIcon(iconObj.url ?? "");
+                                            setIconPickerOpen(false);
+                                        }}
+                                    />
+                                </DialogContent>
+                            </Dialog>
+                            <Input
+                                id="news-feed-title"
+                                className="frosted min-w-0 flex-1"
+                                value={isAllFeed ? "All" : title}
+                                onChange={(event) => setTitle(event.target.value)}
+                                disabled={saving || loading || isAllFeed}
+                            />
+                        </div>
+                    </div>
+
+                    <div>
+                        <Label htmlFor="news-feed-max-items">Max feed items</Label>
                         <Input
-                            id="news-feed-title"
+                            id="news-feed-max-items"
                             className="frosted mt-1"
-                            value={isAllFeed ? "All" : title}
-                            onChange={(event) => setTitle(event.target.value)}
-                            disabled={saving || loading || isAllFeed}
+                            type="number"
+                            min={1}
+                            value={maxFeedItems}
+                            onChange={(event) => setMaxFeedItems(event.target.value)}
+                            disabled={saving || loading}
                         />
                     </div>
 

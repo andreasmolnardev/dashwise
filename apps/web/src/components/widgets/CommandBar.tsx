@@ -98,6 +98,8 @@ function normalizeConfigLinks(input: IncomingSearchItem[] = []): LinkItem[] {
         if (action.toLowerCase().startsWith("post:")) {
           url = "__proxy_action__";
           proxyAction = true;
+        } else if (action.toLowerCase().startsWith("logout:")) {
+          url = "__logout_action__";
         } else if (action.startsWith("url:")) {
           url = action.slice(4);
         } else if (action.startsWith("command:")) {
@@ -141,7 +143,7 @@ function normalizeConfigLinks(input: IncomingSearchItem[] = []): LinkItem[] {
 export default function CommandBar(
   { open, setOpen, searchItems, config }: CommandBarProps,
 ) {
-  const { user, token } = useAuth();
+  const { user, token, logout } = useAuth();
   const searchPreferences = user?.searchPreferences ?? {};
   const searchEngines: SearchEngine[] =
     (searchPreferences.searchEngines || []) as SearchEngine[];
@@ -331,18 +333,6 @@ export default function CommandBar(
       cancelled = true;
     };
   }, [normalizedUrl]);
-
-  // open on cmd/ctrl + k
-  React.useEffect(() => {
-    const handleKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
-        e.preventDefault();
-        setOpen((prev) => !prev);
-      }
-    };
-    window.addEventListener("keydown", handleKey);
-    return () => window.removeEventListener("keydown", handleKey);
-  }, [setOpen]);
 
   // parse bang: returns {slug, rest} or null
   const parseBang = (q: string) => {
@@ -551,6 +541,10 @@ export default function CommandBar(
     } else if (a.url === "__proxy_action__") {
       logSearchItemUsage(a);
       void triggerProxyAction(a);
+    } else if (a.url === "__logout_action__") {
+      logSearchItemUsage(a);
+      logout();
+      setOpen(false);
     } else if (a.url.startsWith("__engine_search__:")) {
       const slug = a.url.split(":", 2)[1];
       openEngineSearch(slug, query);

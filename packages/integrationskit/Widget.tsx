@@ -10,6 +10,7 @@ import WidgetColumnTemplate from "./templates/WidgetColumn";
 import VerticalList from "./templates/VerticalList";
 import ItemDetailsCard from "./templates/ItemDetailsCard";
 import IframeTemplate from "./templates/IFrame";
+import ImageTemplate from "./templates/Image";
 import AppIcon from "@dashwise/app-icon";
 import type { ResolvedWidget } from "./types";
 
@@ -203,6 +204,24 @@ export default function Widget({
         case "icon-details-card":
             return (
                 <ItemDetailsCard
+                    resolved={renderedResolved}
+                    className={className}
+                    formatters={formatters}
+                />
+            );
+
+        case "image":
+            return (
+                <ImageTemplate
+                    resolved={renderedResolved}
+                    className={className}
+                    formatters={formatters}
+                />
+            );
+
+        case "iframe":
+            return (
+                <IframeTemplate
                     resolved={renderedResolved}
                     className={className}
                     formatters={formatters}
@@ -413,16 +432,32 @@ function ColumnCell(
 ) {
     const hasProgress = !!col.progress;
     const hasIcon = !!col.icon?.file;
+    const hasStats = !!col.stats;
+    const primary = col.stats?.primary ?? col.primary;
+    const secondary = col.stats?.secondary ?? col.secondary;
+    const shouldRenderLabel = !!col.label && col.label !== primary;
+    const statsCaption = hasStats ? col.primary : undefined;
 
     return (
-        <div className="flex flex-col items-center gap-1 py-1 w-full">
-            {col.label && (
-                <p className="text-[11px] opacity-60 uppercase tracking-wide">
-                    {renderLocalizedText(col.label, formatters)}
-                </p>
+        <div className="flex flex-col items-center gap-1.5 w-full">
+            {shouldRenderLabel && (
+                col.primaryAction
+                    ? (
+                        <a
+                            href={col.primaryAction}
+                            className="text-[11px] opacity-60 uppercase tracking-wide leading-tight text-center line-clamp-2"
+                        >
+                            {renderLocalizedText(col.label, formatters)}
+                        </a>
+                    )
+                    : (
+                        <p className="text-[11px] opacity-60 uppercase tracking-wide leading-tight text-center line-clamp-2">
+                            {renderLocalizedText(col.label, formatters)}
+                        </p>
+                    )
             )}
 
-            {hasProgress && (
+            {!hasStats && hasProgress && (
                 <CircularProgress
                     value={col.progress!.value ?? 0}
                     thresholds={col.progress!.thresholds}
@@ -430,7 +465,7 @@ function ColumnCell(
                 />
             )}
 
-            {!hasProgress && hasIcon && (
+            {!hasStats && !hasProgress && hasIcon && (
                 <AppIcon
                     source={col.icon!.file}
                     alt={col.icon!.description ?? ""}
@@ -440,26 +475,66 @@ function ColumnCell(
                 />
             )}
 
-            {col.primary && (
+            {hasStats && primary && (
+                col.primaryAction
+                    ? (
+                        <a
+                            href={col.primaryAction}
+                            className="font-semibold leading-tight text-center line-clamp-2"
+                        >
+                            {renderLocalizedText(primary, formatters)}
+                        </a>
+                    )
+                    : (
+                        <p className="font-semibold leading-tight text-center line-clamp-2">
+                            {renderLocalizedText(primary, formatters)}
+                        </p>
+                    )
+            )}
+
+            {hasStats && secondary && (
+                <p className="text-xs opacity-70 leading-tight text-center">
+                    {renderLocalizedText(secondary, formatters)}
+                </p>
+            )}
+
+            {statsCaption && (
                 col.primaryAction
                     ? (
                         <a
                             href={col.primaryAction}
                             className="block max-w-full text-sm font-semibold leading-tight text-center hover:text-primary transition-colors line-clamp-2"
                         >
-                            {renderLocalizedText(col.primary, formatters)}
+                            {renderLocalizedText(statsCaption, formatters)}
                         </a>
                     )
                     : (
                         <p className="font-semibold text-sm leading-tight text-center line-clamp-2">
-                            {renderLocalizedText(col.primary, formatters)}
+                            {renderLocalizedText(statsCaption, formatters)}
                         </p>
                     )
             )}
 
-            {col.secondary && (
+            {!hasStats && primary && (
+                col.primaryAction
+                    ? (
+                        <a
+                            href={col.primaryAction}
+                            className="block max-w-full text-sm font-semibold leading-tight text-center hover:text-primary transition-colors line-clamp-2"
+                        >
+                            {renderLocalizedText(primary, formatters)}
+                        </a>
+                    )
+                    : (
+                        <p className="font-semibold text-sm leading-tight text-center line-clamp-2">
+                            {renderLocalizedText(primary, formatters)}
+                        </p>
+                    )
+            )}
+
+            {!hasStats && secondary && (
                 <p className="text-xs opacity-70 leading-tight text-center">
-                    {renderLocalizedText(col.secondary, formatters)}
+                    {renderLocalizedText(secondary, formatters)}
                 </p>
             )}
 

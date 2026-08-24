@@ -1,9 +1,9 @@
 "use client";
 
 import { Link } from "react-router-dom";
-import { useEffect, useState } from "react";
-import useAuth from "@/context/useAuth";
 import { getLinksTagsAction } from '@/lib/apiClient';
+import { useApiQuery } from "@/hooks/useApiQuery";
+import { queryKeys } from "@/lib/queryClient";
 
 type LinkTag = {
     id: string;
@@ -12,31 +12,8 @@ type LinkTag = {
 };
 
 export default function LinksTagsPage() {
-    const { token, withAuth } = useAuth();
-    const [tags, setTags] = useState<LinkTag[]>([]);
-
-    useEffect(() => {
-        if (!token) return;
-
-        let mounted = true;
-
-        const load = async () => {
-            try {
-                const data = await withAuth((auth) => getLinksTagsAction(auth));
-                if (!mounted) return;
-                setTags(Array.isArray(data) ? (data as LinkTag[]) : []);
-            } catch (error) {
-                console.error("Failed to load tags:", error);
-                if (mounted) setTags([]);
-            }
-        };
-
-        load();
-
-        return () => {
-            mounted = false;
-        };
-    }, [token, withAuth]);
+    const tagsQuery = useApiQuery(queryKeys.links.tags, getLinksTagsAction);
+    const tags = (tagsQuery.data ?? []) as LinkTag[];
 
     return (
         <div className="space-y-4">
@@ -56,7 +33,7 @@ export default function LinksTagsPage() {
                     {tags.map((tag) => (
                         <Link
                             key={tag.id}
-                            to={`/links/tags/${tag.id}`}
+                            to={`/apps/links/tags/${tag.id}`}
                             className="group rounded-2xl border border-white/10 bg-white/5 p-4 transition-colors hover:border-white/20 hover:bg-white/10"
                         >
                             <div className="flex items-start justify-between gap-3">

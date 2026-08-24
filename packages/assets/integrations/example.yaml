@@ -113,6 +113,14 @@ configuration:
               cpu: "usage.cpu"
               memory: "usage.mem"
 
+    camera:
+      method: GET
+      url: "${URL}/camera"
+      response:
+        type: json
+        invalidate:
+          every: "1 hour"
+
   # Computed Fields
   # Process and aggregate data from endpoints.
   computed:
@@ -320,6 +328,82 @@ configuration:
         min_height: 300
         max_height: 800
 
+    - name: "Open Tasks"
+      key: "open-tasks"
+      template: "vertical-list"
+      depends_on:
+        - "computed.status_summary"
+      data:
+        source: "computed.status_summary"
+      properties:
+        header:
+          title: "Open Tasks"
+          icon: "fa6-solid:list-check"
+        list:
+          user_customizations:
+            - allow_reorder
+          iterate_over: "computed.status_summary"
+          max_items: 5
+          prototype:
+            group: "System"
+            title: "${label}"
+            titleAction: "url:${link}"
+            subtitle:
+              - "${stats.cpu}% CPU"
+              - "${stats.memory} RAM"
+            icon: "fa6-solid:circle-check"
+            badge:
+              show: true
+              icon: "fa6-solid:triangle-exclamation"
+              tooltip: "High load"
+
+    - name: "Service Card"
+      key: "service-card"
+      template: "icon-details-card"
+      depends_on:
+        - "computed.status_summary"
+      data:
+        source: "computed.status_summary"
+      properties:
+        header:
+          title: "Service Card"
+          icon: "integrations.example.details.icon"
+        icon:
+          file: "integrations.example.details.icon"
+        primary: "${label}"
+        secondary: "${stats.cpu} CPU / ${stats.memory} RAM"
+
+    - name: "Embed Panel"
+      key: "embed-panel"
+      template: "iframe"
+      depends_on:
+        - "computed.status_summary"
+      properties:
+        header:
+          title: "Embed Panel"
+          icon: "fa6-solid:window-restore"
+        url: "${URL}/dashboard"
+        min_height: 240
+        max_height: 720
+
+    - name: "Remote Image"
+      key: "remote-image"
+      template: "image"
+      properties:
+        header:
+          title: "Camera"
+          icon: "fa6-solid:image"
+        endpoint: camera
+        image_url_property: "img.url"
+        title_url: "${CAMERA_URL}"
+        alt: "Camera image"
+        min_height: 180
+        max_height: 600
+
+  # Image endpoints can cache their JSON response. `after` is a duration from
+  # fetch time; `every` uses the next aligned hour/day/week/month boundary.
+  # Examples: "6 hours", "2 days", "every 2 hours", "every week".
+
 # ---------------------------------------------------------
 # 3. Shortcuts
 # Defines how the integration contributes to global search.
@@ -338,6 +422,11 @@ shortcuts:
           - "Example"
           - "${name}"
 
+# ---------------------------------------------------------
+# 4. Glanceables
+# Defines compact summary items shown in glanceable slots.
+# See weather.yaml for a richer example with computed fields and icon rendering.
+# ---------------------------------------------------------
 glanceables:
   - name: "Example Glanceable"
     key: "example-glanceable"

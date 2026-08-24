@@ -1,22 +1,56 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { CSSProperties } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import type { CSSProperties, ReactNode } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Icon } from "@iconify-icon/react";
+import { Edit3, EyeOff, Maximize2, MoreHorizontal, RefreshCw } from "lucide-react";
 import PagesTabs from "../PagesTabs";
 import UpdateDetailsDialogComponent from "./UpdateDetailsDialog";
 import QuickLaunchPopover from "./QuickLaunchPopover";
 import useAuth from "@/context/useAuth";
-import { getNotificationsAction } from '@/lib/apiClient';
+import { useActivity } from "@/context/ActivityContext";
 import { getPageIntegrationDataAction } from '@/lib/apiClient';
 import { renderWidget } from "../widgets/Widget";
 import PageNotFound from "../errorPages/PageNotFound";
 import { primePageIntegrationConsumerCache } from "@/lib/pageIntegrationDataCache";
 import config from "@/lib/config";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 const COLUMN_ORDER = ["left", "middle", "right"] as const;
 type Column = (typeof COLUMN_ORDER)[number];
+type WidgetSize = "auto" | "compact" | "tall";
+
+type WidgetMenuState = {
+    refreshVersion: number;
+    size: WidgetSize;
+    blurred: boolean;
+    menuOpen: boolean;
+};
+
+function hasWidgetProperties(config: Record<string, any>) {
+    const ignored = new Set(["className", "height", "index", "configKey", "input", "properties"]);
+    return Object.keys(config).some((key) => !ignored.has(key)) ||
+        Object.keys(config.input ?? {}).length > 0 ||
+        Object.keys(config.properties ?? {}).some((key) => !ignored.has(key));
+}
+
+const WIDGET_SIZE_CLASSNAME: Record<WidgetSize, string> = {
+    auto: "",
+    compact: "h-[180px] overflow-hidden rounded-xl",
+    tall: "h-[360px] overflow-hidden rounded-xl",
+};
+
+const PRIVACY_BLUR_LINES = [
+    "kJ8fL2pQwR9z",
+    "xN4vB7mC3sA1",
+    "tY6uI0oP5dF2",
+];
 
 const COLUMN_CLASSNAME: Record<Column, string> = {
     left:
@@ -63,6 +97,7 @@ export default function DashboardLayoutTemplate({
     isLoading?: boolean;
 }) {
     const [searchParams] = useSearchParams();
+    const navigate = useNavigate();
     const { token, withAuth } = useAuth();
     const openFromURL = searchParams.get("search") === "1";
     const hasSearchBarWidget = useMemo(() => {
@@ -83,8 +118,7 @@ export default function DashboardLayoutTemplate({
 
     const containerRef = useRef<HTMLDivElement | null>(null);
     const [activePanel, setActivePanel] = useState<number>(1);
-    const [integrationDataVersion, setIntegrationDataVersion] = useState(0);
-
+    const [widgetMenuState, setWidgetMenuState] = useState<Record<string, WidgetMenuState>>({});
     const heightRefs = useRef<Record<string, HTMLElement | null>>({});
     const heightRefCallbacks = useRef<
         Record<string, (node: HTMLElement | null) => void>
@@ -94,27 +128,24 @@ export default function DashboardLayoutTemplate({
         Record<string, number>
     >({});
 
-    if (!config && !isLoading) {
-        return <PageNotFound />;
-    }
-
     const columns = config?.columns as
         | Record<Column, Record<string, any>>
         | undefined;
+
+    const refreshPageIntegrationData = useCallback(async () => {
+        const response = await withAuth((auth) =>
+            getPageIntegrationDataAction(auth, pageName),
+        ) as any;
+        primePageIntegrationConsumerCache(response);
+    }, [pageName, withAuth]);
 
     useEffect(() => {
         let cancelled = false;
 
         const primeIntegrationData = async () => {
             try {
-                const response = await withAuth((auth) =>
-                    getPageIntegrationDataAction(auth, pageName),
-                ) as any;
-
+                await refreshPageIntegrationData();
                 if (cancelled) return;
-
-                primePageIntegrationConsumerCache(response);
-                setIntegrationDataVersion((current) => current + 1);
             } catch (error) {
                 if (!cancelled) {
                     console.error("Failed to prime page integration data", error);
@@ -132,14 +163,8 @@ export default function DashboardLayoutTemplate({
             if (intervalId) return;
             intervalId = window.setInterval(async () => {
                 try {
-                    const response = await withAuth((auth) =>
-                        getPageIntegrationDataAction(auth, pageName),
-                    ) as any;
-
+                    await refreshPageIntegrationData();
                     if (cancelled) return;
-
-                    primePageIntegrationConsumerCache(response);
-                    setIntegrationDataVersion((current) => current + 1);
                 } catch (error) {
                     if (!cancelled) console.error("Failed to poll page integration data", error);
                 }
@@ -156,7 +181,7 @@ export default function DashboardLayoutTemplate({
                 intervalId = null;
             }
         };
-    }, [pageName, token, withAuth]);
+    }, [refreshPageIntegrationData, token]);
 
     // Scroll to center panel on mobile first render
     useEffect(() => {
@@ -364,6 +389,145 @@ export default function DashboardLayoutTemplate({
         return cssVars;
     }, [measuredHeights]);
 
+    const getWidgetMenuState = (baseKey: string): WidgetMenuState =>
+        widgetMenuState[baseKey] ?? {
+            refreshVersion: 0,
+            size: "auto",
+            blurred: false,
+            menuOpen: false,
+        };
+
+    const updateWidgetMenuState = (
+        baseKey: string,
+        updater: (current: WidgetMenuState) => WidgetMenuState,
+    ) => {
+        setWidgetMenuState((current) => {
+            const previous = current[baseKey] ?? {
+                refreshVersion: 0,
+                size: "auto" as WidgetSize,
+                blurred: false,
+                menuOpen: false,
+            };
+            return { ...current, [baseKey]: updater(previous) };
+        });
+    };
+
+    const refreshWidget = (baseKey: string) => {
+        void refreshPageIntegrationData()
+            .catch((error) => {
+                console.error("Failed to refresh widget data", error);
+            })
+            .finally(() => {
+                updateWidgetMenuState(baseKey, (current) => ({
+                    ...current,
+                    refreshVersion: current.refreshVersion + 1,
+                }));
+            });
+    };
+
+    const resizeWidget = (baseKey: string) => {
+        updateWidgetMenuState(baseKey, (current) => ({
+            ...current,
+            size: current.size === "auto" ? "compact" : current.size === "compact" ? "tall" : "auto",
+        }));
+    };
+
+    const toggleWidgetBlur = (baseKey: string) => {
+        updateWidgetMenuState(baseKey, (current) => ({
+            ...current,
+            blurred: !current.blurred,
+        }));
+    };
+
+    const editWidgetProperties = (columnName: Column, entryKey: string, entryIndex: number) => {
+        navigate(`/settings/pages?editPage=${encodeURIComponent(pageName ?? "home")}&editWidget=${encodeURIComponent(`${columnName}:${entryKey}:${entryIndex}`)}`);
+    };
+
+    const renderWidgetMenuWrapper = ({
+        baseKey,
+        wrapperClass,
+        children,
+        ref,
+        style,
+        showMenu = true,
+        onEditProperties,
+        darkenOnMenu = false,
+    }: {
+        baseKey: string;
+        wrapperClass: string;
+        children: ReactNode;
+        ref?: (node: HTMLElement | null) => void;
+        style?: CSSProperties;
+        showMenu?: boolean;
+        onEditProperties?: () => void;
+        darkenOnMenu?: boolean;
+    }) => {
+        const state = getWidgetMenuState(baseKey);
+        const sizeClass = WIDGET_SIZE_CLASSNAME[state.size];
+        return (
+            <div
+                key={baseKey}
+                ref={ref}
+                className={[wrapperClass, "group/widget-menu relative", sizeClass].filter(Boolean).join(" ")}
+                style={style}
+            >
+                <div key={state.refreshVersion} className={state.size === "auto" ? undefined : "h-full"}>
+                    {children}
+                </div>
+                {darkenOnMenu && state.menuOpen && (
+                    <div className="pointer-events-none absolute inset-0 z-10 rounded-xl bg-black/50" />
+                )}
+                {showMenu && (
+                    <div className="absolute right-2 top-2 z-30 opacity-0 transition-opacity group-hover/widget-menu:opacity-100 focus-within:opacity-100">
+                        <DropdownMenu
+                            open={state.menuOpen}
+                            onOpenChange={(open) => updateWidgetMenuState(baseKey, (current) => ({ ...current, menuOpen: open }))}
+                        >
+                            <DropdownMenuTrigger asChild>
+                                <button
+                                    type="button"
+                                    aria-label="Widget options"
+                                    className="flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-black/35 text-white shadow-lg backdrop-blur-md transition hover:bg-black/55 focus:outline-none focus:ring-2 focus:ring-white/40"
+                                >
+                                    <MoreHorizontal className="h-4 w-4" />
+                                </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="frosted min-w-44 text-foreground">
+                                <DropdownMenuItem onClick={() => refreshWidget(baseKey)}>
+                                    <RefreshCw className="h-4 w-4" />
+                                    Refresh data
+                                </DropdownMenuItem>
+                                {onEditProperties && (
+                                    <DropdownMenuItem onClick={onEditProperties}>
+                                        <Edit3 className="h-4 w-4" />
+                                        Edit properties
+                                    </DropdownMenuItem>
+                                )}
+                                <DropdownMenuItem onClick={() => resizeWidget(baseKey)}>
+                                    <Maximize2 className="h-4 w-4" />
+                                    Resize widget
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => toggleWidgetBlur(baseKey)}>
+                                    <EyeOff className="h-4 w-4" />
+                                    {state.blurred ? "Unblur widget" : "Blur widget"}
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                    </div>
+                )}
+                {state.blurred && (
+                    <div className="pointer-events-none absolute inset-0 z-20 flex flex-col justify-center gap-2 rounded-xl bg-black/20 p-4 text-white/35 backdrop-blur-md">
+                        {PRIVACY_BLUR_LINES.map((line) => (
+                            <div key={line} className="h-3 w-full max-w-[85%] rounded-full bg-white/20 blur-[3px]">
+                                <span className="sr-only">{line}</span>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+        );
+    };
+
     const renderWidgetEntry = (
         columnName: Column,
         entryKey: string,
@@ -374,7 +538,7 @@ export default function DashboardLayoutTemplate({
         const wrapperClass = ["mb-3", cfg.className].filter(Boolean).join(
             " ",
         );
-        const baseKey = `${columnName}-${entryKey}-${entryIndex}`;
+        const baseKey = `${columnName}-${entryKey}`;
 
         switch (entryKey) {
             case "placeholder": {
@@ -388,64 +552,76 @@ export default function DashboardLayoutTemplate({
                     heightStyle = `${h}px`;
                 }
                 return (
-                    <div
-                        key={baseKey}
-                        className={wrapperClass}
-                        style={heightStyle
-                            ? { height: heightStyle }
-                            : undefined}
-                    >
-                        {renderWidget({
+                    renderWidgetMenuWrapper({
+                        baseKey,
+                        wrapperClass,
+                        style: heightStyle ? { height: heightStyle } : undefined,
+                        children: renderWidget({
                             type: "placeholder",
                             params: cfg.params,
                             className: "h-full w-full",
-                        })}
-                    </div>
+                        }),
+                    })
                 );
             }
             case "main-clock": {
                 const ref = getHeightRefCallback("main-clock");
                 return (
-                    <div key={baseKey} className={wrapperClass} ref={ref}>
-                        {renderWidget({
+                    renderWidgetMenuWrapper({
+                        baseKey,
+                        wrapperClass,
+                        ref,
+                        showMenu: false,
+                        children: renderWidget({
                             type: "main-clock",
                             params: cfg,
                             className: "w-full",
-                        })}
-                    </div>
+                        }),
+                    })
                 );
             }
             case "search-bar":
                 return (
-                    <div key={baseKey} className={wrapperClass}>
-                        {renderWidget({
+                    renderWidgetMenuWrapper({
+                        baseKey,
+                        wrapperClass,
+                        showMenu: false,
+                        children: renderWidget({
                             type: "search-bar",
                             defaultOpen: openFromURL ?? false,
-                        })}
-                    </div>
+                        }),
+                    })
                 );
             case "link-view":
                 return (
-                    <div key={baseKey} className={wrapperClass}>
-                        {renderWidget({
+                    renderWidgetMenuWrapper({
+                        baseKey,
+                        wrapperClass,
+                        showMenu: false,
+                        children: renderWidget({
                             type: "link-view",
-                        })}
-                    </div>
+                        }),
+                    })
                 );
             default:
                 // Fall back to integration widget-by-key renderer, then to generic widget.
-                return (
-                    <div key={baseKey} className={wrapperClass}>
-                        {renderWidget({
-                            type: entryKey,
-                            consumerKey: typeof cfg.configKey === "string" && cfg.configKey.trim()
-                                ? cfg.configKey.trim()
-                                : undefined,
-                            params: cfg,
-                            className: wrapperClass,
-                        })}
-                    </div>
-                );
+                return renderWidgetMenuWrapper({
+                    baseKey,
+                    wrapperClass,
+                    showMenu: entryKey !== "glanceable-clock",
+                    onEditProperties: (entryKey === "image" || hasWidgetProperties(cfg))
+                        ? () => editWidgetProperties(columnName, entryKey, entryIndex)
+                        : undefined,
+                    darkenOnMenu: entryKey === "image",
+                    children: renderWidget({
+                        type: entryKey,
+                        consumerKey: typeof cfg.configKey === "string" && cfg.configKey.trim()
+                            ? cfg.configKey.trim()
+                            : undefined,
+                        params: cfg,
+                        className: wrapperClass,
+                    }),
+                });
         }
     };
 
@@ -511,6 +687,7 @@ export default function DashboardLayoutTemplate({
 
     const renderColumn = (columnName: Column) => {
         const entries = columns?.[columnName];
+        const sortedEntries = entries && typeof entries === "object" ? sortWidgetEntries(entries) : [];
         return (
             <div
                 key={columnName}
@@ -523,20 +700,22 @@ export default function DashboardLayoutTemplate({
                         renderColumnSkeleton(columnName)
                     )
                     : (
-                        entries && typeof entries === "object"
-                            ? sortWidgetEntries(entries).map(([key, cfg], i) =>
-                                renderWidgetEntry(
-                                    columnName,
-                                    key,
-                                    cfg as Record<string, any>,
-                                    i,
-                                )
-                            )
-                            : null
+                        sortedEntries.map(([key, cfg], index) =>
+                            renderWidgetEntry(
+                                columnName,
+                                key,
+                                cfg as Record<string, any>,
+                                index,
+                            ),
+                        )
                     )}
             </div>
         );
     };
+
+    if (!config && !isLoading) {
+        return <PageNotFound />;
+    }
 
     return (
         <>
@@ -558,7 +737,7 @@ export default function DashboardLayoutTemplate({
                     columns={columns}
                 />
             </div>
-            {openFromURL && !hasSearchBarWidget && (
+            {!isLoading && openFromURL && !hasSearchBarWidget && (
                 <div className="hidden">
                     {renderWidget({
                         type: "search-bar",
@@ -583,8 +762,8 @@ function BottomNavbar({
     showPages = true,
     columns,
 }: BottomNavbarProps) {
-    const { user, token, withAuth } = useAuth();
-    const [unreadCount, setUnreadCount] = useState<number>(0);
+    const { user } = useAuth();
+    const { unreadCount } = useActivity();
     const [showSmartFrameButton, setShowSmartFrameButton] = useState(false);
     const [isFullscreen, setIsFullscreen] = useState(() => {
         return typeof document !== "undefined" && !!document.fullscreenElement;
@@ -610,21 +789,6 @@ function BottomNavbar({
                 checkConfig,
             );
     }, [user?.screensaverPreferences]);
-
-    useEffect(() => {
-        const fetchNotifications = async () => {
-            if (!token) return;
-            try {
-                const data = await withAuth((auth) =>
-                    getNotificationsAction(auth, false, true)
-                ) as any;
-                setUnreadCount(data?.unread || 0);
-            } catch (err) {
-                console.error(err);
-            }
-        };
-        fetchNotifications();
-    }, [token, withAuth]);
 
     useEffect(() => {
         const onFullscreenChange = () => {
@@ -722,7 +886,7 @@ function BottomNavbar({
                 )}
                 <li className="relative">
                     <Link
-                        to="/notifications"
+                        to="/apps/monitoring/notifications"
                         className="hidden md:flex frosted p-2.5 rounded-full group transition-colors duration-200 aspect-square items-center justify-center"
                     >
                         <Icon

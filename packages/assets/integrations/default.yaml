@@ -12,10 +12,26 @@ configuration:
       key: "search-bar"
       template: "search-bar"
       category: "Search"
+    - name: "Shortcuts"
+      key: "shortcuts"
+      template: "columns"
+      category: "Search"
+      data:
+        input:
+          shortcutIds: []
     - name: "Link View"
       key: "link-view"
       template: "link-view"
       category: "Links"
+    - name: "Latest Links"
+      key: "latest-links"
+      template: "latest-links"
+      category: "Links"
+      data:
+        input:
+          listId: ""
+          maxItems: 8
+          title: "Latest Links"
     - name: "Placeholder"
       key: "placeholder"
       template: "placeholder"
@@ -59,22 +75,39 @@ configuration:
           url: "https://www.wikipedia.org"
           min_height: 300
           max_height: 600
-    - name: "Day Progress"
-      key: "day-progress"
-      template: "day-progress"
+    - name: "Image"
+      key: "image"
+      template: "image"
+      category: "Tools"
+      data:
+        input:
+          url: "https://placehold.co/800x450/png"
+          title: ""
+          title_url: ""
+          click_action: ""
+          invalidate_after: "5 minutes"
+          alt: "Image widget"
+          show_alt_as_description: false
+          alt_description_max_lines: 2
+          max_height: 600
+    - name: "Progress"
+      key: "progress"
+      template: "progress"
       category: "Progress"
-    - name: "Week Progress"
-      key: "week-progress"
-      template: "week-progress"
-      category: "Progress"
-    - name: "Month Progress"
-      key: "month-progress"
-      template: "month-progress"
-      category: "Progress"
-    - name: "Year Progress"
-      key: "year-progress"
-      template: "year-progress"
-      category: "Progress"
+      data:
+        input:
+          period:
+            type: "select"
+            default: "day"
+            options:
+              - value: "year"
+                label: "Year"
+              - value: "month"
+                label: "Month"
+              - value: "day"
+                label: "Day"
+              - value: "week"
+                label: "Week"
   glanceables:
     - name: "Date"
       icon: none
@@ -91,19 +124,9 @@ configuration:
         location: "type:String ??? 'London'"
       icon: none
       text: "${lib.date.time(${properties.timezone})} in ${properties.location}"
-    - name: "Day Progress"
-      key: "day-progress"
+    - name: "Progress"
+      key: "progress"
       icon: none
+      properties:
+        period: "day"
       text: "Day: 0%"
-    - name: "Week Progress"
-      key: "week-progress"
-      icon: none
-      text: "Week: 0%"
-    - name: "Month Progress"
-      key: "month-progress"
-      icon: none
-      text: "Month: 0%"
-    - name: "Year Progress"
-      key: "year-progress"
-      icon: none
-      text: "Year: 0%"

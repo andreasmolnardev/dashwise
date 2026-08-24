@@ -1,0 +1,216 @@
+# Dashwise Integration YAML
+details:
+  name: Tailscale
+  description: "Tailnet device inventory and status widgets."
+  author: "Dashwise"
+  version: 1.0.0
+  repository: ""
+  icon: "/icons/png/tailscale-light.png"
+  links:
+    website: "https://tailscale.com"
+    documentation: "https://tailscale.com/kb/1215/oauth-clients"
+    support: "https://tailscale.com/contact/support"
+  categories:
+    - Network
+    - Monitoring
+
+configuration:
+  environment_variables:
+    TAILNET:
+      required: true
+      description: "Tailnet name, usually your organization domain or tailnet ID."
+    API_KEY:
+      required: true
+      edit: "overwrite-only"
+      description: "Tailscale API access token with device read access."
+    URL:
+      required: false
+      default: "https://login.tailscale.com/admin/machines"
+      description: "Tailscale machines page URL used for widget and search actions."
+    CRITICAL_TAGS:
+      required: false
+      default: "tag:critical"
+      description: "Comma-separated tag names used to count critical offline devices."
+
+  endpoints:
+    fetch-devices:
+      method: GET
+      url: "https://api.tailscale.com/api/v2/tailnet/${TAILNET}/devices?fields=all"
+      auth: "Bearer ${API_KEY}"
+      custom_headers:
+        Accept: "application/json"
+      response:
+        type: json
+        data_path: "devices"
+      response_mapping:
+        devices:
+          iterate: "devices"
+          mappingProperties:
+            id: "id"
+            node_id: "nodeId"
+            name:
+              operation: coalesce
+              fields: ["name", "hostname"]
+              fallback: "Unnamed device"
+            hostname: "hostname"
+            os: "os"
+            version: "clientVersion"
+            online: "online"
+            last_seen: "lastSeen"
+            addresses: "addresses"
+            primary_ip:
+              operation: coalesce
+              fields: ["addresses[0]", "addresses"]
+              fallback: ""
+            tags: "tags"
+            tags_label:
+              operation: join
+              value: "tags"
+              separator: ", "
+              fallback: "No tags"
+            authorized: "authorized"
+            update_available: "updateAvailable"
+
+  computed:
+    devices:
+      operation: expand
+      on: "this.endpoints.fetch-devices.mappedResponse.devices as device"
+      key: "${id}"
+      fields:
+        status:
+          operation: if
+          condition: "online == true"
+          then: "Online"
+          else: "Offline"
+        action: "url:${URL}"
+        subtitle:
+          operation: join
+          value:
+            - "${hostname}"
+            - "${primary_ip}"
+            - "${tags_label}"
+            - "v${version}"
+          separator: " - "
+    total_count:
+      iterate_over: "this.endpoints.fetch-devices.mappedResponse.devices"
+      initial_value: 0
+      operation: math
+      from: "computed.total_count"
+      add: 1
+    online_count:
+      iterate_over: "this.endpoints.fetch-devices.mappedResponse.devices"
+      initial_value: 0
+      filter: "online == true"
+      operation: math
+      from: "computed.online_count"
+      add: 1
+    offline_count:
+      iterate_over: "this.endpoints.fetch-devices.mappedResponse.devices"
+      initial_value: 0
+      filter: "online != true"
+      operation: math
+      from: "computed.offline_count"
+      add: 1
+    critical_offline_count:
+      iterate_over: "this.endpoints.fetch-devices.mappedResponse.devices"
+      initial_value: 0
+      filter: "online != true and tags contains '${CRITICAL_TAGS}'"
+      operation: math
+      from: "computed.critical_offline_count"
+      add: 1
+
+  widgets:
+    - name: "Tailscale Devices"
+      key: "tailscale-devices"
+      template: "vertical-list"
+      depends_on:
+        - "computed.devices"
+      data:
+        source: "computed.devices"
+        input:
+          TAILNET: "${TAILNET}"
+          API_KEY: "${API_KEY}"
+          URL: "${URL}"
+          CRITICAL_TAGS: "${CRITICAL_TAGS}"
+      properties:
+        header:
+          title: "Tailscale Devices"
+          icon: "integrations.tailscale.details.icon"
+          titleAction: "url:${URL}"
+        list:
+          iterate_over: "computed.devices"
+          user_customizations:
+            - allow_reorder
+            - allow_hide
+          prototype:
+            accent:
+              value: "status"
+              map:
+                Online: "#16a34a"
+                Offline: "#ef4444"
+            icon:
+              value: "status"
+              map:
+                Online: "faCircleCheck"
+                Offline: "faCircleXmark"
+            title: "${name}"
+            titleAction: "url:${action}"
+            subtitle:
+              type: "list"
+              value: '["Last seen: ${last_seen}", "${subtitle}"]'
+    - name: "Tailscale Status"
+      key: "tailscale-status"
+      template: "columns"
+      depends_on:
+        - "computed.online_count"
+        - "computed.critical_offline_count"
+        - "computed.offline_count"
+      data:
+        source: "computed.devices"
+        input:
+          TAILNET: "${TAILNET}"
+          API_KEY: "${API_KEY}"
+          URL: "${URL}"
+          CRITICAL_TAGS: "${CRITICAL_TAGS}"
+      properties:
+        header:
+          title: "Tailnet Health"
+          icon: "integrations.tailscale.details.icon"
+          titleAction: "url:${URL}"
+        columns:
+          - id: "online-devices"
+            label: "Online"
+            primary: "${computed.online_count}"
+            secondary: "of ${computed.total_count} devices"
+            icon:
+              file: "faCircleCheck"
+          - id: "critical-offline"
+            label: "Critical Offline"
+            primary: "${computed.critical_offline_count}"
+            secondary: "Tags: ${CRITICAL_TAGS}"
+            icon:
+              file: "faTriangleExclamation"
+          - id: "offline-devices"
+            label: "Offline"
+            primary: "${computed.offline_count}"
+            secondary: "devices offline"
+            icon:
+              file: "faCircleXmark"
+
+  shortcuts:
+    - devices:
+        iterate_over: "computed.devices"
+        mappingProperties:
+          id: "${id}"
+          name: "${name}"
+          icon: "integrations.tailscale.details.icon"
+          secondaryInfo: "${status} - ${hostname} - ${primary_ip}"
+          type: "tailscaleDevice"
+          action: "url:${action}"
+          tags:
+            - "Tailscale"
+            - "Tailnet"
+            - "Device"
+            - "${name}"
+            - "${hostname}"
+            - "${tags_label}"

@@ -3,6 +3,7 @@
 import { Link, useLocation } from "react-router-dom";
 import { Icon } from "@iconify-icon/react";
 import AppIcon from "@dashwise/app-icon";
+import useAuth from "@/context/useAuth";
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -49,6 +50,7 @@ interface TabProps {
     isRoot?: boolean;
     fallbackIcon?: string;
     badge?: number | string;
+    hasError?: boolean;
     dropdownActions?: DropdownAction[];
 }
 
@@ -196,7 +198,7 @@ export default function AppTemplate({
 
 // ─── Tab ─────────────────────────────────────────────────────────────────────
 
-export function Tab({ dst, icon, title, group, isRoot, fallbackIcon, badge, dropdownActions }: TabProps) {
+export function Tab({ dst, icon, title, group, isRoot, fallbackIcon, badge, hasError, dropdownActions }: TabProps) {
     const { pathname, search, closeMobileSidebar } = useContext(SidebarContext);
     const destination = new URL(dst, "http://dashwise.local");
     const isActive = destination.search
@@ -207,9 +209,10 @@ export function Tab({ dst, icon, title, group, isRoot, fallbackIcon, badge, drop
 
     return (
         <div className="relative">
-            <div className="group flex items-center justify-between px-3 py-3 h-10 rounded-md relative z-10 select-none transition-all duration-150 frosted-lite">
+            <div className={`group flex items-center justify-between px-3 py-3 h-10 rounded-md relative z-10 select-none transition-all duration-150 frosted-lite ${hasError ? "bg-red-500/20 text-red-100" : isActive ? "bg-primary/15 ring-1 ring-primary/30" : ""}`}>
                 <Link
                     to={dst}
+                    aria-current={isActive ? "page" : undefined}
                     className="flex min-w-0 flex-1 items-center gap-2"
                     onClick={() => closeMobileSidebar?.()}
                 >
@@ -217,8 +220,9 @@ export function Tab({ dst, icon, title, group, isRoot, fallbackIcon, badge, drop
                         source={icon}
                         fallbackSource={fallbackIcon}
                         alt={title}
-                        className={`h-4 w-4 shrink-0 transition-colors ${
-                            isActive
+                        className={`h-4 w-4 shrink-0 transition-colors ${hasError
+                            ? "text-red-300"
+                            : isActive
                                 ? "text-primary"
                                 : "text-white/60 group-hover:text-primary"
                         }`}
@@ -228,6 +232,8 @@ export function Tab({ dst, icon, title, group, isRoot, fallbackIcon, badge, drop
                         className={`leading-none transition-colors ${
                             isActive
                                 ? "text-white"
+                                : hasError
+                                    ? "text-red-100"
                                 : "text-white/70 group-hover:text-white"
                         }`}
                     >
@@ -452,6 +458,7 @@ function groupTabs(
 }
 
 export function Sidebar({ children }: { children: ReactNode }) {
+    const { openCommandBar } = useAuth();
     const tabs = Children.toArray(children).filter(
         (c) => isValidElement(c) && (c as React.ReactElement).type === Tab,
     ) as React.ReactElement<TabProps>[];
@@ -512,7 +519,7 @@ export function Sidebar({ children }: { children: ReactNode }) {
                             const displayLabel = label?.props.title ?? label?.props.group;
                             const collapsible = Boolean(label?.props.collapsible);
                             const collapsed = collapsible
-                                ? (collapsedGroups[groupKey] ?? Boolean(label?.props.collapsed))
+                                ? (collapsedGroups[groupKey] ?? false)
                                 : false;
 
                             return (
@@ -532,16 +539,25 @@ export function Sidebar({ children }: { children: ReactNode }) {
                                         />
                                     )}
 
-                                    {!collapsed && groupTabs.map((tab, tabIndex) => (
+                                    {!collapsed && (groupTabs.length > 0 ? (
+                                        groupTabs.map((tab, tabIndex) => (
+                                            <div
+                                                key={`${groupKey || "ungrouped"}-tab-${tabIndex}`}
+                                                style={{
+                                                    animation: "tabDrop 0.24s ease-out both",
+                                                    animationDirection: collapsed ? "reverse" : "normal",
+                                                    animationDelay: `${tabIndex * 40}ms`,
+                                                }}
+                                            >
+                                                {tab}
+                                            </div>
+                                        ))
+                                    ) : (
                                         <div
-                                            key={`${groupKey || "ungrouped"}-tab-${tabIndex}`}
-                                            style={{
-                                                animation: "tabDrop 0.24s ease-out both",
-                                                animationDirection: collapsed ? "reverse" : "normal",
-                                                animationDelay: `${tabIndex * 40}ms`,
-                                            }}
-                                        >
-                                            {tab}
+                                            aria-disabled="true"
+                                            className="pointer-events-none px-3 py-2 text-sm text-white/35 select-none frosted-lite rounded-md"
+                                      >
+                                            No items available
                                         </div>
                                     ))}
                                 </div>
@@ -565,13 +581,32 @@ export function Sidebar({ children }: { children: ReactNode }) {
                     </div>
                 )}
 
+                <div className="mb-1">
+                    <button
+                        type="button"
+                        onClick={openCommandBar}
+                        className="block group w-full"
+                        aria-label="Search"
+                    >
+                        <div className="flex gap-2 px-2 py-1.5 rounded-md">
+                            <Icon
+                                icon="fa6-solid:magnifying-glass"
+                                className="text-sm text-white/40 group-hover:text-primary transition-colors w-4"
+                            />
+                            <span className="text-sm text-white/50 group-hover:text-white transition-colors leading-none">
+                                Search
+                            </span>
+                        </div>
+                    </button>
+                </div>
+
                 <Link to="/home" className="block group">
                     <div className="flex items-center gap-2 px-2 py-1.5 rounded-md">
                         <Icon
                             icon="fa6-solid:house"
                             className="text-sm text-white/40 group-hover:text-primary transition-colors w-4"
                         />
-                        <span className="text-sm text-white/50 group-hover:text-white transition-colors leading-none">
+                        <span className="text-sm text-white/50 group-hover:text-white transition-colors w-full leading-none">
                             Go to dashboard
                         </span>
                     </div>

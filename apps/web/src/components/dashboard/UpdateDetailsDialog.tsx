@@ -1,35 +1,18 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { Dialog, DialogTrigger, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@iconify-icon/react";
 import { getAppInfoAction } from '@/lib/apiClient';
-import useAuth from "@/context/useAuth";
+import { useApiQuery } from "@/hooks/useApiQuery";
 
 export default function UpdateDetailsDialogComponent() {
-  const { withAuth } = useAuth();
-  const [updateAvailable, setUpdateAvailable] = useState(false);
-  const [currentVersion, setCurrentVersion] = useState("");
-  const [newVersion, setNewVersion] = useState("");
-
-  useEffect(() => {
-    async function fetchUpdateInfo() {
-      try {
-        const data = await withAuth((auth) => getAppInfoAction(auth));
-
-        if (data.updateAvailable != "0") {
-          setUpdateAvailable(true);
-          setCurrentVersion(data.currentAppVersion);
-          setNewVersion(data.updateAvailable ?? "unknown");
-        }
-      } catch (err) {
-        console.error("Update check failed:", err);
-      }
-    }
-
-    fetchUpdateInfo();
-  }, [withAuth]);
+  const appInfoQuery = useApiQuery(["app-info"], async (auth) =>
+    getAppInfoAction(auth) as Promise<{ updateAvailable?: string; currentAppVersion?: string }>,
+  );
+  const updateAvailable = appInfoQuery.data?.updateAvailable !== undefined && appInfoQuery.data.updateAvailable !== "0";
+  const currentVersion = appInfoQuery.data?.currentAppVersion ?? "";
+  const newVersion = appInfoQuery.data?.updateAvailable ?? "unknown";
 
   if (!updateAvailable) return null; // only show if update exists
 

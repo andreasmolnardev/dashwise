@@ -32,6 +32,13 @@ export type GlanceableProps = {
   formatters?: TextFormatters;
 };
 
+type MultiColumnGlanceableItem = {
+  icon?: string | null;
+  text?: string;
+  value?: string;
+  format?: "time";
+};
+
 export default function Glanceable({
   glanceableJSON,
   integrationJSON,
@@ -43,23 +50,6 @@ export default function Glanceable({
   resolved,
   formatters,
 }: GlanceableProps) {
-  if (resolved) {
-    return (
-      <span
-        className={`inline-flex items-center gap-1 text-center ${className ?? ""}`}
-      >
-        {resolved.icon && (
-          <AppIcon source={resolved.icon} alt="" className="text-lg object-contain shrink-0" />
-        )}
-        <span>{renderLocalizedText(resolved.text, formatters)}</span>
-      </span>
-    );
-  }
-
-  if (!glanceableJSON && type) {
-    return <LegacyGlanceable type={type} params={params} className={className} formatters={formatters} />;
-  }
-
   const safeGlanceableJSON = useMemo(
     () => mergeGlanceableJSON(glanceableJSON ?? {}, params),
     [glanceableJSON, params],
@@ -136,6 +126,56 @@ export default function Glanceable({
     };
   }, [integrationJSON, isPreview, resolvedRuntimeData, safeGlanceableJSON]);
 
+
+  const multiColumnItems = Array.isArray(safeGlanceableJSON.columns)
+    ? safeGlanceableJSON.columns
+        .filter((entry): entry is MultiColumnGlanceableItem => !!entry && typeof entry === "object")
+        .map((entry) => {
+          const rawValue = typeof entry.value === "string"
+            ? resolveGlanceableText(entry.value, env, formatters)
+            : typeof entry.text === "string"
+              ? resolveGlanceableText(entry.text, env, formatters)
+              : "";
+
+          return {
+            icon: getGlanceableIconSource(entry.icon, env),
+            text: entry.format === "time" ? formatGlanceableTime(rawValue, formatters) : rawValue,
+          };
+        })
+    : null;
+
+  if (multiColumnItems && multiColumnItems.length > 0) {
+    return (
+      <span className={`flex w-full flex-wrap items-center justify-center gap-x-2 gap-y-1 text-center ${className ?? ""}`}>
+        {multiColumnItems.map((item, index) => (
+          <span key={index} className="inline-flex items-center gap-1 whitespace-nowrap">
+            {item.icon && (
+              <AppIcon source={item.icon} alt="" className="text-lg object-contain shrink-0" />
+            )}
+            <span>{item.text}</span>
+          </span>
+        ))}
+      </span>
+    );
+  }
+
+  if (resolved) {
+    return (
+      <span
+        className={`inline-flex items-center gap-1 text-center ${className ?? ""}`}
+      >
+        {resolved.icon && (
+          <AppIcon source={resolved.icon} alt="" className="text-lg object-contain shrink-0" />
+        )}
+        <span>{renderLocalizedText(resolved.text, formatters)}</span>
+      </span>
+    );
+  }
+
+  if (!glanceableJSON && type) {
+    return <LegacyGlanceable type={type} params={params} className={className} formatters={formatters} />;
+  }
+
   let text = "";
 
   // support structured text operations (eg. stringadd) as well as plain strings
@@ -199,7 +239,7 @@ function LegacyGlanceable({
       return <span className={`inline-flex items-center text-center ${className ?? ""}`}>{formatDate(new Date(), params?.format, formatters)}</span>;
 
     case "greeting":
-      return <span className={`inline-flex items-center text-center ${className ?? ""}`}>Hello</span>;
+      return <GreetingGlanceable params={params} className={className} />;
 
     case "local-timezone":
       return <span className={`inline-flex items-center text-center ${className ?? ""}`}>{getLocalTimezoneLabel()}</span>;
@@ -207,17 +247,12 @@ function LegacyGlanceable({
     case "weather":
       return <span className={`inline-flex items-center text-center ${className ?? ""}`}>{formatWeather(params, formatters)}</span>;
 
+    case "progress":
     case "day-progress":
-      return <LegacyProgress type="day" params={params} className={className} />;
-
     case "week-progress":
-      return <LegacyProgress type="week" params={params} className={className} />;
-
     case "month-progress":
-      return <LegacyProgress type="month" params={params} className={className} />;
-
     case "year-progress":
-      return <LegacyProgress type="year" params={params} className={className} />;
+      return <LegacyProgress period={resolveProgressPeriod(type, params)} params={params} className={className} />;
 
     default:
       return <span className={`inline-flex items-center text-center ${className ?? ""}`}>{params?.name ?? type}</span>;
@@ -250,6 +285,47 @@ function LegacyWorldClock({
   }, [formatters, timezone]);
 
   return <span className={`inline-flex items-center text-center ${className ?? ""}`}>{time}{location ? ` in ${location}` : ""}</span>;
+}
+
+function GreetingGlanceable({
+  params,
+  className,
+}: {
+  params?: Record<string, any>;
+  className?: string;
+}) {
+  const [now, setNow] = useState(() => new Date());
+
+  useEffect(() => {
+    const updateGreetingTime = () => setNow(new Date());
+
+    updateGreetingTime();
+    const interval = setInterval(updateGreetingTime, 60 * 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const greeting = getGreetingForHour(now.getHours());
+  const username = getGreetingUsername(params);
+  const showUsername = params?.showUsername === true;
+
+  return (
+    <span className={`inline-flex items-center text-center ${className ?? ""}`}>
+      {greeting}{showUsername && username ? `, ${username}` : ""}
+    </span>
+  );
+}
+
+function getGreetingForHour(hour: number) {
+  if (hour >= 5 && hour < 12) return "Good morning";
+  if (hour >= 12 && hour < 17) return "Good afternoon";
+  if (hour >= 17 && hour < 22) return "Good evening";
+  return "Good night";
+}
+
+function getGreetingUsername(params?: Record<string, any>) {
+  const username = params?.username;
+  if (typeof username !== "string") return "";
+  return username.trim();
 }
 
 type ProgressType = "day" | "week" | "month" | "year";
@@ -292,25 +368,37 @@ function calcProgress(type: ProgressType): number {
   }
 }
 
+function resolveProgressPeriod(type?: string, params?: Record<string, any>): ProgressType {
+  const candidate = String(params?.period ?? params?.type ?? type ?? "day").trim();
+  if (candidate === "year" || candidate === "month" || candidate === "day" || candidate === "week") {
+    return candidate;
+  }
+
+  if (candidate === "year-progress") return "year";
+  if (candidate === "month-progress") return "month";
+  if (candidate === "week-progress") return "week";
+  return "day";
+}
+
 function LegacyProgress({
-  type,
+  period,
   params,
   className,
 }: {
-  type: ProgressType;
+  period: ProgressType;
   params?: Record<string, any>;
   className?: string;
 }) {
-  const [pct, setPct] = useState(() => `${calcProgress(type).toFixed(1)}%`);
+  const [pct, setPct] = useState(() => `${calcProgress(period).toFixed(1)}%`);
 
   useEffect(() => {
     const interval = setInterval(() => {
-      setPct(`${calcProgress(type).toFixed(1)}%`);
+      setPct(`${calcProgress(period).toFixed(1)}%`);
     }, 60000);
     return () => clearInterval(interval);
-  }, [type]);
+  }, [period]);
 
-  const label = params?.label !== undefined ? String(params.label) : PROGRESS_LABELS[type];
+  const label = params?.label !== undefined ? String(params.label) : PROGRESS_LABELS[period];
 
   return (
     <span className={`inline-flex items-center text-center ${className ?? ""}`}>
@@ -344,6 +432,15 @@ function formatWeather(params?: Record<string, any>, formatters?: TextFormatters
     ? formatters.formatTemperature(Number(temperature), params?.temperatureUnit ?? "c")
     : `${temperature}${unit}`;
   return `${emoji} ${temperatureText}${location}`.trim();
+}
+
+function formatGlanceableTime(value: string, formatters?: TextFormatters) {
+  if (!value.trim()) return "";
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+
+  return formatTime(date, undefined, formatters);
 }
 
 function getWeatherEmoji(weatherCode: unknown, description: unknown) {

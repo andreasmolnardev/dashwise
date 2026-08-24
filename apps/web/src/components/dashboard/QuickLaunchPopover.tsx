@@ -22,7 +22,7 @@ const quickLinks = [
     icon: "fa6-solid:newspaper",
   },
   {
-    href: "/links",
+    href: "/apps/links",
     label: "Links",
     icon: "fa6-solid:link",
   },
@@ -34,6 +34,24 @@ const quickLinks = [
   {
     href: "/frame",
     label: "Smart Frame",
+    icon: "teenyicons:screen-solid",
+  },
+];
+
+const companionRepos = [
+  {
+    href: "https://github.com/dashwise-homelab/chrome",
+    label: "Extension",
+    icon: "mdi:google-chrome",
+  },
+  {
+    href: "https://github.com/dashwise-homelab/integrations",
+    label: "Integrations",
+    icon: "fa6-solid:plug",
+  },
+  {
+    href: "https://github.com/dashwise-homelab/framecompanion",
+    label: "Frame Companion",
     icon: "teenyicons:screen-solid",
   },
 ];
@@ -143,6 +161,33 @@ export default function QuickLaunchPopover() {
               </div>
             </a>
           </PopoverClose>
+        </div>
+
+        <h2 className="mt-4 text-lg font-semibold">Companion repositories</h2>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+          {companionRepos.map((item) => (
+            <PopoverClose asChild key={item.href}>
+              <a
+                href={item.href}
+                target="_blank"
+                rel="noreferrer"
+                className="group grid min-h-24 justify-items-center justify-center items-center rounded-2xl p-3 transition hover:-translate-y-0.5 hover:bg-white/10"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <Icon
+                    icon={item.icon}
+                    width={24}
+                    className="text-foreground/80 transition-colors group-hover:text-primary"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <p className="text-center text-sm font-semibold leading-tight">
+                    {item.label}
+                  </p>
+                </div>
+              </a>
+            </PopoverClose>
+          ))}
         </div>
       </PopoverContent>
     </Popover>

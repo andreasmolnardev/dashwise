@@ -67,6 +67,52 @@ export async function runSearchItemsIndexing() {
       });
     }
 
+    const sshHosts = await pb.collection("monitoringHosts").getFullList(500, {
+      filter: `userId="${escapeFilter(userId)}" && type="ssh"`,
+      sort: "name",
+    }).catch(() => [] as Array<Record<string, any>>);
+
+    for (const host of sshHosts) {
+      const hostId = String(host?.id ?? "").trim();
+      const hostname = String(host?.hostname ?? "").trim();
+      if (!hostId || !hostname) continue;
+
+      const name = String(host?.name ?? "").trim() || hostname;
+      rows.push({
+        name,
+        icon: "fa6-solid:terminal",
+        secondary: `SSH - ${hostname}${host?.port ? `:${host.port}` : ""}`,
+        action: `url:/apps/monitoring/ssh?host=${encodeURIComponent(hostId)}`,
+        app: "",
+        tags: [name, hostname, "ssh"],
+        sourceId: `monitoring-ssh-host:${hostId}`,
+        sourceUpdated: String(host?.updated ?? ""),
+      });
+    }
+
+    const systemHosts = await pb.collection("monitoringHosts").getFullList(500, {
+      filter: `userId="${escapeFilter(userId)}" && type="monitor"`,
+      sort: "name",
+    }).catch(() => [] as Array<Record<string, any>>);
+
+    for (const host of systemHosts) {
+      const hostId = String(host?.id ?? "").trim();
+      const hostname = String(host?.hostname ?? "").trim();
+      if (!hostId || !hostname) continue;
+
+      const name = String(host?.name ?? "").trim() || hostname;
+      rows.push({
+        name,
+        icon: "fa6-solid:server",
+        secondary: `System Monitor - ${hostname}${host?.port ? `:${host.port}` : ""}`,
+        action: `url:/apps/monitoring/hosts/${encodeURIComponent(hostId)}`,
+        app: "",
+        tags: [name, hostname, "system", "monitor"],
+        sourceId: `monitoring-system-host:${hostId}`,
+        sourceUpdated: String(host?.updated ?? ""),
+      });
+    }
+
     const enabledIntegrations = await getEnabledIntegrationsMap(pb, userId);
     const integrations = await pb.collection("integrations").getFullList<SearchIndexIntegrationRecord>(500, {
       filter: `user=\"${userId.replace(/"/g, '\\\"')}\"`,
@@ -115,6 +161,16 @@ function buildDefaultShortcutSearchRows(): SearchItemRow[] {
       sourceId: `default-shortcut:${normalizeKey(action)}:${normalizeKey(name)}`,
     });
   }
+
+  rows.push({
+    name: "Log out",
+    icon: "fa6-solid:right-from-bracket",
+    secondary: "Dashwise",
+    action: "logout:",
+    app: "",
+    tags: ["log out", "logout", "sign out", "signout"],
+    sourceId: "default-shortcut:logout",
+  });
 
   return rows;
 }

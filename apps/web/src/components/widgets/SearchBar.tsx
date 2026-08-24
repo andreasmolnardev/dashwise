@@ -1,12 +1,16 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import useAuth from "@/context/useAuth";
+import useAuth, { COMMAND_BAR_OPEN_EVENT } from "@/context/useAuth";
 import CommandBar from './CommandBar';
 import { getSearchItemsAction } from '@/lib/apiClient';
+import { useApiQuery } from "@/hooks/useApiQuery";
+import { queryKeys } from "@/lib/queryClient";
 
 type SearchBarProps = {
   useRedirect: boolean;
   defaultOpen?: boolean;
+  showTrigger?: boolean;
+  enableGlobalShortcut?: boolean;
 };
 
 type ProxyAction = {
@@ -25,18 +29,6 @@ type SearchItem = {
   action: string | ProxyAction;
   tags?: string[];
 };
-
-type SearchItemsCache = {
-  fetchedAt: number;
-  items: SearchItem[];
-};
-
-const SEARCH_ITEMS_CACHE_PREFIX = "dashwise_search_items_cache";
-const SEARCH_ITEMS_CACHE_TTL_MS = 10 * 60 * 1000;
-
-function getSearchItemsCacheKey(userId: string | null | undefined) {
-  return `${SEARCH_ITEMS_CACHE_PREFIX}:${userId ?? "anonymous"}`;
-}
 
 function normalizeSearchItems(raw: unknown): SearchItem[] {
   if (Array.isArray(raw)) {
@@ -57,53 +49,21 @@ function normalizeSearchItems(raw: unknown): SearchItem[] {
   }
 }
 
-function readSearchItemsCache(cacheKey: string): SearchItemsCache | null {
-  try {
-    const raw = localStorage.getItem(cacheKey);
-    if (!raw) return null;
 
-    const parsed = JSON.parse(raw) as Partial<SearchItemsCache>;
-    if (!Array.isArray(parsed.items) || typeof parsed.fetchedAt !== "number") {
-      return null;
-    }
-
-    return {
-      fetchedAt: parsed.fetchedAt,
-      items: normalizeSearchItems(parsed.items),
-    };
-  } catch {
-    return null;
-  }
-}
-
-function writeSearchItemsCache(cacheKey: string, items: SearchItem[]) {
-  try {
-    const payload: SearchItemsCache = {
-      fetchedAt: Date.now(),
-      items,
-    };
-
-    localStorage.setItem(cacheKey, JSON.stringify(payload));
-  } catch {
-    // ignore storage errors
-  }
-}
-
-function isCacheFresh(cache: SearchItemsCache | null) {
-  return !!cache && Date.now() - cache.fetchedAt < SEARCH_ITEMS_CACHE_TTL_MS;
-}
-
-
-export default function SearchBar({ useRedirect, defaultOpen }: SearchBarProps) {
+export default function SearchBar({
+  useRedirect,
+  defaultOpen,
+  showTrigger = true,
+  enableGlobalShortcut = false,
+}: SearchBarProps) {
   const [redirecting, setRedirecting] = useState(false);
   const [open, setOpen] = useState(() => !!defaultOpen); // control CommandBar
   const didMountRef = useRef(false);
-  const { user, withAuth } = useAuth();
+  const { user } = useAuth();
 
   // fetched items from /api/v1/searchItems
-  const [searchItems, setSearchItems] = useState<SearchItem[]>([]);
-  const [loadingItems, setLoadingItems] = useState(false);
-  const [itemsError, setItemsError] = useState<string | null>(null);
+  const searchItemsQuery = useApiQuery(queryKeys.links.search, getSearchItemsAction, { enabled: open });
+  const searchItems = normalizeSearchItems(searchItemsQuery.data);
 
   useEffect(() => {
     if (!didMountRef.current) {
@@ -114,6 +74,28 @@ export default function SearchBar({ useRedirect, defaultOpen }: SearchBarProps) 
     if (defaultOpen) setOpen(true);
   }, [defaultOpen]);
 
+  useEffect(() => {
+    if (!enableGlobalShortcut) return;
+
+    const handleKey = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setOpen((previousOpen) => !previousOpen);
+      }
+    };
+
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [enableGlobalShortcut]);
+
+  useEffect(() => {
+    if (!enableGlobalShortcut) return;
+
+    const handleOpenCommandBar = () => setOpen(true);
+    window.addEventListener(COMMAND_BAR_OPEN_EVENT, handleOpenCommandBar);
+    return () => window.removeEventListener(COMMAND_BAR_OPEN_EVENT, handleOpenCommandBar);
+  }, [enableGlobalShortcut]);
+
 
   const handleFocus = () => {
     if (useRedirect) {
@@ -123,83 +105,26 @@ export default function SearchBar({ useRedirect, defaultOpen }: SearchBarProps) 
     setOpen(true);
   };
 
-  // Fetch items when the command bar is opened.
-  // Uses Authorization: Bearer <pb_token> from localStorage
-  const cacheKey = getSearchItemsCacheKey(user?.id);
-
-  useEffect(() => {
-    if (!open) return;
-
-    let cancelled = false;
-
-    const cached = readSearchItemsCache(cacheKey);
-    setSearchItems(cached?.items ?? []);
-
-    if (isCacheFresh(cached)) {
-      setLoadingItems(false);
-      setItemsError(null);
-      return;
-    }
-
-    async function fetchItems() {
-      setLoadingItems(true);
-      setItemsError(null);
-
-      try {
-        const data = await withAuth((auth) => getSearchItemsAction(auth));
-        const normalized = normalizeSearchItems(data);
-
-        if (cancelled) return;
-
-        setSearchItems(normalized);
-        writeSearchItemsCache(cacheKey, normalized);
-      } catch (err: unknown) {
-        if (cancelled) return;
-
-        const e = err as any;
-        console.warn('Failed to load searchItems', err);
-        if (e?.status === 401 || e?.status === 403) {
-          setItemsError('Unauthorized (invalid token)');
-        } else {
-          setItemsError(e?.message ?? 'Failed to load items');
-        }
-
-        if (!cached?.items.length) {
-          setSearchItems([]);
-        }
-      } finally {
-        if (cancelled) return;
-
-        setLoadingItems(false);
-      }
-    }
-
-    fetchItems();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [open, cacheKey, withAuth]);
-
   return (
     <>
-      <div
-        className={`flex items-center justify-center border frosted rounded-lg
-        focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500
-        transition-transform duration-300 ${redirecting ? 'scale-105 opacity-70' : 'scale-100 opacity-100'}`}
-      >
-        <input
-          type="text"
-          data-slot="input"
-          className="w-full bg-transparent px-3 py-2 text-[0.875rem] font-medium text-gray dark:text-white placeholder-(--text-on-frosted) hover:placeholder-(--text-color)
-               focus:outline-none"
-          placeholder="Search..."
-          onFocus={handleFocus}
-        />
+      {showTrigger && (
+        <div
+          className={`flex items-center justify-center border frosted rounded-lg
+            focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500
+            transition-transform duration-300 ${redirecting ? 'scale-105 opacity-70' : 'scale-100 opacity-100'}`}
+        >
+          <input
+            type="text"
+            data-slot="input"
+            className="w-full bg-transparent px-3 py-2 text-[0.875rem] font-medium text-gray dark:text-white placeholder-(--text-on-frosted) hover:placeholder-(--text-color)
+                   focus:outline-none"
+            placeholder="Search..."
+            onFocus={handleFocus}
+          />
+        </div>
+      )}
 
-        {/* Pass fetched items into CommandBar */}
-        <CommandBar open={open} setOpen={setOpen} searchItems={searchItems} config={user?.searchPreferences ?? {}}/>
-      </div>
+      <CommandBar open={open} setOpen={setOpen} searchItems={searchItems} config={user?.searchPreferences ?? {}}/>
     </>
   );
 }

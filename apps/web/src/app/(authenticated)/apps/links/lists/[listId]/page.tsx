@@ -1,11 +1,14 @@
 "use client";
 
 import { useParams } from "react-router-dom";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import useAuth from "@/context/useAuth";
 import { getLinksCollectionsAction, getLinksFoldersAction, getLinksItemsAction, getLinksTagsAction } from '@/lib/apiClient';
 import LinksDetailView, { type LinkFolderRecord, type LinkItemRecord, type LinkTagRecord } from "@/components/links/LinksDetailView";
 import CreateLinksItemDialog from "@/components/links/CreateLinksItemDialog";
+import { useApiQuery } from "@/hooks/useApiQuery";
+import { queryKeys } from "@/lib/queryClient";
+import { useQueryClient } from "@tanstack/react-query";
 
 type LinkCollection = {
     id: string;
@@ -17,50 +20,17 @@ type LinkCollection = {
 
 export default function LinksListDetailPage() {
     const { listId = "" } = useParams();
-    const { token, withAuth } = useAuth();
-    const [collections, setCollections] = useState<LinkCollection[]>([]);
-    const [folders, setFolders] = useState<LinkFolderRecord[]>([]);
-    const [items, setItems] = useState<LinkItemRecord[]>([]);
-    const [tags, setTags] = useState<LinkTagRecord[]>([]);
+    const { token } = useAuth();
+    const queryClient = useQueryClient();
+    const collectionsQuery = useApiQuery(queryKeys.links.collections, getLinksCollectionsAction);
+    const foldersQuery = useApiQuery(queryKeys.links.folders(listId), (auth) => getLinksFoldersAction(auth, listId), { enabled: Boolean(listId) });
+    const itemsQuery = useApiQuery(queryKeys.links.items(listId), (auth) => getLinksItemsAction(auth, listId), { enabled: Boolean(listId) });
+    const tagsQuery = useApiQuery(queryKeys.links.tags, getLinksTagsAction);
+    const collections = (collectionsQuery.data ?? []) as LinkCollection[];
+    const folders = (foldersQuery.data ?? []) as LinkFolderRecord[];
+    const items = (itemsQuery.data ?? []) as LinkItemRecord[];
+    const tags = (tagsQuery.data ?? []) as LinkTagRecord[];
     const [createLinkOpen, setCreateLinkOpen] = useState(false);
-
-    useEffect(() => {
-        if (!token || !listId) return;
-
-        let mounted = true;
-
-        const load = async () => {
-            try {
-                const [collectionsData, foldersData, itemsData, tagsData] = await Promise.all([
-                    withAuth((auth) => getLinksCollectionsAction(auth)),
-                    withAuth((auth) => getLinksFoldersAction(auth, listId)),
-                    withAuth((auth) => getLinksItemsAction(auth, listId)),
-                    withAuth((auth) => getLinksTagsAction(auth)),
-                ]);
-
-                if (!mounted) return;
-
-                setCollections(Array.isArray(collectionsData) ? (collectionsData as LinkCollection[]) : []);
-                setFolders(Array.isArray(foldersData) ? (foldersData as LinkFolderRecord[]) : []);
-                setItems(Array.isArray(itemsData) ? (itemsData as LinkItemRecord[]) : []);
-                setTags(Array.isArray(tagsData) ? (tagsData as LinkTagRecord[]) : []);
-            } catch (error) {
-                console.error("Failed to load list details:", error);
-                if (mounted) {
-                    setCollections([]);
-                    setFolders([]);
-                    setItems([]);
-                    setTags([]);
-                }
-            }
-        };
-
-        load();
-
-        return () => {
-            mounted = false;
-        };
-    }, [listId, token, withAuth]);
 
     const list = useMemo(
         () => collections.find((collection) => collection.id === listId) ?? null,
@@ -97,7 +67,7 @@ export default function LinksListDetailPage() {
                 tags={tags}
                 onAddLink={() => setCreateLinkOpen(true)}
                 onFolderCreated={(folder) => {
-                    setFolders((current) => [folder, ...current.filter((existing) => existing.id !== folder.id)]);
+                    queryClient.setQueryData<LinkFolderRecord[]>(["api", token, ...queryKeys.links.folders(listId)], (current = []) => [folder, ...current.filter((existing) => existing.id !== folder.id)]);
                 }}
             />
 
@@ -108,7 +78,7 @@ export default function LinksListDetailPage() {
                 onCreated={(link) => {
                     if (link.collection !== listId) return;
 
-                    setItems((current) => [link as LinkItemRecord, ...current.filter((item) => item.id !== link.id)]);
+                    queryClient.setQueryData<LinkItemRecord[]>(["api", token, ...queryKeys.links.items(listId)], (current = []) => [link as LinkItemRecord, ...current.filter((item) => item.id !== link.id)]);
                 }}
             />
         </>

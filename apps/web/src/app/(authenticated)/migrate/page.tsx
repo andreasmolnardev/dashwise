@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import useAuth from "@/context/useAuth";
 import { Card } from "@/components/ui/card";
@@ -9,19 +9,22 @@ import { fixMissingTitlesAction } from '@/lib/apiClient';
 
 export default function MigratePage() {
   const [loading, setLoading] = useState(false);
-  const { token, user } = useAuth();
+  const { token, redirectToLogin, withAuthRedirect } = useAuth();
   const [result, setResult] = useState<string | null>(null);
 
-  const runMigration = async () => {
+  useEffect(() => {
     if (!token) {
-      setResult("Missing auth token");
-      return;
+      redirectToLogin();
     }
+  }, [redirectToLogin, token]);
 
+  if (!token) return null;
+
+  const runMigration = async () => {
     setLoading(true);
     setResult(null);
     try {
-      const res = await migrateLegacyPageConfigAction({ token });
+      const res = await withAuthRedirect(migrateLegacyPageConfigAction);
       setResult(JSON.stringify(res, null, 2));
     } catch (err) {
       setResult(String(err));
@@ -31,15 +34,10 @@ export default function MigratePage() {
   };
 
   const runFixMissingTitles = async () => {
-    if (!token) {
-      setResult("Missing auth token");
-      return;
-    }
-
     setLoading(true);
     setResult(null);
     try {
-      const res = await fixMissingTitlesAction({ token });
+      const res = await withAuthRedirect(fixMissingTitlesAction);
       setResult(JSON.stringify(res, null, 2));
     } catch (err) {
       setResult(String(err));
@@ -52,7 +50,7 @@ export default function MigratePage() {
     <div style={{ padding: 16, width: "50vw", marginInline: "auto" }} className="space-y-2">
       <h1 className="text-2xl font-bold">Migrations</h1>
       <p>Sometimes data doesn't persist fully across version updates.</p>
-      <Card className="p-2 frosted">
+      <Card className="p-2 frosted text-foreground">
         <h2 className="text-xl font-semibold">
           Legacy per-user config migration
         </h2>
@@ -65,7 +63,7 @@ export default function MigratePage() {
           {loading ? "Running migration…" : "Run migration"}
         </Button>
       </Card>
-      <Card className="frosted p-2">
+      <Card className="frosted p-2 text-foreground">
         <h2 className="text-xl font-semibold">
           News subscription add missing titles
         </h2>
@@ -79,7 +77,7 @@ export default function MigratePage() {
       </Card>
 
       {result && (
-        <Card className="p-2 frosted">
+        <Card className="p-2 frosted text-foreground">
           <h2 className="text-xl font-semibold">Result</h2>
           <pre style={{ marginTop: 12, whiteSpace: "pre-wrap" }}>{result}</pre>
         </Card>

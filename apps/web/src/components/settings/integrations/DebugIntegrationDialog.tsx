@@ -406,48 +406,7 @@ export function DebugIntegrationDialog({
                                       </div>
                                     </div>
 
-                                    <div className="space-y-1 mt-2">
-                                      <p className="text-xs font-medium text-muted-foreground">
-                                        Request
-                                      </p>
-                                      <div className="rounded-lg bg-muted/50 p-2 font-mono text-xs overflow-x-auto max-w-full">
-                                        <div>
-                                          <Badge>{endpoint.method}</Badge>{" "}
-                                          {endpoint.resolvedUrl || endpoint.url}
-                                        </div>
-                                        {Object.keys(
-                                              endpoint.resolvedHeaders ?? {},
-                                            ).length > 0 && (
-                                          <div className="mt-1 text-muted-foreground">
-                                            Headers:{" "}
-                                            {JSON.stringify(
-                                              endpoint.resolvedHeaders,
-                                            )}
-                                          </div>
-                                        )}
-                                        {endpoint.resolvedBody && (
-                                          <div className="mt-1 text-muted-foreground">
-                                            Body:{" "}
-                                            {typeof endpoint.resolvedBody ===
-                                                "string"
-                                              ? endpoint.resolvedBody
-                                              : JSON.stringify(
-                                                endpoint.resolvedBody as Record<
-                                                  string,
-                                                  unknown
-                                                >,
-                                              )}
-                                          </div>
-                                        )}
-                                        {endpoint.auth && (
-                                          <div className="mt-1 text-muted-foreground">
-                                            Auth: {endpoint.auth}
-                                          </div>
-                                        )}
-                                      </div>
-                                    </div>
-
-                                    <div className="space-y-1 mt-2">
+	                                    <div className="space-y-1 mt-2">
                                       <p className="text-xs font-medium text-muted-foreground">
                                         Request
                                       </p>

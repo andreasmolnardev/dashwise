@@ -1,4 +1,8 @@
+import { readFileSync } from "node:fs";
+
 const env = Bun.env;
+
+const dashwiseVersion = readFileSync(new URL("../../../../VERSION", import.meta.url), "utf8").trim();
 
 const processAllowSsl = env.ALLOW_SSL;
 const processEnvironment = env.ENVIRONMENT;
@@ -18,6 +22,13 @@ const truthyEnv = (value?: string | null): boolean => {
   return value === "1" || value.toLowerCase() === "true";
 };
 
+const requestedLocalFeedCache = truthyEnv(env.USE_LOCAL_FEED_CACHE);
+const useLocalFeedCache = requestedLocalFeedCache && processEnvironment === "dev";
+
+if (requestedLocalFeedCache && !useLocalFeedCache) {
+  console.warn("USE_LOCAL_FEED_CACHE is only supported in development and will be ignored");
+}
+
 /**
  * Get env var with NEXT_PUBLIC_ fallback for backend compatibility.
  * Backend can use either the non-prefixed or NEXT_PUBLIC_ version.
@@ -33,6 +44,7 @@ const getLogLevel = (): string | undefined => {
 
 export const config = {
   ENVIRONMENT: processEnvironment === "dev" ? "dev" : "production",
+  USE_LOCAL_FEED_CACHE: useLocalFeedCache,
   PORT: Number(env.PORT) || 3000,
   PB_URL: getEnv("PB_URL", "NEXT_PUBLIC_PB_URL") || "http://127.0.0.1:8090",
   PB_BINARY_PATH: env.PB_BINARY_PATH,
@@ -59,7 +71,7 @@ export const config = {
   PB_ADMIN_PASSWORD: env.PB_ADMIN_PASSWORD,
   DASHWISE_URL: env.DASHWISE_URL || (processEnvironment === "dev" ? "http://localhost:3000" : ""),
   APP_BASE_URL: getEnv("APP_BASE_URL", "NEXT_PUBLIC_APP_URL") || env.DASHWISE_URL || (processEnvironment === "dev" ? "http://localhost:3000" : ""),
-  DASHWISE_VERSION: 'v1.0-alpha1',
+  DASHWISE_VERSION: dashwiseVersion || "development",
   GITHUB_REPO: 'andreasmolnardev/dashwise-next',
   INSTANCE_NAME: getEnv("INSTANCE_NAME", "NEXT_PUBLIC_INSTANCE_NAME") || "Dashwise",
   DISABLE_USER_SIGNUP: truthyEnv(getEnv("DISABLE_USER_SIGNUP", "NEXT_PUBLIC_DISABLE_USER_SIGNUP")),

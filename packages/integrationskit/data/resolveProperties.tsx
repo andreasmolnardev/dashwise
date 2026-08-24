@@ -39,6 +39,8 @@ export function getRuntimeEnv(
   integrationJSON: Record<string, any> | null,
   baseEnv: Record<string, string> = {},
 ): Record<string, string> {
+	const now = new Date();
+	const now24HoursAgoIso = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
   const integrationEnv =
     integrationJSON?.configuration?.environment_variables &&
     typeof integrationJSON.configuration.environment_variables === "object"
@@ -51,6 +53,10 @@ export function getRuntimeEnv(
       : {};
 
   return {
+		NOW_ISO: now.toISOString(),
+		NOW_DATE: now.toISOString().slice(0, 10),
+		NOW_24H_AGO_ISO: now24HoursAgoIso,
+		NOW_24H_AGO_DATE: now24HoursAgoIso.slice(0, 10),
     ...integrationEnv,
     ...baseEnv,
   };
@@ -88,15 +94,16 @@ export async function resolveIntegrationRuntimeProperties(
     };
   }
 
-  const endpointResult = await resolveEndpointCatalog(
-    integrationConfig.endpoints,
-    {
-      env: runtimeEnv,
-      scope: {},
-      cache: endpointCache,
-    },
-    allowInsecureEndpoints,
-  );
+	const endpointResult = await resolveEndpointCatalog(
+		integrationConfig.endpoints,
+		{
+			env: runtimeEnv,
+			scope: {},
+			cache: endpointCache,
+			rateLimit: resolveEndpointRateLimit(integrationJSON, integrationConfig),
+		},
+		allowInsecureEndpoints,
+	);
 
   const computed = resolveComputedFields(integrationConfig.computed, {
     env: endpointResult.env,
@@ -120,6 +127,27 @@ export async function resolveIntegrationRuntimeProperties(
       ...flattenToEnv(runtimeScope),
     },
   };
+}
+
+function resolveEndpointRateLimit(
+	integrationJSON: Record<string, any> | null,
+	integrationConfig: Record<string, any>,
+) {
+	const rawRateLimit = integrationConfig.rate_limit ?? integrationConfig.rateLimit;
+	if (!rawRateLimit || typeof rawRateLimit !== "object") return null;
+
+	const requestsPerSecond = Number(
+		rawRateLimit.requests_per_second ?? rawRateLimit.requestsPerSecond,
+	);
+	if (!Number.isFinite(requestsPerSecond) || requestsPerSecond <= 0) return null;
+
+	const name = typeof integrationJSON?.details?.name === "string"
+		? integrationJSON.details.name
+		: "integration";
+	return {
+		key: `${name}:${requestsPerSecond}`,
+		requestsPerSecond,
+	};
 }
 
 type RuntimeDataResolutionOptions = {
@@ -190,8 +218,136 @@ export function resolveWidgetProperties(opts: ResolveOptions): ResolvedWidget {
     return patchIntegrationIcons(result, env);
   }
 
+  if (template === "image") {
+    const image = resolveImageProperties(props, env, data);
+    const titleUrl = resolveValue(props.title_url ?? props.titleUrl ?? props.title_action, env);
+    const result: ResolvedWidget = {
+      header: titleUrl ? { ...(header ?? {}), titleAction: titleUrl } : header,
+      image,
+      raw: props,
+    };
+    return patchIntegrationIcons(result, env);
+  }
+
   const result: ResolvedWidget = { header, raw: props };
   return patchIntegrationIcons(result, env);
+}
+
+function resolveImageProperties(
+  props: Record<string, any>,
+  env: Record<string, string>,
+  data: Record<string, any> | null,
+) {
+  const imageConfig = isPlainObject(props.image) ? props.image : {};
+  const sourceConfig = isPlainObject(props.source) ? props.source : {};
+  const directUrl = resolveValue(
+    props.url ?? props.image_url ?? props.imageUrl ?? imageConfig.url ?? sourceConfig.url,
+    env,
+  );
+  const endpointKey = resolveValue(
+    props.endpoint ?? props.endpoint_id ?? props.endpointId ?? imageConfig.endpoint ?? sourceConfig.endpoint,
+    env,
+  );
+  const property = resolveValue(
+    props.image_url_property ?? props.imageUrlProperty ?? props.url_property ??
+      props.image_url_path ?? props.imageUrlPath ?? props.property ?? imageConfig.property ??
+      sourceConfig.property ?? sourceConfig.image_url_property ?? sourceConfig.image_url_path,
+    env,
+  );
+
+  let url = directUrl;
+  if ((!url || !looksLikeImageUrl(url)) && data?.endpoints) {
+    const endpoints = data.endpoints as Record<string, any>;
+    const endpoint = endpointKey
+      ? endpoints[String(endpointKey)]
+      : Object.keys(endpoints).length === 1
+      ? endpoints[Object.keys(endpoints)[0]]
+      : undefined;
+    const responses = [endpoint?.mappedResponse, endpoint?.rawResponse];
+    const selected = property
+      ? responses.map((response) => getImagePath(response, property)).find((value) => value !== undefined)
+      : responses.map((response) => findImageUrl(response)).find(Boolean);
+    const discovered = typeof selected === "string" ? selected : findImageUrl(selected);
+    if (discovered) url = discovered;
+  }
+
+  return {
+    url: url || undefined,
+    action: resolveValue(props.click_action ?? props.clickAction ?? props.action ?? imageConfig.action, env),
+    alt: resolveValue(props.alt ?? props.image_alt ?? imageConfig.alt, env),
+    showAltAsDescription: resolveBoolean(
+      props.show_alt_as_description ?? props.showAltAsDescription ??
+        imageConfig.show_alt_as_description ?? imageConfig.showAltAsDescription,
+      env,
+    ),
+    altDescriptionMaxLines: resolveNumber(
+      props.alt_description_max_lines ?? props.altDescriptionMaxLines ??
+        imageConfig.alt_description_max_lines ?? imageConfig.altDescriptionMaxLines,
+      env,
+    ),
+    minHeight: resolveNumber(props.min_height ?? props.minHeight ?? imageConfig.min_height, env),
+    maxHeight: resolveNumber(props.max_height ?? props.maxHeight ?? imageConfig.max_height, env),
+    objectFit: resolveObjectFit(props.object_fit ?? props.objectFit ?? imageConfig.object_fit, env),
+  };
+}
+
+function resolveBoolean(value: unknown, env: Record<string, string>) {
+  const resolved = resolveValue(value, env);
+  if (resolved === undefined) return undefined;
+  return ["true", "1", "yes", "on"].includes(resolved.trim().toLowerCase());
+}
+
+function getImagePath(value: unknown, path: string): unknown {
+  return path.split(".").reduce<unknown>((current, segment) => {
+    if (current === null || current === undefined || typeof current !== "object") return undefined;
+    return (current as Record<string, unknown>)[segment];
+  }, value);
+}
+
+function findImageUrl(value: unknown, keyHint = ""): string | undefined {
+  if (typeof value === "string") {
+    const candidate = value.trim();
+    if (isImageCandidate(candidate, keyHint)) return candidate;
+    return undefined;
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const found = findImageUrl(item, keyHint);
+      if (found) return found;
+    }
+    return undefined;
+  }
+  if (!value || typeof value !== "object") return undefined;
+
+  const entries = Object.entries(value as Record<string, unknown>);
+  const prioritized = entries.sort(([left], [right]) => imageKeyScore(right) - imageKeyScore(left));
+  for (const [key, child] of prioritized) {
+    const found = findImageUrl(child, key);
+    if (found) return found;
+  }
+  return undefined;
+}
+
+function imageKeyScore(key: string) {
+  return /^(image|img|thumbnail|thumb|src|url|href|path)(_url)?$/i.test(key) ? 2 : 0;
+}
+
+function isImageCandidate(value: string, keyHint: string) {
+  if (!/^(https?:)?\/\//i.test(value) && !/^data:image\//i.test(value) && !/^\//.test(value)) {
+    return false;
+  }
+  return imageKeyScore(keyHint) > 0 || /\.(avif|gif|jpe?g|png|svg|webp)(?:[?#].*)?$/i.test(value) || /^data:image\//i.test(value);
+}
+
+function looksLikeImageUrl(value: string) {
+  return /^(https?:)?\/\//i.test(value) || /^data:image\//i.test(value) || /^\//.test(value);
+}
+
+function resolveObjectFit(value: unknown, env: Record<string, string>) {
+  const resolved = resolveValue(value, env);
+  return ["contain", "cover", "fill", "none", "scale-down"].includes(String(resolved))
+    ? String(resolved) as "contain" | "cover" | "fill" | "none" | "scale-down"
+    : undefined;
 }
 
 function patchIntegrationIcons(res: ResolvedWidget, env: Record<string, any>) {
@@ -359,7 +515,13 @@ function resolveColumnItem(
     label: resolveValue(c.label, env),
     primary: resolveValue(c.primary, env),
     primaryAction: resolveAction(c.primaryAction, env),
-    secondary: resolveValue(c.secondary, env),
+    secondary: resolveValue(c.secondary ?? c.stats?.secondary, env),
+    stats: c.stats
+      ? {
+        primary: resolveValue(c.stats.primary, env),
+        secondary: resolveValue(c.stats.secondary, env),
+      }
+      : undefined,
     title: resolveValue(c.title, env),
     titleAction: resolveAction(c.titleAction, env),
     thumbnail: resolveValue(c.thumbnail, env),
@@ -589,6 +751,12 @@ function deriveIterateeAlias(path: string): string | undefined {
 function buildEnv(opts: ResolveOptions): Record<string, string> {
   const { widgetJSON, integrationJSON, data, isPreview } = opts;
   const env: Record<string, string> = {};
+
+  const now = new Date();
+  env.NOW_ISO = now.toISOString();
+  env.NOW_DATE = now.toISOString().slice(0, 10);
+  env.NOW_24H_AGO_ISO = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
+  env.NOW_24H_AGO_DATE = env.NOW_24H_AGO_ISO.slice(0, 10);
 
   const envVarDefs: Record<string, any> =
     integrationJSON?.configuration?.environment_variables ?? {};

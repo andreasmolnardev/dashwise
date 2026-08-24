@@ -1,4 +1,4 @@
-import type { ActionAuth, AuthUserRecord, UserPropertyValue } from "@dashwise/types/sdk";
+import type { ActionAuth, AuthUserRecord, MonitorRecord, UserPropertyValue } from "@dashwise/types/sdk";
 export type { MonitorRecord } from "@dashwise/types/sdk";
 import type {
   NewsFeedDraft,
@@ -11,6 +11,7 @@ import type {
   NewsFeedsResponse,
   NewsSubscribeInput,
   NewsSubscriptionsResponse,
+  NewsSubscriptionJsonResponse,
   NewsUpdateInput,
 } from "@dashwise/types/sdk";
 import type { PageConfig } from "@dashwise/types/sdk";
@@ -18,7 +19,7 @@ import config from "@/lib/config";
 import { client } from "./api/client.gen";
 import * as sdk from "./api/sdk.gen";
 
-const { getAppConfig, getAppInfo, postAuthLogin, postAuthChangePassword, postAuthSignup, postAuthValidateAuth, deleteAuthDeleteAccount, patchAuthUpdateUserProperty, getLinksCollections, postLinksCollections, putLinksCollectionsByCollectionId, postLinksTags, putLinksTagsByTagId, getLinksHomeGroups, postLinksHomeGroups, putLinksFoldersByFolderIdIcon, getLinksHome, getLinksFolders, postLinksFolders, getLinksItems, getLinksTags, postLinksItems, putLinksItemsByLinkId, deleteLinksItemsByLinkId, postLinksReorder, getIntegrations, postIntegrations, putIntegrationsById, deleteIntegrationsById, postIntegrationsTestEndpoint, getIntegrationsWidgetProperties, getWidgetsByIntegration, postIntegrationsConsumerData, getIntegrationsCaldavEvents, postIntegrationsProxyAction, getWidgets, getGlanceables, getGlanceablesByIntegration, getMonitoringStatus, postMonitoringStatus, getMonitors, getMonitorsById, putMonitorsById, postMonitors, deleteMonitorsById, getNewsFeedsById, getNewsFeedRecordsById, postNewsFeedRecords, getNewsSubscriptions, getNewsFeeds, getNewsFeedMetadata, postNewsFeedRefresh, postNewsFeedSubscribe, postNewsFeedUnsubscribe, postNewsFeedUpdate, postNewsFeedRecordsById, postNewsFixMissingTitles, getPageConfig, getPageConfigUserPages, putPageConfig, postPageConfigHome, postPageConfigMigrateLegacy, postPageConfigIntegrationData, getSearchItems, getSearchItemsFrequentlyUsed, postSearchItemsUsageStats, getLocations, getJobsPullIcons, postWallpapers, getNotifications, getNotificationsTopics, postNotificationsTopics, deleteNotificationsTopics, postNotificationsMarkAsRead, postNotificationsTest, getNotificationsTopicTokens, postNotificationsTopicTokens, deleteNotificationsTopicTokens, getNotificationsForwarders, postNotificationsForwarders, putNotificationsForwarders, deleteNotificationsForwarders } = sdk;
+const { getAppConfig, getAppInfo, postAuthLogin, postAuthChangePassword, postAuthSignup, postAuthValidateAuth, deleteAuthDeleteAccount, patchAuthUpdateUserProperty, getLinksCollections, postLinksCollections, putLinksCollectionsByCollectionId, postLinksTags, putLinksTagsByTagId, getLinksHomeGroups, postLinksHomeGroups, putLinksFoldersByFolderIdIcon, getLinksHome, getLinksFolders, postLinksFolders, getLinksItems, getLinksTags, postLinksItems, putLinksItemsByLinkId, deleteLinksItemsByLinkId, postLinksReorder, getIntegrations, postIntegrations, putIntegrationsById, deleteIntegrationsById, postIntegrationsTestEndpoint, getIntegrationsWidgetProperties, getWidgetsByIntegration, postIntegrationsConsumerData, getIntegrationsCaldavEvents, postIntegrationsProxyAction, getWidgets, getGlanceables, getGlanceablesByIntegration, getMonitoringStatus, postMonitoringStatus, getMonitoringSshHosts, postMonitoringSshHosts, putMonitoringSshHostsById, getMonitoringHosts, postMonitoringHosts, getMonitoringHostsByIdHistory, getMonitors, getMonitorsById, putMonitorsById, postMonitors, deleteMonitorsById, getNewsFeedRecordsById, postNewsFeedRecords, getNewsSubscriptions, getNewsFeeds, getNewsFeedMetadata, postNewsFeedRefresh, postNewsFeedSubscribe, postNewsFeedUnsubscribe, postNewsFeedUpdate, postNewsFeedRecordsById, postNewsFixMissingTitles, getPageConfig, getPageConfigUserPages, putPageConfig, postPageConfigHome, postPageConfigMigrateLegacy, postPageConfigIntegrationData, getSearchItems, getSearchItemsFrequentlyUsed, postSearchItemsUsageStats, getLocations, getJobsPullIcons, postWallpapers, getNotifications, getNotificationsTopics, postNotificationsTopics, deleteNotificationsTopics, postNotificationsMarkAsRead, postNotificationsTest, getNotificationsTopicTokens, postNotificationsTopicTokens, deleteNotificationsTopicTokens, getNotificationsForwarders, postNotificationsForwarders, putNotificationsForwarders, deleteNotificationsForwarders } = sdk;
 export * from "./api/sdk.gen";
 export type { GenericObject, Error } from "./api/types.gen";
 
@@ -32,6 +33,35 @@ client.setConfig({
   baseUrl: (getBaseUrl() ?? "").replace(/\/+$/, "") + apiBasePath,
 });
 
+function redirectToLoginAfterUnauthorized() {
+  if (typeof window === "undefined") return;
+
+  localStorage.removeItem("pb_user");
+  localStorage.removeItem("pb_token");
+  document.cookie = "pb_token=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax; Secure";
+  document.cookie = "pb_user=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax; Secure";
+
+  if (window.location.pathname !== "/auth/login") {
+    window.location.assign("/auth/login");
+  }
+}
+
+function handleUnauthorizedResponse(response?: Response) {
+  if (response?.status === 401) {
+    redirectToLoginAfterUnauthorized();
+  }
+}
+
+client.interceptors.response.use((response) => {
+  handleUnauthorizedResponse(response);
+  return response;
+});
+
+client.interceptors.error.use((error, response) => {
+  handleUnauthorizedResponse(response);
+  return error;
+});
+
 export function backendUrl(path: string) {
   return new URL(path.replace(/^\/+/, ""), getBaseUrl()).toString();
 }
@@ -39,6 +69,59 @@ export function backendUrl(path: string) {
 export function authHeaders(auth?: ActionAuth | null): Record<string, string> | undefined {
   return auth?.token ? { Authorization: `Bearer ${auth.token}` } : undefined;
 }
+
+export type MonitoringSshHostRecord = {
+  id: string;
+  userId?: string;
+  name: string;
+  hostname: string;
+  port: number;
+  username: string;
+  authMethod: "password" | "key";
+  hasCredential?: boolean;
+  status?: string;
+  created?: string;
+  updated?: string;
+};
+
+export type MonitoringHostRecord = MonitoringSshHostRecord & {
+  type?: "ssh" | "monitor";
+  systemInfo?: Record<string, unknown>;
+  lastConnectedAt?: string;
+};
+
+export type MonitoringHostStatsRecord = {
+  timestamp?: string;
+  created?: string;
+  stats?: Record<string, unknown>;
+  [key: string]: unknown;
+};
+
+export type MonitoringHostInput = {
+  name: string;
+  hostname: string;
+  port: number;
+  url: string;
+  liveUrl?: string;
+  token: string;
+};
+
+export type MonitoringSshHostInput = {
+  name: string;
+  hostname: string;
+  port: number;
+  username: string;
+  authMethod: "password" | "key";
+  password?: string;
+  publicKey?: string;
+  privateKey?: string;
+};
+
+export type NewsFeedPageResponse = {
+  items: NewsFeedItem[];
+  total: number;
+  limit: number;
+};
 
 function stringifyError(error: unknown) {
   if (typeof error === "string") return error;
@@ -54,9 +137,12 @@ function isWallpaperApiUrl(url: URL) {
   return url.pathname === "/api/v1/wallpapers" || url.pathname.endsWith("/api/v1/wallpapers");
 }
 
-export async function extractData<T>(result: { data?: T; error?: unknown }): Promise<T> {
+export async function extractData<T>(result: { data?: T; error?: unknown; response?: Response }): Promise<T> {
   if (result?.error) {
-    throw new Error(stringifyError(result.error));
+    const error = new Error(stringifyError(result.error)) as Error & { status?: number; body?: unknown };
+    error.status = result.response?.status;
+    error.body = result.error;
+    throw error;
   }
   return result?.data as T;
 }
@@ -68,6 +154,8 @@ export async function fetchWallpaperBlob(imageUrl: string, token?: string): Prom
     const response = await fetch(url.toString(), {
       headers: token ? { Authorization: `Bearer ${token}` } : undefined,
     });
+
+    handleUnauthorizedResponse(response);
 
     if (!response.ok) {
       throw new Error("Failed to fetch wallpaper");
@@ -242,6 +330,27 @@ export async function testIntegrationEndpointAction(auth: ActionAuth, target: st
   return extractData(await postIntegrationsTestEndpoint({ body: { auth, target }, headers: authHeaders(auth) }));
 }
 
+export async function previewImageSourceAction(
+  auth: ActionAuth,
+  url: string,
+  invalidateAfter?: string | number,
+) {
+  const response = await fetch(backendUrl("/api/v1/integrations/preview-json"), {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+      ...(authHeaders(auth) ?? {}),
+    },
+    body: JSON.stringify({ url, invalidateAfter }),
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(typeof payload?.error === "string" ? payload.error : "Image preview request failed");
+  }
+  return payload as { body?: unknown };
+}
+
 export async function getWidgetPropertiesAction(auth: ActionAuth, widgetSlug: string) {
   return extractData(await getIntegrationsWidgetProperties({ query: { widgetSlug }, headers: authHeaders(auth) }));
 }
@@ -328,10 +437,47 @@ export async function deleteMonitorAction(auth: ActionAuth, monitorId: string): 
   return extractData(await deleteMonitorsById({ path: { id: monitorId }, headers: authHeaders(auth) }));
 }
 
+export async function getMonitoringSshHostsAction(auth: ActionAuth): Promise<MonitoringSshHostRecord[]> {
+  return extractData(await getMonitoringSshHosts({ headers: authHeaders(auth) })) as Promise<MonitoringSshHostRecord[]>;
+}
+
+export async function getMonitoringHostsAction(auth: ActionAuth): Promise<MonitoringHostRecord[]> {
+  return extractData(await getMonitoringHosts({ headers: authHeaders(auth) })) as Promise<MonitoringHostRecord[]>;
+}
+
+export async function createMonitoringHostAction(auth: ActionAuth, data: MonitoringHostInput): Promise<MonitoringHostRecord> {
+  return extractData(await postMonitoringHosts({ body: data, headers: authHeaders(auth) })) as Promise<MonitoringHostRecord>;
+}
+
+export async function getMonitoringHostHistoryAction(
+  auth: ActionAuth,
+  hostId: string,
+  timestamp?: string,
+): Promise<MonitoringHostStatsRecord[] | { records?: MonitoringHostStatsRecord[] }> {
+  return extractData(await getMonitoringHostsByIdHistory({
+    path: { id: hostId },
+    query: timestamp ? { timestamp } : undefined,
+    headers: authHeaders(auth),
+  })) as Promise<MonitoringHostStatsRecord[] | { records?: MonitoringHostStatsRecord[] }>;
+}
+
+export async function createMonitoringSshHostAction(auth: ActionAuth, data: MonitoringSshHostInput): Promise<MonitoringSshHostRecord> {
+  return extractData(await postMonitoringSshHosts({ body: data, headers: authHeaders(auth) })) as Promise<MonitoringSshHostRecord>;
+}
+
+export async function updateMonitoringSshHostAction(auth: ActionAuth, hostId: string, data: Partial<MonitoringSshHostInput>): Promise<MonitoringSshHostRecord> {
+  return extractData(await putMonitoringSshHostsById({ path: { id: hostId }, body: data, headers: authHeaders(auth) })) as Promise<MonitoringSshHostRecord>;
+}
+
 // --- News actions ---
 
-export async function getNewsFeedAction(auth: ActionAuth, feedId?: string | null): Promise<NewsFeedItem[]> {
-  return extractData(await getNewsFeedsById({ path: { id: feedId ?? "all" }, headers: authHeaders(auth) })) as Promise<NewsFeedItem[]>;
+export async function getNewsFeedAction(auth: ActionAuth, feedId?: string | null, limit?: number, offset?: number): Promise<NewsFeedPageResponse> {
+  return extractData(await client.get({
+    url: "/news/feeds/{id}",
+    path: { id: feedId ?? "all" },
+    query: limit || offset ? { limit, offset } : undefined,
+    headers: authHeaders(auth),
+  })) as Promise<NewsFeedPageResponse>;
 }
 
 export async function getNewsFeedRecordAction(auth: ActionAuth, feedId?: string | null): Promise<NewsFeedRecord | null> {
@@ -344,6 +490,10 @@ export async function createNewsFeedRecordAction(auth: ActionAuth, payload: News
 
 export async function getNewsSubscriptionsAction(auth: ActionAuth): Promise<NewsSubscriptionsResponse> {
   return extractData(await getNewsSubscriptions({ headers: authHeaders(auth) })) as Promise<NewsSubscriptionsResponse>;
+}
+
+export async function getNewsSubscriptionJsonAction(auth: ActionAuth, subscriptionId: string): Promise<NewsSubscriptionJsonResponse> {
+  return extractData(await sdk.getNewsSubscriptionsByIdJson({ path: { id: subscriptionId }, headers: authHeaders(auth) })) as Promise<NewsSubscriptionJsonResponse>;
 }
 
 export async function getNewsFeedsAction(auth: ActionAuth): Promise<NewsFeedsResponse> {
@@ -385,6 +535,14 @@ export async function updateNewsSavedArticleReadStateAction(auth: ActionAuth, li
 export async function deleteNewsSavedArticleListAction(auth: ActionAuth, listId: string) {
   return extractData(await client.delete({
     url: `/news/saved-article-lists/${encodeURIComponent(listId)}`,
+    headers: authHeaders(auth),
+  }));
+}
+
+export async function renameNewsSavedArticleListAction(auth: ActionAuth, listId: string, name: string) {
+  return extractData(await client.patch({
+    url: `/news/saved-article-lists/${encodeURIComponent(listId)}`,
+    body: { name },
     headers: authHeaders(auth),
   }));
 }

@@ -1,5 +1,8 @@
 import { Hono } from "hono";
-import { randomUUID } from "crypto";
+import { createHash, randomUUID } from "crypto";
+import { lookup } from "node:dns/promises";
+import { isIP } from "node:net";
+import { RedisClient } from "bun";
 
 import {
   createIntegration,
@@ -36,6 +39,7 @@ import {
 } from "./shared";
 import { config } from "src/lib/config";
 import { getUpcomingEvents } from "src/lib/calendar";
+import { createLogger } from "../lib/logger";
 
 type ConsumerType = "widget" | "glanceable";
 type CachePolicy = "strict" | "cache-first";
@@ -51,6 +55,15 @@ type CacheRecord = {
   invalidatesAt: number | null;
   createdAt: number;
 };
+
+const previewJsonCache = new Map<string, { body: unknown; expiresAt: number }>();
+const previewRedis = new RedisClient(
+  Bun.env.REDIS_URL || Bun.env.VALKEY_URL || "redis://127.0.0.1:6379",
+);
+const previewJsonMaxBytes = 1_048_576;
+const previewJsonTimeoutMs = 10_000;
+let previewRedisUnavailable = false;
+const imagePreviewLogger = createLogger("ImagePreview");
 
 const integrationsRoute = new Hono();
 
@@ -166,6 +179,116 @@ integrationsRoute
         statusText: response.statusText,
         body: await response.text(),
       };
+    }),
+  )
+  .post(
+    "/api/v1/integrations/preview-json",
+    withJson(async (c) => {
+      let previewUserId = "unknown";
+      let targetLabel = "unknown";
+      try {
+        const { userId } = await requireAuth({ token: readAuthToken(c) });
+        previewUserId = userId;
+        const body = await readJsonBody<any>(c);
+        const target = String(body?.url ?? "").trim();
+        let targetUrl: URL;
+        targetLabel = "invalid-url";
+        try {
+          targetUrl = new URL(target);
+          targetLabel = `${targetUrl.origin}${targetUrl.pathname}`;
+        } catch {
+          throw new ApiActionError("Invalid preview URL", 400, {
+            error: "Preview URL must be an absolute HTTP or HTTPS URL",
+          });
+        }
+
+        if (!['http:', 'https:'].includes(targetUrl.protocol)) {
+          throw new ApiActionError("Unsupported preview URL", 400, {
+            error: "Preview URL must use HTTP or HTTPS",
+          });
+        }
+
+        if (!(Bun.env.ALLOW_PRIVATE_PREVIEW_URLS === "true" || Bun.env.ALLOW_PRIVATE_PREVIEW_URLS === "1")) {
+          if (await isPrivatePreviewTarget(targetUrl)) {
+            throw new ApiActionError("Private preview URLs are disabled", 403, {
+              error: "Private preview URLs require ALLOW_PRIVATE_PREVIEW_URLS=true",
+            });
+          }
+        }
+
+        const cacheSeconds = parsePreviewCacheSeconds(
+          body?.invalidateAfter ?? body?.invalidate_after,
+        );
+        const cacheKey = createPreviewCacheKey(userId, target, cacheSeconds);
+        const cached = await getPreviewJsonCache(cacheKey);
+        if (cached !== null) {
+          return { body: cached.body };
+        }
+
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), previewJsonTimeoutMs);
+        try {
+          const response = await fetch(targetUrl, {
+            headers: { Accept: "application/json" },
+            signal: controller.signal,
+            ...(config.ALLOW_SSL
+              ? ({ tls: { rejectUnauthorized: false } } as any)
+              : {}),
+          } as any);
+          if (!response.ok) {
+            throw new ApiActionError(`Preview request returned HTTP ${response.status}`, 502, {
+              error: `Preview request returned HTTP ${response.status}`,
+            });
+          }
+
+          const contentType = response.headers.get("content-type") ?? "";
+          if (!contentType.includes("json")) {
+            throw new ApiActionError("Preview response is not JSON", 422, {
+              error: "Image endpoint preview must return JSON",
+            });
+          }
+
+          const contentLength = Number(response.headers.get("content-length"));
+          if (Number.isFinite(contentLength) && contentLength > previewJsonMaxBytes) {
+            throw new ApiActionError("Preview response is too large", 413, {
+              error: "Image endpoint JSON response exceeds 1 MiB",
+            });
+          }
+
+          const text = await response.text();
+          if (Buffer.byteLength(text, "utf8") > previewJsonMaxBytes) {
+            throw new ApiActionError("Preview response is too large", 413, {
+              error: "Image endpoint JSON response exceeds 1 MiB",
+            });
+          }
+
+          let parsed: unknown;
+          try {
+            parsed = JSON.parse(text);
+          } catch {
+            throw new ApiActionError("Preview response is invalid JSON", 422, {
+              error: "Image endpoint returned invalid JSON",
+            });
+          }
+
+          await setPreviewJsonCache(cacheKey, parsed, cacheSeconds);
+          return { body: parsed };
+        } finally {
+          clearTimeout(timeout);
+        }
+      } catch (error) {
+        imagePreviewLogger.error(
+          "JSON image preview failed",
+          {
+            userId: previewUserId,
+            target: targetLabel,
+            error: error instanceof Error
+              ? `${error.name}: ${error.message}\n${error.stack ?? ""}`
+              : String(error),
+          },
+        );
+        throw error;
+      }
     }),
   )
   .get(
@@ -1118,10 +1241,40 @@ async function persistLocalDataIfChanged(
   cacheContext: { changed: boolean; localData: Record<string, any> },
 ) {
   if (!cacheContext.changed) return;
+  if (integrationId.startsWith("builtin-")) return;
   const pb = await getSuperuserPB();
   await pb.collection("integrations").update(integrationId, {
-    localData: cacheContext.localData,
+    localData: sanitizePersistedLocalData(cacheContext.localData),
   });
+}
+
+function sanitizePersistedLocalData(localData: Record<string, any>) {
+  const copy = JSON.parse(JSON.stringify(localData));
+  sanitizeCachedValue(copy);
+  return copy;
+}
+
+function sanitizeCachedValue(value: unknown) {
+  if (Array.isArray(value)) {
+    for (const item of value) sanitizeCachedValue(item);
+    return;
+  }
+
+  if (!isPlainObject(value)) return;
+
+  if (
+    typeof value.method === "string" &&
+    typeof value.resolvedUrl === "string" &&
+    "mappedResponse" in value
+  ) {
+    value.rawResponse = null;
+    value.requestHeaders = {};
+    value.requestBody = null;
+  }
+
+  for (const child of Object.values(value)) {
+    sanitizeCachedValue(child);
+  }
 }
 
 // --- Glanceable display helpers ---
@@ -1245,6 +1398,119 @@ function resolveIntegrationCacheConfig(
 
 function isPlainObject(value: unknown): value is Record<string, any> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function parsePreviewCacheSeconds(value: unknown) {
+  if (typeof value === "number" && Number.isFinite(value) && value > 0) {
+    return Math.min(value, 30 * 24 * 60 * 60);
+  }
+  if (typeof value !== "string") return 300;
+
+  const match = value.trim().toLowerCase().match(
+    /^(\d+(?:\.\d+)?)\s*(s|sec|secs|second|seconds|m|min|mins|minute|minutes|h|hr|hrs|hour|hours|d|day|days|w|week|weeks)$/,
+  );
+  if (!match) return 300;
+  const amount = Number(match[1]);
+  const unit = match[2];
+  const multiplier = /^s/.test(unit) || unit === "second" || unit === "seconds"
+    ? 1
+    : /^(m|min)/.test(unit) || unit === "minute" || unit === "minutes"
+    ? 60
+    : /^(h|hr)/.test(unit) || unit === "hour" || unit === "hours"
+    ? 60 * 60
+    : /^(d|day)/.test(unit)
+    ? 24 * 60 * 60
+    : 7 * 24 * 60 * 60;
+  return Number.isFinite(amount) && amount > 0
+    ? Math.min(amount * multiplier, 30 * 24 * 60 * 60)
+    : 300;
+}
+
+function createPreviewCacheKey(userId: string, url: string, cacheSeconds: number) {
+  const digest = createHash("sha256")
+    .update(`${url}:${cacheSeconds}`)
+    .digest("hex");
+  return `dashwise:image-preview:${userId}:${digest}`;
+}
+
+async function getPreviewJsonCache(key: string) {
+  if (!previewRedisUnavailable) {
+    try {
+      const raw = await previewRedis.send("GET", [key]);
+      if (typeof raw === "string" && raw) {
+        const body = JSON.parse(raw);
+        return { body };
+      }
+      return null;
+    } catch {
+      previewRedisUnavailable = true;
+    }
+  }
+
+  const cached = previewJsonCache.get(key);
+  if (!cached || cached.expiresAt <= Date.now()) {
+    if (cached) previewJsonCache.delete(key);
+    return null;
+  }
+  return { body: cached.body };
+}
+
+async function setPreviewJsonCache(key: string, body: unknown, cacheSeconds: number) {
+  const expiresAt = Date.now() + cacheSeconds * 1000;
+  if (!previewRedisUnavailable) {
+    try {
+      await previewRedis.send("SET", [
+        key,
+        JSON.stringify(body),
+        "EX",
+        String(Math.max(1, Math.ceil(cacheSeconds))),
+      ]);
+      return;
+    } catch {
+      previewRedisUnavailable = true;
+    }
+  }
+
+  if (previewJsonCache.size >= 1000) {
+    for (const [cachedKey, record] of previewJsonCache) {
+      if (record.expiresAt <= Date.now()) previewJsonCache.delete(cachedKey);
+    }
+    if (previewJsonCache.size >= 1000) {
+      const oldestKey = previewJsonCache.keys().next().value;
+      if (oldestKey) previewJsonCache.delete(oldestKey);
+    }
+  }
+  previewJsonCache.set(key, { body, expiresAt });
+}
+
+async function isPrivatePreviewTarget(url: URL) {
+  const host = url.hostname.replace(/^\[|\]$/g, "").toLowerCase();
+  if (host === "localhost" || host.endsWith(".localhost") || host.endsWith(".local")) return true;
+  if (isPrivateIp(host)) return true;
+  if (isIP(host)) return false;
+
+  try {
+    const addresses = await lookup(host, { all: true, verbatim: true });
+    return addresses.some(({ address }) => isPrivateIp(address));
+  } catch {
+    throw new ApiActionError("Unable to validate preview URL", 400, {
+      error: "Preview URL hostname could not be resolved",
+    });
+  }
+}
+
+function isPrivateIp(value: string) {
+  const normalized = value.toLowerCase().replace(/^\[|\]$/g, "");
+  if (normalized === "::1" || normalized === "::") return true;
+  if (normalized.startsWith("fc") || normalized.startsWith("fd") || normalized.startsWith("fe8") || normalized.startsWith("fe9") || normalized.startsWith("fea") || normalized.startsWith("feb")) return true;
+  if (normalized.startsWith("::ffff:")) return isPrivateIp(normalized.slice(7));
+  if (isIP(normalized) !== 4) return false;
+
+  const octets = normalized.split(".").map(Number);
+  const [first, second] = octets;
+  return first === 0 || first === 10 || first === 127 || first === 169 && second === 254 ||
+    first === 172 && second >= 16 && second <= 31 || first === 192 && second === 168 ||
+    first === 100 && second >= 64 && second <= 127 || first === 198 && second === 18;
 }
 
 function normalizeTimezone(raw: unknown): string | undefined {

@@ -12,7 +12,7 @@ linksRoute
     return getLinksCollections(userId);
   }))
   .post("/api/v1/links/collections", withJson(async (c) => {
-    const body = await readJsonBody<any>(c);
+    const body = await readJsonBody(c);
     const { userId } = await requireAuth({ token: readAuthToken(c) });
     return createCollection(userId, {
       name: String(body?.name ?? ""),
@@ -20,7 +20,7 @@ linksRoute
     });
   }))
   .put("/api/v1/links/collections/:collectionId", withJson(async (c) => {
-    const body = await readJsonBody<any>(c);
+    const body = await readJsonBody(c);
     const { userId } = await requireAuth({ token: readAuthToken(c) });
     return updateCollection(userId, String(c.req.param("collectionId") ?? ""), body?.data ?? {});
   }))
@@ -29,7 +29,7 @@ linksRoute
     return getHomeLinkGroups(userId);
   }))
   .post("/api/v1/links/home/groups", withJson(async (c) => {
-    const body = await readJsonBody<any>(c);
+    const body = await readJsonBody(c);
     const { userId } = await requireAuth({ token: readAuthToken(c) });
     return createHomeLinkGroup(userId, String(body?.name ?? ""));
   }))
@@ -44,8 +44,7 @@ linksRoute
   }))
   .get("/api/v1/links/folders", withJson(async (c) => {
     const { userId } = await requireAuth({ token: readAuthToken(c) });
-    void userId;
-    return getLinksFolders(String(c.req.query("listId") ?? ""));
+    return getLinksFolders(userId, String(c.req.query("listId") ?? ""));
   }))
   .post("/api/v1/links/folders", withJson(async (c) => {
     const body = await readJsonBody<any>(c);
@@ -58,8 +57,7 @@ linksRoute
   }))
   .get("/api/v1/links/items", withJson(async (c) => {
     const { userId } = await requireAuth({ token: readAuthToken(c) });
-    void userId;
-    return getLinksItems(String(c.req.query("listId") ?? ""), c.req.query("folderId") ?? undefined);
+    return getLinksItems(userId, String(c.req.query("listId") ?? ""), c.req.query("folderId") ?? undefined);
   }))
   .post("/api/v1/links/items", withJson(async (c) => {
     const body = await readJsonBody<any>(c);
@@ -92,7 +90,7 @@ linksRoute
     return getLinksTags();
   }))
   .post("/api/v1/links/tags", withJson(async (c) => {
-    const body = await readJsonBody<any>(c);
+    const body = await readJsonBody(c);
     const { userId } = await requireAuth({ token: readAuthToken(c) });
     return createLinkTag(userId, {
       name: String(body?.name ?? ""),
@@ -100,7 +98,7 @@ linksRoute
     });
   }))
   .put("/api/v1/links/tags/:tagId", withJson(async (c) => {
-    const body = await readJsonBody<any>(c);
+    const body = await readJsonBody(c);
     const { userId } = await requireAuth({ token: readAuthToken(c) });
     return updateLinkTag(userId, String(c.req.param("tagId") ?? ""), body?.data ?? {});
   }));

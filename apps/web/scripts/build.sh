@@ -151,10 +151,6 @@ if should_build "app"; then
   build_and_push "." "./Dockerfile" "dashwise" "${TAGS_APP[@]}"
 fi
 
-if should_build "pocketbase"; then
-  build_and_push "./pocketbase" "./pocketbase/Dockerfile" "dashwise-pb" "${TAGS_PB[@]}"
-fi
-
 if should_build "jobs"; then
   build_and_push "." "./jobs/Dockerfile" "dashwise-jobs" "${TAGS_JOBS[@]}"
 fi

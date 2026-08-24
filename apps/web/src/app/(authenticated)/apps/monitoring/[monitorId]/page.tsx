@@ -222,7 +222,8 @@ function formatThresholdLabel(outlier: ParsedOutlier) {
     } from average)`;
 }
 
-function formatThresholdValue(outlier: ParsedOutlier) {
+function formatThresholdValue(outlier?: ParsedOutlier) {
+    if (!outlier) return null;
     const threshold = outlier.threshold;
     if (!threshold) return null;
     if (threshold.type === "relative") {
@@ -391,9 +392,9 @@ export default function MonitoringDetailPage() {
         );
     }
 
-    const monitorTitle = linkEntry?.title || monitor.endpoint ||
+    const monitorTitle = monitor.expand?.sourcelinkId?.title || linkEntry?.title || monitor.endpoint ||
         monitor.sourcelinkId || monitor.source || monitor.id;
-    const monitoredUrl = linkEntry?.url || monitor.endpoint || "Unknown";
+    const monitoredUrl = monitor.expand?.sourcelinkId?.url || linkEntry?.url || monitor.endpoint || "Unknown";
     const method = String(monitor.method || "GET").toUpperCase();
     const changeLabel = formatStatusLabel(currentStatus);
 
@@ -415,7 +416,7 @@ export default function MonitoringDetailPage() {
                                             type="button"
                                             onClick={() =>
                                                 navigate(
-                                                    `/links/lists/${linkEntry.collectionId}`,
+                                                    `/apps/links/lists/${linkEntry.collectionId}`,
                                                 )}
                                             className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-transparent text-white/75 transition-colors hover:bg-white/10 hover:backdrop-blur-md hover:text-white"
                                             aria-label="Open parent collection"
@@ -552,7 +553,7 @@ export default function MonitoringDetailPage() {
                 </div>
             </div>
 
-            <section className="frosted rounded-xl p-3 space-y-3">
+            <section className="frosted rounded-xl p-3 space-y-1">
                 <div className="grid grid-cols-[1fr_auto]">
                     <div className="text-2xl font-semibold text-white">
                         <span
@@ -580,6 +581,7 @@ export default function MonitoringDetailPage() {
                     dateChanged={latestPing?.created ?? monitor.updated ??
                         monitor.created ?? null}
                     durationChanged={latestChangeDurationSeconds}
+                    className="mt-2"
                 />
             </section>
             <section className="frosted rounded-xl p-3 space-y-3">

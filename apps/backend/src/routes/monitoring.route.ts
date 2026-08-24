@@ -1,7 +1,8 @@
 import { Hono } from "hono";
 
-import { createMonitor, getMonitoringStatus, getMonitors, getMonitorById, runMonitoringStatus, updateMonitor } from "../lib/data/monitoring";
+import { createMonitor, createMonitoringSshHost, createSystemAgentHost, deleteMonitoringSshHost, deleteSystemAgentHost, getMonitoringSshHosts, getMonitoringStatus, getMonitors, getMonitorById, getSystemAgentHostById, getSystemAgentHosts, getSystemAgentStats, runMonitoringStatus, updateMonitor, updateMonitoringSshHost, updateSystemAgentHost } from "../lib/data/monitoring";
 import { deleteMonitoringJob } from "../lib/data/superuser";
+import { systemAgentClient } from "../lib/systemAgent";
 
 import { readAuthToken, readJsonBody, requireAuth, withJson } from "./shared";
 
@@ -13,7 +14,7 @@ monitoringRoute
     return getMonitors(userId);
   }))
   .post("/api/v1/monitors", withJson(async (c) => {
-    const body = await readJsonBody<any>(c);
+    const body = await readJsonBody(c);
     const { userId } = await requireAuth({ token: readAuthToken(c) });
     return createMonitor(userId, body ?? {});
   }))
@@ -22,7 +23,7 @@ monitoringRoute
     return getMonitorById(userId, c.req.param("id") || "");
   }))
   .put("/api/v1/monitors/:id", withJson(async (c) => {
-    const body = await readJsonBody<any>(c);
+    const body = await readJsonBody(c);
     const { userId } = await requireAuth({ token: readAuthToken(c) });
     const monitorId = c.req.param("id") || "";
     const updated = await updateMonitor(userId, monitorId, body ?? {});
@@ -45,9 +46,78 @@ monitoringRoute
     return getMonitoringStatus(userId, c.req.query("jobId") ?? null);
   }))
   .post("/api/v1/monitoringStatus", withJson(async (c) => {
-    const body = await readJsonBody<any>(c);
+    const body = await readJsonBody(c);
     const { userId } = await requireAuth({ token: readAuthToken(c) });
     return runMonitoringStatus(userId, body ?? {});
+  }))
+  .get("/api/v1/monitoring/ssh-hosts", withJson(async (c) => {
+    const { userId } = await requireAuth({ token: readAuthToken(c) });
+    return getMonitoringSshHosts(userId);
+  }))
+  .post("/api/v1/monitoring/ssh-hosts", withJson(async (c) => {
+    const body = await readJsonBody(c);
+    const { userId } = await requireAuth({ token: readAuthToken(c) });
+    return createMonitoringSshHost(userId, body ?? {});
+  }))
+  .put("/api/v1/monitoring/ssh-hosts/:id", withJson(async (c) => {
+    const body = await readJsonBody(c);
+    const { userId } = await requireAuth({ token: readAuthToken(c) });
+    const updated = await updateMonitoringSshHost(userId, c.req.param("id") || "", body ?? {});
+    if (!updated) return { _status: 404, error: "SSH host not found" };
+    return updated;
+  }))
+  .delete("/api/v1/monitoring/ssh-hosts/:id", withJson(async (c) => {
+    const { userId } = await requireAuth({ token: readAuthToken(c) });
+    return deleteMonitoringSshHost(userId, c.req.param("id") || "");
+  }))
+  .get("/api/v1/monitoring/hosts", withJson(async (c) => {
+    const { userId } = await requireAuth({ token: readAuthToken(c) });
+    return getSystemAgentHosts(userId);
+  }))
+  .post("/api/v1/monitoring/hosts", withJson(async (c) => {
+    const body = await readJsonBody(c);
+    const { userId } = await requireAuth({ token: readAuthToken(c) });
+    const host = await createSystemAgentHost(userId, body ?? {});
+    const configuredHost = await getSystemAgentHostById(userId, host.id);
+    if (configuredHost) void systemAgentClient.refresh(configuredHost);
+    return host;
+  }))
+  .put("/api/v1/monitoring/hosts/:id", withJson(async (c) => {
+    const body = await readJsonBody(c);
+    const { userId } = await requireAuth({ token: readAuthToken(c) });
+    const hostId = c.req.param("id") || "";
+    const host = await updateSystemAgentHost(userId, hostId, body ?? {});
+    if (!host) return { _status: 404, error: "System Agent host not found" };
+    systemAgentClient.stop(hostId);
+    const configuredHost = await getSystemAgentHostById(userId, host.id);
+    if (configuredHost) void systemAgentClient.refresh(configuredHost);
+    return host;
+  }))
+  .delete("/api/v1/monitoring/hosts/:id", withJson(async (c) => {
+    const { userId } = await requireAuth({ token: readAuthToken(c) });
+    const hostId = c.req.param("id") || "";
+    const result = await deleteSystemAgentHost(userId, hostId);
+    systemAgentClient.stop(hostId);
+    return result;
+  }))
+  .get("/api/v1/monitoring/hosts/:id/stats", withJson(async (c) => {
+    const { userId } = await requireAuth({ token: readAuthToken(c) });
+    const stats = await getSystemAgentStats(userId, c.req.param("id") || "");
+    if (!stats) return { _status: 404, error: "System Agent host or stats not found" };
+    return stats;
+  }))
+  .get("/api/v1/monitoring/hosts/:id/history", withJson(async (c) => {
+    const { userId } = await requireAuth({ token: readAuthToken(c) });
+    const host = await getSystemAgentHostById(userId, c.req.param("id") || "");
+    if (!host) return { _status: 404, error: "System Agent host not found" };
+    return systemAgentClient.history(host, c.req.query("timestamp"));
+  }))
+  .post("/api/v1/monitoring/hosts/:id/refresh", withJson(async (c) => {
+    const { userId } = await requireAuth({ token: readAuthToken(c) });
+    const host = await getSystemAgentHostById(userId, c.req.param("id") || "");
+    if (!host) return { _status: 404, error: "System Agent host not found" };
+    await systemAgentClient.refresh(host);
+    return getSystemAgentStats(userId, host.id);
   }));
 
 export default monitoringRoute;

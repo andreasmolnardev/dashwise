@@ -3,18 +3,18 @@ import { useNavigate } from "react-router-dom"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import config from "@/lib/config"
-import { useEffect, useState } from "react"
+import { useEffect } from "react"
+import { useQuery } from "@tanstack/react-query"
 import { getAppConfigAction } from '@/lib/apiClient';
 import { validateAuthTokenAction } from '@/lib/apiClient';
+import { queryKeys } from "@/lib/queryClient";
 
 export default function AuthWelcomeFormComponent() {
     const navigate = useNavigate();
-     const [enableSSO, setEnableSSO] = useState<boolean | null>(null);
+    const appConfigQuery = useQuery({ queryKey: queryKeys.appConfig, queryFn: getAppConfigAction });
+    const enableSSO = appConfigQuery.data?.enableSSO ?? false;
 
     useEffect(() => {
-             // Load runtime config
-             getAppConfigAction().then(res => setEnableSSO(res.enableSSO ?? false)).catch(() => setEnableSSO(false));
-
         const validateAuth = async () => {
             const loginToken = new URLSearchParams(window.location.search).get("loginToken");
             const token = loginToken || localStorage.getItem('pb_token');
