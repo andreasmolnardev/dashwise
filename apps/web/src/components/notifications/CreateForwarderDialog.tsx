@@ -9,12 +9,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { cn } from "@/lib/utils";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Checkbox } from "../ui/checkbox";
 import TopicCombobox, { type Topic } from "./TopicCombobox";
-import { createForwarderAction } from '@/lib/apiClient';
+import { createForwarderAction, testForwarderTargetAction } from '@/lib/apiClient';
 export type ForwarderItem = { 
   id: string; 
   topic: { id: string }; 
@@ -30,6 +29,7 @@ type CreateForwarderDialogProps = {
   topics: Topic[];
   onForwarderCreated?: (newItem: ForwarderItem) => void;
   initialTopic?: Topic | null;
+  onBack?: () => void;
 };
 
 export default function CreateForwarderDialogComponent({
@@ -38,13 +38,14 @@ export default function CreateForwarderDialogComponent({
   topics,
   onForwarderCreated,
   initialTopic = null,
+  onBack,
 }: CreateForwarderDialogProps) {
   const [selectedTopic, setSelectedTopic] = useState<Topic | null>(null);
   const [target, setTarget] = useState("");
   const [isActive, setIsActive] = useState(true);
   const [creating, setCreating] = useState(false);
 
-  const { token, withAuth } = useAuth();
+  const { withAuth } = useAuth();
 
   useEffect(() => {
     if (!open) return;
@@ -66,6 +67,8 @@ export default function CreateForwarderDialogComponent({
     setCreating(true);
 
     try {
+      await withAuth((auth) => testForwarderTargetAction(auth, target));
+
       const json = await withAuth((auth) =>
         createForwarderAction(auth, { topic: selectedTopic.id, target, isActive })
       );
@@ -132,11 +135,14 @@ export default function CreateForwarderDialogComponent({
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
+          <Button
+            variant="outline"
+            onClick={() => (onBack ? onBack() : onOpenChange(false))}
+          >
+            {onBack ? "Back" : "Cancel"}
           </Button>
           <Button onClick={handleCreate} disabled={creating}>
-            {creating ? "Creating..." : "Create Forwarder"}
+            {creating ? "Testing..." : "Test & Create"}
           </Button>
         </DialogFooter>
       </DialogContent>

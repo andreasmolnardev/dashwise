@@ -1,5 +1,6 @@
 import { getSuperuserPB } from "../../pb/pocketbase";
 import type { NotificationForwardersResponse, NotificationTopicsResponse } from "@dashwise/types";
+import { sendViaShoutrrr } from "./forwarding";
 
 export async function getForwarders(userId: string) {
   const pb = await getSuperuserPB();
@@ -71,4 +72,22 @@ export async function deleteForwarder(userId: string, forwarderId: string) {
 
   await pb.collection("notificationForwarders").delete(forwarderId);
   return { success: true };
+}
+
+export async function testForwarder(userId: string, forwarderId: string) {
+  const pb = await getSuperuserPB();
+
+  const forwarderRecord = (await pb.collection("notificationForwarders").getOne(forwarderId)) as NotificationForwardersResponse;
+  const topicRecord = (await pb.collection("notificationTopics").getOne(forwarderRecord.topic)) as NotificationTopicsResponse;
+  if (!topicRecord || topicRecord.userId !== userId) {
+    throw new Error("Forwarder not found or not owned by user");
+  }
+
+  await sendViaShoutrrr(forwarderRecord.target, "This is a test notification from Dashwise.");
+  return { ok: true };
+}
+
+export async function testForwarderTarget(target: string) {
+  await sendViaShoutrrr(target, "This is a test notification from Dashwise.");
+  return { ok: true };
 }

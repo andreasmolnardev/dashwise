@@ -103,6 +103,42 @@ export async function deleteTopicToken(userId: string, tokenId: string) {
   return { success: true };
 }
 
+export async function updateTopicToken(userId: string, body: any) {
+  const pb = await getSuperuserPB();
+  const { tokenId, topicId, expires } = body;
+
+  const tokenRecord = (await pb.collection("notificationTopicTokens").getOne(tokenId)) as NotificationTopicTokensResponse;
+  const currentTopic = (await pb.collection("notificationTopics").getOne(tokenRecord.topic)) as NotificationTopicsResponse;
+  if (!currentTopic || currentTopic.userId !== userId) {
+    throw new Error("Token not found or not owned by user");
+  }
+
+  const updatePayload: Record<string, unknown> = {};
+  let topicRecord = currentTopic;
+  if (topicId !== undefined && topicId !== tokenRecord.topic) {
+    topicRecord = (await pb.collection("notificationTopics").getOne(topicId)) as NotificationTopicsResponse;
+    if (!topicRecord || topicRecord.userId !== userId) {
+      throw new ApiActionError("Topic not found", 404, { error: "Topic not found" });
+    }
+    updatePayload.topic = topicRecord.id;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(body, "expires")) {
+    if (!expires) {
+      updatePayload.expires = null;
+    } else {
+      const expiresDate = new Date(expires);
+      if (Number.isNaN(expiresDate.getTime())) {
+        throw new ApiActionError("Invalid expiry date", 400, { error: "Invalid expiry date" });
+      }
+      updatePayload.expires = expiresDate.toISOString();
+    }
+  }
+
+  const updated = (await pb.collection("notificationTopicTokens").update(tokenId, updatePayload)) as NotificationTopicTokensResponse;
+  return { item: { ...updated, topic: topicRecord } };
+}
+
 export async function resolveTopicToken(token: string) {
   const pb = await getSuperuserPB();
   const records = (await pb.collection("notificationTopicTokens").getFullList({

@@ -1437,6 +1437,34 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/notifications/forwarders/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Test forwarder */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: components["requestBodies"]["JsonBody"];
+            responses: {
+                200: components["responses"]["JsonOk"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/notifications/markAsRead": {
         parameters: {
             query?: never;
@@ -1567,7 +1595,19 @@ export interface paths {
                 200: components["responses"]["JsonOk"];
             };
         };
-        put?: never;
+        /** Update topic token */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: components["requestBodies"]["JsonBody"];
+            responses: {
+                200: components["responses"]["JsonOk"];
+            };
+        };
         /** Create topic token */
         post: {
             parameters: {

@@ -2,10 +2,10 @@ import { Hono } from "hono";
 import type { Context } from "hono";
 
 import { ApiActionError } from "../lib/data/auth";
-import { createForwarder, deleteForwarder, getForwarders, updateForwarder } from "../lib/data/notifications/forwarders";
+import { createForwarder, deleteForwarder, getForwarders, testForwarder, testForwarderTarget, updateForwarder } from "../lib/data/notifications/forwarders";
 import { createNotificationTopic, deleteNotificationTopic, getNotificationTopics, getNotifications, markNotificationsAsRead, sendTestNotification } from "../lib/data/notifications/items";
 import { createNotificationByTopicId, createNotificationWithTopicToken } from "../lib/data/notifications/publish";
-import { createTopicToken, deleteTopicToken, listTopicTokens } from "../lib/data/notifications/topicTokens";
+import { createTopicToken, deleteTopicToken, listTopicTokens, updateTopicToken } from "../lib/data/notifications/topicTokens";
 import { getServerPB, getSuperuserPB } from "../lib/pb/pocketbase";
 
 import { readAuthToken, readJsonBody, readBool, requireAuth, withJson } from "./shared";
@@ -122,6 +122,11 @@ notificationsRoute
     const { userId } = await requireAuth({ token: readAuthToken(c) });
     return deleteTopicToken(userId, String(body?.tokenId ?? ""));
   }))
+  .put("/api/v1/notifications/topicTokens", withJson(async (c) => {
+    const body = await readJsonBody<any>(c);
+    const { userId } = await requireAuth({ token: readAuthToken(c) });
+    return updateTopicToken(userId, body ?? {});
+  }))
   .get("/api/v1/notifications/forwarders", withJson(async (c) => {
     const { userId } = await requireAuth({ token: readAuthToken(c) });
     return getForwarders(userId);
@@ -140,6 +145,13 @@ notificationsRoute
     const body = await readJsonBody<any>(c);
     const { userId } = await requireAuth({ token: readAuthToken(c) });
     return deleteForwarder(userId, String(body?.forwarderId ?? ""));
+  }))
+  .post("/api/v1/notifications/forwarders/test", withJson(async (c) => {
+    const body = await readJsonBody<any>(c);
+    const { userId } = await requireAuth({ token: readAuthToken(c) });
+    return body?.forwarderId
+      ? testForwarder(userId, String(body.forwarderId))
+      : testForwarderTarget(String(body?.target ?? ""));
   }))
   .post("/api/v1/notifications/:topic", withJson(async (c) => {
     const topic = String(c.req.param("topic") ?? "").trim();

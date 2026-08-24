@@ -1087,6 +1087,22 @@ export type PutNotificationsForwardersResponses = {
 
 export type PutNotificationsForwardersResponse = PutNotificationsForwardersResponses[keyof PutNotificationsForwardersResponses];
 
+export type PostNotificationsForwardersTestData = {
+    body?: JsonBody;
+    path?: never;
+    query?: never;
+    url: '/notifications/forwarders/test';
+};
+
+export type PostNotificationsForwardersTestResponses = {
+    /**
+     * OK
+     */
+    200: GenericObject;
+};
+
+export type PostNotificationsForwardersTestResponse = PostNotificationsForwardersTestResponses[keyof PostNotificationsForwardersTestResponses];
+
 export type PostNotificationsMarkAsReadData = {
     body?: JsonBody;
     path?: never;
@@ -1216,6 +1232,22 @@ export type PostNotificationsTopicTokensResponses = {
 };
 
 export type PostNotificationsTopicTokensResponse = PostNotificationsTopicTokensResponses[keyof PostNotificationsTopicTokensResponses];
+
+export type PutNotificationsTopicTokensData = {
+    body?: JsonBody;
+    path?: never;
+    query?: never;
+    url: '/notifications/topicTokens';
+};
+
+export type PutNotificationsTopicTokensResponses = {
+    /**
+     * OK
+     */
+    200: GenericObject;
+};
+
+export type PutNotificationsTopicTokensResponse = PutNotificationsTopicTokensResponses[keyof PutNotificationsTopicTokensResponses];
 
 export type GetSearchItemsData = {
     body?: never;

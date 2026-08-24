@@ -13,8 +13,16 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
 import { Button } from "../ui/button";
-import { createTopicTokenAction } from '@/lib/apiClient';
+import { createTopicTokenAction, updateTopicTokenAction } from '@/lib/apiClient';
 import TopicCombobox, { type Topic } from "./TopicCombobox";
+
+export type TopicTokenItem = {
+  id: string;
+  token?: string;
+  topic?: { id: string; title?: string } | string;
+  expires?: string | null;
+  created?: string | null;
+};
 
 type NewTokenDialogProps = {
   open: boolean;
@@ -22,6 +30,8 @@ type NewTokenDialogProps = {
   topics: Topic[];
   onTokenCreated?: (newItem: any) => void;
   initialTopic?: Topic | null;
+  initialToken?: TopicTokenItem | null;
+  onBack?: () => void;
 };
 
 export default function nn({
@@ -30,6 +40,8 @@ export default function nn({
   topics,
   onTokenCreated,
   initialTopic = null,
+  initialToken = null,
+  onBack,
 }: NewTokenDialogProps) {
   const [selectedTopic, setSelectedTopic] = useState<Topic | null>(null);
   const [creating, setCreating] = useState(false);
@@ -45,12 +57,12 @@ export default function nn({
     if (!open) return;
 
     setSelectedTopic(initialTopic);
-    setExpiryMode("never");
+    setExpiryMode(initialToken?.expires ? "onDate" : "never");
     setInDays(30);
-    const d = new Date();
-    d.setMonth(d.getMonth() + 1);
+    const d = initialToken?.expires ? new Date(initialToken.expires) : new Date();
+    if (!initialToken?.expires) d.setMonth(d.getMonth() + 1);
     setOnDate(d.toISOString().split("T")[0]);
-  }, [open, initialTopic]);
+  }, [open, initialTopic, initialToken]);
 
   const expiryLabel = () => {
     if (expiryMode === "never") return "Never";
@@ -63,7 +75,7 @@ export default function nn({
     return "—";
   };
 
-  const { token, withAuth } = useAuth();
+  const { withAuth } = useAuth();
 
   const handleCreate = async () => {
     if (!selectedTopic) return;
@@ -79,12 +91,16 @@ export default function nn({
         expiresVal = new Date(onDate).toISOString();
       }
 
-      const json = await withAuth((auth) =>
-        createTopicTokenAction(auth, {
-          topicId: selectedTopic.id,
-          ...(expiresVal ? { expires: expiresVal } : {}),
-        })
-      );
+      const json = await withAuth((auth) => initialToken
+        ? updateTopicTokenAction(auth, {
+            tokenId: initialToken.id,
+            topicId: selectedTopic.id,
+            expires: expiresVal ?? null,
+          })
+        : createTopicTokenAction(auth, {
+            topicId: selectedTopic.id,
+            ...(expiresVal ? { expires: expiresVal } : {}),
+          }));
 
       // Reset
       setSelectedTopic(null);
@@ -99,7 +115,7 @@ export default function nn({
 
     } catch (err) {
       console.error(err);
-      alert("Failed to create token");
+      alert(`Failed to ${initialToken ? "update" : "create"} token`);
     } finally {
       setCreating(false);
     }
@@ -109,7 +125,7 @@ export default function nn({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="frosted text-foreground">
         <DialogHeader>
-          <DialogTitle>Create Topic Token</DialogTitle>
+          <DialogTitle>{initialToken ? "Edit Topic Token" : "Create Topic Token"}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
@@ -193,8 +209,15 @@ export default function nn({
         </div>
 
         <DialogFooter className="mt-4 flex justify-end gap-2">
-          <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button disabled={!selectedTopic || creating} onClick={handleCreate}>Create</Button>
+          <Button
+            variant="ghost"
+            onClick={() => (onBack ? onBack() : onOpenChange(false))}
+          >
+            {onBack ? "Back" : "Cancel"}
+          </Button>
+          <Button disabled={!selectedTopic || creating} onClick={handleCreate}>
+            {creating ? "Saving..." : initialToken ? "Save" : "Create"}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
