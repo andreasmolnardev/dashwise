@@ -162,26 +162,6 @@ function buildDefaultShortcutSearchRows(): SearchItemRow[] {
     });
   }
 
-  rows.push({
-    name: "Log out",
-    icon: "fa6-solid:right-from-bracket",
-    secondary: "Dashwise",
-    action: "logout:",
-    app: "",
-    tags: ["log out", "logout", "sign out", "signout"],
-    sourceId: "default-shortcut:logout",
-  });
-
-  rows.push({
-    name: "Toggle privacy mode",
-    icon: "fa6-solid:eye-slash",
-    secondary: "Dashwise",
-    action: "privacy:",
-    app: "",
-    tags: ["privacy", "privacy mode", "toggle privacy", "dashboard privacy"],
-    sourceId: "default-shortcut:privacy",
-  });
-
   return rows;
 }
 

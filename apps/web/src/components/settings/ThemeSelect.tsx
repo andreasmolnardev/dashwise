@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faCircleHalfStroke, faEyeDropper, faPaintBrush } from "@fortawesome/free-solid-svg-icons";
+import { faCircleHalfStroke, faEyeDropper, faGripLines, faPaintBrush } from "@fortawesome/free-solid-svg-icons";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -18,12 +18,14 @@ import { ColorPicker } from "@/components/settings/ColorPicker";
 import useAuth from "@/context/useAuth";
 
 type ThemeMode = "system" | "dark" | "light";
+type LinkTileStyle = "default" | "compact";
 
 // Type for the appearance config
 type AppearanceConfig = {
   accentColor?: string;
   themeMode?: ThemeMode;
   frostedAppearance?: ThemeMode;
+  linkTileStyle?: LinkTileStyle;
   [key: string]: string | undefined;
 };
 
@@ -56,6 +58,9 @@ export default function ThemeSelectComponent({ className }: { className?: string
   const [themeMode, setThemeMode] = useState<ThemeMode>(
     user?.appearancePreferences?.themeMode ?? user?.appearancePreferences?.frostedAppearance ?? "system"
   );
+  const [linkTileStyle, setLinkTileStyle] = useState<LinkTileStyle>(
+    user?.appearancePreferences?.linkTileStyle === "compact" ? "compact" : "default"
+  );
 
   useEffect(() => {
     const currentPreferences = user?.appearancePreferences;
@@ -66,6 +71,7 @@ export default function ThemeSelectComponent({ className }: { className?: string
     const currentPreferences = user?.appearancePreferences;
     const nextMode = currentPreferences?.themeMode ?? currentPreferences?.frostedAppearance ?? "system";
     setThemeMode(nextMode);
+    setLinkTileStyle(currentPreferences?.linkTileStyle === "compact" ? "compact" : "default");
     applyThemeClasses(nextMode, currentPreferences?.frostedAppearance ?? nextMode);
   }, [user?.appearancePreferences]);
 
@@ -130,6 +136,26 @@ export default function ThemeSelectComponent({ className }: { className?: string
         console.error("Failed to update theme mode:", err.message);
       } else {
         console.error("Failed to update theme mode (unknown error):", err);
+      }
+    }
+  }
+
+  async function updateLinkTileStyle(newStyle: LinkTileStyle) {
+    setLinkTileStyle(newStyle);
+
+    try {
+      const currentAppearance = user?.appearancePreferences || {};
+      const appearanceConfig: AppearanceConfig = {
+        ...currentAppearance,
+        linkTileStyle: newStyle,
+      };
+
+      await updateUserProperty("appearancePreferences", appearanceConfig);
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        console.error("Failed to update link tile style:", err.message);
+      } else {
+        console.error("Failed to update link tile style (unknown error):", err);
       }
     }
   }
@@ -216,6 +242,35 @@ export default function ThemeSelectComponent({ className }: { className?: string
               className="cursor-pointer rounded-md px-3 py-1.5 frosted peer-data-[state=checked]:outline peer-data-[state=checked]:outline-(--primary)"
             >
               System
+            </Label>
+          </div>
+        </RadioGroup>
+      </div>
+
+      <div className="flex items-center gap-2">
+        <FontAwesomeIcon icon={faGripLines} />
+        <p className="w-full">Link Tiles</p>
+        <RadioGroup
+          value={linkTileStyle}
+          onValueChange={(v) => updateLinkTileStyle(v as LinkTileStyle)}
+          className="flex items-center gap-2"
+        >
+          <div>
+            <RadioGroupItem id="link-tile-default" value="default" className="peer sr-only" />
+            <Label
+              htmlFor="link-tile-default"
+              className="cursor-pointer rounded-md px-3 py-1.5 frosted peer-data-[state=checked]:outline peer-data-[state=checked]:outline-(--primary)"
+            >
+              Default
+            </Label>
+          </div>
+          <div>
+            <RadioGroupItem id="link-tile-compact" value="compact" className="peer sr-only" />
+            <Label
+              htmlFor="link-tile-compact"
+              className="cursor-pointer rounded-md px-3 py-1.5 frosted peer-data-[state=checked]:outline peer-data-[state=checked]:outline-(--primary)"
+            >
+              Compact
             </Label>
           </div>
         </RadioGroup>

@@ -102,6 +102,10 @@ function normalizeConfigLinks(input: IncomingSearchItem[] = []): LinkItem[] {
           url = "__logout_action__";
         } else if (action.toLowerCase().startsWith("privacy:")) {
           url = "__privacy_action__";
+        } else if (action.toLowerCase().startsWith("theme:")) {
+          url = "__toggle_theme__";
+        } else if (action.toLowerCase().startsWith("link-tile-layout:")) {
+          url = "__toggle_link_tile_layout__";
         } else if (action.startsWith("url:")) {
           url = action.slice(4);
         } else if (action.startsWith("command:")) {
@@ -145,7 +149,14 @@ function normalizeConfigLinks(input: IncomingSearchItem[] = []): LinkItem[] {
 export default function CommandBar(
   { open, setOpen, searchItems, config }: CommandBarProps,
 ) {
-  const { user, token, logout, updateUserProperty } = useAuth();
+  const {
+    user,
+    token,
+    logout,
+    updateUserProperty,
+    toggleTheme,
+    toggleLinkTileLayout,
+  } = useAuth();
   const searchPreferences = user?.searchPreferences ?? {};
   const searchEngines: SearchEngine[] =
     (searchPreferences.searchEngines || []) as SearchEngine[];
@@ -550,6 +561,12 @@ export default function CommandBar(
     } else if (a.url === "__privacy_action__") {
       logSearchItemUsage(a);
       void togglePrivacyMode();
+    } else if (a.url === "__toggle_theme__") {
+      logSearchItemUsage(a);
+      void toggleThemePreference();
+    } else if (a.url === "__toggle_link_tile_layout__") {
+      logSearchItemUsage(a);
+      void toggleLinkTileLayoutPreference();
     } else if (a.url.startsWith("__engine_search__:")) {
       const slug = a.url.split(":", 2)[1];
       openEngineSearch(slug, query);
@@ -572,6 +589,26 @@ export default function CommandBar(
       });
     } catch (error) {
       console.error("Failed to toggle dashboard privacy mode:", error);
+    } finally {
+      setOpen(false);
+    }
+  }
+
+  async function toggleThemePreference() {
+    try {
+      await toggleTheme();
+    } catch (error) {
+      console.error("Failed to toggle theme:", error);
+    } finally {
+      setOpen(false);
+    }
+  }
+
+  async function toggleLinkTileLayoutPreference() {
+    try {
+      await toggleLinkTileLayout();
+    } catch (error) {
+      console.error("Failed to toggle link tile layout:", error);
     } finally {
       setOpen(false);
     }

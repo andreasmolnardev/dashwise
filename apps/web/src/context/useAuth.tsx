@@ -184,7 +184,44 @@ export function useAuth() {
     [updateUserPropertyMutation],
   );
 
-  return { user, token, setAuth, setToken: setTokenOnly, logout, withAuth, withAuthRedirect, redirectToLogin, openCommandBar, updateUserProperty };
+  const toggleTheme = useCallback(async () => {
+    const appearance = (user?.appearancePreferences ?? {}) as Record<string, unknown>;
+    const isDark = typeof document !== "undefined"
+      ? document.documentElement.classList.contains("dark")
+      : appearance.themeMode === "dark";
+    const nextMode = isDark ? "light" : "dark";
+
+    await updateUserProperty("appearancePreferences", {
+      ...appearance,
+      themeMode: nextMode,
+      frostedAppearance: nextMode,
+    });
+  }, [updateUserProperty, user?.appearancePreferences]);
+
+  const toggleLinkTileLayout = useCallback(async () => {
+    const appearance = (user?.appearancePreferences ?? {}) as Record<string, unknown>;
+    const nextStyle = appearance.linkTileStyle === "compact" ? "default" : "compact";
+
+    await updateUserProperty("appearancePreferences", {
+      ...appearance,
+      linkTileStyle: nextStyle,
+    });
+  }, [updateUserProperty, user?.appearancePreferences]);
+
+  return {
+    user,
+    token,
+    setAuth,
+    setToken: setTokenOnly,
+    logout,
+    withAuth,
+    withAuthRedirect,
+    redirectToLogin,
+    openCommandBar,
+    updateUserProperty,
+    toggleTheme,
+    toggleLinkTileLayout,
+  };
 }
 
 

@@ -50,6 +50,7 @@ export type UserAppearancePreferences = {
     roundness?: number;
   };
   frostedAppearance?: string;
+  linkTileStyle?: "default" | "compact";
   themeMode?: string;
   wallpaperFilters?: {
     blur?: number;
