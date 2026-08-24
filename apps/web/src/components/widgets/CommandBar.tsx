@@ -100,6 +100,8 @@ function normalizeConfigLinks(input: IncomingSearchItem[] = []): LinkItem[] {
           proxyAction = true;
         } else if (action.toLowerCase().startsWith("logout:")) {
           url = "__logout_action__";
+        } else if (action.toLowerCase().startsWith("privacy:")) {
+          url = "__privacy_action__";
         } else if (action.startsWith("url:")) {
           url = action.slice(4);
         } else if (action.startsWith("command:")) {
@@ -143,7 +145,7 @@ function normalizeConfigLinks(input: IncomingSearchItem[] = []): LinkItem[] {
 export default function CommandBar(
   { open, setOpen, searchItems, config }: CommandBarProps,
 ) {
-  const { user, token, logout } = useAuth();
+  const { user, token, logout, updateUserProperty } = useAuth();
   const searchPreferences = user?.searchPreferences ?? {};
   const searchEngines: SearchEngine[] =
     (searchPreferences.searchEngines || []) as SearchEngine[];
@@ -545,6 +547,9 @@ export default function CommandBar(
       logSearchItemUsage(a);
       logout();
       setOpen(false);
+    } else if (a.url === "__privacy_action__") {
+      logSearchItemUsage(a);
+      void togglePrivacyMode();
     } else if (a.url.startsWith("__engine_search__:")) {
       const slug = a.url.split(":", 2)[1];
       openEngineSearch(slug, query);
@@ -554,6 +559,21 @@ export default function CommandBar(
     } else {
       logSearchItemUsage(a);
       openUrl(a.url, config?.global?.linkOpenBehaviour);
+    }
+  }
+
+  async function togglePrivacyMode() {
+    const privacyMode = user?.searchPreferences?.privacyMode === true;
+
+    try {
+      await updateUserProperty("searchPreferences", {
+        ...user?.searchPreferences,
+        privacyMode: !privacyMode,
+      });
+    } catch (error) {
+      console.error("Failed to toggle dashboard privacy mode:", error);
+    } finally {
+      setOpen(false);
     }
   }
 

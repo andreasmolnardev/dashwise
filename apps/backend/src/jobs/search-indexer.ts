@@ -172,6 +172,16 @@ function buildDefaultShortcutSearchRows(): SearchItemRow[] {
     sourceId: "default-shortcut:logout",
   });
 
+  rows.push({
+    name: "Toggle privacy mode",
+    icon: "fa6-solid:eye-slash",
+    secondary: "Dashwise",
+    action: "privacy:",
+    app: "",
+    tags: ["privacy", "privacy mode", "toggle privacy", "dashboard privacy"],
+    sourceId: "default-shortcut:privacy",
+  });
+
   return rows;
 }
 
