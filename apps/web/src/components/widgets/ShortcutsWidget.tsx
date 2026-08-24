@@ -9,7 +9,7 @@ import { getSearchItemsAction, logSearchItemUsageAction, proxyIntegrationAction 
 type Shortcut = { id: string; name: string; icon?: string; action: string | { type: string; url?: string } };
 
 export default function ShortcutsWidget({ shortcutIds = [], className = "" }: { shortcutIds?: string[]; className?: string }) {
-  const { withAuth } = useAuth();
+  const { withAuth, toggleTheme, toggleLinkTileLayout } = useAuth();
   const [shortcuts, setShortcuts] = useState<Shortcut[]>([]);
 
   useEffect(() => {
@@ -30,6 +30,16 @@ export default function ShortcutsWidget({ shortcutIds = [], className = "" }: { 
     }
     const value = typeof action === "string" ? action.trim() : String(action.url ?? "").trim();
     if (!value) return;
+    if (value.toLowerCase().startsWith("theme:")) {
+      await toggleTheme();
+      void withAuth((auth) => logSearchItemUsageAction(auth, shortcut.id, new Date().toISOString()));
+      return;
+    }
+    if (value.toLowerCase().startsWith("link-tile-layout:")) {
+      await toggleLinkTileLayout();
+      void withAuth((auth) => logSearchItemUsageAction(auth, shortcut.id, new Date().toISOString()));
+      return;
+    }
     if (value.startsWith("command:")) {
       window.location.href = value.startsWith("command://") ? value : value.replace("command:", "client://");
       return;
