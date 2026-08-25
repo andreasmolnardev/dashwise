@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, useCallback, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import useAuth from "@/context/useAuth";
-import { getConsumerDataAction, previewImageSourceAction } from '@/lib/apiClient';
+import { getConsumerDataAction, getNewsFeedsAction, previewImageSourceAction } from '@/lib/apiClient';
 import {
   closestCenter,
   DndContext,
@@ -585,6 +585,18 @@ function WidgetInputEditor({
   dataError: string | null;
   setDataError: (value: string | null) => void;
 }) {
+  if (widgetType === "rss-feed" || widgetType === "latest-rss-feed") {
+    return (
+      <NewsFeedWidgetInputEditor
+        schema={schema}
+        inputDraft={inputDraft}
+        onChange={onChange}
+        dataError={dataError}
+        setDataError={setDataError}
+      />
+    );
+  }
+
   if (widgetType === "shortcuts") {
     const shortcutIds = Array.isArray(inputDraft.shortcutIds)
       ? inputDraft.shortcutIds.filter((id): id is string => typeof id === "string")
@@ -615,6 +627,113 @@ function WidgetInputEditor({
       error={dataError}
       emptyMessage="No input properties for this widget."
     />
+  );
+}
+
+function NewsFeedWidgetInputEditor({
+  schema,
+  inputDraft,
+  onChange,
+  dataError,
+  setDataError,
+}: {
+  schema?: Record<string, any>;
+  inputDraft: Record<string, any>;
+  onChange: (next: Record<string, any>) => void;
+  dataError: string | null;
+  setDataError: (value: string | null) => void;
+}) {
+  const { withAuth } = useAuth();
+  const [feeds, setFeeds] = useState<Array<{ id: string; title: string }>>([]);
+  const [isLoadingFeeds, setIsLoadingFeeds] = useState(true);
+  const [feedError, setFeedError] = useState<string | null>(null);
+  const selectedFeedId = String(inputDraft.feedId ?? schema?.feedId ?? "all").trim() || "all";
+
+  useEffect(() => {
+    let cancelled = false;
+
+    setIsLoadingFeeds(true);
+    setFeedError(null);
+
+    void withAuth((auth) => getNewsFeedsAction(auth))
+      .then((response) => {
+        if (cancelled) return;
+        setFeeds(Array.isArray(response?.feeds)
+          ? response.feeds
+            .map((feed) => ({ id: String(feed.id || "").trim(), title: String(feed.title || "Untitled feed") }))
+            .filter((feed) => feed.id)
+          : []);
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setFeedError(error instanceof Error ? error.message : "Unable to load news feeds.");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoadingFeeds(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [withAuth]);
+
+  const feedOptions = useMemo(() => {
+    const options = feeds.some((feed) => feed.id === "all")
+      ? feeds
+      : [{ id: "all", title: "All feed" }, ...feeds];
+
+    if (options.some((feed) => feed.id === selectedFeedId)) return options;
+    return [{ id: selectedFeedId, title: "Selected feed" }, ...options];
+  }, [feeds, selectedFeedId]);
+
+  const propertySchema = { ...(schema ?? {}) };
+  delete propertySchema.feedId;
+  const formValue = { ...inputDraft };
+  delete formValue.feedId;
+
+  return (
+    <div className="space-y-3">
+      <div className="space-y-1.5 rounded-lg border border-white/10 bg-black/15 p-3">
+        <div className="flex items-start justify-between gap-3">
+          <label htmlFor="widget-input-news-feed-feedId" className="text-sm font-medium text-white">
+            Feed
+          </label>
+          <span className="rounded-full border border-white/15 px-2 py-0.5 text-[11px] uppercase tracking-wide text-white/60">
+            select
+          </span>
+        </div>
+        <p className="text-xs text-white/50">Choose which news feed this widget displays.</p>
+        <select
+          id="widget-input-news-feed-feedId"
+          value={selectedFeedId}
+          onChange={(event) => {
+            setDataError(null);
+            onChange({ ...inputDraft, feedId: event.target.value });
+          }}
+          disabled={isLoadingFeeds}
+          className="w-full rounded-md border border-white/15 bg-black/20 px-3 py-2 text-sm outline-none disabled:opacity-60"
+        >
+          {feedOptions.map((feed) => (
+            <option key={feed.id} value={feed.id}>
+              {feed.title}
+            </option>
+          ))}
+        </select>
+        {isLoadingFeeds && <p className="text-xs text-white/50">Loading feeds…</p>}
+        {feedError && <p className="text-xs text-red-400">{feedError}</p>}
+      </div>
+
+      <WidgetPropertiesForm
+        idPrefix="widget-input-news-feed"
+        schema={propertySchema}
+        value={formValue}
+        onChange={(next) => onChange({ ...next, feedId: selectedFeedId })}
+        onError={setDataError}
+        error={dataError}
+        emptyMessage="No additional input properties for this widget."
+      />
+    </div>
   );
 }
 
