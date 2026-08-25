@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import useAuth from "@/context/useAuth";
 import {
+    deleteNewsFeedRecordAction,
     deleteNewsSavedArticleListAction,
     getNewsFeedsAction,
     getNewsSavedArticlesAction,
@@ -244,6 +245,20 @@ export default function NewsLayout({ children }: { children: ReactNode }) {
         navigate(`${activeFeedRoute}?${params.toString()}`);
     };
 
+    const deleteFeed = async (feed: FeedRecord) => {
+        if (!token || feed.id === "all") return;
+        if (!window.confirm(`Delete ${feed.title || "this feed"}?`)) return;
+
+        try {
+            await deleteNewsFeedRecordAction({ token }, feed.id);
+            reloadSidebar();
+            if (feedId === feed.id) navigate("/apps/news/all");
+        } catch (error) {
+            console.error("Failed to delete news feed:", error);
+            window.alert(error instanceof Error ? error.message : "Failed to delete feed");
+        }
+    };
+
     const renderFeedTabs = (parentId?: string, depth = 0, ancestors: Set<string> = new Set()): ReactNode[] => {
         const parentFeed = parentId ? userFeeds.find((feed) => feed.id === parentId) : null;
         const parentFeeds = parentFeed
@@ -287,6 +302,11 @@ export default function NewsLayout({ children }: { children: ReactNode }) {
                             label: "Edit feed",
                             icon: "fa6-solid:pen-to-square",
                             action: () => openEditFeedModal(feed),
+                        },
+                        {
+                            label: "Delete feed",
+                            icon: "fa6-solid:trash",
+                            action: () => void deleteFeed(feed),
                         },
                     ]}
                 />

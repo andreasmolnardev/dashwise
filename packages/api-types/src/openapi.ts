@@ -2544,7 +2544,21 @@ export interface paths {
                 200: components["responses"]["JsonOk"];
             };
         };
-        delete?: never;
+        /** Delete news feed record */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                200: components["responses"]["JsonOk"];
+            };
+        };
         options?: never;
         head?: never;
         patch?: never;

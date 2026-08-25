@@ -1820,6 +1820,24 @@ export type GetNewsFeedsByIdResponses = {
 
 export type GetNewsFeedsByIdResponse = GetNewsFeedsByIdResponses[keyof GetNewsFeedsByIdResponses];
 
+export type DeleteNewsFeedRecordsByIdData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/news/feed-records/{id}';
+};
+
+export type DeleteNewsFeedRecordsByIdResponses = {
+    /**
+     * OK
+     */
+    200: GenericObject;
+};
+
+export type DeleteNewsFeedRecordsByIdResponse = DeleteNewsFeedRecordsByIdResponses[keyof DeleteNewsFeedRecordsByIdResponses];
+
 export type GetNewsFeedRecordsByIdData = {
     body?: never;
     path: {
