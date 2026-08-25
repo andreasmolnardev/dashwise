@@ -91,9 +91,11 @@ interface GroupLabelProps {
 
 export default function AppTemplate({
     title,
+    disableScroll = false,
     children,
 }: {
     title: string;
+    disableScroll?: boolean;
     children: ReactNode;
 }) {
     const location = useLocation();
@@ -133,7 +135,7 @@ export default function AppTemplate({
                     <div className="flex-1 min-h-0 pr-4">{sidebar}</div>
                 </div>
 
-                <div className="flex min-w-0 flex-1 flex-col p-4 md:pl-0 gap-4 overflow-y-scroll">
+                <div className={`flex min-w-0 flex-1 flex-col p-4 md:pl-0 gap-4 ${disableScroll ? "overflow-hidden" : "overflow-y-auto"}`}>
                     <div className="flex items-center justify-between gap-3 md:hidden shrink-0">
                         <button
                             type="button"
@@ -651,6 +653,6 @@ export function Sidebar({ children }: { children: ReactNode }) {
 
 // ─── Content ──────────────────────────────────────────────────────────────────
 
-export function Content({ children }: { children: ReactNode }) {
-    return <div className="flex-1 overflow-y-auto">{children}</div>;
+export function Content({ children, className }: { children: ReactNode; className?: string }) {
+    return <div className={`flex-1 ${className ?? "overflow-y-auto"}`}>{children}</div>;
 }

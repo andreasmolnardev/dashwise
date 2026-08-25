@@ -64,6 +64,7 @@ export default function NewsLayout({ children }: { children: ReactNode }) {
     const navigate = useNavigate();
     const location = useLocation();
     const { feedId } = useParams();
+    const isOverview = feedId === "overview";
     const queryClient = useQueryClient();
     const [expandedFeedIds, setExpandedFeedIds] = useState<Set<string>>(new Set());
     const activeSavedList = feedId?.startsWith("saved-") ? decodeURIComponent(feedId.slice("saved-".length)) : null;
@@ -321,7 +322,7 @@ export default function NewsLayout({ children }: { children: ReactNode }) {
 
     return (
         <NewsSidebarContext.Provider value={{ subscriptions, feeds, reloadSidebar }}>
-        <AppTemplate title="News">
+        <AppTemplate title="News" disableScroll={!isOverview}>
             <Sidebar>
 
                 <Tab
@@ -430,7 +431,7 @@ export default function NewsLayout({ children }: { children: ReactNode }) {
                 ))}
             </Sidebar>
 
-            <Content>
+            <Content className={!isOverview ? "overflow-hidden" : undefined}>
                 <>
                 {/** <PageTitle> here</PageTitle> here*/}
                 {isNewsRootRedirect ? (

@@ -229,22 +229,24 @@ export default function NewsFeedEditModal({
                                 {sortedFeeds.length === 0 && (
                                     <div className="px-3 py-2 text-sm text-white/50">No other feeds available.</div>
                                 )}
-                                {sortedFeeds.map((includedFeed) => {
-                                    const isSelected = selectedFeedIds.includes(includedFeed.id);
-                                    return (
-                                        <button
-                                            key={includedFeed.id}
-                                            type="button"
-                                            onClick={() => toggleFeed(includedFeed.id)}
-                                            aria-pressed={isSelected}
-                                            className={`flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left transition-colors ${isSelected ? "bg-white/10 text-white" : "text-white/75 hover:bg-white/5 hover:text-white"}`}
-                                            disabled={saving || loading}
-                                        >
-                                            <Icon icon={isSelected ? "fa6-solid:check" : "fa6-regular:square"} className="text-sm" />
-                                            <span className="min-w-0 flex-1 truncate">{includedFeed.title}</span>
-                                        </button>
-                                    );
-                                })}
+                                <div className="max-h-[7.5rem] space-y-1 overflow-y-auto pr-1">
+                                    {sortedFeeds.map((includedFeed) => {
+                                        const isSelected = selectedFeedIds.includes(includedFeed.id);
+                                        return (
+                                            <button
+                                                key={includedFeed.id}
+                                                type="button"
+                                                onClick={() => toggleFeed(includedFeed.id)}
+                                                aria-pressed={isSelected}
+                                                className={`flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left transition-colors ${isSelected ? "bg-white/10 text-white" : "text-white/75 hover:bg-white/5 hover:text-white"}`}
+                                                disabled={saving || loading}
+                                            >
+                                                <Icon icon={isSelected ? "fa6-solid:check" : "fa6-regular:square"} className="text-sm" />
+                                                <span className="min-w-0 flex-1 truncate">{includedFeed.title}</span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
                             </div>
                         </div>
                     )}
@@ -282,7 +284,7 @@ export default function NewsFeedEditModal({
                             )}
 
                             {!loading && filteredSubscriptions.length > 0 && (
-                                <div className="max-h-[40vh] space-y-1 overflow-y-auto pr-1">
+                                <div className="max-h-[7.5rem] space-y-1 overflow-y-auto pr-1">
                                     {filteredSubscriptions.map((subscription) => {
                                         const isSelected = selectedSubscriptionIds.includes(subscription.id);
 
