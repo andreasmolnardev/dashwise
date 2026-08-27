@@ -135,6 +135,7 @@ function WidgetTile({
   const [activeTab, setActiveTab] = useState<"input" | "displayed">("input");
   const [inputDraft, setInputDraft] = useState<Record<string, any>>({});
   const [heightDraft, setHeightDraft] = useState("");
+  const [maxWidgetHeightDraft, setMaxWidgetHeightDraft] = useState("");
   const [dataError, setDataError] = useState<string | null>(null);
   const [previewResolved, setPreviewResolved] = useState<Record<string, any> | null>(null);
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
@@ -180,7 +181,7 @@ function WidgetTile({
       ...stripDisplayCustomizations(columnWidget.input ?? {}),
     };
     const defaultInput = stripDisplayCustomizations(widgetConfig?.input ?? {});
-    const mergedInput = { ...defaultInput, ...baseInput };
+    const mergedInput = stripWidgetLayoutProperties({ ...defaultInput, ...baseInput });
     setInputDraft(mergedInput);
     setDataError(null);
     setPreviewResolved(null);
@@ -188,6 +189,7 @@ function WidgetTile({
     setHiddenIds([]);
     setActiveTab("input");
     setHeightDraft(formatWidgetHeight(columnWidget.properties?.height));
+    setMaxWidgetHeightDraft(formatWidgetHeight(columnWidget.properties?.max_widget_height));
   }, [columnWidget.input, columnWidget.properties, isDataDialogOpen, isHeightDialogOpen, widgetConfig?.input]);
 
   useEffect(() => {
@@ -256,6 +258,13 @@ function WidgetTile({
     hasInitializedDisplayOrder.current = true;
   }, [currentCustomizations.hidden, currentCustomizations.order, isDataDialogOpen, integrationDataEntries, supportsUserCustomizations]);
 
+  const saveMaxWidgetHeight = () => {
+    const nextMaxHeight = parseWidgetHeight(maxWidgetHeightDraft);
+    onUpdateProperties(columnWidget.id, nextMaxHeight !== undefined
+      ? { ...(columnWidget.properties ?? {}), max_widget_height: nextMaxHeight }
+      : Object.fromEntries(Object.entries(columnWidget.properties ?? {}).filter(([key]) => key !== "max_widget_height")));
+  };
+
   const mergedInput = useMemo(() => {
     const baseInput = inputDraft ?? {};
     const customizations = buildDisplayCustomizationsPayload({
@@ -274,13 +283,14 @@ function WidgetTile({
 
   const handleSaveData = () => {
     setDataError(null);
-    const nextInput = mergePersistedInput(inputDraft ?? {}, {
+    const nextInput = mergePersistedInput(stripWidgetLayoutProperties(inputDraft ?? {}), {
       order: displayOrder,
       hidden: hiddenIds,
       supportsReorder: supportedCustomizations.has("allow_reorder"),
       supportsHide: supportedCustomizations.has("allow_hide"),
     });
 
+    saveMaxWidgetHeight();
     onUpdateInput(columnWidget.id, Object.keys(nextInput).length > 0 ? nextInput : undefined);
     setIsDataDialogOpen(false);
   };
@@ -313,11 +323,12 @@ function WidgetTile({
     ...(columnWidget.input ?? {}),
   };
   const isClockWidget = columnWidget.type === "main-clock" || columnWidget.type === "glanceable-clock";
+  const canEditWidgetSettings = true;
 
   useEffect(() => {
-    if (!openForEdit || !canEditData) return;
+    if (!openForEdit || !canEditWidgetSettings) return;
     setIsDataDialogOpen(true);
-  }, [canEditData, openForEdit]);
+  }, [canEditWidgetSettings, openForEdit]);
 
   const handleSaveHeight = () => {
     const nextHeight = parseWidgetHeight(heightDraft);
@@ -334,12 +345,17 @@ function WidgetTile({
       className={`group relative rounded-lg overflow-hidden ${isDragging ? "opacity-40" : "opacity-100"}`}
     >
       {/* Actual widget preview */}
-      {renderWidget({
-        type: columnWidget.type,
-        params,
-        className: "w-full h-[90px]",
-        isPreview: true,
-      })}
+      <div
+        className="min-h-0"
+        style={resolveWidgetMaxHeightStyle(columnWidget.properties?.max_widget_height)}
+      >
+        {renderWidget({
+          type: columnWidget.type,
+          params,
+          className: "w-full h-[90px]",
+          isPreview: true,
+        })}
+      </div>
 
       {/* Hover overlay with controls */}
       <div className={`absolute inset-0 rounded-lg bg-black/60 transition-opacity backdrop-blur-[2px] ${isPlaceholderWidget ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}>
@@ -355,6 +371,44 @@ function WidgetTile({
               <span className="text-sm font-medium text-white/90">{clockSelection?.right.length ? `${clockSelection.right.length} glanceable${clockSelection.right.length === 1 ? "" : "s"}` : "Right"}</span>
             </button>
             <div className="absolute right-2 top-2 flex items-center gap-1">
+              <Dialog
+                open={isDataDialogOpen}
+                onOpenChange={(open) => {
+                  setIsDataDialogOpen(open);
+                  if (!open) onEditWidgetRequestHandled?.();
+                }}
+              >
+                <DialogTrigger asChild>
+                  <button
+                    type="button"
+                    aria-label={`Edit properties for ${columnWidget.type}`}
+                    className="rounded-full bg-white/10 p-2 hover:bg-white/20 backdrop-blur"
+                  >
+                    <Ruler className="h-4 w-4" />
+                  </button>
+                </DialogTrigger>
+                <DialogContent className="frosted">
+                  <DialogHeader>
+                    <DialogTitle>Edit Widget Properties</DialogTitle>
+                    <DialogDescription>Configure the maximum height for this widget.</DialogDescription>
+                  </DialogHeader>
+                  <div className="py-4">
+                    <WidgetLayoutSettings
+                      widgetId={columnWidget.id}
+                      maxHeight={maxWidgetHeightDraft}
+                      onMaxHeightChange={setMaxWidgetHeightDraft}
+                    />
+                  </div>
+                  <DialogFooter>
+                    <Button type="button" variant="outline" onClick={() => setIsDataDialogOpen(false)}>
+                      Cancel
+                    </Button>
+                    <Button type="button" onClick={() => { saveMaxWidgetHeight(); setIsDataDialogOpen(false); }}>
+                      Save properties
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
               <button
                 type="button"
                 aria-label={`Drag ${columnWidget.type}`}
@@ -382,7 +436,7 @@ function WidgetTile({
               </p>
             )}
             <div className="flex items-center justify-center gap-1">
-              {canEditData && (
+              {canEditWidgetSettings && (
                 <Dialog
                   open={isDataDialogOpen}
                   onOpenChange={(open) => {
@@ -401,7 +455,7 @@ function WidgetTile({
                   </DialogTrigger>
                 <DialogContent className="frosted max-h-[90vh] overflow-y-auto">
                   <DialogHeader>
-                    <DialogTitle>{supportsUserCustomizations ? "Edit Widget Settings" : "Edit Widget Input"}</DialogTitle>
+                    <DialogTitle>{supportsUserCustomizations ? "Edit Widget Settings" : "Edit Widget Properties"}</DialogTitle>
                     <DialogDescription>
                       {supportsUserCustomizations
                         ? "Adjust the input payload and displayed items for this widget instance."
@@ -416,15 +470,22 @@ function WidgetTile({
                       </TabsList>
 
                       <TabsContent value="input" className="space-y-4 pt-4 max-h-[50vh] overflow-y-auto">
-                        <WidgetInputEditor
+                        <WidgetLayoutSettings
                           widgetId={columnWidget.id}
-                          widgetType={columnWidget.type}
-                          schema={widgetConfig?.input ?? {}}
-                          inputDraft={inputDraft}
-                          onChange={setInputDraft}
-                          dataError={dataError}
-                          setDataError={setDataError}
+                          maxHeight={maxWidgetHeightDraft}
+                          onMaxHeightChange={setMaxWidgetHeightDraft}
                         />
+                        {canEditData ? (
+                          <WidgetInputEditor
+                            widgetId={columnWidget.id}
+                            widgetType={columnWidget.type}
+                            schema={widgetConfig?.input ?? {}}
+                            inputDraft={inputDraft}
+                            onChange={setInputDraft}
+                            dataError={dataError}
+                            setDataError={setDataError}
+                          />
+                        ) : null}
                         {dataError ? <p className="text-sm text-red-400">{dataError}</p> : null}
                       </TabsContent>
 
@@ -463,15 +524,22 @@ function WidgetTile({
                     </Tabs>
                   ) : (
                     <div className="space-y-4 py-4">
-                      <WidgetInputEditor
+                      <WidgetLayoutSettings
                         widgetId={columnWidget.id}
-                        widgetType={columnWidget.type}
-                        schema={widgetConfig?.input ?? {}}
-                        inputDraft={inputDraft}
-                        onChange={setInputDraft}
-                        dataError={dataError}
-                        setDataError={setDataError}
+                        maxHeight={maxWidgetHeightDraft}
+                        onMaxHeightChange={setMaxWidgetHeightDraft}
                       />
+                      {canEditData ? (
+                        <WidgetInputEditor
+                          widgetId={columnWidget.id}
+                          widgetType={columnWidget.type}
+                          schema={widgetConfig?.input ?? {}}
+                          inputDraft={inputDraft}
+                          onChange={setInputDraft}
+                          dataError={dataError}
+                          setDataError={setDataError}
+                        />
+                      ) : null}
                       {dataError ? <p className="text-sm text-red-400">{dataError}</p> : null}
                     </div>
                   )}
@@ -480,7 +548,7 @@ function WidgetTile({
                       Cancel
                     </Button>
                     <Button type="button" onClick={handleSaveData}>
-                      Save input
+                      Save properties
                     </Button>
                   </DialogFooter>
                 </DialogContent>
@@ -564,6 +632,31 @@ function WidgetTile({
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function WidgetLayoutSettings({
+  widgetId,
+  maxHeight,
+  onMaxHeightChange,
+}: {
+  widgetId: string;
+  maxHeight: string;
+  onMaxHeightChange: (value: string) => void;
+}) {
+  return (
+    <div className="space-y-1.5 rounded-lg border border-white/10 bg-black/15 p-3">
+      <Label htmlFor={`widget-max-height-${widgetId}`}>Maximum widget height</Label>
+      <p className="text-xs text-white/50">
+        Set a maximum height in px, another CSS length, or $ref. Content scrolls inside the widget when needed.
+      </p>
+      <Input
+        id={`widget-max-height-${widgetId}`}
+        value={maxHeight}
+        onChange={(event) => onMaxHeightChange(event.target.value)}
+        placeholder="300px"
+      />
     </div>
   );
 }
@@ -1587,4 +1680,27 @@ function parseWidgetHeight(value: string) {
   if (!next) return undefined;
   if (/^-?\d+(?:\.\d+)?$/.test(next)) return Number(next);
   return next;
+}
+
+function stripWidgetLayoutProperties(input: Record<string, any>) {
+  const { max_widget_height: _maxWidgetHeight, ...rest } = input;
+  return rest;
+}
+
+function resolveWidgetMaxHeightStyle(value: unknown) {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return { maxHeight: `${value}px`, overflowY: "auto" as const };
+  }
+
+  if (typeof value === "string" && value.trim()) {
+    const normalized = value.trim();
+    return {
+      maxHeight: normalized.startsWith("$")
+        ? `var(--layout-${normalized.slice(1)})`
+        : normalized,
+      overflowY: "auto" as const,
+    };
+  }
+
+  return undefined;
 }
