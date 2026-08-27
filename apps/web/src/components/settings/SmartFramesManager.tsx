@@ -14,13 +14,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { PopoverClose } from "@radix-ui/react-popover";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
 import useAuth from "@/context/useAuth";
@@ -31,10 +24,11 @@ import {
 } from "@/lib/apiClient";
 import { normalizeWallpaperFilters } from "./wallpaperFilterDefaults";
 import { renderWidget } from "../widgets/Widget";
-import WidgetPropertiesForm from "@dashwise/integrationskit/forms/WidgetPropertiesForm";
+import WidgetPropertiesForm, { type GlanceableOption } from "@dashwise/integrationskit/forms/WidgetPropertiesForm";
 import LocationSelectFormComponent from "./LocationSelectForm";
 
 const LOCAL_WIDGET_OPTIONS = [
+  { value: "glanceable-clock", label: "Glanceable Clock" },
   { value: "calendar-today", label: "Calendar Overview: Today" },
   { value: "calendar-week", label: "Calendar Overview: Week" },
   { value: "calendar-upcoming", label: "Calendar Overview: Upcoming" },
@@ -275,9 +269,7 @@ export default function SmartFramesManager({
   const [widgetCategories, setWidgetCategories] = useState<string[]>([]);
   const [selectedWidgetCategory, setSelectedWidgetCategory] = useState("frame");
   const [isWidgetCarouselOpen, setIsWidgetCarouselOpen] = useState(false);
-  const [glanceableOptions, setGlanceableOptions] = useState<
-    Array<{ value: string; label: string }>
-  >([]);
+  const [glanceableOptions, setGlanceableOptions] = useState<GlanceableOption[]>([]);
   const [widgetSchemas, setWidgetSchemas] = useState<
     Record<string, Record<string, any>>
   >({});
@@ -429,6 +421,9 @@ export default function SmartFramesManager({
             glanceable.name ?? glanceable.displayName ?? glanceable.type ??
               glanceable.key ?? "Glanceable",
           ),
+          exampleProps: glanceable.exampleProps && typeof glanceable.exampleProps === "object"
+            ? glanceable.exampleProps
+            : {},
         })).filter((glanceable) => glanceable.value);
 
       setWidgetOptionsByCategory(nextWidgetOptionsByCategory);
@@ -942,40 +937,6 @@ export default function SmartFramesManager({
                           </div>
                         </div>
                       </div>
-                      {selectedSection?.widgetType === "glanceable-clock" && glanceableOptions.length > 0 && (
-                        <div className="space-y-2">
-                          <Label>Glanceables</Label>
-                          <div className="grid grid-cols-2 gap-3">
-                            {(["left", "right"] as const).map((side) => (
-                              <Select
-                                key={side}
-                                value={String(selectedSection?.params?.glanceables?.[side] ?? "")}
-                                onValueChange={(value) =>
-                                  updateSelectedSection({
-                                    params: {
-                                      ...(selectedSection?.params ?? {}),
-                                      glanceables: {
-                                        ...(selectedSection?.params?.glanceables ?? {}),
-                                        [side]: value,
-                                      },
-                                    },
-                                  })}
-                              >
-                                <SelectTrigger>
-                                  <SelectValue placeholder={`${side} glanceable`} />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {glanceableOptions.map((item) => (
-                                    <SelectItem key={item.value} value={item.value}>
-                                      {item.label}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            ))}
-                          </div>
-                        </div>
-                      )}
                       {selectedSection?.widgetType === "weather" && (
                         <LocationSelectFormComponent
                           value={{
@@ -999,11 +960,15 @@ export default function SmartFramesManager({
                       )}
                       <WidgetPropertiesForm
                         idPrefix={`frame-widget-${selectedSection?.id ?? "cell"}`}
-                        schema={widgetSchemas[selectedSection?.widgetType ?? ""] ?? {}}
+                        schema={selectedSection?.widgetType === "glanceable-clock"
+                          ? { glanceables: { type: "glanceables" } }
+                          : widgetSchemas[selectedSection?.widgetType ?? ""] ?? {}}
                         value={selectedSection?.params ?? {}}
                         onChange={(params) => updateSelectedSection({ params })}
                         onError={setWidgetParamsError}
                         error={widgetParamsError}
+                        glanceableOptions={selectedSection?.widgetType === "glanceable-clock" ? glanceableOptions : undefined}
+                        glanceableSlotPositions={["top", "down"]}
                       />
                     </div>
 

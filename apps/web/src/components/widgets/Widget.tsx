@@ -74,7 +74,14 @@ export function renderWidget({
   switch (resolvedType) {
     case "main-clock":
     case "glanceable-clock":
-      return <GlanceableClockWidget className={className} params={renderParams} isPreview={isPreview} />;
+      return (
+        <GlanceableClockWidget
+          className={className}
+          params={renderParams}
+          isPreview={isPreview}
+          layout={resolvedType === "glanceable-clock" ? "frame" : "dashboard"}
+        />
+      );
 
     case "search-bar":
       return <SearchBar useRedirect={false} defaultOpen={defaultOpen} />;
