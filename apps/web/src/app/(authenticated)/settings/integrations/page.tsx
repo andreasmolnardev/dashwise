@@ -1,7 +1,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Editor from "@monaco-editor/react";
-import { Loader2 } from "lucide-react";
+import { Loader2, Puzzle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -79,6 +79,15 @@ type ResolvedEndpoint = {
   resolvedBody: unknown;
 };
 
+type CuratedIntegration = {
+  name: string;
+  category: string;
+  url: string;
+};
+
+const CURATED_CATALOGUE_URL =
+  "https://raw.githubusercontent.com/dashwise-homelab/integrations/refs/heads/main/catalogue.json";
+
 export default function IntegrationsModularSettingsPage() {
   const { token, withAuth } = useAuth();
 
@@ -87,10 +96,18 @@ export default function IntegrationsModularSettingsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const [settingsTab, setSettingsTab] = useState<"local" | "curated">("local");
+  const [curatedIntegrations, setCuratedIntegrations] = useState<CuratedIntegration[]>([]);
+  const [curatedLoading, setCuratedLoading] = useState(false);
+  const [curatedError, setCuratedError] = useState<string | null>(null);
+  const [selectedCuratedCategory, setSelectedCuratedCategory] = useState("all");
+  const [loadingCuratedUrl, setLoadingCuratedUrl] = useState<string | null>(null);
+
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [newName, setNewName] = useState("");
   const [newType, setNewType] = useState<"plugin" | "caldav">("plugin");
   const [newConfig, setNewConfig] = useState("");
+  const [curatedSource, setCuratedSource] = useState<string | null>(null);
   const [envDefinitions, setEnvDefinitions] = useState<EnvDefinition[]>([]);
   const [environmentOverrides, setEnvironmentOverrides] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
@@ -141,6 +158,21 @@ export default function IntegrationsModularSettingsPage() {
     [envDefinitions]
   );
 
+  const curatedCategories = useMemo(
+    () => ["all", ...new Set(curatedIntegrations.map((integration) => integration.category))],
+    [curatedIntegrations]
+  );
+
+  const visibleCuratedIntegrations = useMemo(
+    () =>
+      selectedCuratedCategory === "all"
+        ? curatedIntegrations
+        : curatedIntegrations.filter(
+            (integration) => integration.category === selectedCuratedCategory
+          ),
+    [curatedIntegrations, selectedCuratedCategory]
+  );
+
   const openIntegrationDetails = (integrationId: string) => {
     setSelectedId(integrationId);
     setDetailsDialogOpen(true);
@@ -148,6 +180,84 @@ export default function IntegrationsModularSettingsPage() {
 
   const handleDetailsOpenChange = (open: boolean) => {
     setDetailsDialogOpen(open);
+  };
+
+  const fetchCuratedIntegrations = useCallback(async () => {
+    setCuratedLoading(true);
+    setCuratedError(null);
+
+    try {
+      const response = await fetch(CURATED_CATALOGUE_URL);
+      if (!response.ok) {
+        throw new Error(`Catalogue request failed with ${response.status}`);
+      }
+
+      const data: unknown = await response.json();
+      const entries = Array.isArray(data)
+        ? data
+            .filter(isRecord)
+            .map((entry) => ({
+              name: typeof entry.name === "string" ? entry.name.trim() : "",
+              category: typeof entry.category === "string" ? entry.category.trim() : "other",
+              url: typeof entry.url === "string" ? entry.url.trim() : "",
+            }))
+            .filter((entry) => entry.name && entry.url)
+        : [];
+
+      setCuratedIntegrations(entries);
+    } catch (err) {
+      console.error("Unable to load curated integrations", err);
+      setCuratedError("Unable to load curated integrations right now.");
+    } finally {
+      setCuratedLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void fetchCuratedIntegrations();
+  }, [fetchCuratedIntegrations]);
+
+  const openManualAddDialog = () => {
+    setCuratedSource(null);
+    setNewName("");
+    setNewType("plugin");
+    setNewConfig("");
+    setEnvironmentOverrides({});
+    setFormError(null);
+    setAddDialogOpen(true);
+  };
+
+  const openCuratedIntegration = async (entry: CuratedIntegration) => {
+    setLoadingCuratedUrl(entry.url);
+    setFormError(null);
+
+    try {
+      const response = await fetch(entry.url);
+      if (!response.ok) {
+        throw new Error(`Integration request failed with ${response.status}`);
+      }
+
+      const configText = await response.text();
+      const parsedConfig = parseConfigValue(configText);
+      if (!isRecord(parsedConfig)) {
+        throw new Error("The curated YAML is invalid.");
+      }
+
+      const details = isRecord(parsedConfig.details) ? parsedConfig.details : {};
+      const configName = typeof details.name === "string" ? details.name.trim() : "";
+
+      setCuratedSource(entry.url);
+      setNewName(configName || entry.name);
+      setNewType("plugin");
+      setNewConfig(configText);
+      setEnvironmentOverrides({});
+      setAddDialogOpen(true);
+    } catch (err) {
+      console.error("Unable to load curated integration", err);
+      setCuratedError(`Unable to load ${entry.name} right now.`);
+    } finally {
+      setLoadingCuratedUrl(null);
+    }
   };
 
   const triggerEndpointTest = useCallback(
@@ -360,7 +470,7 @@ export default function IntegrationsModularSettingsPage() {
         createIntegrationAction(auth, {
           name: newName.trim() || undefined,
           type: newType,
-          source: "manual",
+          source: curatedSource ?? "manual",
           config: parsedConfig,
           environment: environmentOverrides,
         })
@@ -370,6 +480,9 @@ export default function IntegrationsModularSettingsPage() {
       setNewName("");
       setNewType("plugin");
       setNewConfig("");
+      setCuratedSource(null);
+      setEnvironmentOverrides({});
+      setFormError(null);
       await fetchIntegrations();
     } catch (err) {
       console.error("Unable to create integration", err);
@@ -382,6 +495,7 @@ export default function IntegrationsModularSettingsPage() {
     fetchIntegrations,
     newConfig,
     newName,
+    curatedSource,
     token,
     visibleEnvFields,
     withAuth,
@@ -530,11 +644,117 @@ export default function IntegrationsModularSettingsPage() {
             {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
             Refresh
           </Button>
-          <Button onClick={() => setAddDialogOpen(true)}>Add integration</Button>
+          <Button onClick={openManualAddDialog}>Add integration</Button>
         </div>
       </header>
 
-      {error && (
+      <div className="flex w-full items-center justify-center">
+        <div className="frosted flex min-h-11 w-min items-center gap-2 overflow-x-auto rounded-full border px-2 py-1">
+          {(["local", "curated"] as const).map((tab) => (
+            <button
+              key={tab}
+              type="button"
+              onClick={() => setSettingsTab(tab)}
+              className={`whitespace-nowrap rounded-full px-4 py-1.5 text-sm transition ${
+                settingsTab === tab
+                  ? "bg-white/20 font-semibold text-white"
+                  : "text-white/70 hover:text-white"
+              }`}
+            >
+              {tab}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {settingsTab === "curated" && (
+        <div className="space-y-5">
+          <div>
+            <div className="flex items-end justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold">Curated integrations</h2>
+                <p className="text-sm text-muted-foreground">
+                  Pick an integration to add it from the Dashwise catalogue.
+                </p>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {curatedIntegrations.length} available
+              </p>
+            </div>
+
+            <div className="mt-4 flex flex-wrap gap-2" role="group" aria-label="Filter curated integrations">
+              {curatedCategories.map((category) => (
+                <button
+                  key={category}
+                  type="button"
+                  onClick={() => setSelectedCuratedCategory(category)}
+                  className={cn(
+                    "rounded-full border px-3 py-1.5 text-xs transition",
+                    selectedCuratedCategory === category
+                      ? "border-primary bg-primary/15 text-primary"
+                      : "border-white/20 text-white/70 hover:border-white/40 hover:text-white"
+                  )}
+                >
+                  {formatCuratedCategory(category)}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {curatedLoading ? (
+            <div className="flex h-32 items-center justify-center">
+              <Loader2 className="h-6 w-6 animate-spin" />
+            </div>
+          ) : curatedError ? (
+            <Card className="border border-destructive/40 bg-destructive/5 text-destructive-foreground">
+              <CardContent className="flex items-center justify-between gap-4">
+                <p className="text-sm">{curatedError}</p>
+                <Button variant="outline" size="sm" onClick={() => void fetchCuratedIntegrations()}>
+                  Retry
+                </Button>
+              </CardContent>
+            </Card>
+          ) : visibleCuratedIntegrations.length === 0 ? (
+            <p className="p-6 text-sm text-muted-foreground">No integrations match this tag.</p>
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {visibleCuratedIntegrations.map((integration) => {
+                const isLoading = loadingCuratedUrl === integration.url;
+                return (
+                  <button
+                    key={integration.url}
+                    type="button"
+                    className="frosted group flex min-h-32 flex-col items-start justify-between gap-5 rounded-2xl border p-4 text-left transition hover:border-primary/60 hover:bg-primary/5 disabled:cursor-wait disabled:opacity-70"
+                    onClick={() => void openCuratedIntegration(integration)}
+                    disabled={loadingCuratedUrl !== null}
+                  >
+                    <div className="flex w-full items-start justify-between gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 text-white/70 transition group-hover:text-primary">
+                        {isLoading ? (
+                          <Loader2 className="h-5 w-5 animate-spin" />
+                        ) : (
+                          <Puzzle className="h-5 w-5" />
+                        )}
+                      </div>
+                      <Badge variant="outline" className="text-[0.7rem]">
+                        {formatCuratedCategory(integration.category)}
+                      </Badge>
+                    </div>
+                    <div>
+                      <p className="font-semibold transition group-hover:text-primary">
+                        {integration.name}
+                      </p>
+                      <p className="mt-1 text-xs text-muted-foreground">Type: {formatCuratedCategory(integration.category)}</p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {settingsTab === "local" && error && (
         <Card className="border border-destructive/40 bg-destructive/5 text-destructive-foreground">
           <CardContent>
             <p className="text-sm">{error}</p>
@@ -542,7 +762,7 @@ export default function IntegrationsModularSettingsPage() {
         </Card>
       )}
 
-      {checkingUpdates && !loading && (
+      {settingsTab === "local" && checkingUpdates && !loading && (
         <Card className="border border-primary/20 bg-primary/5">
           <CardContent>
             <p className="text-sm">Checking integration sources for updates...</p>
@@ -550,7 +770,7 @@ export default function IntegrationsModularSettingsPage() {
         </Card>
       )}
 
-      {integrations.some((integration) => integration.localData?.updateAvailable) && (
+      {settingsTab === "local" && integrations.some((integration) => integration.localData?.updateAvailable) && (
         <Card className="border border-amber-500/30 bg-amber-500/10">
           <CardContent className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
@@ -576,7 +796,7 @@ export default function IntegrationsModularSettingsPage() {
         </Card>
       )}
 
-      <div className="space-y-3">
+      {settingsTab === "local" && <div className="space-y-3">
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-semibold">Your integrations</h3>
           <p className="text-xs">{integrations.length} total</p>
@@ -665,7 +885,7 @@ export default function IntegrationsModularSettingsPage() {
             </div>
           )}
         </div>
-      </div>
+      </div>}
 
       <DebugIntegrationDialog
         open={detailsDialogOpen}
@@ -688,6 +908,7 @@ export default function IntegrationsModularSettingsPage() {
       <AddIntegrationConfigDialog
         open={addDialogOpen}
         onOpenChange={setAddDialogOpen}
+        mode={curatedSource ? "curated" : "manual"}
         newName={newName}
         onNewNameChange={setNewName}
         newType={newType}
@@ -795,6 +1016,13 @@ function formatDate(value: string | null | undefined) {
   } catch {
     return value;
   }
+}
+
+function formatCuratedCategory(value: string) {
+  if (value === "all") {
+    return "all";
+  }
+  return value.replaceAll("-", " ");
 }
 
 function parseSafeJson(value: string) {
