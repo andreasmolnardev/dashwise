@@ -1,9 +1,7 @@
 import { useRef, useState } from "react";
 import { Icon } from "@iconify-icon/react";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import useAuth from "@/context/useAuth";
+import { useNotification } from "@/context/NotificationContext";
 import {
   createLinkItemAction,
   createLinksCollectionAction,
@@ -53,12 +51,6 @@ type ImportedBookmark = {
   description?: string;
   tags: string[];
   folderPath: string[];
-};
-
-type TransferMessage = {
-  variant: "success" | "error";
-  title: string;
-  description: string;
 };
 
 function escapeHtml(value: unknown) {
@@ -221,14 +213,19 @@ function parseBookmarksHtml(html: string) {
   return bookmarks;
 }
 
-function getUniqueCollectionName(collections: LinkCollection[]) {
+function isHomeCollection(collection: LinkCollection) {
+  return String(collection.type ?? "").trim().toLowerCase() === "home"
+    || collection.name.trim().toLowerCase() === "home";
+}
+
+function getUniqueCollectionName(collections: LinkCollection[], baseName: string) {
   const names = new Set(collections.map((collection) => collection.name.trim().toLowerCase()));
-  const baseName = "Imported bookmarks";
-  if (!names.has(baseName.toLowerCase())) return baseName;
+  const normalizedBaseName = baseName.trim() || "Imported bookmarks";
+  if (!names.has(normalizedBaseName.toLowerCase())) return normalizedBaseName;
 
   let suffix = 2;
-  while (names.has(`${baseName} (${suffix})`.toLowerCase())) suffix += 1;
-  return `${baseName} (${suffix})`;
+  while (names.has(`${normalizedBaseName} (${suffix})`.toLowerCase())) suffix += 1;
+  return `${normalizedBaseName} (${suffix})`;
 }
 
 function getFolderCacheKey(parentId: string | undefined, name: string) {
@@ -249,14 +246,13 @@ function downloadHtml(filename: string, html: string) {
 
 export default function LinksHtmlTransfer() {
   const { token, withAuthRedirect } = useAuth();
+  const { notify } = useNotification();
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState<"export" | "import" | null>(null);
-  const [message, setMessage] = useState<TransferMessage | null>(null);
 
   const exportLinks = async () => {
     setBusy("export");
-    setMessage(null);
 
     try {
       const result = await withAuthRedirect(async (auth) => {
@@ -282,13 +278,13 @@ export default function LinksHtmlTransfer() {
       const linkCount = result.data.reduce((count, entry) => count + entry.items.length, 0);
       const filename = `dashwise-links-${new Date().toISOString().slice(0, 10)}.html`;
       downloadHtml(filename, buildBookmarksHtml(result.data, result.tags));
-      setMessage({
+      notify({
         variant: "success",
         title: "Links exported",
         description: `Downloaded ${linkCount} link${linkCount === 1 ? "" : "s"} from ${result.data.length} list${result.data.length === 1 ? "" : "s"}.`,
       });
     } catch (error) {
-      setMessage({
+      notify({
         variant: "error",
         title: "Export failed",
         description: error instanceof Error ? error.message : String(error),
@@ -300,31 +296,60 @@ export default function LinksHtmlTransfer() {
 
   const importLinks = async (file: File) => {
     setBusy("import");
-    setMessage(null);
 
     try {
       const bookmarks = parseBookmarksHtml(await file.text());
-      const importedCount = await withAuthRedirect(async (auth) => {
+      const importResult = await withAuthRedirect(async (auth) => {
         const collections = (await getLinksCollectionsAction(auth)) as unknown as LinkCollection[];
-        const createdCollection = await createLinksCollectionAction(auth, {
-          name: getUniqueCollectionName(collections),
-          description: `Imported from ${file.name}`,
-        }) as { id: string };
-
-        if (!createdCollection?.id) throw new Error("The imported list could not be created.");
+        const userCollections = collections.filter((collection) => !isHomeCollection(collection));
+        const collectionsByName = new Map(
+          userCollections.map((collection) => [collection.name.trim().toLowerCase(), collection]),
+        );
+        const knownCollections = [...collections];
+        const folderIdsByCollection = new Map<string, Map<string, string>>();
 
         const existingTags = (await getLinksTagsAction(auth)) as unknown as Array<{ id: string; name: string }>;
         const tagIds = new Map(existingTags.map((tag) => [tag.name.trim().toLowerCase(), tag.id]));
-        const folderIds = new Map<string, string>();
+        const getOrCreateCollection = async (name: string) => {
+          const key = name.trim().toLowerCase();
+          const existing = collectionsByName.get(key);
+          if (existing?.id) return existing;
 
-        const getOrCreateFolder = async (path: string[]) => {
+          const collection = await createLinksCollectionAction(auth, {
+            name: getUniqueCollectionName(knownCollections, name),
+            description: `Imported from ${file.name}`,
+          }) as LinkCollection;
+          if (!collection?.id) throw new Error(`Could not create list "${name}".`);
+
+          collectionsByName.set(key, collection);
+          knownCollections.push(collection);
+          return collection;
+        };
+
+        const getFolderIds = async (collectionId: string) => {
+          const cached = folderIdsByCollection.get(collectionId);
+          if (cached) return cached;
+
+          const existingFolders = (await getLinksFoldersAction(auth, collectionId)) as unknown as LinkFolder[];
+          const folderIds = new Map<string, string>();
+          for (const folder of Array.isArray(existingFolders) ? existingFolders : []) {
+            if (folder.id && folder.name.trim()) {
+              folderIds.set(getFolderCacheKey(folder.parentFolder, folder.name), folder.id);
+            }
+          }
+          folderIdsByCollection.set(collectionId, folderIds);
+          return folderIds;
+        };
+
+        const getOrCreateFolder = async (collectionId: string, path: string[]) => {
           let parentId: string | undefined;
+          const folderIds = await getFolderIds(collectionId);
           for (const name of path) {
             const cacheKey = getFolderCacheKey(parentId, name);
             let folderId = folderIds.get(cacheKey);
             if (!folderId) {
               const folder = await createLinksFolderAction(auth, {
-                list: createdCollection.id,
+                list: collectionId,
                 name,
                 parentFolder: parentId,
               }) as { id: string };
@@ -337,7 +362,16 @@ export default function LinksHtmlTransfer() {
           return parentId;
         };
 
+        const rootListName = getUniqueCollectionName(
+          knownCollections,
+          file.name.replace(/\.[^.]+$/, ""),
+        );
+        const importedCollectionIds = new Set<string>();
+
         for (const bookmark of bookmarks) {
+          const collectionName = bookmark.folderPath[0] || rootListName;
+          const collection = await getOrCreateCollection(collectionName);
+          importedCollectionIds.add(collection.id);
           const tags = [] as string[];
           for (const tagName of bookmark.tags) {
             const key = tagName.toLowerCase();
@@ -357,23 +391,23 @@ export default function LinksHtmlTransfer() {
             title: bookmark.title,
             iconUrl: bookmark.iconUrl,
             description: bookmark.description,
-            collection: createdCollection.id,
-            folder: await getOrCreateFolder(bookmark.folderPath),
+            collection: collection.id,
+            folder: await getOrCreateFolder(collection.id, bookmark.folderPath.slice(1)),
             tags,
           });
         }
 
-        return bookmarks.length;
+        return { count: bookmarks.length, collectionCount: importedCollectionIds.size };
       });
 
       await queryClient.invalidateQueries({ queryKey: ["api", token, "links"] });
-      setMessage({
+      notify({
         variant: "success",
         title: "Links imported",
-        description: `Imported ${importedCount} link${importedCount === 1 ? "" : "s"} into a new list.`,
+        description: `Imported ${importResult.count} link${importResult.count === 1 ? "" : "s"} into ${importResult.collectionCount} list${importResult.collectionCount === 1 ? "" : "s"}.`,
       });
     } catch (error) {
-      setMessage({
+      notify({
         variant: "error",
         title: "Import failed",
         description: error instanceof Error ? error.message : String(error),
@@ -384,67 +418,40 @@ export default function LinksHtmlTransfer() {
   };
 
   return (
-    <Card className="frosted border-white/10">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Icon icon="fa6-solid:bookmark" />
-          HTML bookmarks
-        </CardTitle>
-        <CardDescription>
-          Move links between Dashwise and your browser with the standard bookmark HTML format.
-          Imports are added to a new list and never replace existing links.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {message && (
-          <Alert variant={message.variant === "error" ? "destructive" : "default"}>
-            <Icon icon={message.variant === "error" ? "fa6-solid:triangle-exclamation" : "fa6-solid:circle-check"} />
-            <AlertTitle>{message.title}</AlertTitle>
-            <AlertDescription>{message.description}</AlertDescription>
-          </Alert>
-        )}
+    <div className="space-y-2">
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".html,.htm,text/html"
+        className="hidden"
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          event.target.value = "";
+          if (file) void importLinks(file);
+        }}
+      />
 
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="frosted rounded-lg border border-white/10 p-4">
-            <div className="mb-3 flex items-center gap-2 font-semibold">
-              <Icon icon="fa6-solid:download" />
-              Export links
-            </div>
-            <p className="mb-4 text-sm text-white/65">
-              Download all lists, folders, titles, descriptions, icons, dates, and tags as one HTML file.
-            </p>
-            <Button type="button" onClick={exportLinks} disabled={busy !== null}>
-              <Icon icon="fa6-solid:download" />
-              {busy === "export" ? "Exporting…" : "Export HTML"}
-            </Button>
-          </div>
+      <button
+        type="button"
+        onClick={() => void exportLinks()}
+        disabled={busy !== null}
+        className="flex w-full items-center gap-2 rounded-md border border-transparent p-1.5 text-left hover-frosted disabled:cursor-wait disabled:opacity-50"
+      >
+        <Icon icon="fa6-solid:download" />
+        <p className="w-full">{busy === "export" ? "Exporting..." : "Export Links as HTML"}</p>
+        <Icon icon="fa6-solid:caret-right" />
+      </button>
 
-          <div className="frosted rounded-lg border border-white/10 p-4">
-            <div className="mb-3 flex items-center gap-2 font-semibold">
-              <Icon icon="fa6-solid:upload" />
-              Import links
-            </div>
-            <p className="mb-4 text-sm text-white/65">
-              Import a browser bookmark file. Folders and bookmark tags are recreated in a new Dashwise list.
-            </p>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".html,.htm,text/html"
-              className="hidden"
-              onChange={(event) => {
-                const file = event.target.files?.[0];
-                event.target.value = "";
-                if (file) void importLinks(file);
-              }}
-            />
-            <Button type="button" variant="secondary" onClick={() => fileInputRef.current?.click()} disabled={busy !== null}>
-              <Icon icon="fa6-solid:upload" />
-              {busy === "import" ? "Importing…" : "Choose HTML file"}
-            </Button>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
+      <button
+        type="button"
+        onClick={() => fileInputRef.current?.click()}
+        disabled={busy !== null}
+        className="flex w-full items-center gap-2 rounded-md border border-transparent p-1.5 text-left hover-frosted disabled:cursor-wait disabled:opacity-50"
+      >
+        <Icon icon="fa6-solid:upload" />
+        <p className="w-full">{busy === "import" ? "Importing..." : "Import Links from HTML"}</p>
+        <Icon icon="fa6-solid:caret-right" />
+      </button>
+    </div>
   );
 }
