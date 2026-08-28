@@ -1,11 +1,13 @@
-import { useEffect, useState, type ChangeEvent } from "react";
+import { useState, type ChangeEvent } from "react";
+import AppIcon from "@dashwise/app-icon";
 
-export type GlanceableSlotPosition = "left" | "right" | "top" | "down";
+export type GlanceableSlotPosition = "left" | "right" | "top" | "down" | "list";
 
 export type GlanceableOption = {
   value: string;
   label: string;
   exampleProps?: Record<string, any>;
+  properties?: Record<string, any>;
 };
 
 export type WidgetPropertiesFormProps = {
@@ -18,6 +20,7 @@ export type WidgetPropertiesFormProps = {
   emptyMessage?: string;
   glanceableOptions?: GlanceableOption[];
   glanceableSlotPositions?: readonly GlanceableSlotPosition[];
+  onEditGlanceable?: (index: number) => void;
 };
 
 type SelectSchema = {
@@ -87,14 +90,30 @@ function normalizeGlanceableSlot(value: unknown): GlanceableSlot | null {
 function normalizeGlanceableSlots(
   value: unknown,
 ): GlanceableSlots {
+  if (Array.isArray(value)) {
+    return {
+      left: [],
+      right: [],
+      top: [],
+      down: [],
+      list: normalizePositionSlots(value),
+    };
+  }
+
   const record = isRecord(value) ? value : {};
   const rawSlots = isRecord(record.slots) ? record.slots : record;
+  const legacyList = ["top", "down", "left", "right"].flatMap((position) =>
+    normalizePositionSlots(rawSlots[position]),
+  );
 
   return {
     left: normalizePositionSlots(rawSlots.left),
     right: normalizePositionSlots(rawSlots.right),
     top: normalizePositionSlots(rawSlots.top),
     down: normalizePositionSlots(rawSlots.down),
+    list: normalizePositionSlots(rawSlots.list).length > 0
+      ? normalizePositionSlots(rawSlots.list)
+      : legacyList,
   };
 
   function normalizePositionSlots(rawValue: unknown) {
@@ -115,38 +134,31 @@ function GlanceablesEditor({
   positions,
   onChange,
   onError,
+  onEditGlanceable,
 }: {
   value: unknown;
   options: GlanceableOption[];
   positions: readonly GlanceableSlotPosition[];
-  onChange: (next: Record<string, any>) => void;
+  onChange: (next: unknown) => void;
   onError?: (message: string | null) => void;
+  onEditGlanceable?: (index: number) => void;
 }) {
   const currentValue = isRecord(value) && value.type !== "glanceables" ? value : {};
   const slots = normalizeGlanceableSlots(value);
-  const [paramDrafts, setParamDrafts] = useState<Record<string, string>>({});
-  const positionKey = positions.join("|");
-
-  useEffect(() => {
-    const nextDrafts: Record<string, string> = {};
-    positions.forEach((position) => {
-      slots[position].forEach((slot, index) => {
-        nextDrafts[`${position}-${index}`] = JSON.stringify(slot.params, null, 2);
-      });
-    });
-    setParamDrafts(nextDrafts);
-    // The value and selected positions are the source of truth for the text drafts.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [positionKey, value]);
+  const [editingSlot, setEditingSlot] = useState<string | null>(null);
+  const [draggedSlot, setDraggedSlot] = useState<number | null>(null);
+  const isList = positions.length === 1 && positions[0] === "list";
 
   const updateSlots = (nextSlots: GlanceableSlots) => {
     onError?.(null);
-    onChange({
-      ...currentValue,
-      slots: Object.fromEntries(
-        positions.map((position) => [position, nextSlots[position]]),
-      ),
-    });
+    onChange(isList
+      ? nextSlots.list
+      : {
+        ...currentValue,
+        slots: Object.fromEntries(
+          positions.map((position) => [position, nextSlots[position]]),
+        ),
+      });
   };
 
   const toggleOption = (position: GlanceableSlotPosition, option: GlanceableOption) => {
@@ -157,6 +169,13 @@ function GlanceablesEditor({
       : current.filter((_, index) => index !== existingIndex);
 
     updateSlots({ ...slots, [position]: next });
+  };
+
+  const addOption = (position: GlanceableSlotPosition, option: GlanceableOption) => {
+    updateSlots({
+      ...slots,
+      [position]: [...slots[position], { type: option.value, params: option.exampleProps ?? {} }],
+    });
   };
 
   const updateParams = (
@@ -172,15 +191,51 @@ function GlanceablesEditor({
     });
   };
 
+  const removeSlot = (position: GlanceableSlotPosition, index: number) => {
+    updateSlots({
+      ...slots,
+      [position]: slots[position].filter((_, slotIndex) => slotIndex !== index),
+    });
+    setEditingSlot(null);
+  };
+
+  const moveListSlot = (fromIndex: number, toIndex: number) => {
+    if (fromIndex === toIndex) return;
+    const next = [...slots.list];
+    const [moved] = next.splice(fromIndex, 1);
+    if (!moved) return;
+    next.splice(toIndex, 0, moved);
+    updateSlots({ ...slots, list: next });
+  };
+
   return (
     <div className="space-y-3">
       <p className="text-xs text-white/55">
-        Choose one or more glanceables for each row. Selected glanceables are shown together.
+        {!isList && "Choose one or more glanceables for each row. Selected glanceables are shown together."}
       </p>
       {positions.map((position) => (
-        <div key={position} className="space-y-2 rounded-lg border border-white/10 bg-black/10 p-3">
-          <p className="text-sm font-medium capitalize text-white">{position} row</p>
-          <div className="grid gap-2 sm:grid-cols-2">
+        <div key={position} className={isList ? "space-y-0" : "space-y-2 rounded-lg border border-white/10 bg-black/10 p-3"}>
+          <div className={isList ? "flex items-center justify-between gap-3 pb-2" : "flex items-center justify-between gap-3"}>
+            <p className={isList ? "text-lg font-semibold text-white" : "text-sm font-medium capitalize text-white"}>
+              {position === "list" ? "Glanceables" : `${position} row`}
+            </p>
+            {isList ? (
+              <button
+                type="button"
+                aria-label="Add glanceable"
+                onClick={() => {
+                  const option = options.find((item) => item.value === "date") ?? {
+                    value: "date",
+                    label: "Date",
+                  };
+                  addOption(position, option);
+                }}
+              >
+                <AppIcon source="fa6-solid:plus" alt="" size={18} />
+              </button>
+            ) : null}
+          </div>
+          {!isList && <div className="grid gap-2 sm:grid-cols-2">
             {options.map((option) => {
               const selected = slots[position].some((slot) => slot.type === option.value);
               return (
@@ -202,32 +257,84 @@ function GlanceablesEditor({
                 </label>
               );
             })}
-          </div>
+          </div>}
           {slots[position].map((slot, index) => {
             const option = options.find((item) => item.value === slot.type);
             const draftKey = `${position}-${index}`;
+            const isEditing = editingSlot === draftKey;
             return (
-              <div key={`${slot.type}-${index}`} className="space-y-1.5 rounded-md border border-white/10 bg-black/15 p-2">
-                <p className="text-xs font-medium text-white/75">
-                  {option?.label ?? slot.type} properties
-                </p>
-                <textarea
-                  aria-label={`${option?.label ?? slot.type} properties`}
-                  value={paramDrafts[draftKey] ?? JSON.stringify(slot.params, null, 2)}
-                  onChange={(event) => {
-                    const nextText = event.target.value;
-                    setParamDrafts((current) => ({ ...current, [draftKey]: nextText }));
-                    try {
-                      const nextParams = JSON.parse(nextText);
-                      if (!isRecord(nextParams)) throw new Error("Expected object");
-                      updateParams(position, index, nextParams);
-                    } catch {
-                      onError?.("Glanceable properties must be valid JSON objects.");
-                    }
-                  }}
-                  className="min-h-16 w-full rounded-md border border-white/15 bg-black/20 p-2 text-xs outline-none"
-                  spellCheck={false}
-                />
+              <div
+                key={`${slot.type}-${index}`}
+                draggable={isList}
+                onDragStart={() => isList && setDraggedSlot(index)}
+                onDragOver={(event) => isList && event.preventDefault()}
+                onDrop={() => {
+                  if (isList && draggedSlot !== null) moveListSlot(draggedSlot, index);
+                  setDraggedSlot(null);
+                }}
+                className={isList ? "py-1" : "rounded-md border border-white/10 bg-black/15 p-2"}
+              >
+                <div className="flex items-center gap-2">
+                  {isList && (
+                    <span className="cursor-grab text-white/50" aria-label="Drag to reorder">
+                      <AppIcon source="fa6-solid:grip-lines" alt="" size={14} />
+                    </span>
+                  )}
+                  <span className="min-w-0 flex-1 truncate text-lg text-white/90">{option?.label ?? slot.type}</span>
+                  {isList && (
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        aria-label={`Edit ${option?.label ?? slot.type}`}
+                        onClick={() => onEditGlanceable
+                          ? onEditGlanceable(index)
+                          : setEditingSlot(isEditing ? null : draftKey)}
+                        className="text-white/60 hover:text-white"
+                      >
+                        <AppIcon source="fa6-solid:pen" alt="" size={14} />
+                      </button>
+                      <button
+                        type="button"
+                        aria-label={`Remove ${option?.label ?? slot.type}`}
+                        onClick={() => removeSlot(position, index)}
+                        className="text-white/60 hover:text-white"
+                      >
+                        <AppIcon source="fa6-solid:xmark" alt="" size={16} />
+                      </button>
+                    </div>
+                  )}
+                  {!isList && (
+                    <button
+                      type="button"
+                      aria-label={`Remove ${option?.label ?? slot.type}`}
+                      onClick={() => removeSlot(position, index)}
+                      className="text-white/60 hover:text-white"
+                    >
+                      x
+                    </button>
+                  )}
+                </div>
+                {(!isList || isEditing) && (
+                  <div className={isList ? "mt-3 space-y-3 rounded-lg bg-black/10 p-3" : "mt-2"}>
+                    <WidgetPropertiesForm
+                      idPrefix={`glanceable-${position}-${index}`}
+                      schema={option?.properties ?? {}}
+                      value={slot.params}
+                      onChange={(nextParams) => updateParams(position, index, nextParams)}
+                      onError={onError}
+                      emptyMessage="No configurable properties for this glanceable."
+                    />
+                    {isList && (
+                      <button
+                        type="button"
+                        onClick={() => removeSlot(position, index)}
+                        className="text-xs text-white/60 hover:text-white"
+                      >
+                        Remove glanceable
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })}
@@ -247,6 +354,7 @@ export default function WidgetPropertiesForm({
   emptyMessage = "No configurable properties for this widget.",
   glanceableOptions = [],
   glanceableSlotPositions = ["left", "right"],
+  onEditGlanceable,
 }: WidgetPropertiesFormProps) {
   const keys = Array.from(new Set([...Object.keys(schema), ...Object.keys(value)]));
 
@@ -268,7 +376,7 @@ export default function WidgetPropertiesForm({
         const selectSchema = isSelectSchema(schemaValue) ? schemaValue : null;
         const inputId = `${idPrefix}-${key}`;
         const selectOptions = selectSchema ? getSelectOptions(selectSchema) : [];
-        const isGlanceablesField = key === "glanceables" && glanceableOptions.length > 0;
+        const isGlanceablesField = key === "glanceables";
         const type = isGlanceablesField ? "glanceables" : selectSchema ? "select" : getValueType(schemaValue ?? currentValue);
         const selectValue = hasStoredValue && value[key] != null && value[key] !== ""
           ? String(value[key])
@@ -276,11 +384,13 @@ export default function WidgetPropertiesForm({
         const resolvedSelectValue = selectValue || String(selectSchema?.default ?? selectOptions[0]?.value ?? "")
 
         return (
-          <div key={key} className="space-y-1.5 rounded-lg border border-white/10 bg-black/15 p-3">
-            <div className="flex items-start justify-between gap-3">
-              <label htmlFor={inputId} className="text-sm font-medium text-white">{key}</label>
-              <span className="rounded-full border border-white/15 px-2 py-0.5 text-[11px] uppercase tracking-wide text-white/60">{type}</span>
-            </div>
+          <div key={key} className={isGlanceablesField ? "space-y-1.5" : "space-y-1.5 rounded-lg border border-white/10 bg-black/15 p-3"}>
+            {!isGlanceablesField && (
+              <div className="flex items-start justify-between gap-3">
+                <label htmlFor={inputId} className="text-sm font-medium text-white">{key}</label>
+                <span className="rounded-full border border-white/15 px-2 py-0.5 text-[11px] uppercase tracking-wide text-white/60">{type}</span>
+              </div>
+            )}
             {!isGlanceablesField && <p className="text-xs text-white/50">Default: {formatDefault(schemaValue)}</p>}
 
             {isGlanceablesField ? (
@@ -290,6 +400,7 @@ export default function WidgetPropertiesForm({
                 positions={glanceableSlotPositions}
                 onChange={(nextValue) => updateValue(key, nextValue)}
                 onError={onError}
+                onEditGlanceable={onEditGlanceable}
               />
             ) : selectSchema ? (
               <select

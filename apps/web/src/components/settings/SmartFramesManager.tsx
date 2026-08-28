@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ChevronDown, MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,6 +16,15 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { PopoverClose } from "@radix-ui/react-popover";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import useAuth from "@/context/useAuth";
 import {
   getUserGlanceablesAction,
@@ -26,6 +35,7 @@ import { normalizeWallpaperFilters } from "./wallpaperFilterDefaults";
 import { renderWidget } from "../widgets/Widget";
 import WidgetPropertiesForm, { type GlanceableOption } from "@dashwise/integrationskit/forms/WidgetPropertiesForm";
 import LocationSelectFormComponent from "./LocationSelectForm";
+import { EditGlanceablesView } from "./pages/EditGlanceablesView";
 
 const LOCAL_WIDGET_OPTIONS = [
   { value: "glanceable-clock", label: "Glanceable Clock" },
@@ -92,7 +102,50 @@ type Frame = {
   params?: Record<string, any>;
 };
 
+type FrameGlanceable = {
+  type: string;
+  params: Record<string, any>;
+};
+
 type BackgroundMode = "current" | "none" | "upload" | "url";
+type RulesScope = "global" | "device";
+
+function readDeviceRules() {
+  if (typeof window === "undefined") return {};
+
+  try {
+    const raw = window.localStorage.getItem("dashwise_screensaver_device_rules");
+    const parsed = raw ? JSON.parse(raw) : {};
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function getGlobalRules(config?: Record<string, any>) {
+  return {
+    ...(config?.showButton === undefined ? {} : { showButton: config.showButton }),
+    ...(config?.inactivityTimeout === undefined
+      ? {}
+      : { inactivityTimeout: config.inactivityTimeout }),
+    ...(config?.displayRules && typeof config.displayRules === "object"
+      ? config.displayRules
+      : {}),
+  };
+}
+
+function getDeviceRules() {
+  const config = readDeviceRules();
+  return {
+    ...(config.showButton === undefined ? {} : { showButton: config.showButton }),
+    ...(config.inactivityTimeout === undefined
+      ? {}
+      : { inactivityTimeout: config.inactivityTimeout }),
+    ...(config.displayRules && typeof config.displayRules === "object"
+      ? config.displayRules
+      : {}),
+  };
+}
 
 function clampLayoutSize(value: number) {
   if (!Number.isFinite(value)) return 1;
@@ -161,6 +214,108 @@ function stripPrivateSectionParams(params?: Record<string, any>) {
   return nextParams;
 }
 
+function getFrameGlanceables(value: unknown): FrameGlanceable[] {
+  const record = value && typeof value === "object"
+    ? value as Record<string, any>
+    : {};
+  const rawItems = Array.isArray(value)
+    ? value
+    : Array.isArray(record.slots?.list)
+    ? record.slots.list
+    : [];
+
+  return rawItems.flatMap((item) => {
+    if (typeof item === "string" && item.trim()) {
+      return [{ type: item.trim(), params: {} }];
+    }
+
+    if (!item || typeof item !== "object" || typeof item.type !== "string" || !item.type.trim()) {
+      return [];
+    }
+
+    return [{
+      type: item.type.trim(),
+      params: item.params && typeof item.params === "object" && !Array.isArray(item.params)
+        ? item.params
+        : {},
+    }];
+  });
+}
+
+function FrameGlanceableModal({
+  glanceable,
+  glanceableOptions,
+  onChange,
+  onRemove,
+}: {
+  glanceable: FrameGlanceable;
+  glanceableOptions: GlanceableOption[];
+  onChange: (next: FrameGlanceable) => void;
+  onRemove: () => void;
+}) {
+  const itemId = "frame-glanceable";
+  const [clockSelection, setClockSelection] = useState({
+    left: [{ id: itemId, type: glanceable.type }],
+    right: [],
+  });
+  const [clockGlanceables, setClockGlanceables] = useState({
+    [itemId]: glanceable.params,
+  });
+  const [clockGlanceableIntervals, setClockGlanceableIntervals] = useState({
+    left: 5,
+    right: 5,
+  });
+  const [clockStyle, setClockStyle] = useState<Record<string, any>>({});
+  const onChangeRef = useRef(onChange);
+  const onRemoveRef = useRef(onRemove);
+  const initializedRef = useRef(false);
+
+  onChangeRef.current = onChange;
+  onRemoveRef.current = onRemove;
+
+  useEffect(() => {
+    if (!initializedRef.current) {
+      initializedRef.current = true;
+      return;
+    }
+
+    const selected = clockSelection.left[0];
+    if (!selected) {
+      onRemoveRef.current();
+      return;
+    }
+
+    onChangeRef.current({
+      type: selected.type,
+      params: clockGlanceables[selected.id] ?? {},
+    });
+  }, [clockGlanceables, clockSelection]);
+
+  return (
+    <EditGlanceablesView
+      hasMainClock
+      glanceablesCatalog={glanceableOptions.map((option) => ({
+        type: option.value,
+        name: option.label,
+        exampleProps: option.exampleProps ?? {},
+        properties: option.properties,
+      }))}
+      selectedClockPart="left"
+      clockSelection={clockSelection}
+      setClockSelection={setClockSelection}
+      clockGlanceables={clockGlanceables}
+      setClockGlanceables={setClockGlanceables}
+      clockGlanceableIntervals={clockGlanceableIntervals}
+      setClockGlanceableIntervals={setClockGlanceableIntervals}
+      clockStyle={clockStyle}
+      setClockStyle={setClockStyle}
+      fonts={[]}
+      titleOverride="Edit Glanceable"
+      hideAddGlanceable
+    />
+  );
+}
+
 function LayoutPreview({
   cols,
   rows,
@@ -203,12 +358,10 @@ function normalizeWidgetChoice(type?: string) {
 function FrameLayoutPreview({
   frame,
   resolveWidgetLabel,
-  selectedSectionId,
   onSelectSection,
 }: {
   frame: Frame;
   resolveWidgetLabel: (type?: string) => string;
-  selectedSectionId?: string;
   onSelectSection?: (sectionId: string) => void;
 }) {
   const layout = getFrameLayout(frame);
@@ -217,7 +370,7 @@ function FrameLayoutPreview({
     : [];
   return (
     <div
-      className="grid h-full gap-2"
+      className="grid h-full w-full min-h-0 min-w-0 gap-2 overflow-hidden"
       style={{
         gridTemplateColumns: `repeat(${layout.cols}, minmax(0, 1fr))`,
         gridTemplateRows: `repeat(${layout.rows}, minmax(0, 1fr))`,
@@ -228,14 +381,9 @@ function FrameLayoutPreview({
           key={section.id}
           type="button"
           onClick={() => onSelectSection?.(section.id)}
-          className={`frosted min-w-0 overflow-hidden rounded-xl border bg-white/5 p-2 text-center text-xs shadow-sm backdrop-blur-xl transition ${
-            selectedSectionId === section.id
-              ? "border-primary/70 bg-primary/15 text-white"
-              : "border-white/10 text-white/75 hover:bg-white/10"
-          }`}
+          className="frosted min-h-0 min-w-0 overflow-hidden rounded-xl border border-white/10 bg-white/5 p-2 text-center text-xs text-white/75 shadow-sm backdrop-blur-xl transition hover:bg-white/10"
         >
           <span className="flex h-full min-h-0 flex-col items-center justify-center gap-1 text-center leading-tight">
-            {selectedSectionId === section.id ? <span className="text-primary">•</span> : null}
             <span className="whitespace-normal break-words font-medium">
               {resolveWidgetLabel(section.widgetType || frame.type)}
             </span>
@@ -246,12 +394,214 @@ function FrameLayoutPreview({
   );
 }
 
+function FrameWidgetSlotEditor({
+  section,
+  isSelected,
+  isCarouselOpen,
+  widgetCategories,
+  selectedWidgetCategory,
+  selectedWidgetOptions,
+  widgetSchemas,
+  glanceableOptions,
+  widgetParamsError,
+  resolveWidgetLabel,
+  onSelect,
+  onToggleCarousel,
+  onCategoryChange,
+  onUpdate,
+  onError,
+  onEditGlanceable,
+}: {
+  section: FrameSection;
+  isSelected: boolean;
+  isCarouselOpen: boolean;
+  widgetCategories: string[];
+  selectedWidgetCategory: string;
+  selectedWidgetOptions: Array<{ value: string; label: string }>;
+  widgetSchemas: Record<string, Record<string, any>>;
+  glanceableOptions: GlanceableOption[];
+  widgetParamsError: string | null;
+  resolveWidgetLabel: (type?: string) => string;
+  onSelect: () => void;
+  onToggleCarousel: () => void;
+  onCategoryChange: (category: string) => void;
+  onUpdate: (patch: Partial<FrameSection>) => void;
+  onError: (message: string | null) => void;
+  onEditGlanceable?: (index: number) => void;
+}) {
+  const updateParams = (params: Record<string, any>) => onUpdate({ params });
+  const isGlanceableClock = section.widgetType === "glanceable-clock" || section.widgetType === "main-clock";
+  const widgetSchema = isGlanceableClock
+    ? { glanceables: { type: "glanceables" } }
+    : widgetSchemas[section.widgetType] ?? {};
+  const hasWidgetProperties = Object.keys(widgetSchema).length > 0;
+  const updateAppearance = (patch: Record<string, any>) =>
+    updateParams({
+      ...(section.params ?? {}),
+      appearance: { ...(section.params?.appearance ?? {}), ...patch },
+    });
+
+  return (
+    <div
+      className={`frosted space-y-3 rounded-2xl border p-4 transition ${
+        isSelected ? "border-primary/70 bg-primary/10" : "border-white/10 bg-white/5"
+      }`}
+      onClick={onSelect}
+    >
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-semibold capitalize">{section.label} Widget</h2>
+        </div>
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            onToggleCarousel();
+          }}
+          aria-expanded={isCarouselOpen}
+          className="frosted flex max-w-full items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white/90 transition hover:bg-white/10"
+        >
+          <span className="max-w-[18rem] truncate">{resolveWidgetLabel(section.widgetType)}</span>
+          <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${isCarouselOpen ? "rotate-180" : ""}`} />
+        </button>
+      </div>
+
+      {isCarouselOpen && (
+        <div className="space-y-4 border-t border-white/10 pt-3" onClick={(event) => event.stopPropagation()}>
+          <div className="flex items-center gap-2 overflow-x-auto pb-1">
+            {widgetCategories.map((category) => (
+              <button
+                key={category}
+                type="button"
+                onClick={() => onCategoryChange(category)}
+                className={`whitespace-nowrap rounded-full px-3 py-1.5 text-xs capitalize transition ${
+                  selectedWidgetCategory === category
+                    ? "bg-white text-black"
+                    : "border border-white/25 text-white/80"
+                }`}
+              >
+                {category.replace(/^integration-/, "")}
+              </button>
+            ))}
+          </div>
+          <div className="flex max-w-full snap-x gap-3 overflow-x-auto overscroll-x-contain pb-2">
+            {selectedWidgetOptions.map((widget) => (
+              <button
+                key={widget.value}
+                type="button"
+                onClick={() => onUpdate({ widgetType: widget.value })}
+                className={`w-56 shrink-0 snap-start rounded-xl p-2 text-center transition ${
+                  normalizeWidgetChoice(section.widgetType) === widget.value
+                    ? "ring-1 ring-primary"
+                    : "hover:bg-white/10"
+                }`}
+              >
+                <div className="mb-2 h-24 overflow-hidden rounded-lg">
+                  {renderWidget({
+                    type: widget.value,
+                    params: {},
+                    className: "h-full w-full",
+                    isPreview: true,
+                  })}
+                </div>
+                <span className="block truncate text-sm text-white/80">{widget.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div onClick={(event) => event.stopPropagation()}>
+        {isGlanceableClock && (
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <Label>Clock Style</Label>
+            <div className="flex items-center gap-2 rounded-lg border border-white/15 bg-black/20 px-3 py-2 text-sm">
+              <span>{section.params?.["clock-style"] ? "Custom" : "Default"}</span>
+              {section.params?.["clock-style"] && (
+                <button
+                  type="button"
+                  aria-label="Reset clock style"
+                  onClick={() => {
+                    const { ["clock-style"]: _clockStyle, ...params } = section.params ?? {};
+                    updateParams(params);
+                  }}
+                  className="text-white/60 hover:text-white"
+                >
+                  x
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+        {section.widgetType === "weather" && (
+          <LocationSelectFormComponent
+            value={{
+              displayName: String(section.params?.displayName ?? ""),
+              coordinates: [section.params?.lat, section.params?.lon].filter(Boolean).join(", "),
+            }}
+            onChange={(value) => {
+              const [lat = "", lon = ""] = value.coordinates.split(",").map((part) => part.trim());
+              updateParams({ ...(section.params ?? {}), lat, lon, displayName: value.displayName });
+            }}
+          />
+        )}
+        {hasWidgetProperties && (
+          <WidgetPropertiesForm
+            idPrefix={`frame-widget-${section.id}`}
+            schema={widgetSchema}
+            value={section.params ?? {}}
+            onChange={updateParams}
+            onError={onError}
+            error={widgetParamsError}
+            glanceableOptions={isGlanceableClock ? glanceableOptions : undefined}
+            glanceableSlotPositions={["list"]}
+            onEditGlanceable={isGlanceableClock ? onEditGlanceable : undefined}
+          />
+        )}
+      </div>
+
+      <div className="space-y-4 border-t border-white/10 pt-4" onClick={(event) => event.stopPropagation()}>
+        <div className="space-y-2">
+          <Label>Border radius</Label>
+          <Slider
+            value={[Number(section.params?.appearance?.borderRadius ?? 16)]}
+            min={0}
+            max={32}
+            step={1}
+            onValueChange={([value]) => updateAppearance({ borderRadius: value })}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>Background opacity</Label>
+          <Slider
+            value={[Number(section.params?.appearance?.backgroundOpacity ?? 45)]}
+            min={0}
+            max={100}
+            step={1}
+            onValueChange={([value]) => updateAppearance({ backgroundOpacity: value })}
+          />
+        </div>
+        <div className="flex items-center justify-between gap-4">
+          <Label htmlFor={`frame-widget-header-${section.id}`}>Show widget header</Label>
+          <Switch
+            id={`frame-widget-header-${section.id}`}
+            checked={section.params?.appearance?.showHeader ?? true}
+            onCheckedChange={(checked) => updateAppearance({ showHeader: checked })}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function SmartFramesManager({
   frames,
   onChange,
+  onRulesChange,
 }: {
   frames: Frame[];
-  onChange: (newFrames: Frame[]) => void;
+  onChange: (newFrames: Frame[]) => void | Promise<void>;
+  onRulesChange?: (scope: RulesScope, rules: Record<string, any>) => void | Promise<void>;
 }) {
   const { user, withAuth } = useAuth();
   const [selectedFrameIndex, setSelectedFrameIndex] = useState(0);
@@ -262,6 +612,10 @@ export default function SmartFramesManager({
   const [customCols, setCustomCols] = useState(2);
   const [customRows, setCustomRows] = useState(2);
   const [selectedSectionId, setSelectedSectionId] = useState("cell-0-0");
+  const [editingFrameGlanceable, setEditingFrameGlanceable] = useState<{
+    sectionId: string;
+    index: number;
+  } | null>(null);
   const [sections, setSections] = useState<FrameSection[]>([]);
   const [widgetOptionsByCategory, setWidgetOptionsByCategory] = useState<
     Record<string, Array<{ value: string; label: string }>>
@@ -269,6 +623,14 @@ export default function SmartFramesManager({
   const [widgetCategories, setWidgetCategories] = useState<string[]>([]);
   const [selectedWidgetCategory, setSelectedWidgetCategory] = useState("frame");
   const [isWidgetCarouselOpen, setIsWidgetCarouselOpen] = useState(false);
+  const [settingsTab, setSettingsTab] = useState("widgets");
+  const [rulesScope, setRulesScope] = useState<RulesScope>("global");
+  const [draftDisplayRules, setDraftDisplayRules] = useState<Record<string, any>>(
+    () => getGlobalRules(user?.screensaverPreferences as Record<string, any> | undefined),
+  );
+  const [draftDeviceRules, setDraftDeviceRules] = useState<Record<string, any>>(
+    () => getDeviceRules(),
+  );
   const [glanceableOptions, setGlanceableOptions] = useState<GlanceableOption[]>([]);
   const [widgetSchemas, setWidgetSchemas] = useState<
     Record<string, Record<string, any>>
@@ -287,6 +649,7 @@ export default function SmartFramesManager({
     null,
   );
   const [error, setError] = useState<string | null>(null);
+  const draftDirtyRef = useRef(false);
 
   const brightnessValue = Math.round(
     (brightnessPercent / 100) * (150 - 50) + 50,
@@ -309,6 +672,21 @@ export default function SmartFramesManager({
     Object.values(widgetOptionsByCategory).flat().find((widget) =>
       widget.value === normalizeWidgetChoice(type)
     )?.label ?? type ?? "Widget";
+  const activeRules = rulesScope === "global" ? draftDisplayRules : draftDeviceRules;
+  const updateRules = (patch: Record<string, any>) => {
+    const nextRules = { ...activeRules, ...patch };
+    if (rulesScope === "global") {
+      setDraftDisplayRules(nextRules);
+    } else {
+      setDraftDeviceRules(nextRules);
+    }
+    if (onRulesChange) {
+      void Promise.resolve(onRulesChange(rulesScope, nextRules)).catch((saveError) => {
+        console.error(saveError);
+        setError("Failed to save display rules.");
+      });
+    }
+  };
 
   useEffect(() => {
     if (selectedFrameIndex >= frames.length) {
@@ -326,7 +704,10 @@ export default function SmartFramesManager({
   }, [selectedFrame?.id]);
 
   const handleRemoveFrame = (id: string) => {
-    onChange(frames.filter((frame) => frame.id !== id));
+    void Promise.resolve(onChange(frames.filter((frame) => frame.id !== id))).catch((saveError) => {
+      console.error(saveError);
+      setError("Failed to save frame.");
+    });
   };
 
   const handleRenameFrame = (frame: Frame, index: number) => {
@@ -335,7 +716,7 @@ export default function SmartFramesManager({
     if (nextName === null) return;
 
     const trimmed = nextName.trim();
-    onChange(
+    void Promise.resolve(onChange(
       frames.map((item) =>
         item.id === frame.id
           ? {
@@ -345,19 +726,66 @@ export default function SmartFramesManager({
               ...(trimmed ? { name: trimmed } : {}),
             },
           }
-          : item,
+        : item,
       ),
-    );
+    )).catch((saveError) => {
+      console.error(saveError);
+      setError("Failed to save frame.");
+    });
   };
 
-  const updateSelectedSection = (patch: Partial<FrameSection>) => {
+  const updateSection = (sectionId: string, patch: Partial<FrameSection>) => {
+    if (editFrameId) draftDirtyRef.current = true;
     setSections((current) =>
       current.map((section) =>
-        section.id === selectedSectionId ? { ...section, ...patch } : section
+        section.id === sectionId ? { ...section, ...patch } : section
       )
     );
-    if (patch.widgetType) setDraftType(patch.widgetType);
+    if (patch.widgetType && sectionId === selectedSectionId) setDraftType(patch.widgetType);
   };
+
+  const updateSelectedSection = (patch: Partial<FrameSection>) =>
+    updateSection(selectedSectionId, patch);
+
+  const updateFrameGlanceable = (next: FrameGlanceable) => {
+    if (!editingFrameGlanceable) return;
+    const section = sections.find((item) => item.id === editingFrameGlanceable.sectionId);
+    if (!section) return;
+
+    const glanceables = getFrameGlanceables(section.params?.glanceables);
+    if (!glanceables[editingFrameGlanceable.index]) return;
+
+    updateSection(section.id, {
+      params: {
+        ...(section.params ?? {}),
+        glanceables: glanceables.map((item, index) =>
+          index === editingFrameGlanceable.index ? next : item
+        ),
+      },
+    });
+  };
+
+  const removeFrameGlanceable = () => {
+    if (!editingFrameGlanceable) return;
+    const section = sections.find((item) => item.id === editingFrameGlanceable.sectionId);
+    if (!section) return;
+
+    const glanceables = getFrameGlanceables(section.params?.glanceables);
+    updateSection(section.id, {
+      params: {
+        ...(section.params ?? {}),
+        glanceables: glanceables.filter((_, index) => index !== editingFrameGlanceable.index),
+      },
+    });
+    setEditingFrameGlanceable(null);
+  };
+
+  const editingSection = editingFrameGlanceable
+    ? sections.find((section) => section.id === editingFrameGlanceable.sectionId)
+    : undefined;
+  const editingGlanceable = editingSection && editingFrameGlanceable
+    ? getFrameGlanceables(editingSection.params?.glanceables)[editingFrameGlanceable.index]
+    : undefined;
 
   useEffect(() => {
     if (!uploadFile) {
@@ -424,6 +852,9 @@ export default function SmartFramesManager({
           exampleProps: glanceable.exampleProps && typeof glanceable.exampleProps === "object"
             ? glanceable.exampleProps
             : {},
+          properties: glanceable.properties && typeof glanceable.properties === "object"
+            ? glanceable.properties
+            : {},
         })).filter((glanceable) => glanceable.value);
 
       setWidgetOptionsByCategory(nextWidgetOptionsByCategory);
@@ -452,7 +883,12 @@ export default function SmartFramesManager({
   }, [sections, selectedSectionId]);
 
   const resetDraft = () => {
+    draftDirtyRef.current = false;
     setEditFrameId(null);
+    setEditingFrameGlanceable(null);
+    setSettingsTab("widgets");
+    setDraftDisplayRules({});
+    setDraftDeviceRules({});
     setDraftType("glanceable-clock");
     setLayoutPreset("1x1");
     setCustomCols(2);
@@ -474,6 +910,10 @@ export default function SmartFramesManager({
 
   const handleOpenAdd = () => {
     resetDraft();
+    setDraftDisplayRules(
+      getGlobalRules(user?.screensaverPreferences as Record<string, any> | undefined),
+    );
+    setDraftDeviceRules(getDeviceRules());
     const fallbackFilters = normalizeWallpaperFilters(
       user?.appearancePreferences?.wallpaperFilters as any,
     );
@@ -485,6 +925,7 @@ export default function SmartFramesManager({
   };
 
   const handleOpenEdit = (frame: Frame) => {
+    setEditingFrameGlanceable(null);
     const backgroundImageUrl = String(frame.params?.backgroundImageUrl ?? "");
     const backgroundSource = frame.params?.backgroundSource as
       | BackgroundMode
@@ -505,12 +946,19 @@ export default function SmartFramesManager({
       FRAME_LAYOUTS.some((item) => item.value === `${cols}x${rows}`)
         ? `${cols}x${rows}`
         : "custom";
+    const legacyWidgetParams = { ...editableParams };
+    delete legacyWidgetParams.backgroundImageUrl;
+    delete legacyWidgetParams.backgroundSource;
+    delete legacyWidgetParams.backgroundFilters;
+    delete legacyWidgetParams.layout;
+    delete legacyWidgetParams.sections;
+    delete legacyWidgetParams.__pageName;
     const nextSections = buildSections(
       cols,
       rows,
       Array.isArray(editableParams.sections)
         ? editableParams.sections
-        : [{ id: "cell-0-0", widgetType: frame.type, params: editableParams }],
+        : [{ id: "cell-0-0", widgetType: frame.type, params: legacyWidgetParams }],
     ).map((section) => ({
       ...section,
       params: stripPrivateSectionParams(section.params),
@@ -535,6 +983,13 @@ export default function SmartFramesManager({
       : fallbackFilters.blur;
 
     setEditFrameId(frame.id);
+    setDraftDisplayRules(
+      getGlobalRules(user?.screensaverPreferences as Record<string, any> | undefined),
+    );
+    setDraftDeviceRules(
+      getDeviceRules(),
+    );
+    setSettingsTab("widgets");
     setDraftType(nextSections[0]?.widgetType ?? frame.type);
     setLayoutPreset(preset);
     setCustomCols(cols);
@@ -560,7 +1015,7 @@ export default function SmartFramesManager({
     if (!open) resetDraft();
   };
 
-  const handleSaveFrame = async () => {
+  const handleSaveFrame = async (closeAfterSave = true) => {
     setError(null);
     setWidgetParamsError(null);
 
@@ -623,7 +1078,14 @@ export default function SmartFramesManager({
       ? frames.find((frame) => frame.id === editFrameId)
       : undefined;
 
-    const nextParams = {} as Record<string, any>;
+    const nextParams = { ...(existingFrame?.params ?? {}) } as Record<string, any>;
+    delete nextParams.backgroundImageUrl;
+    delete nextParams.backgroundSource;
+    delete nextParams.backgroundFilters;
+    delete nextParams.layout;
+    delete nextParams.sections;
+    delete nextParams.displayRules;
+    delete nextParams.deviceRules;
     const normalizedSections = buildSections(layoutCols, layoutRows, sections)
       .map((section) => ({
         ...section,
@@ -662,20 +1124,52 @@ export default function SmartFramesManager({
       params: nextParams,
     };
 
-    if (existingFrame) {
-      onChange(
-        frames.map((
-          frame,
-        ) => (frame.id === existingFrame.id ? nextFrame : frame)),
-      );
-    } else {
-      onChange([...frames, nextFrame]);
-      setSelectedFrameIndex(frames.length);
+    try {
+      if (existingFrame) {
+        await onChange(
+          frames.map((
+            frame,
+          ) => (frame.id === existingFrame.id ? nextFrame : frame)),
+        );
+      } else {
+        await onChange([...frames, nextFrame]);
+        setSelectedFrameIndex(frames.length);
+      }
+    } catch (saveError) {
+      console.error(saveError);
+      setError("Failed to save frame.");
+      return;
     }
 
-    setDialogOpen(false);
-    resetDraft();
+    draftDirtyRef.current = false;
+    if (closeAfterSave) {
+      setDialogOpen(false);
+      resetDraft();
+    }
   };
+
+  useEffect(() => {
+    if (!editFrameId || !dialogOpen || !draftDirtyRef.current) return;
+
+    const timer = window.setTimeout(() => {
+      void handleSaveFrame(false);
+    }, 500);
+
+    return () => window.clearTimeout(timer);
+    // Save draft widget changes without closing editor or resetting its state.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    dialogOpen,
+    editFrameId,
+    layoutCols,
+    layoutRows,
+    sections,
+    draftBackgroundMode,
+    draftBackgroundUrl,
+    uploadFile,
+    brightnessPercent,
+    blurPercent,
+  ]);
 
   return (
     <div className="space-y-1">
@@ -691,22 +1185,19 @@ export default function SmartFramesManager({
             Add Frame
           </Button>
         </div>
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 frosted rounded-t-xl rounded-md py-2">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 rounded-t-xl rounded-md py-2">
           {frames.map((frame, index) => (
-            <div key={frame.id} className="mx-auto min-w-0" style={{ width: FRAME_PREVIEW_SIZE.width }}>
+            <div key={frame.id} className="mx-auto min-w-0 max-w-full" style={{ width: FRAME_PREVIEW_SIZE.width }}>
               <div
-                className={`rounded-2xl p-3 transition ${
-                  "bg-transparent"
-                }`}
+                className="rounded-2xl bg-transparent p-3 transition"
               >
                 <div
-                  className="overflow-hidden rounded-2xl bg-transparent outline outline-offset-4 outline-dotted"
-                  style={{ width: FRAME_PREVIEW_SIZE.width, height: FRAME_PREVIEW_SIZE.height }}
+                  className="h-40 w-full max-w-full overflow-hidden rounded-2xl bg-transparent"
+                  style={{ height: FRAME_PREVIEW_SIZE.height }}
                 >
                   <FrameLayoutPreview
                     frame={frame}
                     resolveWidgetLabel={resolveWidgetLabel}
-                    selectedSectionId={selectedFrameIndex === index ? selectedSectionId : undefined}
                     onSelectSection={(sectionId) => {
                       setSelectedFrameIndex(index);
                       setSelectedSectionId(sectionId);
@@ -866,180 +1357,104 @@ export default function SmartFramesManager({
           <section className="space-y-4 rounded-md rounded-b-xl border border-transparent text-foreground">
 
             <div className="min-w-0 space-y-4 overflow-hidden">
-              <div className="frosted space-y-3 rounded-2xl border border-white/10 bg-white/5 p-4">
-                <div className="space-y-1">
-                  <h2 className="text-lg font-semibold">{selectedSection?.label ? selectedSection.label.charAt(0).toUpperCase() + selectedSection.label.slice(1) : "cell"} Widget</h2>
-                  <p className="text-sm text-white/60">
-                  </p>
-                </div>
+              <Tabs value={settingsTab} onValueChange={setSettingsTab} className="space-y-4">
+                <TabsList className="self-center">
+                  <TabsTrigger value="background">Background</TabsTrigger>
+                  <TabsTrigger value="widgets">Widgets</TabsTrigger>
+                  <TabsTrigger value="rules">Display Rules</TabsTrigger>
+                </TabsList>
 
-                  <div className="mt-3 space-y-6">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-3">
-                        <Label className="shrink-0">Widget</Label>
-                        <div className="min-w-0 flex-1" />
-                        <button
-                          type="button"
-                          onClick={() => setIsWidgetCarouselOpen((current) => !current)}
-                          aria-expanded={isWidgetCarouselOpen}
-                          className="frosted flex max-w-full items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white/90 transition hover:bg-white/10"
-                        >
-                          <span className="max-w-[18rem] truncate">
-                            {resolveWidgetLabel(selectedSection?.widgetType)}
-                          </span>
-                          <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${isWidgetCarouselOpen ? "rotate-180" : ""}`} />
-                        </button>
+                <TabsContent value="widgets" className="space-y-4">
+                  <div className="frosted space-y-4 rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <h2 className="text-lg font-semibold">Layout</h2>
                       </div>
-                      <div className={`grid transition-all duration-250 ease-out ${isWidgetCarouselOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0 pointer-events-none"}`}>
-                        <div className="min-h-0 overflow-hidden space-y-4">
-                          <div className="flex items-center gap-2 overflow-x-auto pb-1">
-                            {widgetCategories.map((category) => (
-                              <button
-                                key={category}
-                                type="button"
-                                onClick={() => setSelectedWidgetCategory(category)}
-                                className={`whitespace-nowrap rounded-full px-3 py-1.5 text-xs capitalize transition ${
-                                  selectedWidgetCategory === category
-                                    ? "bg-white text-black"
-                                    : "border border-white/25 text-white/80"
-                                }`}
-                              >
-                                {category.replace(/^integration-/, "")}
-                              </button>
-                            ))}
-                          </div>
-
-                          <div className="flex max-w-full snap-x gap-3 overflow-x-auto overscroll-x-contain pb-2">
-                            {selectedWidgetOptions.map((widget) => (
-                              <button
-                                key={widget.value}
-                                type="button"
-                                onClick={() => updateSelectedSection({ widgetType: widget.value })}
-                                className={`w-56 shrink-0 snap-start rounded-xl p-2 text-center transition ${
-                                  normalizeWidgetChoice(selectedSection?.widgetType) === widget.value
-                                    ? "ring-1 ring-primary"
-                                    : "hover:bg-white/10"
-                                }`}
-                              >
-                                <div className="mb-2 h-24 overflow-hidden rounded-lg">
-                                  {renderWidget({
-                                    type: widget.value,
-                                    params: {},
-                                    className: "h-full w-full",
-                                    isPreview: true,
-                                  })}
-                                </div>
-                                <span className="block truncate text-sm text-white/80">
-                                  {widget.label}
-                                </span>
-                              </button>
-                            ))}
-                          </div>
+                      <div className="flex items-center gap-2">
+                        <LayoutPreview cols={layoutCols} rows={layoutRows} className="h-8 w-8" />
+                        <select
+                          aria-label="Frame layout"
+                          value={layoutPreset}
+                          onChange={(event) => {
+                            if (editFrameId) draftDirtyRef.current = true;
+                            setLayoutPreset(event.target.value);
+                          }}
+                          className="rounded-lg border border-white/15 bg-black/20 px-3 py-2 text-sm outline-none"
+                        >
+                          {FRAME_LAYOUTS.map((layout) => (
+                            <option key={layout.value} value={layout.value}>{layout.label}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                    {layoutPreset === "custom" && (
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <Label>Columns</Label>
+                          <Input type="number" min={1} max={4} value={customCols} onChange={(event) => {
+                            if (editFrameId) draftDirtyRef.current = true;
+                            setCustomCols(clampLayoutSize(Number(event.target.value)));
+                          }} />
+                        </div>
+                        <div className="space-y-1">
+                          <Label>Rows</Label>
+                          <Input type="number" min={1} max={4} value={customRows} onChange={(event) => {
+                            if (editFrameId) draftDirtyRef.current = true;
+                            setCustomRows(clampLayoutSize(Number(event.target.value)));
+                          }} />
                         </div>
                       </div>
-                      {selectedSection?.widgetType === "weather" && (
-                        <LocationSelectFormComponent
-                          value={{
-                            displayName: String(selectedSection?.params?.displayName ?? ""),
-                            coordinates: [selectedSection?.params?.lat, selectedSection?.params?.lon]
-                              .filter(Boolean)
-                              .join(", "),
-                          }}
-                          onChange={(value) => {
-                            const [lat = "", lon = ""] = value.coordinates.split(",").map((part) => part.trim());
-                            updateSelectedSection({
-                              params: {
-                                ...(selectedSection?.params ?? {}),
-                                lat,
-                                lon,
-                                displayName: value.displayName,
-                              },
-                            });
-                          }}
-                        />
-                      )}
-                      <WidgetPropertiesForm
-                        idPrefix={`frame-widget-${selectedSection?.id ?? "cell"}`}
-                        schema={selectedSection?.widgetType === "glanceable-clock"
-                          ? { glanceables: { type: "glanceables" } }
-                          : widgetSchemas[selectedSection?.widgetType ?? ""] ?? {}}
-                        value={selectedSection?.params ?? {}}
-                        onChange={(params) => updateSelectedSection({ params })}
-                        onError={setWidgetParamsError}
-                        error={widgetParamsError}
-                        glanceableOptions={selectedSection?.widgetType === "glanceable-clock" ? glanceableOptions : undefined}
-                        glanceableSlotPositions={["top", "down"]}
-                      />
-                    </div>
-
-                    <div className="space-y-4 border-t border-white/10 pt-4">
-                      <div className="space-y-2">
-                        <Label>Border radius</Label>
-                        <Slider
-                          value={[Number(selectedSection?.params?.appearance?.borderRadius ?? 16)]}
-                          min={0}
-                          max={32}
-                          step={1}
-                          onValueChange={([value]) =>
-                            updateSelectedSection({
-                              params: {
-                                ...(selectedSection?.params ?? {}),
-                                appearance: {
-                                  ...(selectedSection?.params?.appearance ?? {}),
-                                  borderRadius: value,
-                                },
-                              },
-                            })}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Background opacity</Label>
-                        <Slider
-                          value={[Number(selectedSection?.params?.appearance?.backgroundOpacity ?? 45)]}
-                          min={0}
-                          max={100}
-                          step={1}
-                          onValueChange={([value]) =>
-                            updateSelectedSection({
-                              params: {
-                                ...(selectedSection?.params ?? {}),
-                                appearance: {
-                                  ...(selectedSection?.params?.appearance ?? {}),
-                                  backgroundOpacity: value,
-                                },
-                              },
-                            })}
-                        />
-                      </div>
-                      <div className="flex items-center justify-between gap-4">
-                        <Label htmlFor="frame-widget-header">Show widget header</Label>
-                        <Switch
-                          id="frame-widget-header"
-                          checked={selectedSection?.params?.appearance?.showHeader ?? true}
-                          onCheckedChange={(checked) =>
-                            updateSelectedSection({
-                              params: {
-                                ...(selectedSection?.params ?? {}),
-                                appearance: {
-                                  ...(selectedSection?.params?.appearance ?? {}),
-                                  showHeader: checked,
-                                },
-                              },
-                            })}
-                        />
-                      </div>
-                    </div>
+                    )}
                   </div>
-              </div>
+                  <div className="space-y-4">
+                    {sections.map((section) => (
+                      <FrameWidgetSlotEditor
+                        key={section.id}
+                        section={section}
+                        isSelected={selectedSectionId === section.id}
+                        isCarouselOpen={selectedSectionId === section.id && isWidgetCarouselOpen}
+                        widgetCategories={widgetCategories}
+                        selectedWidgetCategory={selectedWidgetCategory}
+                        selectedWidgetOptions={selectedWidgetOptions}
+                        widgetSchemas={widgetSchemas}
+                        glanceableOptions={glanceableOptions}
+                        widgetParamsError={widgetParamsError}
+                        resolveWidgetLabel={resolveWidgetLabel}
+                        onSelect={() => {
+                          setSelectedSectionId(section.id);
+                          setIsWidgetCarouselOpen(false);
+                        }}
+                        onToggleCarousel={() => {
+                          setSelectedSectionId(section.id);
+                          setIsWidgetCarouselOpen((current) => selectedSectionId !== section.id || !current);
+                        }}
+                        onCategoryChange={setSelectedWidgetCategory}
+                        onUpdate={(patch) => {
+                          setSelectedSectionId(section.id);
+                          updateSection(section.id, patch);
+                        }}
+                        onError={setWidgetParamsError}
+                        onEditGlanceable={(index) =>
+                          setEditingFrameGlanceable({ sectionId: section.id, index })}
+                      />
+                    ))}
+                  </div>
+                </TabsContent>
 
-              <div className="frosted space-y-3 rounded-2xl border border-white/10 bg-white/5 p-4">
+                <TabsContent value="background" className="space-y-3">
+                  <div className="frosted space-y-3 rounded-2xl border border-white/10 bg-white/5 p-4">
                 <div className="flex items-center justify-between gap-3">
-                  <h2 className="text-lg font-semibold">Page Background</h2>
+                  <div>
+                    <h2 className="text-lg font-semibold">Background</h2>
+                    <p className="text-sm text-white/60">Choose the background for this frame.</p>
+                  </div>
                 </div>
                 <RadioGroup
                   value={draftBackgroundMode}
-                  onValueChange={(value) =>
-                    setDraftBackgroundMode(value as BackgroundMode)}
+                  onValueChange={(value) => {
+                    if (editFrameId) draftDirtyRef.current = true;
+                    setDraftBackgroundMode(value as BackgroundMode);
+                  }}
                   className="grid gap-3 grid-cols-[repeat(auto-fit,minmax(140px,1fr))]"
                 >
                   {(["none", "current", "upload", "url"] as const).map((mode) => (
@@ -1072,8 +1487,10 @@ export default function SmartFramesManager({
                       id="frame-bg-file"
                       type="file"
                       accept="image/*"
-                      onChange={(event) =>
-                        setUploadFile(event.target.files?.[0] ?? null)}
+                      onChange={(event) => {
+                        if (editFrameId) draftDirtyRef.current = true;
+                        setUploadFile(event.target.files?.[0] ?? null);
+                      }}
                     />
                   </div>
                 )}
@@ -1086,8 +1503,10 @@ export default function SmartFramesManager({
                       type="url"
                       placeholder="https://example.com/background.jpg"
                       value={draftBackgroundUrl}
-                      onChange={(event) =>
-                        setDraftBackgroundUrl(event.target.value)}
+                      onChange={(event) => {
+                        if (editFrameId) draftDirtyRef.current = true;
+                        setDraftBackgroundUrl(event.target.value);
+                      }}
                     />
                   </div>
                 )}
@@ -1119,7 +1538,10 @@ export default function SmartFramesManager({
                       value={[brightnessPercent]}
                       max={100}
                       step={1}
-                      onValueChange={([value]) => setBrightnessPercent(value)}
+                      onValueChange={([value]) => {
+                        if (editFrameId) draftDirtyRef.current = true;
+                        setBrightnessPercent(value);
+                      }}
                     />
                     <div className="flex items-center justify-between gap-4">
                       <p className="text-sm font-medium">Blur</p>
@@ -1131,30 +1553,117 @@ export default function SmartFramesManager({
                       value={[blurPercent]}
                       max={100}
                       step={1}
-                      onValueChange={([value]) => setBlurPercent(value)}
+                      onValueChange={([value]) => {
+                        if (editFrameId) draftDirtyRef.current = true;
+                        setBlurPercent(value);
+                      }}
                     />
                   </div>
                 )}
-              </div>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="rules" className="space-y-4">
+                  <div className="flex items-center gap-2 overflow-x-auto">
+                    <button
+                      type="button"
+                      onClick={() => setRulesScope("global")}
+                      className={`whitespace-nowrap rounded-full px-3 py-1.5 text-sm ${rulesScope === "global" ? "bg-white text-black" : "border border-white/25 text-white/75"}`}
+                    >
+                      Global
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setRulesScope("device")}
+                      className={`whitespace-nowrap rounded-full px-3 py-1.5 text-sm ${rulesScope === "device" ? "bg-white text-black" : "border border-white/25 text-white/75"}`}
+                    >
+                      This device
+                    </button>
+                  </div>
+                  <div className="frosted space-y-4 rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <div className="flex items-center justify-between gap-4">
+                      <Label htmlFor={`frame-rules-button-${rulesScope}`}>Manual trigger button</Label>
+                      <Switch
+                        id={`frame-rules-button-${rulesScope}`}
+                        checked={!!activeRules.showButton}
+                        onCheckedChange={(checked) => updateRules({ showButton: checked })}
+                      />
+                    </div>
+                    <div className="grid gap-2 sm:grid-cols-[1fr_auto] sm:items-center">
+                      <Label htmlFor={`frame-rules-timeout-${rulesScope}`}>Inactivity period (seconds)</Label>
+                      <Input
+                        id={`frame-rules-timeout-${rulesScope}`}
+                        type="number"
+                        min={0}
+                        value={activeRules.inactivityTimeout ?? ""}
+                        onChange={(event) => {
+                          const value = Number(event.target.value);
+                          if (Number.isFinite(value)) updateRules({ inactivityTimeout: value });
+                        }}
+                        className="w-full sm:w-32"
+                      />
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {(["inactivityPageId", "manualPageId"] as const).map((rule) => (
+                        <div key={rule} className="space-y-2">
+                          <Label>{rule === "inactivityPageId" ? "After inactivity go to" : "Manual trigger go to"}</Label>
+                          <Select
+                            value={activeRules[rule] ?? "frame"}
+                            onValueChange={(value) => updateRules({ [rule]: value })}
+                          >
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="frame">Frame</SelectItem>
+                              {frames.map((frame, index) => (
+                                <SelectItem key={frame.id} value={frame.id}>
+                                  {getFrameName(frame, index)}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </TabsContent>
+              </Tabs>
 
               {error && <div className="text-sm text-red-400">{error}</div>}
             </div>
 
             <div className="flex items-center justify-end gap-2">
-              <Button variant="ghost" onClick={() => handleDialogChange(false)}>
-                Cancel
-              </Button>
+              {!editFrameId && (
+                <>
+                  <Button variant="ghost" onClick={() => handleDialogChange(false)}>
+                    Cancel
+                  </Button>
               <Button onClick={handleSaveFrame} disabled={uploading}>
-                {uploading
-                  ? "Saving..."
-                  : editFrameId
-                  ? "Save Changes"
-                  : "Add Frame"}
-              </Button>
+                    {uploading ? "Saving..." : "Add Frame"}
+                  </Button>
+                </>
+              )}
             </div>
           </section>
         </div>
       </div>
+      <Dialog
+        open={Boolean(editingGlanceable)}
+        onOpenChange={(open) => {
+          if (!open) setEditingFrameGlanceable(null);
+        }}
+      >
+        <DialogContent className="frosted max-h-[90vh] overflow-x-hidden overflow-y-auto text-foreground">
+          {editingGlanceable && editingFrameGlanceable && (
+            <FrameGlanceableModal
+              key={`${editingFrameGlanceable.sectionId}-${editingFrameGlanceable.index}`}
+              glanceable={editingGlanceable}
+              glanceableOptions={glanceableOptions}
+              onChange={updateFrameGlanceable}
+              onRemove={removeFrameGlanceable}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

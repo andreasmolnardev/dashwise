@@ -85,17 +85,19 @@ export default function AuthWrapper({ children }: AuthWrapperProps) {
     };
   }, [user?.appearancePreferences?.themeMode]);
 
-  // --- Accent color --- MOVED UP before any conditional returns
   useEffect(() => {
     const accentColor = user?.appearancePreferences?.accentColor || "#4f46e5";
     document.documentElement.style.setProperty("--primary", accentColor);
   }, [user]);
 
-  // --- Background image --- MOVED UP before any conditional returns
-  useEffect(() => {
-    if (!user?.appearancePreferences) return;
+  const appearancePreferences = user?.appearancePreferences;
+  const hasAppearancePreferences = Boolean(appearancePreferences);
+  const backgroundImageUrl = appearancePreferences?.backgroundImageUrl;
 
-    const rawImgUrl = user.appearancePreferences.backgroundImageUrl || "/dashboard-wallpaper.png";
+  useEffect(() => {
+    if (!hasAppearancePreferences) return;
+
+    const rawImgUrl = backgroundImageUrl || "/dashboard-wallpaper.png";
     const imgUrl = rawImgUrl.startsWith("/assets/") ? rawImgUrl.replace(/^\/assets\//, "/") : rawImgUrl;
     const tokenToUse = token;
     let revokeUrl: string | null = null;
@@ -135,7 +137,7 @@ export default function AuthWrapper({ children }: AuthWrapperProps) {
       document.body.style.backgroundPosition = "";
       if (revokeUrl) URL.revokeObjectURL(revokeUrl);
     };
-  }, [user, token]);
+  }, [backgroundImageUrl, hasAppearancePreferences, token]);
 
 
   if (!isMounted) {

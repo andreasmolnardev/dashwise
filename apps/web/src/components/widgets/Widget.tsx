@@ -68,6 +68,9 @@ export function renderWidget({
   const resolvedType = type === "widget" && typeof renderParams?.key === "string" && renderParams.key.trim()
     ? renderParams.key.trim()
     : type;
+  const usesFrameGlanceableLayout = resolvedType === "glanceable-clock" ||
+    Array.isArray(renderParams?.glanceables) ||
+    Array.isArray(renderParams?.glanceables?.slots?.list);
   const finalClassName = `${className ?? ""} frosted`.trim();
   const progressPeriod = resolveProgressPeriod(resolvedType, params);
 
@@ -79,7 +82,7 @@ export function renderWidget({
           className={className}
           params={renderParams}
           isPreview={isPreview}
-          layout={resolvedType === "glanceable-clock" ? "frame" : "dashboard"}
+          layout={usesFrameGlanceableLayout ? "frame" : "dashboard"}
         />
       );
 

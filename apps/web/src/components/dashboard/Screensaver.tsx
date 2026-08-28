@@ -51,12 +51,22 @@ export default function Screensaver(
       .then(setFonts);
 
     const checkLocal = () => {
-      const local = localStorage.getItem("dashwise_screensaver_local");
-      if (local) {
-        setScreensaverConfig(JSON.parse(local));
-      } else {
-        setScreensaverConfig(user?.screensaverPreferences);
+      const globalConfig = user?.screensaverPreferences ?? {};
+      const local = localStorage.getItem("dashwise_screensaver_device_rules");
+      if (!local) {
+        setScreensaverConfig(globalConfig);
+        return;
       }
+
+      const localRules = JSON.parse(local);
+      setScreensaverConfig({
+        ...globalConfig,
+        ...localRules,
+        displayRules: {
+          ...(globalConfig.displayRules ?? {}),
+          ...(localRules.displayRules ?? {}),
+        },
+      });
     };
 
     checkLocal();

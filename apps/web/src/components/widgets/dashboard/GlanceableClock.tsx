@@ -60,7 +60,10 @@ export default function GlanceableClockWidget({ className, params, isPreview, la
   const clockAppearance = user?.appearancePreferences?.clock as ClockAppearance | undefined;
 
   // params.glanceables overrides config-level glanceables
-  const glanceableOverrides: Record<string, any> | undefined = params?.glanceables;
+  const glanceableOverrides: Record<string, any> | undefined = params?.glanceables && !Array.isArray(params.glanceables)
+    ? params.glanceables
+    : undefined;
+  const glanceableList = getSlotItems(Array.isArray(params?.glanceables) ? params.glanceables : undefined);
   const defaultGlanceables: any[] = pageConfig?.glanceables ?? [];
 
   const glanceableKeys = glanceableOverrides
@@ -85,7 +88,7 @@ export default function GlanceableClockWidget({ className, params, isPreview, la
     }
     return Object.keys(rest).length > 0 ? rest : undefined;
   };
-  const slots = glanceableOverrides?.slots as Partial<Record<"left" | "right" | "top" | "down", GlanceableSlot[]>> | undefined;
+  const slots = glanceableOverrides?.slots as Partial<Record<"left" | "right" | "top" | "down" | "list", GlanceableSlot[]>> | undefined;
   const carouselIntervals = glanceableOverrides?.intervals as Partial<Record<"left" | "right", unknown>> | undefined;
 
   const horizontalItems = {
@@ -96,11 +99,13 @@ export default function GlanceableClockWidget({ className, params, isPreview, la
     top: getSlotItems(slots?.top ?? slots?.left ?? []),
     down: getSlotItems(slots?.down ?? slots?.right ?? []),
   };
+  const frameItems = glanceableList.length > 0
+    ? glanceableList
+    : getSlotItems(slots?.list ?? [...verticalItems.top, ...verticalItems.down]);
 
   if (layout === "frame") {
     return (
       <section className={`flex min-h-full w-full flex-col items-center justify-center gap-4 overflow-hidden p-4 ${className ?? ""}`}>
-        <GlanceableRow items={verticalItems.top} formatters={localization} isPreview={isPreview} />
         <div className={`flex shrink-0 items-center justify-center ${isPreview ? "text-xs" : "text-2xl md:text-4xl"}`}>
           <ClockWidget
             font={clockStyle?.defaultFont ?? clockAppearance?.defaultFont}
@@ -114,7 +119,7 @@ export default function GlanceableClockWidget({ className, params, isPreview, la
             isPreview={isPreview}
           />
         </div>
-        <GlanceableRow items={verticalItems.down} formatters={localization} isPreview={isPreview} />
+        <GlanceableRow items={frameItems} formatters={localization} isPreview={isPreview} />
       </section>
     );
   }
@@ -185,7 +190,7 @@ function GlanceableRow({
   isPreview?: boolean;
 }) {
   return items.length > 0 ? (
-    <div className={`flex max-w-full flex-wrap items-center justify-center ${isPreview ? "gap-1 text-[10px]" : "gap-x-5 gap-y-2 text-base md:text-xl"}`}>
+    <div className={`flex max-w-full flex-col items-center justify-center ${isPreview ? "gap-1 text-[10px]" : "gap-y-2 text-base md:text-xl"}`}>
       {items.map((item, index) => (
         <ResolvedGlanceable
           key={`${item.type}:${index}`}
