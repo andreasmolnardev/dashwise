@@ -4,9 +4,20 @@ import { Icon } from "@iconify-icon/react";
 import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import LocationSelectFormComponent from "@/components/settings/LocationSelectForm";
 import useAuth from "@/context/useAuth";
-import { runPullIconsAction } from '@/lib/apiClient';
+import { runPullIconsAction, wipeUserLinksAction } from '@/lib/apiClient';
 import { useLocalization } from "@/context/LocalizationContext";
 
 type TimeFormatValue = "24-hour" | "12-hour";
@@ -37,7 +48,9 @@ const DATE_FORMAT_OPTIONS = [
 
 export default function GeneralSettingsPage() {
   const [isRefreshingIcons, setIsRefreshingIcons] = useState(false);
-  const { token } = useAuth();
+  const [isWipingUserLinks, setIsWipingUserLinks] = useState(false);
+  const [wipeResult, setWipeResult] = useState<string | null>(null);
+  const { token, withAuth } = useAuth();
 
   async function handleRefreshIcons() {
     if (isRefreshingIcons) return;
@@ -49,6 +62,22 @@ export default function GeneralSettingsPage() {
       console.error("Failed to refresh icons", error);
     } finally {
       setIsRefreshingIcons(false);
+    }
+  }
+
+  async function handleWipeUserLinks() {
+    if (isWipingUserLinks) return;
+
+    try {
+      setIsWipingUserLinks(true);
+      setWipeResult(null);
+      const result = await withAuth((auth) => wipeUserLinksAction(auth));
+      setWipeResult(`Wiped ${result.deletedItems} links from ${result.deletedCollections} lists.`);
+    } catch (error) {
+      console.error("Failed to wipe user links", error);
+      setWipeResult(error instanceof Error ? error.message : "Failed to wipe user links.");
+    } finally {
+      setIsWipingUserLinks(false);
     }
   }
 
@@ -71,6 +100,39 @@ export default function GeneralSettingsPage() {
         <Icon icon="fa6-solid:arrows-rotate" className="p-0 m-0 group-hover:text-primary" />
         {isRefreshingIcons ? "Refreshing icons..." : "Refresh icons"}
       </div>
+      {import.meta.env.DEV && (
+        <div className="content grid grid-cols-[auto_1fr_auto] font-medium gap-2 items-center">
+          <h2 className="text-xl font-semibold col-span-full">Development</h2>
+          <AlertDialog>
+            <AlertDialogTrigger className="grid grid-cols-subgrid border border-transparent hover-frosted items-center col-span-full p-1.5 rounded-md gap-2">
+              <Icon icon="fa6-solid:trash" />
+              <div className="text-left">
+                <p>Wipe user links</p>
+                {wipeResult && <p className="text-sm font-normal text-white/70">{wipeResult}</p>}
+              </div>
+              <Icon icon="fa6-solid:caret-right" />
+            </AlertDialogTrigger>
+            <AlertDialogContent className="frosted text-foreground">
+              <AlertDialogHeader>
+                <AlertDialogTitle>Wipe user links?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This permanently deletes all user-created lists, folders, and links. Home links will be kept.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={isWipingUserLinks}>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  variant="destructive"
+                  onClick={() => void handleWipeUserLinks()}
+                  disabled={isWipingUserLinks}
+                >
+                  {isWipingUserLinks ? "Wiping links..." : "Wipe user links"}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
+      )}
       <h2 className="text-xl font-semibold">Defaults</h2>
       <h3 className="text-lg font-medium">Links</h3>
       <div

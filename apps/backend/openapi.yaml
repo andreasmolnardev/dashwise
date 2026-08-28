@@ -343,6 +343,14 @@ paths:
       responses:
         "200":
           $ref: "#/components/responses/JsonOk"
+  /links/dev/user-links:
+    delete:
+      tags:
+        - links
+      summary: Wipe development user links
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
   /links/tags:
     get:
       tags:

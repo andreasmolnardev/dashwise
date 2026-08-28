@@ -893,6 +893,59 @@ export async function deleteCollection(
     await pb.collection("linksLists").delete(listId);
 }
 
+export async function wipeUserLinks(
+    userId: string,
+): Promise<{ deletedCollections: number; deletedFolders: number; deletedItems: number }> {
+    const pb = getServerPB();
+    const lists = await pb.collection("linksLists").getFullList({
+        filter: `user = "${userId}"`,
+    });
+    const userLists = lists.filter((list: any) => {
+        const type = String(list.type ?? "").trim().toLowerCase();
+        const name = String(list.name ?? "").trim().toLowerCase();
+        return type !== "home" && name !== "home";
+    });
+
+    const records = await Promise.all(
+        userLists.map(async (list: any) => {
+            const [items, folders] = await Promise.all([
+                pb.collection("linkItems").getFullList({ filter: `collection = "${list.id}"` }),
+                pb.collection("linksFolders").getFullList({ filter: `list = "${list.id}"` }),
+            ]);
+            return { items, folders, list };
+        }),
+    );
+    const items = records.flatMap(({ items: listItems }) => listItems);
+    const folders = records.flatMap(({ folders: listFolders }) => listFolders);
+
+    try {
+        const monitorPB = await getSuperuserPB();
+        const linkIds = new Set(items.map((item: any) => String(item.id || "")));
+        const monitors = await monitorPB.collection("monitors").getFullList({
+            filter: `userId = "${userId}"`,
+        });
+        await Promise.all(
+            monitors
+                .filter((monitor: any) => linkIds.has(getMonitorLinkId(monitor)))
+                .map((monitor: any) => monitorPB.collection("monitors").delete(monitor.id)),
+        );
+    } catch {
+        // Ignore monitoring cleanup failures; link wipe should continue.
+    }
+
+    await Promise.all([
+        ...items.map((item: any) => pb.collection("linkItems").delete(item.id)),
+        ...folders.map((folder: any) => pb.collection("linksFolders").delete(folder.id)),
+    ]);
+    await Promise.all(userLists.map((list: any) => pb.collection("linksLists").delete(list.id)));
+
+    return {
+        deletedCollections: userLists.length,
+        deletedFolders: folders.length,
+        deletedItems: items.length,
+    };
+}
+
 export async function createLinkItem(data: {
     url: string;
     title: string;
