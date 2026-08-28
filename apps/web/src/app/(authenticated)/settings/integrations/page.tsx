@@ -1,7 +1,9 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Editor from "@monaco-editor/react";
-import { Loader2, Puzzle } from "lucide-react";
+import { Loader2, Plus, Puzzle, RefreshCw } from "lucide-react";
+import { faCircleCheck } from "@fortawesome/free-solid-svg-icons";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -83,6 +85,8 @@ type CuratedIntegration = {
   name: string;
   category: string;
   url: string;
+  description: string;
+  icon?: string;
 };
 
 const CURATED_CATALOGUE_URL =
@@ -96,7 +100,7 @@ export default function IntegrationsModularSettingsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [settingsTab, setSettingsTab] = useState<"local" | "curated">("local");
+  const [settingsTab, setSettingsTab] = useState<"local" | "curated">("curated");
   const [curatedIntegrations, setCuratedIntegrations] = useState<CuratedIntegration[]>([]);
   const [curatedLoading, setCuratedLoading] = useState(false);
   const [curatedError, setCuratedError] = useState<string | null>(null);
@@ -200,11 +204,42 @@ export default function IntegrationsModularSettingsPage() {
               name: typeof entry.name === "string" ? entry.name.trim() : "",
               category: typeof entry.category === "string" ? entry.category.trim() : "other",
               url: typeof entry.url === "string" ? entry.url.trim() : "",
+              description: typeof entry.description === "string" ? entry.description.trim() : "",
+              icon: typeof entry.icon === "string" ? entry.icon.trim() : "",
             }))
-            .filter((entry) => entry.name && entry.url)
+            .filter(
+              (entry) =>
+                entry.name && entry.url && entry.category.toLowerCase() !== "dashwise"
+            )
         : [];
 
-      setCuratedIntegrations(entries);
+      const enrichedEntries = await Promise.all(
+        entries.map(async (entry) => {
+          if (entry.description && entry.icon) return entry;
+
+          try {
+            const integrationResponse = await fetch(entry.url);
+            if (!integrationResponse.ok) return entry;
+
+            const parsedConfig = parseConfigValue(await integrationResponse.text());
+            const details = isRecord(parsedConfig) && isRecord(parsedConfig.details)
+              ? parsedConfig.details
+              : null;
+            const description = typeof details?.description === "string"
+              ? details.description.trim()
+              : "";
+            const icon = typeof details?.icon === "string" ? details.icon.trim() : "";
+
+            return description || icon
+              ? { ...entry, description: description || entry.description, icon: icon || entry.icon }
+              : entry;
+          } catch {
+            return entry;
+          }
+        })
+      );
+
+      setCuratedIntegrations(enrichedEntries);
     } catch (err) {
       console.error("Unable to load curated integrations", err);
       setCuratedError("Unable to load curated integrations right now.");
@@ -635,22 +670,24 @@ export default function IntegrationsModularSettingsPage() {
 
   return (
     <section className="space-y-6">
-      <header className="flex flex-col items-center gap-3 md:flex-row md:items-center md:justify-between">
-        <div>
-          <p className="text-2xl font-semibold">Manage your integrations</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" onClick={() => void fetchIntegrations()} disabled={loading}>
-            {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-            Refresh
-          </Button>
-          <Button onClick={openManualAddDialog}>Add integration</Button>
-        </div>
+      <header>
+        <p className="text-2xl font-semibold">Manage your integrations</p>
       </header>
 
-      <div className="flex w-full items-center justify-center">
+      <div className="flex w-full flex-wrap items-center justify-between gap-3">
+        <Button
+          variant="outline"
+          size="icon"
+          className="frosted rounded-full text-white/70 hover:text-primary"
+          onClick={() => void fetchIntegrations()}
+          disabled={loading}
+          aria-label="Refresh integrations"
+          title="Refresh integrations"
+        >
+          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+        </Button>
         <div className="frosted flex min-h-11 w-min items-center gap-2 overflow-x-auto rounded-full border px-2 py-1">
-          {(["local", "curated"] as const).map((tab) => (
+          {(["curated", "local"] as const).map((tab) => (
             <button
               key={tab}
               type="button"
@@ -661,44 +698,40 @@ export default function IntegrationsModularSettingsPage() {
                   : "text-white/70 hover:text-white"
               }`}
             >
-              {tab}
+              {tab === "curated" ? "Curated" : "Installed"}
             </button>
           ))}
         </div>
+        <Button
+          variant="outline"
+          size="icon"
+          className="frosted rounded-full text-white/70 hover:text-primary"
+          onClick={openManualAddDialog}
+          aria-label="Add integration"
+          title="Add integration"
+        >
+          <Plus className="h-4 w-4" />
+        </Button>
       </div>
 
       {settingsTab === "curated" && (
         <div className="space-y-5">
-          <div>
-            <div className="flex items-end justify-between gap-3">
-              <div>
-                <h2 className="text-lg font-semibold">Curated integrations</h2>
-                <p className="text-sm text-muted-foreground">
-                  Pick an integration to add it from the Dashwise catalogue.
-                </p>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                {curatedIntegrations.length} available
-              </p>
-            </div>
-
-            <div className="mt-4 flex flex-wrap gap-2" role="group" aria-label="Filter curated integrations">
-              {curatedCategories.map((category) => (
-                <button
-                  key={category}
-                  type="button"
-                  onClick={() => setSelectedCuratedCategory(category)}
-                  className={cn(
-                    "rounded-full border px-3 py-1.5 text-xs transition",
-                    selectedCuratedCategory === category
-                      ? "border-primary bg-primary/15 text-primary"
-                      : "border-white/20 text-white/70 hover:border-white/40 hover:text-white"
-                  )}
-                >
-                  {formatCuratedCategory(category)}
-                </button>
-              ))}
-            </div>
+          <div className="flex flex-wrap gap-2" role="group" aria-label="Filter curated integrations">
+            {curatedCategories.map((category) => (
+              <button
+                key={category}
+                type="button"
+                onClick={() => setSelectedCuratedCategory(category)}
+                className={cn(
+                  "rounded-full border px-3 py-1.5 text-xs transition",
+                  selectedCuratedCategory === category
+                    ? "border-primary bg-primary/15 text-primary"
+                    : "border-white/20 text-white/70 hover:border-white/40 hover:text-white"
+                )}
+              >
+                {formatCuratedCategory(category)}
+              </button>
+            ))}
           </div>
 
           {curatedLoading ? (
@@ -720,37 +753,69 @@ export default function IntegrationsModularSettingsPage() {
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {visibleCuratedIntegrations.map((integration) => {
                 const isLoading = loadingCuratedUrl === integration.url;
+                const isConfigured = integrations.some(
+                  (installedIntegration) => installedIntegration.source === integration.url
+                );
                 return (
                   <button
                     key={integration.url}
                     type="button"
-                    className="frosted group flex min-h-32 flex-col items-start justify-between gap-5 rounded-2xl border p-4 text-left transition hover:border-primary/60 hover:bg-primary/5 disabled:cursor-wait disabled:opacity-70"
+                    className="frosted group flex flex-row items-start gap-2 rounded-2xl border p-2 text-left transition hover:border-primary/60 hover:bg-primary/5 disabled:cursor-wait disabled:opacity-70"
                     onClick={() => void openCuratedIntegration(integration)}
                     disabled={loadingCuratedUrl !== null}
                   >
-                    <div className="flex w-full items-start justify-between gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 text-white/70 transition group-hover:text-primary">
-                        {isLoading ? (
-                          <Loader2 className="h-5 w-5 animate-spin" />
-                        ) : (
-                          <Puzzle className="h-5 w-5" />
-                        )}
-                      </div>
-                      <Badge variant="outline" className="text-[0.7rem]">
-                        {formatCuratedCategory(integration.category)}
-                      </Badge>
+                    <div className="flex h-7 w-10 shrink-0 self-center items-center justify-center text-white/70 transition group-hover:text-primary">
+                      {isLoading ? (
+                        <Loader2 className="h-7 w-10 animate-spin" />
+                      ) : integration.icon ? (
+                        <AppIcon
+                          source={integration.icon}
+                          alt={integration.name}
+                          className="h-7 w-10 text-white"
+                          imageClassName="object-contain"
+                        />
+                      ) : (
+                        <Puzzle className="h-7 w-10" />
+                      )}
                     </div>
-                    <div>
-                      <p className="font-semibold transition group-hover:text-primary">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-semibold transition group-hover:text-primary">
                         {integration.name}
                       </p>
-                      <p className="mt-1 text-xs text-muted-foreground">Type: {formatCuratedCategory(integration.category)}</p>
+                      <div className="mt-1">
+                        <Badge className="text-[0.7rem]">
+                          {formatCuratedCategory(integration.category)}
+                        </Badge>
+                      </div>
+                      <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
+                        {integration.description || "No description available."}
+                      </p>
                     </div>
+                    {isConfigured && (
+                      <span
+                        className="flex h-8 w-8 shrink-0 self-center items-center justify-center text-primary"
+                        aria-label="Configured"
+                        title="Configured"
+                      >
+                        <FontAwesomeIcon icon={faCircleCheck} />
+                      </span>
+                    )}
                   </button>
                 );
               })}
             </div>
           )}
+          <p className="text-xs text-muted-foreground">
+            Source:{" "}
+            <a
+              href="https://github.com/dashwise-homelab/integrations"
+              target="_blank"
+              rel="noreferrer"
+              className="underline hover:text-white"
+            >
+              https://github.com/dashwise-homelab/integrations
+            </a>
+          </p>
         </div>
       )}
 
@@ -797,10 +862,6 @@ export default function IntegrationsModularSettingsPage() {
       )}
 
       {settingsTab === "local" && <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold">Your integrations</h3>
-          <p className="text-xs">{integrations.length} total</p>
-        </div>
         <div>
           {loading ? (
             <div className="flex h-32 items-center justify-center">
@@ -1019,10 +1080,11 @@ function formatDate(value: string | null | undefined) {
 }
 
 function formatCuratedCategory(value: string) {
-  if (value === "all") {
-    return "all";
-  }
-  return value.replaceAll("-", " ");
+  return value
+    .replaceAll("-", " ")
+    .split(" ")
+    .map((word) => (word ? `${word[0].toUpperCase()}${word.slice(1)}` : word))
+    .join(" ");
 }
 
 function parseSafeJson(value: string) {
