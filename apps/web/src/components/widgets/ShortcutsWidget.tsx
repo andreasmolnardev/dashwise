@@ -40,6 +40,10 @@ export default function ShortcutsWidget({ shortcutIds = [], className = "" }: { 
       void withAuth((auth) => logShortcutUsageAction(auth, shortcut.id, new Date().toISOString()));
       return;
     }
+    if (value.toLowerCase().startsWith("shortcut:")) {
+      await withAuth((auth) => proxyIntegrationAction(auth, shortcut.id));
+      return;
+    }
     if (value.startsWith("command:")) {
       window.location.href = value.startsWith("command://") ? value : value.replace("command:", "client://");
       return;

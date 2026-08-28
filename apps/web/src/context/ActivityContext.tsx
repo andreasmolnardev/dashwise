@@ -6,6 +6,7 @@ import { backendUrl } from "@/lib/apiClient";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/queryClient";
 import { getClientSessionId } from "@/lib/session";
+import { executeRegisteredActivityShortcut } from "@/lib/activityShortcuts";
 
 export type ActivityNotification = {
   id: string;
@@ -68,6 +69,18 @@ export function ActivityProvider({ children }: { children: ReactNode }) {
       nextSocket.onmessage = (event) => {
         try {
           const message = JSON.parse(String(event.data));
+          if (message.type === "shortcut:execute" && typeof message.requestId === "string" && typeof message.shortcutId === "string") {
+            void executeRegisteredActivityShortcut(message.shortcutId).then((result) => {
+              if (nextSocket.readyState !== WebSocket.OPEN) return;
+              nextSocket.send(JSON.stringify({
+                type: "shortcut:result",
+                requestId: message.requestId,
+                success: result.success,
+                ...(result.error ? { error: result.error } : {}),
+              }));
+            });
+            return;
+          }
           if (message.type !== "activity:snapshot") return;
            const nextNotifications = Array.isArray(message.notifications) ? message.notifications : [];
            setNotifications(nextNotifications);

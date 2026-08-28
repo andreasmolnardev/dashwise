@@ -1,6 +1,12 @@
 import { randomUUID } from "node:crypto";
 
 import { ApiActionError } from "./auth";
+import {
+  isSessionConnected,
+  requestShortcutExecution,
+  type ShortcutExecutionResult,
+} from "../activity";
+import { getSessionById } from "./sessions";
 import { getSuperuserPB } from "../pb/pocketbase";
 import type { ShortcutsResponse } from "@dashwise/types";
 
@@ -18,6 +24,11 @@ export type OnDemandShortcutInput = {
   secondary?: string;
   action: string;
   tags?: string[];
+};
+
+export type RoutedShortcutAction = {
+  sessionId: string;
+  shortcutId: string;
 };
 
 export function escapeFilter(value: string) {
@@ -47,6 +58,61 @@ export function parseTags(value: unknown): string[] {
   }
 
   return [];
+}
+
+export function parseRoutedShortcutAction(value: unknown): RoutedShortcutAction | null {
+  if (typeof value !== "string") return null;
+  const match = /^shortcut:([^\.]+)\.(.+)$/i.exec(value.trim());
+  if (!match) return null;
+
+  const sessionId = match[1].trim();
+  const shortcutId = match[2].trim();
+  if (!/^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(sessionId)) return null;
+  if (!shortcutId || shortcutId.length > 512 || hasControlCharacter(shortcutId)) return null;
+  return { sessionId, shortcutId };
+}
+
+function hasControlCharacter(value: string) {
+  return [...value].some((character) => {
+    const code = character.charCodeAt(0);
+    return code < 32 || code === 127;
+  });
+}
+
+export async function executeRoutedShortcut(userId: string, action: unknown) {
+  const target = parseRoutedShortcutAction(action);
+  if (!target) {
+    throw new ApiActionError("Invalid shortcut action", 400, {
+      error: "Invalid shortcut action",
+    });
+  }
+
+  const pb = await getSuperuserPB();
+  const session = await getSessionById(pb, userId, target.sessionId);
+  if (!session) {
+    throw new ApiActionError("Target session is unavailable", 404, {
+      error: "Target session is unavailable",
+    });
+  }
+  if (!isSessionConnected(userId, target.sessionId)) {
+    throw new ApiActionError("Target session is offline", 503, {
+      error: "Target session is offline",
+    });
+  }
+
+  const result: ShortcutExecutionResult = await requestShortcutExecution(
+    userId,
+    target.sessionId,
+    target.shortcutId,
+  );
+  if (!result.success) {
+    throw new ApiActionError(result.error ?? "Shortcut execution failed", 502, {
+      error: result.error ?? "Shortcut execution failed",
+      requestId: result.requestId,
+    });
+  }
+
+  return result;
 }
 
 export async function getShortcuts(userId: string) {

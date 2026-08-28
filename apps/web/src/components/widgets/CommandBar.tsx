@@ -554,6 +554,9 @@ export default function CommandBar(
     } else if (a.url === "__proxy_action__") {
       logShortcutUsage(a);
       void triggerProxyAction(a);
+    } else if (a.url.toLowerCase().startsWith("shortcut:")) {
+      logShortcutUsage(a);
+      void triggerProxyAction(a);
     } else if (a.url === "__logout_action__") {
       logShortcutUsage(a);
       logout();

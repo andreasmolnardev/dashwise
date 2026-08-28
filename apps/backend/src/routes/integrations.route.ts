@@ -15,6 +15,7 @@ import {
   updateIntegration,
 } from "../lib/data/integrations";
 import { ApiActionError } from "../lib/data/auth";
+import { executeRoutedShortcut } from "../lib/data/shortcuts";
 import { getSuperuserPB } from "../lib/pb/pocketbase";
 import {
   flattenToEnv,
@@ -131,6 +132,10 @@ integrationsRoute
       const record = await pb.collection("shortcuts").getOne(shortcutId);
       if (!record || record.user !== userId) {
         throw new ApiActionError("Unauthorized", 403, { error: "Unauthorized" });
+      }
+
+      if (typeof record.action === "string" && /^shortcut:/i.test(record.action.trim())) {
+        return executeRoutedShortcut(userId, record.action);
       }
 
       const action = parseProxyAction(record.action);
