@@ -16,6 +16,7 @@ import { FitAddon } from "xterm-addon-fit";
 
 import useAuth from "@/context/useAuth";
 import { backendUrl, type MonitoringSshHostRecord } from "@/lib/apiClient";
+import { getClientSessionId } from "@/lib/session";
 import config from "@/lib/config";
 
 import "xterm/css/xterm.css";
@@ -107,6 +108,8 @@ function SshTerminalSession(
     );
     url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
     url.searchParams.set("token", token);
+    const sessionId = getClientSessionId();
+    if (sessionId) url.searchParams.set("sessionId", sessionId);
 
     const socket = new WebSocket(url.toString());
     wsRef.current = socket;

@@ -25,6 +25,7 @@ export const queryKeys = {
   appConfig: ["app-config"] as const,
   auth: {
     validation: (token: string | null) => ["auth", token, "validation"] as const,
+    session: (token: string | null) => ["auth", token, "session"] as const,
   },
   links: {
     collections: ["links", "collections"] as const,

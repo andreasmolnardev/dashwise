@@ -16,6 +16,7 @@ import type {
 } from "@dashwise/types/sdk";
 import type { PageConfig } from "@dashwise/types/sdk";
 import config from "@/lib/config";
+import { getClientSessionHeaders } from "@/lib/session";
 import { client } from "./api/client.gen";
 import * as sdk from "./api/sdk.gen";
 
@@ -67,7 +68,11 @@ export function backendUrl(path: string) {
 }
 
 export function authHeaders(auth?: ActionAuth | null): Record<string, string> | undefined {
-  return auth?.token ? { Authorization: `Bearer ${auth.token}` } : undefined;
+  if (!auth?.token) return undefined;
+  return {
+    Authorization: `Bearer ${auth.token}`,
+    ...getClientSessionHeaders(auth.sessionId),
+  };
 }
 
 export type MonitoringSshHostRecord = {
@@ -123,6 +128,18 @@ export type NewsFeedPageResponse = {
   limit: number;
 };
 
+export type SessionRecord = {
+  id: string;
+  user: string;
+  sessionId: string;
+  displayName: string;
+  clientType?: string;
+  platform?: string;
+  lastSeenAt: string;
+  created?: string;
+  updated?: string;
+};
+
 function stringifyError(error: unknown) {
   if (typeof error === "string") return error;
   if (error && typeof error === "object") {
@@ -152,7 +169,7 @@ export async function fetchWallpaperBlob(imageUrl: string, token?: string): Prom
 
   if (!isWallpaperApiUrl(url)) {
     const response = await fetch(url.toString(), {
-      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      headers: token ? authHeaders({ token }) : undefined,
     });
 
     handleUnauthorizedResponse(response);
@@ -167,7 +184,7 @@ export async function fetchWallpaperBlob(imageUrl: string, token?: string): Prom
   const query = Object.fromEntries(url.searchParams.entries());
   const result = await client.get({
     url: "/wallpapers",
-    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    headers: token ? authHeaders({ token }) : undefined,
     query,
     parseAs: "blob",
   });
@@ -227,7 +244,7 @@ export async function signupUserAction(payload: { _name?: string; email: string;
 }
 
 export async function validateAuthTokenAction(auth: ActionAuth): Promise<ValidateAuthTokenSuccess> {
-  return extractData(await postAuthValidateAuth({ body: auth }));
+  return extractData(await postAuthValidateAuth({ body: auth, headers: authHeaders(auth) }));
 }
 
 export async function deleteAccountAction(auth: ActionAuth, payload: { email: string; password: string; totp?: string }) {
@@ -236,6 +253,23 @@ export async function deleteAccountAction(auth: ActionAuth, payload: { email: st
 
 export async function updateUserPropertyAction(auth: ActionAuth, propertyName: string, propertyValue: UserPropertyValue): Promise<AuthUserRecord> {
   return extractData(await patchAuthUpdateUserProperty({ body: { auth, propertyName, propertyValue }, headers: authHeaders(auth) })) as Promise<AuthUserRecord>;
+}
+
+// --- Session actions ---
+
+export async function getCurrentSessionAction(auth: ActionAuth): Promise<SessionRecord> {
+  return extractData(await client.get({
+    url: "/sessions/current",
+    headers: authHeaders(auth),
+  })) as Promise<SessionRecord>;
+}
+
+export async function renameCurrentSessionAction(auth: ActionAuth, displayName: string): Promise<SessionRecord> {
+  return extractData(await client.patch({
+    url: "/sessions/current",
+    body: { displayName },
+    headers: authHeaders(auth),
+  })) as Promise<SessionRecord>;
 }
 
 // --- Links actions ---

@@ -17,7 +17,10 @@ import { defaultHomeConfig } from "@dashwise/assets";
 
 export type JsonHandler<C extends (import("hono").Context<any, any, any>) = import("hono").Context> = (c: C) => Promise<unknown> | unknown;
 
-export const authInput = z.object({ token: z.string().nullable().optional() });
+export const authInput = z.object({
+  token: z.string().nullable().optional(),
+  sessionId: z.string().nullable().optional(),
+});
 
 export function normalizePageName(pageName?: string | null) {
   const cleaned = String(pageName ?? "home").trim().toLowerCase();
@@ -104,6 +107,20 @@ export function readAuthToken(c: Context) {
   }
 
   return c.req.query("token") ?? c.req.query("authToken") ?? null;
+}
+
+export function readAuth(c: Context) {
+  return {
+    token: readAuthToken(c),
+    sessionId: c.req.header("x-session-id") ?? null,
+  };
+}
+
+export function readSessionMetadata(c: Context) {
+  return {
+    clientType: c.req.header("x-client-type") ?? undefined,
+    platform: c.req.header("x-platform") ?? undefined,
+  };
 }
 
 export async function readJsonBody<T = Record<string, unknown>>(c: Context): Promise<T> {

@@ -1,6 +1,7 @@
 "use client"
 
 import { updateUserPropertyAction } from '@/lib/apiClient';
+import { getClientSessionId } from "@/lib/session";
 import type { ActionAuth, AuthUserRecord, UserPropertyValue } from "@dashwise/types/sdk";
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -143,7 +144,7 @@ export function useAuth() {
         throw createUnauthorizedError();
       }
       try {
-        return await fn({ token });
+        return await fn({ token, sessionId: getClientSessionId() });
       } catch (err: unknown) {
         if (typeof err === "object" && err !== null && "status" in err && (err as { status?: number }).status === 401) {
           onUnauthorized?.();
