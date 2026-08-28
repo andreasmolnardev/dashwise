@@ -119,16 +119,16 @@ integrationsRoute
     withJson(async (c) => {
       const body = await readJsonBody<any>(c);
       const { userId } = await requireAuth({ token: readAuthToken(c) });
-      const searchItemId = String(body?.searchItemId ?? body?.id ?? "").trim();
+      const shortcutId = String(body?.shortcutId ?? body?.id ?? "").trim();
 
-      if (!searchItemId) {
-        throw new ApiActionError("Missing searchItemId", 400, {
-          error: "Missing searchItemId",
+      if (!shortcutId) {
+        throw new ApiActionError("Missing shortcutId", 400, {
+          error: "Missing shortcutId",
         });
       }
 
       const pb = await getSuperuserPB();
-      const record = await pb.collection("searchItems").getOne(searchItemId);
+      const record = await pb.collection("shortcuts").getOne(shortcutId);
       if (!record || record.user !== userId) {
         throw new ApiActionError("Unauthorized", 403, { error: "Unauthorized" });
       }

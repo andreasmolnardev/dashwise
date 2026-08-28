@@ -618,21 +618,21 @@ export type PostLinksTagsResponses = {
 
 export type PostLinksTagsResponse = PostLinksTagsResponses[keyof PostLinksTagsResponses];
 
-export type GetJobsSearchItemsData = {
+export type GetJobsShortcutsData = {
     body?: never;
     path?: never;
     query?: never;
-    url: '/jobs/searchItems';
+    url: '/jobs/shortcuts';
 };
 
-export type GetJobsSearchItemsResponses = {
+export type GetJobsShortcutsResponses = {
     /**
      * OK
      */
     200: GenericObject;
 };
 
-export type GetJobsSearchItemsResponse = GetJobsSearchItemsResponses[keyof GetJobsSearchItemsResponses];
+export type GetJobsShortcutsResponse = GetJobsShortcutsResponses[keyof GetJobsShortcutsResponses];
 
 export type GetJobsPullIconsData = {
     body?: never;
@@ -1319,21 +1319,21 @@ export type PutNotificationsTopicTokensResponses = {
 
 export type PutNotificationsTopicTokensResponse = PutNotificationsTopicTokensResponses[keyof PutNotificationsTopicTokensResponses];
 
-export type GetSearchItemsData = {
+export type GetShortcutsData = {
     body?: never;
     path?: never;
     query?: never;
-    url: '/searchItems';
+    url: '/shortcuts';
 };
 
-export type GetSearchItemsResponses = {
+export type GetShortcutsResponses = {
     /**
      * OK
      */
     200: GenericObject;
 };
 
-export type GetSearchItemsResponse = GetSearchItemsResponses[keyof GetSearchItemsResponses];
+export type GetShortcutsResponse = GetShortcutsResponses[keyof GetShortcutsResponses];
 
 export type GetPageConfigData = {
     body?: never;
@@ -2060,34 +2060,102 @@ export type PostNotificationsTestResponses = {
 
 export type PostNotificationsTestResponse = PostNotificationsTestResponses[keyof PostNotificationsTestResponses];
 
-export type GetSearchItemsFrequentlyUsedData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/searchItems/frequentlyUsed';
-};
-
-export type GetSearchItemsFrequentlyUsedResponses = {
-    /**
-     * OK
-     */
-    200: GenericObject;
-};
-
-export type GetSearchItemsFrequentlyUsedResponse = GetSearchItemsFrequentlyUsedResponses[keyof GetSearchItemsFrequentlyUsedResponses];
-
-export type PostSearchItemsUsageStatsData = {
+export type PostShortcutsAppsData = {
     body?: JsonBody;
     path?: never;
     query?: never;
-    url: '/searchItems/usageStats';
+    url: '/shortcuts/apps';
 };
 
-export type PostSearchItemsUsageStatsResponses = {
+export type PostShortcutsAppsErrors = {
+    /**
+     * Bad Request
+     */
+    400: Error;
+    /**
+     * Unauthorized
+     */
+    401: Error;
+};
+
+export type PostShortcutsAppsError = PostShortcutsAppsErrors[keyof PostShortcutsAppsErrors];
+
+export type PostShortcutsAppsResponses = {
     /**
      * OK
      */
     200: GenericObject;
 };
 
-export type PostSearchItemsUsageStatsResponse = PostSearchItemsUsageStatsResponses[keyof PostSearchItemsUsageStatsResponses];
+export type PostShortcutsAppsResponse = PostShortcutsAppsResponses[keyof PostShortcutsAppsResponses];
+
+export type PutShortcutsOnDemandByAppIdData = {
+    body?: JsonBody;
+    path: {
+        appId: string;
+    };
+    query?: never;
+    url: '/shortcuts/on-demand/{appId}';
+};
+
+export type PutShortcutsOnDemandByAppIdErrors = {
+    /**
+     * Bad Request
+     */
+    400: Error;
+    /**
+     * Unauthorized
+     */
+    401: Error;
+    /**
+     * Not Found
+     */
+    404: Error;
+    /**
+     * Conflict
+     */
+    409: Error;
+};
+
+export type PutShortcutsOnDemandByAppIdError = PutShortcutsOnDemandByAppIdErrors[keyof PutShortcutsOnDemandByAppIdErrors];
+
+export type PutShortcutsOnDemandByAppIdResponses = {
+    /**
+     * OK
+     */
+    200: GenericObject;
+};
+
+export type PutShortcutsOnDemandByAppIdResponse = PutShortcutsOnDemandByAppIdResponses[keyof PutShortcutsOnDemandByAppIdResponses];
+
+export type GetShortcutsFrequentlyUsedData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/shortcuts/frequentlyUsed';
+};
+
+export type GetShortcutsFrequentlyUsedResponses = {
+    /**
+     * OK
+     */
+    200: GenericObject;
+};
+
+export type GetShortcutsFrequentlyUsedResponse = GetShortcutsFrequentlyUsedResponses[keyof GetShortcutsFrequentlyUsedResponses];
+
+export type PostShortcutsUsageStatsData = {
+    body?: JsonBody;
+    path?: never;
+    query?: never;
+    url: '/shortcuts/usageStats';
+};
+
+export type PostShortcutsUsageStatsResponses = {
+    /**
+     * OK
+     */
+    200: GenericObject;
+};
+
+export type PostShortcutsUsageStatsResponse = PostShortcutsUsageStatsResponses[keyof PostShortcutsUsageStatsResponses];

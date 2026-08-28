@@ -60,7 +60,7 @@ You can use the following environment variables for the all-in-one container; th
 
 | Name | Required | Default Value | Description |
 | --- | --- | --- | --- |
-| SEARCHITEMS_SCHEDULE | No | `*/10 * * * *` | Interval for search item indexing job |
+| SHORTCUTS_SCHEDULE | No | `*/10 * * * *` | Interval for shortcut indexing job |
 | ENABLE_ICONS_REFRESH | No | `false` | Enable automatic icon refresh job. Only the literal value `true` enables it; `1` does not. |
 | PULL_ICONS_SCHEDULE | No | `0 */18 * * *` | How often the icons refresh job runs |
 | MONITORING_INDEXER_SCHEDULE | No | `*/10 * * * *` | How often the monitoring indexer runs |

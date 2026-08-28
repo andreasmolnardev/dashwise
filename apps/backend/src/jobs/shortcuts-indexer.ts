@@ -3,8 +3,9 @@ import type { HomeLink } from "@dashwise/types";
 import { getHomeLinks } from "../lib/data/links";
 import { config } from "../lib/config";
 import { getSuperuserPB } from "../lib/pb/pocketbase";
+import { ensureShortcutsApp, escapeFilter, parseTags } from "../lib/data/shortcuts";
 
-type SearchItemRow = {
+type ShortcutRow = {
   name: string;
   icon: string;
   secondary: string;
@@ -32,8 +33,8 @@ type ShortcutDefaultsRow = {
   tags?: unknown;
 };
 
-export async function runSearchItemsIndexing() {
-  console.log("Starting search items indexing job...");
+export async function runShortcutsIndexing() {
+  console.log("Starting shortcuts indexing job...");
   const pb = await getSuperuserPB();
   const users = await pb.collection("users").getFullList<{ id: string }>(500, {
     fields: "id",
@@ -43,7 +44,7 @@ export async function runSearchItemsIndexing() {
     const userId = user.id;
     if (!userId) continue;
 
-    const rows: SearchItemRow[] = buildDefaultShortcutSearchRows();
+    const rows: ShortcutRow[] = buildDefaultShortcutRows();
     const links = await getHomeLinks(userId).catch(() => [] as HomeLink[]);
     for (const link of links) {
       const name = String(link?.title ?? "").trim();
@@ -124,7 +125,7 @@ export async function runSearchItemsIndexing() {
         continue;
       }
       try {
-        const integrationRows = await buildIntegrationSearchRows(integration);
+        const integrationRows = await buildIntegrationShortcutRows(pb, userId, integration);
         rows.push(...integrationRows);
       } catch {
         // If one integration fails to resolve endpoints/search mappings,
@@ -133,16 +134,16 @@ export async function runSearchItemsIndexing() {
       }
     }
 
-    await rebuildUserSearchItems(pb, userId, rows);
+    await rebuildUserShortcuts(pb, userId, rows);
   }
 }
 
-function buildDefaultShortcutSearchRows(): SearchItemRow[] {
+function buildDefaultShortcutRows(): ShortcutRow[] {
   const shortcuts = Array.isArray(defaultShortcutsManifest)
     ? (defaultShortcutsManifest as ShortcutDefaultsRow[])
     : [];
 
-  const rows: SearchItemRow[] = [];
+  const rows: ShortcutRow[] = [];
   for (const shortcut of shortcuts) {
     const name = String(shortcut?.name ?? "").trim();
     const action = String(shortcut?.action ?? "").trim();
@@ -163,10 +164,6 @@ function buildDefaultShortcutSearchRows(): SearchItemRow[] {
   }
 
   return rows;
-}
-
-function escapeFilter(value: string) {
-  return value.replace(/"/g, '\\"');
 }
 
 function normalizeObject(raw: unknown): Record<string, any> {
@@ -195,18 +192,6 @@ function normalizeObject(raw: unknown): Record<string, any> {
 
 
   return {};
-}
-
-function parseTags(value: unknown) {
-  if (!value) return [] as unknown[];
-  if (Array.isArray(value)) return value;
-  if (typeof value !== "string") return [] as unknown[];
-  try {
-    const parsed = JSON.parse(value);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [] as unknown[];
-  }
 }
 
 function normalizeKey(value: string) {
@@ -287,9 +272,11 @@ function isIntegrationEnabled(
   return candidates.some((candidate) => enabledMap[normalizeKey(candidate)] === true);
 }
 
-async function buildIntegrationSearchRows(
+async function buildIntegrationShortcutRows(
+  pb: any,
+  userId: string,
   integration: SearchIndexIntegrationRecord,
-): Promise<SearchItemRow[]> {
+): Promise<ShortcutRow[]> {
   const integrationConfig = normalizeObject(integration.config);
   const searchDefinitions = Array.isArray(integrationConfig?.configuration?.shortcuts)
     ? (integrationConfig.configuration.shortcuts as Array<Record<string, any>>)
@@ -317,12 +304,16 @@ async function buildIntegrationSearchRows(
   }));
 
   const appId = `integration:${integration.id}`;
+  const shortcutApp = await ensureShortcutsApp(pb, userId, appId, {
+    name: integrationName,
+    icon: integrationIcon,
+  });
   const rows = shortcutRows.map((item) => ({
     name: item.name,
     icon: item.icon || integrationIcon,
     secondary: item.secondaryInfo || integrationName,
     action: serializeShortcutAction(item.action),
-    app: appId,
+    app: shortcutApp.id,
     tags: item.tags,
     sourceId: integration.id,
     sourceUpdated: (integration as any).updated as string,
@@ -333,7 +324,7 @@ async function buildIntegrationSearchRows(
       name: integrationName,
       icon: integrationIcon,
       secondary: "Integration",
-      action: `app:${appId}`,
+      action: `app:${shortcutApp.id}`,
       app: "",
       tags: [integrationName, "integration"],
       sourceId: integration.id,
@@ -343,33 +334,45 @@ async function buildIntegrationSearchRows(
   ];
 }
 
-async function rebuildUserSearchItems(pb: any, userId: string, rows: SearchItemRow[]) {
-  const existing = await pb.collection("searchItems").getFullList(1000, {
+async function rebuildUserShortcuts(pb: any, userId: string, rows: ShortcutRow[]) {
+  const onDemandApps = await pb.collection("shortcutsApps").getFullList(1000, {
+    filter: `user="${escapeFilter(userId)}" && type="on-demand"`,
+    fields: "id",
+  }).catch(() => [] as Array<{ id: string }>);
+  const onDemandAppIds = new Set(onDemandApps.map((record: { id: string }) => record.id));
+  const existing = await pb.collection("shortcuts").getFullList(1000, {
     filter: `user="${escapeFilter(userId)}"`,
   });
 
   const existingBySource = new Map<string, any[]>();
   for (const record of existing) {
-    const sid = record.sourceId || "legacy";
+    const sourceId = String(record.sourceId ?? "");
+    const isOnDemandShortcut = typeof record.app === "string" && onDemandAppIds.has(record.app);
+    const isOnDemandAppShortcut = !record.app && sourceId.startsWith("shortcuts-app:") &&
+      onDemandAppIds.has(sourceId.slice("shortcuts-app:".length));
+    if (isOnDemandShortcut || isOnDemandAppShortcut) {
+      continue;
+    }
+    const sid = sourceId || "legacy";
     if (!existingBySource.has(sid)) existingBySource.set(sid, []);
     existingBySource.get(sid)!.push(record);
   }
 
-  const newBySource = new Map<string, SearchItemRow[]>();
+  const newBySource = new Map<string, ShortcutRow[]>();
   for (const row of rows) {
     const sid = row.sourceId || "unknown";
     if (!newBySource.has(sid)) newBySource.set(sid, []);
     newBySource.get(sid)!.push(row);
   }
 
-  // 1. Clean up search items whose sources no longer exist
+  // 1. Clean up just-in-time shortcuts whose sources no longer exist.
   for (const [sid, records] of existingBySource.entries()) {
     if (sid === "legacy") {
-      for (const r of records) await pb.collection("searchItems").delete(r.id).catch(() => {});
+      for (const r of records) await pb.collection("shortcuts").delete(r.id).catch(() => {});
       continue;
     }
     if (!newBySource.has(sid)) {
-      for (const r of records) await pb.collection("searchItems").delete(r.id).catch(() => {});
+      for (const r of records) await pb.collection("shortcuts").delete(r.id).catch(() => {});
     }
   }
 
@@ -385,7 +388,7 @@ async function rebuildUserSearchItems(pb: any, userId: string, rows: SearchItemR
       const existingRecord = existingRecords[0];
 
       if (existingRecord) {
-        // "check if the parent link has been updated since the search item has lastly been updated. if yes replace, else discard"
+        // Keep the existing shortcut when its source has not changed.
         const sourceUpdated = new Date(newRow.sourceUpdated || 0).getTime();
         const itemUpdated = new Date(existingRecord.updated).getTime();
 
@@ -395,10 +398,10 @@ async function rebuildUserSearchItems(pb: any, userId: string, rows: SearchItemR
         }
         
         // Replace
-        await pb.collection("searchItems").delete(existingRecord.id).catch(() => {});
+        await pb.collection("shortcuts").delete(existingRecord.id).catch(() => {});
       }
 
-      await pb.collection("searchItems").create({
+      await pb.collection("shortcuts").create({
         user: userId,
         name: newRow.name,
         icon: newRow.icon,
@@ -411,14 +414,25 @@ async function rebuildUserSearchItems(pb: any, userId: string, rows: SearchItemR
       });
     } else {
       // Integration logic: "regenerate every time and check whether the output differs"
-      const existingData = existingRecords.map(r => ({
-        name: r.name,
-        icon: r.icon,
-        secondary: r.secondary,
-        action: r.action,
-        app: r.app,
-        tags: parseTags(r.tags),
-      })).sort((a, b) => a.action.localeCompare(b.action));
+      const appRelationId = newRows
+        .map((row) => row.app || (row.action.startsWith("app:") ? row.action.slice(4) : ""))
+        .find(Boolean) || "";
+      const migratedParentRecords: Array<{ id: string; action: string }> = [];
+      const existingData = existingRecords.map(r => {
+        let action = r.action;
+        if (!r.app && appRelationId && typeof action === "string" && action.startsWith("app:integration:")) {
+          action = `app:${appRelationId}`;
+          migratedParentRecords.push({ id: r.id, action });
+        }
+        return {
+          name: r.name,
+          icon: r.icon,
+          secondary: r.secondary,
+          action,
+          app: r.app,
+          tags: parseTags(r.tags),
+        };
+      }).sort((a, b) => a.action.localeCompare(b.action));
 
       const newData = newRows.map(r => ({
         name: r.name,
@@ -430,13 +444,16 @@ async function rebuildUserSearchItems(pb: any, userId: string, rows: SearchItemR
       })).sort((a, b) => a.action.localeCompare(b.action));
 
       if (JSON.stringify(existingData) === JSON.stringify(newData)) {
+        for (const record of migratedParentRecords) {
+          await pb.collection("shortcuts").update(record.id, { action: record.action });
+        }
         continue;
       }
 
       // Replace all for this source
-      for (const r of existingRecords) await pb.collection("searchItems").delete(r.id).catch(() => {});
+      for (const r of existingRecords) await pb.collection("shortcuts").delete(r.id).catch(() => {});
       for (const row of newRows) {
-        await pb.collection("searchItems").create({
+        await pb.collection("shortcuts").create({
           user: userId,
           name: row.name,
           icon: row.icon,

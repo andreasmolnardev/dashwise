@@ -8,7 +8,7 @@ import notificationsRoute from "./notifications.route";
 import pageConfigRoute from "./pageConfig.route";
 import wallpapersRoute from "./wallpapers.route";
 import widgetsRoute from "./widgets.route";
-import searchItemsRoute from "./searchItems.route";
+import shortcutsRoute from "./shortcuts.route";
 
 const dataRoute = new Hono();
 
@@ -20,6 +20,6 @@ dataRoute.route("/", newsRoute);
 dataRoute.route("/", notificationsRoute);
 dataRoute.route("/", monitoringRoute);
 dataRoute.route("/", wallpapersRoute);
-dataRoute.route("/", searchItemsRoute);
+dataRoute.route("/", shortcutsRoute);
 
 export default dataRoute;

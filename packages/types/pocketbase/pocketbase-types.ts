@@ -26,7 +26,8 @@ export const Collections = {
 	NotificationTopics: "notificationTopics",
 	NotificationTopicTokens: "notificationTopicTokens",
 	PageConfig: "pageConfig",
-	SearchItems: "searchItems",
+	Shortcuts: "shortcuts",
+	ShortcutsApps: "shortcutsApps",
 	Sessions: "sessions",
 	Users: "users",
 	WallpaperStore: "wallpaperStore",
@@ -311,7 +312,7 @@ export type PageConfigRecord<Tconfig = unknown> = {
 	updated: IsoAutoDateString
 }
 
-export type SearchItemsRecord<Ttags = unknown, TusageStats = unknown> = {
+export type ShortcutsRecord<Ttags = unknown, TusageStats = unknown> = {
 	action?: string
 	app?: string
 	created: IsoAutoDateString
@@ -326,6 +327,22 @@ export type SearchItemsRecord<Ttags = unknown, TusageStats = unknown> = {
 	updated: IsoAutoDateString
 	usageStats?: null | TusageStats
 	user?: RecordIdString
+}
+
+export const ShortcutsAppsTypeOptions = {
+	"just-in-time": "just-in-time",
+	"on-demand": "on-demand",
+} as const
+export type ShortcutsAppsTypeOptions = typeof ShortcutsAppsTypeOptions[keyof typeof ShortcutsAppsTypeOptions]
+export type ShortcutsAppsRecord = {
+	created: IsoAutoDateString
+	icon?: string
+	id: string
+	name: string
+	sourceId: string
+	type: ShortcutsAppsTypeOptions
+	updated: IsoAutoDateString
+	user: RecordIdString
 }
 
 export type SessionsRecord = {
@@ -388,7 +405,8 @@ export type NotificationItemsResponse<Tcontent = unknown, Texpand = unknown> = R
 export type NotificationTopicsResponse<Texpand = unknown> = Required<NotificationTopicsRecord> & BaseSystemFields<Texpand>
 export type NotificationTopicTokensResponse<Texpand = unknown> = Required<NotificationTopicTokensRecord> & BaseSystemFields<Texpand>
 export type PageConfigResponse<Tconfig = unknown, Texpand = unknown> = Required<PageConfigRecord<Tconfig>> & BaseSystemFields<Texpand>
-export type SearchItemsResponse<Ttags = unknown, TusageStats = unknown, Texpand = unknown> = Required<SearchItemsRecord<Ttags, TusageStats>> & BaseSystemFields<Texpand>
+export type ShortcutsResponse<Ttags = unknown, TusageStats = unknown, Texpand = unknown> = Required<ShortcutsRecord<Ttags, TusageStats>> & BaseSystemFields<Texpand>
+export type ShortcutsAppsResponse<Texpand = unknown> = Required<ShortcutsAppsRecord> & BaseSystemFields<Texpand>
 export type SessionsResponse<Texpand = unknown> = Required<SessionsRecord> & BaseSystemFields<Texpand>
 export type UsersResponse<TappearancePreferences = unknown, TlocalizationPreferences = unknown, TscreensaverPreferences = unknown, TsearchPreferences = unknown, Texpand = unknown> = Required<UsersRecord<TappearancePreferences, TlocalizationPreferences, TscreensaverPreferences, TsearchPreferences>> & AuthSystemFields<Texpand>
 export type WallpaperStoreResponse<Texpand = unknown> = Required<WallpaperStoreRecord> & BaseSystemFields<Texpand>
@@ -416,7 +434,8 @@ export type CollectionRecords = {
 	notificationTopics: NotificationTopicsRecord
 	notificationTopicTokens: NotificationTopicTokensRecord
 	pageConfig: PageConfigRecord
-	searchItems: SearchItemsRecord
+	shortcuts: ShortcutsRecord
+	shortcutsApps: ShortcutsAppsRecord
 	sessions: SessionsRecord
 	users: UsersRecord
 	wallpaperStore: WallpaperStoreRecord
@@ -443,7 +462,8 @@ export type CollectionResponses = {
 	notificationTopics: NotificationTopicsResponse
 	notificationTopicTokens: NotificationTopicTokensResponse
 	pageConfig: PageConfigResponse
-	searchItems: SearchItemsResponse
+	shortcuts: ShortcutsResponse
+	shortcutsApps: ShortcutsAppsResponse
 	sessions: SessionsResponse
 	users: UsersResponse
 	wallpaperStore: WallpaperStoreResponse

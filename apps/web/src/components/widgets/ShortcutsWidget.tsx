@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import AppIcon from "@dashwise/app-icon";
 import WidgetColumnTemplate from "@dashwise/integrationskit/templates/WidgetColumn";
 import useAuth from "@/context/useAuth";
-import { getSearchItemsAction, logSearchItemUsageAction, proxyIntegrationAction } from "@/lib/apiClient";
+import { getShortcutsAction, logShortcutUsageAction, proxyIntegrationAction } from "@/lib/apiClient";
 
 type Shortcut = { id: string; name: string; icon?: string; action: string | { type: string; url?: string } };
 
@@ -14,7 +14,7 @@ export default function ShortcutsWidget({ shortcutIds = [], className = "" }: { 
 
   useEffect(() => {
     let cancelled = false;
-    void withAuth((auth) => getSearchItemsAction(auth)).then((items) => {
+    void withAuth((auth) => getShortcutsAction(auth)).then((items) => {
       if (cancelled || !Array.isArray(items)) return;
       const selected = new Map((items as Shortcut[]).map((item) => [item.id, item]));
       setShortcuts(shortcutIds.map((id) => selected.get(id)).filter((item): item is Shortcut => Boolean(item)));
@@ -32,12 +32,12 @@ export default function ShortcutsWidget({ shortcutIds = [], className = "" }: { 
     if (!value) return;
     if (value.toLowerCase().startsWith("theme:")) {
       await toggleTheme();
-      void withAuth((auth) => logSearchItemUsageAction(auth, shortcut.id, new Date().toISOString()));
+      void withAuth((auth) => logShortcutUsageAction(auth, shortcut.id, new Date().toISOString()));
       return;
     }
     if (value.toLowerCase().startsWith("link-tile-layout:")) {
       await toggleLinkTileLayout();
-      void withAuth((auth) => logSearchItemUsageAction(auth, shortcut.id, new Date().toISOString()));
+      void withAuth((auth) => logShortcutUsageAction(auth, shortcut.id, new Date().toISOString()));
       return;
     }
     if (value.startsWith("command:")) {
@@ -45,7 +45,7 @@ export default function ShortcutsWidget({ shortcutIds = [], className = "" }: { 
       return;
     }
     window.open(value.startsWith("url:") ? value.slice(4) : value, "_self");
-    void withAuth((auth) => logSearchItemUsageAction(auth, shortcut.id, new Date().toISOString()));
+    void withAuth((auth) => logShortcutUsageAction(auth, shortcut.id, new Date().toISOString()));
   };
 
   return <WidgetColumnTemplate className={className} title="Shortcuts">

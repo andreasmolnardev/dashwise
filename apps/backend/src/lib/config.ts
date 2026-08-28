@@ -54,7 +54,7 @@ export const config = {
     processStartPocketBase == null
       ? true
       : !(processStartPocketBase === "false" || processStartPocketBase === "0"),
-  SEARCHITEMS_SCHEDULE: env.SEARCHITEMS_SCHEDULE || "*/10 * * * *",
+  SHORTCUTS_SCHEDULE: env.SHORTCUTS_SCHEDULE || "*/10 * * * *",
   ENABLE_ICONS_REFRESH: env.ENABLE_ICONS_REFRESH === "true",
   PULL_ICONS_SCHEDULE: env.PULL_ICONS_SCHEDULE || "0 */18 * * *",
   MONITORING_INDEXER_SCHEDULE: env.MONITORING_INDEXER_SCHEDULE || "*/10 * * * *",
