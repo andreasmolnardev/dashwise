@@ -44,9 +44,15 @@ const LOCAL_ONLY_GLANCEABLES = new Set([
 
 type GlanceableClockWidgetProps = WidgetItemProps & {
   isPreview?: boolean;
+  layout?: "dashboard" | "frame";
 };
 
-export default function GlanceableClockWidget({ className, params, isPreview }: GlanceableClockWidgetProps) {
+type GlanceableSlot = {
+  type: string;
+  params?: Record<string, any>;
+};
+
+export default function GlanceableClockWidget({ className, params, isPreview, layout = "dashboard" }: GlanceableClockWidgetProps) {
   const { pageConfig } = usePageConfig();
   const { user } = useAuth();
   const localization = useLocalization();
@@ -54,11 +60,14 @@ export default function GlanceableClockWidget({ className, params, isPreview }: 
   const clockAppearance = user?.appearancePreferences?.clock as ClockAppearance | undefined;
 
   // params.glanceables overrides config-level glanceables
-  const glanceableOverrides: Record<string, any> | undefined = params?.glanceables;
+  const glanceableOverrides: Record<string, any> | undefined = params?.glanceables && !Array.isArray(params.glanceables)
+    ? params.glanceables
+    : undefined;
+  const glanceableList = getSlotItems(Array.isArray(params?.glanceables) ? params.glanceables : undefined);
   const defaultGlanceables: any[] = pageConfig?.glanceables ?? [];
 
   const glanceableKeys = glanceableOverrides
-    ? Object.keys(glanceableOverrides)
+    ? Object.keys(glanceableOverrides).filter((key) => key !== "slots" && key !== "intervals")
     : defaultGlanceables.map((g) => g?.type).filter(Boolean);
 
   const getParams = (type: string) => {
@@ -79,8 +88,41 @@ export default function GlanceableClockWidget({ className, params, isPreview }: 
     }
     return Object.keys(rest).length > 0 ? rest : undefined;
   };
-  const slots = glanceableOverrides?.slots as Partial<Record<"left" | "right", Array<{ type: string; params?: Record<string, any> }>>> | undefined;
+  const slots = glanceableOverrides?.slots as Partial<Record<"left" | "right" | "top" | "down" | "list", GlanceableSlot[]>> | undefined;
   const carouselIntervals = glanceableOverrides?.intervals as Partial<Record<"left" | "right", unknown>> | undefined;
+
+  const horizontalItems = {
+    left: getSlotItems(slots?.left ?? (glanceableKeys[0] ? [{ type: glanceableKeys[0], params: getParams(glanceableKeys[0]) }] : [])),
+    right: getSlotItems(slots?.right ?? (glanceableKeys[1] ? [{ type: glanceableKeys[1], params: getParams(glanceableKeys[1]) }] : [])),
+  };
+  const verticalItems = {
+    top: getSlotItems(slots?.top ?? slots?.left ?? []),
+    down: getSlotItems(slots?.down ?? slots?.right ?? []),
+  };
+  const frameItems = glanceableList.length > 0
+    ? glanceableList
+    : getSlotItems(slots?.list ?? [...verticalItems.top, ...verticalItems.down]);
+
+  if (layout === "frame") {
+    return (
+      <section className={`flex min-h-full w-full flex-col items-center justify-center gap-4 overflow-hidden p-4 ${className ?? ""}`}>
+        <div className={`flex shrink-0 items-center justify-center ${isPreview ? "text-xs" : "text-2xl md:text-4xl"}`}>
+          <ClockWidget
+            font={clockStyle?.defaultFont ?? clockAppearance?.defaultFont}
+            weight={clockStyle?.fontWeight}
+            color={clockStyle?.color}
+            letterSpacing={clockStyle?.letterSpacing}
+            opacity={clockStyle?.opacity}
+            outlineEnabled={clockStyle?.outlineEnabled}
+            outlineColor={clockStyle?.outlineColor}
+            outlineWidth={clockStyle?.outlineWidth}
+            isPreview={isPreview}
+          />
+        </div>
+        <GlanceableRow items={frameItems} formatters={localization} isPreview={isPreview} />
+      </section>
+    );
+  }
 
   const previewGridStyle = isPreview
     ? { gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr)", gridTemplateRows: "minmax(0, 1fr)", gridTemplateAreas: '"gl1 clock gl2"' }
@@ -109,20 +151,57 @@ export default function GlanceableClockWidget({ className, params, isPreview }: 
       </div>
       <div style={{ gridArea: "gl1" }} className="area-gl1 min-w-0 overflow-hidden">
         <GlanceableCarousel
-          items={slots?.left ?? (glanceableKeys[0] ? [{ type: glanceableKeys[0], params: getParams(glanceableKeys[0]) }] : [])}
+          items={horizontalItems.left}
           intervalSeconds={getCarouselInterval(carouselIntervals?.left)}
           formatters={localization}
         />
       </div>
       <div style={{ gridArea: "gl2" }} className="area-gl2 min-w-0 overflow-hidden">
         <GlanceableCarousel
-          items={slots?.right ?? (glanceableKeys[1] ? [{ type: glanceableKeys[1], params: getParams(glanceableKeys[1]) }] : [])}
+          items={horizontalItems.right}
           intervalSeconds={getCarouselInterval(carouselIntervals?.right)}
           formatters={localization}
         />
       </div>
     </section>
   );
+}
+
+function getSlotItems(items: unknown): GlanceableSlot[] {
+  const entries = Array.isArray(items) ? items : items === undefined ? [] : [items];
+  return entries.flatMap((item) => {
+    if (typeof item === "string" && item.trim()) {
+      return [{ type: item.trim() }];
+    }
+
+    return item && typeof item === "object" && typeof item.type === "string" && item.type.trim()
+      ? [item as GlanceableSlot]
+      : [];
+  });
+}
+
+function GlanceableRow({
+  items,
+  formatters,
+  isPreview,
+}: {
+  items: GlanceableSlot[];
+  formatters: LocalizationFormatters;
+  isPreview?: boolean;
+}) {
+  return items.length > 0 ? (
+    <div className={`flex max-w-full flex-col items-center justify-center ${isPreview ? "gap-1 text-[10px]" : "gap-y-2 text-base md:text-xl"}`}>
+      {items.map((item, index) => (
+        <ResolvedGlanceable
+          key={`${item.type}:${index}`}
+          type={item.type}
+          params={item.params}
+          formatters={formatters}
+          className="font-medium"
+        />
+      ))}
+    </div>
+  ) : null;
 }
 
 function GlanceableCarousel({

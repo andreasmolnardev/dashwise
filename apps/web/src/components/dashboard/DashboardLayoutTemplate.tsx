@@ -951,7 +951,7 @@ function BottomNavbar({
 
     useEffect(() => {
         const checkConfig = () => {
-            const local = localStorage.getItem("dashwise_screensaver_local");
+            const local = localStorage.getItem("dashwise_screensaver_device_rules");
             const localConfig = local ? JSON.parse(local) : null;
             const globalConfig = user?.screensaverPreferences as any;
 
