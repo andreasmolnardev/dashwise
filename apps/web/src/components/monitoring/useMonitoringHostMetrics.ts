@@ -7,6 +7,7 @@ import {
   getMonitoringHostHistoryAction,
   type MonitoringHostStatsRecord,
 } from "@/lib/apiClient";
+import { getClientSessionId } from "@/lib/session";
 
 export type HostMetricRecord = MonitoringHostStatsRecord & {
   time: string;
@@ -99,6 +100,8 @@ export function useMonitoringHostMetrics(hostId?: string) {
       const url = new URL(backendUrl(`/api/v1/monitoring/hosts/${hostId}/stats/live`));
       url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
       url.searchParams.set("token", token);
+      const sessionId = getClientSessionId();
+      if (sessionId) url.searchParams.set("sessionId", sessionId);
       if (latestRef.current) url.searchParams.set("since", latestRef.current);
       socket = new WebSocket(url.toString());
 

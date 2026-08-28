@@ -122,7 +122,7 @@ authRoute.get(
     "/api/v1/auth/validate-auth",
     withJson(async (c) => {
       const body = await readJsonBody<
-        { token?: string; auth?: { token?: string | null } }
+        { token?: string; auth?: { token?: string | null; sessionId?: string | null } }
       >(c);
       return validateAuthToken(String(body?.token ?? body?.auth?.token ?? ""));
     }),

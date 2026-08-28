@@ -1,5 +1,5 @@
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Dialog,
   DialogClose,
@@ -17,12 +17,15 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ChangePasswordRequest } from '@/lib/apiClient';
 import { useNavigate } from "react-router-dom";
 import { changePasswordAction, deleteAccountAction } from '@/lib/apiClient';
+import { getCurrentSessionAction, renameCurrentSessionAction } from '@/lib/apiClient';
 import { DialogDescription } from "@radix-ui/react-dialog";
 import useAuth from "@/context/useAuth";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/queryClient";
 
 export default function AccountSettingsPage() {
   const navigate = useNavigate();
-  const { user, token, setAuth, logout } = useAuth();
+  const { user, token, setAuth, logout, withAuth } = useAuth();
   const [oldPassword, setOldPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -33,6 +36,38 @@ export default function AccountSettingsPage() {
   const [deleteTotp, setDeleteTotp] = useState("");
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [sessionName, setSessionName] = useState("");
+  const [sessionError, setSessionError] = useState<string | null>(null);
+  const sessionQuery = useQuery({
+    queryKey: queryKeys.auth.session(token),
+    enabled: Boolean(token),
+    retry: false,
+    queryFn: () => withAuth(getCurrentSessionAction),
+  });
+  const sessionMutation = useMutation({
+    mutationFn: (displayName: string) => withAuth((auth) => renameCurrentSessionAction(auth, displayName)),
+    onSuccess: (session) => {
+      setSessionName(session.displayName);
+      setSessionError(null);
+    },
+  });
+
+  useEffect(() => {
+    if (sessionQuery.data?.displayName) setSessionName(sessionQuery.data.displayName);
+  }, [sessionQuery.data?.displayName]);
+
+  const handleSessionNameSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const normalizedName = sessionName.trim();
+    if (!normalizedName || normalizedName.length > 100) {
+      setSessionError("device name must be between 1 and 100 characters");
+      return;
+    }
+    setSessionError(null);
+    sessionMutation.mutate(normalizedName, {
+      onError: (cause) => setSessionError(cause instanceof Error ? cause.message : "failed to save device name"),
+    });
+  };
 
   const handleChangePasswordSubmit = async (
     e: React.FormEvent<HTMLFormElement>,
@@ -140,6 +175,31 @@ export default function AccountSettingsPage() {
         <section className="frosted flex rounded-lg justify-center col-span-full p-2 items-center gap-6">
           <Icon icon="fa6-solid:circle-user" className="text-4xl" />
           <span>{user?.name ?? "Lorem ipsum"}</span>
+        </section>
+
+        <section className="frosted col-span-full rounded-lg p-4">
+          <div className="mb-3 flex items-center gap-3">
+            <Icon icon="fa6-solid:display" />
+            <div>
+              <h2 className="text-lg">device</h2>
+              <p className="text-sm text-muted-foreground">name this browser so you can recognize it elsewhere in dashwise.</p>
+            </div>
+          </div>
+          <form onSubmit={handleSessionNameSubmit} className="flex flex-col gap-3 sm:flex-row">
+            <Label htmlFor="session-name" className="sr-only">device name</Label>
+            <Input
+              id="session-name"
+              value={sessionName}
+              onChange={(event) => setSessionName(event.target.value)}
+              placeholder="web browser"
+              maxLength={100}
+              disabled={sessionQuery.isLoading || sessionMutation.isPending}
+            />
+            <Button type="submit" disabled={sessionQuery.isLoading || sessionMutation.isPending || !sessionName.trim()}>
+              {sessionMutation.isPending ? "saving..." : "save"}
+            </Button>
+          </form>
+          {sessionError && <p className="mt-2 text-sm text-red-300">{sessionError}</p>}
         </section>
 
         <h2 className="text-xl col-span-full">Authentication</h2>

@@ -5,6 +5,7 @@ import useAuth from "@/context/useAuth";
 import { backendUrl } from "@/lib/apiClient";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/queryClient";
+import { getClientSessionId } from "@/lib/session";
 
 export type ActivityNotification = {
   id: string;
@@ -34,15 +35,17 @@ type ActivityContextValue = {
 
 const ActivityContext = createContext<ActivityContextValue | null>(null);
 
-function socketUrl(token: string) {
+function socketUrl(token: string, sessionId: string | null) {
   const url = new URL(backendUrl("api/v1/activity"));
   url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
   url.searchParams.set("token", token);
+  if (sessionId) url.searchParams.set("sessionId", sessionId);
   return url.toString();
 }
 
 export function ActivityProvider({ children }: { children: ReactNode }) {
   const { token } = useAuth();
+  const sessionId = getClientSessionId();
   const queryClient = useQueryClient();
   const socket = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<number | null>(null);
@@ -59,7 +62,7 @@ export function ActivityProvider({ children }: { children: ReactNode }) {
 
     let closed = false;
     const connect = () => {
-      const nextSocket = new WebSocket(socketUrl(token));
+      const nextSocket = new WebSocket(socketUrl(token, sessionId));
       socket.current = nextSocket;
       nextSocket.onopen = () => nextSocket.send(JSON.stringify({ type: "activity:subscribe" }));
       nextSocket.onmessage = (event) => {
@@ -86,7 +89,7 @@ export function ActivityProvider({ children }: { children: ReactNode }) {
       socket.current?.close();
       socket.current = null;
     };
-  }, [queryClient, token]);
+  }, [queryClient, sessionId, token]);
 
   const refresh = () => {
     if (socket.current?.readyState === WebSocket.OPEN) {
