@@ -356,6 +356,49 @@ export interface paths {
         };
         trace?: never;
     };
+    "/sessions/current": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get the current client session */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                200: components["responses"]["JsonOk"];
+                401: components["responses"]["JsonUnauthorized"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Rename the current client session */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: components["requestBodies"]["JsonBody"];
+            responses: {
+                200: components["responses"]["JsonOk"];
+                400: components["responses"]["JsonBadRequest"];
+                401: components["responses"]["JsonUnauthorized"];
+            };
+        };
+        trace?: never;
+    };
     "/integrations": {
         parameters: {
             query?: never;

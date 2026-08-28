@@ -27,6 +27,7 @@ export const Collections = {
 	NotificationTopicTokens: "notificationTopicTokens",
 	PageConfig: "pageConfig",
 	SearchItems: "searchItems",
+	Sessions: "sessions",
 	Users: "users",
 	WallpaperStore: "wallpaperStore",
 } as const
@@ -327,6 +328,18 @@ export type SearchItemsRecord<Ttags = unknown, TusageStats = unknown> = {
 	user?: RecordIdString
 }
 
+export type SessionsRecord = {
+	clientType?: string
+	created: IsoAutoDateString
+	displayName: string
+	id: string
+	lastSeenAt: IsoDateString
+	platform?: string
+	sessionId: string
+	updated: IsoAutoDateString
+	user: RecordIdString
+}
+
 export type UsersRecord<TappearancePreferences = unknown, TlocalizationPreferences = unknown, TscreensaverPreferences = unknown, TsearchPreferences = unknown> = {
 	appearancePreferences?: null | TappearancePreferences
 	avatar?: FileNameString
@@ -376,6 +389,7 @@ export type NotificationTopicsResponse<Texpand = unknown> = Required<Notificatio
 export type NotificationTopicTokensResponse<Texpand = unknown> = Required<NotificationTopicTokensRecord> & BaseSystemFields<Texpand>
 export type PageConfigResponse<Tconfig = unknown, Texpand = unknown> = Required<PageConfigRecord<Tconfig>> & BaseSystemFields<Texpand>
 export type SearchItemsResponse<Ttags = unknown, TusageStats = unknown, Texpand = unknown> = Required<SearchItemsRecord<Ttags, TusageStats>> & BaseSystemFields<Texpand>
+export type SessionsResponse<Texpand = unknown> = Required<SessionsRecord> & BaseSystemFields<Texpand>
 export type UsersResponse<TappearancePreferences = unknown, TlocalizationPreferences = unknown, TscreensaverPreferences = unknown, TsearchPreferences = unknown, Texpand = unknown> = Required<UsersRecord<TappearancePreferences, TlocalizationPreferences, TscreensaverPreferences, TsearchPreferences>> & AuthSystemFields<Texpand>
 export type WallpaperStoreResponse<Texpand = unknown> = Required<WallpaperStoreRecord> & BaseSystemFields<Texpand>
 
@@ -403,6 +417,7 @@ export type CollectionRecords = {
 	notificationTopicTokens: NotificationTopicTokensRecord
 	pageConfig: PageConfigRecord
 	searchItems: SearchItemsRecord
+	sessions: SessionsRecord
 	users: UsersRecord
 	wallpaperStore: WallpaperStoreRecord
 }
@@ -429,6 +444,7 @@ export type CollectionResponses = {
 	notificationTopicTokens: NotificationTopicTokensResponse
 	pageConfig: PageConfigResponse
 	searchItems: SearchItemsResponse
+	sessions: SessionsResponse
 	users: UsersResponse
 	wallpaperStore: WallpaperStoreResponse
 }

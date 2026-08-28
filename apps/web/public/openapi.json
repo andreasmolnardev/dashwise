@@ -48,6 +48,9 @@
 			"name": "search"
 		},
 		{
+			"name": "sessions"
+		},
+		{
 			"name": "test"
 		},
 		{
@@ -277,6 +280,42 @@
 				"responses": {
 					"200": {
 						"$ref": "#/components/responses/JsonOk"
+					},
+					"401": {
+						"$ref": "#/components/responses/JsonUnauthorized"
+					}
+				}
+			}
+		},
+		"/sessions/current": {
+			"get": {
+				"tags": [
+					"sessions"
+				],
+				"summary": "Get the current client session",
+				"responses": {
+					"200": {
+						"$ref": "#/components/responses/JsonOk"
+					},
+					"401": {
+						"$ref": "#/components/responses/JsonUnauthorized"
+					}
+				}
+			},
+			"patch": {
+				"tags": [
+					"sessions"
+				],
+				"summary": "Rename the current client session",
+				"requestBody": {
+					"$ref": "#/components/requestBodies/JsonBody"
+				},
+				"responses": {
+					"200": {
+						"$ref": "#/components/responses/JsonOk"
+					},
+					"400": {
+						"$ref": "#/components/responses/JsonBadRequest"
 					},
 					"401": {
 						"$ref": "#/components/responses/JsonUnauthorized"

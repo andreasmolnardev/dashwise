@@ -18,6 +18,7 @@ export class ApiActionError extends Error {
 
 export type ActionAuth = {
   token?: string | null;
+  sessionId?: string | null;
 };
 
 export type JsonPrimitive = string | number | boolean | null;

@@ -262,6 +262,60 @@ export type PatchAuthUpdateUserPropertyResponses = {
 
 export type PatchAuthUpdateUserPropertyResponse = PatchAuthUpdateUserPropertyResponses[keyof PatchAuthUpdateUserPropertyResponses];
 
+export type GetSessionsCurrentData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/sessions/current';
+};
+
+export type GetSessionsCurrentErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Error;
+};
+
+export type GetSessionsCurrentError = GetSessionsCurrentErrors[keyof GetSessionsCurrentErrors];
+
+export type GetSessionsCurrentResponses = {
+    /**
+     * OK
+     */
+    200: GenericObject;
+};
+
+export type GetSessionsCurrentResponse = GetSessionsCurrentResponses[keyof GetSessionsCurrentResponses];
+
+export type PatchSessionsCurrentData = {
+    body?: JsonBody;
+    path?: never;
+    query?: never;
+    url: '/sessions/current';
+};
+
+export type PatchSessionsCurrentErrors = {
+    /**
+     * Bad Request
+     */
+    400: Error;
+    /**
+     * Unauthorized
+     */
+    401: Error;
+};
+
+export type PatchSessionsCurrentError = PatchSessionsCurrentErrors[keyof PatchSessionsCurrentErrors];
+
+export type PatchSessionsCurrentResponses = {
+    /**
+     * OK
+     */
+    200: GenericObject;
+};
+
+export type PatchSessionsCurrentResponse = PatchSessionsCurrentResponses[keyof PatchSessionsCurrentResponses];
+
 export type GetIntegrationsData = {
     body?: never;
     path?: never;

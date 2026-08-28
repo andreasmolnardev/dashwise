@@ -7,6 +7,7 @@ import { Client as SshClient } from "ssh2";
 
 import { config } from "./lib/config";
 import { subscribeActivity } from "./lib/activity";
+import { ensureSession } from "./lib/data/sessions";
 import { jobsApi, registerJobsCron } from "./jobs/index";
 import { startPocketbase } from "./pocketbase";
 import { createLogger } from "./lib/logger";
@@ -15,8 +16,9 @@ import { getNotifications } from "./lib/data/notifications/items";
 import { listIntegrations } from "./lib/data/integrations";
 import { getUpcomingEvents } from "./lib/calendar";
 import { systemAgentClient } from "./lib/systemAgent";
-import { requireAuth } from "./routes/shared";
+import { readAuth, readSessionMetadata, requireAuth } from "./routes/shared";
 import authRoute from "./routes/auth.route";
+import sessionsRoute from "./routes/sessions.route";
 import systemRoute from "./routes/system.route";
 import dataRoute from "./routes/data.route";
 
@@ -64,7 +66,24 @@ app.use("*", async (c, next) => {
 
 app.use("*", cors({ origin: "*" }));
 
+// Session identity is deliberately independent from the auth token. Touch the
+// current device on every authenticated API request that carries its stable id.
+app.use("/api/v1/*", async (c, next) => {
+  const auth = readAuth(c);
+  if (auth.token && auth.sessionId) {
+    try {
+      const { pb, userId } = await requireAuth(auth);
+      await ensureSession(pb, userId, auth.sessionId, readSessionMetadata(c));
+    } catch {
+      // The route handler remains responsible for returning auth errors. This
+      // middleware should not turn a missing/expired session touch into one.
+    }
+  }
+  await next();
+});
+
 app.route("/", authRoute);
+app.route("/", sessionsRoute);
 app.route("/", systemRoute);
 app.route("/", dataRoute);
 
@@ -77,8 +96,10 @@ app.get("/api/v1/activity", upgradeWebSocket((c) => {
   return {
     async onOpen(_event, ws) {
       const token = c.req.query("token") || "";
+      const sessionId = c.req.query("sessionId") || c.req.header("x-session-id") || null;
       try {
-        const { userId, pb } = await requireAuth({ token });
+        const { userId, pb } = await requireAuth({ token, sessionId });
+        await ensureSession(pb, userId, sessionId, readSessionMetadata(c));
         const sendSnapshot = async () => {
           const [notificationResult, integrationResult] = await Promise.all([
             getNotifications(userId),
@@ -143,10 +164,12 @@ app.get("/api/v1/monitoring/ssh-hosts/:id/console", upgradeWebSocket((c) => {
   return {
     async onOpen(_event, ws) {
       const token = c.req.query("token") || c.req.header("Authorization")?.replace(/^Bearer\s+/i, "") || "";
+      const sessionId = c.req.query("sessionId") || c.req.header("x-session-id") || null;
       const hostId = c.req.param("id") || "";
 
       try {
-        const { userId } = await requireAuth({ token });
+        const { userId, pb } = await requireAuth({ token, sessionId });
+        await ensureSession(pb, userId, sessionId, readSessionMetadata(c));
         const host = await getMonitoringSshHostById(userId, hostId);
         if (!host) {
           ws.send(JSON.stringify({ type: "error", message: "SSH host not found" }));
@@ -232,8 +255,10 @@ app.get("/api/v1/monitoring/hosts/:id/stats/live", upgradeWebSocket((c) => {
   return {
     async onOpen(_event, ws) {
       const token = c.req.query("token") || c.req.header("Authorization")?.replace(/^Bearer\s+/i, "") || "";
+      const sessionId = c.req.query("sessionId") || c.req.header("x-session-id") || null;
       try {
-        const { userId } = await requireAuth({ token });
+        const { userId, pb } = await requireAuth({ token, sessionId });
+        await ensureSession(pb, userId, sessionId, readSessionMetadata(c));
         const host = await getSystemAgentHostById(userId, c.req.param("id") || "");
         if (!host) {
           ws.close(1008, "Monitoring host not found");
