@@ -40,6 +40,21 @@ function hasWidgetProperties(config: Record<string, any>) {
         Object.keys(config.properties ?? {}).some((key) => !ignored.has(key));
 }
 
+function resolveWidgetDimension(value: unknown) {
+    if (typeof value === "number" && Number.isFinite(value)) {
+        return `${value}px`;
+    }
+
+    if (typeof value === "string" && value.trim()) {
+        const normalized = value.trim();
+        return normalized.startsWith("$")
+            ? `var(--layout-${normalized.slice(1)})`
+            : normalized;
+    }
+
+    return undefined;
+}
+
 const WIDGET_SIZE_CLASSNAME: Record<WidgetSize, string> = {
     auto: "",
     compact: "h-[180px] overflow-hidden rounded-xl",
@@ -605,6 +620,7 @@ export default function DashboardLayoutTemplate({
         children,
         ref,
         style,
+        maxHeight,
         showMenu = true,
         onEditProperties,
         darkenOnMenu = false,
@@ -615,6 +631,7 @@ export default function DashboardLayoutTemplate({
         children: ReactNode;
         ref?: (node: HTMLElement | null) => void;
         style?: CSSProperties;
+        maxHeight?: string;
         showMenu?: boolean;
         onEditProperties?: () => void;
         darkenOnMenu?: boolean;
@@ -630,7 +647,12 @@ export default function DashboardLayoutTemplate({
                 key={baseKey}
                 ref={ref}
                 className={[wrapperClass, "group/widget-menu relative", sizeClass].filter(Boolean).join(" ")}
-                style={style}
+                style={{
+                    ...style,
+                    ...(maxHeight
+                        ? { maxHeight, overflowY: "auto" }
+                        : {}),
+                }}
             >
                 <div
                     id={privacySourceId}
@@ -710,6 +732,9 @@ export default function DashboardLayoutTemplate({
             " ",
         );
         const baseKey = `${columnName}-${entryKey}`;
+        const maxWidgetHeight = resolveWidgetDimension(
+            cfg.max_widget_height ?? cfg.properties?.max_widget_height,
+        );
 
         switch (entryKey) {
             case "placeholder": {
@@ -726,6 +751,7 @@ export default function DashboardLayoutTemplate({
                     renderWidgetMenuWrapper({
                         baseKey,
                         wrapperClass,
+                        maxHeight: maxWidgetHeight,
                         style: heightStyle ? { height: heightStyle } : undefined,
                         children: renderWidget({
                             type: "placeholder",
@@ -741,6 +767,7 @@ export default function DashboardLayoutTemplate({
                     renderWidgetMenuWrapper({
                         baseKey,
                         wrapperClass,
+                        maxHeight: maxWidgetHeight,
                         ref,
                         showMenu: false,
                         privacyTargetSelector: ".area-gl1, .area-gl2",
@@ -757,6 +784,7 @@ export default function DashboardLayoutTemplate({
                     renderWidgetMenuWrapper({
                         baseKey,
                         wrapperClass,
+                        maxHeight: maxWidgetHeight,
                         showMenu: false,
                         privacyTargetSelector: false,
                         children: renderWidget({
@@ -770,6 +798,7 @@ export default function DashboardLayoutTemplate({
                     renderWidgetMenuWrapper({
                         baseKey,
                         wrapperClass,
+                        maxHeight: maxWidgetHeight,
                         showMenu: false,
                         privacyTargetSelector: false,
                         children: renderWidget({
@@ -782,6 +811,7 @@ export default function DashboardLayoutTemplate({
                 return renderWidgetMenuWrapper({
                     baseKey,
                     wrapperClass,
+                    maxHeight: maxWidgetHeight,
                     showMenu: entryKey !== "glanceable-clock",
                     onEditProperties: (entryKey === "image" || hasWidgetProperties(cfg))
                         ? () => editWidgetProperties(columnName, entryKey, entryIndex)

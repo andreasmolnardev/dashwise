@@ -2039,6 +2039,27 @@
 						"$ref": "#/components/responses/JsonOk"
 					}
 				}
+			},
+			"delete": {
+				"tags": [
+					"news"
+				],
+				"summary": "Delete news feed record",
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"$ref": "#/components/responses/JsonOk"
+					}
+				}
 			}
 		},
 		"/news/feed-records": {

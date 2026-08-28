@@ -143,6 +143,13 @@ export async function updateNewsFeedRecord(
 	return safeNull((pb) => pb.collection("newsFeeds").update(feedId, payload));
 }
 
+export async function deleteNewsFeedRecord(feedId: string) {
+	return safeNull(async (pb) => {
+		await pb.collection("newsFeeds").delete(feedId);
+		return true;
+	});
+}
+
 export async function getAllNewsSubscriptions(batchSize = 2000, options?: Record<string, unknown>) {
 	return safeNull((pb) => pb.collection("newsSubscriptions").getFullList(batchSize, options));
 }

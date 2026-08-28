@@ -469,6 +469,11 @@ export default function NewsDashboardComponent() {
         setAddOpen(true);
     };
 
+    const openNewSubscription = () => {
+        setEditingFeed(null);
+        setAddOpen(true);
+    };
+
     const getRefreshTargetFeedIds = (explicitFeedIds?: string[]) => {
         if (explicitFeedIds && explicitFeedIds.length > 0) {
             return explicitFeedIds.map(String).filter(Boolean);
@@ -652,10 +657,24 @@ export default function NewsDashboardComponent() {
                 </h2>
                 <div className="flex items-center gap-2">
                     <button
+                        type="button"
+                        onClick={openNewSubscription}
+                        disabled={isRefreshing}
+                        className={`
+                            flex items-center justify-center h-9 w-9 rounded-full frosted gap-2
+                            transition-all duration-300 hover:bg-white/10 px-2
+                            ${isRefreshing ? "opacity-50" : "opacity-80 hover:opacity-100"}
+                        `}
+                        title="Add subscription"
+                    >
+                        <Icon icon="fa6-solid:plus" />
+                        <span className="sr-only">Add subscription</span>
+                    </button>
+                    <button
                         onClick={openCurrentSubscriptionEditor}
                         disabled={!currentSubscription || isRefreshing}
                         className={`
-                            flex items-center justify-center h-9 rounded-full frosted gap-2
+                            flex items-center justify-center h-9 w-9 rounded-full frosted gap-2
                             transition-all duration-300 hover:bg-white/10 px-2
                             ${!currentSubscription || isRefreshing ? "opacity-50" : "opacity-80 hover:opacity-100"}
                         `}
@@ -667,7 +686,7 @@ export default function NewsDashboardComponent() {
                         onClick={() => refreshFeeds()}
                         disabled={isRefreshing}
                         className={`
-                            flex items-center justify-center h-9 rounded-full frosted gap-2
+                            flex items-center justify-center h-9 w-9 rounded-full frosted gap-2
                             transition-all duration-300 hover:bg-white/10 px-2
                             ${
                             isRefreshing

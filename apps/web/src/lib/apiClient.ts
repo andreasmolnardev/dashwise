@@ -571,6 +571,10 @@ export async function updateNewsFeedRecordAction(auth: ActionAuth, payload: News
   return extractData(await postNewsFeedRecordsById({ path: { id: payload.feedId ?? "all" }, body: payload, headers: authHeaders(auth) }));
 }
 
+export async function deleteNewsFeedRecordAction(auth: ActionAuth, feedId: string) {
+  return extractData(await sdk.deleteNewsFeedRecordsById({ path: { id: feedId }, headers: authHeaders(auth) }));
+}
+
 export async function fixMissingTitlesAction(auth: ActionAuth): Promise<unknown> {
   return extractData(await postNewsFixMissingTitles({ headers: authHeaders(auth) })) as Promise<unknown>;
 }

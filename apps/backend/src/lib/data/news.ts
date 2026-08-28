@@ -28,6 +28,7 @@ import {
   getNewsSubscriptionById,
   getNewsSubscriptionByUrl,
   createNewsFeedRecord,
+  deleteNewsFeedRecord,
   updateNewsFeedRecord,
   updateNewsSubscription,
   createNewsSubscription,
@@ -35,6 +36,7 @@ import {
 import { getSuperuserPB } from "../pb/pocketbase";
 import {
   deleteSubscriptionArticleIndex,
+  deleteMaterializedFeed,
   readFeedItemsCache,
   readMaterializedFeedItems,
   readMaterializedFeedPage,
@@ -727,6 +729,38 @@ export async function updateNewsFeedRecordForUser(
   });
   void rebuildNewsViews(userId).catch(() => undefined);
   return updated;
+}
+
+export async function deleteNewsFeedRecordForUser(userId: string, feedId: string) {
+  const normalizedFeedId = String(feedId || "").trim();
+  if (!normalizedFeedId || normalizedFeedId === "all") {
+    throw new Error("All feed cannot be deleted");
+  }
+
+  const feedRecord = (await getNewsFeedById(normalizedFeedId).catch(() => null)) as NewsFeedRecord | null;
+  if (!feedRecord) return null;
+
+  const ownerId = String((feedRecord as Record<string, unknown>).userId ?? "").trim();
+  if (ownerId && ownerId !== userId) return null;
+  if (isAllNewsFeed(feedRecord)) {
+    throw new Error("All feed cannot be deleted");
+  }
+
+  const deleted = await deleteNewsFeedRecord(normalizedFeedId);
+  if (!deleted) {
+    throw new Error("Unable to delete feed");
+  }
+
+  const userFeeds = await getUserFeeds(userId);
+  await Promise.all(userFeeds
+    .filter((feed) => Array.isArray(feed.includedFeedRefs) && feed.includedFeedRefs.includes(normalizedFeedId))
+    .map((feed) => updateNewsFeedRecord(String(feed.id), {
+      includedFeedRefs: feed.includedFeedRefs?.filter((childId) => String(childId) !== normalizedFeedId) ?? [],
+    })));
+
+  await deleteMaterializedFeed(userId, normalizedFeedId);
+  void rebuildNewsViews(userId).catch(() => undefined);
+  return { id: normalizedFeedId };
 }
 
 export async function createNewsFeedRecordForUser(
