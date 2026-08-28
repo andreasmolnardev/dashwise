@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Icon } from "@iconify-icon/react";
 import LinksHtmlTransfer from "@/components/settings/LinksHtmlTransfer";
 import useAuth from "@/context/useAuth";
@@ -102,14 +103,28 @@ function BulkNewsImportSetting({
   const [bulkImporting, setBulkImporting] = useState(false);
   const [bulkImportError, setBulkImportError] = useState<string | null>(null);
   const [bulkImportStatus, setBulkImportStatus] = useState<string | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const bulkImportRequest = searchParams.get("openNewsBulkImportModal");
 
-  function openBulkImport() {
+  const openBulkImport = useCallback(() => {
     setBulkImportUrls("");
     setBulkImportFeedId("unsorted");
     setBulkImportError(null);
     setBulkImportStatus(null);
     setBulkImportOpen(true);
-  }
+  }, []);
+
+  useEffect(() => {
+    const value = bulkImportRequest?.trim().toLowerCase();
+    if (!value || ["false", "0", "no", "off"].includes(value)) return;
+
+    openBulkImport();
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      next.delete("openNewsBulkImportModal");
+      return next;
+    }, { replace: true });
+  }, [bulkImportRequest, openBulkImport, setSearchParams]);
 
   async function handleBulkImport() {
     const urls = Array.from(new Set(
