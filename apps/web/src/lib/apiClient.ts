@@ -338,6 +338,18 @@ export async function deleteLinkItemAction(auth: ActionAuth, linkId: string) {
   return extractData(await deleteLinksItemsByLinkId({ path: { linkId }, headers: authHeaders(auth) }));
 }
 
+export async function wipeUserLinksAction(auth: ActionAuth): Promise<{
+  deletedCollections: number;
+  deletedFolders: number;
+  deletedItems: number;
+}> {
+  return extractData(await sdk.deleteLinksDevUserLinks({ headers: authHeaders(auth) })) as Promise<{
+    deletedCollections: number;
+    deletedFolders: number;
+    deletedItems: number;
+  }>;
+}
+
 export async function updateLinksOrderAction(auth: ActionAuth, items: { id: string; type: "link" | "folder"; position: number }[]) {
   return extractData(await postLinksReorder({ body: { auth, items }, headers: authHeaders(auth) }));
 }

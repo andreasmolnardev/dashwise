@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { fetchWallpaperBlob } from "@/lib/apiClient";
 import { LocalizationProvider } from "@/context/LocalizationContext";
 import { ActivityProvider } from "@/context/ActivityContext";
+import { NotificationProvider } from "@/context/NotificationContext";
 import { normalizeWallpaperFilters } from "./settings/wallpaperFilterDefaults";
 import SearchBar from "./widgets/SearchBar";
 
@@ -143,9 +144,11 @@ export default function AuthWrapper({ children }: AuthWrapperProps) {
   if (!isMounted) {
     return (
       <LocalizationProvider>
-        <ActivityProvider>
-          <div className={cn("min-h-screen overflow-hidden")}>{children}</div>
-        </ActivityProvider>
+        <NotificationProvider>
+          <ActivityProvider>
+            <div className={cn("min-h-screen overflow-hidden")}>{children}</div>
+          </ActivityProvider>
+        </NotificationProvider>
       </LocalizationProvider>
     );
   }
@@ -171,15 +174,17 @@ export default function AuthWrapper({ children }: AuthWrapperProps) {
           backdropFilter: `blur(${blur}px) brightness(${appliedBrightness}%)`,
           WebkitBackdropFilter: `blur(${blur}px) brightness(${appliedBrightness}%)`,
         }}
-      >
-        <ActivityProvider>
-          <SearchBar
-            useRedirect={false}
-            showTrigger={false}
-            enableGlobalShortcut
-          />
-          {children}
-        </ActivityProvider>
+    >
+        <NotificationProvider>
+          <ActivityProvider>
+            <SearchBar
+              useRedirect={false}
+              showTrigger={false}
+              enableGlobalShortcut
+            />
+            {children}
+          </ActivityProvider>
+        </NotificationProvider>
       </div>
     </LocalizationProvider>
   );

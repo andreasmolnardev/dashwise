@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { Link } from "react-router-dom";
 import { Icon } from "@iconify-icon/react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -364,10 +365,10 @@ export default function SubscriptionDetailsForm({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-5">
+    <form onSubmit={handleSubmit} className="space-y-3">
       <div className="flex gap-3 items-end">
         <div className="flex-1">
-          <Label htmlFor="feed-url">Feed URL *</Label>
+          <Label htmlFor="feed-url">Feed URL (RSS, Atom, YT, GitHub etc.)</Label>
           <Input
             id="feed-url"
             className="frosted mt-1"
@@ -378,13 +379,13 @@ export default function SubscriptionDetailsForm({
           />
         </div>
 
-        <div style={{ width: 200 }}>
+        <div style={{ width: 180 }}>
           <Label>Add to Feed</Label>
           <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger asChild>
               <button
                 type="button"
-                className="frosted mt-1 flex w-full h-10 items-center justify-between rounded-md px-3 text-left"
+                className="frosted mt-1 flex w-full h-9 items-center justify-between rounded-md px-3 text-left"
                 disabled={loading}
               >
                 <span className="truncate text-sm text-white/70">
@@ -434,9 +435,14 @@ export default function SubscriptionDetailsForm({
         </div>
       </div>
 
-      <p className="text-xs text-white/60">
-        All RSS and Atom feed URLs as well as YouTube, GitHub, and Reddit links work.
-      </p>
+      {!isEditing && (
+        <Link
+          to="/settings/apps?openNewsBulkImportModal=true"
+          className=" text-xs text-white/60 hover:underline"
+        >
+          Bulk import feeds
+        </Link>
+      )}
 
       {subscriptionType === "github" && (
         <div className="space-y-3 p-3 rounded-xl bg-white/5 border border-white/10">
@@ -493,7 +499,7 @@ export default function SubscriptionDetailsForm({
         </div>
       )}
 
-      <hr className="border-white/10" />
+      <hr className="border-white/10 mt-2" />
 
       <div className="flex gap-3">
         <button

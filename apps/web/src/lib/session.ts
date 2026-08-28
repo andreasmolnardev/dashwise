@@ -1,7 +1,14 @@
 const SESSION_ID_STORAGE_KEY = "dashwise_session_id";
 
 function createFallbackSessionId() {
-  return `web-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+  if (typeof window !== "undefined" && typeof window.crypto?.getRandomValues === "function") {
+    const bytes = new Uint8Array(16);
+    window.crypto.getRandomValues(bytes);
+    const randomPart = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+    return `web-${Date.now().toString(36)}-${randomPart}`;
+  }
+
+  return `web-${Date.now().toString(36)}-${performance.now().toString(36).replace(".", "")}`;
 }
 
 /** Returns the browser identity that survives logout, login, and token refreshes. */

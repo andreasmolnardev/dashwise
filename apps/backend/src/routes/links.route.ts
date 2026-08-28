@@ -1,8 +1,10 @@
 import { Hono } from "hono";
 
-import { createCollection, createCollectionLinkItem, createHomeLinkGroup, createHomeLinkItem, createLinkTag, createLinksFolder, deleteLinkItem, getHomeLinkGroups, getHomeLinks, getLinksCollections, getLinksFolders, getLinksItems, getLinksTags, reorderLinks, updateCollection, updateHomeLinkFolderIcon, updateHomeLinkItem, updateLinkTag } from "../lib/data/links";
+import { createCollection, createCollectionLinkItem, createHomeLinkGroup, createHomeLinkItem, createLinkTag, createLinksFolder, deleteLinkItem, getHomeLinkGroups, getHomeLinks, getLinksCollections, getLinksFolders, getLinksItems, getLinksTags, reorderLinks, updateCollection, updateHomeLinkFolderIcon, updateHomeLinkItem, updateLinkTag, wipeUserLinks } from "../lib/data/links";
 
 import { readAuthToken, readJsonBody, requireAuth, withJson } from "./shared";
+import { config } from "../lib/config";
+import { ApiActionError } from "../lib/data/auth";
 
 const linksRoute = new Hono();
 
@@ -78,6 +80,13 @@ linksRoute
   .delete("/api/v1/links/items/:linkId", withJson(async (c) => {
     const { userId } = await requireAuth({ token: readAuthToken(c) });
     return deleteLinkItem(userId, String(c.req.param("linkId") ?? ""));
+  }))
+  .delete("/api/v1/links/dev/user-links", withJson(async (c) => {
+    if (config.ENVIRONMENT !== "dev") {
+      throw new ApiActionError("Not found", 404, { error: "Not found" });
+    }
+    const { userId } = await requireAuth({ token: readAuthToken(c) });
+    return wipeUserLinks(userId);
   }))
   .post("/api/v1/links/reorder", withJson(async (c) => {
     const body = await readJsonBody<any>(c);

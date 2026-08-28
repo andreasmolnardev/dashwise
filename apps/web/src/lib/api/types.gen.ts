@@ -570,6 +570,22 @@ export type PutLinksItemsByLinkIdResponses = {
 
 export type PutLinksItemsByLinkIdResponse = PutLinksItemsByLinkIdResponses[keyof PutLinksItemsByLinkIdResponses];
 
+export type DeleteLinksDevUserLinksData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/links/dev/user-links';
+};
+
+export type DeleteLinksDevUserLinksResponses = {
+    /**
+     * OK
+     */
+    200: GenericObject;
+};
+
+export type DeleteLinksDevUserLinksResponse = DeleteLinksDevUserLinksResponses[keyof DeleteLinksDevUserLinksResponses];
+
 export type GetLinksTagsData = {
     body?: never;
     path?: never;
