@@ -20,8 +20,10 @@ import { changePasswordAction, deleteAccountAction } from '@/lib/apiClient';
 import { getCurrentSessionAction, renameCurrentSessionAction } from '@/lib/apiClient';
 import { DialogDescription } from "@radix-ui/react-dialog";
 import useAuth from "@/context/useAuth";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/queryClient";
+
+const DEFAULT_SESSION_NAMES = new Set(["web browser"]);
 
 export default function AccountSettingsPage() {
   const navigate = useNavigate();
@@ -38,6 +40,8 @@ export default function AccountSettingsPage() {
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [sessionName, setSessionName] = useState("");
   const [sessionError, setSessionError] = useState<string | null>(null);
+  const [isDeviceNameDialogOpen, setIsDeviceNameDialogOpen] = useState(false);
+  const queryClient = useQueryClient();
   const sessionQuery = useQuery({
     queryKey: queryKeys.auth.session(token),
     enabled: Boolean(token),
@@ -49,11 +53,13 @@ export default function AccountSettingsPage() {
     onSuccess: (session) => {
       setSessionName(session.displayName);
       setSessionError(null);
+      queryClient.setQueryData(queryKeys.auth.session(token), session);
+      setIsDeviceNameDialogOpen(false);
     },
   });
 
   useEffect(() => {
-    if (sessionQuery.data?.displayName) setSessionName(sessionQuery.data.displayName);
+    setSessionName(sessionQuery.data?.displayName ?? "");
   }, [sessionQuery.data?.displayName]);
 
   const handleSessionNameSubmit = (event: React.FormEvent<HTMLFormElement>) => {
@@ -68,6 +74,10 @@ export default function AccountSettingsPage() {
       onError: (cause) => setSessionError(cause instanceof Error ? cause.message : "failed to save device name"),
     });
   };
+
+  const normalizedSessionDisplayName = sessionQuery.data?.displayName?.trim().toLowerCase();
+  const needsDeviceName = !normalizedSessionDisplayName ||
+    DEFAULT_SESSION_NAMES.has(normalizedSessionDisplayName);
 
   const handleChangePasswordSubmit = async (
     e: React.FormEvent<HTMLFormElement>,
@@ -177,32 +187,70 @@ export default function AccountSettingsPage() {
           <span>{user?.name ?? "Lorem ipsum"}</span>
         </section>
 
-        <section className="frosted col-span-full rounded-lg p-4">
-          <div className="mb-3 flex items-center gap-3">
-            <Icon icon="fa6-solid:display" />
-            <div>
-              <h2 className="text-lg">device</h2>
-              <p className="text-sm text-muted-foreground">name this browser so you can recognize it elsewhere in dashwise.</p>
-            </div>
-          </div>
-          <form onSubmit={handleSessionNameSubmit} className="flex flex-col gap-3 sm:flex-row">
-            <Label htmlFor="session-name" className="sr-only">device name</Label>
-            <Input
-              id="session-name"
-              value={sessionName}
-              onChange={(event) => setSessionName(event.target.value)}
-              placeholder="web browser"
-              maxLength={100}
-              disabled={sessionQuery.isLoading || sessionMutation.isPending}
-            />
-            <Button type="submit" disabled={sessionQuery.isLoading || sessionMutation.isPending || !sessionName.trim()}>
-              {sessionMutation.isPending ? "saving..." : "save"}
-            </Button>
-          </form>
-          {sessionError && <p className="mt-2 text-sm text-red-300">{sessionError}</p>}
-        </section>
-
         <h2 className="text-xl col-span-full">Authentication</h2>
+
+        <Dialog
+          open={isDeviceNameDialogOpen}
+          onOpenChange={(open) => {
+            setIsDeviceNameDialogOpen(open);
+            if (open) {
+              setSessionName(sessionQuery.data?.displayName ?? "");
+              setSessionError(null);
+            }
+          }}
+        >
+          <DialogTrigger className="grid grid-cols-subgrid border border-transparent hover-frosted items-center col-span-full p-1.5 rounded-md">
+            <Icon icon="fa6-solid:display" />
+            <p className="text-left">
+              Change Device Name
+              {sessionQuery.isFetched && needsDeviceName && (
+                <span
+                  aria-hidden="true"
+                  className="ml-2 inline-block h-2 w-2 rounded-full bg-primary align-middle"
+                />
+              )}
+            </p>
+            <Icon icon="fa6-solid:caret-right" />
+          </DialogTrigger>
+
+          <DialogContent className="frosted text-foreground">
+            <DialogHeader>
+              <DialogTitle>Change Device Name</DialogTitle>
+              <DialogDescription>
+                Set a name for this browser so you can recognize it elsewhere in Dashwise.
+              </DialogDescription>
+            </DialogHeader>
+
+            <form onSubmit={handleSessionNameSubmit} className="grid gap-4">
+              <div className="grid gap-3">
+                <Label htmlFor="session-name">Device name</Label>
+                <Input
+                  id="session-name"
+                  value={sessionName}
+                  onChange={(event) => setSessionName(event.target.value)}
+                  placeholder="Web browser"
+                  maxLength={100}
+                  disabled={sessionQuery.isLoading || sessionMutation.isPending}
+                />
+                {sessionError && <p className="text-sm text-red-300">{sessionError}</p>}
+              </div>
+
+              <DialogFooter>
+                <DialogClose asChild>
+                  <Button variant="outline" type="button" disabled={sessionMutation.isPending}>
+                    Cancel
+                  </Button>
+                </DialogClose>
+                <Button
+                  type="submit"
+                  disabled={sessionQuery.isLoading || sessionMutation.isPending || !sessionName.trim()}
+                >
+                  {sessionMutation.isPending ? "Saving..." : "Save changes"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
 
         <Dialog>
           <DialogTrigger className="grid grid-cols-subgrid border border-transparent hover-frosted items-center col-span-full p-1.5 rounded-md">
@@ -288,12 +336,6 @@ export default function AccountSettingsPage() {
             </form>
           </DialogContent>
         </Dialog>
-
-        <div className="grid grid-cols-subgrid border border-transparent hover-frosted items-center col-span-full p-1.5 rounded-md">
-          <Icon icon="fa6-solid:vault" />
-          <p>Multi-factor Authentication</p>
-          <Icon icon="fa6-solid:caret-right" />
-        </div>
 
         <Dialog>
           <DialogTrigger className="grid grid-cols-subgrid border border-transparent hover-frosted items-center col-span-full p-1.5 rounded-md">
