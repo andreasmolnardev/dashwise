@@ -35,6 +35,7 @@ const SettingsPagesPage = lazy(() => import("./app/(authenticated)/settings/page
 const SettingsIntegrationsPage = lazy(() => import("./app/(authenticated)/settings/integrations/page"));
 const SettingsSearchPage = lazy(() => import("./app/(authenticated)/settings/search/page"));
 const SettingsScreensaverPage = lazy(() => import("./app/(authenticated)/settings/screensaver/page"));
+const SettingsAppsPage = lazy(() => import("./app/(authenticated)/settings/apps/page"));
 const FramePage = lazy(() => import("./app/(authenticated)/frame/page"));
 const MigratePage = lazy(() => import("./app/(authenticated)/migrate/page"));
 
@@ -117,6 +118,7 @@ export const appRouter = createBrowserRouter([
               { path: "integrations", element: <SettingsIntegrationsPage /> },
               { path: "search", element: <SettingsSearchPage /> },
               { path: "screensaver", element: <SettingsScreensaverPage /> },
+              { path: "apps", element: <SettingsAppsPage /> },
             ],
           },
           { path: "frame", element: <FramePage /> },
