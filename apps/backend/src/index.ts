@@ -111,20 +111,36 @@ app.get("/api/v1/activity", upgradeWebSocket((c) => {
         connectedUserId = userId;
         connectedSessionId = session.sessionId;
         unregisterSessionConnection = registerSessionConnection(userId, session.sessionId, ws);
+        let calendarEvents: Array<Record<string, any>> = [];
+        let calendarRefreshedAt = 0;
+        let calendarRefresh: Promise<void> | null = null;
+        const refreshCalendarEvents = async () => {
+          if (Date.now() - calendarRefreshedAt < 5 * 60 * 1000) return;
+          if (calendarRefresh) return calendarRefresh;
+
+          calendarRefresh = (async () => {
+            const integrationResult = await listIntegrations(userId);
+            calendarEvents = (await Promise.all(
+              integrationResult.integrations
+                .filter((integration) => integration.type === "caldav")
+                .map((integration) => getUpcomingEvents(
+                  integration.environment,
+                  integration.localData,
+                  (localData) => pb.collection("integrations").update(integration.id, { localData }).then(() => undefined),
+                ).then((events) => events.map((event) => ({ ...event, id: `${integration.id}:${event.id}` }))).catch(() => [])),
+            )).flat().filter((event) => new Date(event.start).getTime() >= new Date().setHours(0, 0, 0, 0));
+            calendarRefreshedAt = Date.now();
+          })().finally(() => {
+            calendarRefresh = null;
+          });
+
+          return calendarRefresh;
+        };
         const sendSnapshot = async () => {
-          const [notificationResult, integrationResult] = await Promise.all([
+          const [notificationResult] = await Promise.all([
             getNotifications(userId),
-            listIntegrations(userId),
+            refreshCalendarEvents(),
           ]);
-          const calendarEvents = (await Promise.all(
-            integrationResult.integrations
-              .filter((integration) => integration.type === "caldav")
-              .map((integration) => getUpcomingEvents(
-                integration.environment,
-                integration.localData,
-                (localData) => pb.collection("integrations").update(integration.id, { localData }).then(() => undefined),
-              ).then((events) => events.map((event) => ({ ...event, id: `${integration.id}:${event.id}` }))).catch(() => [])),
-          )).flat().filter((event) => new Date(event.start).getTime() >= new Date().setHours(0, 0, 0, 0));
           ws.send(JSON.stringify({ type: "activity:snapshot", notifications: notificationResult.items, calendarEvents }));
         };
 

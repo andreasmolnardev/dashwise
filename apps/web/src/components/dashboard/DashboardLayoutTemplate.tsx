@@ -301,8 +301,11 @@ export default function DashboardLayoutTemplate({
 
     useEffect(() => {
         let cancelled = false;
+        let refreshInFlight = false;
 
         const primeIntegrationData = async () => {
+            if (refreshInFlight || document.visibilityState !== "visible") return;
+            refreshInFlight = true;
             try {
                 await refreshPageIntegrationData();
                 if (cancelled) return;
@@ -310,6 +313,8 @@ export default function DashboardLayoutTemplate({
                 if (!cancelled) {
                     console.error("Failed to prime page integration data", error);
                 }
+            } finally {
+                refreshInFlight = false;
             }
         };
 
@@ -321,25 +326,30 @@ export default function DashboardLayoutTemplate({
 
         const startPolling = () => {
             if (intervalId) return;
-            intervalId = window.setInterval(async () => {
-                try {
-                    await refreshPageIntegrationData();
-                    if (cancelled) return;
-                } catch (error) {
-                    if (!cancelled) console.error("Failed to poll page integration data", error);
-                }
-            }, POLL_INTERVAL_MS);
+            intervalId = window.setInterval(() => void primeIntegrationData(), POLL_INTERVAL_MS);
         };
 
-        // Start polling if we have a token (otherwise polling is a no-op)
-        if (token) startPolling();
+        const stopPolling = () => {
+            if (intervalId) window.clearInterval(intervalId);
+            intervalId = null;
+        };
+
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === "visible" && token) {
+                void primeIntegrationData();
+                startPolling();
+            } else {
+                stopPolling();
+            }
+        };
+
+        if (token && document.visibilityState === "visible") startPolling();
+        document.addEventListener("visibilitychange", handleVisibilityChange);
 
         return () => {
             cancelled = true;
-            if (intervalId) {
-                clearInterval(intervalId);
-                intervalId = null;
-            }
+            document.removeEventListener("visibilitychange", handleVisibilityChange);
+            stopPolling();
         };
     }, [refreshPageIntegrationData, token]);
 
