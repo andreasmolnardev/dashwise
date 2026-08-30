@@ -805,14 +805,14 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/jobs/searchItems": {
+    "/jobs/shortcuts": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** Search items job */
+        /** Shortcuts indexing job */
         get: {
             parameters: {
                 query?: never;
@@ -1710,14 +1710,14 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/searchItems": {
+    "/shortcuts": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** Search items */
+        /** List shortcuts */
         get: {
             parameters: {
                 query?: never;
@@ -2835,14 +2835,78 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/searchItems/frequentlyUsed": {
+    "/shortcuts/apps": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** List frequently used search items */
+        get?: never;
+        put?: never;
+        /** Create an on-demand shortcut app */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: components["requestBodies"]["JsonBody"];
+            responses: {
+                200: components["responses"]["JsonOk"];
+                400: components["responses"]["JsonBadRequest"];
+                401: components["responses"]["JsonUnauthorized"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/shortcuts/on-demand/{appId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Replace an on-demand app's shortcuts */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    appId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: components["requestBodies"]["JsonBody"];
+            responses: {
+                200: components["responses"]["JsonOk"];
+                400: components["responses"]["JsonBadRequest"];
+                401: components["responses"]["JsonUnauthorized"];
+                404: components["responses"]["JsonNotFound"];
+                409: components["responses"]["JsonConflict"];
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/shortcuts/frequentlyUsed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List frequently used shortcuts */
         get: {
             parameters: {
                 query?: never;
@@ -2863,7 +2927,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/searchItems/usageStats": {
+    "/shortcuts/usageStats": {
         parameters: {
             query?: never;
             header?: never;
@@ -2872,7 +2936,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Log search item usage */
+        /** Log shortcut usage */
         post: {
             parameters: {
                 query?: never;
@@ -2923,6 +2987,24 @@ export interface components {
         };
         /** @description Unauthorized */
         JsonUnauthorized: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description Not Found */
+        JsonNotFound: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description Conflict */
+        JsonConflict: {
             headers: {
                 [name: string]: unknown;
             };

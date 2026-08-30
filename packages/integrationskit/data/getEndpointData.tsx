@@ -29,6 +29,7 @@ export type EndpointRateLimitConfig = {
 const inFlightEndpointRequests = new Map<string, Promise<ResolvedEndpointData>>();
 const endpointRateLimitQueues = new Map<string, Promise<void>>();
 const endpointRateLimitNextAt = new Map<string, number>();
+const endpointBackoffUntil = new Map<string, number>();
 
 export type EndpointCurlRequest = {
 	url: string;
@@ -205,6 +206,11 @@ export async function getEndpointData(
 		requestKey,
 		async () => {
 			try {
+				const backoffUntil = endpointBackoffUntil.get(requestKey) ?? 0;
+				if (backoffUntil > Date.now()) {
+					throw new Error(`Endpoint rate limited; retry after ${new Date(backoffUntil).toISOString()}`);
+				}
+				endpointBackoffUntil.delete(requestKey);
 				const now = new Date().toLocaleTimeString("en-GB", { hour12: false });
 				const fetchOptions: RequestInit = {
 					method,
@@ -249,6 +255,7 @@ export async function getEndpointData(
 							};
 						}
 
+						recordEndpointBackoff(requestKey, retryResponse, retryRawResponse);
 						return throwEndpointFetchError({
 							endpointLabel,
 							method,
@@ -259,6 +266,7 @@ export async function getEndpointData(
 					}
 
 					if (!response.ok) {
+						recordEndpointBackoff(requestKey, response, rawResponse);
 						return throwEndpointFetchError({
 							endpointLabel,
 							method,
@@ -678,6 +686,29 @@ function withoutAuthorizationHeader(headers: Record<string, string>) {
 	return Object.fromEntries(
 		Object.entries(headers).filter(([key]) => key.toLowerCase() !== "authorization"),
 	);
+}
+
+function recordEndpointBackoff(
+	requestKey: string,
+	response: Response,
+	rawResponse: unknown,
+) {
+	const isRateLimited = response.status === 429 ||
+		(response.status === 403 && (
+			response.headers.get("x-ratelimit-remaining") === "0" ||
+			JSON.stringify(rawResponse).toLowerCase().includes("rate limit")
+		));
+	if (!isRateLimited) return;
+
+	const now = Date.now();
+	const retryAfter = Number(response.headers.get("retry-after"));
+	const resetAt = Number(response.headers.get("x-ratelimit-reset")) * 1000;
+	const backoffUntil = Number.isFinite(retryAfter) && retryAfter > 0
+		? now + retryAfter * 1000
+		: Number.isFinite(resetAt) && resetAt > now
+		? resetAt
+		: now + 60_000;
+	endpointBackoffUntil.set(requestKey, backoffUntil);
 }
 
 function throwEndpointFetchError(input: {

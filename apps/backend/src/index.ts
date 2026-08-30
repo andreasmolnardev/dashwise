@@ -6,7 +6,11 @@ import { cors } from "hono/cors";
 import { Client as SshClient } from "ssh2";
 
 import { config } from "./lib/config";
-import { subscribeActivity } from "./lib/activity";
+import {
+  handleActivityMessage,
+  registerSessionConnection,
+  subscribeActivity,
+} from "./lib/activity";
 import { ensureSession } from "./lib/data/sessions";
 import { jobsApi, registerJobsCron } from "./jobs/index";
 import { startPocketbase } from "./pocketbase";
@@ -92,6 +96,9 @@ app.get("/health", (c) => c.json({ status: "ok" }));
 app.get("/api/v1/activity", upgradeWebSocket((c) => {
   let refreshTimer: ReturnType<typeof setInterval> | undefined;
   let unsubscribeActivity: (() => void) | undefined;
+  let unregisterSessionConnection: (() => void) | undefined;
+  let connectedUserId = "";
+  let connectedSessionId = "";
 
   return {
     async onOpen(_event, ws) {
@@ -99,21 +106,41 @@ app.get("/api/v1/activity", upgradeWebSocket((c) => {
       const sessionId = c.req.query("sessionId") || c.req.header("x-session-id") || null;
       try {
         const { userId, pb } = await requireAuth({ token, sessionId });
-        await ensureSession(pb, userId, sessionId, readSessionMetadata(c));
+        const session = await ensureSession(pb, userId, sessionId, readSessionMetadata(c));
+        if (!session) throw new Error("A valid session id is required");
+        connectedUserId = userId;
+        connectedSessionId = session.sessionId;
+        unregisterSessionConnection = registerSessionConnection(userId, session.sessionId, ws);
+        let calendarEvents: Array<Record<string, any>> = [];
+        let calendarRefreshedAt = 0;
+        let calendarRefresh: Promise<void> | null = null;
+        const refreshCalendarEvents = async () => {
+          if (Date.now() - calendarRefreshedAt < 5 * 60 * 1000) return;
+          if (calendarRefresh) return calendarRefresh;
+
+          calendarRefresh = (async () => {
+            const integrationResult = await listIntegrations(userId);
+            calendarEvents = (await Promise.all(
+              integrationResult.integrations
+                .filter((integration) => integration.type === "caldav")
+                .map((integration) => getUpcomingEvents(
+                  integration.environment,
+                  integration.localData,
+                  (localData) => pb.collection("integrations").update(integration.id, { localData }).then(() => undefined),
+                ).then((events) => events.map((event) => ({ ...event, id: `${integration.id}:${event.id}` }))).catch(() => [])),
+            )).flat().filter((event) => new Date(event.start).getTime() >= new Date().setHours(0, 0, 0, 0));
+            calendarRefreshedAt = Date.now();
+          })().finally(() => {
+            calendarRefresh = null;
+          });
+
+          return calendarRefresh;
+        };
         const sendSnapshot = async () => {
-          const [notificationResult, integrationResult] = await Promise.all([
+          const [notificationResult] = await Promise.all([
             getNotifications(userId),
-            listIntegrations(userId),
+            refreshCalendarEvents(),
           ]);
-          const calendarEvents = (await Promise.all(
-            integrationResult.integrations
-              .filter((integration) => integration.type === "caldav")
-              .map((integration) => getUpcomingEvents(
-                integration.environment,
-                integration.localData,
-                (localData) => pb.collection("integrations").update(integration.id, { localData }).then(() => undefined),
-              ).then((events) => events.map((event) => ({ ...event, id: `${integration.id}:${event.id}` }))).catch(() => [])),
-          )).flat().filter((event) => new Date(event.start).getTime() >= new Date().setHours(0, 0, 0, 0));
           ws.send(JSON.stringify({ type: "activity:snapshot", notifications: notificationResult.items, calendarEvents }));
         };
 
@@ -128,6 +155,12 @@ app.get("/api/v1/activity", upgradeWebSocket((c) => {
     onMessage(event, ws) {
       try {
         const message = JSON.parse(String(event.data));
+        if (connectedUserId && connectedSessionId && handleActivityMessage(
+          connectedUserId,
+          connectedSessionId,
+          ws,
+          message,
+        )) return;
         if (message.type === "activity:subscribe" || message.type === "activity:refresh") {
           void (ws as typeof ws & { data?: { sendSnapshot: () => Promise<void> } }).data?.sendSnapshot();
         }
@@ -138,6 +171,7 @@ app.get("/api/v1/activity", upgradeWebSocket((c) => {
     onClose() {
       if (refreshTimer) clearInterval(refreshTimer);
       unsubscribeActivity?.();
+      unregisterSessionConnection?.();
     },
   };
 }));

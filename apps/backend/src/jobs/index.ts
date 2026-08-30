@@ -5,7 +5,7 @@ import { promisify } from "node:util";
 import { runJob } from "./job-logger";
 import { config } from "../lib/config";
 import { _d } from "../lib/sdk";
-import { runSearchItemsIndexing } from "./search-indexer";
+import { runShortcutsIndexing } from "./shortcuts-indexer";
 import indexStatusMonitoringJobs from "./monitoring/indexer";
 import {
   runStatusMonitoringJobs,
@@ -23,8 +23,8 @@ import { getSuperuserPB } from "../lib/pb/pocketbase";
 const execFileAsync = promisify(execFile);
 const logger = createLogger("Jobs");
 
-async function runSearchIndexerScript() {
-  await runSearchItemsIndexing();
+async function runShortcutsIndexerScript() {
+  await runShortcutsIndexing();
 }
 
 async function runPullIconsScript() {
@@ -34,11 +34,11 @@ async function runPullIconsScript() {
   });
 }
 
-const runSearchItemsJob = (source: string) =>
-  runJob("searchItemsIndexer", runSearchIndexerScript, {
+const runShortcutsJob = (source: string) =>
+  runJob("shortcutsIndexer", runShortcutsIndexerScript, {
     startMessage: `Triggered by ${source}`,
-    successMessage: "Search items indexing completed",
-    errorMessage: "Search items indexing failed",
+    successMessage: "Shortcuts indexing completed",
+    errorMessage: "Shortcuts indexing failed",
   });
 
 const runPullIconsJob = (source: string) =>
@@ -157,9 +157,9 @@ export function registerJobsCron() {
   logger.debug("Dashwise SDK app config", _d.getAppConfig());
 
   void runLegacyUserConfigsMigrationJob("server start");
-  void runSearchItemsJob("server start");
-  Bun.cron(config.SEARCHITEMS_SCHEDULE, async () => {
-    await runSearchItemsJob("cron schedule");
+  void runShortcutsJob("server start");
+  Bun.cron(config.SHORTCUTS_SCHEDULE, async () => {
+    await runShortcutsJob("cron schedule");
   });
 
   if (config.ENABLE_ICONS_REFRESH) {
@@ -199,7 +199,7 @@ export function registerJobsCron() {
 }
 
 export const jobsApi = {
-  runSearchItemsJob,
+  runShortcutsJob,
   runPullIconsJob,
   runMonitoringIndexerJob,
   runMonitoringRunnerJob,

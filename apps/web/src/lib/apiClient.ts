@@ -20,7 +20,7 @@ import { getClientSessionHeaders } from "@/lib/session";
 import { client } from "./api/client.gen";
 import * as sdk from "./api/sdk.gen";
 
-const { getAppConfig, getAppInfo, postAuthLogin, postAuthChangePassword, postAuthSignup, postAuthValidateAuth, deleteAuthDeleteAccount, patchAuthUpdateUserProperty, getLinksCollections, postLinksCollections, putLinksCollectionsByCollectionId, postLinksTags, putLinksTagsByTagId, getLinksHomeGroups, postLinksHomeGroups, putLinksFoldersByFolderIdIcon, getLinksHome, getLinksFolders, postLinksFolders, getLinksItems, getLinksTags, postLinksItems, putLinksItemsByLinkId, deleteLinksItemsByLinkId, postLinksReorder, getIntegrations, postIntegrations, putIntegrationsById, deleteIntegrationsById, postIntegrationsTestEndpoint, getIntegrationsWidgetProperties, getWidgetsByIntegration, postIntegrationsConsumerData, getIntegrationsCaldavEvents, postIntegrationsProxyAction, getWidgets, getGlanceables, getGlanceablesByIntegration, getMonitoringStatus, postMonitoringStatus, getMonitoringSshHosts, postMonitoringSshHosts, putMonitoringSshHostsById, getMonitoringHosts, postMonitoringHosts, getMonitoringHostsByIdHistory, getMonitors, getMonitorsById, putMonitorsById, postMonitors, deleteMonitorsById, getNewsFeedRecordsById, postNewsFeedRecords, getNewsSubscriptions, getNewsFeeds, getNewsFeedMetadata, postNewsFeedRefresh, postNewsFeedSubscribe, postNewsFeedUnsubscribe, postNewsFeedUpdate, postNewsFeedRecordsById, postNewsFixMissingTitles, getPageConfig, getPageConfigUserPages, putPageConfig, postPageConfigHome, postPageConfigMigrateLegacy, postPageConfigIntegrationData, getSearchItems, getSearchItemsFrequentlyUsed, postSearchItemsUsageStats, getLocations, getJobsPullIcons, postWallpapers, getNotifications, getNotificationsTopics, postNotificationsTopics, deleteNotificationsTopics, postNotificationsMarkAsRead, postNotificationsTest, getNotificationsTopicTokens, postNotificationsTopicTokens, deleteNotificationsTopicTokens, putNotificationsTopicTokens, getNotificationsForwarders, postNotificationsForwarders, putNotificationsForwarders, deleteNotificationsForwarders, postNotificationsForwardersTest } = sdk;
+const { getAppConfig, getAppInfo, postAuthLogin, postAuthChangePassword, postAuthSignup, postAuthValidateAuth, deleteAuthDeleteAccount, patchAuthUpdateUserProperty, getLinksCollections, postLinksCollections, putLinksCollectionsByCollectionId, postLinksTags, putLinksTagsByTagId, getLinksHomeGroups, postLinksHomeGroups, putLinksFoldersByFolderIdIcon, getLinksHome, getLinksFolders, postLinksFolders, getLinksItems, getLinksTags, postLinksItems, putLinksItemsByLinkId, deleteLinksItemsByLinkId, postLinksReorder, getIntegrations, postIntegrations, putIntegrationsById, deleteIntegrationsById, postIntegrationsTestEndpoint, getIntegrationsWidgetProperties, getWidgetsByIntegration, postIntegrationsConsumerData, getIntegrationsCaldavEvents, postIntegrationsProxyAction, getWidgets, getGlanceables, getGlanceablesByIntegration, getMonitoringStatus, postMonitoringStatus, getMonitoringSshHosts, postMonitoringSshHosts, putMonitoringSshHostsById, getMonitoringHosts, postMonitoringHosts, getMonitoringHostsByIdHistory, getMonitors, getMonitorsById, putMonitorsById, postMonitors, deleteMonitorsById, getNewsFeedRecordsById, postNewsFeedRecords, getNewsSubscriptions, getNewsFeeds, getNewsFeedMetadata, postNewsFeedRefresh, postNewsFeedSubscribe, postNewsFeedUnsubscribe, postNewsFeedUpdate, postNewsFeedRecordsById, postNewsFixMissingTitles, getPageConfig, getPageConfigUserPages, putPageConfig, postPageConfigHome, postPageConfigMigrateLegacy, postPageConfigIntegrationData, getShortcuts, getShortcutsFrequentlyUsed, postShortcutsUsageStats, getLocations, getJobsPullIcons, getNotifications, getNotificationsTopics, postNotificationsTopics, deleteNotificationsTopics, postNotificationsMarkAsRead, postNotificationsTest, getNotificationsTopicTokens, postNotificationsTopicTokens, deleteNotificationsTopicTokens, putNotificationsTopicTokens, getNotificationsForwarders, postNotificationsForwarders, putNotificationsForwarders, deleteNotificationsForwarders, postNotificationsForwardersTest } = sdk;
 export * from "./api/sdk.gen";
 export type { GenericObject, Error } from "./api/types.gen";
 
@@ -431,8 +431,8 @@ export async function getIntegrationCalendarEventsAction(auth: ActionAuth, integ
   return extractData(await getIntegrationsCaldavEvents({ query: { integrationId }, headers: authHeaders(auth) }));
 }
 
-export async function proxyIntegrationAction(auth: ActionAuth, searchItemId: string) {
-  return extractData(await postIntegrationsProxyAction({ body: { auth, searchItemId }, headers: authHeaders(auth) }));
+export async function proxyIntegrationAction(auth: ActionAuth, shortcutId: string) {
+  return extractData(await postIntegrationsProxyAction({ body: { auth, shortcutId }, headers: authHeaders(auth) }));
 }
 
 // --- Widgets/Glanceables actions ---
@@ -657,18 +657,40 @@ export async function getPageIntegrationDataAction(auth: ActionAuth, pageName?: 
   return extractData(await postPageConfigIntegrationData({ query: { page: pageName }, headers: authHeaders(auth) })) as Promise<unknown>;
 }
 
-// --- SearchItems actions ---
+// --- Shortcuts actions ---
 
-export async function getSearchItemsAction(auth: ActionAuth) {
-  return extractData(await getSearchItems({ headers: authHeaders(auth) }));
+export async function getShortcutsAction(auth: ActionAuth) {
+  return extractData(await getShortcuts({ headers: authHeaders(auth) }));
 }
 
-export async function getFrequentlyUsedSearchItemsAction(auth: ActionAuth) {
-  return extractData(await getSearchItemsFrequentlyUsed({ headers: authHeaders(auth) }));
+export async function getFrequentlyUsedShortcutsAction(auth: ActionAuth) {
+  return extractData(await getShortcutsFrequentlyUsed({ headers: authHeaders(auth) }));
 }
 
-export async function logSearchItemUsageAction(auth: ActionAuth, id: string, timestamp: string) {
-  return extractData(await postSearchItemsUsageStats({ body: { id, timestamp }, headers: authHeaders(auth) }));
+export async function logShortcutUsageAction(auth: ActionAuth, id: string, timestamp: string) {
+  return extractData(await postShortcutsUsageStats({ body: { id, timestamp }, headers: authHeaders(auth) }));
+}
+
+export async function createShortcutAppAction(
+  auth: ActionAuth,
+  input: { name: string; type: "on-demand"; icon?: string },
+) {
+  return extractData(await sdk.postShortcutsApps({
+    body: input,
+    headers: authHeaders(auth),
+  }));
+}
+
+export async function syncOnDemandShortcutsAction(
+  auth: ActionAuth,
+  appId: string,
+  shortcuts: Array<Record<string, unknown>>,
+) {
+  return extractData(await sdk.putShortcutsOnDemandByAppId({
+    path: { appId },
+    body: { shortcuts },
+    headers: authHeaders(auth),
+  }));
 }
 
 // --- Misc actions ---

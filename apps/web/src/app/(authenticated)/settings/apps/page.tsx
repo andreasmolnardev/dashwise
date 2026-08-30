@@ -17,13 +17,16 @@ type EmptyAppSectionProps = {
   icon: string;
   description?: string;
   children?: ReactNode;
+  withTopOutline?: boolean;
 };
 
-function EmptyAppSection({ title, icon, description, children }: EmptyAppSectionProps) {
+function EmptyAppSection({ title, icon, description, children, withTopOutline = false }: EmptyAppSectionProps) {
   return (
     <section className="space-y-2">
-      <h2 className="flex items-center gap-2 text-xl font-semibold">
-        <Icon icon={icon} />
+      <h2 className={`flex items-center gap-1 text-xl font-semibold ${withTopOutline ? "relative before:absolute before:inset-x-0 before:mx-4 before:-top-3 before:h-px before:content-[''] before:bg-white/60" : ""}`}>
+        <span className="frosted flex h-8 w-8 shrink-0 items-center justify-center rounded-full">
+          <Icon icon={icon} className="text-sm text-white" />
+        </span>
         {title}
       </h2>
       {description && (
@@ -306,18 +309,22 @@ export default function AppsSettingsPage() {
       <EmptyAppSection
         title="Notifications"
         icon="fa6-solid:bell"
+        withTopOutline
         description="Notification settings will be available here soon. Delivery defaults, topic management, and notification retention are planned for this section."
       />
 
       <EmptyAppSection
         title="Monitoring"
         icon="fa6-solid:chart-line"
+        withTopOutline
         description="Monitoring settings will be available here soon. Polling defaults, history retention, and status-change notification rules are good candidates for this section."
       />
 
       <section className="space-y-2">
-        <h2 className="flex items-center gap-2 text-xl font-semibold">
-          <Icon icon="fa6-solid:link" />
+        <h2 className="relative flex items-center gap-1 text-xl font-semibold before:absolute before:inset-x-0 before:mx-4 before:-top-3 before:h-px before:content-[''] before:bg-white/60">
+          <span className="frosted flex h-8 w-8 shrink-0 items-center justify-center rounded-full">
+            <Icon icon="fa6-solid:link" className="text-sm text-white" />
+          </span>
           Links
         </h2>
         <LinksHtmlTransfer />

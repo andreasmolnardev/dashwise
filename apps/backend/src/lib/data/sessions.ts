@@ -27,6 +27,23 @@ export function normalizeSessionId(value: unknown) {
   return SESSION_ID_PATTERN.test(sessionId) ? sessionId : null;
 }
 
+export async function getSessionById(
+  pb: { collection: (name: "sessions") => any },
+  userId: string,
+  rawSessionId: unknown,
+) {
+  const sessionId = normalizeSessionId(rawSessionId);
+  if (!sessionId) return null;
+
+  try {
+    return toSessionRecord(await pb.collection("sessions").getFirstListItem(
+      `user = "${escapeFilter(userId)}" && sessionId = "${escapeFilter(sessionId)}"`,
+    ));
+  } catch {
+    return null;
+  }
+}
+
 function normalizeMetadata(metadata?: SessionMetadata) {
   return {
     ...(metadata?.clientType?.trim() ? { clientType: metadata.clientType.trim().slice(0, 100) } : {}),
@@ -49,7 +66,7 @@ export async function ensureSession(
 
   const now = new Date().toISOString();
   const collection = pb.collection("sessions");
-  const filter = `user = "${userId}" && sessionId = "${sessionId}"`;
+  const filter = `user = "${escapeFilter(userId)}" && sessionId = "${escapeFilter(sessionId)}"`;
   const normalizedMetadata = normalizeMetadata(metadata);
 
   let session: RecordModel | null = null;
@@ -86,6 +103,10 @@ export async function ensureSession(
       throw error;
     }
   }
+}
+
+function escapeFilter(value: string) {
+  return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 }
 
 export async function getCurrentSession(

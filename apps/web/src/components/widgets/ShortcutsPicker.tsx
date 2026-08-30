@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import AppIcon from "@dashwise/app-icon";
 import useAuth from "@/context/useAuth";
-import { getSearchItemsAction } from "@/lib/apiClient";
+import { getShortcutsAction } from "@/lib/apiClient";
 import { Input } from "@/components/ui/input";
 
 type Shortcut = {
@@ -21,7 +21,7 @@ export default function ShortcutsPicker(
   const [items, setItems] = useState<Shortcut[]>([]);
   const [query, setQuery] = useState("");
   useEffect(() => {
-    void withAuth((auth) => getSearchItemsAction(auth)).then((data) => {
+    void withAuth((auth) => getShortcutsAction(auth)).then((data) => {
       if (Array.isArray(data)) setItems(data as Shortcut[]);
     }).catch(() => setItems([]));
   }, [withAuth]);
