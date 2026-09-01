@@ -5,6 +5,8 @@ import CommandBar from './CommandBar';
 import { getSearchItemsAction } from '@/lib/apiClient';
 import { useApiQuery } from "@/hooks/useApiQuery";
 import { queryKeys } from "@/lib/queryClient";
+import { useSearchItemsLive } from "@/hooks/useSearchItemsLive";
+import type { ShortcutState } from "@dashwise/types";
 
 type SearchBarProps = {
   useRedirect: boolean;
@@ -28,6 +30,7 @@ type SearchItem = {
   type: 'link' | 'app' | 'karakeepBookmark' | 'jellyfinItem' | 'beszelItem' | 'dashdotItem';
   action: string | ProxyAction;
   tags?: string[];
+  states?: ShortcutState[];
 };
 
 function normalizeSearchItems(raw: unknown): SearchItem[] {
@@ -60,6 +63,7 @@ export default function SearchBar({
   const [open, setOpen] = useState(() => !!defaultOpen); // control CommandBar
   const didMountRef = useRef(false);
   const { user } = useAuth();
+  useSearchItemsLive();
 
   // fetched items from /api/v1/searchItems
   const searchItemsQuery = useApiQuery(queryKeys.links.search, getSearchItemsAction, { enabled: open });

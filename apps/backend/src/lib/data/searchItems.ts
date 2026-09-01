@@ -1,5 +1,6 @@
 import { getSuperuserPB } from "../pb/pocketbase";
 import type { SearchItemsResponse } from "@dashwise/types";
+import type { ShortcutState } from "@dashwise/types";
 
 function parseTags(value: unknown): string[] {
   if (Array.isArray(value)) {
@@ -26,6 +27,20 @@ function parseTags(value: unknown): string[] {
   return [];
 }
 
+function parseStates(value: unknown): ShortcutState[] {
+  if (typeof value === "string") {
+    try { value = JSON.parse(value); } catch { return []; }
+  }
+  if (!Array.isArray(value)) return [];
+  return value.filter((entry): entry is ShortcutState => {
+    if (!entry || typeof entry !== "object") return false;
+    const state = entry as Record<string, unknown>;
+    return typeof state.id === "string" && typeof state.name === "string" &&
+      typeof state.type === "string" &&
+      (state.value === null || ["string", "number", "boolean"].includes(typeof state.value));
+  });
+}
+
 export async function getSearchItems(userId: string) {
   const pb = await getSuperuserPB();
   const records = (await pb.collection("searchItems").getFullList(1000, {
@@ -48,6 +63,7 @@ export async function getSearchItems(userId: string) {
       type: actionString.startsWith("app:") ? "app" : "link",
       action,
       tags: parseTags(record.tags),
+      states: parseStates(record.states),
       isPinned: Boolean(record.isPinned),
       usageStats: record.usageStats,
     };

@@ -1265,6 +1265,22 @@ export type GetSearchItemsResponses = {
 
 export type GetSearchItemsResponse = GetSearchItemsResponses[keyof GetSearchItemsResponses];
 
+export type PostSearchItemsActionData = {
+    body?: JsonBody;
+    path?: never;
+    query?: never;
+    url: '/searchItems/action';
+};
+
+export type PostSearchItemsActionResponses = {
+    /**
+     * OK
+     */
+    200: GenericObject;
+};
+
+export type PostSearchItemsActionResponse = PostSearchItemsActionResponses[keyof PostSearchItemsActionResponses];
+
 export type GetPageConfigData = {
     body?: never;
     path?: never;

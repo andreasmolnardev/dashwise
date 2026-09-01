@@ -110,3 +110,22 @@ Preview mode is used when `isPreview=true`:
 
 `integrationskit` keeps integration rendering logic self-contained and declarative.
 It separates the integration config from the UI templates and provides a shared runtime engine that can be used by backend and frontend consumers.
+
+## Stateful shortcuts
+
+Shortcut definitions may expose one or more typed states. State IDs must be stable within the provider so updates can be applied without rebuilding the shortcut:
+
+```yaml
+states:
+  - id: "power"
+    name: "Power"
+    type: "boolean"
+    value: "${is_on}"
+  - id: "brightness"
+    name: "Brightness"
+    type: "number"
+    value: "${brightness}"
+action: "toggle:power"
+```
+
+Supported stateful actions are `toggle:<state_id>`, `set:<state_id>:<value>`, `increment:<state_id>[:amount]`, and `decrement:<state_id>[:amount]`. Stateful updates use the live search-item WebSocket when available and fall back to the REST action endpoint plus polling.

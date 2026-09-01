@@ -319,6 +319,7 @@ export type SearchItemsRecord<Ttags = unknown, TusageStats = unknown> = {
 	isPinned?: boolean
 	name?: string
 	secondary?: string
+	states?: unknown
 	sourceId?: string
 	sourceUpdated?: string
 	tags?: null | Ttags

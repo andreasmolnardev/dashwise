@@ -1312,6 +1312,22 @@
 				}
 			}
 		},
+		"/searchItems/action": {
+			"post": {
+				"tags": [
+					"search"
+				],
+				"summary": "Execute a stateful search item action",
+				"requestBody": {
+					"$ref": "#/components/requestBodies/JsonBody"
+				},
+				"responses": {
+					"200": {
+						"$ref": "#/components/responses/JsonOk"
+					}
+				}
+			}
+		},
 		"/pageConfig": {
 			"get": {
 				"tags": [

@@ -1,8 +1,9 @@
 import { defaultShortcutsManifest } from "@dashwise/assets";
-import type { HomeLink } from "@dashwise/types";
+import type { HomeLink, ShortcutState } from "@dashwise/types";
 import { getHomeLinks } from "../lib/data/links";
 import { config } from "../lib/config";
 import { getSuperuserPB } from "../lib/pb/pocketbase";
+import { broadcastSearchItemState } from "../lib/searchItemStates";
 
 type SearchItemRow = {
   name: string;
@@ -11,6 +12,7 @@ type SearchItemRow = {
   action: string;
   app: string;
   tags: string[];
+  states: ShortcutState[];
   sourceId?: string;
   sourceUpdated?: string;
 };
@@ -30,6 +32,7 @@ type ShortcutDefaultsRow = {
   secondaryInfo?: unknown;
   action?: unknown;
   tags?: unknown;
+  states?: unknown;
 };
 
 export async function runSearchItemsIndexing() {
@@ -62,6 +65,7 @@ export async function runSearchItemsIndexing() {
           String(link?.folder || ""),
           ...(Array.isArray(link?.tags) ? link.tags.map((tag: unknown) => String(tag)) : []),
         ].filter((tag): tag is string => tag.trim().length > 0),
+        states: [],
         sourceId: link.id,
         sourceUpdated: link.updated,
       });
@@ -85,6 +89,7 @@ export async function runSearchItemsIndexing() {
         action: `url:/apps/monitoring/ssh?host=${encodeURIComponent(hostId)}`,
         app: "",
         tags: [name, hostname, "ssh"],
+        states: [],
         sourceId: `monitoring-ssh-host:${hostId}`,
         sourceUpdated: String(host?.updated ?? ""),
       });
@@ -108,6 +113,7 @@ export async function runSearchItemsIndexing() {
         action: `url:/apps/monitoring/hosts/${encodeURIComponent(hostId)}`,
         app: "",
         tags: [name, hostname, "system", "monitor"],
+        states: [],
         sourceId: `monitoring-system-host:${hostId}`,
         sourceUpdated: String(host?.updated ?? ""),
       });
@@ -158,6 +164,7 @@ function buildDefaultShortcutSearchRows(): SearchItemRow[] {
         name,
         ...(Array.isArray(shortcut?.tags) ? shortcut.tags.map((tag: unknown) => String(tag)) : []),
       ].filter((tag): tag is string => tag.trim().length > 0),
+      states: parseStates(shortcut?.states),
       sourceId: `default-shortcut:${normalizeKey(action)}:${normalizeKey(name)}`,
     });
   }
@@ -324,6 +331,7 @@ async function buildIntegrationSearchRows(
     action: serializeShortcutAction(item.action),
     app: appId,
     tags: item.tags,
+    states: item.states,
     sourceId: integration.id,
     sourceUpdated: (integration as any).updated as string,
   }));
@@ -336,6 +344,7 @@ async function buildIntegrationSearchRows(
       action: `app:${appId}`,
       app: "",
       tags: [integrationName, "integration"],
+      states: [],
       sourceId: integration.id,
       sourceUpdated: (integration as any).updated as string,
     },
@@ -406,6 +415,7 @@ async function rebuildUserSearchItems(pb: any, userId: string, rows: SearchItemR
         action: newRow.action,
         app: newRow.app || null,
         tags: JSON.stringify(newRow.tags ?? []),
+        states: JSON.stringify(newRow.states ?? []),
         sourceId: sid,
         sourceUpdated: newRow.sourceUpdated,
       });
@@ -430,6 +440,15 @@ async function rebuildUserSearchItems(pb: any, userId: string, rows: SearchItemR
       })).sort((a, b) => a.action.localeCompare(b.action));
 
       if (JSON.stringify(existingData) === JSON.stringify(newData)) {
+        const recordsByKey = new Map(existingRecords.map((record) => [searchItemKey(record), record]));
+        for (const row of newRows) {
+          const record = recordsByKey.get(searchItemKey(row));
+          if (!record) continue;
+          const nextStates = row.states ?? [];
+          if (JSON.stringify(parseStates(record.states)) === JSON.stringify(nextStates)) continue;
+          await pb.collection("searchItems").update(record.id, { states: JSON.stringify(nextStates) });
+          broadcastSearchItemState(userId, { itemId: record.id, states: nextStates });
+        }
         continue;
       }
 
@@ -444,12 +463,31 @@ async function rebuildUserSearchItems(pb: any, userId: string, rows: SearchItemR
           action: row.action,
           app: row.app || null,
           tags: JSON.stringify(row.tags ?? []),
+          states: JSON.stringify(row.states ?? []),
           sourceId: sid,
           sourceUpdated: row.sourceUpdated,
         });
       }
     }
   }
+}
+
+function parseStates(value: unknown): ShortcutState[] {
+  if (typeof value === "string") {
+    try { value = JSON.parse(value); } catch { return []; }
+  }
+  if (!Array.isArray(value)) return [];
+  return value.filter((entry): entry is ShortcutState => {
+    if (!entry || typeof entry !== "object") return false;
+    const state = entry as Record<string, unknown>;
+    return typeof state.id === "string" && typeof state.name === "string" &&
+      typeof state.type === "string" &&
+      (state.value === null || ["string", "number", "boolean"].includes(typeof state.value));
+  });
+}
+
+function searchItemKey(value: { name?: unknown; action?: unknown }) {
+  return `${String(value.name ?? "")}\u0000${String(value.action ?? "")}`;
 }
 
 function serializeShortcutAction(action: unknown): string {

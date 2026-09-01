@@ -621,6 +621,10 @@ export async function logSearchItemUsageAction(auth: ActionAuth, id: string, tim
   return extractData(await postSearchItemsUsageStats({ body: { id, timestamp }, headers: authHeaders(auth) }));
 }
 
+export async function executeSearchItemAction(auth: ActionAuth, id: string, action: string) {
+  return extractData(await sdk.postSearchItemsAction({ body: { id, action }, headers: authHeaders(auth) }));
+}
+
 // --- Misc actions ---
 
 export async function getLocationsAction(auth: ActionAuth, q?: string | null) {

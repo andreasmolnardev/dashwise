@@ -7,12 +7,14 @@ import { Client as SshClient } from "ssh2";
 
 import { config } from "./lib/config";
 import { subscribeActivity } from "./lib/activity";
+import { executeSearchItemStateAction, subscribeSearchItemStates } from "./lib/searchItemStates";
 import { jobsApi, registerJobsCron } from "./jobs/index";
 import { startPocketbase } from "./pocketbase";
 import { createLogger } from "./lib/logger";
 import { getMonitoringSshHostById, getMonitoringSshHostCredentials, getSystemAgentHostById } from "./lib/data/monitoring";
 import { getNotifications } from "./lib/data/notifications/items";
 import { listIntegrations } from "./lib/data/integrations";
+import { getSearchItems } from "./lib/data/searchItems";
 import { getUpcomingEvents } from "./lib/calendar";
 import { systemAgentClient } from "./lib/systemAgent";
 import { requireAuth } from "./routes/shared";
@@ -67,6 +69,47 @@ app.use("*", cors({ origin: "*" }));
 app.route("/", authRoute);
 app.route("/", systemRoute);
 app.route("/", dataRoute);
+
+app.get("/api/v1/searchItems/live", upgradeWebSocket((c) => {
+  let unsubscribe: (() => void) | undefined;
+  let userId = "";
+
+  const sendSnapshot = async (ws: { send: (data: string) => void }) => {
+    if (!userId) return;
+    ws.send(JSON.stringify({ type: "searchItems:snapshot", items: await getSearchItems(userId) }));
+  };
+
+  return {
+    async onOpen(_event, ws) {
+      const token = c.req.query("token") || c.req.header("Authorization")?.replace(/^Bearer\s+/i, "") || "";
+      try {
+        ({ userId } = await requireAuth({ token }));
+        unsubscribe = subscribeSearchItemStates(userId, (update) => {
+          ws.send(JSON.stringify({ type: "searchItems:state", ...update }));
+        });
+        await sendSnapshot(ws);
+      } catch {
+        ws.close(1008, "Unauthorized");
+      }
+    },
+    onMessage(event, ws) {
+      try {
+        const message = JSON.parse(String(event.data));
+        if (message.type === "searchItems:refresh") void sendSnapshot(ws);
+        if (message.type === "searchItems:action") {
+          void executeSearchItemStateAction(userId, String(message.itemId ?? ""), message.action)
+            .then((result) => ws.send(JSON.stringify({ type: "searchItems:actionResult", requestId: message.requestId, ...result })))
+            .catch((error) => ws.send(JSON.stringify({ type: "searchItems:actionResult", requestId: message.requestId, success: false, error: error instanceof Error ? error.message : "Action failed" })));
+        }
+      } catch {
+        // Ignore malformed messages.
+      }
+    },
+    onClose() {
+      unsubscribe?.();
+    },
+  };
+}));
 
 app.get("/health", (c) => c.json({ status: "ok" }));
 

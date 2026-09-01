@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { getSuperuserPB } from "../lib/pb/pocketbase";
 import { getSearchItems } from "../lib/data/searchItems";
+import { executeSearchItemStateAction } from "../lib/searchItemStates";
 
 import { readAuthToken, readJsonBody, requireAuth, withJson } from "./shared";
 
@@ -14,6 +15,12 @@ searchItemsRoute
       return getSearchItems(userId);
     }),
   )
+  .post("/api/v1/searchItems/action", withJson(async (c) => {
+    const body = await readJsonBody<{ id?: string; action?: string }>(c);
+    const { userId } = await requireAuth({ token: readAuthToken(c) });
+    const itemId = String(body?.id ?? "").trim();
+    return executeSearchItemStateAction(userId, itemId, body?.action);
+  }))
   .post("/api/v1/searchItems/usageStats", withJson(async (c) => {
     const body = await readJsonBody<{ id: string; timestamp: string; auth?: any }>(c);
     const { userId } = await requireAuth({ token: readAuthToken(c) });

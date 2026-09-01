@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@dashwise/app-icon": "workspace:*",
+    "@dashwise/types": "workspace:*",
     "@iconify-icon/react": "^3.0.3",
     "@radix-ui/react-progress": "^1.1.7",
     "date-fns": "^4.1.0",

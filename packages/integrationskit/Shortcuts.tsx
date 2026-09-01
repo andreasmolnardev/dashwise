@@ -1,5 +1,6 @@
 import { flattenToEnv, getNestedValue, resolveComputedFieldValue } from "./data/getComputedField";
 import { resolveIntegrationRuntimeProperties } from "./data/resolveProperties";
+import type { ShortcutState } from "../types/shortcuts";
 
 export type ShortcutActionObject = {
 	type: string;
@@ -17,6 +18,7 @@ export type ShortcutItem = {
 	type: string;
 	action: string | ShortcutActionObject;
 	tags: string[];
+	states: ShortcutState[];
 };
 
 export type ShortcutsInput = {
@@ -35,6 +37,20 @@ function toTagList(raw: unknown) {
 	if (raw === undefined || raw === null) return [] as string[];
 	const asString = String(raw).trim();
 	return asString ? [asString] : [];
+}
+
+function toStates(raw: unknown): ShortcutState[] {
+	if (!Array.isArray(raw)) return [];
+	return raw.flatMap((entry) => {
+		if (!entry || typeof entry !== "object") return [];
+		const item = entry as Record<string, unknown>;
+		const id = String(item.id ?? "").trim();
+		const name = String(item.name ?? "").trim();
+		const type = String(item.type ?? "string").trim() || "string";
+		const value = item.value;
+		if (!id || !name || !(value === null || typeof value === "string" || typeof value === "number" || typeof value === "boolean")) return [];
+		return [{ id, name, type, value }];
+	});
 }
 
 function resolvePathValue(root: Record<string, any>, current: unknown, rawPath: string, index = 0): unknown {
@@ -218,6 +234,7 @@ export default async function Shortcuts({
 					type: String(item.type ?? "shortcut"),
 					action,
 					tags: toTagList(item.tags),
+					states: toStates(item.states),
 				});
 			}
 		}

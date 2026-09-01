@@ -10,8 +10,10 @@ import { DialogTitle } from "@radix-ui/react-dialog";
 import { Icon as IconifyIcon } from "@iconify-icon/react";
 import AppIcon from "@dashwise/app-icon";
 import QRCode from "qrcode";
-import { getFrequentlyUsedSearchItemsAction, logSearchItemUsageAction } from '@/lib/apiClient';
+import { executeSearchItemAction, getFrequentlyUsedSearchItemsAction, logSearchItemUsageAction } from '@/lib/apiClient';
 import { proxyIntegrationAction } from '@/lib/apiClient';
+import { applyStatefulShortcutAction, parseStatefulShortcutAction, type ShortcutState } from "@dashwise/types";
+import { useSearchItemsLive } from "@/hooks/useSearchItemsLive";
 
 // --- Types ---
 
@@ -32,6 +34,8 @@ type LinkItem = {
   isQrAction?: boolean;
   isPinned?: boolean;
   proxyAction?: boolean;
+  action?: string | ProxyAction;
+  states?: ShortcutState[];
   _section?: string;
 };
 
@@ -57,6 +61,7 @@ type IncomingSearchItem = {
   linkGroup?: string;
   tags?: string[];
   isPinned?: boolean;
+  states?: ShortcutState[];
 };
 
 type ProxyAction = {
@@ -138,6 +143,8 @@ function normalizeConfigLinks(input: IncomingSearchItem[] = []): LinkItem[] {
         icon: it.icon || undefined,
         linkGroup: it.secondaryInfo || it.linkGroup || "",
         tags: it.tags || "",
+        action: actionValue,
+        states: it.states || [],
         type,
         url,
         proxyAction,
@@ -157,13 +164,19 @@ export default function CommandBar(
     toggleTheme,
     toggleLinkTileLayout,
   } = useAuth();
+  const { sendStatefulAction } = useSearchItemsLive();
   const searchPreferences = user?.searchPreferences ?? {};
   const searchEngines: SearchEngine[] =
     (searchPreferences.searchEngines || []) as SearchEngine[];
 
+  const [stateOverrides, setStateOverrides] = React.useState<Record<string, ShortcutState[]>>({});
   const links: LinkItem[] = React.useMemo(
-    () => normalizeConfigLinks(searchItems || []),
-    [searchItems],
+    () => normalizeConfigLinks(searchItems || []).map((item) =>
+      item.id && stateOverrides[item.id]
+        ? { ...item, states: stateOverrides[item.id] }
+        : item,
+    ),
+    [searchItems, stateOverrides],
   );
 
   const defaultEngine = searchEngines.find((se) => se.status === "default") ||
@@ -551,6 +564,8 @@ export default function CommandBar(
       openSearch(query);
     } else if (a.url === "__qr_action__") {
       return;
+    } else if (a.id && typeof a.action === "string" && parseStatefulShortcutAction(a.action)) {
+      void triggerStatefulAction(a);
     } else if (a.url === "__proxy_action__") {
       logSearchItemUsage(a);
       void triggerProxyAction(a);
@@ -576,6 +591,28 @@ export default function CommandBar(
     } else {
       logSearchItemUsage(a);
       openUrl(a.url, config?.global?.linkOpenBehaviour);
+    }
+  }
+
+  async function triggerStatefulAction(item: LinkItem) {
+    if (!item.id || typeof item.action !== "string") return;
+    const action = parseStatefulShortcutAction(item.action);
+    if (!action) return;
+
+    const previous = item.states || [];
+    const next = applyStatefulShortcutAction(previous, action);
+    if (JSON.stringify(previous) === JSON.stringify(next)) return;
+
+    setStateOverrides((current) => ({ ...current, [item.id!]: next }));
+    logSearchItemUsage(item);
+    try {
+      if (!token) throw new Error("Not authenticated");
+      await (sendStatefulAction(item.id, item.action) || executeSearchItemAction({ token }, item.id, item.action));
+    } catch (error) {
+      setStateOverrides((current) => ({ ...current, [item.id!]: previous }));
+      console.error("Failed to run stateful shortcut action", error);
+    } finally {
+      setOpen(false);
     }
   }
 
@@ -854,6 +891,9 @@ export default function CommandBar(
                     </div>
 
                     <div className="ml-3 text-xs text-muted-foreground whitespace-nowrap">
+                      {item.states?.length
+                        ? <span className="mr-3">{item.states.map((state) => `${state.name}: ${String(state.value ?? "—")}`).join(" · ")}</span>
+                        : null}
                       {isCommand
                         ? <span className="italic">use client</span>
                         : <span>{item.type}</span>}

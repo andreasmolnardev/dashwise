@@ -2,8 +2,11 @@
 
 import { useEffect, useState } from "react";
 import AppIcon from "@dashwise/app-icon";
-import useAuth from "@/context/useAuth";
 import { getSearchItemsAction } from "@/lib/apiClient";
+import { useApiQuery } from "@/hooks/useApiQuery";
+import { useSearchItemsLive } from "@/hooks/useSearchItemsLive";
+import { queryKeys } from "@/lib/queryClient";
+import type { ShortcutState } from "@dashwise/types";
 import { Input } from "@/components/ui/input";
 
 type Shortcut = {
@@ -12,19 +15,20 @@ type Shortcut = {
   icon?: string;
   secondaryInfo?: string;
   type?: string;
+  states?: ShortcutState[];
 };
 
 export default function ShortcutsPicker(
   { value, onChange }: { value: string[]; onChange: (value: string[]) => void },
 ) {
-  const { withAuth } = useAuth();
   const [items, setItems] = useState<Shortcut[]>([]);
   const [query, setQuery] = useState("");
+  const searchItemsQuery = useApiQuery(queryKeys.links.search, getSearchItemsAction);
+  useSearchItemsLive();
   useEffect(() => {
-    void withAuth((auth) => getSearchItemsAction(auth)).then((data) => {
-      if (Array.isArray(data)) setItems(data as Shortcut[]);
-    }).catch(() => setItems([]));
-  }, [withAuth]);
+    if (Array.isArray(searchItemsQuery.data)) setItems(searchItemsQuery.data as Shortcut[]);
+    else if (searchItemsQuery.isError) setItems([]);
+  }, [searchItemsQuery.data, searchItemsQuery.isError]);
   const filtered = items.filter((item) =>
     item.name.toLowerCase().includes(query.toLowerCase())
   );
@@ -62,6 +66,9 @@ export default function ShortcutsPicker(
                       )}
                     </span>
                   )
+                  : null}
+                {item.states?.length
+                  ? <span className="block truncate text-xs text-white/40">{item.states.map((state) => `${state.name}: ${String(state.value ?? "—")}`).join(" · ")}</span>
                   : null}
               </span>
 
