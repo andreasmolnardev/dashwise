@@ -20,6 +20,7 @@ import {
   writeMaterializedFeed,
   writeSubscriptionArticles,
 } from "../../lib/cache/feed-items";
+import { config } from "../../lib/config";
 import { createLogger } from "../../lib/logger";
 import { getFeedItems } from "./helper";
 import type { NewsFeedItem } from "@dashwise/types/sdk";
@@ -40,7 +41,6 @@ export type NewsFeedRecord = {
 type BuilderOptions = { userId?: string; feedIds?: string[] };
 
 const logger = createLogger("NewsFeedBuilder");
-const SUBSCRIPTION_RETENTION = 500;
 
 function itemTime(item: Record<string, unknown>) {
   const value = item.pubDate;
@@ -97,7 +97,7 @@ async function fetchAndCacheSubscription(subscription: NewsSubscription, result:
   try {
     const raw = await getFeedItems({
       feedUrl,
-      maxItems: SUBSCRIPTION_RETENTION,
+      maxItems: config.NEWS_SUBSCRIPTION_RETENTION,
       feedName: subscription.title || feedUrl,
       linkReplaceRule: subscription.linkReplaceRule,
       thumbnailOverwriteUrl: subscription.thumbnailOverwriteUrl,

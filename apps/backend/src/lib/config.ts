@@ -16,6 +16,10 @@ const fallbackOutlierValue = normalizedOutlierType === "absolute" ? 500 : 50;
 const resolvedOutlierValue = Number.isFinite(normalizedOutlierValue) && normalizedOutlierValue > 0
   ? normalizedOutlierValue
   : fallbackOutlierValue;
+const normalizedNewsSubscriptionRetention = Number(env.NEWS_SUBSCRIPTION_RETENTION);
+const resolvedNewsSubscriptionRetention = Number.isInteger(normalizedNewsSubscriptionRetention) && normalizedNewsSubscriptionRetention > 0
+  ? normalizedNewsSubscriptionRetention
+  : 50;
 
 const truthyEnv = (value?: string | null): boolean => {
   if (!value) return false;
@@ -61,6 +65,7 @@ export const config = {
   MONITORING_RUNNER_SCHEDULE: env.MONITORING_RUNNER_SCHEDULE || "*/1 * * * *",
   UPDATE_CHECK_SCHEDULE: env.UPDATE_CHECK_SCHEDULE || "0 2 * * *",
   FEED_BUILDING_SCHEDULE: env.FEED_BUILDING_SCHEDULE || "*/30 * * * *",
+  NEWS_SUBSCRIPTION_RETENTION: resolvedNewsSubscriptionRetention,
   NOTIFICATION_FORWARDER_SCHEDULE: env.NOTIFICATION_FORWARDER_SCHEDULE || "* * * * *",
   DEFAULT_INTEGRATIONS_SCHEDULE: env.DEFAULT_INTEGRATIONS_SCHEDULE || "0 4 * * *",
   PAGECONFIG_CLEANUP_SCHEDULE: env.PAGECONFIG_CLEANUP_SCHEDULE || "0 5 * * *",

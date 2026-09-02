@@ -90,6 +90,7 @@ export async function getFeedItems({
             } as FeedItem;
         })
         .filter((item: FeedItem) => !isNaN(item.pubDate.getTime()))
+        .sort((left: FeedItem, right: FeedItem) => right.pubDate.getTime() - left.pubDate.getTime())
         .slice(0, maxItems);
 }
 
