@@ -434,6 +434,53 @@
 				}
 			}
 		},
+		"/links/metadata": {
+			"get": {
+				"tags": [
+					"links"
+				],
+				"summary": "Get link metadata",
+				"parameters": [
+					{
+						"name": "url",
+						"in": "query",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"title": {
+											"type": "string"
+										},
+										"description": {
+											"type": "string"
+										},
+										"iconUrl": {
+											"type": "string"
+										}
+									},
+									"required": [
+										"title",
+										"description",
+										"iconUrl"
+									],
+									"additionalProperties": false
+								}
+							}
+						}
+					}
+				}
+			}
+		},
 		"/links/home/groups": {
 			"get": {
 				"tags": [

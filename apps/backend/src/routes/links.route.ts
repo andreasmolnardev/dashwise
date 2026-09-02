@@ -5,10 +5,15 @@ import { createCollection, createCollectionLinkItem, createHomeLinkGroup, create
 import { readAuthToken, readJsonBody, requireAuth, withJson } from "./shared";
 import { config } from "../lib/config";
 import { ApiActionError } from "../lib/data/auth";
+import { getLinkMetadata } from "../lib/api/tools/linkMetadata";
 
 const linksRoute = new Hono();
 
 linksRoute
+  .get("/api/v1/links/metadata", withJson(async (c) => {
+    await requireAuth({ token: readAuthToken(c) });
+    return getLinkMetadata(String(c.req.query("url") ?? "").trim());
+  }))
   .get("/api/v1/links/collections", withJson(async (c) => {
     const { userId } = await requireAuth({ token: readAuthToken(c) });
     return getLinksCollections(userId);
