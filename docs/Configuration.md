@@ -67,6 +67,7 @@ You can use the following environment variables for the all-in-one container; th
 | MONITORING_RUNNER_SCHEDULE | No | `*/1 * * * *` | How often the monitoring runner executes |
 | UPDATE_CHECK_SCHEDULE | No | `0 2 * * *` | Schedule for update check job |
 | FEED_BUILDING_SCHEDULE | No | `*/30 * * * *` | Schedule for news feed building job |
+| NEWS_SUBSCRIPTION_RETENTION | No | `50` | Maximum number of latest articles retrieved and cached per news subscription |
 | NOTIFICATION_FORWARDER_SCHEDULE | No | `* * * * *` | Schedule for notification forwarder job |
 | DEFAULT_INTEGRATIONS_SCHEDULE | No | `0 4 * * *` | Schedule for default integrations sync |
 | PAGECONFIG_CLEANUP_SCHEDULE | No | - | Deprecated/no-op. Page-config cleanup runs immediately when an integration is deleted; this variable is read for compatibility but does not schedule work. |
