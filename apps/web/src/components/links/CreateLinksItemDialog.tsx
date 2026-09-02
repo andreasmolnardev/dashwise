@@ -197,12 +197,12 @@ function ListFolderPicker({
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-[min(42rem,calc(100vw-2rem))] p-0">
-        <Command className="text-black">
+        <Command className="text-foreground">
           <CommandInput placeholder="Search lists or folders..." className="h-9" />
           <CommandList>
             <CommandEmpty>No destinations found.</CommandEmpty>
             {groups.map((group) => (
-              <CommandGroup key={group.collection.id} heading={group.collection.name} className="text-black">
+              <CommandGroup key={group.collection.id} heading={group.collection.name} className="text-foreground">
                 {group.options.map((option) => (
                   <CommandItem
                     key={option.key}
@@ -291,11 +291,11 @@ function TagMultiSelect({
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-[min(32rem,calc(100vw-2rem))] p-0">
-        <Command className="text-black">
+        <Command className="text-foreground">
           <CommandInput placeholder="Search tags..." className="h-9" />
           <CommandList>
             <CommandEmpty>No tags found.</CommandEmpty>
-            <CommandGroup className="text-black">
+            <CommandGroup className="text-foreground">
               {tags.map((tag) => (
                 <CommandItem key={tag.id} value={tag.name} onSelect={() => toggleTag(tag.id)}>
                   <span className="inline-flex items-center gap-2">
