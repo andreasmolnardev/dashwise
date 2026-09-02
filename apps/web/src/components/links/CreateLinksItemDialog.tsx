@@ -28,6 +28,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import useAuth from "@/context/useAuth";
 import { cn } from "@/lib/utils";
+import IconPickerComponent, { type IconResult } from "@/components/settings/IconPicker";
 import { Check, ChevronsUpDown, FolderPlus, Link2 } from "lucide-react";
 
 type CollectionRecord = {
@@ -85,6 +86,40 @@ type Props = {
   onCreated?: (item: CreatedLinkItem) => void;
   onFolderCreated?: (folder: FolderRecord) => void;
 };
+
+function IconPickerButton({
+  value,
+  open,
+  onOpenChange,
+  onChange,
+}: {
+  value: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <Popover open={open} onOpenChange={onOpenChange}>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          aria-label="Search icons or Enter URL"
+          title="Search icons or Enter URL"
+          className="h-9 w-9 shrink-0 rounded-md border-white/10 bg-white/5 p-0 text-white hover:bg-white/10"
+        >
+          {value ? <AppIcon source={value} alt="" size={20} imageClassName="object-contain" /> : null}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="frosted w-[min(42rem,calc(100vw-2rem))] p-3 text-foreground">
+        <IconPickerComponent
+          initialSelection={value ? { url: value } : null}
+          onSelect={(icon: IconResult) => onChange(icon.url?.trim() ?? "")}
+        />
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 function buildTargetGroups(collections: CollectionRecord[], folders: FolderRecord[]): TargetGroup[] {
   const foldersByCollection = new Map<string, FolderRecord[]>();
@@ -196,7 +231,7 @@ function ListFolderPicker({
           <ChevronsUpDown className="size-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[min(42rem,calc(100vw-2rem))] p-0">
+      <PopoverContent className="frosted text-foreground w-[min(42rem,calc(100vw-2rem))] p-0">
         <Command className="text-foreground">
           <CommandInput placeholder="Search lists or folders..." className="h-9" />
           <CommandList>
@@ -290,7 +325,7 @@ function TagMultiSelect({
           <ChevronsUpDown className="size-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[min(32rem,calc(100vw-2rem))] p-0">
+      <PopoverContent className="frosted text-foreground w-[min(32rem,calc(100vw-2rem))] p-0">
         <Command className="text-foreground">
           <CommandInput placeholder="Search tags..." className="h-9" />
           <CommandList>
@@ -336,6 +371,7 @@ export default function CreateLinksItemDialog({
   const [loadingData, setLoadingData] = useState(false);
   const [loadingMetadata, setLoadingMetadata] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [iconPickerOpen, setIconPickerOpen] = useState(false);
   const [alert, setAlert] = useState<{ open: boolean; title: string; description?: string; variant?: "success" | "error" }>({ open: false, title: "", description: "", variant: "success" });
   const initializedTargetRef = useRef(false);
   const metadataRequestRef = useRef(0);
@@ -362,6 +398,7 @@ export default function CreateLinksItemDialog({
       setLoadingData(false);
       setLoadingMetadata(false);
       setSaving(false);
+      setIconPickerOpen(false);
       setAlert({ open: false, title: "", description: "", variant: "success" });
       return;
     }
@@ -380,6 +417,7 @@ export default function CreateLinksItemDialog({
     setSelectedTagIds(defaultTagIds);
     setActiveTab("link");
     setFolderName("");
+    setIconPickerOpen(false);
     setAlert({ open: false, title: "", description: "", variant: "success" });
     setLoadingData(true);
 
@@ -616,7 +654,7 @@ export default function CreateLinksItemDialog({
             }}
           >
           <TabsContent value="link" className="space-y-5">
-            <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(15rem,0.7fr)]">
+            <div className="grid gap-4 md:grid-cols-[3fr_1fr]">
               <div className="space-y-2">
                 <Label htmlFor="link-url">URL</Label>
                 <Input
@@ -642,32 +680,32 @@ export default function CreateLinksItemDialog({
 
             <div className="h-px w-full bg-white/10" />
 
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-4">
               <div className="space-y-2">
                 <Label htmlFor="link-title">Title</Label>
-                <Input
-                  id="link-title"
-                  value={title}
-                  onChange={(event) => {
-                    autoMetadataRef.current.title = "";
-                    setTitle(event.target.value);
-                  }}
-                  placeholder="n8n"
-                  required={activeTab === "link"}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="link-icon">Icon URL</Label>
-                <Input
-                  id="link-icon"
-                  value={iconUrl}
-                  onChange={(event) => {
-                    autoMetadataRef.current.iconUrl = "";
-                    setIconUrl(event.target.value);
-                  }}
-                  placeholder="https://.../favicon.ico"
-                />
+                <div className="flex items-center gap-2">
+                  <IconPickerButton
+                    value={iconUrl}
+                    open={iconPickerOpen}
+                    onOpenChange={setIconPickerOpen}
+                    onChange={(value) => {
+                      autoMetadataRef.current.iconUrl = "";
+                      setIconUrl(value);
+                      setIconPickerOpen(false);
+                    }}
+                  />
+                  <Input
+                    id="link-title"
+                    value={title}
+                    onChange={(event) => {
+                      autoMetadataRef.current.title = "";
+                      setTitle(event.target.value);
+                    }}
+                    placeholder="n8n"
+                    required={activeTab === "link"}
+                    className="min-w-0 flex-1"
+                  />
+                </div>
               </div>
             </div>
 
