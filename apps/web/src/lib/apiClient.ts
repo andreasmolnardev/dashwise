@@ -324,7 +324,7 @@ export async function getLinksFoldersAction(auth: ActionAuth, listId: string) {
   return extractData(await getLinksFolders({ query: { listId }, headers: authHeaders(auth) }));
 }
 
-export async function createLinksFolderAction(auth: ActionAuth, data: { list: string; name: string; parentFolder?: string }) {
+export async function createLinksFolderAction(auth: ActionAuth, data: { list: string; name: string; parentFolder?: string; icon?: string }) {
   return extractData(await postLinksFolders({ body: data, headers: authHeaders(auth) }));
 }
 

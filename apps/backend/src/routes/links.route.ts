@@ -60,6 +60,7 @@ linksRoute
       list: String(body?.list ?? ""),
       name: String(body?.name ?? ""),
       parentFolder: typeof body?.parentFolder === "string" ? body.parentFolder : undefined,
+      icon: typeof body?.icon === "string" ? body.icon : undefined,
     });
   }))
   .get("/api/v1/links/items", withJson(async (c) => {

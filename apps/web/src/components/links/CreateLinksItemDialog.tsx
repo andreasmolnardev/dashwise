@@ -368,10 +368,12 @@ export default function CreateLinksItemDialog({
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState<"link" | "folder">("link");
   const [folderName, setFolderName] = useState("");
+  const [folderIconUrl, setFolderIconUrl] = useState("");
   const [loadingData, setLoadingData] = useState(false);
   const [loadingMetadata, setLoadingMetadata] = useState(false);
   const [saving, setSaving] = useState(false);
   const [iconPickerOpen, setIconPickerOpen] = useState(false);
+  const [folderIconPickerOpen, setFolderIconPickerOpen] = useState(false);
   const [alert, setAlert] = useState<{ open: boolean; title: string; description?: string; variant?: "success" | "error" }>({ open: false, title: "", description: "", variant: "success" });
   const initializedTargetRef = useRef(false);
   const metadataRequestRef = useRef(0);
@@ -395,10 +397,12 @@ export default function CreateLinksItemDialog({
       setSelectedTagIds([]);
       setActiveTab("link");
       setFolderName("");
+      setFolderIconUrl("");
       setLoadingData(false);
       setLoadingMetadata(false);
       setSaving(false);
       setIconPickerOpen(false);
+      setFolderIconPickerOpen(false);
       setAlert({ open: false, title: "", description: "", variant: "success" });
       return;
     }
@@ -417,7 +421,9 @@ export default function CreateLinksItemDialog({
     setSelectedTagIds(defaultTagIds);
     setActiveTab("link");
     setFolderName("");
+    setFolderIconUrl("");
     setIconPickerOpen(false);
+    setFolderIconPickerOpen(false);
     setAlert({ open: false, title: "", description: "", variant: "success" });
     setLoadingData(true);
 
@@ -577,6 +583,7 @@ export default function CreateLinksItemDialog({
       list: selectedTarget.collectionId,
       name: folderName.trim(),
       parentFolder: selectedTarget.folderId,
+      icon: folderIconUrl.trim() || undefined,
     }));
 
     const createdFolder = created as FolderRecord;
@@ -748,13 +755,25 @@ export default function CreateLinksItemDialog({
 
             <div className="space-y-2">
               <Label htmlFor="folder-name">Folder name</Label>
-              <Input
-                id="folder-name"
-                value={folderName}
-                onChange={(event) => setFolderName(event.target.value)}
-                placeholder="New folder"
-                required={activeTab === "folder"}
-              />
+              <div className="flex items-center gap-2">
+                <IconPickerButton
+                  value={folderIconUrl}
+                  open={folderIconPickerOpen}
+                  onOpenChange={setFolderIconPickerOpen}
+                  onChange={(value) => {
+                    setFolderIconUrl(value);
+                    setFolderIconPickerOpen(false);
+                  }}
+                />
+                <Input
+                  id="folder-name"
+                  value={folderName}
+                  onChange={(event) => setFolderName(event.target.value)}
+                  placeholder="New folder"
+                  required={activeTab === "folder"}
+                  className="min-w-0 flex-1"
+                />
+              </div>
             </div>
           </TabsContent>
 
