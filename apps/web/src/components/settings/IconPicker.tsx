@@ -375,7 +375,9 @@ export default function IconPickerComponent({
 
     const getIconData = (icon: Icon): IconResult => {
         const iconSet = pickerSource === "mono" ? "mono" : "default";
-        const variant = icon.Light === "Yes" ? "light" : icon.Dark === "Yes" ? "dark" : "";
+        const variant = pickerSource === "mono"
+            ? icon.Light === "Yes" ? "light" : icon.Dark === "Yes" ? "dark" : ""
+            : "";
         const extension = icon.SVG === "Yes" ? "svg" : "png";
         const url = `/icons/${extension}/${icon.Reference}${variant ? `-${variant}` : ""}.${extension}`;
 
