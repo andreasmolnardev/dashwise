@@ -147,6 +147,9 @@ export default function LinksTagDetailPage() {
 
                     queryClient.setQueryData(["api", token, ...queryKeys.links.tagDetail(tagId)], (current: typeof detailQuery.data) => current ? { ...current, items: [link as LinkItemRecord, ...current.items.filter((item) => item.id !== link.id)] } : current);
                 }}
+                onFolderCreated={(folder) => {
+                    queryClient.setQueryData(["api", token, ...queryKeys.links.tagDetail(tagId)], (current: typeof detailQuery.data) => current ? { ...current, folders: [folder as LinkFolderRecord, ...current.folders.filter((item) => item.id !== folder.id)] } : current);
+                }}
             />
         </>
     );

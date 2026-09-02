@@ -4,8 +4,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import AppIcon from "@dashwise/app-icon";
 import {
   createLinkItemAction,
+  createLinksFolderAction,
   getLinksCollectionsAction,
   getLinksFoldersAction,
+  getLinksMetadataAction,
   getLinksTagsAction,
 } from '@/lib/apiClient';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -22,10 +24,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import useAuth from "@/context/useAuth";
 import { cn } from "@/lib/utils";
-import { Check, ChevronsUpDown } from "lucide-react";
+import IconPickerComponent, { type IconResult } from "@/components/settings/IconPicker";
+import { Check, ChevronsUpDown, FolderPlus, Link2 } from "lucide-react";
 
 type CollectionRecord = {
   id: string;
@@ -80,7 +84,42 @@ type Props = {
   defaultCollectionId?: string;
   defaultTagIds?: string[];
   onCreated?: (item: CreatedLinkItem) => void;
+  onFolderCreated?: (folder: FolderRecord) => void;
 };
+
+function IconPickerButton({
+  value,
+  open,
+  onOpenChange,
+  onChange,
+}: {
+  value: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <Popover open={open} onOpenChange={onOpenChange}>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          aria-label="Search icons or Enter URL"
+          title="Search icons or Enter URL"
+          className="h-9 w-9 shrink-0 rounded-md border-white/10 bg-white/5 p-0 text-white hover:bg-white/10"
+        >
+          {value ? <AppIcon source={value} alt="" size={20} imageClassName="object-contain" /> : null}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="frosted w-[min(42rem,calc(100vw-2rem))] p-3 text-foreground">
+        <IconPickerComponent
+          initialSelection={value ? { url: value } : null}
+          onSelect={(icon: IconResult) => onChange(icon.url?.trim() ?? "")}
+        />
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 function buildTargetGroups(collections: CollectionRecord[], folders: FolderRecord[]): TargetGroup[] {
   const foldersByCollection = new Map<string, FolderRecord[]>();
@@ -192,13 +231,13 @@ function ListFolderPicker({
           <ChevronsUpDown className="size-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[min(42rem,calc(100vw-2rem))] p-0">
-        <Command className="text-black">
+      <PopoverContent className="frosted text-foreground w-[min(42rem,calc(100vw-2rem))] p-0">
+        <Command className="text-foreground">
           <CommandInput placeholder="Search lists or folders..." className="h-9" />
           <CommandList>
             <CommandEmpty>No destinations found.</CommandEmpty>
             {groups.map((group) => (
-              <CommandGroup key={group.collection.id} heading={group.collection.name} className="text-black">
+              <CommandGroup key={group.collection.id} heading={group.collection.name} className="text-foreground">
                 {group.options.map((option) => (
                   <CommandItem
                     key={option.key}
@@ -286,12 +325,12 @@ function TagMultiSelect({
           <ChevronsUpDown className="size-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[min(32rem,calc(100vw-2rem))] p-0">
-        <Command className="text-black">
+      <PopoverContent className="frosted text-foreground w-[min(32rem,calc(100vw-2rem))] p-0">
+        <Command className="text-foreground">
           <CommandInput placeholder="Search tags..." className="h-9" />
           <CommandList>
             <CommandEmpty>No tags found.</CommandEmpty>
-            <CommandGroup className="text-black">
+            <CommandGroup className="text-foreground">
               {tags.map((tag) => (
                 <CommandItem key={tag.id} value={tag.name} onSelect={() => toggleTag(tag.id)}>
                   <span className="inline-flex items-center gap-2">
@@ -315,6 +354,7 @@ export default function CreateLinksItemDialog({
   defaultCollectionId,
   defaultTagIds = [],
   onCreated,
+  onFolderCreated,
 }: Props) {
   const { withAuth } = useAuth();
   const [title, setTitle] = useState("");
@@ -326,16 +366,26 @@ export default function CreateLinksItemDialog({
   const [tags, setTags] = useState<TagRecord[]>([]);
   const [selectedTargetKey, setSelectedTargetKey] = useState("");
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
+  const [activeTab, setActiveTab] = useState<"link" | "folder">("link");
+  const [folderName, setFolderName] = useState("");
+  const [folderIconUrl, setFolderIconUrl] = useState("");
   const [loadingData, setLoadingData] = useState(false);
+  const [loadingMetadata, setLoadingMetadata] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [iconPickerOpen, setIconPickerOpen] = useState(false);
+  const [folderIconPickerOpen, setFolderIconPickerOpen] = useState(false);
   const [alert, setAlert] = useState<{ open: boolean; title: string; description?: string; variant?: "success" | "error" }>({ open: false, title: "", description: "", variant: "success" });
   const initializedTargetRef = useRef(false);
+  const metadataRequestRef = useRef(0);
+  const autoMetadataRef = useRef({ title: "", iconUrl: "", description: "" });
 
   const defaultTagKey = defaultTagIds.join("|");
 
   useEffect(() => {
     if (!open) {
       initializedTargetRef.current = false;
+      metadataRequestRef.current += 1;
+      autoMetadataRef.current = { title: "", iconUrl: "", description: "" };
       setTitle("");
       setUrl("");
       setIconUrl("");
@@ -345,13 +395,21 @@ export default function CreateLinksItemDialog({
       setTags([]);
       setSelectedTargetKey("");
       setSelectedTagIds([]);
+      setActiveTab("link");
+      setFolderName("");
+      setFolderIconUrl("");
       setLoadingData(false);
+      setLoadingMetadata(false);
       setSaving(false);
+      setIconPickerOpen(false);
+      setFolderIconPickerOpen(false);
       setAlert({ open: false, title: "", description: "", variant: "success" });
       return;
     }
 
     initializedTargetRef.current = false;
+    metadataRequestRef.current += 1;
+    autoMetadataRef.current = { title: "", iconUrl: "", description: "" };
     setTitle("");
     setUrl("");
     setIconUrl("");
@@ -361,6 +419,11 @@ export default function CreateLinksItemDialog({
     setTags([]);
     setSelectedTargetKey("");
     setSelectedTagIds(defaultTagIds);
+    setActiveTab("link");
+    setFolderName("");
+    setFolderIconUrl("");
+    setIconPickerOpen(false);
+    setFolderIconPickerOpen(false);
     setAlert({ open: false, title: "", description: "", variant: "success" });
     setLoadingData(true);
 
@@ -420,6 +483,49 @@ export default function CreateLinksItemDialog({
     };
   }, [defaultTagKey, open, withAuth]);
 
+  useEffect(() => {
+    if (!open) return;
+
+    const requestId = ++metadataRequestRef.current;
+
+    const candidateUrl = url.trim();
+    let parsedUrl: URL;
+    try {
+      parsedUrl = new URL(candidateUrl);
+    } catch {
+      setLoadingMetadata(false);
+      return;
+    }
+
+    if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
+      setLoadingMetadata(false);
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      setLoadingMetadata(true);
+
+      void withAuth((auth) => getLinksMetadataAction(auth, candidateUrl))
+        .then((metadata) => {
+          if (requestId !== metadataRequestRef.current) return;
+
+          const previousAutoMetadata = autoMetadataRef.current;
+          setTitle((current) => !current.trim() || current === previousAutoMetadata.title ? metadata.title : current);
+          setIconUrl((current) => !current.trim() || current === previousAutoMetadata.iconUrl ? metadata.iconUrl : current);
+          setDescription((current) => !current.trim() || current === previousAutoMetadata.description ? metadata.description : current);
+          autoMetadataRef.current = metadata;
+        })
+        .catch(() => {
+          // Metadata is an enhancement; the link can still be entered manually.
+        })
+        .finally(() => {
+          if (requestId === metadataRequestRef.current) setLoadingMetadata(false);
+        });
+    }, 500);
+
+    return () => window.clearTimeout(timeout);
+  }, [open, url, withAuth]);
+
   const targetGroups = useMemo(() => buildTargetGroups(collections, folders), [collections, folders]);
   const allTargetOptions = useMemo(() => targetGroups.flatMap((group) => group.options), [targetGroups]);
   const tagsById = useMemo(() => new Map(tags.map((tag) => [tag.id, tag])), [tags]);
@@ -441,10 +547,6 @@ export default function CreateLinksItemDialog({
       initializedTargetRef.current = true;
     }
   }, [allTargetOptions, defaultCollectionId, open]);
-
-  const selectedTagRecords = selectedTagIds
-    .map((tagId) => tagsById.get(tagId))
-    .filter((tag): tag is TagRecord => Boolean(tag));
 
   const handleSave = async () => {
     if (!title.trim() || !url.trim() || !selectedTarget) return;
@@ -474,11 +576,31 @@ export default function CreateLinksItemDialog({
     onCreated?.(createdItem);
   };
 
+  const handleCreateFolder = async () => {
+    if (!folderName.trim() || !selectedTarget) return;
+
+    const created = await withAuth((auth) => createLinksFolderAction(auth, {
+      list: selectedTarget.collectionId,
+      name: folderName.trim(),
+      parentFolder: selectedTarget.folderId,
+      icon: folderIconUrl.trim() || undefined,
+    }));
+
+    const createdFolder = created as FolderRecord;
+    setAlert({
+      open: true,
+      title: "Folder created",
+      description: `Created folder "${folderName.trim()}".`,
+      variant: "success",
+    });
+    onFolderCreated?.(createdFolder);
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="frosted text-foreground max-w-3xl">
         <DialogHeader>
-          <DialogTitle>Add Link</DialogTitle>
+          <DialogTitle>Add to list</DialogTitle>
         </DialogHeader>
 
         {alert.open && (
@@ -500,73 +622,98 @@ export default function CreateLinksItemDialog({
           </Alert>
         )}
 
-        <form
-          className="space-y-5"
-          onSubmit={async (event) => {
-            event.preventDefault();
+        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "link" | "folder")} className="space-y-5">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="link" className="gap-2">
+              <Link2 />
+              Add link
+            </TabsTrigger>
+            <TabsTrigger value="folder" className="gap-2">
+              <FolderPlus />
+              Add folder
+            </TabsTrigger>
+          </TabsList>
 
-            try {
-              setSaving(true);
-              await handleSave();
-              onOpenChange(false);
-            } catch (error) {
-              const message = error instanceof Error ? error.message : String(error);
-              setAlert({
-                open: true,
-                title: "Failed to create link",
-                description: message,
-                variant: "error",
-              });
-            } finally {
-              setSaving(false);
-            }
-          }}
-        >
-          <div className="space-y-2">
-            <Label htmlFor="link-url">URL</Label>
-            <Input
-              id="link-url"
-              value={url}
-              onChange={(event) => setUrl(event.target.value)}
-              placeholder="https://n8n.io"
-              required
-            />
-          </div>
+          <form
+            className="space-y-5"
+            onSubmit={async (event) => {
+              event.preventDefault();
 
-          <div className="h-px w-full bg-white/10" />
+              try {
+                setSaving(true);
+                if (activeTab === "link") {
+                  await handleSave();
+                } else {
+                  await handleCreateFolder();
+                }
+                onOpenChange(false);
+              } catch (error) {
+                const message = error instanceof Error ? error.message : String(error);
+                setAlert({
+                  open: true,
+                  title: activeTab === "link" ? "Failed to create link" : "Failed to create folder",
+                  description: message,
+                  variant: "error",
+                });
+              } finally {
+                setSaving(false);
+              }
+            }}
+          >
+          <TabsContent value="link" className="space-y-5">
+            <div className="grid gap-4 md:grid-cols-[3fr_1fr]">
+              <div className="space-y-2">
+                <Label htmlFor="link-url">URL</Label>
+                <Input
+                  id="link-url"
+                  value={url}
+                  onChange={(event) => setUrl(event.target.value)}
+                  placeholder="https://n8n.io"
+                  required={activeTab === "link"}
+                />
+                {loadingMetadata && <p className="text-xs text-white/55" aria-live="polite">Fetching link details…</p>}
+              </div>
 
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="link-title">Title</Label>
-              <Input
-                id="link-title"
-                value={title}
-                onChange={(event) => setTitle(event.target.value)}
-                placeholder="n8n"
-                required
-              />
+              <div className="space-y-2">
+                <Label>List / folder</Label>
+                <ListFolderPicker
+                  groups={targetGroups}
+                  value={selectedTargetKey}
+                  onChange={setSelectedTargetKey}
+                  disabled={loadingData || targetGroups.length === 0}
+                />
+              </div>
             </div>
 
-            <div className="space-y-2">
-              <Label>List / Folder</Label>
-              <ListFolderPicker
-                groups={targetGroups}
-                value={selectedTargetKey}
-                onChange={setSelectedTargetKey}
-                disabled={loadingData || targetGroups.length === 0}
-              />
-            </div>
-          </div>
+            <div className="h-px w-full bg-white/10" />
 
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="link-icon">Icon URL</Label>
-              <Input
-                id="link-icon"
-                value={iconUrl}
-                onChange={(event) => setIconUrl(event.target.value)}
-                placeholder="https://.../favicon.ico"
-              />
+            <div className="grid gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="link-title">Title</Label>
+                <div className="flex items-center gap-2">
+                  <IconPickerButton
+                    value={iconUrl}
+                    open={iconPickerOpen}
+                    onOpenChange={setIconPickerOpen}
+                    onChange={(value) => {
+                      autoMetadataRef.current.iconUrl = "";
+                      setIconUrl(value);
+                      setIconPickerOpen(false);
+                    }}
+                  />
+                  <Input
+                    id="link-title"
+                    value={title}
+                    onChange={(event) => {
+                      autoMetadataRef.current.title = "";
+                      setTitle(event.target.value);
+                    }}
+                    placeholder="n8n"
+                    required={activeTab === "link"}
+                    className="min-w-0 flex-1"
+                  />
+                </div>
+              </div>
             </div>
 
             <div className="space-y-2">
@@ -578,28 +725,68 @@ export default function CreateLinksItemDialog({
                 disabled={loadingData || tags.length === 0}
               />
             </div>
-          </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="link-description">Description</Label>
-            <Textarea
-              id="link-description"
-              value={description}
-              onChange={(event) => setDescription(event.target.value)}
-              rows={3}
-              placeholder="Optional note"
-            />
-          </div>
+            <div className="space-y-2">
+              <Label htmlFor="link-description">Description</Label>
+              <Textarea
+                id="link-description"
+                value={description}
+                onChange={(event) => {
+                  autoMetadataRef.current.description = "";
+                  setDescription(event.target.value);
+                }}
+                rows={3}
+                placeholder="Optional note"
+              />
+            </div>
+          </TabsContent>
+
+          <TabsContent value="folder" className="space-y-5">
+            <div className="space-y-2">
+              <Label>List / parent folder</Label>
+              <ListFolderPicker
+                groups={targetGroups}
+                value={selectedTargetKey}
+                onChange={setSelectedTargetKey}
+                disabled={loadingData || targetGroups.length === 0}
+              />
+              <p className="text-xs text-white/55">Choose a folder to create a nested folder, or choose a list to create one at the top level.</p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="folder-name">Folder name</Label>
+              <div className="flex items-center gap-2">
+                <IconPickerButton
+                  value={folderIconUrl}
+                  open={folderIconPickerOpen}
+                  onOpenChange={setFolderIconPickerOpen}
+                  onChange={(value) => {
+                    setFolderIconUrl(value);
+                    setFolderIconPickerOpen(false);
+                  }}
+                />
+                <Input
+                  id="folder-name"
+                  value={folderName}
+                  onChange={(event) => setFolderName(event.target.value)}
+                  placeholder="New folder"
+                  required={activeTab === "folder"}
+                  className="min-w-0 flex-1"
+                />
+              </div>
+            </div>
+          </TabsContent>
 
           <div className="flex justify-end gap-2">
             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={saving || loadingData || !selectedTarget}>
-              {saving ? "Creating..." : "Create link"}
+            <Button type="submit" disabled={saving || loadingData || !selectedTarget || (activeTab === "link" ? !title.trim() || !url.trim() : !folderName.trim())}>
+              {saving ? "Creating..." : activeTab === "link" ? "Create link" : "Create folder"}
             </Button>
           </div>
-        </form>
+          </form>
+        </Tabs>
       </DialogContent>
     </Dialog>
   );

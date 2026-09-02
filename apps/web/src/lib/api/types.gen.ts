@@ -417,6 +417,28 @@ export type PostLinksCollectionsResponses = {
 
 export type PostLinksCollectionsResponse = PostLinksCollectionsResponses[keyof PostLinksCollectionsResponses];
 
+export type GetLinksMetadataData = {
+    body?: never;
+    path?: never;
+    query: {
+        url: string;
+    };
+    url: '/links/metadata';
+};
+
+export type GetLinksMetadataResponses = {
+    /**
+     * OK
+     */
+    200: {
+        title: string;
+        description: string;
+        iconUrl: string;
+    };
+};
+
+export type GetLinksMetadataResponse = GetLinksMetadataResponses[keyof GetLinksMetadataResponses];
+
 export type GetLinksHomeGroupsData = {
     body?: never;
     path?: never;

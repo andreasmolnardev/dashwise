@@ -20,7 +20,7 @@ import { getClientSessionHeaders } from "@/lib/session";
 import { client } from "./api/client.gen";
 import * as sdk from "./api/sdk.gen";
 
-const { getAppConfig, getAppInfo, postAuthLogin, postAuthChangePassword, postAuthSignup, postAuthValidateAuth, deleteAuthDeleteAccount, patchAuthUpdateUserProperty, getLinksCollections, postLinksCollections, putLinksCollectionsByCollectionId, postLinksTags, putLinksTagsByTagId, getLinksHomeGroups, postLinksHomeGroups, putLinksFoldersByFolderIdIcon, getLinksHome, getLinksFolders, postLinksFolders, getLinksItems, getLinksTags, postLinksItems, putLinksItemsByLinkId, deleteLinksItemsByLinkId, postLinksReorder, getIntegrations, postIntegrations, putIntegrationsById, deleteIntegrationsById, postIntegrationsTestEndpoint, getIntegrationsWidgetProperties, getWidgetsByIntegration, postIntegrationsConsumerData, getIntegrationsCaldavEvents, postIntegrationsProxyAction, getWidgets, getGlanceables, getGlanceablesByIntegration, getMonitoringStatus, postMonitoringStatus, getMonitoringSshHosts, postMonitoringSshHosts, putMonitoringSshHostsById, getMonitoringHosts, postMonitoringHosts, getMonitoringHostsByIdHistory, getMonitors, getMonitorsById, putMonitorsById, postMonitors, deleteMonitorsById, getNewsFeedRecordsById, postNewsFeedRecords, getNewsSubscriptions, getNewsFeeds, getNewsFeedMetadata, postNewsFeedRefresh, postNewsFeedSubscribe, postNewsFeedUnsubscribe, postNewsFeedUpdate, postNewsFeedRecordsById, postNewsFixMissingTitles, getPageConfig, getPageConfigUserPages, putPageConfig, postPageConfigHome, postPageConfigMigrateLegacy, postPageConfigIntegrationData, getShortcuts, getShortcutsFrequentlyUsed, postShortcutsUsageStats, getLocations, getJobsPullIcons, getNotifications, getNotificationsTopics, postNotificationsTopics, deleteNotificationsTopics, postNotificationsMarkAsRead, postNotificationsTest, getNotificationsTopicTokens, postNotificationsTopicTokens, deleteNotificationsTopicTokens, putNotificationsTopicTokens, getNotificationsForwarders, postNotificationsForwarders, putNotificationsForwarders, deleteNotificationsForwarders, postNotificationsForwardersTest } = sdk;
+const { getAppConfig, getAppInfo, postAuthLogin, postAuthChangePassword, postAuthSignup, postAuthValidateAuth, deleteAuthDeleteAccount, patchAuthUpdateUserProperty, getLinksCollections, getLinksMetadata, postLinksCollections, putLinksCollectionsByCollectionId, postLinksTags, putLinksTagsByTagId, getLinksHomeGroups, postLinksHomeGroups, putLinksFoldersByFolderIdIcon, getLinksHome, getLinksFolders, postLinksFolders, getLinksItems, getLinksTags, postLinksItems, putLinksItemsByLinkId, deleteLinksItemsByLinkId, postLinksReorder, getIntegrations, postIntegrations, putIntegrationsById, deleteIntegrationsById, postIntegrationsTestEndpoint, getIntegrationsWidgetProperties, getWidgetsByIntegration, postIntegrationsConsumerData, getIntegrationsCaldavEvents, postIntegrationsProxyAction, getWidgets, getGlanceables, getGlanceablesByIntegration, getMonitoringStatus, postMonitoringStatus, getMonitoringSshHosts, postMonitoringSshHosts, putMonitoringSshHostsById, getMonitoringHosts, postMonitoringHosts, getMonitoringHostsByIdHistory, getMonitors, getMonitorsById, putMonitorsById, postMonitors, deleteMonitorsById, getNewsFeedRecordsById, postNewsFeedRecords, getNewsSubscriptions, getNewsFeeds, getNewsFeedMetadata, postNewsFeedRefresh, postNewsFeedSubscribe, postNewsFeedUnsubscribe, postNewsFeedUpdate, postNewsFeedRecordsById, postNewsFixMissingTitles, getPageConfig, getPageConfigUserPages, putPageConfig, postPageConfigHome, postPageConfigMigrateLegacy, postPageConfigIntegrationData, getShortcuts, getShortcutsFrequentlyUsed, postShortcutsUsageStats, getLocations, getJobsPullIcons, getNotifications, getNotificationsTopics, postNotificationsTopics, deleteNotificationsTopics, postNotificationsMarkAsRead, postNotificationsTest, getNotificationsTopicTokens, postNotificationsTopicTokens, deleteNotificationsTopicTokens, putNotificationsTopicTokens, getNotificationsForwarders, postNotificationsForwarders, putNotificationsForwarders, deleteNotificationsForwarders, postNotificationsForwardersTest } = sdk;
 export * from "./api/sdk.gen";
 export type { GenericObject, Error } from "./api/types.gen";
 
@@ -278,6 +278,16 @@ export async function getLinksCollectionsAction(auth: ActionAuth) {
   return extractData(await getLinksCollections({ headers: authHeaders(auth) }));
 }
 
+export type LinkMetadata = {
+  title: string;
+  description: string;
+  iconUrl: string;
+};
+
+export async function getLinksMetadataAction(auth: ActionAuth, url: string): Promise<LinkMetadata> {
+  return extractData(await getLinksMetadata({ query: { url }, headers: authHeaders(auth) }));
+}
+
 export async function createLinksCollectionAction(auth: ActionAuth, data: { name: string; description?: string; icon?: string }) {
   return extractData(await postLinksCollections({ body: data, headers: authHeaders(auth) }));
 }
@@ -314,7 +324,7 @@ export async function getLinksFoldersAction(auth: ActionAuth, listId: string) {
   return extractData(await getLinksFolders({ query: { listId }, headers: authHeaders(auth) }));
 }
 
-export async function createLinksFolderAction(auth: ActionAuth, data: { list: string; name: string; parentFolder?: string }) {
+export async function createLinksFolderAction(auth: ActionAuth, data: { list: string; name: string; parentFolder?: string; icon?: string }) {
   return extractData(await postLinksFolders({ body: data, headers: authHeaders(auth) }));
 }
 
