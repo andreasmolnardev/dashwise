@@ -57,6 +57,7 @@ import { updateLinksOrderAction } from '@/lib/apiClient';
 
 const HOME_LINKS_CACHE_PREFIX = "dashwise_home_links_cache_v1";
 const DEFAULT_LINK_GROUP = "Default";
+const MOBILE_BREAKPOINT = 768;
 
 type Item =
   | { type: "link"; link: LinkType }
@@ -196,6 +197,13 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
   const { token, user, withAuth } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
+  const [viewportWidth, setViewportWidth] = useState(() =>
+    typeof window === "undefined" ? MOBILE_BREAKPOINT : window.innerWidth,
+  );
+  const isMobile = viewportWidth < MOBILE_BREAKPOINT;
+  const isTouchScreen = typeof window !== "undefined" &&
+    ("ontouchstart" in window || navigator.maxTouchPoints > 0);
+  const dragDisabled = isMobile || isTouchScreen;
   const linkTileStyle = user?.appearancePreferences?.linkTileStyle === "compact"
     ? "compact"
     : "default";
@@ -239,6 +247,14 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
 
     fetchLinks();
   }, [user?.id, withAuth]);
+
+  useEffect(() => {
+    const updateViewportWidth = () => setViewportWidth(window.innerWidth);
+
+    updateViewportWidth();
+    window.addEventListener("resize", updateViewportWidth);
+    return () => window.removeEventListener("resize", updateViewportWidth);
+  }, []);
 
   const [activeCollection, setActiveCollection] = useState<string | null>(null);
 
@@ -465,16 +481,15 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
     [user?.id],
   );
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 8,
-      },
-    }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    }),
-  );
+  const pointerSensor = useSensor(PointerSensor, {
+    activationConstraint: {
+      distance: 8,
+    },
+  });
+  const keyboardSensor = useSensor(KeyboardSensor, {
+    coordinateGetter: sortableKeyboardCoordinates,
+  });
+  const sensors = useSensors(...(dragDisabled ? [] : [pointerSensor, keyboardSensor]));
 
   const getItemId = React.useCallback((item: Item) => {
     return item.type === "link"
@@ -644,7 +659,11 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
             columnGap={linkTileStyle === "compact" ? 24 : undefined}
           >
             {items.map((item, itemIdx) => (
-              <SortableTileWrapper key={getItemId(item)} id={getItemId(item)}>
+              <SortableTileWrapper
+                key={getItemId(item)}
+                id={getItemId(item)}
+                disabled={dragDisabled}
+              >
                 {renderItem(item, itemIdx)}
               </SortableTileWrapper>
             ))}
@@ -1013,7 +1032,7 @@ function CompactLinkTile({
 }
 
 function SortableTileWrapper(
-  { id, children }: { id: string; children: React.ReactNode },
+  { id, children, disabled }: { id: string; children: React.ReactNode; disabled?: boolean },
 ) {
   const {
     attributes,
@@ -1022,7 +1041,7 @@ function SortableTileWrapper(
     transform,
     transition,
     isDragging,
-  } = useSortable({ id });
+  } = useSortable({ id, disabled });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -1035,7 +1054,7 @@ function SortableTileWrapper(
     <div
       ref={setNodeRef}
       style={style}
-      className="touch-none select-none"
+      className={disabled ? "touch-auto select-auto" : "touch-none select-none"}
       {...attributes}
       {...listeners}
     >
