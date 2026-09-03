@@ -6,7 +6,6 @@ import {
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuLabel,
-    DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
@@ -19,13 +18,17 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Check, MoreHorizontal, Plus } from "lucide-react";
+import { Check, MoreHorizontal, Pencil, Plus } from "lucide-react";
+import { Icon } from "@iconify-icon/react";
 import { cn } from "@/lib/utils";
+import config from "@/lib/config";
 import {
     createNotificationTopicAction,
     deleteNotificationTopicAction,
+    getNotificationsAction,
     getNotificationTopicsAction,
     markNotificationsAsReadAction,
+    testForwarderAction,
 } from '@/lib/apiClient';
 import { getForwardersAction } from '@/lib/apiClient';
 import { listTopicTokensAction } from '@/lib/apiClient';
@@ -36,7 +39,7 @@ import { useActivity } from "@/context/ActivityContext";
 import { useApiMutation } from "@/hooks/useApiMutation";
 import { useApiQuery } from "@/hooks/useApiQuery";
 import { queryKeys } from "@/lib/queryClient";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 
 export type NotificationItem = {
     id: string;
@@ -120,14 +123,14 @@ function getNotificationDescription(notif: NotificationItem): React.ReactNode {
 }
 
 export default function NotificationsPage() {
-    const { token, withAuth } = useAuth();
+    const { token } = useAuth();
     const queryClient = useQueryClient();
     const { refresh, markNotificationsAsRead: updateNotifications } = useActivity();
-    const notificationsQuery = useQuery<NotificationItem[]>({
-        queryKey: ["api", token, ...queryKeys.notifications.items(token)],
-        enabled: false,
-    });
-    const notifications = (notificationsQuery.data ?? []) as NotificationItem[];
+    const notificationsQuery = useApiQuery(
+        queryKeys.notifications.items(token),
+        getNotificationsAction,
+    );
+    const notifications = (notificationsQuery.data?.items ?? []) as NotificationItem[];
     const topicsQuery = useApiQuery(queryKeys.notifications.topics(token), getNotificationTopicsAction);
     const topics = (topicsQuery.data?.items ?? []) as TopicItem[];
     const [activeTopic, setActiveTopic] = useState<string | null>(null);
@@ -135,10 +138,10 @@ export default function NotificationsPage() {
     const [createTopicTitle, setCreateTopicTitle] = useState("");
     const [creatingTopic, setCreatingTopic] = useState(false);
     const [topicForToken, setTopicForToken] = useState<TopicItem | null>(null);
+    const [topicTokenToEdit, setTopicTokenToEdit] = useState<TopicTokenItem | null>(null);
     const [topicForForwarder, setTopicForForwarder] = useState<
         TopicItem | null
     >(null);
-    const [topicToDelete, setTopicToDelete] = useState<TopicItem | null>(null);
     const [helpOpen, setHelpOpen] = useState(false);
     const [notificationDetailsOpen, setNotificationDetailsOpen] =
         useState(false);
@@ -155,6 +158,7 @@ export default function NotificationsPage() {
         TopicForwarderItem[]
     >([]);
     const [topicDetailsLoading, setTopicDetailsLoading] = useState(false);
+    const [testingForwarderId, setTestingForwarderId] = useState<string | null>(null);
     const [topicDetailsSection, setTopicDetailsSection] = useState<
         "tokens" | "forwarders" | null
     >(null);
@@ -189,6 +193,25 @@ export default function NotificationsPage() {
     );
     const createTopicMutation = useApiMutation((auth, title: string) => createNotificationTopicAction(auth, title), { onSuccess: invalidateNotifications });
     const deleteTopicMutation = useApiMutation((auth, topicId: string) => deleteNotificationTopicAction(auth, topicId), { onSuccess: invalidateNotifications });
+    const testForwarderMutation = useApiMutation(testForwarderAction);
+    const invalidateTopicTokens = useCallback(() => {
+        void queryClient.invalidateQueries({
+            queryKey: ["api", token, ...queryKeys.notifications.tokens(token)],
+        });
+    }, [queryClient, token]);
+
+    const testForwarder = async (forwarderId: string) => {
+        setTestingForwarderId(forwarderId);
+        try {
+            await testForwarderMutation.mutateAsync(forwarderId);
+            alert("Test notification sent");
+        } catch (err) {
+            console.error("Failed to test forwarder:", err);
+            alert("Failed to send test notification");
+        } finally {
+            setTestingForwarderId(null);
+        }
+    };
 
     useEffect(() => {
         if (!topicDetailsOpen || !topicDetailsSection) return;
@@ -286,9 +309,13 @@ export default function NotificationsPage() {
 
         try {
             await deleteTopicMutation.mutateAsync(topic.id);
-            setTopicToDelete(null);
             if (activeTopic === topic.id) {
                 setActiveTopic(null);
+            }
+            if (topicDetailsTopic?.id === topic.id) {
+                setTopicDetailsOpen(false);
+                setTopicDetailsTopic(null);
+                setTopicDetailsSection(null);
             }
         } catch (err) {
             console.error("Failed to delete topic:", err);
@@ -310,6 +337,33 @@ export default function NotificationsPage() {
         setTopicDetailsTokens([]);
         setTopicDetailsForwarders([]);
         setTopicDetailsOpen(true);
+    };
+
+    const returnToTopicDetails = () => {
+        setTopicForToken(null);
+        setTopicTokenToEdit(null);
+        setTopicForForwarder(null);
+        setTopicDetailsOpen(true);
+    };
+
+    const usageToken = topicDetailsTokens.find((item) => item.token)?.token ?? null;
+    const usageBaseUrl = config.backend_url.replace(/\/+$/, "");
+    const usageShoutrrr = usageToken
+        ? `generic://${usageBaseUrl.replace(/^https?:\/\//, "")}/api/v1/notifications/${usageToken}?template=json`
+        : null;
+    const usageCurl = usageToken
+        ? `curl -X POST "${usageBaseUrl}/api/v1/notifications/${usageToken}" \\\n+  -H "Content-Type: application/json" \\
+  -d '{"message":"Hello from your automation"}'`
+            .replace(/\n\+/g, "\n")
+        : null;
+    const copyUsage = async (value: string | null) => {
+        if (!value) return;
+        try {
+            await navigator.clipboard.writeText(value);
+        } catch (err) {
+            console.error("Failed to copy usage example:", err);
+            alert("Failed to copy usage example");
+        }
     };
 
     return (
@@ -339,9 +393,10 @@ export default function NotificationsPage() {
                                 <Check className="h-4 w-4" />
                             </Button>
                         </div>
-                    )}
-                </div>
-                <div className="flex items-center gap-2">
+                                 )}
+                             </div>
+
+                  <div className="flex items-center gap-2">
                     <Button
                         variant="ghost"
                         size="sm"
@@ -361,8 +416,8 @@ export default function NotificationsPage() {
                         className={cn(
                             "px-4 py-2 rounded-xl text-sm font-medium transition whitespace-nowrap",
                             activeTopic === null
-                                ? "bg-white/20 backdrop-blur-md text-white border border-primary"
-                                : "bg-white/10 text-gray-100 hover:bg-white/20",
+                                ? "frosted-lite-control-active backdrop-blur-md text-white border border-primary"
+                                : "frosted-lite-control text-gray-100",
                         )}
                     >
                         All
@@ -374,70 +429,34 @@ export default function NotificationsPage() {
                             className="flex items-center gap-1 shrink-0"
                         >
                             <button
-                                onClick={() => setActiveTopic(topic.id)}
+                                onClick={() => {
+                                    if (activeTopic === topic.id) {
+                                        openTopicDetails(topic, "tokens");
+                                    } else {
+                                        setActiveTopic(topic.id);
+                                    }
+                                }}
                                 className={cn(
                                     "px-4 py-2 rounded-l-xl rounded-r-sm text-sm font-medium transition whitespace-nowrap",
                                     activeTopic === topic.id
-                                        ? "bg-white/20 backdrop-blur-md text-white border border-primary"
-                                        : "bg-white/10 text-gray-100 hover:bg-white/20",
+                                        ? "frosted-lite-control-active backdrop-blur-md text-white border border-primary"
+                                        : "frosted-lite-control text-gray-100",
                                 )}
                             >
                                 {topic.title}
                             </button>
 
-                            <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-9 w-9 rounded-r-xl rounded-l-sm bg-white/10 hover:bg-white/20"
-                                    >
-                                        <MoreHorizontal className="h-4 w-4" />
-                                    </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent
-                                    align="start"
-                                    className="frosted text-foreground"
-                                >
-                                    <DropdownMenuLabel className="font-semibold">
-                                        Topic actions
-                                    </DropdownMenuLabel>
-                                    <DropdownMenuItem
-                                        onClick={() =>
-                                            openTopicDetails(topic, "tokens")}
-                                    >
-                                        View topic tokens
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem
-                                        onClick={() =>
-                                            openTopicDetails(
-                                                topic,
-                                                "forwarders",
-                                            )}
-                                    >
-                                        View topic forwarders
-                                    </DropdownMenuItem>
-                                    <DropdownMenuSeparator />
-                                    <DropdownMenuItem
-                                        onClick={() => setTopicForToken(topic)}
-                                    >
-                                        New topic token
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem
-                                        onClick={() =>
-                                            setTopicForForwarder(topic)}
-                                    >
-                                        New topic forwarder
-                                    </DropdownMenuItem>
-                                    <DropdownMenuSeparator />
-                                    <DropdownMenuItem
-                                        className="text-red-300 focus:text-red-200"
-                                        onClick={() => setTopicToDelete(topic)}
-                                    >
-                                        Delete topic and messages
-                                    </DropdownMenuItem>
-                                </DropdownMenuContent>
-                            </DropdownMenu>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-9 w-9 rounded-r-xl rounded-l-sm frosted-lite-control"
+                                onClick={() => openTopicDetails(topic, "tokens")}
+                                aria-label={`View ${topic.title} details`}
+                                title="View topic details"
+                            >
+                                <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+
                         </div>
                     ))}
 
@@ -736,7 +755,9 @@ export default function NotificationsPage() {
             >
                 <DialogContent className="frosted text-foreground max-w-3xl">
                     <DialogHeader>
-                        <DialogTitle>Topic details</DialogTitle>
+                        <DialogTitle>
+                            Topic: {topicDetailsTopic?.title ?? ""}
+                        </DialogTitle>
                     </DialogHeader>
 
                     {topicDetailsLoading ? (
@@ -750,6 +771,21 @@ export default function NotificationsPage() {
                                     <h3 className="font-semibold">
                                         Topic tokens
                                     </h3>
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-8 w-8 p-0"
+                                        onClick={() => {
+                                            if (!topicDetailsTopic) return;
+                                            setTopicTokenToEdit(null);
+                                            setTopicForToken(topicDetailsTopic);
+                                            setTopicDetailsOpen(false);
+                                        }}
+                                        aria-label="Create topic token"
+                                        title="Create topic token"
+                                    >
+                                        <Plus className="h-4 w-4" />
+                                    </Button>
                                 </div>
 
                                 {topicDetailsTokens.length === 0 ? (
@@ -773,19 +809,33 @@ export default function NotificationsPage() {
                                                                 "(hidden)"}
                                                         </div>
                                                     </div>
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        onClick={() =>
-                                                            item.token &&
+                                                     <Button
+                                                         variant="ghost"
+                                                         size="sm"
+                                                         onClick={() =>
+                                                             item.token &&
                                                             navigator.clipboard
                                                                 .writeText(
                                                                     item
                                                                         .token,
                                                                 )}
-                                                    >
-                                                        Copy
-                                                    </Button>
+                                                     >
+                                                         Copy
+                                                     </Button>
+                                                     <Button
+                                                         variant="ghost"
+                                                         size="sm"
+                                                         onClick={() => {
+                                                             if (!topicDetailsTopic) return;
+                                                             setTopicTokenToEdit(item);
+                                                             setTopicForToken(topicDetailsTopic);
+                                                             setTopicDetailsOpen(false);
+                                                         }}
+                                                         aria-label="Edit topic token"
+                                                         title="Edit topic token"
+                                                     >
+                                                         <Pencil className="h-4 w-4" />
+                                                     </Button>
                                                 </div>
                                                 <div className="mt-2 text-xs text-muted-foreground">
                                                     {item.expires
@@ -797,10 +847,34 @@ export default function NotificationsPage() {
                                             </div>
                                         ))}
                                     </div>
-                                )}
-                            </div>
+                                 )}
 
-                            <div
+                                 <div className="space-y-2 pt-2">
+                                     <h3 className="font-semibold">Usage</h3>
+                                     <button
+                                         type="button"
+                                         disabled={!usageShoutrrr}
+                                         onClick={() => copyUsage(usageShoutrrr)}
+                                         className="grid w-full grid-cols-[auto_1fr_auto] items-center gap-3 rounded-md border border-transparent p-1.5 text-left transition hover:bg-white/5 disabled:pointer-events-none disabled:opacity-50"
+                                     >
+                                         <Icon icon="fa6-solid:paper-plane" />
+                                         <span>Copy Shoutrrr</span>
+                                         <Icon icon="fa6-solid:caret-right" />
+                                     </button>
+                                     <button
+                                         type="button"
+                                         disabled={!usageCurl}
+                                         onClick={() => copyUsage(usageCurl)}
+                                         className="grid w-full grid-cols-[auto_1fr_auto] items-center gap-3 rounded-md border border-transparent p-1.5 text-left transition hover:bg-white/5 disabled:pointer-events-none disabled:opacity-50"
+                                     >
+                                         <Icon icon="fa6-solid:code" />
+                                         <span>Copy CURL</span>
+                                         <Icon icon="fa6-solid:caret-right" />
+                                     </button>
+                                 </div>
+                             </div>
+
+                             <div
                                 ref={forwardersSectionRef}
                                 className="space-y-3"
                             >
@@ -808,6 +882,20 @@ export default function NotificationsPage() {
                                     <h3 className="font-semibold">
                                         Forwarders
                                     </h3>
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-8 w-8 p-0"
+                                        onClick={() => {
+                                            if (!topicDetailsTopic) return;
+                                            setTopicForForwarder(topicDetailsTopic);
+                                            setTopicDetailsOpen(false);
+                                        }}
+                                        aria-label="Create topic forwarder"
+                                        title="Create topic forwarder"
+                                    >
+                                        <Plus className="h-4 w-4" />
+                                    </Button>
                                 </div>
 
                                 {topicDetailsForwarders.length === 0 ? (
@@ -827,18 +915,28 @@ export default function NotificationsPage() {
                                                         {item.target ||
                                                             "(missing target)"}
                                                     </div>
-                                                    <span
-                                                        className={cn(
-                                                            "rounded-full px-2 py-1 text-xs font-semibold",
-                                                            item.isActive
-                                                                ? "bg-emerald-500/20 text-emerald-100"
-                                                                : "bg-amber-500/20 text-amber-100",
-                                                        )}
-                                                    >
-                                                        {item.isActive
-                                                            ? "Active"
-                                                            : "Paused"}
-                                                    </span>
+                                                    <div className="flex items-center gap-2">
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            onClick={() => testForwarder(item.id)}
+                                                            disabled={testingForwarderId !== null}
+                                                        >
+                                                            {testingForwarderId === item.id ? "Testing..." : "Test"}
+                                                        </Button>
+                                                        <span
+                                                            className={cn(
+                                                                "rounded-full px-2 py-1 text-xs font-semibold",
+                                                                item.isActive
+                                                                    ? "bg-emerald-500/20 text-emerald-100"
+                                                                    : "bg-amber-500/20 text-amber-100",
+                                                            )}
+                                                        >
+                                                            {item.isActive
+                                                                ? "Active"
+                                                                : "Paused"}
+                                                        </span>
+                                                    </div>
                                                 </div>
                                                 {item.updated && (
                                                     <div className="mt-1 text-xs text-muted-foreground">
@@ -856,7 +954,15 @@ export default function NotificationsPage() {
                         </div>
                     )}
 
-                    <DialogFooter>
+                    <DialogFooter className="flex-row justify-between">
+                        <Button
+                            variant="destructive-ghost"
+                            onClick={() =>
+                                topicDetailsTopic && deleteTopic(topicDetailsTopic)}
+                            disabled={!topicDetailsTopic}
+                        >
+                            Delete topic &amp; messages
+                        </Button>
                         <Button
                             variant="ghost"
                             onClick={() => setTopicDetailsOpen(false)}
@@ -870,10 +976,16 @@ export default function NotificationsPage() {
             <CreateTopicTokenDialogComponent
                 open={Boolean(topicForToken)}
                 onOpenChange={(open) => {
-                    if (!open) setTopicForToken(null);
+                    if (!open) {
+                        setTopicForToken(null);
+                        setTopicTokenToEdit(null);
+                    }
                 }}
                 topics={topicForTokenItems}
                 initialTopic={topicForToken}
+                initialToken={topicTokenToEdit}
+                onTokenCreated={invalidateTopicTokens}
+                onBack={returnToTopicDetails}
             />
 
             <CreateForwarderDialogComponent
@@ -883,42 +995,9 @@ export default function NotificationsPage() {
                 }}
                 topics={topicForTokenItems}
                 initialTopic={topicForForwarder}
+                onBack={returnToTopicDetails}
             />
 
-            <Dialog
-                open={Boolean(topicToDelete)}
-                onOpenChange={(open) => {
-                    if (!open) setTopicToDelete(null);
-                }}
-            >
-                <DialogContent className="frosted text-foreground">
-                    <DialogHeader>
-                        <DialogTitle>Delete topic</DialogTitle>
-                        <DialogDescription>
-                            {topicToDelete
-                                ? `This will permanently delete \"${topicToDelete.title}\" and all messages, tokens, and forwarders attached to it.`
-                                : "This will permanently delete the topic and all attached records."}
-                        </DialogDescription>
-                    </DialogHeader>
-
-                    <DialogFooter>
-                        <Button
-                            variant="ghost"
-                            onClick={() => setTopicToDelete(null)}
-                        >
-                            Cancel
-                        </Button>
-                        <Button
-                            variant="destructive"
-                            onClick={() =>
-                                topicToDelete && deleteTopic(topicToDelete)}
-                            disabled={!topicToDelete}
-                        >
-                            Delete topic
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
         </>
     );
 }

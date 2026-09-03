@@ -89,5 +89,33 @@
         "secondary": "Dashwise",
         "action": "url:/settings/screensaver",
         "tags": ["Settings", "Preferences", "Frame", "Screensaver"]
+    },
+    {
+        "name": "Log out",
+        "icon": "fa6-solid:right-from-bracket",
+        "secondary": "Dashwise",
+        "action": "logout:",
+        "tags": ["Log out", "Logout", "Sign out", "Signout"]
+    },
+    {
+        "name": "Toggle privacy mode",
+        "icon": "fa6-solid:eye-slash",
+        "secondary": "Dashwise",
+        "action": "privacy:",
+        "tags": ["Privacy", "Privacy mode", "Toggle privacy", "Dashboard privacy"]
+    },
+    {
+        "name": "Toggle theme",
+        "icon": "fa6-solid:circle-half-stroke",
+        "secondary": "Dashwise",
+        "action": "theme:",
+        "tags": ["Theme", "Light", "Dark", "Appearance"]
+    },
+    {
+        "name": "Toggle link tile layout",
+        "icon": "fa6-solid:grip-lines",
+        "secondary": "Dashwise",
+        "action": "link-tile-layout:",
+        "tags": ["Links", "Link tiles", "Layout", "Compact", "Default"]
     }
 ]

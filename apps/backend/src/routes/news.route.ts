@@ -2,12 +2,13 @@ import Parser from "rss-parser";
 import { Hono } from "hono";
 import type { Context } from "hono";
 
-import { createNewsFeedRecordForUser, deleteNewsSavedArticle, deleteNewsSavedArticleList, getNewsFeed, getNewsFeedRecord, getNewsFeeds, getNewsSavedArticles, getNewsSubscriptions, getNewsSubscriptionJson, renameNewsSavedArticleList, saveNewsArticle, subscribeNewsFeed, unsubscribeNewsFeed, updateNewsFeed, updateNewsFeedRecordForUser, getNewsFeedMetadata, updateNewsSubscription, updateNewsSavedArticleReadState } from "../lib/data/news";
+import { createNewsFeedRecordForUser, deleteNewsFeedRecordForUser, deleteNewsSavedArticle, deleteNewsSavedArticleList, getNewsFeed, getNewsFeedRecord, getNewsFeeds, getNewsSavedArticles, getNewsSubscriptions, getNewsSubscriptionJson, renameNewsSavedArticleList, saveNewsArticle, subscribeNewsFeed, unsubscribeNewsFeed, updateNewsFeed, updateNewsFeedRecordForUser, getNewsFeedMetadata, updateNewsSubscription, updateNewsSavedArticleReadState } from "../lib/data/news";
 import type { NewsFeedItem, NewsFeedMetadata, NewsFeedRecordCreateInput, NewsFeedRecordUpdateInput, NewsSubscribeInput, NewsUpdateInput } from "@dashwise/types/sdk";
 
 import { readAuthToken, readJsonBody, requireAuth, withJson } from "./shared";
 import { createLogger } from "../lib/logger";
 import { jobsApi } from "../jobs/index";
+import { suggestCommonBlacklistWords } from "../lib/news/topic-suggestions";
 
 const logger = createLogger("API");
 
@@ -99,6 +100,12 @@ async function getFeedMetadata(feedUrl: string): Promise<NewsFeedMetadata> {
       headers: FEED_REQUEST_HEADERS,
       customFields: {
         feed: ["image", "icon"],
+        item: [
+          ["content:encoded", "content:encoded"],
+          ["media:description", "media:description"],
+          ["description", "description", { keepArray: false }],
+          ["category", "category", { keepArray: true }],
+        ],
       },
     });
 
@@ -112,6 +119,7 @@ async function getFeedMetadata(feedUrl: string): Promise<NewsFeedMetadata> {
       feedUrl: normalizedFeedUrl,
       title,
       icon,
+      suggestedBlacklistWords: suggestCommonBlacklistWords(Array.isArray(feed.items) ? feed.items : []),
     };
   } catch (error) {
     logger.error(`Error fetching feed metadata for ${normalizedFeedUrl}`, error);
@@ -122,9 +130,10 @@ async function getFeedMetadata(feedUrl: string): Promise<NewsFeedMetadata> {
         feedUrl: normalizedFeedUrl,
         title: "",
         icon: `${parsed.origin}/favicon.ico`,
+        suggestedBlacklistWords: [],
       };
     } catch {
-      return { feedUrl: normalizedFeedUrl, title: "", icon: "" };
+      return { feedUrl: normalizedFeedUrl, title: "", icon: "", suggestedBlacklistWords: [] };
     }
   }
 }
@@ -230,6 +239,10 @@ newsRoute
   .get("/api/v1/news/feed-records/:id", withJson(async (c) => {
     const { userId } = await requireAuth({ token: readAuthToken(c) });
     return getNewsFeedRecord(userId, String(c.req.param("id") ?? ""));
+  }))
+  .delete("/api/v1/news/feed-records/:id", withJson(async (c) => {
+    const { userId } = await requireAuth({ token: readAuthToken(c) });
+    return deleteNewsFeedRecordForUser(userId, String(c.req.param("id") ?? ""));
   }))
   .post("/api/v1/news/feed-records", withJson(async (c) => {
     const body = await readJsonBody<NewsFeedRecordCreateInput>(c);

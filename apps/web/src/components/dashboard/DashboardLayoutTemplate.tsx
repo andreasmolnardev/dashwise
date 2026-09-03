@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Icon } from "@iconify-icon/react";
@@ -40,25 +40,184 @@ function hasWidgetProperties(config: Record<string, any>) {
         Object.keys(config.properties ?? {}).some((key) => !ignored.has(key));
 }
 
+function resolveWidgetDimension(value: unknown) {
+    if (typeof value === "number" && Number.isFinite(value)) {
+        return `${value}px`;
+    }
+
+    if (typeof value === "string" && value.trim()) {
+        const normalized = value.trim();
+        return normalized.startsWith("$")
+            ? `var(--layout-${normalized.slice(1)})`
+            : normalized;
+    }
+
+    return undefined;
+}
+
 const WIDGET_SIZE_CLASSNAME: Record<WidgetSize, string> = {
     auto: "",
     compact: "h-[180px] overflow-hidden rounded-xl",
     tall: "h-[360px] overflow-hidden rounded-xl",
 };
 
-const PRIVACY_BLUR_LINES = [
-    "kJ8fL2pQwR9z",
-    "xN4vB7mC3sA1",
-    "tY6uI0oP5dF2",
-];
+const PRIVACY_RANDOM_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789";
+const PRIVACY_TEXT_ATTRIBUTES = ["alt", "aria-label", "placeholder", "title", "value"];
+
+function randomPrivacyString(length: number) {
+    const safeLength = Math.max(1, length);
+    const values = new Uint32Array(safeLength);
+
+    if (typeof crypto !== "undefined" && typeof crypto.getRandomValues === "function") {
+        crypto.getRandomValues(values);
+        return Array.from(values, (value) =>
+            PRIVACY_RANDOM_CHARS[value % PRIVACY_RANDOM_CHARS.length],
+        ).join("");
+    }
+
+    return Array.from(
+        { length: safeLength },
+        () => PRIVACY_RANDOM_CHARS[Math.floor(Math.random() * PRIVACY_RANDOM_CHARS.length)],
+    ).join("");
+}
+
+function randomizePrivacyText(value: string) {
+    return value.replace(/\S+/g, (token) => randomPrivacyString(token.length));
+}
+
+function sanitizePrivacyClone(root: HTMLElement, targetSelector?: string) {
+    const privacyRoots = targetSelector
+        ? Array.from(root.querySelectorAll<HTMLElement>(targetSelector))
+        : [root];
+
+    for (const privacyRoot of privacyRoots) {
+        const textWalker = document.createTreeWalker(privacyRoot, NodeFilter.SHOW_TEXT);
+        const textNodes: Text[] = [];
+        let currentNode = textWalker.nextNode();
+
+        while (currentNode) {
+            const textNode = currentNode as Text;
+            const parentTagName = textNode.parentElement?.tagName;
+            if (
+                textNode.nodeValue?.trim() &&
+                parentTagName !== "SCRIPT" &&
+                parentTagName !== "STYLE" &&
+                parentTagName !== "NOSCRIPT"
+            ) {
+                textNodes.push(textNode);
+            }
+            currentNode = textWalker.nextNode();
+        }
+
+        for (const textNode of textNodes) {
+            const randomizedText = randomizePrivacyText(textNode.nodeValue ?? "");
+            textNode.nodeValue = randomizedText;
+
+            const parent = textNode.parentElement;
+            if (!parent) {
+                continue;
+            }
+
+            if (parent.namespaceURI === "http://www.w3.org/2000/svg") {
+                if (["text", "tspan"].includes(parent.tagName.toLowerCase())) {
+                    parent.style.filter = "blur(3px)";
+                }
+                continue;
+            }
+
+            const textSpan = document.createElement("span");
+            textSpan.textContent = randomizedText;
+            textSpan.style.filter = "blur(3px)";
+            textNode.replaceWith(textSpan);
+        }
+
+        const elements = [privacyRoot, ...Array.from(privacyRoot.querySelectorAll<HTMLElement>("*"))];
+        for (const element of elements) {
+            for (const attribute of PRIVACY_TEXT_ATTRIBUTES) {
+                const value = element.getAttribute(attribute);
+                if (value?.trim()) element.setAttribute(attribute, randomizePrivacyText(value));
+            }
+
+            if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) {
+                if (element.value.trim()) element.value = randomizePrivacyText(element.value);
+            }
+        }
+    }
+
+    for (const element of [root, ...Array.from(root.querySelectorAll<HTMLElement>("*"))]) {
+        element.removeAttribute("id");
+    }
+    root.setAttribute("aria-hidden", "true");
+}
+
+function WidgetPrivacyOverlay({
+    sourceId,
+    refreshVersion,
+    targetSelector,
+}: {
+    sourceId: string;
+    refreshVersion: number;
+    targetSelector?: string;
+}) {
+    const cloneHostRef = useRef<HTMLDivElement | null>(null);
+
+    useLayoutEffect(() => {
+        const source = document.getElementById(sourceId);
+        const cloneHost = cloneHostRef.current;
+        if (!source || !cloneHost) return;
+
+        let frameId: number | null = null;
+
+        const renderPrivacyClone = () => {
+            cloneHost.replaceChildren();
+            const clone = source.cloneNode(true) as HTMLDivElement;
+            clone.style.visibility = "visible";
+            clone.style.width = "100%";
+            clone.style.height = "100%";
+            clone.style.overflow = "hidden";
+            clone.style.userSelect = "none";
+            sanitizePrivacyClone(clone, targetSelector);
+            cloneHost.appendChild(clone);
+        };
+
+        const schedulePrivacyClone = () => {
+            if (frameId !== null) cancelAnimationFrame(frameId);
+            frameId = requestAnimationFrame(() => {
+                frameId = null;
+                renderPrivacyClone();
+            });
+        };
+
+        renderPrivacyClone();
+        const observer = new MutationObserver(schedulePrivacyClone);
+        observer.observe(source, {
+            attributes: true,
+            childList: true,
+            characterData: true,
+            subtree: true,
+        });
+
+        return () => {
+            observer.disconnect();
+            if (frameId !== null) cancelAnimationFrame(frameId);
+            cloneHost.replaceChildren();
+        };
+    }, [refreshVersion, sourceId, targetSelector]);
+
+    return (
+        <div className="pointer-events-none absolute inset-0 z-20 overflow-hidden rounded-xl">
+            <div ref={cloneHostRef} className="absolute inset-0 overflow-hidden" />
+        </div>
+    );
+}
 
 const COLUMN_CLASSNAME: Record<Column, string> = {
     left:
-        "flex-shrink-0 w-screen snap-start md:w-auto md:basis-auto space-y-2 overflow-y-visible min-w-0 min-h-0 h-fit p-1",
+        "flex-shrink-0 w-full snap-start md:w-auto md:basis-auto space-y-2 overflow-y-visible min-w-0 min-h-0 h-fit p-1",
     middle:
-        "flex-shrink-0 w-screen snap-start md:w-auto md:basis-auto space-y-2 overflow-x-hidden min-w-0 min-h-0 h-fit p-1",
+        "flex-shrink-0 w-full snap-start md:w-auto md:basis-auto space-y-2 overflow-x-hidden min-w-0 min-h-0 h-fit p-1",
     right:
-        "flex-shrink-0 w-screen snap-start md:w-auto md:basis-auto space-y-2 overflow-y-visible min-w-0 min-h-0 h-fit p-1",
+        "flex-shrink-0 w-full snap-start md:w-auto md:basis-auto space-y-2 overflow-y-visible min-w-0 min-h-0 h-fit p-1",
 };
 
 const COLUMN_PANEL_IDS: Record<Column, string | undefined> = {
@@ -98,7 +257,7 @@ export default function DashboardLayoutTemplate({
 }) {
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
-    const { token, withAuth } = useAuth();
+    const { token, user, withAuth } = useAuth();
     const openFromURL = searchParams.get("search") === "1";
     const hasSearchBarWidget = useMemo(() => {
         const columns = config?.columns as
@@ -119,6 +278,7 @@ export default function DashboardLayoutTemplate({
     const containerRef = useRef<HTMLDivElement | null>(null);
     const [activePanel, setActivePanel] = useState<number>(1);
     const [widgetMenuState, setWidgetMenuState] = useState<Record<string, WidgetMenuState>>({});
+    const dashboardPrivacyMode = user?.searchPreferences?.privacyMode === true;
     const heightRefs = useRef<Record<string, HTMLElement | null>>({});
     const heightRefCallbacks = useRef<
         Record<string, (node: HTMLElement | null) => void>
@@ -141,8 +301,11 @@ export default function DashboardLayoutTemplate({
 
     useEffect(() => {
         let cancelled = false;
+        let refreshInFlight = false;
 
         const primeIntegrationData = async () => {
+            if (refreshInFlight || document.visibilityState !== "visible") return;
+            refreshInFlight = true;
             try {
                 await refreshPageIntegrationData();
                 if (cancelled) return;
@@ -150,6 +313,8 @@ export default function DashboardLayoutTemplate({
                 if (!cancelled) {
                     console.error("Failed to prime page integration data", error);
                 }
+            } finally {
+                refreshInFlight = false;
             }
         };
 
@@ -161,25 +326,30 @@ export default function DashboardLayoutTemplate({
 
         const startPolling = () => {
             if (intervalId) return;
-            intervalId = window.setInterval(async () => {
-                try {
-                    await refreshPageIntegrationData();
-                    if (cancelled) return;
-                } catch (error) {
-                    if (!cancelled) console.error("Failed to poll page integration data", error);
-                }
-            }, POLL_INTERVAL_MS);
+            intervalId = window.setInterval(() => void primeIntegrationData(), POLL_INTERVAL_MS);
         };
 
-        // Start polling if we have a token (otherwise polling is a no-op)
-        if (token) startPolling();
+        const stopPolling = () => {
+            if (intervalId) window.clearInterval(intervalId);
+            intervalId = null;
+        };
+
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === "visible" && token) {
+                void primeIntegrationData();
+                startPolling();
+            } else {
+                stopPolling();
+            }
+        };
+
+        if (token && document.visibilityState === "visible") startPolling();
+        document.addEventListener("visibilitychange", handleVisibilityChange);
 
         return () => {
             cancelled = true;
-            if (intervalId) {
-                clearInterval(intervalId);
-                intervalId = null;
-            }
+            document.removeEventListener("visibilitychange", handleVisibilityChange);
+            stopPolling();
         };
     }, [refreshPageIntegrationData, token]);
 
@@ -443,35 +613,63 @@ export default function DashboardLayoutTemplate({
         navigate(`/settings/pages?editPage=${encodeURIComponent(pageName ?? "home")}&editWidget=${encodeURIComponent(`${columnName}:${entryKey}:${entryIndex}`)}`);
     };
 
+    const selectPanel = useCallback((panel: number) => {
+        const element = containerRef.current;
+        if (!element) return;
+
+        const width = element.clientWidth || window.innerWidth;
+        const lastPanel = Math.max(0, Math.ceil(element.scrollWidth / width) - 1);
+        const nextPanel = Math.min(lastPanel, Math.max(0, panel));
+        element.scrollTo({ left: nextPanel * width, behavior: "smooth" });
+        setActivePanel(nextPanel);
+    }, []);
+
     const renderWidgetMenuWrapper = ({
         baseKey,
         wrapperClass,
         children,
         ref,
         style,
+        maxHeight,
         showMenu = true,
         onEditProperties,
         darkenOnMenu = false,
+        privacyTargetSelector,
     }: {
         baseKey: string;
         wrapperClass: string;
         children: ReactNode;
         ref?: (node: HTMLElement | null) => void;
         style?: CSSProperties;
+        maxHeight?: string;
         showMenu?: boolean;
         onEditProperties?: () => void;
         darkenOnMenu?: boolean;
+        privacyTargetSelector?: string | false;
     }) => {
         const state = getWidgetMenuState(baseKey);
         const sizeClass = WIDGET_SIZE_CLASSNAME[state.size];
+        const privacyBlurred = dashboardPrivacyMode && privacyTargetSelector !== false;
+        const isBlurred = privacyBlurred || state.blurred;
+        const privacySourceId = `dashwise-widget-content-${baseKey}`;
         return (
             <div
                 key={baseKey}
                 ref={ref}
                 className={[wrapperClass, "group/widget-menu relative", sizeClass].filter(Boolean).join(" ")}
-                style={style}
+                style={{
+                    ...style,
+                    ...(maxHeight
+                        ? { maxHeight, overflowY: "auto" }
+                        : {}),
+                }}
             >
-                <div key={state.refreshVersion} className={state.size === "auto" ? undefined : "h-full"}>
+                <div
+                    id={privacySourceId}
+                    key={state.refreshVersion}
+                    className={state.size === "auto" ? undefined : "h-full"}
+                    style={{ visibility: isBlurred ? "hidden" : undefined }}
+                >
                     {children}
                 </div>
                 {darkenOnMenu && state.menuOpen && (
@@ -507,22 +705,27 @@ export default function DashboardLayoutTemplate({
                                     <Maximize2 className="h-4 w-4" />
                                     Resize widget
                                 </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => toggleWidgetBlur(baseKey)}>
+                                <DropdownMenuItem
+                                    disabled={dashboardPrivacyMode}
+                                    onClick={() => toggleWidgetBlur(baseKey)}
+                                >
                                     <EyeOff className="h-4 w-4" />
-                                    {state.blurred ? "Unblur widget" : "Blur widget"}
+                                    {dashboardPrivacyMode
+                                        ? "Privacy mode enabled"
+                                        : state.blurred
+                                            ? "Unblur widget"
+                                            : "Blur widget"}
                                 </DropdownMenuItem>
                             </DropdownMenuContent>
                         </DropdownMenu>
                     </div>
                 )}
-                {state.blurred && (
-                    <div className="pointer-events-none absolute inset-0 z-20 flex flex-col justify-center gap-2 rounded-xl bg-black/20 p-4 text-white/35 backdrop-blur-md">
-                        {PRIVACY_BLUR_LINES.map((line) => (
-                            <div key={line} className="h-3 w-full max-w-[85%] rounded-full bg-white/20 blur-[3px]">
-                                <span className="sr-only">{line}</span>
-                            </div>
-                        ))}
-                    </div>
+                {isBlurred && (
+                    <WidgetPrivacyOverlay
+                        sourceId={privacySourceId}
+                        refreshVersion={state.refreshVersion}
+                        targetSelector={privacyBlurred ? privacyTargetSelector : undefined}
+                    />
                 )}
             </div>
         );
@@ -539,6 +742,9 @@ export default function DashboardLayoutTemplate({
             " ",
         );
         const baseKey = `${columnName}-${entryKey}`;
+        const maxWidgetHeight = resolveWidgetDimension(
+            cfg.max_widget_height ?? cfg.properties?.max_widget_height,
+        );
 
         switch (entryKey) {
             case "placeholder": {
@@ -555,6 +761,7 @@ export default function DashboardLayoutTemplate({
                     renderWidgetMenuWrapper({
                         baseKey,
                         wrapperClass,
+                        maxHeight: maxWidgetHeight,
                         style: heightStyle ? { height: heightStyle } : undefined,
                         children: renderWidget({
                             type: "placeholder",
@@ -570,8 +777,10 @@ export default function DashboardLayoutTemplate({
                     renderWidgetMenuWrapper({
                         baseKey,
                         wrapperClass,
+                        maxHeight: maxWidgetHeight,
                         ref,
                         showMenu: false,
+                        privacyTargetSelector: ".area-gl1, .area-gl2",
                         children: renderWidget({
                             type: "main-clock",
                             params: cfg,
@@ -585,7 +794,9 @@ export default function DashboardLayoutTemplate({
                     renderWidgetMenuWrapper({
                         baseKey,
                         wrapperClass,
+                        maxHeight: maxWidgetHeight,
                         showMenu: false,
+                        privacyTargetSelector: false,
                         children: renderWidget({
                             type: "search-bar",
                             defaultOpen: openFromURL ?? false,
@@ -597,7 +808,9 @@ export default function DashboardLayoutTemplate({
                     renderWidgetMenuWrapper({
                         baseKey,
                         wrapperClass,
+                        maxHeight: maxWidgetHeight,
                         showMenu: false,
+                        privacyTargetSelector: false,
                         children: renderWidget({
                             type: "link-view",
                         }),
@@ -608,11 +821,15 @@ export default function DashboardLayoutTemplate({
                 return renderWidgetMenuWrapper({
                     baseKey,
                     wrapperClass,
+                    maxHeight: maxWidgetHeight,
                     showMenu: entryKey !== "glanceable-clock",
                     onEditProperties: (entryKey === "image" || hasWidgetProperties(cfg))
                         ? () => editWidgetProperties(columnName, entryKey, entryIndex)
                         : undefined,
                     darkenOnMenu: entryKey === "image",
+                    privacyTargetSelector: entryKey === "glanceable-clock"
+                        ? ".area-gl1, .area-gl2"
+                        : undefined,
                     children: renderWidget({
                         type: entryKey,
                         consumerKey: typeof cfg.configKey === "string" && cfg.configKey.trim()
@@ -735,6 +952,7 @@ export default function DashboardLayoutTemplate({
                 <BottomNavbar
                     activePanel={activePanel}
                     columns={columns}
+                    onSelectPanel={selectPanel}
                 />
             </div>
             {!isLoading && openFromURL && !hasSearchBarWidget && (
@@ -754,6 +972,7 @@ interface BottomNavbarProps {
     setScreensaverActive?: (active: boolean) => void;
     showPages?: boolean;
     columns?: Record<string, any>;
+    onSelectPanel?: (panel: number) => void;
 }
 
 function BottomNavbar({
@@ -761,6 +980,7 @@ function BottomNavbar({
     setScreensaverActive,
     showPages = true,
     columns,
+    onSelectPanel,
 }: BottomNavbarProps) {
     const { user } = useAuth();
     const { unreadCount } = useActivity();
@@ -771,7 +991,7 @@ function BottomNavbar({
 
     useEffect(() => {
         const checkConfig = () => {
-            const local = localStorage.getItem("dashwise_screensaver_local");
+            const local = localStorage.getItem("dashwise_screensaver_device_rules");
             const localConfig = local ? JSON.parse(local) : null;
             const globalConfig = user?.screensaverPreferences as any;
 
@@ -864,6 +1084,7 @@ function BottomNavbar({
                         <DotIndicator
                             showThreeDots={showThreeDots}
                             active={activePanel}
+                            onSelectPanel={onSelectPanel}
                         />
                     </div>
                 </div>
@@ -938,22 +1159,40 @@ function BottomNavbar({
 }
 
 function DotIndicator(
-    { showThreeDots, active }: { showThreeDots: boolean; active: number },
+    {
+        showThreeDots,
+        active,
+        onSelectPanel,
+    }: {
+        showThreeDots: boolean;
+        active: number;
+        onSelectPanel?: (panel: number) => void;
+    },
 ) {
     const dotBase =
         "inline-block w-2.5 h-2.5 rounded-full transition-transform transition-opacity";
     const activeClasses = "scale-110 opacity-100";
     const inactiveClasses = "scale-100 opacity-60";
+    const buttonBase =
+        "flex h-8 w-8 items-center justify-center rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60";
 
     if (!showThreeDots) {
         return (
             <div className="flex items-center gap-2">
-                <span
-                    className={`${dotBase} ${
-                        active === 1 ? activeClasses : inactiveClasses
-                    } bg-white`}
-                    aria-hidden
-                />
+                <button
+                    type="button"
+                    aria-label="Show main panel"
+                    aria-current={active === 1 ? "true" : undefined}
+                    className={buttonBase}
+                    onClick={() => onSelectPanel?.(1)}
+                >
+                    <span
+                        className={`${dotBase} ${
+                            active === 1 ? activeClasses : inactiveClasses
+                        } bg-white`}
+                        aria-hidden
+                    />
+                </button>
             </div>
         );
     }
@@ -961,13 +1200,21 @@ function DotIndicator(
     return (
         <div className="flex items-center gap-2">
             {[0, 1, 2].map((i) => (
-                <span
+                <button
                     key={i}
-                    aria-hidden
-                    className={`${dotBase} ${
-                        active === i ? activeClasses : inactiveClasses
-                    } bg-white`}
-                />
+                    type="button"
+                    aria-label={`Show ${i === 0 ? "left" : i === 1 ? "main" : "right"} panel`}
+                    aria-current={active === i ? "true" : undefined}
+                    className={buttonBase}
+                    onClick={() => onSelectPanel?.(i)}
+                >
+                    <span
+                        className={`${dotBase} ${
+                            active === i ? activeClasses : inactiveClasses
+                        } bg-white`}
+                        aria-hidden
+                    />
+                </button>
             ))}
         </div>
     );

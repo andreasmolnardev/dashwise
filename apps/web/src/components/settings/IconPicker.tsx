@@ -246,6 +246,11 @@ function IconifyPickerPanel({
     );
 }
 
+function getDirectIconUrl(value: string) {
+    const trimmed = value.trim();
+    return /^(?:https?:\/\/|\/)/i.test(trimmed) ? trimmed : null;
+}
+
 
 export default function IconPickerComponent({
     initialIcons = EMPTY_ICONS,
@@ -370,7 +375,9 @@ export default function IconPickerComponent({
 
     const getIconData = (icon: Icon): IconResult => {
         const iconSet = pickerSource === "mono" ? "mono" : "default";
-        const variant = icon.Light === "Yes" ? "light" : icon.Dark === "Yes" ? "dark" : "";
+        const variant = pickerSource === "mono"
+            ? icon.Light === "Yes" ? "light" : icon.Dark === "Yes" ? "dark" : ""
+            : "";
         const extension = icon.SVG === "Yes" ? "svg" : "png";
         const url = `/icons/${extension}/${icon.Reference}${variant ? `-${variant}` : ""}.${extension}`;
 
@@ -396,6 +403,7 @@ export default function IconPickerComponent({
 
     const visibleIcons = useMemo(() => filteredIcons.slice(0, visibleCount), [filteredIcons, visibleCount]);
     const hasMoreIcons = visibleCount < filteredIcons.length;
+    const directIconUrl = getDirectIconUrl(search);
 
     const handleSelect = (value: string) => {
         setSelected(value);
@@ -424,6 +432,18 @@ export default function IconPickerComponent({
         if (onClose) onClose();
     };
 
+    const handleDirectUrlSelect = () => {
+        if (!directIconUrl) return;
+
+        onSelect?.({
+            iconSet: "custom",
+            variant: "default",
+            name: directIconUrl,
+            url: directIconUrl,
+        });
+        onClose?.();
+    };
+
     const handleIconScroll = (event: UIEvent<HTMLDivElement>) => {
         if (iconsLoading || !hasMoreIcons) return;
 
@@ -445,9 +465,15 @@ export default function IconPickerComponent({
         <div>
             <Input
                 type="text"
-                placeholder="Search icons..."
+                placeholder="Search icons or Enter URL"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
+                onKeyDown={(event) => {
+                    if (event.key === "Enter" && directIconUrl) {
+                        event.preventDefault();
+                        handleDirectUrlSelect();
+                    }
+                }}
                 className="frosted mb-3 w-full rounded-md border p-2 focus:outline-none focus:ring-2 focus:ring-primary"
             />
 
@@ -496,7 +522,24 @@ export default function IconPickerComponent({
                 )}
             </div>
 
-            {pickerSource !== "iconify" ? (
+            {directIconUrl ? (
+                <div className="grid grid-cols-5 gap-4 justify-items-center">
+                    <button
+                        type="button"
+                        onClick={handleDirectUrlSelect}
+                        title={directIconUrl}
+                        aria-label="Use entered icon URL"
+                        className="flex h-[35px] w-[35px] cursor-pointer items-center justify-center rounded-md border border-primary bg-primary/20 p-1 transition-colors hover:bg-primary/30"
+                    >
+                        <img
+                            src={directIconUrl}
+                            alt="Entered icon URL"
+                            loading="lazy"
+                            className="h-5 w-5 object-contain"
+                        />
+                    </button>
+                </div>
+            ) : pickerSource !== "iconify" ? (
                 <>
                     {iconsLoading && filteredIcons.length === 0 ? (
                         <div className="max-h-[35vh] overflow-y-auto rounded-md border border-white/10 p-3">

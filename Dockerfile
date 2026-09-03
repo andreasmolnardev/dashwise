@@ -14,6 +14,21 @@ RUN case "${TARGETARCH}" in \
     rm /tmp/pocketbase.zip && \
     chmod +x /usr/local/bin/pocketbase
 
+FROM alpine:latest AS shoutrrr
+ARG SHOUTRRR_VERSION=0.8.0
+ARG TARGETARCH
+
+RUN case "${TARGETARCH}" in \
+      "arm64") ARCH="arm64" ;; \
+      "amd64") ARCH="amd64" ;; \
+      *) echo "Unsupported architecture: ${TARGETARCH}" && exit 1 ;; \
+    esac && \
+    apk add --no-cache wget && \
+    wget -O /tmp/shoutrrr.tar.gz "https://github.com/containrrr/shoutrrr/releases/download/v${SHOUTRRR_VERSION}/shoutrrr_linux_${ARCH}.tar.gz" && \
+    tar -xzf /tmp/shoutrrr.tar.gz -C /usr/local/bin shoutrrr && \
+    rm /tmp/shoutrrr.tar.gz && \
+    chmod +x /usr/local/bin/shoutrrr
+
 FROM oven/bun:1-alpine AS deps
 WORKDIR /app
 
@@ -52,8 +67,10 @@ WORKDIR /app
 RUN apk add --no-cache valkey
 
 COPY --from=pocketbase /usr/local/bin/pocketbase /usr/local/bin/pocketbase
+COPY --from=shoutrrr /usr/local/bin/shoutrrr /usr/local/bin/shoutrrr
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 ENV PB_BINARY_PATH=/usr/local/bin/pocketbase
+ENV SHOUTRRR_BINARY_PATH=/usr/local/bin/shoutrrr
 ENV NODE_PATH=/app/apps/backend:/app/packages
 
 RUN mkdir -p /app && touch /app/.root.ind

@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import useAuth, { COMMAND_BAR_OPEN_EVENT } from "@/context/useAuth";
 import CommandBar from './CommandBar';
-import { getSearchItemsAction } from '@/lib/apiClient';
+import { getShortcutsAction } from '@/lib/apiClient';
 import { useApiQuery } from "@/hooks/useApiQuery";
 import { queryKeys } from "@/lib/queryClient";
 
@@ -19,7 +19,7 @@ type ProxyAction = {
   proxy?: boolean;
 };
 
-type SearchItem = {
+type Shortcut = {
   id?: string;
   parentId?: string;
   name: string;
@@ -30,9 +30,9 @@ type SearchItem = {
   tags?: string[];
 };
 
-function normalizeSearchItems(raw: unknown): SearchItem[] {
+function normalizeShortcuts(raw: unknown): Shortcut[] {
   if (Array.isArray(raw)) {
-    return raw.filter((item): item is SearchItem => !!item && typeof item === "object");
+    return raw.filter((item): item is Shortcut => !!item && typeof item === "object");
   }
 
   if (typeof raw !== "string") {
@@ -42,7 +42,7 @@ function normalizeSearchItems(raw: unknown): SearchItem[] {
   try {
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed)
-      ? parsed.filter((item): item is SearchItem => !!item && typeof item === "object")
+      ? parsed.filter((item): item is Shortcut => !!item && typeof item === "object")
       : [];
   } catch {
     return [];
@@ -61,9 +61,8 @@ export default function SearchBar({
   const didMountRef = useRef(false);
   const { user } = useAuth();
 
-  // fetched items from /api/v1/searchItems
-  const searchItemsQuery = useApiQuery(queryKeys.links.search, getSearchItemsAction, { enabled: open });
-  const searchItems = normalizeSearchItems(searchItemsQuery.data);
+  const shortcutsQuery = useApiQuery(queryKeys.links.search, getShortcutsAction, { enabled: open });
+  const shortcuts = normalizeShortcuts(shortcutsQuery.data);
 
   useEffect(() => {
     if (!didMountRef.current) {
@@ -124,7 +123,7 @@ export default function SearchBar({
         </div>
       )}
 
-      <CommandBar open={open} setOpen={setOpen} searchItems={searchItems} config={user?.searchPreferences ?? {}}/>
+      <CommandBar open={open} setOpen={setOpen} shortcuts={shortcuts} config={user?.searchPreferences ?? {}}/>
     </>
   );
 }

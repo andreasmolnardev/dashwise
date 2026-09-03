@@ -80,6 +80,11 @@ export default function LinksListDetailPage() {
 
                     queryClient.setQueryData<LinkItemRecord[]>(["api", token, ...queryKeys.links.items(listId)], (current = []) => [link as LinkItemRecord, ...current.filter((item) => item.id !== link.id)]);
                 }}
+                onFolderCreated={(folder) => {
+                    if (folder.list !== listId) return;
+
+                    queryClient.setQueryData<LinkFolderRecord[]>(["api", token, ...queryKeys.links.folders(listId)], (current = []) => [folder as LinkFolderRecord, ...current.filter((item) => item.id !== folder.id)]);
+                }}
             />
         </>
     );

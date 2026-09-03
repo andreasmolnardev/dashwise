@@ -16,10 +16,11 @@ import type {
 } from "@dashwise/types/sdk";
 import type { PageConfig } from "@dashwise/types/sdk";
 import config from "@/lib/config";
+import { getClientSessionHeaders } from "@/lib/session";
 import { client } from "./api/client.gen";
 import * as sdk from "./api/sdk.gen";
 
-const { getAppConfig, getAppInfo, postAuthLogin, postAuthChangePassword, postAuthSignup, postAuthValidateAuth, deleteAuthDeleteAccount, patchAuthUpdateUserProperty, getLinksCollections, postLinksCollections, putLinksCollectionsByCollectionId, postLinksTags, putLinksTagsByTagId, getLinksHomeGroups, postLinksHomeGroups, putLinksFoldersByFolderIdIcon, getLinksHome, getLinksFolders, postLinksFolders, getLinksItems, getLinksTags, postLinksItems, putLinksItemsByLinkId, deleteLinksItemsByLinkId, postLinksReorder, getIntegrations, postIntegrations, putIntegrationsById, deleteIntegrationsById, postIntegrationsTestEndpoint, getIntegrationsWidgetProperties, getWidgetsByIntegration, postIntegrationsConsumerData, getIntegrationsCaldavEvents, postIntegrationsProxyAction, getWidgets, getGlanceables, getGlanceablesByIntegration, getMonitoringStatus, postMonitoringStatus, getMonitoringSshHosts, postMonitoringSshHosts, putMonitoringSshHostsById, getMonitoringHosts, postMonitoringHosts, getMonitoringHostsByIdHistory, getMonitors, getMonitorsById, putMonitorsById, postMonitors, deleteMonitorsById, getNewsFeedRecordsById, postNewsFeedRecords, getNewsSubscriptions, getNewsFeeds, getNewsFeedMetadata, postNewsFeedRefresh, postNewsFeedSubscribe, postNewsFeedUnsubscribe, postNewsFeedUpdate, postNewsFeedRecordsById, postNewsFixMissingTitles, getPageConfig, getPageConfigUserPages, putPageConfig, postPageConfigHome, postPageConfigMigrateLegacy, postPageConfigIntegrationData, getSearchItems, getSearchItemsFrequentlyUsed, postSearchItemsUsageStats, getLocations, getJobsPullIcons, postWallpapers, getNotifications, getNotificationsTopics, postNotificationsTopics, deleteNotificationsTopics, postNotificationsMarkAsRead, postNotificationsTest, getNotificationsTopicTokens, postNotificationsTopicTokens, deleteNotificationsTopicTokens, getNotificationsForwarders, postNotificationsForwarders, putNotificationsForwarders, deleteNotificationsForwarders } = sdk;
+const { getAppConfig, getAppInfo, postAuthLogin, postAuthChangePassword, postAuthSignup, postAuthValidateAuth, deleteAuthDeleteAccount, patchAuthUpdateUserProperty, getLinksCollections, getLinksMetadata, postLinksCollections, putLinksCollectionsByCollectionId, postLinksTags, putLinksTagsByTagId, getLinksHomeGroups, postLinksHomeGroups, putLinksFoldersByFolderIdIcon, getLinksHome, getLinksFolders, postLinksFolders, getLinksItems, getLinksTags, postLinksItems, putLinksItemsByLinkId, deleteLinksItemsByLinkId, postLinksReorder, getIntegrations, postIntegrations, putIntegrationsById, deleteIntegrationsById, postIntegrationsTestEndpoint, getIntegrationsWidgetProperties, getWidgetsByIntegration, postIntegrationsConsumerData, getIntegrationsCaldavEvents, postIntegrationsProxyAction, getWidgets, getGlanceables, getGlanceablesByIntegration, getMonitoringStatus, postMonitoringStatus, getMonitoringSshHosts, postMonitoringSshHosts, putMonitoringSshHostsById, getMonitoringHosts, postMonitoringHosts, getMonitoringHostsByIdHistory, getMonitors, getMonitorsById, putMonitorsById, postMonitors, deleteMonitorsById, getNewsFeedRecordsById, postNewsFeedRecords, getNewsSubscriptions, getNewsFeeds, getNewsFeedMetadata, postNewsFeedRefresh, postNewsFeedSubscribe, postNewsFeedUnsubscribe, postNewsFeedUpdate, postNewsFeedRecordsById, postNewsFixMissingTitles, getPageConfig, getPageConfigUserPages, putPageConfig, postPageConfigHome, postPageConfigMigrateLegacy, postPageConfigIntegrationData, getShortcuts, getShortcutsFrequentlyUsed, postShortcutsUsageStats, getLocations, getJobsPullIcons, getNotifications, getNotificationsTopics, postNotificationsTopics, deleteNotificationsTopics, postNotificationsMarkAsRead, postNotificationsTest, getNotificationsTopicTokens, postNotificationsTopicTokens, deleteNotificationsTopicTokens, putNotificationsTopicTokens, getNotificationsForwarders, postNotificationsForwarders, putNotificationsForwarders, deleteNotificationsForwarders, postNotificationsForwardersTest } = sdk;
 export * from "./api/sdk.gen";
 export type { GenericObject, Error } from "./api/types.gen";
 
@@ -67,7 +68,11 @@ export function backendUrl(path: string) {
 }
 
 export function authHeaders(auth?: ActionAuth | null): Record<string, string> | undefined {
-  return auth?.token ? { Authorization: `Bearer ${auth.token}` } : undefined;
+  if (!auth?.token) return undefined;
+  return {
+    Authorization: `Bearer ${auth.token}`,
+    ...getClientSessionHeaders(auth.sessionId),
+  };
 }
 
 export type MonitoringSshHostRecord = {
@@ -123,6 +128,18 @@ export type NewsFeedPageResponse = {
   limit: number;
 };
 
+export type SessionRecord = {
+  id: string;
+  user: string;
+  sessionId: string;
+  displayName: string;
+  clientType?: string;
+  platform?: string;
+  lastSeenAt: string;
+  created?: string;
+  updated?: string;
+};
+
 function stringifyError(error: unknown) {
   if (typeof error === "string") return error;
   if (error && typeof error === "object") {
@@ -152,7 +169,7 @@ export async function fetchWallpaperBlob(imageUrl: string, token?: string): Prom
 
   if (!isWallpaperApiUrl(url)) {
     const response = await fetch(url.toString(), {
-      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      headers: token ? authHeaders({ token }) : undefined,
     });
 
     handleUnauthorizedResponse(response);
@@ -167,7 +184,7 @@ export async function fetchWallpaperBlob(imageUrl: string, token?: string): Prom
   const query = Object.fromEntries(url.searchParams.entries());
   const result = await client.get({
     url: "/wallpapers",
-    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    headers: token ? authHeaders({ token }) : undefined,
     query,
     parseAs: "blob",
   });
@@ -227,7 +244,7 @@ export async function signupUserAction(payload: { _name?: string; email: string;
 }
 
 export async function validateAuthTokenAction(auth: ActionAuth): Promise<ValidateAuthTokenSuccess> {
-  return extractData(await postAuthValidateAuth({ body: auth }));
+  return extractData(await postAuthValidateAuth({ body: auth, headers: authHeaders(auth) }));
 }
 
 export async function deleteAccountAction(auth: ActionAuth, payload: { email: string; password: string; totp?: string }) {
@@ -238,10 +255,37 @@ export async function updateUserPropertyAction(auth: ActionAuth, propertyName: s
   return extractData(await patchAuthUpdateUserProperty({ body: { auth, propertyName, propertyValue }, headers: authHeaders(auth) })) as Promise<AuthUserRecord>;
 }
 
+// --- Session actions ---
+
+export async function getCurrentSessionAction(auth: ActionAuth): Promise<SessionRecord> {
+  return extractData(await client.get({
+    url: "/sessions/current",
+    headers: authHeaders(auth),
+  })) as Promise<SessionRecord>;
+}
+
+export async function renameCurrentSessionAction(auth: ActionAuth, displayName: string): Promise<SessionRecord> {
+  return extractData(await client.patch({
+    url: "/sessions/current",
+    body: { displayName },
+    headers: authHeaders(auth),
+  })) as Promise<SessionRecord>;
+}
+
 // --- Links actions ---
 
 export async function getLinksCollectionsAction(auth: ActionAuth) {
   return extractData(await getLinksCollections({ headers: authHeaders(auth) }));
+}
+
+export type LinkMetadata = {
+  title: string;
+  description: string;
+  iconUrl: string;
+};
+
+export async function getLinksMetadataAction(auth: ActionAuth, url: string): Promise<LinkMetadata> {
+  return extractData(await getLinksMetadata({ query: { url }, headers: authHeaders(auth) }));
 }
 
 export async function createLinksCollectionAction(auth: ActionAuth, data: { name: string; description?: string; icon?: string }) {
@@ -280,7 +324,7 @@ export async function getLinksFoldersAction(auth: ActionAuth, listId: string) {
   return extractData(await getLinksFolders({ query: { listId }, headers: authHeaders(auth) }));
 }
 
-export async function createLinksFolderAction(auth: ActionAuth, data: { list: string; name: string; parentFolder?: string }) {
+export async function createLinksFolderAction(auth: ActionAuth, data: { list: string; name: string; parentFolder?: string; icon?: string }) {
   return extractData(await postLinksFolders({ body: data, headers: authHeaders(auth) }));
 }
 
@@ -302,6 +346,18 @@ export async function updateHomeLinkItemAction(auth: ActionAuth, linkId: string,
 
 export async function deleteLinkItemAction(auth: ActionAuth, linkId: string) {
   return extractData(await deleteLinksItemsByLinkId({ path: { linkId }, headers: authHeaders(auth) }));
+}
+
+export async function wipeUserLinksAction(auth: ActionAuth): Promise<{
+  deletedCollections: number;
+  deletedFolders: number;
+  deletedItems: number;
+}> {
+  return extractData(await sdk.deleteLinksDevUserLinks({ headers: authHeaders(auth) })) as Promise<{
+    deletedCollections: number;
+    deletedFolders: number;
+    deletedItems: number;
+  }>;
 }
 
 export async function updateLinksOrderAction(auth: ActionAuth, items: { id: string; type: "link" | "folder"; position: number }[]) {
@@ -385,8 +441,8 @@ export async function getIntegrationCalendarEventsAction(auth: ActionAuth, integ
   return extractData(await getIntegrationsCaldavEvents({ query: { integrationId }, headers: authHeaders(auth) }));
 }
 
-export async function proxyIntegrationAction(auth: ActionAuth, searchItemId: string) {
-  return extractData(await postIntegrationsProxyAction({ body: { auth, searchItemId }, headers: authHeaders(auth) }));
+export async function proxyIntegrationAction(auth: ActionAuth, shortcutId: string) {
+  return extractData(await postIntegrationsProxyAction({ body: { auth, shortcutId }, headers: authHeaders(auth) }));
 }
 
 // --- Widgets/Glanceables actions ---
@@ -571,6 +627,10 @@ export async function updateNewsFeedRecordAction(auth: ActionAuth, payload: News
   return extractData(await postNewsFeedRecordsById({ path: { id: payload.feedId ?? "all" }, body: payload, headers: authHeaders(auth) }));
 }
 
+export async function deleteNewsFeedRecordAction(auth: ActionAuth, feedId: string) {
+  return extractData(await sdk.deleteNewsFeedRecordsById({ path: { id: feedId }, headers: authHeaders(auth) }));
+}
+
 export async function fixMissingTitlesAction(auth: ActionAuth): Promise<unknown> {
   return extractData(await postNewsFixMissingTitles({ headers: authHeaders(auth) })) as Promise<unknown>;
 }
@@ -607,18 +667,40 @@ export async function getPageIntegrationDataAction(auth: ActionAuth, pageName?: 
   return extractData(await postPageConfigIntegrationData({ query: { page: pageName }, headers: authHeaders(auth) })) as Promise<unknown>;
 }
 
-// --- SearchItems actions ---
+// --- Shortcuts actions ---
 
-export async function getSearchItemsAction(auth: ActionAuth) {
-  return extractData(await getSearchItems({ headers: authHeaders(auth) }));
+export async function getShortcutsAction(auth: ActionAuth) {
+  return extractData(await getShortcuts({ headers: authHeaders(auth) }));
 }
 
-export async function getFrequentlyUsedSearchItemsAction(auth: ActionAuth) {
-  return extractData(await getSearchItemsFrequentlyUsed({ headers: authHeaders(auth) }));
+export async function getFrequentlyUsedShortcutsAction(auth: ActionAuth) {
+  return extractData(await getShortcutsFrequentlyUsed({ headers: authHeaders(auth) }));
 }
 
-export async function logSearchItemUsageAction(auth: ActionAuth, id: string, timestamp: string) {
-  return extractData(await postSearchItemsUsageStats({ body: { id, timestamp }, headers: authHeaders(auth) }));
+export async function logShortcutUsageAction(auth: ActionAuth, id: string, timestamp: string) {
+  return extractData(await postShortcutsUsageStats({ body: { id, timestamp }, headers: authHeaders(auth) }));
+}
+
+export async function createShortcutAppAction(
+  auth: ActionAuth,
+  input: { name: string; type: "on-demand"; icon?: string },
+) {
+  return extractData(await sdk.postShortcutsApps({
+    body: input,
+    headers: authHeaders(auth),
+  }));
+}
+
+export async function syncOnDemandShortcutsAction(
+  auth: ActionAuth,
+  appId: string,
+  shortcuts: Array<Record<string, unknown>>,
+) {
+  return extractData(await sdk.putShortcutsOnDemandByAppId({
+    path: { appId },
+    body: { shortcuts },
+    headers: authHeaders(auth),
+  }));
 }
 
 // --- Misc actions ---
@@ -694,6 +776,14 @@ export async function sendTestNotificationAction(auth: ActionAuth, topicId: stri
   return extractData(await postNotificationsTest({ body: { auth, topicId }, headers: authHeaders(auth) }));
 }
 
+export async function testForwarderAction(auth: ActionAuth, forwarderId: string) {
+  return extractData(await postNotificationsForwardersTest({ body: { auth, forwarderId }, headers: authHeaders(auth) }));
+}
+
+export async function testForwarderTargetAction(auth: ActionAuth, target: string) {
+  return extractData(await postNotificationsForwardersTest({ body: { auth, target }, headers: authHeaders(auth) }));
+}
+
 export async function listTopicTokensAction(auth: ActionAuth) {
   return extractData(await getNotificationsTopicTokens({ headers: authHeaders(auth) }));
 }
@@ -704,6 +794,10 @@ export async function createTopicTokenAction(auth: ActionAuth, body: any) {
 
 export async function deleteTopicTokenAction(auth: ActionAuth, tokenId: string) {
   return extractData(await deleteNotificationsTopicTokens({ body: { auth, tokenId }, headers: authHeaders(auth) }));
+}
+
+export async function updateTopicTokenAction(auth: ActionAuth, body: any) {
+  return extractData(await putNotificationsTopicTokens({ body, headers: authHeaders(auth) }));
 }
 
 export async function getForwardersAction(auth: ActionAuth) {

@@ -25,12 +25,12 @@ systemRoute.get(
   }),
 );
 
-systemRoute.get("/api/v1/jobs/searchItems", async (c) => {
+systemRoute.get("/api/v1/jobs/shortcuts", async (c) => {
   if (!validateJobsBasicAuth(c.req.header("authorization"))) {
     return c.json({ status: "error", message: "Unauthorized" }, 401);
   }
 
-  await jobsApi.runSearchItemsJob("api");
+  await jobsApi.runShortcutsJob("api");
   return c.json({ status: "success" });
 });
 systemRoute.get("/api/v1/jobs/pullIcons", async (c) => {

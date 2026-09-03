@@ -67,7 +67,7 @@ export default function WallpaperBrightnessSliderComponent({ className }: { clas
       )}
     >
       <div className="flex items-center gap-1 min-w-[180px]">
-        <p className="font-medium text-foreground">Darken/Brighten</p>
+        <p className="font-medium text-foreground">Brightness</p>
       </div>
 
       <div className="flex-1 flex items-center gap-3 max-w-76">

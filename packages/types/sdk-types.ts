@@ -1,5 +1,6 @@
 export type ActionAuth = {
   token?: string | null;
+  sessionId?: string | null;
 };
 
 export type JsonPrimitive = string | number | boolean | null;
@@ -80,6 +81,7 @@ export type NewsFeedRecord = {
   feedType?: "all" | "custom" | string;
   systemKey?: string;
   subscriptionRefs: string[];
+  includedFeedRefs?: string[];
   excludedSubscriptionRefs: string[];
   maxFeedItems?: number;
   /** Populated from Redis, not persisted in PocketBase. */
@@ -93,6 +95,7 @@ export type NewsFeedRecordUpdateInput = {
   feedType?: "all" | "custom" | string;
   systemKey?: string;
   subscriptionRefs?: string[];
+  includedFeedRefs?: string[];
   excludedSubscriptionRefs?: string[];
   maxFeedItems?: number;
 };
@@ -154,17 +157,20 @@ export type NewsFeedMetadata = {
   feedUrl: string;
   title: string;
   icon: string;
+  suggestedBlacklistWords?: string[];
 };
 
 export type NewsFeedRecordCreateInput = {
   title: string;
   icon?: string;
+  includedFeedRefs?: string[];
 };
 
 export type NewsFeedSummary = {
   id: string;
   title: string;
   icon?: string;
+  includedFeedRefs?: string[];
 };
 
 export type NewsFeedsResponse = {

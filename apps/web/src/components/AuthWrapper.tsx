@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { fetchWallpaperBlob } from "@/lib/apiClient";
 import { LocalizationProvider } from "@/context/LocalizationContext";
 import { ActivityProvider } from "@/context/ActivityContext";
+import { NotificationProvider } from "@/context/NotificationContext";
 import { normalizeWallpaperFilters } from "./settings/wallpaperFilterDefaults";
 import SearchBar from "./widgets/SearchBar";
 
@@ -85,17 +86,19 @@ export default function AuthWrapper({ children }: AuthWrapperProps) {
     };
   }, [user?.appearancePreferences?.themeMode]);
 
-  // --- Accent color --- MOVED UP before any conditional returns
   useEffect(() => {
     const accentColor = user?.appearancePreferences?.accentColor || "#4f46e5";
     document.documentElement.style.setProperty("--primary", accentColor);
   }, [user]);
 
-  // --- Background image --- MOVED UP before any conditional returns
-  useEffect(() => {
-    if (!user?.appearancePreferences) return;
+  const appearancePreferences = user?.appearancePreferences;
+  const hasAppearancePreferences = Boolean(appearancePreferences);
+  const backgroundImageUrl = appearancePreferences?.backgroundImageUrl;
 
-    const rawImgUrl = user.appearancePreferences.backgroundImageUrl || "/dashboard-wallpaper.png";
+  useEffect(() => {
+    if (!hasAppearancePreferences) return;
+
+    const rawImgUrl = backgroundImageUrl || "/dashboard-wallpaper.png";
     const imgUrl = rawImgUrl.startsWith("/assets/") ? rawImgUrl.replace(/^\/assets\//, "/") : rawImgUrl;
     const tokenToUse = token;
     let revokeUrl: string | null = null;
@@ -135,15 +138,17 @@ export default function AuthWrapper({ children }: AuthWrapperProps) {
       document.body.style.backgroundPosition = "";
       if (revokeUrl) URL.revokeObjectURL(revokeUrl);
     };
-  }, [user, token]);
+  }, [backgroundImageUrl, hasAppearancePreferences, token]);
 
 
   if (!isMounted) {
     return (
       <LocalizationProvider>
-        <ActivityProvider>
-          <div className={cn("min-h-screen overflow-hidden")}>{children}</div>
-        </ActivityProvider>
+        <NotificationProvider>
+          <ActivityProvider>
+            <div className={cn("min-h-screen overflow-hidden")}>{children}</div>
+          </ActivityProvider>
+        </NotificationProvider>
       </LocalizationProvider>
     );
   }
@@ -169,15 +174,17 @@ export default function AuthWrapper({ children }: AuthWrapperProps) {
           backdropFilter: `blur(${blur}px) brightness(${appliedBrightness}%)`,
           WebkitBackdropFilter: `blur(${blur}px) brightness(${appliedBrightness}%)`,
         }}
-      >
-        <ActivityProvider>
-          <SearchBar
-            useRedirect={false}
-            showTrigger={false}
-            enableGlobalShortcut
-          />
-          {children}
-        </ActivityProvider>
+    >
+        <NotificationProvider>
+          <ActivityProvider>
+            <SearchBar
+              useRedirect={false}
+              showTrigger={false}
+              enableGlobalShortcut
+            />
+            {children}
+          </ActivityProvider>
+        </NotificationProvider>
       </div>
     </LocalizationProvider>
   );

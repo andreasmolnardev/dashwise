@@ -68,13 +68,23 @@ export function renderWidget({
   const resolvedType = type === "widget" && typeof renderParams?.key === "string" && renderParams.key.trim()
     ? renderParams.key.trim()
     : type;
+  const usesFrameGlanceableLayout = resolvedType === "glanceable-clock" ||
+    Array.isArray(renderParams?.glanceables) ||
+    Array.isArray(renderParams?.glanceables?.slots?.list);
   const finalClassName = `${className ?? ""} frosted`.trim();
   const progressPeriod = resolveProgressPeriod(resolvedType, params);
 
   switch (resolvedType) {
     case "main-clock":
     case "glanceable-clock":
-      return <GlanceableClockWidget className={className} params={renderParams} isPreview={isPreview} />;
+      return (
+        <GlanceableClockWidget
+          className={className}
+          params={renderParams}
+          isPreview={isPreview}
+          layout={usesFrameGlanceableLayout ? "frame" : "dashboard"}
+        />
+      );
 
     case "search-bar":
       return <SearchBar useRedirect={false} defaultOpen={defaultOpen} />;

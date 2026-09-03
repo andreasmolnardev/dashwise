@@ -58,6 +58,8 @@ type EditGlanceablesViewProps = {
   clockStyle: Record<string, any>;
   setClockStyle: Dispatch<SetStateAction<Record<string, any>>>;
   fonts: Array<{ name: string; path: string }>;
+  titleOverride?: string;
+  hideAddGlanceable?: boolean;
 };
 
 export function EditGlanceablesView({
@@ -73,13 +75,16 @@ export function EditGlanceablesView({
   clockStyle,
   setClockStyle,
   fonts,
+  titleOverride,
+  hideAddGlanceable = false,
 }: EditGlanceablesViewProps) {
   const localization = useLocalization();
   const { withAuth, user } = useAuth();
-  const editorTitle =
+  const editorTitle = titleOverride ?? (
     selectedClockPart === "clock"
       ? "Edit Glanceable Clock"
-      : `Edit ${selectedClockPart === "left" ? "Left" : "Right"} Glanceable`;
+      : `Edit ${selectedClockPart === "left" ? "Left" : "Right"} Glanceable`
+  );
   const selectedClockSide: GlanceableSide = selectedClockPart === "right"
     ? "right"
     : "left";
@@ -220,7 +225,9 @@ export function EditGlanceablesView({
                   <X className="h-3 w-3 opacity-60 group-hover:opacity-100" onClick={(event) => { event.stopPropagation(); removeSelectedGlanceable(item.id); }} />
                 </button>
               ))}
-              <button type="button" onClick={() => addGlanceable(selectedClockSide)} aria-label="Add glanceable" className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-dashed border-white/30 text-white/70 hover:bg-white/10"><Plus className="h-4 w-4" /></button>
+              {!hideAddGlanceable && (
+                <button type="button" onClick={() => addGlanceable(selectedClockSide)} aria-label="Add glanceable" className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-dashed border-white/30 text-white/70 hover:bg-white/10"><Plus className="h-4 w-4" /></button>
+              )}
             </div>
 
             {selectedGlanceable ? <>

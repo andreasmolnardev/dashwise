@@ -6,6 +6,12 @@ import { cors } from "hono/cors";
 import { Client as SshClient } from "ssh2";
 
 import { config } from "./lib/config";
+import {
+  handleActivityMessage,
+  registerSessionConnection,
+  subscribeActivity,
+} from "./lib/activity";
+import { ensureSession } from "./lib/data/sessions";
 import { jobsApi, registerJobsCron } from "./jobs/index";
 import { startPocketbase } from "./pocketbase";
 import { createLogger } from "./lib/logger";
@@ -14,8 +20,9 @@ import { getNotifications } from "./lib/data/notifications/items";
 import { listIntegrations } from "./lib/data/integrations";
 import { getUpcomingEvents } from "./lib/calendar";
 import { systemAgentClient } from "./lib/systemAgent";
-import { requireAuth } from "./routes/shared";
+import { readAuth, readSessionMetadata, requireAuth } from "./routes/shared";
 import authRoute from "./routes/auth.route";
+import sessionsRoute from "./routes/sessions.route";
 import systemRoute from "./routes/system.route";
 import dataRoute from "./routes/data.route";
 
@@ -63,7 +70,24 @@ app.use("*", async (c, next) => {
 
 app.use("*", cors({ origin: "*" }));
 
+// Session identity is deliberately independent from the auth token. Touch the
+// current device on every authenticated API request that carries its stable id.
+app.use("/api/v1/*", async (c, next) => {
+  const auth = readAuth(c);
+  if (auth.token && auth.sessionId) {
+    try {
+      const { pb, userId } = await requireAuth(auth);
+      await ensureSession(pb, userId, auth.sessionId, readSessionMetadata(c));
+    } catch {
+      // The route handler remains responsible for returning auth errors. This
+      // middleware should not turn a missing/expired session touch into one.
+    }
+  }
+  await next();
+});
+
 app.route("/", authRoute);
+app.route("/", sessionsRoute);
 app.route("/", systemRoute);
 app.route("/", dataRoute);
 
@@ -71,29 +95,56 @@ app.get("/health", (c) => c.json({ status: "ok" }));
 
 app.get("/api/v1/activity", upgradeWebSocket((c) => {
   let refreshTimer: ReturnType<typeof setInterval> | undefined;
+  let unsubscribeActivity: (() => void) | undefined;
+  let unregisterSessionConnection: (() => void) | undefined;
+  let connectedUserId = "";
+  let connectedSessionId = "";
 
   return {
     async onOpen(_event, ws) {
       const token = c.req.query("token") || "";
+      const sessionId = c.req.query("sessionId") || c.req.header("x-session-id") || null;
       try {
-        const { userId, pb } = await requireAuth({ token });
+        const { userId, pb } = await requireAuth({ token, sessionId });
+        const session = await ensureSession(pb, userId, sessionId, readSessionMetadata(c));
+        if (!session) throw new Error("A valid session id is required");
+        connectedUserId = userId;
+        connectedSessionId = session.sessionId;
+        unregisterSessionConnection = registerSessionConnection(userId, session.sessionId, ws);
+        let calendarEvents: Array<Record<string, any>> = [];
+        let calendarRefreshedAt = 0;
+        let calendarRefresh: Promise<void> | null = null;
+        const refreshCalendarEvents = async () => {
+          if (Date.now() - calendarRefreshedAt < 5 * 60 * 1000) return;
+          if (calendarRefresh) return calendarRefresh;
+
+          calendarRefresh = (async () => {
+            const integrationResult = await listIntegrations(userId);
+            calendarEvents = (await Promise.all(
+              integrationResult.integrations
+                .filter((integration) => integration.type === "caldav")
+                .map((integration) => getUpcomingEvents(
+                  integration.environment,
+                  integration.localData,
+                  (localData) => pb.collection("integrations").update(integration.id, { localData }).then(() => undefined),
+                ).then((events) => events.map((event) => ({ ...event, id: `${integration.id}:${event.id}` }))).catch(() => [])),
+            )).flat().filter((event) => new Date(event.start).getTime() >= new Date().setHours(0, 0, 0, 0));
+            calendarRefreshedAt = Date.now();
+          })().finally(() => {
+            calendarRefresh = null;
+          });
+
+          return calendarRefresh;
+        };
         const sendSnapshot = async () => {
-          const [notificationResult, integrationResult] = await Promise.all([
+          const [notificationResult] = await Promise.all([
             getNotifications(userId),
-            listIntegrations(userId),
+            refreshCalendarEvents(),
           ]);
-          const calendarEvents = (await Promise.all(
-            integrationResult.integrations
-              .filter((integration) => integration.type === "caldav")
-              .map((integration) => getUpcomingEvents(
-                integration.environment,
-                integration.localData,
-                (localData) => pb.collection("integrations").update(integration.id, { localData }).then(() => undefined),
-              ).then((events) => events.map((event) => ({ ...event, id: `${integration.id}:${event.id}` }))).catch(() => [])),
-          )).flat().filter((event) => new Date(event.start).getTime() >= new Date().setHours(0, 0, 0, 0));
           ws.send(JSON.stringify({ type: "activity:snapshot", notifications: notificationResult.items, calendarEvents }));
         };
 
+        unsubscribeActivity = subscribeActivity(userId, sendSnapshot);
         await sendSnapshot();
         refreshTimer = setInterval(() => void sendSnapshot().catch(() => undefined), 30_000);
         (ws as typeof ws & { data: { sendSnapshot: () => Promise<void> } }).data = { sendSnapshot };
@@ -104,6 +155,12 @@ app.get("/api/v1/activity", upgradeWebSocket((c) => {
     onMessage(event, ws) {
       try {
         const message = JSON.parse(String(event.data));
+        if (connectedUserId && connectedSessionId && handleActivityMessage(
+          connectedUserId,
+          connectedSessionId,
+          ws,
+          message,
+        )) return;
         if (message.type === "activity:subscribe" || message.type === "activity:refresh") {
           void (ws as typeof ws & { data?: { sendSnapshot: () => Promise<void> } }).data?.sendSnapshot();
         }
@@ -113,6 +170,8 @@ app.get("/api/v1/activity", upgradeWebSocket((c) => {
     },
     onClose() {
       if (refreshTimer) clearInterval(refreshTimer);
+      unsubscribeActivity?.();
+      unregisterSessionConnection?.();
     },
   };
 }));
@@ -139,10 +198,12 @@ app.get("/api/v1/monitoring/ssh-hosts/:id/console", upgradeWebSocket((c) => {
   return {
     async onOpen(_event, ws) {
       const token = c.req.query("token") || c.req.header("Authorization")?.replace(/^Bearer\s+/i, "") || "";
+      const sessionId = c.req.query("sessionId") || c.req.header("x-session-id") || null;
       const hostId = c.req.param("id") || "";
 
       try {
-        const { userId } = await requireAuth({ token });
+        const { userId, pb } = await requireAuth({ token, sessionId });
+        await ensureSession(pb, userId, sessionId, readSessionMetadata(c));
         const host = await getMonitoringSshHostById(userId, hostId);
         if (!host) {
           ws.send(JSON.stringify({ type: "error", message: "SSH host not found" }));
@@ -228,8 +289,10 @@ app.get("/api/v1/monitoring/hosts/:id/stats/live", upgradeWebSocket((c) => {
   return {
     async onOpen(_event, ws) {
       const token = c.req.query("token") || c.req.header("Authorization")?.replace(/^Bearer\s+/i, "") || "";
+      const sessionId = c.req.query("sessionId") || c.req.header("x-session-id") || null;
       try {
-        const { userId } = await requireAuth({ token });
+        const { userId, pb } = await requireAuth({ token, sessionId });
+        await ensureSession(pb, userId, sessionId, readSessionMetadata(c));
         const host = await getSystemAgentHostById(userId, c.req.param("id") || "");
         if (!host) {
           ws.close(1008, "Monitoring host not found");
@@ -251,42 +314,6 @@ app.get("/api/v1/monitoring/hosts/:id/stats/live", upgradeWebSocket((c) => {
     },
   };
 }));
-
-app.get("/webhook/statusMonitoringIndexer", async (c) => {
-  await jobsApi.runMonitoringIndexerJob("webhook");
-  return c.json({ status: "success" });
-});
-
-app.get("/webhook/statusMonitoringRunner", async (c) => {
-  const source = c.req.query("source");
-  const linkId = c.req.query("linkId");
-  await jobsApi.runMonitoringRunnerJob("webhook", { source, linkId });
-  return c.json({ status: "success" });
-});
-
-app.get("/webhook/newsFeedBuilder", async (c) => {
-  const url = new URL(c.req.url);
-  const feedIds = [
-    ...url.searchParams.getAll("feedIds"),
-    ...url.searchParams.getAll("feedId"),
-  ]
-    .flatMap((entry) => String(entry || "").split(","))
-    .map((feedId) => feedId.trim())
-    .filter(Boolean);
-
-  if (!feedIds.length) {
-    return c.json({ status: "success", message: "No feed IDs specified" });
-  }
-
-  await jobsApi.runNewsFeedBuilderJob("webhook", undefined, undefined, feedIds);
-
-  return c.json({ status: "success" });
-});
-
-app.post("/api/forward-notifications", async (c) => {
-  await jobsApi.runNotificationForwarderJob("api");
-  return c.json({ status: "success" });
-});
 
 async function serveWorkspaceAsset(scope: keyof typeof assetRoots, requestPath: string) {
   const prefix = `/${scope}`;

@@ -45,7 +45,10 @@
 			"name": "pageConfig"
 		},
 		{
-			"name": "search"
+			"name": "shortcuts"
+		},
+		{
+			"name": "sessions"
 		},
 		{
 			"name": "test"
@@ -284,6 +287,42 @@
 				}
 			}
 		},
+		"/sessions/current": {
+			"get": {
+				"tags": [
+					"sessions"
+				],
+				"summary": "Get the current client session",
+				"responses": {
+					"200": {
+						"$ref": "#/components/responses/JsonOk"
+					},
+					"401": {
+						"$ref": "#/components/responses/JsonUnauthorized"
+					}
+				}
+			},
+			"patch": {
+				"tags": [
+					"sessions"
+				],
+				"summary": "Rename the current client session",
+				"requestBody": {
+					"$ref": "#/components/requestBodies/JsonBody"
+				},
+				"responses": {
+					"200": {
+						"$ref": "#/components/responses/JsonOk"
+					},
+					"400": {
+						"$ref": "#/components/responses/JsonBadRequest"
+					},
+					"401": {
+						"$ref": "#/components/responses/JsonUnauthorized"
+					}
+				}
+			}
+		},
 		"/integrations": {
 			"get": {
 				"tags": [
@@ -391,6 +430,53 @@
 				"responses": {
 					"200": {
 						"$ref": "#/components/responses/JsonOk"
+					}
+				}
+			}
+		},
+		"/links/metadata": {
+			"get": {
+				"tags": [
+					"links"
+				],
+				"summary": "Get link metadata",
+				"parameters": [
+					{
+						"name": "url",
+						"in": "query",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"title": {
+											"type": "string"
+										},
+										"description": {
+											"type": "string"
+										},
+										"iconUrl": {
+											"type": "string"
+										}
+									},
+									"required": [
+										"title",
+										"description",
+										"iconUrl"
+									],
+									"additionalProperties": false
+								}
+							}
+						}
 					}
 				}
 			}
@@ -567,6 +653,19 @@
 				}
 			}
 		},
+		"/links/dev/user-links": {
+			"delete": {
+				"tags": [
+					"links"
+				],
+				"summary": "Wipe development user links",
+				"responses": {
+					"200": {
+						"$ref": "#/components/responses/JsonOk"
+					}
+				}
+			}
+		},
 		"/links/tags": {
 			"get": {
 				"tags": [
@@ -594,12 +693,12 @@
 				}
 			}
 		},
-		"/jobs/searchItems": {
+		"/jobs/shortcuts": {
 			"get": {
 				"tags": [
 					"jobs"
 				],
-				"summary": "Search items job",
+				"summary": "Shortcuts indexing job",
 				"responses": {
 					"200": {
 						"$ref": "#/components/responses/JsonOk"
@@ -1145,6 +1244,22 @@
 				}
 			}
 		},
+		"/notifications/forwarders/test": {
+			"post": {
+				"tags": [
+					"notifications"
+				],
+				"summary": "Test forwarder",
+				"requestBody": {
+					"$ref": "#/components/requestBodies/JsonBody"
+				},
+				"responses": {
+					"200": {
+						"$ref": "#/components/responses/JsonOk"
+					}
+				}
+			}
+		},
 		"/notifications/markAsRead": {
 			"post": {
 				"tags": [
@@ -1243,6 +1358,20 @@
 					}
 				}
 			},
+			"put": {
+				"tags": [
+					"notifications"
+				],
+				"summary": "Update topic token",
+				"requestBody": {
+					"$ref": "#/components/requestBodies/JsonBody"
+				},
+				"responses": {
+					"200": {
+						"$ref": "#/components/responses/JsonOk"
+					}
+				}
+			},
 			"get": {
 				"tags": [
 					"notifications"
@@ -1269,12 +1398,12 @@
 				}
 			}
 		},
-		"/searchItems": {
+		"/shortcuts": {
 			"get": {
 				"tags": [
-					"search"
+					"shortcuts"
 				],
-				"summary": "Search items",
+				"summary": "List shortcuts",
 				"responses": {
 					"200": {
 						"$ref": "#/components/responses/JsonOk"
@@ -2009,6 +2138,27 @@
 						"$ref": "#/components/responses/JsonOk"
 					}
 				}
+			},
+			"delete": {
+				"tags": [
+					"news"
+				],
+				"summary": "Delete news feed record",
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"$ref": "#/components/responses/JsonOk"
+					}
+				}
 			}
 		},
 		"/news/feed-records": {
@@ -2128,12 +2278,72 @@
 				}
 			}
 		},
-		"/searchItems/frequentlyUsed": {
+		"/shortcuts/apps": {
+			"post": {
+				"tags": [
+					"shortcuts"
+				],
+				"summary": "Create an on-demand shortcut app",
+				"requestBody": {
+					"$ref": "#/components/requestBodies/JsonBody"
+				},
+				"responses": {
+					"200": {
+						"$ref": "#/components/responses/JsonOk"
+					},
+					"400": {
+						"$ref": "#/components/responses/JsonBadRequest"
+					},
+					"401": {
+						"$ref": "#/components/responses/JsonUnauthorized"
+					}
+				}
+			}
+		},
+		"/shortcuts/on-demand/{appId}": {
+			"put": {
+				"tags": [
+					"shortcuts"
+				],
+				"summary": "Replace an on-demand app's shortcuts",
+				"parameters": [
+					{
+						"name": "appId",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"$ref": "#/components/requestBodies/JsonBody"
+				},
+				"responses": {
+					"200": {
+						"$ref": "#/components/responses/JsonOk"
+					},
+					"400": {
+						"$ref": "#/components/responses/JsonBadRequest"
+					},
+					"401": {
+						"$ref": "#/components/responses/JsonUnauthorized"
+					},
+					"404": {
+						"$ref": "#/components/responses/JsonNotFound"
+					},
+					"409": {
+						"$ref": "#/components/responses/JsonConflict"
+					}
+				}
+			}
+		},
+		"/shortcuts/frequentlyUsed": {
 			"get": {
 				"tags": [
-					"search"
+					"shortcuts"
 				],
-				"summary": "List frequently used search items",
+				"summary": "List frequently used shortcuts",
 				"responses": {
 					"200": {
 						"$ref": "#/components/responses/JsonOk"
@@ -2141,12 +2351,12 @@
 				}
 			}
 		},
-		"/searchItems/usageStats": {
+		"/shortcuts/usageStats": {
 			"post": {
 				"tags": [
-					"search"
+					"shortcuts"
 				],
-				"summary": "Log search item usage",
+				"summary": "Log shortcut usage",
 				"requestBody": {
 					"$ref": "#/components/requestBodies/JsonBody"
 				},
@@ -2214,6 +2424,26 @@
 			},
 			"JsonUnauthorized": {
 				"description": "Unauthorized",
+				"content": {
+					"application/json": {
+						"schema": {
+							"$ref": "#/components/schemas/Error"
+						}
+					}
+				}
+			},
+			"JsonNotFound": {
+				"description": "Not Found",
+				"content": {
+					"application/json": {
+						"schema": {
+							"$ref": "#/components/schemas/Error"
+						}
+					}
+				}
+			},
+			"JsonConflict": {
+				"description": "Conflict",
 				"content": {
 					"application/json": {
 						"schema": {

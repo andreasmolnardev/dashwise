@@ -2,11 +2,14 @@ import { hc } from "hono/client";
 import type { ActionAuth } from "@dashwise/types/sdk";
 
 import { backendUrl } from "@/lib/apiClient";
+import { getClientSessionHeaders } from "@/lib/session";
 
 const rpcClient = hc(backendUrl("/"));
 
 function authHeader(auth?: ActionAuth) {
-  return auth?.token ? { Authorization: `Bearer ${auth.token}` } : undefined;
+  return auth?.token
+    ? { Authorization: `Bearer ${auth.token}`, ...getClientSessionHeaders(auth.sessionId) }
+    : undefined;
 }
 
 async function parseRpcResponse<T>(response: Response): Promise<T> {
@@ -56,6 +59,7 @@ export async function rpcUpdatePageConfig<T = unknown>(
   config: Record<string, unknown>,
 ) {
   const response = await rpcClient.rpc["page-config"].$put({
+    header: authHeader(auth),
     json: { auth, pageName, config },
   });
   return parseRpcResponse<T>(response);
@@ -63,6 +67,7 @@ export async function rpcUpdatePageConfig<T = unknown>(
 
 export async function rpcCreateHomePage<T = unknown>(auth: ActionAuth) {
   const response = await rpcClient.rpc["page-config"].home.$post({
+    header: authHeader(auth),
     json: { auth },
   });
   return parseRpcResponse<T>(response);

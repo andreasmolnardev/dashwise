@@ -16,6 +16,10 @@ const fallbackOutlierValue = normalizedOutlierType === "absolute" ? 500 : 50;
 const resolvedOutlierValue = Number.isFinite(normalizedOutlierValue) && normalizedOutlierValue > 0
   ? normalizedOutlierValue
   : fallbackOutlierValue;
+const normalizedNewsSubscriptionRetention = Number(env.NEWS_SUBSCRIPTION_RETENTION);
+const resolvedNewsSubscriptionRetention = Number.isInteger(normalizedNewsSubscriptionRetention) && normalizedNewsSubscriptionRetention > 0
+  ? normalizedNewsSubscriptionRetention
+  : 50;
 
 const truthyEnv = (value?: string | null): boolean => {
   if (!value) return false;
@@ -48,18 +52,20 @@ export const config = {
   PORT: Number(env.PORT) || 3000,
   PB_URL: getEnv("PB_URL", "NEXT_PUBLIC_PB_URL") || "http://127.0.0.1:8090",
   PB_BINARY_PATH: env.PB_BINARY_PATH,
+  SHOUTRRR_BINARY_PATH: env.SHOUTRRR_BINARY_PATH,
   LOG_LEVEL: getLogLevel(),
   START_POCKETBASE:
     processStartPocketBase == null
       ? true
       : !(processStartPocketBase === "false" || processStartPocketBase === "0"),
-  SEARCHITEMS_SCHEDULE: env.SEARCHITEMS_SCHEDULE || "*/10 * * * *",
+  SHORTCUTS_SCHEDULE: env.SHORTCUTS_SCHEDULE || "*/10 * * * *",
   ENABLE_ICONS_REFRESH: env.ENABLE_ICONS_REFRESH === "true",
   PULL_ICONS_SCHEDULE: env.PULL_ICONS_SCHEDULE || "0 */18 * * *",
   MONITORING_INDEXER_SCHEDULE: env.MONITORING_INDEXER_SCHEDULE || "*/10 * * * *",
   MONITORING_RUNNER_SCHEDULE: env.MONITORING_RUNNER_SCHEDULE || "*/1 * * * *",
   UPDATE_CHECK_SCHEDULE: env.UPDATE_CHECK_SCHEDULE || "0 2 * * *",
   FEED_BUILDING_SCHEDULE: env.FEED_BUILDING_SCHEDULE || "*/30 * * * *",
+  NEWS_SUBSCRIPTION_RETENTION: resolvedNewsSubscriptionRetention,
   NOTIFICATION_FORWARDER_SCHEDULE: env.NOTIFICATION_FORWARDER_SCHEDULE || "* * * * *",
   DEFAULT_INTEGRATIONS_SCHEDULE: env.DEFAULT_INTEGRATIONS_SCHEDULE || "0 4 * * *",
   PAGECONFIG_CLEANUP_SCHEDULE: env.PAGECONFIG_CLEANUP_SCHEDULE || "0 5 * * *",
@@ -76,9 +82,6 @@ export const config = {
   INSTANCE_NAME: getEnv("INSTANCE_NAME", "NEXT_PUBLIC_INSTANCE_NAME") || "Dashwise",
   DISABLE_USER_SIGNUP: truthyEnv(getEnv("DISABLE_USER_SIGNUP", "NEXT_PUBLIC_DISABLE_USER_SIGNUP")),
   ENABLE_SSO: truthyEnv(getEnv("ENABLE_SSO", "NEXT_PUBLIC_ENABLE_SSO")),
-  JOBS_URL: getEnv("JOBS_URL", "NEXT_PUBLIC_JOBS_URL") || "http://127.0.0.1:3001",
-  JOBS_WEBHOOK_URL: env.JOBS_WEBHOOK_URL || "http://jobs:3000/api/forward-notifications",
-  JOBS_WEBHOOK_ENABLED: truthyEnv(getEnv("JOBS_WEBHOOK_ENABLE", "NEXT_PUBLIC_JOBS_WEBHOOK_ENABLE")) || !!getEnv("JOBS_URL", "NEXT_PUBLIC_JOBS_URL"),
   DEFAULT_BG_URL: getEnv("DEFAULT_BG_URL", "NEXT_PUBLIC_DEFAULT_BG_URL") || "/dashboard-wallpaper.png",
   allowInsecureCertsForIntegrationUrls: truthyEnv(getEnv("ALLOW_INSECURE_CERTS_FOR_INTEGRATION_URLS", "NEXT_PUBLIC_INTEGRATIONS_ENABLE_SSL")) || truthyEnv(env.ALLOW_SSL),
 } as const;

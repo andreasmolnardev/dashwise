@@ -1,6 +1,7 @@
 "use client"
 
 import { updateUserPropertyAction } from '@/lib/apiClient';
+import { getClientSessionId } from "@/lib/session";
 import type { ActionAuth, AuthUserRecord, UserPropertyValue } from "@dashwise/types/sdk";
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -10,6 +11,7 @@ type AuthUser = AuthUserRecord;
 
 const EMPTY_AUTH_USER: AuthUser = {};
 export const COMMAND_BAR_OPEN_EVENT = "dashwise:open-command-bar";
+export const AUTH_USER_UPDATED_EVENT = "dashwise:auth-user-updated";
 
 function createUnauthorizedError() {
   const error = new Error("Unauthorized") as Error & { status: number; body: { error: string } };
@@ -54,21 +56,30 @@ export function useAuth() {
   });
 
   useEffect(() => {
+    const syncStoredUser = () => {
+      try {
+        const raw = localStorage.getItem("pb_user");
+        setUser(raw ? (JSON.parse(raw) as AuthUser) : EMPTY_AUTH_USER);
+      } catch {
+        setUser(EMPTY_AUTH_USER);
+      }
+    };
+
     const onStorage = (e: StorageEvent) => {
       if (e.key === "pb_user") {
-        try {
-          setUser(e.newValue ? (JSON.parse(e.newValue) as AuthUser) : EMPTY_AUTH_USER);
-        } catch (err) {
-          setUser(EMPTY_AUTH_USER);
-        }
+        syncStoredUser();
       }
       if (e.key === "pb_token") {
         setToken(e.newValue);
       }
     };
 
+    window.addEventListener(AUTH_USER_UPDATED_EVENT, syncStoredUser);
     window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
+    return () => {
+      window.removeEventListener(AUTH_USER_UPDATED_EVENT, syncStoredUser);
+      window.removeEventListener("storage", onStorage);
+    };
   }, []);
 
   const setAuth = useCallback((u: AuthUser | null, t?: string | null) => {
@@ -88,6 +99,8 @@ export function useAuth() {
         localStorage.setItem("pb_token", t);
         setToken(t);
       }
+
+      window.dispatchEvent(new Event(AUTH_USER_UPDATED_EVENT));
     } catch (err) {
       // ignore storage errors
     }
@@ -131,7 +144,7 @@ export function useAuth() {
         throw createUnauthorizedError();
       }
       try {
-        return await fn({ token });
+        return await fn({ token, sessionId: getClientSessionId() });
       } catch (err: unknown) {
         if (typeof err === "object" && err !== null && "status" in err && (err as { status?: number }).status === 401) {
           onUnauthorized?.();
@@ -172,7 +185,44 @@ export function useAuth() {
     [updateUserPropertyMutation],
   );
 
-  return { user, token, setAuth, setToken: setTokenOnly, logout, withAuth, withAuthRedirect, redirectToLogin, openCommandBar, updateUserProperty };
+  const toggleTheme = useCallback(async () => {
+    const appearance = (user?.appearancePreferences ?? {}) as Record<string, unknown>;
+    const isDark = typeof document !== "undefined"
+      ? document.documentElement.classList.contains("dark")
+      : appearance.themeMode === "dark";
+    const nextMode = isDark ? "light" : "dark";
+
+    await updateUserProperty("appearancePreferences", {
+      ...appearance,
+      themeMode: nextMode,
+      frostedAppearance: nextMode,
+    });
+  }, [updateUserProperty, user?.appearancePreferences]);
+
+  const toggleLinkTileLayout = useCallback(async () => {
+    const appearance = (user?.appearancePreferences ?? {}) as Record<string, unknown>;
+    const nextStyle = appearance.linkTileStyle === "compact" ? "default" : "compact";
+
+    await updateUserProperty("appearancePreferences", {
+      ...appearance,
+      linkTileStyle: nextStyle,
+    });
+  }, [updateUserProperty, user?.appearancePreferences]);
+
+  return {
+    user,
+    token,
+    setAuth,
+    setToken: setTokenOnly,
+    logout,
+    withAuth,
+    withAuthRedirect,
+    redirectToLogin,
+    openCommandBar,
+    updateUserProperty,
+    toggleTheme,
+    toggleLinkTileLayout,
+  };
 }
 
 

@@ -332,6 +332,20 @@ export async function writeMaterializedFeed(
   ]);
 }
 
+export async function deleteMaterializedFeed(userId: string, feedId: string) {
+  const orderKey = materializedFeedOrderKey(userId, feedId);
+  const itemsKey = materializedFeedItemsKey(userId, feedId);
+  const metaKey = materializedFeedMetaKey(userId, feedId);
+
+  if (config.USE_LOCAL_FEED_CACHE) {
+    localViews.delete(orderKey);
+    localMetadata.delete(metaKey);
+    return;
+  }
+
+  await command("DEL", [orderKey, itemsKey, metaKey]);
+}
+
 // Compatibility for the subscription JSON endpoint and older callers. New feed
 // construction must use the article/index functions above.
 export async function readFeedItemsCache(feedId: string): Promise<unknown[] | null> {

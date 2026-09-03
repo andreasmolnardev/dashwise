@@ -57,6 +57,7 @@ import { updateLinksOrderAction } from '@/lib/apiClient';
 
 const HOME_LINKS_CACHE_PREFIX = "dashwise_home_links_cache_v1";
 const DEFAULT_LINK_GROUP = "Default";
+const MOBILE_BREAKPOINT = 768;
 
 type Item =
   | { type: "link"; link: LinkType }
@@ -196,6 +197,16 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
   const { token, user, withAuth } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
+  const [viewportWidth, setViewportWidth] = useState(() =>
+    typeof window === "undefined" ? MOBILE_BREAKPOINT : window.innerWidth,
+  );
+  const isMobile = viewportWidth < MOBILE_BREAKPOINT;
+  const isTouchScreen = typeof window !== "undefined" &&
+    ("ontouchstart" in window || navigator.maxTouchPoints > 0);
+  const dragDisabled = isMobile || isTouchScreen;
+  const linkTileStyle = user?.appearancePreferences?.linkTileStyle === "compact"
+    ? "compact"
+    : "default";
   const [localLinks, setLocalLinks] = useState<LinkType[]>(() => {
     if (links.length > 0) return links;
     return readCachedHomeLinks(user?.id) ?? links;
@@ -236,6 +247,14 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
 
     fetchLinks();
   }, [user?.id, withAuth]);
+
+  useEffect(() => {
+    const updateViewportWidth = () => setViewportWidth(window.innerWidth);
+
+    updateViewportWidth();
+    window.addEventListener("resize", updateViewportWidth);
+    return () => window.removeEventListener("resize", updateViewportWidth);
+  }, []);
 
   const [activeCollection, setActiveCollection] = useState<string | null>(null);
 
@@ -462,16 +481,15 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
     [user?.id],
   );
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 8,
-      },
-    }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    }),
-  );
+  const pointerSensor = useSensor(PointerSensor, {
+    activationConstraint: {
+      distance: 8,
+    },
+  });
+  const keyboardSensor = useSensor(KeyboardSensor, {
+    coordinateGetter: sortableKeyboardCoordinates,
+  });
+  const sensors = useSensors(...(dragDisabled ? [] : [pointerSensor, keyboardSensor]));
 
   const getItemId = React.useCallback((item: Item) => {
     return item.type === "link"
@@ -565,6 +583,7 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
             monitoringDetails={monitoringDetails}
             setEditingLink={setEditingLink}
             navigate={navigate}
+            style={linkTileStyle}
             itemIdx={itemIdx}
             isDragging={dragging}
           />
@@ -572,8 +591,6 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
       }
 
       const folder = item;
-      const folderId = folder.recordId || folder.key;
-      const isPreview = previewFirstFolderIcons(folderId);
 
       return (
         <LinkFolderPopover
@@ -582,11 +599,12 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
           setEditingFolder={setEditingFolder}
           setEditingLink={setEditingLink}
           navigate={navigate}
+          style={linkTileStyle}
           toggleFolderPreview={toggleFolderPreview}
         />
       );
     },
-    [monitoringDetails, navigate, setEditingFolder, setEditingLink, toggleFolderPreview],
+    [linkTileStyle, monitoringDetails, navigate, setEditingFolder, setEditingLink, toggleFolderPreview],
   );
 
   return (
@@ -634,9 +652,18 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
           items={items.map((item) => getItemId(item))}
           strategy={rectSortingStrategy}
         >
-          <PaginatedCarouselViewComponent minColWidth={140}>
+          <PaginatedCarouselViewComponent
+            minColWidth={linkTileStyle === "compact" ? 96 : 140}
+            maxCols={linkTileStyle === "compact" ? 8 : 4}
+            fitContentColumns={linkTileStyle === "compact"}
+            columnGap={linkTileStyle === "compact" ? 24 : undefined}
+          >
             {items.map((item, itemIdx) => (
-              <SortableTileWrapper key={getItemId(item)} id={getItemId(item)}>
+              <SortableTileWrapper
+                key={getItemId(item)}
+                id={getItemId(item)}
+                disabled={dragDisabled}
+              >
                 {renderItem(item, itemIdx)}
               </SortableTileWrapper>
             ))}
@@ -791,6 +818,7 @@ interface LinkTileProps {
   monitoringDetails: any;
   setEditingLink: (link: LinkType) => void;
   navigate: (to: string) => void;
+  style?: "default" | "compact";
   itemIdx?: number;
   isDragging?: boolean;
 }
@@ -800,10 +828,24 @@ function LinkTile({
   monitoringDetails,
   setEditingLink,
   navigate,
+  style = "default",
   itemIdx,
   isDragging,
 }: LinkTileProps) {
   const { user } = useAuth();
+  if (style === "compact") {
+    return (
+      <CompactLinkTile
+        link={link}
+        monitoringDetails={monitoringDetails}
+        setEditingLink={setEditingLink}
+        navigate={navigate}
+        itemIdx={itemIdx}
+        isDragging={isDragging}
+      />
+    );
+  }
+
   const serverEntry = link.id && monitoringDetails
     ? monitoringDetails[link.id]
     : undefined;
@@ -891,8 +933,106 @@ function LinkTile({
   );
 }
 
+function CompactLinkTile({
+  link,
+  monitoringDetails,
+  setEditingLink,
+  navigate,
+  itemIdx,
+  isDragging,
+}: LinkTileProps) {
+  const { user } = useAuth();
+  const serverEntry = link.id && monitoringDetails
+    ? monitoringDetails[link.id]
+    : undefined;
+  const serverStatus = serverEntry?.status;
+  const isHealthy = serverStatus === "healthy";
+  const isDisabled = serverStatus === "disabled";
+  const showDot = Boolean(link.statusCheck);
+
+  return (
+    <a
+      key={link.id || link.url || itemIdx}
+      href={link.url}
+      target={user?.global?.linkOpenBehaviour === "newtab" ? "_blank" : "_self"}
+      rel={user?.global?.linkOpenBehaviour === "newtab"
+        ? "noopener noreferrer"
+        : undefined}
+      className={`group relative flex w-16 flex-col items-center justify-start gap-1 p-0 transition-colors ${isDragging ? "opacity-40 ring-1 ring-white/20" : ""}`}
+    >
+      <div className="frosted flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl p-3 shadow-sm">
+        {link.iconUrl
+          ? (
+            <AppIcon
+              source={link.iconUrl}
+              alt={link.title}
+              className="h-full w-full"
+              imageClassName="h-full w-full object-cover"
+              monoClassName="bg-foreground"
+              lazy
+            />
+          )
+          : (
+            <Icon
+              icon="fa6-solid:folder"
+              className="h-8 w-8 shrink-0 opacity-20"
+            />
+          )}
+      </div>
+
+      <div className="relative flex w-full min-w-0 items-center justify-center">
+        <div className="flex min-w-0 flex-1 items-center justify-center">
+          <span className="block min-w-0 truncate px-1 text-sm text-white group-hover:text-primary">{link.title}</span>
+
+          {showDot && (
+            <button
+              aria-label={`Show monitoring details for ${link.title}`}
+              title={`Show monitoring details for ${link.title}`}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const monitorId = link.id && monitoringDetails?.[link.id]?.id;
+                if (monitorId) {
+                  navigate(`/apps/monitoring/${monitorId}`);
+                }
+              }}
+              className="flex items-center justify-center"
+            >
+              <span
+                className="inline-block h-2 w-2 rounded-full hover:cursor-pointer hover:ring-2"
+                style={{
+                  backgroundColor: isHealthy
+                    ? "var(--primary)"
+                    : isDisabled
+                    ? "#9CA3AF"
+                    : "#6B7280",
+                }}
+                aria-hidden
+              />
+            </button>
+          )}
+        </div>
+        <Button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setEditingLink(link);
+          }}
+          variant="ghost-nohover"
+          className="absolute bottom-1 -right-2 z-10 flex h-4 w-4 items-center justify-center rounded-none p-0 text-white/70 opacity-0 shadow-none transition-opacity hover:bg-transparent hover:text-primary group-hover:opacity-100"
+          title="Edit link"
+          aria-label={`Edit ${link.title ?? "link"}`}
+        >
+          <Icon icon="fa6-solid:pen" className="h-3 w-3" />
+        </Button>
+      </div>
+    </a>
+  );
+}
+
 function SortableTileWrapper(
-  { id, children }: { id: string; children: React.ReactNode },
+  { id, children, disabled }: { id: string; children: React.ReactNode; disabled?: boolean },
 ) {
   const {
     attributes,
@@ -901,7 +1041,7 @@ function SortableTileWrapper(
     transform,
     transition,
     isDragging,
-  } = useSortable({ id });
+  } = useSortable({ id, disabled });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -914,7 +1054,7 @@ function SortableTileWrapper(
     <div
       ref={setNodeRef}
       style={style}
-      className="touch-none select-none"
+      className={disabled ? "touch-auto select-auto" : "touch-none select-none"}
       {...attributes}
       {...listeners}
     >
@@ -929,6 +1069,7 @@ function LinkFolderPopover({
   setEditingFolder,
   setEditingLink,
   navigate,
+  style = "default",
   toggleFolderPreview,
 }: {
   folder: {
@@ -943,21 +1084,46 @@ function LinkFolderPopover({
   setEditingFolder: (f: { id: string; name: string; icon?: string } | null) => void;
   setEditingLink: (link: LinkType) => void;
   navigate: (to: string) => void;
+  style?: "default" | "compact";
   toggleFolderPreview: (folderId: string) => void;
 }) {
   const folderId = folder.recordId || folder.key;
   const isPreview = previewFirstFolderIcons(folderId);
+  const isCompact = style === "compact";
 
   return (
     <Popover key={folder.key}>
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="group h-full flex flex-col items-center justify-between frosted rounded-2xl p-2 hover:text-(primary) transition-colors min-h-18 w-full group/folderdiv"
+          className={`group relative flex h-full ${isCompact ? "w-16" : "w-full"} flex-col items-center transition-colors ${isCompact
+            ? "justify-start gap-1 p-0"
+            : "min-h-18 justify-between rounded-2xl frosted p-2 hover:text-(primary)"
+            } group/folderdiv`}
           aria-label={`Open folder ${folder.name}`}
           title={folder.name}
         >
-          {isPreview && folder.links.length > 0
+          {isCompact
+            ? (
+              <div className="frosted flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl p-3 shadow-sm">
+                {folder.icon
+                  ? (
+                    <AppIcon
+                      source={folder.icon}
+                      alt={folder.name}
+                      className="h-full w-full"
+                      imageClassName="h-full w-full object-contain"
+                    />
+                  )
+                  : (
+                    <Icon
+                      icon="fa6-solid:folder"
+                      className="h-8 w-8 shrink-0 opacity-60"
+                    />
+                  )}
+              </div>
+            )
+            : isPreview && folder.links.length > 0
             ? (
               <div className="flex items-center justify-center gap-1">
                 {folder.links.slice(0, 2).map((child, childIdx) => (
@@ -1006,8 +1172,8 @@ function LinkFolderPopover({
               />
             )}
 
-          <div className="flex items-center w-full justify-center">
-            <span className="text-sm text-white truncate px-1 group-hover/folderdiv:text-primary">
+          <div className="flex w-full items-center justify-center">
+            <span className="truncate px-1 text-sm text-white group-hover/folderdiv:text-primary">
               {folder.name}
             </span>
           </div>
@@ -1088,6 +1254,7 @@ function LinkFolderPopover({
               monitoringDetails={monitoringDetails}
               setEditingLink={setEditingLink}
               navigate={navigate}
+              style={style}
             />
           ))}
         </div>

@@ -10,7 +10,7 @@ import { DialogTitle } from "@radix-ui/react-dialog";
 import { Icon as IconifyIcon } from "@iconify-icon/react";
 import AppIcon from "@dashwise/app-icon";
 import QRCode from "qrcode";
-import { getFrequentlyUsedSearchItemsAction, logSearchItemUsageAction } from '@/lib/apiClient';
+import { getFrequentlyUsedShortcutsAction, logShortcutUsageAction } from '@/lib/apiClient';
 import { proxyIntegrationAction } from '@/lib/apiClient';
 
 // --- Types ---
@@ -45,7 +45,7 @@ type SearchEngine = {
   url_params?: string;
 };
 
-type IncomingSearchItem = {
+type IncomingShortcut = {
   id?: string;
   parentId?: string;
   name?: string;
@@ -68,11 +68,11 @@ type ProxyAction = {
 type CommandBarProps = {
   open: boolean;
   setOpen: React.Dispatch<React.SetStateAction<boolean>>;
-  searchItems: IncomingSearchItem[];
+  shortcuts: IncomingShortcut[];
   config: Record<string, any>;
 };
 
-function normalizeConfigLinks(input: IncomingSearchItem[] = []): LinkItem[] {
+function normalizeConfigLinks(input: IncomingShortcut[] = []): LinkItem[] {
   return input
     .filter((it) =>
       !it.type || it.type === "link" || it.type === "app" ||
@@ -100,6 +100,12 @@ function normalizeConfigLinks(input: IncomingSearchItem[] = []): LinkItem[] {
           proxyAction = true;
         } else if (action.toLowerCase().startsWith("logout:")) {
           url = "__logout_action__";
+        } else if (action.toLowerCase().startsWith("privacy:")) {
+          url = "__privacy_action__";
+        } else if (action.toLowerCase().startsWith("theme:")) {
+          url = "__toggle_theme__";
+        } else if (action.toLowerCase().startsWith("link-tile-layout:")) {
+          url = "__toggle_link_tile_layout__";
         } else if (action.startsWith("url:")) {
           url = action.slice(4);
         } else if (action.startsWith("command:")) {
@@ -141,16 +147,23 @@ function normalizeConfigLinks(input: IncomingSearchItem[] = []): LinkItem[] {
 }
 
 export default function CommandBar(
-  { open, setOpen, searchItems, config }: CommandBarProps,
+  { open, setOpen, shortcuts, config }: CommandBarProps,
 ) {
-  const { user, token, logout } = useAuth();
+  const {
+    user,
+    token,
+    logout,
+    updateUserProperty,
+    toggleTheme,
+    toggleLinkTileLayout,
+  } = useAuth();
   const searchPreferences = user?.searchPreferences ?? {};
   const searchEngines: SearchEngine[] =
     (searchPreferences.searchEngines || []) as SearchEngine[];
 
   const links: LinkItem[] = React.useMemo(
-    () => normalizeConfigLinks(searchItems || []),
-    [searchItems],
+    () => normalizeConfigLinks(shortcuts || []),
+    [shortcuts],
   );
 
   const defaultEngine = searchEngines.find((se) => se.status === "default") ||
@@ -174,7 +187,7 @@ export default function CommandBar(
       return;
     }
 
-    void getFrequentlyUsedSearchItemsAction({ token })
+    void getFrequentlyUsedShortcutsAction({ token })
       .then((data) => {
         if (Array.isArray(data)) {
           setFrequentlyUsedIds(data.map((item: any) => item.id));
@@ -539,27 +552,74 @@ export default function CommandBar(
     } else if (a.url === "__qr_action__") {
       return;
     } else if (a.url === "__proxy_action__") {
-      logSearchItemUsage(a);
+      logShortcutUsage(a);
+      void triggerProxyAction(a);
+    } else if (a.url.toLowerCase().startsWith("shortcut:")) {
+      logShortcutUsage(a);
       void triggerProxyAction(a);
     } else if (a.url === "__logout_action__") {
-      logSearchItemUsage(a);
+      logShortcutUsage(a);
       logout();
       setOpen(false);
+    } else if (a.url === "__privacy_action__") {
+      logShortcutUsage(a);
+      void togglePrivacyMode();
+    } else if (a.url === "__toggle_theme__") {
+      logShortcutUsage(a);
+      void toggleThemePreference();
+    } else if (a.url === "__toggle_link_tile_layout__") {
+      logShortcutUsage(a);
+      void toggleLinkTileLayoutPreference();
     } else if (a.url.startsWith("__engine_search__:")) {
       const slug = a.url.split(":", 2)[1];
       openEngineSearch(slug, query);
     } else if (a.url.startsWith("command:")) {
-      logSearchItemUsage(a);
+      logShortcutUsage(a);
       openCommandClient(a.url);
     } else {
-      logSearchItemUsage(a);
+      logShortcutUsage(a);
       openUrl(a.url, config?.global?.linkOpenBehaviour);
     }
   }
 
-  function logSearchItemUsage(item?: LinkItem) {
+  async function togglePrivacyMode() {
+    const privacyMode = user?.searchPreferences?.privacyMode === true;
+
+    try {
+      await updateUserProperty("searchPreferences", {
+        ...user?.searchPreferences,
+        privacyMode: !privacyMode,
+      });
+    } catch (error) {
+      console.error("Failed to toggle dashboard privacy mode:", error);
+    } finally {
+      setOpen(false);
+    }
+  }
+
+  async function toggleThemePreference() {
+    try {
+      await toggleTheme();
+    } catch (error) {
+      console.error("Failed to toggle theme:", error);
+    } finally {
+      setOpen(false);
+    }
+  }
+
+  async function toggleLinkTileLayoutPreference() {
+    try {
+      await toggleLinkTileLayout();
+    } catch (error) {
+      console.error("Failed to toggle link tile layout:", error);
+    } finally {
+      setOpen(false);
+    }
+  }
+
+  function logShortcutUsage(item?: LinkItem) {
     if (!token || !item?.id) return;
-    void logSearchItemUsageAction({ token }, item.id, new Date().toISOString()).catch(() => {});
+    void logShortcutUsageAction({ token }, item.id, new Date().toISOString()).catch(() => {});
   }
 
   async function triggerProxyAction(item: LinkItem) {

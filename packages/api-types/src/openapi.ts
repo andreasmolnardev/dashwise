@@ -356,6 +356,49 @@ export interface paths {
         };
         trace?: never;
     };
+    "/sessions/current": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get the current client session */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                200: components["responses"]["JsonOk"];
+                401: components["responses"]["JsonUnauthorized"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Rename the current client session */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: components["requestBodies"]["JsonBody"];
+            responses: {
+                200: components["responses"]["JsonOk"];
+                400: components["responses"]["JsonBadRequest"];
+                401: components["responses"]["JsonUnauthorized"];
+            };
+        };
+        trace?: never;
+    };
     "/integrations": {
         parameters: {
             query?: never;
@@ -491,6 +534,48 @@ export interface paths {
                 200: components["responses"]["JsonOk"];
             };
         };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/links/metadata": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get link metadata */
+        get: {
+            parameters: {
+                query: {
+                    url: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            title: string;
+                            description: string;
+                            iconUrl: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -694,6 +779,34 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/links/dev/user-links": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Wipe development user links */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                200: components["responses"]["JsonOk"];
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/links/tags": {
         parameters: {
             query?: never;
@@ -734,14 +847,14 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/jobs/searchItems": {
+    "/jobs/shortcuts": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** Search items job */
+        /** Shortcuts indexing job */
         get: {
             parameters: {
                 query?: never;
@@ -1437,6 +1550,34 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/notifications/forwarders/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Test forwarder */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: components["requestBodies"]["JsonBody"];
+            responses: {
+                200: components["responses"]["JsonOk"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/notifications/markAsRead": {
         parameters: {
             query?: never;
@@ -1567,7 +1708,19 @@ export interface paths {
                 200: components["responses"]["JsonOk"];
             };
         };
-        put?: never;
+        /** Update topic token */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: components["requestBodies"]["JsonBody"];
+            responses: {
+                200: components["responses"]["JsonOk"];
+            };
+        };
         /** Create topic token */
         post: {
             parameters: {
@@ -1599,14 +1752,14 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/searchItems": {
+    "/shortcuts": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** Search items */
+        /** List shortcuts */
         get: {
             parameters: {
                 query?: never;
@@ -2504,7 +2657,21 @@ export interface paths {
                 200: components["responses"]["JsonOk"];
             };
         };
-        delete?: never;
+        /** Delete news feed record */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                200: components["responses"]["JsonOk"];
+            };
+        };
         options?: never;
         head?: never;
         patch?: never;
@@ -2710,14 +2877,78 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/searchItems/frequentlyUsed": {
+    "/shortcuts/apps": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** List frequently used search items */
+        get?: never;
+        put?: never;
+        /** Create an on-demand shortcut app */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: components["requestBodies"]["JsonBody"];
+            responses: {
+                200: components["responses"]["JsonOk"];
+                400: components["responses"]["JsonBadRequest"];
+                401: components["responses"]["JsonUnauthorized"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/shortcuts/on-demand/{appId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Replace an on-demand app's shortcuts */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    appId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: components["requestBodies"]["JsonBody"];
+            responses: {
+                200: components["responses"]["JsonOk"];
+                400: components["responses"]["JsonBadRequest"];
+                401: components["responses"]["JsonUnauthorized"];
+                404: components["responses"]["JsonNotFound"];
+                409: components["responses"]["JsonConflict"];
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/shortcuts/frequentlyUsed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List frequently used shortcuts */
         get: {
             parameters: {
                 query?: never;
@@ -2738,7 +2969,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/searchItems/usageStats": {
+    "/shortcuts/usageStats": {
         parameters: {
             query?: never;
             header?: never;
@@ -2747,7 +2978,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Log search item usage */
+        /** Log shortcut usage */
         post: {
             parameters: {
                 query?: never;
@@ -2798,6 +3029,24 @@ export interface components {
         };
         /** @description Unauthorized */
         JsonUnauthorized: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description Not Found */
+        JsonNotFound: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description Conflict */
+        JsonConflict: {
             headers: {
                 [name: string]: unknown;
             };

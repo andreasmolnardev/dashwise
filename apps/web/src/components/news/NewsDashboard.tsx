@@ -385,6 +385,7 @@ export default function NewsDashboardComponent() {
             id: editFeedRef,
             title: feedSummary?.title || (editFeedRef === "all" ? "All feed" : "Untitled feed"),
             subscriptionRefs: derivedSubscriptionRefs,
+            includedFeedRefs: feedSummary?.includedFeedRefs ?? [],
             excludedSubscriptionRefs: [],
         };
 
@@ -465,6 +466,11 @@ export default function NewsDashboardComponent() {
         if (!currentSubscription) return;
 
         setEditingFeed(currentSubscription);
+        setAddOpen(true);
+    };
+
+    const openNewSubscription = () => {
+        setEditingFeed(null);
         setAddOpen(true);
     };
 
@@ -651,10 +657,24 @@ export default function NewsDashboardComponent() {
                 </h2>
                 <div className="flex items-center gap-2">
                     <button
+                        type="button"
+                        onClick={openNewSubscription}
+                        disabled={isRefreshing}
+                        className={`
+                            flex items-center justify-center h-9 w-9 rounded-full frosted gap-2
+                            transition-all duration-300 hover:bg-white/10 px-2
+                            ${isRefreshing ? "opacity-50" : "opacity-80 hover:opacity-100"}
+                        `}
+                        title="Add subscription"
+                    >
+                        <Icon icon="fa6-solid:plus" />
+                        <span className="sr-only">Add subscription</span>
+                    </button>
+                    <button
                         onClick={openCurrentSubscriptionEditor}
                         disabled={!currentSubscription || isRefreshing}
                         className={`
-                            flex items-center justify-center h-9 rounded-full frosted gap-2
+                            flex items-center justify-center h-9 w-9 rounded-full frosted gap-2
                             transition-all duration-300 hover:bg-white/10 px-2
                             ${!currentSubscription || isRefreshing ? "opacity-50" : "opacity-80 hover:opacity-100"}
                         `}
@@ -666,7 +686,7 @@ export default function NewsDashboardComponent() {
                         onClick={() => refreshFeeds()}
                         disabled={isRefreshing}
                         className={`
-                            flex items-center justify-center h-9 rounded-full frosted gap-2
+                            flex items-center justify-center h-9 w-9 rounded-full frosted gap-2
                             transition-all duration-300 hover:bg-white/10 px-2
                             ${
                             isRefreshing
@@ -844,6 +864,8 @@ export default function NewsDashboardComponent() {
                                     linkReplaceRule: editingFeed.linkReplaceRule,
                                     fallbackThumbnailUrl: editingFeed.fallbackThumbnailUrl,
                                     thumbnailOverwriteUrl: editingFeed.thumbnailOverwriteUrl,
+                                    similarityGroupingWordsBlacklist: editingFeed.similarityGroupingWordsBlacklist,
+                                    enableTopicGrouping: editingFeed.enableTopicGrouping,
                                     json: editingFeed.json,
                                 }
                                 : newSubscriptionDefaults}
@@ -966,6 +988,12 @@ export default function NewsDashboardComponent() {
                     .map((subscription) => ({
                         id: String(subscription.id),
                         title: String(subscription.title || subscription.name || subscription.url || "Untitled subscription"),
+                    }))}
+                feeds={(feeds ?? [])
+                    .filter((feed) => feed.id !== "all" && feed.id !== editFeedRef)
+                    .map((feed) => ({
+                        id: feed.id,
+                        title: String(feed.title || "Untitled feed"),
                     }))}
                 onClose={closeFeedEditor}
                 onSave={async (payload) => {

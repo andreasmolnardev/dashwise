@@ -6,8 +6,6 @@
 I've been self hosting for a while but did not find a dashboard that suits my needs and that I like the look of.
 This is my attempt to solving that.
 
-> **Disclaimer:** Since the last major release, this project has been partly rewritten. Proceed with caution. Measures include creating a backup of your pocketbase directory before upgrading.
-
 > **Use of AI:** The development of this project is AI-Assisted by using it as a tool - not as a substitute for real programming skills.
 
 ## Screenshot
@@ -15,7 +13,8 @@ This is my attempt to solving that.
 
 
 ## Features
-- **Principles**: Configure dashwise using its UI. No need to touch config files. Dashwise also has Authentication (including SSO) built in.
+- **GUI Editing**: Configure dashwise using its UI. No need to touch config files.
+- **Secure by default**: Dashwise has Authentication (including SSO via OIDC) built in.
 - **Dashboards** show Glanceables and Widgets, for example Links (which can be grouped into Link groups and folders)
 - **Glanceables**: Customizable bits of one-line information next to the clock.
 - **Widgets**: Modular blocks on the dashboard that show key info or actions at a glance. They can be moved and customized individually.

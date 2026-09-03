@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { Link } from "react-router-dom";
 import { Icon } from "@iconify-icon/react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -32,7 +33,11 @@ interface SubscriptionDetailsFormProps {
   onClose?: () => void | Promise<void>;
   onSave?: (feed: NewsFeedDraft) => Promise<void> | void;
   onDelete?: (feedId: string) => Promise<void> | void;
-  resolveFeedMetadata?: (feedUrl: string) => Promise<{ title?: string; icon?: string } | null | undefined>;
+  resolveFeedMetadata?: (feedUrl: string) => Promise<{
+    title?: string;
+    icon?: string;
+    suggestedBlacklistWords?: string[];
+  } | null | undefined>;
 }
 
 export default function SubscriptionDetailsForm({
@@ -60,6 +65,7 @@ export default function SubscriptionDetailsForm({
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [metadataLoading, setMetadataLoading] = useState(false);
+  const [serverGroupingWords, setServerGroupingWords] = useState<string[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const nameRef = useRef<string>(name);
   const iconRef = useRef<string>(icon);
@@ -124,6 +130,7 @@ export default function SubscriptionDetailsForm({
     if (!resolveFeedMetadata) return;
 
     const trimmedUrl = feedUrl.trim();
+    setServerGroupingWords(null);
     if (!trimmedUrl) return;
 
     let cancelled = false;
@@ -139,6 +146,8 @@ export default function SubscriptionDetailsForm({
       try {
         const metadata = await resolveFeedMetadata(trimmedUrl);
         if (cancelled || !metadata) return;
+
+        setServerGroupingWords(metadata.suggestedBlacklistWords ?? []);
 
         const resolvedTitle = metadata.title?.trim();
         if (resolvedTitle) {
@@ -191,7 +200,7 @@ export default function SubscriptionDetailsForm({
 
   const allSelectedLabels = [...selectedFeedTitles, ...selectedNewTitles];
 
-  const commonGroupingWords = useMemo(() => {
+  const cachedGroupingWords = useMemo(() => {
     const items = Array.isArray(feed?.json) ? feed.json : [];
     const counts = new Map<string, number>();
 
@@ -217,6 +226,8 @@ export default function SubscriptionDetailsForm({
       .slice(0, 18)
       .map(([word]) => word);
   }, [feed?.json]);
+
+  const commonGroupingWords = serverGroupingWords ?? cachedGroupingWords;
 
   const addBlacklistWord = (word: string) => {
     const nextWord = word.trim();
@@ -354,10 +365,10 @@ export default function SubscriptionDetailsForm({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-5">
+    <form onSubmit={handleSubmit} className="space-y-3">
       <div className="flex gap-3 items-end">
         <div className="flex-1">
-          <Label htmlFor="feed-url">Feed URL *</Label>
+          <Label htmlFor="feed-url">Feed URL (RSS, Atom, YT, GitHub etc.)</Label>
           <Input
             id="feed-url"
             className="frosted mt-1"
@@ -368,13 +379,13 @@ export default function SubscriptionDetailsForm({
           />
         </div>
 
-        <div style={{ width: 200 }}>
+        <div style={{ width: 180 }}>
           <Label>Add to Feed</Label>
           <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger asChild>
               <button
                 type="button"
-                className="frosted mt-1 flex w-full h-10 items-center justify-between rounded-md px-3 text-left"
+                className="frosted mt-1 flex w-full h-9 items-center justify-between rounded-md px-3 text-left"
                 disabled={loading}
               >
                 <span className="truncate text-sm text-white/70">
@@ -424,9 +435,14 @@ export default function SubscriptionDetailsForm({
         </div>
       </div>
 
-      <p className="text-xs text-white/60">
-        All RSS and Atom feed URLs as well as YouTube, GitHub, and Reddit links work.
-      </p>
+      {!isEditing && (
+        <Link
+          to="/settings/apps?openNewsBulkImportModal=true"
+          className=" text-xs text-white/60 hover:underline"
+        >
+          Bulk import feeds
+        </Link>
+      )}
 
       {subscriptionType === "github" && (
         <div className="space-y-3 p-3 rounded-xl bg-white/5 border border-white/10">
@@ -483,7 +499,7 @@ export default function SubscriptionDetailsForm({
         </div>
       )}
 
-      <hr className="border-white/10" />
+      <hr className="border-white/10 mt-2" />
 
       <div className="flex gap-3">
         <button
@@ -628,9 +644,13 @@ export default function SubscriptionDetailsForm({
               <p className="mt-1 text-xs text-white/50">Comma-separated, case-insensitive words. Prefix a default word with - to allow it again.</p>
             </div>
 
+            {metadataLoading && serverGroupingWords === null && feedUrl.trim() && (
+              <p className="text-xs text-white/50">Analyzing recent articles for feed-specific words...</p>
+            )}
+
             {commonGroupingWords.length > 0 && (
               <div>
-                <Label className="text-xs">Common Words</Label>
+                <Label className="text-xs">Suggested Blacklist Words</Label>
                 <div className="mt-2 flex flex-wrap gap-2">
                   {commonGroupingWords.map((word) => (
                     <button

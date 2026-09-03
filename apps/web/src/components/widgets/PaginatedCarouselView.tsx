@@ -9,6 +9,8 @@ interface PaginatedCarouselViewProps {
   minCols?: number;
   maxCols?: number;
   maxRows?: number;
+  fitContentColumns?: boolean;
+  columnGap?: number;
   className?: string;
 }
 
@@ -19,6 +21,8 @@ export function PaginatedCarouselViewComponent({
   minCols = 2,
   maxCols = 4,
   maxRows = 3,
+  fitContentColumns = false,
+  columnGap,
   className,
 }: PaginatedCarouselViewProps) {
   const [rows, setRows] = useState(3);
@@ -231,7 +235,13 @@ export function PaginatedCarouselViewComponent({
           <div key={pi} className="flex-none w-full snap-center">
             <div
               className="grid gap-1"
-              style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}
+              style={{
+                gridTemplateColumns: fitContentColumns
+                  ? `repeat(${cols}, max-content)`
+                  : `repeat(${cols}, minmax(0, 1fr))`,
+                justifyContent: fitContentColumns ? "space-between" : undefined,
+                columnGap: fitContentColumns ? columnGap : undefined,
+              }}
             >
               {page}
             </div>

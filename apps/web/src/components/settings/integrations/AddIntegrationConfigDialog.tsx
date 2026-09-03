@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Editor from "@monaco-editor/react";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -24,6 +24,7 @@ import {
 type AddIntegrationConfigDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  mode?: "manual" | "curated";
   newName: string;
   onNewNameChange: (value: string) => void;
   newType: "plugin" | "caldav";
@@ -42,6 +43,7 @@ type AddIntegrationConfigDialogProps = {
 export function AddIntegrationConfigDialog({
   open,
   onOpenChange,
+  mode = "manual",
   newName,
   onNewNameChange,
   newType,
@@ -61,6 +63,12 @@ export function AddIntegrationConfigDialog({
   const [caldavUsername, setCaldavUsername] = useState("");
   const [caldavPassword, setCaldavPassword] = useState("");
 
+  useEffect(() => {
+    if (open) {
+      setStage(mode === "curated" ? 2 : 1);
+    }
+  }, [mode, open]);
+
   const updateCaldavConfig = (url: string, user: string, pass: string) => {
     onNewConfigChange("");
     onEnvironmentOverrideChange("CALDAV_URL", url);
@@ -79,16 +87,20 @@ export function AddIntegrationConfigDialog({
     >
       <DialogContent className="frosted text-(--text-primary) w-[50vw]">
         <DialogHeader>
-          <DialogTitle>Add a manual integration</DialogTitle>
+          <DialogTitle>
+            {mode === "curated" ? `Configure ${newName}` : "Add a manual integration"}
+          </DialogTitle>
           <DialogDescription>
-            {stage === 1
+            {mode === "curated"
+              ? "The curated YAML is ready. Enter the environment values for this integration."
+              : stage === 1
               ? "Provide a name and configuration."
               : "Override environment variables before saving."}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
-          {stage === 1 && (
+          {mode === "manual" && stage === 1 && (
             <>
               <div className="space-y-2">
                 <Label htmlFor="integration-name">Integration name</Label>
@@ -191,13 +203,15 @@ export function AddIntegrationConfigDialog({
             </>
           )}
 
-          {stage === 2 && (
+          {(mode === "curated" || stage === 2) && (
             <div className="space-y-2">
               {newType === "caldav" ? (
                 <p className="text-sm">Click Continue to finish creating your CalDAV integration.</p>
               ) : (
                 <>
-                  <Label>Environment overrides (optional)</Label>
+                  <Label>
+                    {mode === "curated" ? "Environment values" : "Environment overrides (optional)"}
+                  </Label>
 
                   {visibleEnvFields.length ? (
                     <div className="space-y-3 max-h-[50dvh] overflow-y-scroll">
@@ -244,8 +258,9 @@ export function AddIntegrationConfigDialog({
                     </div>
                   ) : (
                     <p className="text-sm">
-                      Paste a config JSON or YAML that declares
-                      environment_variables to show override inputs here.
+                      {mode === "curated"
+                        ? "This integration does not require any environment values."
+                        : "Paste a config JSON or YAML that declares environment_variables to show override inputs here."}
                     </p>
                   )}
                 </>
@@ -265,7 +280,7 @@ export function AddIntegrationConfigDialog({
             Cancel
           </Button>
 
-          {stage === 1 ? (
+          {mode === "manual" && stage === 1 ? (
             <Button
               onClick={() => {
                 if (newType === "caldav") {
@@ -285,13 +300,15 @@ export function AddIntegrationConfigDialog({
             </Button>
           ) : (
             <>
-              <Button
-                variant="outline"
-                onClick={() => setStage(1)}
-                disabled={creating}
-              >
-                Back
-              </Button>
+              {mode === "manual" && (
+                <Button
+                  variant="outline"
+                  onClick={() => setStage(1)}
+                  disabled={creating}
+                >
+                  Back
+                </Button>
+              )}
 
               <Button
                 onClick={() => void onCreate()}
@@ -300,7 +317,7 @@ export function AddIntegrationConfigDialog({
                 {creating && (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 )}
-                Create
+                {mode === "curated" ? "Add integration" : "Create"}
               </Button>
             </>
           )}

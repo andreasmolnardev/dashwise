@@ -52,6 +52,11 @@ interface TabProps {
     badge?: number | string;
     hasError?: boolean;
     dropdownActions?: DropdownAction[];
+    depth?: number;
+    expandable?: boolean;
+    expanded?: boolean;
+    onToggleExpand?: () => void;
+    onOpen?: () => void;
 }
 
 interface BottomTabProps {
@@ -86,9 +91,11 @@ interface GroupLabelProps {
 
 export default function AppTemplate({
     title,
+    disableScroll = false,
     children,
 }: {
     title: string;
+    disableScroll?: boolean;
     children: ReactNode;
 }) {
     const location = useLocation();
@@ -128,7 +135,7 @@ export default function AppTemplate({
                     <div className="flex-1 min-h-0 pr-4">{sidebar}</div>
                 </div>
 
-                <div className="flex min-w-0 flex-1 flex-col p-4 md:pl-0 gap-4 overflow-y-scroll">
+                <div className={`flex min-w-0 flex-1 flex-col p-4 md:pl-0 gap-4 ${disableScroll ? "overflow-hidden" : "overflow-y-auto"}`}>
                     <div className="flex items-center justify-between gap-3 md:hidden shrink-0">
                         <button
                             type="button"
@@ -198,7 +205,7 @@ export default function AppTemplate({
 
 // ─── Tab ─────────────────────────────────────────────────────────────────────
 
-export function Tab({ dst, icon, title, group, isRoot, fallbackIcon, badge, hasError, dropdownActions }: TabProps) {
+export function Tab({ dst, icon, title, group, isRoot, fallbackIcon, badge, hasError, dropdownActions, depth = 0, expandable, expanded, onToggleExpand, onOpen }: TabProps) {
     const { pathname, search, closeMobileSidebar } = useContext(SidebarContext);
     const destination = new URL(dst, "http://dashwise.local");
     const isActive = destination.search
@@ -209,37 +216,65 @@ export function Tab({ dst, icon, title, group, isRoot, fallbackIcon, badge, hasE
 
     return (
         <div className="relative">
-            <div className={`group flex items-center justify-between px-3 py-3 h-10 rounded-md relative z-10 select-none transition-all duration-150 frosted-lite ${hasError ? "bg-red-500/20 text-red-100" : isActive ? "bg-primary/15 ring-1 ring-primary/30" : ""}`}>
-                <Link
-                    to={dst}
-                    aria-current={isActive ? "page" : undefined}
-                    className="flex min-w-0 flex-1 items-center gap-2"
-                    onClick={() => closeMobileSidebar?.()}
-                >
-                    <AppIcon
-                        source={icon}
-                        fallbackSource={fallbackIcon}
-                        alt={title}
-                        className={`h-4 w-4 shrink-0 transition-colors ${hasError
-                            ? "text-red-300"
-                            : isActive
-                                ? "text-primary"
-                                : "text-white/60 group-hover:text-primary"
-                        }`}
-                        imageClassName="object-contain"
-                    />
-                    <span
-                        className={`leading-none transition-colors ${
-                            isActive
-                                ? "text-white"
-                                : hasError
-                                    ? "text-red-100"
-                                : "text-white/70 group-hover:text-white"
-                        }`}
+            <div
+                className={`group flex items-center justify-between px-3 py-3 h-10 rounded-md relative z-10 select-none transition-all duration-150 frosted-lite ${hasError ? "bg-red-500/20 text-red-100" : isActive ? "bg-primary/15 ring-1 ring-primary/30" : ""}`}
+                style={{ paddingLeft: `${0.75 + depth * 0.9}rem` }}
+                onClick={onOpen}
+            >
+                <div className="flex min-w-0 flex-1 items-center gap-1">
+                    <Link
+                        to={dst}
+                        aria-current={isActive ? "page" : undefined}
+                        className="flex min-w-0 items-center gap-2"
+                        onClick={() => closeMobileSidebar?.()}
                     >
-                        {title}
-                    </span>
-                </Link>
+                        {depth > 0 && (
+                            <span aria-hidden="true" className="relative h-4 w-4 shrink-0 text-white/25">
+                                <span className="absolute left-1 top-0 h-1/2 border-l border-white/25" />
+                                <span className="absolute left-1 top-1/2 w-3 border-t border-white/25" />
+                            </span>
+                        )}
+                        <AppIcon
+                            source={icon}
+                            fallbackSource={fallbackIcon}
+                            alt={title}
+                            className={`h-4 w-4 shrink-0 transition-colors ${hasError
+                                ? "text-red-300"
+                                : isActive
+                                    ? "text-primary"
+                                    : "text-white/60 group-hover:text-primary"
+                            }`}
+                            imageClassName="object-contain"
+                        />
+                        <span
+                            className={`truncate leading-none transition-colors ${
+                                isActive
+                                    ? "text-white"
+                                    : hasError
+                                        ? "text-red-100"
+                                    : "text-white/70 group-hover:text-white"
+                            }`}
+                        >
+                            {title}
+                        </span>
+                    </Link>
+
+                    {expandable && (
+                        <button
+                            type="button"
+                            onClick={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                onToggleExpand?.();
+                            }}
+                            className="shrink-0 rounded text-white/45 transition hover:bg-white/10 hover:text-white"
+                            aria-label={`${expanded ? "Collapse" : "Expand"} ${title}`}
+                            title={expanded ? "Collapse sub-feeds" : "Expand sub-feeds"}
+                        >
+                            <Icon icon="fa6-solid:circle-chevron-right" className={`text-xs transition-transform ${expanded ? "rotate-90" : ""}`} />
+                        </button>
+                    )}
+                </div>
 
                 {badge !== undefined && (
                     <span className="ml-auto mr-1 px-1.5 py-0.5 bg-primary rounded-full text-[10px] font-bold leading-none">
@@ -618,6 +653,6 @@ export function Sidebar({ children }: { children: ReactNode }) {
 
 // ─── Content ──────────────────────────────────────────────────────────────────
 
-export function Content({ children }: { children: ReactNode }) {
-    return <div className="flex-1 overflow-y-auto">{children}</div>;
+export function Content({ children, className }: { children: ReactNode; className?: string }) {
+    return <div className={`flex-1 ${className ?? "overflow-y-auto"}`}>{children}</div>;
 }

@@ -3,7 +3,7 @@
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { DeleteAuthDeleteAccountData, DeleteAuthDeleteAccountErrors, DeleteAuthDeleteAccountResponses, DeleteIntegrationsByIdData, DeleteIntegrationsByIdResponses, DeleteLinksItemsByLinkIdData, DeleteLinksItemsByLinkIdResponses, DeleteMonitoringHostsByIdData, DeleteMonitoringHostsByIdResponses, DeleteMonitoringSshHostsByIdData, DeleteMonitoringSshHostsByIdResponses, DeleteMonitorsByIdData, DeleteMonitorsByIdResponses, DeleteNotificationsForwardersData, DeleteNotificationsForwardersResponses, DeleteNotificationsTopicsData, DeleteNotificationsTopicsResponses, DeleteNotificationsTopicTokensData, DeleteNotificationsTopicTokensResponses, GetAppConfigData, GetAppConfigResponses, GetAppInfoData, GetAppInfoResponses, GetAuthCallbackData, GetAuthCallbackResponses, GetAuthSsoData, GetAuthSsoResponses, GetGlanceablesByIntegrationData, GetGlanceablesByIntegrationResponses, GetGlanceablesData, GetGlanceablesResponses, GetIntegrationsCaldavEventsData, GetIntegrationsCaldavEventsResponses, GetIntegrationsConsumerDataData, GetIntegrationsConsumerDataResponses, GetIntegrationsData, GetIntegrationsResponses, GetIntegrationsWidgetPropertiesData, GetIntegrationsWidgetPropertiesResponses, GetJobsPullIconsData, GetJobsPullIconsErrors, GetJobsPullIconsResponses, GetJobsSearchItemsData, GetJobsSearchItemsResponses, GetLinksCollectionsData, GetLinksCollectionsResponses, GetLinksFoldersData, GetLinksFoldersResponses, GetLinksHomeData, GetLinksHomeGroupsData, GetLinksHomeGroupsResponses, GetLinksHomeResponses, GetLinksItemsData, GetLinksItemsResponses, GetLinksTagsData, GetLinksTagsResponses, GetLocationsData, GetLocationsResponses, GetMonitoringHostsByIdData, GetMonitoringHostsByIdHistoryData, GetMonitoringHostsByIdHistoryResponses, GetMonitoringHostsByIdResponses, GetMonitoringHostsByIdStatsData, GetMonitoringHostsByIdStatsResponses, GetMonitoringHostsData, GetMonitoringHostsResponses, GetMonitoringSshHostsData, GetMonitoringSshHostsResponses, GetMonitoringStatusData, GetMonitoringStatusResponses, GetMonitorsByIdData, GetMonitorsByIdResponses, GetMonitorsData, GetMonitorsResponses, GetNewsData, GetNewsFeedData, GetNewsFeedMetadataData, GetNewsFeedMetadataResponses, GetNewsFeedRecordsByIdData, GetNewsFeedRecordsByIdResponses, GetNewsFeedRefreshData, GetNewsFeedRefreshResponses, GetNewsFeedResponses, GetNewsFeedsByIdData, GetNewsFeedsByIdResponses, GetNewsFeedsData, GetNewsFeedsResponses, GetNewsResponses, GetNewsSubscriptionsByIdJsonData, GetNewsSubscriptionsByIdJsonResponses, GetNewsSubscriptionsData, GetNewsSubscriptionsResponses, GetNotificationsData, GetNotificationsForwardersData, GetNotificationsForwardersResponses, GetNotificationsResponses, GetNotificationsTopicsData, GetNotificationsTopicsResponses, GetNotificationsTopicTokensData, GetNotificationsTopicTokensResponses, GetPageConfigData, GetPageConfigResponses, GetPageConfigUserPagesData, GetPageConfigUserPagesResponses, GetSearchItemsData, GetSearchItemsFrequentlyUsedData, GetSearchItemsFrequentlyUsedResponses, GetSearchItemsResponses, GetTestBookmarksData, GetTestBookmarksResponses, GetWallpapersData, GetWallpapersResponses, GetWeatherData, GetWeatherResponses, GetWidgetsByIntegrationData, GetWidgetsByIntegrationResponses, GetWidgetsData, GetWidgetsGlanceableData, GetWidgetsGlanceableResponses, GetWidgetsGlanceablesData, GetWidgetsGlanceablesResponses, GetWidgetsResponses, PatchAuthUpdateUserPropertyData, PatchAuthUpdateUserPropertyErrors, PatchAuthUpdateUserPropertyResponses, PostAuthChangePasswordData, PostAuthChangePasswordErrors, PostAuthChangePasswordResponses, PostAuthLoginData, PostAuthLoginErrors, PostAuthLoginResponses, PostAuthMfaData, PostAuthMfaErrors, PostAuthMfaResponses, PostAuthSignupData, PostAuthSignupErrors, PostAuthSignupResponses, PostAuthValidateAuthData, PostAuthValidateAuthErrors, PostAuthValidateAuthResponses, PostIntegrationsConsumerDataData, PostIntegrationsConsumerDataResponses, PostIntegrationsData, PostIntegrationsProxyActionData, PostIntegrationsProxyActionResponses, PostIntegrationsResponses, PostIntegrationsTestEndpointData, PostIntegrationsTestEndpointResponses, PostLinksCollectionsData, PostLinksCollectionsResponses, PostLinksFoldersData, PostLinksFoldersResponses, PostLinksHomeGroupsData, PostLinksHomeGroupsResponses, PostLinksItemsData, PostLinksItemsResponses, PostLinksReorderData, PostLinksReorderResponses, PostLinksTagsData, PostLinksTagsResponses, PostMonitoringHostsByIdRefreshData, PostMonitoringHostsByIdRefreshErrors, PostMonitoringHostsByIdRefreshResponses, PostMonitoringHostsData, PostMonitoringHostsResponses, PostMonitoringSshHostsData, PostMonitoringSshHostsResponses, PostMonitoringStatusData, PostMonitoringStatusErrors, PostMonitoringStatusResponses, PostMonitorsData, PostMonitorsResponses, PostNewsFeedRecordsByIdData, PostNewsFeedRecordsByIdResponses, PostNewsFeedRecordsData, PostNewsFeedRecordsResponses, PostNewsFeedRefreshData, PostNewsFeedRefreshResponses, PostNewsFeedSubscribeData, PostNewsFeedSubscribeResponses, PostNewsFeedUnsubscribeData, PostNewsFeedUnsubscribeResponses, PostNewsFeedUpdateData, PostNewsFeedUpdateResponses, PostNewsFixMissingTitlesData, PostNewsFixMissingTitlesResponses, PostNotificationsByTopicData, PostNotificationsByTopicResponses, PostNotificationsData, PostNotificationsForwardersData, PostNotificationsForwardersResponses, PostNotificationsMarkAsReadData, PostNotificationsMarkAsReadResponses, PostNotificationsResponses, PostNotificationsTestData, PostNotificationsTestResponses, PostNotificationsTopicsData, PostNotificationsTopicsResponses, PostNotificationsTopicTokensData, PostNotificationsTopicTokensResponses, PostPageConfigHomeData, PostPageConfigHomeResponses, PostPageConfigIntegrationDataData, PostPageConfigIntegrationDataResponses, PostPageConfigMigrateLegacyData, PostPageConfigMigrateLegacyResponses, PostSearchItemsUsageStatsData, PostSearchItemsUsageStatsResponses, PostWallpapersData, PostWallpapersResponses, PutIntegrationsByIdData, PutIntegrationsByIdResponses, PutLinksCollectionsByCollectionIdData, PutLinksCollectionsByCollectionIdResponses, PutLinksFoldersByFolderIdIconData, PutLinksFoldersByFolderIdIconResponses, PutLinksItemsByLinkIdData, PutLinksItemsByLinkIdResponses, PutLinksTagsByTagIdData, PutLinksTagsByTagIdResponses, PutMonitoringHostsByIdData, PutMonitoringHostsByIdResponses, PutMonitoringSshHostsByIdData, PutMonitoringSshHostsByIdResponses, PutMonitorsByIdData, PutMonitorsByIdResponses, PutNotificationsForwardersData, PutNotificationsForwardersResponses, PutPageConfigData, PutPageConfigResponses } from './types.gen';
+import type { DeleteAuthDeleteAccountData, DeleteAuthDeleteAccountErrors, DeleteAuthDeleteAccountResponses, DeleteIntegrationsByIdData, DeleteIntegrationsByIdResponses, DeleteLinksDevUserLinksData, DeleteLinksDevUserLinksResponses, DeleteLinksItemsByLinkIdData, DeleteLinksItemsByLinkIdResponses, DeleteMonitoringHostsByIdData, DeleteMonitoringHostsByIdResponses, DeleteMonitoringSshHostsByIdData, DeleteMonitoringSshHostsByIdResponses, DeleteMonitorsByIdData, DeleteMonitorsByIdResponses, DeleteNewsFeedRecordsByIdData, DeleteNewsFeedRecordsByIdResponses, DeleteNotificationsForwardersData, DeleteNotificationsForwardersResponses, DeleteNotificationsTopicsData, DeleteNotificationsTopicsResponses, DeleteNotificationsTopicTokensData, DeleteNotificationsTopicTokensResponses, GetAppConfigData, GetAppConfigResponses, GetAppInfoData, GetAppInfoResponses, GetAuthCallbackData, GetAuthCallbackResponses, GetAuthSsoData, GetAuthSsoResponses, GetGlanceablesByIntegrationData, GetGlanceablesByIntegrationResponses, GetGlanceablesData, GetGlanceablesResponses, GetIntegrationsCaldavEventsData, GetIntegrationsCaldavEventsResponses, GetIntegrationsConsumerDataData, GetIntegrationsConsumerDataResponses, GetIntegrationsData, GetIntegrationsResponses, GetIntegrationsWidgetPropertiesData, GetIntegrationsWidgetPropertiesResponses, GetJobsPullIconsData, GetJobsPullIconsErrors, GetJobsPullIconsResponses, GetJobsShortcutsData, GetJobsShortcutsResponses, GetLinksCollectionsData, GetLinksCollectionsResponses, GetLinksFoldersData, GetLinksFoldersResponses, GetLinksHomeData, GetLinksHomeGroupsData, GetLinksHomeGroupsResponses, GetLinksHomeResponses, GetLinksItemsData, GetLinksItemsResponses, GetLinksMetadataData, GetLinksMetadataResponses, GetLinksTagsData, GetLinksTagsResponses, GetLocationsData, GetLocationsResponses, GetMonitoringHostsByIdData, GetMonitoringHostsByIdHistoryData, GetMonitoringHostsByIdHistoryResponses, GetMonitoringHostsByIdResponses, GetMonitoringHostsByIdStatsData, GetMonitoringHostsByIdStatsResponses, GetMonitoringHostsData, GetMonitoringHostsResponses, GetMonitoringSshHostsData, GetMonitoringSshHostsResponses, GetMonitoringStatusData, GetMonitoringStatusResponses, GetMonitorsByIdData, GetMonitorsByIdResponses, GetMonitorsData, GetMonitorsResponses, GetNewsData, GetNewsFeedData, GetNewsFeedMetadataData, GetNewsFeedMetadataResponses, GetNewsFeedRecordsByIdData, GetNewsFeedRecordsByIdResponses, GetNewsFeedRefreshData, GetNewsFeedRefreshResponses, GetNewsFeedResponses, GetNewsFeedsByIdData, GetNewsFeedsByIdResponses, GetNewsFeedsData, GetNewsFeedsResponses, GetNewsResponses, GetNewsSubscriptionsByIdJsonData, GetNewsSubscriptionsByIdJsonResponses, GetNewsSubscriptionsData, GetNewsSubscriptionsResponses, GetNotificationsData, GetNotificationsForwardersData, GetNotificationsForwardersResponses, GetNotificationsResponses, GetNotificationsTopicsData, GetNotificationsTopicsResponses, GetNotificationsTopicTokensData, GetNotificationsTopicTokensResponses, GetPageConfigData, GetPageConfigResponses, GetPageConfigUserPagesData, GetPageConfigUserPagesResponses, GetSessionsCurrentData, GetSessionsCurrentErrors, GetSessionsCurrentResponses, GetShortcutsData, GetShortcutsFrequentlyUsedData, GetShortcutsFrequentlyUsedResponses, GetShortcutsResponses, GetTestBookmarksData, GetTestBookmarksResponses, GetWallpapersData, GetWallpapersResponses, GetWeatherData, GetWeatherResponses, GetWidgetsByIntegrationData, GetWidgetsByIntegrationResponses, GetWidgetsData, GetWidgetsGlanceableData, GetWidgetsGlanceableResponses, GetWidgetsGlanceablesData, GetWidgetsGlanceablesResponses, GetWidgetsResponses, PatchAuthUpdateUserPropertyData, PatchAuthUpdateUserPropertyErrors, PatchAuthUpdateUserPropertyResponses, PatchSessionsCurrentData, PatchSessionsCurrentErrors, PatchSessionsCurrentResponses, PostAuthChangePasswordData, PostAuthChangePasswordErrors, PostAuthChangePasswordResponses, PostAuthLoginData, PostAuthLoginErrors, PostAuthLoginResponses, PostAuthMfaData, PostAuthMfaErrors, PostAuthMfaResponses, PostAuthSignupData, PostAuthSignupErrors, PostAuthSignupResponses, PostAuthValidateAuthData, PostAuthValidateAuthErrors, PostAuthValidateAuthResponses, PostIntegrationsConsumerDataData, PostIntegrationsConsumerDataResponses, PostIntegrationsData, PostIntegrationsProxyActionData, PostIntegrationsProxyActionResponses, PostIntegrationsResponses, PostIntegrationsTestEndpointData, PostIntegrationsTestEndpointResponses, PostLinksCollectionsData, PostLinksCollectionsResponses, PostLinksFoldersData, PostLinksFoldersResponses, PostLinksHomeGroupsData, PostLinksHomeGroupsResponses, PostLinksItemsData, PostLinksItemsResponses, PostLinksReorderData, PostLinksReorderResponses, PostLinksTagsData, PostLinksTagsResponses, PostMonitoringHostsByIdRefreshData, PostMonitoringHostsByIdRefreshErrors, PostMonitoringHostsByIdRefreshResponses, PostMonitoringHostsData, PostMonitoringHostsResponses, PostMonitoringSshHostsData, PostMonitoringSshHostsResponses, PostMonitoringStatusData, PostMonitoringStatusErrors, PostMonitoringStatusResponses, PostMonitorsData, PostMonitorsResponses, PostNewsFeedRecordsByIdData, PostNewsFeedRecordsByIdResponses, PostNewsFeedRecordsData, PostNewsFeedRecordsResponses, PostNewsFeedRefreshData, PostNewsFeedRefreshResponses, PostNewsFeedSubscribeData, PostNewsFeedSubscribeResponses, PostNewsFeedUnsubscribeData, PostNewsFeedUnsubscribeResponses, PostNewsFeedUpdateData, PostNewsFeedUpdateResponses, PostNewsFixMissingTitlesData, PostNewsFixMissingTitlesResponses, PostNotificationsByTopicData, PostNotificationsByTopicResponses, PostNotificationsData, PostNotificationsForwardersData, PostNotificationsForwardersResponses, PostNotificationsForwardersTestData, PostNotificationsForwardersTestResponses, PostNotificationsMarkAsReadData, PostNotificationsMarkAsReadResponses, PostNotificationsResponses, PostNotificationsTestData, PostNotificationsTestResponses, PostNotificationsTopicsData, PostNotificationsTopicsResponses, PostNotificationsTopicTokensData, PostNotificationsTopicTokensResponses, PostPageConfigHomeData, PostPageConfigHomeResponses, PostPageConfigIntegrationDataData, PostPageConfigIntegrationDataResponses, PostPageConfigMigrateLegacyData, PostPageConfigMigrateLegacyResponses, PostShortcutsAppsData, PostShortcutsAppsErrors, PostShortcutsAppsResponses, PostShortcutsUsageStatsData, PostShortcutsUsageStatsResponses, PostWallpapersData, PostWallpapersResponses, PutIntegrationsByIdData, PutIntegrationsByIdResponses, PutLinksCollectionsByCollectionIdData, PutLinksCollectionsByCollectionIdResponses, PutLinksFoldersByFolderIdIconData, PutLinksFoldersByFolderIdIconResponses, PutLinksItemsByLinkIdData, PutLinksItemsByLinkIdResponses, PutLinksTagsByTagIdData, PutLinksTagsByTagIdResponses, PutMonitoringHostsByIdData, PutMonitoringHostsByIdResponses, PutMonitoringSshHostsByIdData, PutMonitoringSshHostsByIdResponses, PutMonitorsByIdData, PutMonitorsByIdResponses, PutNotificationsForwardersData, PutNotificationsForwardersResponses, PutNotificationsTopicTokensData, PutNotificationsTopicTokensResponses, PutPageConfigData, PutPageConfigResponses, PutShortcutsOnDemandByAppIdData, PutShortcutsOnDemandByAppIdErrors, PutShortcutsOnDemandByAppIdResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -124,6 +124,23 @@ export const patchAuthUpdateUserProperty = <ThrowOnError extends boolean = false
 });
 
 /**
+ * Get the current client session
+ */
+export const getSessionsCurrent = <ThrowOnError extends boolean = false>(options?: Options<GetSessionsCurrentData, ThrowOnError>): RequestResult<GetSessionsCurrentResponses, GetSessionsCurrentErrors, ThrowOnError> => (options?.client ?? client).get<GetSessionsCurrentResponses, GetSessionsCurrentErrors, ThrowOnError>({ url: '/sessions/current', ...options });
+
+/**
+ * Rename the current client session
+ */
+export const patchSessionsCurrent = <ThrowOnError extends boolean = false>(options?: Options<PatchSessionsCurrentData, ThrowOnError>): RequestResult<PatchSessionsCurrentResponses, PatchSessionsCurrentErrors, ThrowOnError> => (options?.client ?? client).patch<PatchSessionsCurrentResponses, PatchSessionsCurrentErrors, ThrowOnError>({
+    url: '/sessions/current',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options?.headers
+    }
+});
+
+/**
  * List integrations
  */
 export const getIntegrations = <ThrowOnError extends boolean = false>(options?: Options<GetIntegrationsData, ThrowOnError>): RequestResult<GetIntegrationsResponses, unknown, ThrowOnError> => (options?.client ?? client).get<GetIntegrationsResponses, unknown, ThrowOnError>({ url: '/integrations', ...options });
@@ -173,6 +190,11 @@ export const postLinksCollections = <ThrowOnError extends boolean = false>(optio
         ...options?.headers
     }
 });
+
+/**
+ * Get link metadata
+ */
+export const getLinksMetadata = <ThrowOnError extends boolean = false>(options: Options<GetLinksMetadataData, ThrowOnError>): RequestResult<GetLinksMetadataResponses, unknown, ThrowOnError> => (options.client ?? client).get<GetLinksMetadataResponses, unknown, ThrowOnError>({ url: '/links/metadata', ...options });
 
 /**
  * Get home link groups
@@ -255,6 +277,11 @@ export const putLinksItemsByLinkId = <ThrowOnError extends boolean = false>(opti
 });
 
 /**
+ * Wipe development user links
+ */
+export const deleteLinksDevUserLinks = <ThrowOnError extends boolean = false>(options?: Options<DeleteLinksDevUserLinksData, ThrowOnError>): RequestResult<DeleteLinksDevUserLinksResponses, unknown, ThrowOnError> => (options?.client ?? client).delete<DeleteLinksDevUserLinksResponses, unknown, ThrowOnError>({ url: '/links/dev/user-links', ...options });
+
+/**
  * Get link tags
  */
 export const getLinksTags = <ThrowOnError extends boolean = false>(options?: Options<GetLinksTagsData, ThrowOnError>): RequestResult<GetLinksTagsResponses, unknown, ThrowOnError> => (options?.client ?? client).get<GetLinksTagsResponses, unknown, ThrowOnError>({ url: '/links/tags', ...options });
@@ -272,9 +299,9 @@ export const postLinksTags = <ThrowOnError extends boolean = false>(options?: Op
 });
 
 /**
- * Search items job
+ * Shortcuts indexing job
  */
-export const getJobsSearchItems = <ThrowOnError extends boolean = false>(options?: Options<GetJobsSearchItemsData, ThrowOnError>): RequestResult<GetJobsSearchItemsResponses, unknown, ThrowOnError> => (options?.client ?? client).get<GetJobsSearchItemsResponses, unknown, ThrowOnError>({ url: '/jobs/searchItems', ...options });
+export const getJobsShortcuts = <ThrowOnError extends boolean = false>(options?: Options<GetJobsShortcutsData, ThrowOnError>): RequestResult<GetJobsShortcutsResponses, unknown, ThrowOnError> => (options?.client ?? client).get<GetJobsShortcutsResponses, unknown, ThrowOnError>({ url: '/jobs/shortcuts', ...options });
 
 /**
  * Pull icons job
@@ -514,6 +541,18 @@ export const putNotificationsForwarders = <ThrowOnError extends boolean = false>
 });
 
 /**
+ * Test forwarder
+ */
+export const postNotificationsForwardersTest = <ThrowOnError extends boolean = false>(options?: Options<PostNotificationsForwardersTestData, ThrowOnError>): RequestResult<PostNotificationsForwardersTestResponses, unknown, ThrowOnError> => (options?.client ?? client).post<PostNotificationsForwardersTestResponses, unknown, ThrowOnError>({
+    url: '/notifications/forwarders/test',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options?.headers
+    }
+});
+
+/**
  * Mark notifications as read
  */
 export const postNotificationsMarkAsRead = <ThrowOnError extends boolean = false>(options?: Options<PostNotificationsMarkAsReadData, ThrowOnError>): RequestResult<PostNotificationsMarkAsReadResponses, unknown, ThrowOnError> => (options?.client ?? client).post<PostNotificationsMarkAsReadResponses, unknown, ThrowOnError>({
@@ -596,9 +635,21 @@ export const postNotificationsTopicTokens = <ThrowOnError extends boolean = fals
 });
 
 /**
- * Search items
+ * Update topic token
  */
-export const getSearchItems = <ThrowOnError extends boolean = false>(options?: Options<GetSearchItemsData, ThrowOnError>): RequestResult<GetSearchItemsResponses, unknown, ThrowOnError> => (options?.client ?? client).get<GetSearchItemsResponses, unknown, ThrowOnError>({ url: '/searchItems', ...options });
+export const putNotificationsTopicTokens = <ThrowOnError extends boolean = false>(options?: Options<PutNotificationsTopicTokensData, ThrowOnError>): RequestResult<PutNotificationsTopicTokensResponses, unknown, ThrowOnError> => (options?.client ?? client).put<PutNotificationsTopicTokensResponses, unknown, ThrowOnError>({
+    url: '/notifications/topicTokens',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options?.headers
+    }
+});
+
+/**
+ * List shortcuts
+ */
+export const getShortcuts = <ThrowOnError extends boolean = false>(options?: Options<GetShortcutsData, ThrowOnError>): RequestResult<GetShortcutsResponses, unknown, ThrowOnError> => (options?.client ?? client).get<GetShortcutsResponses, unknown, ThrowOnError>({ url: '/shortcuts', ...options });
 
 /**
  * Get page config
@@ -859,6 +910,11 @@ export const putMonitorsById = <ThrowOnError extends boolean = false>(options: O
 export const getNewsFeedsById = <ThrowOnError extends boolean = false>(options: Options<GetNewsFeedsByIdData, ThrowOnError>): RequestResult<GetNewsFeedsByIdResponses, unknown, ThrowOnError> => (options.client ?? client).get<GetNewsFeedsByIdResponses, unknown, ThrowOnError>({ url: '/news/feeds/{id}', ...options });
 
 /**
+ * Delete news feed record
+ */
+export const deleteNewsFeedRecordsById = <ThrowOnError extends boolean = false>(options: Options<DeleteNewsFeedRecordsByIdData, ThrowOnError>): RequestResult<DeleteNewsFeedRecordsByIdResponses, unknown, ThrowOnError> => (options.client ?? client).delete<DeleteNewsFeedRecordsByIdResponses, unknown, ThrowOnError>({ url: '/news/feed-records/{id}', ...options });
+
+/**
  * Get news feed record
  */
 export const getNewsFeedRecordsById = <ThrowOnError extends boolean = false>(options: Options<GetNewsFeedRecordsByIdData, ThrowOnError>): RequestResult<GetNewsFeedRecordsByIdResponses, unknown, ThrowOnError> => (options.client ?? client).get<GetNewsFeedRecordsByIdResponses, unknown, ThrowOnError>({ url: '/news/feed-records/{id}', ...options });
@@ -925,15 +981,39 @@ export const postNotificationsTest = <ThrowOnError extends boolean = false>(opti
 });
 
 /**
- * List frequently used search items
+ * Create an on-demand shortcut app
  */
-export const getSearchItemsFrequentlyUsed = <ThrowOnError extends boolean = false>(options?: Options<GetSearchItemsFrequentlyUsedData, ThrowOnError>): RequestResult<GetSearchItemsFrequentlyUsedResponses, unknown, ThrowOnError> => (options?.client ?? client).get<GetSearchItemsFrequentlyUsedResponses, unknown, ThrowOnError>({ url: '/searchItems/frequentlyUsed', ...options });
+export const postShortcutsApps = <ThrowOnError extends boolean = false>(options?: Options<PostShortcutsAppsData, ThrowOnError>): RequestResult<PostShortcutsAppsResponses, PostShortcutsAppsErrors, ThrowOnError> => (options?.client ?? client).post<PostShortcutsAppsResponses, PostShortcutsAppsErrors, ThrowOnError>({
+    url: '/shortcuts/apps',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options?.headers
+    }
+});
 
 /**
- * Log search item usage
+ * Replace an on-demand app's shortcuts
  */
-export const postSearchItemsUsageStats = <ThrowOnError extends boolean = false>(options?: Options<PostSearchItemsUsageStatsData, ThrowOnError>): RequestResult<PostSearchItemsUsageStatsResponses, unknown, ThrowOnError> => (options?.client ?? client).post<PostSearchItemsUsageStatsResponses, unknown, ThrowOnError>({
-    url: '/searchItems/usageStats',
+export const putShortcutsOnDemandByAppId = <ThrowOnError extends boolean = false>(options: Options<PutShortcutsOnDemandByAppIdData, ThrowOnError>): RequestResult<PutShortcutsOnDemandByAppIdResponses, PutShortcutsOnDemandByAppIdErrors, ThrowOnError> => (options.client ?? client).put<PutShortcutsOnDemandByAppIdResponses, PutShortcutsOnDemandByAppIdErrors, ThrowOnError>({
+    url: '/shortcuts/on-demand/{appId}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * List frequently used shortcuts
+ */
+export const getShortcutsFrequentlyUsed = <ThrowOnError extends boolean = false>(options?: Options<GetShortcutsFrequentlyUsedData, ThrowOnError>): RequestResult<GetShortcutsFrequentlyUsedResponses, unknown, ThrowOnError> => (options?.client ?? client).get<GetShortcutsFrequentlyUsedResponses, unknown, ThrowOnError>({ url: '/shortcuts/frequentlyUsed', ...options });
+
+/**
+ * Log shortcut usage
+ */
+export const postShortcutsUsageStats = <ThrowOnError extends boolean = false>(options?: Options<PostShortcutsUsageStatsData, ThrowOnError>): RequestResult<PostShortcutsUsageStatsResponses, unknown, ThrowOnError> => (options?.client ?? client).post<PostShortcutsUsageStatsResponses, unknown, ThrowOnError>({
+    url: '/shortcuts/usageStats',
     ...options,
     headers: {
         'Content-Type': 'application/json',
