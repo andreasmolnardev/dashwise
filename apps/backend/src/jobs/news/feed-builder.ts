@@ -270,6 +270,10 @@ export async function newsFeedBuilder(feedId?: string, options: BuilderOptions =
   details: Array<any>;
 }> {
   const result = { processed: 0, skipped: 0, updated: 0, errors: 0, details: [] as any[] };
+  if (config.DEV_DISABLE_NEWS_INDEXING) {
+    return result;
+  }
+
   const sourceRevision = `${Date.now()}`;
   logger.info("Running news feed builder");
 

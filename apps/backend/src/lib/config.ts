@@ -20,6 +20,12 @@ const normalizedNewsSubscriptionRetention = Number(env.NEWS_SUBSCRIPTION_RETENTI
 const resolvedNewsSubscriptionRetention = Number.isInteger(normalizedNewsSubscriptionRetention) && normalizedNewsSubscriptionRetention > 0
   ? normalizedNewsSubscriptionRetention
   : 50;
+const resolvedDeviceCodePending = Number.isInteger(Number(env.AUTH_DEVICE_CODE_MAX_PENDING)) && Number(env.AUTH_DEVICE_CODE_MAX_PENDING) > 0
+  ? Number(env.AUTH_DEVICE_CODE_MAX_PENDING) : 100;
+const resolvedDeviceCodeSockets = Number.isInteger(Number(env.AUTH_DEVICE_CODE_MAX_SOCKETS)) && Number(env.AUTH_DEVICE_CODE_MAX_SOCKETS) > 0
+  ? Number(env.AUTH_DEVICE_CODE_MAX_SOCKETS) : 100;
+const resolvedDeviceCodeTtl = Number.isInteger(Number(env.AUTH_DEVICE_CODE_TTL_MS)) && Number(env.AUTH_DEVICE_CODE_TTL_MS) >= 300_000
+  ? Number(env.AUTH_DEVICE_CODE_TTL_MS) : 10 * 60 * 1000;
 
 const truthyEnv = (value?: string | null): boolean => {
   if (!value) return false;
@@ -49,6 +55,7 @@ const getLogLevel = (): string | undefined => {
 export const config = {
   ENVIRONMENT: processEnvironment === "dev" ? "dev" : "production",
   USE_LOCAL_FEED_CACHE: useLocalFeedCache,
+  DEV_DISABLE_NEWS_INDEXING: processEnvironment === "dev" && truthyEnv(env.DEV_DISABLE_NEWS_INDEXING),
   PORT: Number(env.PORT) || 3000,
   PB_URL: getEnv("PB_URL", "NEXT_PUBLIC_PB_URL") || "http://127.0.0.1:8090",
   PB_BINARY_PATH: env.PB_BINARY_PATH,
@@ -66,6 +73,9 @@ export const config = {
   UPDATE_CHECK_SCHEDULE: env.UPDATE_CHECK_SCHEDULE || "0 2 * * *",
   FEED_BUILDING_SCHEDULE: env.FEED_BUILDING_SCHEDULE || "*/30 * * * *",
   NEWS_SUBSCRIPTION_RETENTION: resolvedNewsSubscriptionRetention,
+  AUTH_DEVICE_CODE_MAX_PENDING: resolvedDeviceCodePending,
+  AUTH_DEVICE_CODE_MAX_SOCKETS: resolvedDeviceCodeSockets,
+  AUTH_DEVICE_CODE_TTL_MS: resolvedDeviceCodeTtl,
   NOTIFICATION_FORWARDER_SCHEDULE: env.NOTIFICATION_FORWARDER_SCHEDULE || "* * * * *",
   DEFAULT_INTEGRATIONS_SCHEDULE: env.DEFAULT_INTEGRATIONS_SCHEDULE || "0 4 * * *",
   PAGECONFIG_CLEANUP_SCHEDULE: env.PAGECONFIG_CLEANUP_SCHEDULE || "0 5 * * *",
