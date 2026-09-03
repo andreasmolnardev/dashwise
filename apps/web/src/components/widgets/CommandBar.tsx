@@ -10,13 +10,15 @@ import { DialogTitle } from "@radix-ui/react-dialog";
 import { Icon as IconifyIcon } from "@iconify-icon/react";
 import AppIcon from "@dashwise/app-icon";
 import QRCode from "qrcode";
-import { getFrequentlyUsedShortcutsAction, logShortcutUsageAction } from '@/lib/apiClient';
+import { getFrequentlyUsedShortcutsAction, getHomeLinksAction, logShortcutUsageAction } from '@/lib/apiClient';
+import { getRoutedLinkUrl } from "@/lib/linkRouting";
 import { proxyIntegrationAction } from '@/lib/apiClient';
 
 // --- Types ---
 
 type LinkItem = {
   id?: string;
+  sourceId?: string;
   parentId?: string;
   icon?: string;
   linkGroup?: string;
@@ -47,6 +49,7 @@ type SearchEngine = {
 
 type IncomingShortcut = {
   id?: string;
+  sourceId?: string;
   parentId?: string;
   name?: string;
   icon?: string;
@@ -106,6 +109,8 @@ function normalizeConfigLinks(input: IncomingShortcut[] = []): LinkItem[] {
           url = "__toggle_theme__";
         } else if (action.toLowerCase().startsWith("link-tile-layout:")) {
           url = "__toggle_link_tile_layout__";
+        } else if (action.toLowerCase() === "link") {
+          url = "__source_link__";
         } else if (action.startsWith("url:")) {
           url = action.slice(4);
         } else if (action.startsWith("command:")) {
@@ -133,6 +138,7 @@ function normalizeConfigLinks(input: IncomingShortcut[] = []): LinkItem[] {
 
       return {
         id: it.id,
+        sourceId: it.sourceId,
         parentId: (it as any).parentId,
         name: it.name || "",
         icon: it.icon || undefined,
@@ -166,6 +172,13 @@ export default function CommandBar(
     [shortcuts],
   );
 
+  React.useEffect(() => {
+    if (!open) return;
+    void getHomeLinksAction({ token: token ?? "" }).then((links) => {
+      if (Array.isArray(links)) setHomeLinks(links as typeof homeLinks);
+    }).catch(() => {});
+  }, [open, token]);
+
   const defaultEngine = searchEngines.find((se) => se.status === "default") ||
     searchEngines.find((se) => se.status !== "disabled") ||
     searchEngines[0];
@@ -178,6 +191,7 @@ export default function CommandBar(
   const [qrCodeDataUrl, setQrCodeDataUrl] = React.useState("");
   const [qrCodeLoading, setQrCodeLoading] = React.useState(false);
   const [qrCodeError, setQrCodeError] = React.useState<string | null>(null);
+  const [homeLinks, setHomeLinks] = React.useState<Array<{ id: string; url: string; secondaryUrls?: Array<{ url: string; routingRule: string }> }>>([]);
   const [frequentlyUsedIds, setFrequentlyUsedIds] = React.useState<string[]>([]);
   const inputRef = React.useRef<HTMLInputElement | null>(null);
 
@@ -551,6 +565,10 @@ export default function CommandBar(
       openSearch(query);
     } else if (a.url === "__qr_action__") {
       return;
+    } else if (a.url === "__source_link__") {
+      const sourceLink = a.sourceId && homeLinks.find((link) => link.id === a.sourceId);
+      if (sourceLink) openUrl(getRoutedLinkUrl(sourceLink), config?.global?.linkOpenBehaviour);
+      else setOpen(false);
     } else if (a.url === "__proxy_action__") {
       logShortcutUsage(a);
       void triggerProxyAction(a);

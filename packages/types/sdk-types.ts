@@ -216,9 +216,16 @@ export type NewsUpdateInput = {
   enableTopicGrouping?: boolean;
 };
 
+export type SecondaryUrl = {
+  name: string;
+  url: string;
+  routingRule: string;
+};
+
 export type HomeLink = {
   id: string;
   url: string;
+  secondaryUrls?: SecondaryUrl[];
   title: string;
   iconUrl: string;
   description: string;

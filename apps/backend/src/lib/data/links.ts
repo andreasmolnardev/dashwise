@@ -45,11 +45,18 @@ export interface HomeLinkFolderPathItem {
     parentFolder?: string;
 }
 
+export interface SecondaryUrl {
+    name: string;
+    url: string;
+    routingRule: string;
+}
+
 export interface LinkItem {
     collectionId: string;
     collectionName: "linkItems";
     id: string;
     url: string;
+    secondaryUrls?: SecondaryUrl[];
     title: string;
     iconUrl: string;
     description: string;
@@ -185,6 +192,7 @@ export async function getLinksItems(userId: string, listId: string, folderId?: s
     return records.map((r) => ({
         id: r.id,
         url: r.url,
+        secondaryUrls: normalizeSecondaryUrls((r as any).secondaryUrls),
         title: r.title,
         iconUrl: r.iconUrl,
         description: r.description,
@@ -296,6 +304,15 @@ function buildFolderPathResolver(
         }
         return path;
     };
+}
+
+function normalizeSecondaryUrls(raw: unknown): SecondaryUrl[] {
+    if (!Array.isArray(raw)) return [];
+    return raw.map((entry: any) => ({
+        name: String(entry?.name ?? "").trim(),
+        url: String(entry?.url ?? "").trim(),
+        routingRule: String(entry?.routingRule ?? "").trim(),
+    })).filter((entry) => entry.url && entry.routingRule);
 }
 
 function getMonitorLinkId(monitor: { sourcelinkId?: string; linkId?: string }) {
@@ -454,6 +471,7 @@ export async function getHomeLinks(userId: string) {
         return {
             id: r.id as string,
             url: r.url as string,
+            secondaryUrls: normalizeSecondaryUrls((r as any).secondaryUrls),
             title: r.title as string,
             iconUrl: r.iconUrl as string,
             description: r.description as string,
@@ -608,11 +626,13 @@ export async function createHomeLinkItem(
         linkGroup?: string;
         folder?: string;
         statusCheck?: boolean;
+        secondaryUrls?: SecondaryUrl[];
     },
 ): Promise<
     {
         id: string;
         url: string;
+        secondaryUrls?: SecondaryUrl[];
         title: string;
         iconUrl: string;
         description: string;
@@ -663,6 +683,7 @@ export async function createHomeLinkItem(
         collection: homeCollection.id,
         folder: folderId ?? "",
         position: nextPosition,
+        secondaryUrls: normalizeSecondaryUrls(data.secondaryUrls),
     });
 
     await syncHomeLinkMonitor(userId, record.id, record.url, data.statusCheck);
@@ -670,6 +691,7 @@ export async function createHomeLinkItem(
     return {
         id: record.id,
         url: record.url,
+        secondaryUrls: normalizeSecondaryUrls((record as any).secondaryUrls),
         title: record.title,
         iconUrl: record.iconUrl,
         description: record.description,
@@ -766,6 +788,7 @@ export async function updateHomeLinkItem(
         linkGroup?: string;
         folder?: string;
         statusCheck?: boolean;
+        secondaryUrls?: SecondaryUrl[];
     },
 ): Promise<void> {
     const pb = getServerPB();
@@ -781,6 +804,7 @@ export async function updateHomeLinkItem(
     if (data.title !== undefined) updateData.title = data.title;
     if (data.iconUrl !== undefined) updateData.iconUrl = data.iconUrl;
     if (data.description !== undefined) updateData.description = data.description;
+    if (data.secondaryUrls !== undefined) updateData.secondaryUrls = normalizeSecondaryUrls(data.secondaryUrls);
 
     if (data.linkGroup !== undefined || data.folder !== undefined) {
         const homeListId = await getHomeListId(userId);
@@ -954,9 +978,11 @@ export async function createLinkItem(data: {
     collection: string;
     folder?: string;
     tags?: string[];
+    secondaryUrls?: SecondaryUrl[];
 }): Promise<{
     id: string;
     url: string;
+    secondaryUrls?: SecondaryUrl[];
     title: string;
     iconUrl: string;
     description: string;
@@ -975,11 +1001,13 @@ export async function createLinkItem(data: {
         collection: data.collection,
         folder: data.folder ?? "",
         tags: Array.isArray(data.tags) ? data.tags : [],
+        secondaryUrls: normalizeSecondaryUrls(data.secondaryUrls),
     });
 
     return {
         id: record.id,
         url: record.url,
+        secondaryUrls: normalizeSecondaryUrls((record as any).secondaryUrls),
         title: record.title,
         iconUrl: record.iconUrl,
         description: record.description,
@@ -1000,6 +1028,7 @@ export async function createCollectionLinkItem(
         collection: string;
         folder?: string;
         tags?: string[];
+        secondaryUrls?: SecondaryUrl[];
     },
 ): Promise<{
     id: string;

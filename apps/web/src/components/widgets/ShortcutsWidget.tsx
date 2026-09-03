@@ -4,21 +4,24 @@ import { useEffect, useState } from "react";
 import AppIcon from "@dashwise/app-icon";
 import WidgetColumnTemplate from "@dashwise/integrationskit/templates/WidgetColumn";
 import useAuth from "@/context/useAuth";
-import { getShortcutsAction, logShortcutUsageAction, proxyIntegrationAction } from "@/lib/apiClient";
+import { getHomeLinksAction, getShortcutsAction, logShortcutUsageAction, proxyIntegrationAction } from "@/lib/apiClient";
+import { getRoutedLinkUrl } from "@/lib/linkRouting";
 
-type Shortcut = { id: string; name: string; icon?: string; action: string | { type: string; url?: string } };
+type Shortcut = { id: string; name: string; icon?: string; sourceId?: string; action: string | { type: string; url?: string } };
 
 export default function ShortcutsWidget({ shortcutIds = [], className = "" }: { shortcutIds?: string[]; className?: string }) {
   const { withAuth, toggleTheme, toggleLinkTileLayout } = useAuth();
   const [shortcuts, setShortcuts] = useState<Shortcut[]>([]);
+  const [homeLinks, setHomeLinks] = useState<Array<{ id: string; url: string; secondaryUrls?: Array<{ url: string; routingRule: string }> }>>([]);
 
   useEffect(() => {
     let cancelled = false;
-    void withAuth((auth) => getShortcutsAction(auth)).then((items) => {
+    void Promise.all([withAuth((auth) => getShortcutsAction(auth)), withAuth((auth) => getHomeLinksAction(auth))]).then(([items, links]) => {
       if (cancelled || !Array.isArray(items)) return;
       const selected = new Map((items as Shortcut[]).map((item) => [item.id, item]));
       setShortcuts(shortcutIds.map((id) => selected.get(id)).filter((item): item is Shortcut => Boolean(item)));
-    }).catch(() => { if (!cancelled) setShortcuts([]); });
+      setHomeLinks(Array.isArray(links) ? links as typeof homeLinks : []);
+    }).catch(() => { if (!cancelled) { setShortcuts([]); setHomeLinks([]); } });
     return () => { cancelled = true; };
   }, [shortcutIds, withAuth]);
 
@@ -28,7 +31,10 @@ export default function ShortcutsWidget({ shortcutIds = [], className = "" }: { 
       await withAuth((auth) => proxyIntegrationAction(auth, shortcut.id));
       return;
     }
-    const value = typeof action === "string" ? action.trim() : String(action.url ?? "").trim();
+    const sourceLink = shortcut.sourceId && homeLinks.find((link) => link.id === shortcut.sourceId);
+    const value = action === "link" && sourceLink
+      ? getRoutedLinkUrl(sourceLink)
+      : typeof action === "string" ? action.trim() : String(action.url ?? "").trim();
     if (!value) return;
     if (value.toLowerCase().startsWith("theme:")) {
       await toggleTheme();

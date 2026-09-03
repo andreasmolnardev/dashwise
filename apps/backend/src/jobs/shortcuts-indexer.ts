@@ -55,7 +55,7 @@ export async function runShortcutsIndexing() {
         name,
         icon: String(link?.iconUrl || link?.folderIcon || "/icons/faGlobe.svg"),
         secondary: String(link?.collection || link?.folder || "Link"),
-        action: url.startsWith("url:") ? url : `url:${url}`,
+        action: "link",
         app: "",
         tags: [
           name,
@@ -381,7 +381,7 @@ async function rebuildUserShortcuts(pb: any, userId: string, rows: ShortcutRow[]
     const existingRecords = existingBySource.get(sid) || [];
 
     // Determine if it's a link or integration
-    const isLink = newRows.length === 1 && newRows[0].app === "" && newRows[0].action.startsWith("url:");
+    const isLink = newRows.length === 1 && newRows[0].app === "" && (newRows[0].action === "link" || newRows[0].action.startsWith("url:"));
     
     if (isLink) {
       const newRow = newRows[0];
