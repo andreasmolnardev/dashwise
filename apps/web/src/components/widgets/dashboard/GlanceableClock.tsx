@@ -31,6 +31,7 @@ const CAROUSEL_FADE_DURATION_MS = 250;
 type LocalizationFormatters = Pick<ReturnType<typeof useLocalization>, "formatTemperature" | "formatTime" | "formatDate">;
 const LOCAL_ONLY_GLANCEABLES = new Set([
   "date",
+  "countdown",
   "greeting",
   "local-timezone",
   "world-clock",

@@ -71,7 +71,12 @@ const LOCAL_WIDGET_SCHEMAS: Record<string, Record<string, any>> = {
   "calendar-today": { startMonday: true },
   "calendar-week": { startMonday: true },
   "calendar-upcoming": { maxEvents: 5 },
-  countdown: { date: "", date_format: "yyyy-MM-dd", label: "Countdown" },
+  countdown: {
+    date: { type: "date", default: "" },
+    display_name: "",
+    date_format: "yyyy-MM-dd",
+    label: "Countdown",
+  },
   "rss-feed": { feedId: "all", maxItems: 8, title: "Latest Articles" },
   "latest-links": { listId: "", maxItems: 8, title: "Latest Links" },
   progress: {

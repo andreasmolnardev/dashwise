@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { ClockGlanceableIntervals, ClockGlanceableSelection, DEFAULT_GLANCEABLE_CAROUSEL_INTERVAL, GlanceableSide } from "./utils";
 import { useLocalization } from "@/context/LocalizationContext";
+import { useActivity } from "@/context/ActivityContext";
 import useAuth from "@/context/useAuth";
 import { getIntegrationWithGlanceableAction } from '@/lib/apiClient';
 
@@ -35,6 +36,11 @@ type GlanceableCatalogItem = {
   exampleProps: Record<string, any>;
   properties?: Record<string, any>;
 };
+
+function formatCalendarEventDate(value: string) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString([], { month: "short", day: "numeric" });
+}
 
 function getGlanceableGroupName(entry?: Partial<GlanceableCatalogItem> & Record<string, any>) {
   const rawLabel = entry?.integrationDisplayName ?? entry?.integrationName ?? entry?.appName ?? entry?.app;
@@ -79,6 +85,7 @@ export function EditGlanceablesView({
   hideAddGlanceable = false,
 }: EditGlanceablesViewProps) {
   const localization = useLocalization();
+  const { calendarEvents } = useActivity();
   const { withAuth, user } = useAuth();
   const editorTitle = titleOverride ?? (
     selectedClockPart === "clock"
@@ -109,7 +116,7 @@ export function EditGlanceablesView({
   );
 
   useEffect(() => {
-    if (!selectedClockType || ["date", "greeting", "local-timezone", "world-clock", "progress"].includes(selectedClockType)) {
+    if (!selectedClockType || ["date", "countdown", "greeting", "local-timezone", "world-clock", "progress"].includes(selectedClockType)) {
       setIntegrationInfo(null);
       return;
     }
@@ -319,6 +326,50 @@ export function EditGlanceablesView({
                 </div>
               )}
 
+              {selectedClockType === "countdown" && (
+                <div className="space-y-3">
+                  <div className="space-y-2">
+                    <p className="text-xs text-white/70">Calendar event</p>
+                    {calendarEvents.length > 0 && (
+                      <select
+                        aria-label="Select calendar event for countdown"
+                        value=""
+                        onChange={(event) => {
+                          const selected = calendarEvents.find((item) => item.id === event.target.value);
+                          if (selected) updateSelectedParams({
+                            date: selected.start.slice(0, 10),
+                            display_name: selected.title,
+                          });
+                        }}
+                        className="w-full rounded-md border border-white/15 bg-black/20 px-3 py-2 text-sm outline-none"
+                      >
+                        <option value="">Select an event from your calendars...</option>
+                        {calendarEvents.map((event) => (
+                          <option key={event.id} value={event.id}>
+                            {event.title} — {formatCalendarEventDate(event.start)}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                    <Input
+                      type="date"
+                      value={String(selectedParams.date ?? selectedProperties.date?.default ?? "").slice(0, 10)}
+                      onChange={(event) => updateSelectedParams({ date: event.target.value })}
+                      className="h-9 rounded-full border-white/20 bg-transparent px-3 text-sm"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <p className="text-xs text-white/70">Event name</p>
+                    <Input
+                      value={String(selectedParams.display_name ?? selectedParams.displayName ?? "")}
+                      onChange={(event) => updateSelectedParams({ display_name: event.target.value })}
+                      placeholder="Event"
+                      className="h-9 rounded-full border-white/20 bg-transparent px-3 text-sm"
+                    />
+                  </div>
+                </div>
+              )}
+
               {selectedClockType === "progress" && (
                 <div className="space-y-2">
                   <p className="text-xs text-white/70">Period</p>
@@ -388,7 +439,7 @@ export function EditGlanceablesView({
                   </div>
                 ))}
 
-              {!["date", "weather"].includes(selectedClockType) && !integrationInfo?.environmentDefinitions && (
+              {!['date', 'countdown', 'weather'].includes(selectedClockType) && !integrationInfo?.environmentDefinitions && (
                 <p className="text-xs italic text-white/50">
                   No configurable properties for this glanceable.
                 </p>

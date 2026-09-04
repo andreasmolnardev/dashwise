@@ -238,6 +238,9 @@ function LegacyGlanceable({
     case "date":
       return <span className={`inline-flex items-center text-center ${className ?? ""}`}>{formatDate(new Date(), params?.format, formatters)}</span>;
 
+    case "countdown":
+      return <CountdownGlanceable params={params} className={className} />;
+
     case "greeting":
       return <GreetingGlanceable params={params} className={className} />;
 
@@ -257,6 +260,37 @@ function LegacyGlanceable({
     default:
       return <span className={`inline-flex items-center text-center ${className ?? ""}`}>{params?.name ?? type}</span>;
   }
+}
+
+function CountdownGlanceable({
+  params,
+  className,
+}: {
+  params?: Record<string, any>;
+  className?: string;
+}) {
+  const target = typeof params?.date === "string" ? new Date(params.date) : null;
+  const [today, setToday] = useState(() => new Date());
+
+  useEffect(() => {
+    const interval = window.setInterval(() => setToday(new Date()), 60_000);
+    return () => window.clearInterval(interval);
+  }, []);
+
+  if (!target || Number.isNaN(target.getTime())) {
+    return <span className={className}>Select a date</span>;
+  }
+
+  const days = Math.round((new Date(target.getFullYear(), target.getMonth(), target.getDate()).getTime() -
+    new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime()) / 86_400_000);
+  const text = days === 0
+    ? "today"
+    : days > 0
+      ? `in ${days} day${days === 1 ? "" : "s"}`
+      : `${Math.abs(days)} day${days === -1 ? "" : "s"} since`;
+  const name = String(params?.display_name ?? params?.displayName ?? params?.label ?? "Event").trim() || "Event";
+
+  return <span className={`inline-flex items-center gap-1 text-center ${className ?? ""}`}><span>{name}</span><span className="opacity-75">{text}</span></span>;
 }
 
 function LegacyWorldClock({

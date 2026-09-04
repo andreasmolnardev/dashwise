@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
   differenceInCalendarDays,
   format,
@@ -14,7 +14,7 @@ import type { ResolvedWidget } from "../types";
 
 interface CountdownWidgetProps {
   className?: string;
-  date?: string;
+  date?: string | { default?: string };
   display_name?: string;
   displayName?: string;
   date_format?: string;
@@ -33,11 +33,21 @@ export default function CountdownWidget({
   icon,
   title,
 }: CountdownWidgetProps) {
-  const inputDate = typeof date === "string" ? date.trim() : "";
+  const inputDate = typeof date === "string"
+    ? date.trim()
+    : date && typeof date === "object" && typeof date.default === "string"
+      ? date.default.trim()
+      : "";
   const parsedTargetDate = parseCountdownDate(inputDate, date_format ?? dateFormat);
+  const [today, setToday] = useState(() => new Date());
+
+  useEffect(() => {
+    const interval = window.setInterval(() => setToday(new Date()), 60_000);
+    return () => window.clearInterval(interval);
+  }, []);
 
   const daysLeft = parsedTargetDate
-    ? differenceInCalendarDays(startOfDay(parsedTargetDate), startOfDay(new Date()))
+    ? differenceInCalendarDays(startOfDay(parsedTargetDate), startOfDay(today))
     : null;
 
   const eventName = (display_name ?? displayName ?? title ?? "Event").trim() || "Event";
@@ -53,7 +63,7 @@ export default function CountdownWidget({
           ? "1 day left"
           : daysLeft > 1
             ? `${daysLeft} days left`
-            : `${Math.abs(daysLeft)} days overdue`;
+            : `${Math.abs(daysLeft)} days since`;
 
   const resolved: ResolvedWidget = {
     header: {
