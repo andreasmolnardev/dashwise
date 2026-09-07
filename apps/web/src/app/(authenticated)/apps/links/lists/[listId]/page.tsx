@@ -1,7 +1,7 @@
 "use client";
 
-import { useParams } from "react-router-dom";
-import { useMemo, useState } from "react";
+import { useParams, useSearchParams } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
 import useAuth from "@/context/useAuth";
 import { getLinksCollectionsAction, getLinksFoldersAction, getLinksItemsAction, getLinksTagsAction } from '@/lib/apiClient';
 import LinksDetailView, { type LinkFolderRecord, type LinkItemRecord, type LinkTagRecord } from "@/components/links/LinksDetailView";
@@ -20,6 +20,7 @@ type LinkCollection = {
 
 export default function LinksListDetailPage() {
     const { listId = "" } = useParams();
+    const [searchParams, setSearchParams] = useSearchParams();
     const { token } = useAuth();
     const queryClient = useQueryClient();
     const collectionsQuery = useApiQuery(queryKeys.links.collections, getLinksCollectionsAction);
@@ -31,6 +32,23 @@ export default function LinksListDetailPage() {
     const items = (itemsQuery.data ?? []) as LinkItemRecord[];
     const tags = (tagsQuery.data ?? []) as LinkTagRecord[];
     const [createLinkOpen, setCreateLinkOpen] = useState(false);
+    const [linkToEdit, setLinkToEdit] = useState<LinkItemRecord | null>(null);
+    const [defaultFolderId, setDefaultFolderId] = useState<string | undefined>();
+    const [focusTags, setFocusTags] = useState(false);
+
+    useEffect(() => {
+        if (searchParams.get("add") !== "1") return;
+
+        setLinkToEdit(null);
+        setDefaultFolderId(undefined);
+        setFocusTags(false);
+        setCreateLinkOpen(true);
+        setSearchParams((current) => {
+            const next = new URLSearchParams(current);
+            next.delete("add");
+            return next;
+        }, { replace: true });
+    }, [searchParams, setSearchParams]);
 
     const list = useMemo(
         () => collections.find((collection) => collection.id === listId) ?? null,
@@ -65,7 +83,24 @@ export default function LinksListDetailPage() {
                 folders={folders}
                 items={items}
                 tags={tags}
-                onAddLink={() => setCreateLinkOpen(true)}
+                onAddLink={(folderId) => {
+                    setLinkToEdit(null);
+                    setDefaultFolderId(folderId);
+                    setFocusTags(false);
+                    setCreateLinkOpen(true);
+                }}
+                onEditLink={(item) => {
+                    setDefaultFolderId(undefined);
+                    setLinkToEdit(item);
+                    setFocusTags(false);
+                    setCreateLinkOpen(true);
+                }}
+                onEditLinkTags={(item) => {
+                    setDefaultFolderId(undefined);
+                    setLinkToEdit(item);
+                    setFocusTags(true);
+                    setCreateLinkOpen(true);
+                }}
                 onFolderCreated={(folder) => {
                     queryClient.setQueryData<LinkFolderRecord[]>(["api", token, ...queryKeys.links.folders(listId)], (current = []) => [folder, ...current.filter((existing) => existing.id !== folder.id)]);
                 }}
@@ -73,8 +108,18 @@ export default function LinksListDetailPage() {
 
             <CreateLinksItemDialog
                 open={createLinkOpen}
-                onOpenChange={setCreateLinkOpen}
+                onOpenChange={(open) => {
+                    setCreateLinkOpen(open);
+                    if (!open) {
+                        setLinkToEdit(null);
+                        setDefaultFolderId(undefined);
+                        setFocusTags(false);
+                    }
+                }}
                 defaultCollectionId={listId}
+                defaultFolderId={defaultFolderId}
+                editItem={linkToEdit}
+                focusTags={focusTags}
                 onCreated={(link) => {
                     if (link.collection !== listId) return;
 

@@ -786,7 +786,9 @@ export async function updateHomeLinkItem(
         iconUrl?: string;
         description?: string;
         linkGroup?: string;
+        collection?: string;
         folder?: string;
+        tags?: string[];
         statusCheck?: boolean;
         secondaryUrls?: SecondaryUrl[];
     },
@@ -795,7 +797,7 @@ export async function updateHomeLinkItem(
 
     const item = await pb.collection("linkItems").getOne(linkId);
     const list = await pb.collection("linksLists").getOne(item.collection);
-    if (list.user !== userId || list.type !== "home") {
+    if (list.user !== userId) {
         throw new ApiActionError("Unauthorized", 401, { error: "Unauthorized" });
     }
 
@@ -804,9 +806,15 @@ export async function updateHomeLinkItem(
     if (data.title !== undefined) updateData.title = data.title;
     if (data.iconUrl !== undefined) updateData.iconUrl = data.iconUrl;
     if (data.description !== undefined) updateData.description = data.description;
+    if (data.tags !== undefined) updateData.tags = data.tags;
+    if (list.type !== "home" && data.collection !== undefined && data.collection !== item.collection) {
+        const targetList = await pb.collection("linksLists").getOne(data.collection);
+        if (targetList.user !== userId) throw new ApiActionError("Unauthorized", 401, { error: "Unauthorized" });
+        updateData.collection = data.collection;
+    }
     if (data.secondaryUrls !== undefined) updateData.secondaryUrls = normalizeSecondaryUrls(data.secondaryUrls);
 
-    if (data.linkGroup !== undefined || data.folder !== undefined) {
+    if (list.type === "home" && (data.linkGroup !== undefined || data.folder !== undefined)) {
         const homeListId = await getHomeListId(userId);
         let folderId: string | undefined;
         const groupName = String(data.linkGroup || "").trim();
@@ -832,8 +840,12 @@ export async function updateHomeLinkItem(
         updateData.folder = folderId ?? "";
     }
 
+    if (list.type !== "home" && data.folder !== undefined) updateData.folder = data.folder ?? "";
+
     await pb.collection("linkItems").update(linkId, updateData);
-    await syncHomeLinkMonitor(userId, linkId, String(updateData.url ?? item.url ?? ""), data.statusCheck);
+    if (list.type === "home") {
+        await syncHomeLinkMonitor(userId, linkId, String(updateData.url ?? item.url ?? ""), data.statusCheck);
+    }
 }
 
 export async function reorderLinks(

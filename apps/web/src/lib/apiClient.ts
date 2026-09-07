@@ -336,11 +336,11 @@ export async function getLinksTagsAction(auth: ActionAuth) {
   return extractData(await getLinksTags({ headers: authHeaders(auth) }));
 }
 
-export async function createLinkItemAction(auth: ActionAuth, data: { url: string; title: string; iconUrl?: string; description?: string; linkGroup?: string; folder?: string; collection?: string; tags?: string[] }) {
+export async function createLinkItemAction(auth: ActionAuth, data: { url: string; title: string; iconUrl?: string; description?: string; linkGroup?: string; folder?: string; collection?: string; tags?: string[]; secondaryUrls?: { name: string; url: string; routingRule: string }[] }) {
   return extractData(await postLinksItems({ body: data, headers: authHeaders(auth) }));
 }
 
-export async function updateHomeLinkItemAction(auth: ActionAuth, linkId: string, data: { url?: string; title?: string; iconUrl?: string; description?: string; linkGroup?: string; folder?: string }) {
+export async function updateHomeLinkItemAction(auth: ActionAuth, linkId: string, data: { url?: string; title?: string; iconUrl?: string; description?: string; linkGroup?: string; collection?: string; folder?: string; tags?: string[]; secondaryUrls?: { name: string; url: string; routingRule: string }[] }) {
   return extractData(await putLinksItemsByLinkId({ path: { linkId }, body: data, headers: authHeaders(auth) }));
 }
 

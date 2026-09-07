@@ -60,7 +60,9 @@ export interface LinksDetailViewProps {
     folders: LinkFolderRecord[];
     items: LinkItemRecord[];
     tags: LinkTagRecord[];
-    onAddLink?: () => void;
+    onAddLink?: (folderId?: string) => void;
+    onEditLink?: (item: LinkItemRecord) => void;
+    onEditLinkTags?: (item: LinkItemRecord) => void;
     onFolderCreated?: (folder: LinkFolderRecord) => void;
 }
 
@@ -79,9 +81,6 @@ function normalizeTagIds(value: unknown): string[] {
         .filter(Boolean);
 }
 
-function hasAnyTag(value: unknown, tagId: string) {
-    return normalizeTagIds(value).includes(tagId);
-}
 
 function formatClock(date: Date) {
     return date
@@ -193,7 +192,7 @@ function TagBadges({
     );
 }
 
-function LinkActions({ item, onShare }: { item: LinkItemRecord; onShare: () => void }) {
+function LinkActions({ item, onShare, onEdit, onEditTags }: { item: LinkItemRecord; onShare: () => void; onEdit?: (item: LinkItemRecord) => void; onEditTags?: (item: LinkItemRecord) => void }) {
     const linkUrl = String(item.url ?? "").trim();
 
     return (
@@ -225,6 +224,7 @@ function LinkActions({ item, onShare }: { item: LinkItemRecord; onShare: () => v
                 className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-black/15 text-white/65 transition-colors hover:bg-white/10 hover:text-white"
                 aria-label={`Edit tags for ${item.title}`}
                 title="Tag"
+                onClick={() => onEditTags?.(item)}
             >
                 <Icon icon="fa6-solid:tag" className="text-[11px]" />
             </button>
@@ -234,6 +234,7 @@ function LinkActions({ item, onShare }: { item: LinkItemRecord; onShare: () => v
                 className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-black/15 text-white/65 transition-colors hover:bg-white/10 hover:text-white"
                 aria-label={`Edit ${item.title}`}
                 title="Edit"
+                onClick={() => onEdit?.(item)}
             >
                 <Icon icon="fa6-solid:pen" className="text-[11px]" />
             </button>
@@ -275,11 +276,15 @@ function LinkRow({
     tagsById,
     compact = false,
     onShare,
+    onEdit,
+    onEditTags,
 }: {
     item: LinkItemRecord;
     tagsById: Map<string, LinkTagRecord>;
     compact?: boolean;
     onShare: (item: LinkItemRecord) => void;
+    onEdit?: (item: LinkItemRecord) => void;
+    onEditTags?: (item: LinkItemRecord) => void;
 }) {
     const linkUrl = String(item.url ?? "").trim();
     const titleElement = linkUrl ? (
@@ -331,7 +336,7 @@ function LinkRow({
                         ) : null}
                     </div>
 
-                    <LinkActions item={item} onShare={() => onShare(item)} />
+                    <LinkActions item={item} onShare={() => onShare(item)} onEdit={onEdit} onEditTags={onEditTags} />
                 </div>
             </div>
         </div>
@@ -391,6 +396,8 @@ function FolderTreeNode({
     collapsedFolders,
     setCollapsedFolders,
     onShare,
+    onEdit,
+    onEditTags,
     onCreateFolder,
 }: {
     node: FolderNode;
@@ -398,6 +405,8 @@ function FolderTreeNode({
     collapsedFolders: Record<string, boolean>;
     setCollapsedFolders: Dispatch<SetStateAction<Record<string, boolean>>>;
     onShare: (item: LinkItemRecord) => void;
+    onEdit?: (item: LinkItemRecord) => void;
+    onEditTags?: (item: LinkItemRecord) => void;
     onCreateFolder?: (parentFolderId: string) => void;
 }) {
     const isCollapsed = collapsedFolders[node.folder.id] ?? false;
@@ -448,9 +457,9 @@ function FolderTreeNode({
                     <button
                         type="button"
                         onClick={() => onCreateFolder(node.folder.id)}
-                        className="ml-auto opacity-0 transition-opacity hover:opacity-100 focus:opacity-100 rounded-full border border-white/10 bg-white/5 p-2 text-white/70 hover:bg-white/10"
-                        aria-label={`Create folder under ${node.folder.name}`}
-                        title="Create subfolder"
+                        className="ml-auto inline-flex h-7 w-7 items-center justify-center rounded-full border border-white/10 bg-transparent p-0 text-white/70 opacity-0 transition-opacity hover:bg-white/10 focus:opacity-100 group-hover:opacity-100"
+                        aria-label={`Add link to ${node.folder.name}`}
+                        title="Add link to folder"
                     >
                         <Icon icon="fa6-solid:plus" className="text-[11px]" />
                     </button>
@@ -467,6 +476,8 @@ function FolderTreeNode({
                             collapsedFolders={collapsedFolders}
                             setCollapsedFolders={setCollapsedFolders}
                             onShare={onShare}
+                            onEdit={onEdit}
+                            onEditTags={onEditTags}
                             onCreateFolder={onCreateFolder}
                         />
                     ))}
@@ -478,6 +489,8 @@ function FolderTreeNode({
                             tagsById={tagsById}
                             compact
                             onShare={onShare}
+                            onEdit={onEdit}
+                            onEditTags={onEditTags}
                         />
                     ))}
                 </div>
@@ -494,6 +507,8 @@ export default function LinksDetailView({
     items,
     tags,
     onAddLink,
+    onEditLink,
+    onEditLinkTags,
     onFolderCreated,
 }: LinksDetailViewProps) {
     const [sortField, setSortField] = useState<LinkSortField>("created");
@@ -610,28 +625,12 @@ export default function LinksDetailView({
                 </div>
             </header>
 
-            <section className="space-y-1 pt-3">
-                <div className="flex items-center justify-between">
-                    <h2 className="text-lg font-medium text-white/90">Folders</h2>
-                    <button
-                        type="button"
-                        onClick={() => {
-                            setCreateFolderParentId(null);
-                            setCreateFolderOpen(true);
-                        }}
-                        className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white transition-colors hover:bg-white/10"
-                        aria-label="Create folder"
-                        title="Create folder"
-                    >
-                        <Icon icon="fa6-solid:plus" className="text-sm" />
-                    </button>
-                </div>
-
-                {roots.length === 0 && rootItems.length === 0 ? (
-                    <div className="frosted rounded-2xl border border-white/10 p-5 text-sm text-white/55">
-                        No folders found.
+            {roots.length > 0 ? (
+                <section className="space-y-1 pt-3">
+                    <div className="flex items-center justify-between">
+                        <h2 className="text-lg font-medium text-white/90">Folders</h2>
                     </div>
-                ) : (
+
                     <div className="space-y-1">
                         {roots.map((node) => (
                             <FolderTreeNode
@@ -641,15 +640,14 @@ export default function LinksDetailView({
                                 collapsedFolders={collapsedFolders}
                                 setCollapsedFolders={setCollapsedFolders}
                                 onShare={(item) => setShareItem(item)}
-                                onCreateFolder={(parentFolderId) => {
-                                    setCreateFolderParentId(parentFolderId);
-                                    setCreateFolderOpen(true);
-                                }}
+                                onEdit={onEditLink}
+                                onEditTags={onEditLinkTags}
+                                onCreateFolder={(parentFolderId) => onAddLink?.(parentFolderId)}
                             />
                         ))}
                     </div>
-                )}
-            </section>
+                </section>
+            ) : null}
 
             <section className="space-y-1">
                 <div className="flex flex-wrap items-center justify-between">
@@ -684,8 +682,15 @@ export default function LinksDetailView({
                 </div>
 
                 {sortedLinks.length === 0 ? (
-                    <div className="frosted rounded-2xl border border-white/10 p-5 text-sm text-white/55">
-                        No links found.
+                    <div className="flex justify-center py-16 text-sm text-white/55">
+                        <span>
+                            <a
+                                href={`/apps/links/lists/${listId}?add=1`}
+                                className="text-white/65 underline decoration-white/25 underline-offset-4 transition-colors hover:text-white hover:decoration-white/60"
+                            >
+                                Add a link
+                            </a>{" "}to get started
+                        </span>
                     </div>
                 ) : (
                     <div className="space-y-3">
@@ -695,6 +700,8 @@ export default function LinksDetailView({
                                 item={item}
                                 tagsById={tagsById}
                                 onShare={(nextItem) => setShareItem(nextItem)}
+                                onEdit={onEditLink}
+                                onEditTags={onEditLinkTags}
                             />
                         ))}
                     </div>
@@ -704,7 +711,7 @@ export default function LinksDetailView({
             {onAddLink ? (
                 <button
                     type="button"
-                    onClick={onAddLink}
+                    onClick={() => onAddLink()}
                     className="fixed bottom-6 right-6 z-30 inline-flex h-14 w-14 items-center justify-center rounded-full border border-white/15 bg-white/10 text-white shadow-2xl backdrop-blur-md transition-transform duration-150 hover:scale-105 hover:bg-white/15 hover:text-primary"
                     aria-label="Add link"
                     title="Add link"
