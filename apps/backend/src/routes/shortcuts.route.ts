@@ -35,6 +35,24 @@ shortcutsRoute
       return syncOnDemandShortcuts(userId, String(c.req.param("appId") ?? ""), body?.shortcuts);
     }),
   )
+  .patch(
+    "/api/v1/shortcuts/:id",
+    withJson(async (c) => {
+      const body = await readJsonBody<{ isPinned?: unknown; isDisabled?: unknown; app?: unknown }>(c);
+      const { userId } = await requireAuth({ token: readAuthToken(c) });
+      const pb = await getSuperuserPB();
+      const record = await pb.collection("shortcuts").getOne(String(c.req.param("id") ?? ""));
+      if (String(record.user ?? "") !== userId) {
+        throw new ApiActionError("Unauthorized", 403, { error: "Unauthorized" });
+      }
+      const updates: Record<string, unknown> = {};
+      if (typeof body?.isPinned === "boolean") updates.isPinned = body.isPinned;
+      if (typeof body?.isDisabled === "boolean") updates.isDisabled = body.isDisabled;
+      if (body?.app === null || typeof body?.app === "string") updates.app = body.app || null;
+      if (Object.keys(updates).length > 0) await pb.collection("shortcuts").update(record.id, updates);
+      return { success: true };
+    }),
+  )
   .post(
     "/api/v1/shortcuts/usageStats",
     withJson(async (c) => {

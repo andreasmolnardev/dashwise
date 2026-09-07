@@ -673,6 +673,20 @@ export async function getShortcutsAction(auth: ActionAuth) {
   return extractData(await getShortcuts({ headers: authHeaders(auth) }));
 }
 
+export async function updateShortcutAction(
+  auth: ActionAuth,
+  id: string,
+  patch: { isPinned?: boolean; isDisabled?: boolean; app?: string | null },
+) {
+  const response = await fetch(backendUrl(`/api/v1/shortcuts/${encodeURIComponent(id)}`), {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...authHeaders(auth) },
+    body: JSON.stringify(patch),
+  });
+  if (!response.ok) throw new Error(`Failed to update shortcut (${response.status})`);
+  return response.json();
+}
+
 export async function getFrequentlyUsedShortcutsAction(auth: ActionAuth) {
   return extractData(await getShortcutsFrequentlyUsed({ headers: authHeaders(auth) }));
 }

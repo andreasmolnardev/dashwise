@@ -2,6 +2,7 @@ import React from "react";
 import type { SyntheticEvent } from "react";
 
 import { Dialog, DialogClose, DialogContent } from "../ui/dialog";
+import { useQueryClient } from "@tanstack/react-query";
 import { usePageConfig } from "@/hooks/usePageConfig";
 import useAuth from "@/context/useAuth";
 import { Separator } from "../ui/separator";
@@ -12,7 +13,16 @@ import AppIcon from "@dashwise/app-icon";
 import QRCode from "qrcode";
 import { getFrequentlyUsedShortcutsAction, getHomeLinksAction, logShortcutUsageAction } from '@/lib/apiClient';
 import { getRoutedLinkUrl } from "@/lib/linkRouting";
-import { proxyIntegrationAction } from '@/lib/apiClient';
+import { proxyIntegrationAction, updateShortcutAction } from '@/lib/apiClient';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuShortcut,
+  DropdownMenuTrigger,
+} from "../ui/dropdown-menu";
 
 // --- Types ---
 
@@ -33,6 +43,8 @@ type LinkItem = {
   engineSlug?: string;
   isQrAction?: boolean;
   isPinned?: boolean;
+  isDisabled?: boolean;
+  actions?: Record<string, string>;
   proxyAction?: boolean;
   _section?: string;
 };
@@ -60,6 +72,8 @@ type IncomingShortcut = {
   linkGroup?: string;
   tags?: string[];
   isPinned?: boolean;
+  isDisabled?: boolean;
+  actions?: Record<string, string>;
 };
 
 type ProxyAction = {
@@ -78,9 +92,9 @@ type CommandBarProps = {
 function normalizeConfigLinks(input: IncomingShortcut[] = []): LinkItem[] {
   return input
     .filter((it) =>
-      !it.type || it.type === "link" || it.type === "app" ||
+      !it.isDisabled && (!it.type || it.type === "link" || it.type === "app" ||
       it.type === "karakeepBookmark" || it.type === "jellyfinItem" ||
-      it.type === "beszelItem" || it.type === "dashdotItem"
+      it.type === "beszelItem" || it.type === "dashdotItem")
     )
     .map((it) => {
       const actionValue = it.action;
@@ -148,6 +162,8 @@ function normalizeConfigLinks(input: IncomingShortcut[] = []): LinkItem[] {
         url,
         proxyAction,
         isPinned: it.isPinned,
+        isDisabled: it.isDisabled,
+        actions: it.actions ?? (it as any).secondaryActions,
       } as LinkItem;
     });
 }
@@ -163,6 +179,7 @@ export default function CommandBar(
     toggleTheme,
     toggleLinkTileLayout,
   } = useAuth();
+  const queryClient = useQueryClient();
   const searchPreferences = user?.searchPreferences ?? {};
   const searchEngines: SearchEngine[] =
     (searchPreferences.searchEngines || []) as SearchEngine[];
@@ -193,6 +210,7 @@ export default function CommandBar(
   const [qrCodeError, setQrCodeError] = React.useState<string | null>(null);
   const [homeLinks, setHomeLinks] = React.useState<Array<{ id: string; url: string; secondaryUrls?: Array<{ url: string; routingRule: string }> }>>([]);
   const [frequentlyUsedIds, setFrequentlyUsedIds] = React.useState<string[]>([]);
+  const [actionsMenuOpen, setActionsMenuOpen] = React.useState(false);
   const inputRef = React.useRef<HTMLInputElement | null>(null);
 
   // Fetch frequently used items
@@ -525,6 +543,17 @@ export default function CommandBar(
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     const actionsCount = actions.length;
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k" && selectedAction?.id) {
+      e.preventDefault();
+      e.stopPropagation();
+      setActionsMenuOpen(true);
+      return;
+    }
+    if (e.key === "*" && selectedAction?.id) {
+      e.preventDefault();
+      setActionsMenuOpen(true);
+      return;
+    }
     if (e.key === "Tab" && !query && clipboardText) {
       e.preventDefault();
       setQuery(clipboardText);
@@ -719,6 +748,88 @@ export default function CommandBar(
     } finally {
       setOpen(false);
     }
+  }
+
+  const selectedShortcut = selectedAction?.id && !selectedAction.id.startsWith("__")
+    ? selectedAction
+    : null;
+
+  function secondaryLink(value: string) {
+    const trimmed = value.trim();
+    if (trimmed.toLowerCase().startsWith("link:")) return trimmed.slice(5).trim();
+    if (trimmed.toLowerCase().startsWith("url:")) return trimmed.slice(4).trim();
+    return "";
+  }
+
+  async function refreshShortcutCache() {
+    await queryClient.invalidateQueries({ queryKey: ["api", token, "links", "search"] });
+  }
+
+  async function runSecondaryAction(value: string, label: string) {
+    if (!selectedShortcut) return;
+    const normalizedLabel = label.toLowerCase();
+    if (normalizedLabel.includes("favorite") || normalizedLabel.includes("favourite")) {
+      if (!token || !selectedShortcut.id) return;
+      const shortcutId = selectedShortcut.id;
+      const previousPinned = Boolean(selectedShortcut.isPinned);
+      const nextPinned = !previousPinned;
+      const updateVisibleShortcut = (isPinned: boolean) => {
+        setFiltered((items) => items.map((item) => item.id === shortcutId ? { ...item, isPinned } : item));
+      };
+      const updateCachedShortcut = (isPinned: boolean) => {
+        queryClient.setQueryData<IncomingShortcut[]>(["api", token, "links", "search"], (items) =>
+          Array.isArray(items)
+            ? items.map((item) => item.id === shortcutId ? { ...item, isPinned } : item)
+            : items,
+        );
+      };
+
+      // Optimistically update the UI and cached shortcut before persisting.
+      updateVisibleShortcut(nextPinned);
+      updateCachedShortcut(nextPinned);
+      setActionsMenuOpen(false);
+
+      try {
+        await updateShortcutAction({ token }, shortcutId, { isPinned: nextPinned });
+        await refreshShortcutCache();
+      } catch (error) {
+        updateVisibleShortcut(previousPinned);
+        updateCachedShortcut(previousPinned);
+        console.error("Failed to update shortcut favourite", error);
+      }
+      return;
+    }
+    if (normalizedLabel.includes("root") || normalizedLabel.includes("app")) {
+      if (!token || !selectedShortcut.id || !currentAppId) return;
+      await updateShortcutAction({ token }, selectedShortcut.id, { app: null });
+      await refreshShortcutCache();
+      setActionsMenuOpen(false);
+      setCurrentAppId(null);
+      return;
+    }
+    if (normalizedLabel.includes("copy")) {
+      const sourceLink = selectedShortcut.sourceId && homeLinks.find((link) => link.id === selectedShortcut.sourceId);
+      const link = selectedShortcut.url === "__source_link__" && sourceLink
+        ? getRoutedLinkUrl(sourceLink)
+        : selectedShortcut.url;
+      if (link && !link.startsWith("__")) await navigator.clipboard?.writeText(link);
+      setActionsMenuOpen(false);
+      return;
+    }
+    if (normalizedLabel.includes("hide") || normalizedLabel.includes("disable")) {
+      if (!token || !selectedShortcut.id) return;
+      await updateShortcutAction({ token }, selectedShortcut.id, { isDisabled: true });
+      await refreshShortcutCache();
+      setActionsMenuOpen(false);
+      setFiltered((items) => items.filter((item) => item.id !== selectedShortcut.id));
+      return;
+    }
+    const link = secondaryLink(value);
+    if (link) {
+      openUrl(link, config?.global?.linkOpenBehaviour);
+      return;
+    }
+    if (value.trim().startsWith("command:")) openCommandClient(value.trim());
   }
 
   function onClickLink(e: SyntheticEvent, a: LinkItem) {
@@ -934,8 +1045,45 @@ export default function CommandBar(
         <section>
           <Separator className="bg-(--text-primary)/20 my-2" />
 
-          <div className="text-xs text-gray-400  mx-3 mb-3">
-            <code>esc</code> Close searchbar · <code>Enter</code> Open shortcut
+          <div className="mx-3 mb-3 flex items-center justify-between gap-3 text-xs text-gray-400">
+            <span><code>esc</code> Close searchbar · <code>Enter</code> Open shortcut</span>
+            {selectedShortcut && (
+              <DropdownMenu open={actionsMenuOpen} onOpenChange={setActionsMenuOpen}>
+                <DropdownMenuTrigger asChild>
+                  <button type="button" className="rounded px-2 py-1 text-foreground/80 hover:bg-white/10">
+                    <IconifyIcon icon="glyphs:arrow-external-bold" className="mr-1 align-[-0.1em]" />
+                    More Actions <kbd className="ml-1">(*)</kbd>
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="frosted min-w-56 text-foreground">
+                  <DropdownMenuLabel>{selectedShortcut.name}</DropdownMenuLabel>
+                  <DropdownMenuSeparator className="bg-white/15" />
+                  <DropdownMenuItem onSelect={() => void runSecondaryAction("", selectedShortcut.isPinned ? "Remove favourite" : "Add shortcut as favourite")}>
+                    <IconifyIcon icon={selectedShortcut.isPinned ? "fa6-solid:star" : "fa6-regular:star"} />
+                    {selectedShortcut.isPinned ? "Remove favourite" : "Add shortcut as favourite"}
+                    <DropdownMenuShortcut>F</DropdownMenuShortcut>
+                  </DropdownMenuItem>
+                  {currentAppId && <DropdownMenuItem onSelect={() => void runSecondaryAction("", "Add shortcut to root shortcuts")}>
+                    <IconifyIcon icon="fa6-solid:house" />
+                    Add shortcut to root shortcuts
+                  </DropdownMenuItem>}
+                  <DropdownMenuItem onSelect={() => void runSecondaryAction("", "Copy link")}>
+                    <IconifyIcon icon="fa6-solid:copy" />
+                    Copy link
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => void runSecondaryAction("", "Hide/disable shortcut")}>
+                    <IconifyIcon icon="fa6-solid:eye-slash" />
+                    Hide/disable shortcut
+                  </DropdownMenuItem>
+                  {Object.entries(selectedShortcut.actions ?? {}).map(([label, value]) => (
+                    <DropdownMenuItem key={label} onSelect={() => void runSecondaryAction(value, label)}>
+                      <IconifyIcon icon="fa6-solid:bolt" />
+                      {label}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
           </div>
         </section>
       </DialogContent>

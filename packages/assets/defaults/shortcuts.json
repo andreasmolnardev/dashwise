@@ -4,6 +4,9 @@
         "icon": "fa6-solid:gear",
         "secondary": "Dashwise",
         "action": "url:/settings/appearance",
+        "actions": {
+            "Go to URL": "link:/settings/appearance"
+        },
         "tags": ["Settings", "Preferences"]
     },
     {

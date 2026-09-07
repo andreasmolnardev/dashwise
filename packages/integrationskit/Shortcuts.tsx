@@ -16,6 +16,7 @@ export type ShortcutItem = {
 	secondaryInfo: string;
 	type: string;
 	action: string | ShortcutActionObject;
+	actions?: Record<string, string>;
 	tags: string[];
 };
 
@@ -217,6 +218,7 @@ export default async function Shortcuts({
 					secondaryInfo: String(item.secondaryInfo ?? item.secondary ?? ""),
 					type: String(item.type ?? "shortcut"),
 					action,
+					actions: normalizeShortcutActions(item.actions ?? item.secondaryActions),
 					tags: toTagList(item.tags),
 				});
 			}
@@ -224,6 +226,16 @@ export default async function Shortcuts({
 	}
 
 	return rows;
+}
+
+function normalizeShortcutActions(raw: unknown): Record<string, string> | undefined {
+	if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
+	const actions = Object.fromEntries(
+		Object.entries(raw as Record<string, unknown>)
+			.filter(([label, value]) => label.trim() && typeof value === "string" && value.trim())
+			.map(([label, value]) => [label.trim(), String(value).trim()]),
+	);
+	return Object.keys(actions).length > 0 ? actions : undefined;
 }
 
 function isValidShortcutAction(action: unknown): action is string | ShortcutActionObject {

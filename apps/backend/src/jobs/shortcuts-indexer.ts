@@ -9,8 +9,9 @@ type ShortcutRow = {
   name: string;
   icon: string;
   secondary: string;
-  action: string;
-  app: string;
+  	action: string;
+  	actions?: Record<string, string>;
+  	app: string;
   tags: string[];
   sourceId?: string;
   sourceUpdated?: string;
@@ -29,8 +30,10 @@ type ShortcutDefaultsRow = {
   icon?: unknown;
   secondary?: unknown;
   secondaryInfo?: unknown;
-  action?: unknown;
-  tags?: unknown;
+  	action?: unknown;
+  	actions?: unknown;
+  	secondaryActions?: unknown;
+  	tags?: unknown;
 };
 
 export async function runShortcutsIndexing() {
@@ -153,8 +156,9 @@ function buildDefaultShortcutRows(): ShortcutRow[] {
       name,
       icon: String(shortcut?.icon ?? "/icons/faGlobe.svg"),
       secondary: String(shortcut?.secondaryInfo ?? shortcut?.secondary ?? "Dashwise"),
-      action,
-      app: "",
+      		action,
+      		actions: normalizeActions(shortcut.actions ?? shortcut.secondaryActions),
+      		app: "",
       tags: [
         name,
         ...(Array.isArray(shortcut?.tags) ? shortcut.tags.map((tag: unknown) => String(tag)) : []),
@@ -192,6 +196,22 @@ function normalizeObject(raw: unknown): Record<string, any> {
 
 
   return {};
+}
+
+function normalizeActions(raw: unknown): Record<string, string> {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  return Object.fromEntries(
+    Object.entries(raw as Record<string, unknown>)
+      .filter(([label, value]) => label.trim() && typeof value === "string" && value.trim())
+      .map(([label, value]) => [label.trim(), String(value).trim()]),
+  );
+}
+
+function parseActions(raw: unknown): Record<string, string> {
+  if (typeof raw === "string") {
+    try { return normalizeActions(JSON.parse(raw)); } catch { return {}; }
+  }
+  return normalizeActions(raw);
 }
 
 function normalizeKey(value: string) {
@@ -312,8 +332,9 @@ async function buildIntegrationShortcutRows(
     name: item.name,
     icon: item.icon || integrationIcon,
     secondary: item.secondaryInfo || integrationName,
-    action: serializeShortcutAction(item.action),
-    app: shortcutApp.id,
+    		action: serializeShortcutAction(item.action),
+    		actions: item.actions,
+    		app: shortcutApp.id,
     tags: item.tags,
     sourceId: integration.id,
     sourceUpdated: (integration as any).updated as string,
@@ -386,6 +407,7 @@ async function rebuildUserShortcuts(pb: any, userId: string, rows: ShortcutRow[]
     if (isLink) {
       const newRow = newRows[0];
       const existingRecord = existingRecords[0];
+      let preservedState: Record<string, unknown> = {};
 
       if (existingRecord) {
         // Keep the existing shortcut when its source has not changed.
@@ -393,11 +415,15 @@ async function rebuildUserShortcuts(pb: any, userId: string, rows: ShortcutRow[]
         const itemUpdated = new Date(existingRecord.updated).getTime();
 
         if (sourceUpdated <= itemUpdated) {
+          if (JSON.stringify(parseActions(existingRecord.secondaryActions)) !== JSON.stringify(newRow.actions ?? {})) {
+            await pb.collection("shortcuts").update(existingRecord.id, { secondaryActions: newRow.actions ?? {} });
+          }
           // Discard (keep existing)
           continue;
         }
         
-        // Replace
+        // Replace while preserving user-owned state.
+        preservedState = preserveShortcutState(existingRecord, newRow.app);
         await pb.collection("shortcuts").delete(existingRecord.id).catch(() => {});
       }
 
@@ -406,11 +432,13 @@ async function rebuildUserShortcuts(pb: any, userId: string, rows: ShortcutRow[]
         name: newRow.name,
         icon: newRow.icon,
         secondary: newRow.secondary,
-        action: newRow.action,
-        app: newRow.app || null,
+        			action: newRow.action,
+        			secondaryActions: newRow.actions ?? {},
+        			app: newRow.app || null,
         tags: JSON.stringify(newRow.tags ?? []),
         sourceId: sid,
         sourceUpdated: newRow.sourceUpdated,
+        ...preservedState,
       });
     } else {
       // Integration logic: "regenerate every time and check whether the output differs"
@@ -428,8 +456,9 @@ async function rebuildUserShortcuts(pb: any, userId: string, rows: ShortcutRow[]
           name: r.name,
           icon: r.icon,
           secondary: r.secondary,
-          action,
-          app: r.app,
+          			action,
+          			actions: parseActions(r.secondaryActions),
+          			app: r.app,
           tags: parseTags(r.tags),
         };
       }).sort((a, b) => a.action.localeCompare(b.action));
@@ -438,8 +467,9 @@ async function rebuildUserShortcuts(pb: any, userId: string, rows: ShortcutRow[]
         name: r.name,
         icon: r.icon,
         secondary: r.secondary,
-        action: r.action,
-        app: r.app,
+        			action: r.action,
+        			actions: r.actions,
+        			app: r.app,
         tags: r.tags,
       })).sort((a, b) => a.action.localeCompare(b.action));
 
@@ -450,23 +480,42 @@ async function rebuildUserShortcuts(pb: any, userId: string, rows: ShortcutRow[]
         continue;
       }
 
-      // Replace all for this source
+      // Replace all for this source, retaining user-owned state for matching rows.
+      const remainingRecords = [...existingRecords];
       for (const r of existingRecords) await pb.collection("shortcuts").delete(r.id).catch(() => {});
       for (const row of newRows) {
+        const matchingRecordIndex = remainingRecords.findIndex((record) =>
+          String(record.name ?? "") === row.name || String(record.action ?? "") === row.action,
+        );
+        const matchingRecord = matchingRecordIndex >= 0 ? remainingRecords.splice(matchingRecordIndex, 1)[0] : null;
+        const preservedState = matchingRecord
+          ? preserveShortcutState(matchingRecord, row.app)
+          : {};
         await pb.collection("shortcuts").create({
           user: userId,
           name: row.name,
           icon: row.icon,
           secondary: row.secondary,
-          action: row.action,
-          app: row.app || null,
+          			action: row.action,
+          			secondaryActions: row.actions ?? {},
+          			app: row.app || null,
           tags: JSON.stringify(row.tags ?? []),
           sourceId: sid,
           sourceUpdated: row.sourceUpdated,
+          ...preservedState,
         });
       }
     }
   }
+}
+
+function preserveShortcutState(record: Record<string, any>, generatedApp: string) {
+  const hasRootOverride = Boolean(generatedApp) && !record.app;
+  return {
+    isPinned: Boolean(record.isPinned),
+    isDisabled: Boolean(record.isDisabled),
+    ...(hasRootOverride ? { app: null } : {}),
+  };
 }
 
 function serializeShortcutAction(action: unknown): string {
