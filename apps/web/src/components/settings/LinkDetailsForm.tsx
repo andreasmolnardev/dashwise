@@ -46,9 +46,16 @@ import { RadioGroup, RadioGroupItem } from "../ui/radio-group";
 import { Switch } from "@/components/ui/switch";
 import { faEllipsisV, faPaperclip } from "@fortawesome/free-solid-svg-icons";
 import { Icon as Iconify } from "@iconify-icon/react";
-import { Check, ChevronsUpDown } from "lucide-react";
+import { Check, ChevronsUpDown, CircleHelp, Plus, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { LinkType, StatusCheckAuth, StatusCheckMethod } from "@dashwise/types/sdk";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import type { LinkType, StatusCheckAuth, StatusCheckMethod } from "@dashwise/types/links";
+
+interface SecondaryUrl {
+  name: string;
+  url: string;
+  routingRule: string;
+}
 
 interface Icon {
   Name: string;
@@ -94,6 +101,8 @@ export default function LinkDetailsForm({
   const [name, setName] = useState("");
   const [linkId, setLinkId] = useState(() => link?.id || generateRandomId());
   const [url, setUrl] = useState("");
+  const [secondaryUrls, setSecondaryUrls] = useState<SecondaryUrl[]>([]);
+  const [secondaryUrlsExpanded, setSecondaryUrlsExpanded] = useState(false);
   const [icon, setIcon] = useState<IconResult | null>(null);
   const [linkGroup, setLinkGroup] = useState(() => preselectOpenedGroup || link?.linkGroup || link?.collection || "");
   const [folder, setFolder] = useState(() => link?.folder || "");
@@ -136,6 +145,13 @@ export default function LinkDetailsForm({
   useEffect(() => {
     if (link?.linkGroup) {
       setLinkGroup(link.linkGroup);
+    }
+    if (Array.isArray((link as any)?.secondaryUrls)) {
+      setSecondaryUrls((link as any).secondaryUrls);
+      setSecondaryUrlsExpanded((link as any).secondaryUrls.length > 0);
+    } else {
+      setSecondaryUrls([]);
+      setSecondaryUrlsExpanded(false);
     }
     if ((link as any)?.folder) {
       setFolder((link as any).folder);
@@ -252,6 +268,7 @@ export default function LinkDetailsForm({
       linkGroup,
       folder,
       statusCheck,
+      secondaryUrls: secondaryUrls.filter((entry) => entry.url.trim() && entry.routingRule.trim()),
     };
 
     if (isEditing && link?.id) {
@@ -299,6 +316,8 @@ export default function LinkDetailsForm({
   const resetForm = () => {
     setName("");
     setUrl("");
+    setSecondaryUrls([]);
+    setSecondaryUrlsExpanded(false);
     setIcon(null);
     setIconEdited(false);
     setFolder("");
@@ -421,6 +440,64 @@ export default function LinkDetailsForm({
           onChange={(e) => setUrl(e.target.value)}
           onBlur={handleUrlBlur}
         />
+
+        <div className="mt-3">
+          {!secondaryUrlsExpanded ? (
+            <button
+              type="button"
+              className="text-sm text-primary underline-offset-4 hover:underline"
+              onClick={() => setSecondaryUrlsExpanded(true)}
+            >
+              Add more URLs
+            </button>
+          ) : (
+            <>
+              <Separator className="my-3" />
+              <section>
+                <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <Label className="font-medium">Secondary urls</Label>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button type="button" aria-label="About secondary URL routing" className="text-muted-foreground hover:text-foreground">
+                        <CircleHelp className="h-3.5 w-3.5" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent>Route this link to another URL when opened from a matching origin or hostname.</TooltipContent>
+                  </Tooltip>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 rounded-full"
+                  aria-label="Add secondary URL"
+                  title="Add secondary URL"
+                  onClick={() => setSecondaryUrls((current) => [...current, { name: "", url: "", routingRule: "" }])}
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+                </div>
+
+                <div className="mt-2 flex flex-col gap-3">
+                  {secondaryUrls.map((entry, index) => (
+                    <div key={index} className="grid gap-2 rounded-md border border-white/10 p-2">
+                    <div className="flex items-center gap-2">
+                      <Input placeholder="Name" aria-label="Secondary URL name" value={entry.name} onChange={(e) => setSecondaryUrls((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, name: e.target.value } : item))} className="frosted" />
+                      <Button type="button" variant="ghost" size="icon" className="h-8 w-8 shrink-0" aria-label={`Remove secondary URL ${index + 1}`} onClick={() => setSecondaryUrls((current) => current.filter((_, itemIndex) => itemIndex !== index))}>
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                    <Input placeholder="URL" aria-label="Secondary URL" value={entry.url} onChange={(e) => setSecondaryUrls((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, url: e.target.value } : item))} className="frosted" />
+                    <Input placeholder="Routing rule (e.g. localhost, 192.168.1.10, example.com)" aria-label="Secondary URL routing rule" value={entry.routingRule} onChange={(e) => setSecondaryUrls((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, routingRule: e.target.value } : item))} className="frosted" />
+                    </div>
+                  ))}
+                </div>
+              </section>
+              <Separator className="my-3" />
+            </>
+          )}
+        </div>
 
         <Label htmlFor="link-image">Icon</Label>
         <RadioGroup className="flex flex-wrap items-center gap-2" defaultValue="current">

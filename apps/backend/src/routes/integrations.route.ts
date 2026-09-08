@@ -13,6 +13,7 @@ import {
   listIntegrations,
   testIntegrationEndpoint,
   updateIntegration,
+  buildResolvedEndpoints,
 } from "../lib/data/integrations";
 import { ApiActionError } from "../lib/data/auth";
 import { executeRoutedShortcut } from "../lib/data/shortcuts";
@@ -59,6 +60,9 @@ type CacheRecord = {
 
 const previewJsonCache = new Map<string, { body: unknown; expiresAt: number }>();
 const previewRedis = new RedisClient(
+  Bun.env.REDIS_URL || Bun.env.VALKEY_URL || "redis://127.0.0.1:6379",
+);
+const integrationCacheRedis = new RedisClient(
   Bun.env.REDIS_URL || Bun.env.VALKEY_URL || "redis://127.0.0.1:6379",
 );
 const previewJsonMaxBytes = 1_048_576;
@@ -544,7 +548,8 @@ async function resolveWidgetConsumer(
   const mergedInput = mergeWidgetInput(resolvedEnv, opts.properties);
   const widgetJSON = applyWidgetInput(payload.widgetJSON, mergedInput ?? {});
 
-  const cacheContext = createIntegrationCacheContext({
+  const cacheContext = await createIntegrationCacheContext({
+    integrationId: payload.integrationId,
     localData: envWithStatefulHiddenVars.localData,
     type: "widget",
     key: opts.key,
@@ -639,7 +644,8 @@ async function resolveGlanceableConsumer(
     opts.properties,
   );
 
-  const cacheContext = createIntegrationCacheContext({
+  const cacheContext = await createIntegrationCacheContext({
+    integrationId: payload.integrationId,
     localData: envWithStatefulHiddenVars.localData,
     type: "glanceable",
     key: opts.key,
@@ -703,7 +709,7 @@ async function resolveFreshRuntime(
     { data: Record<string, any> | null; env: Record<string, string> }
   >,
   ctx: {
-    cacheContext: ReturnType<typeof createIntegrationCacheContext>;
+    cacheContext: Awaited<ReturnType<typeof createIntegrationCacheContext>>;
     isPreview: boolean;
     cacheConfig: IntegrationCacheConfig;
   },
@@ -742,7 +748,7 @@ async function resolveFreshRuntime(
 
 function buildCacheMeta(
   cacheConfig: IntegrationCacheConfig,
-  cacheContext: ReturnType<typeof createIntegrationCacheContext>,
+  cacheContext: Awaited<ReturnType<typeof createIntegrationCacheContext>>,
   fromCache = false,
   staleReturned = false,
 ) {
@@ -1088,7 +1094,66 @@ function buildConsumerStateVars(
   return merged;
 }
 
-function createIntegrationCacheContext(opts: {
+function integrationCacheRedisKey(integrationId: string, namespace: string, recordKey: string) {
+  const encoded = Buffer.from(recordKey, "utf8").toString("base64url");
+  return `integrations:cache:${integrationId}:${namespace}:${encoded}`;
+}
+
+async function readIntegrationCacheRecords(
+  integrationId: string,
+  namespace: string,
+  recordKeys: string[],
+): Promise<Record<string, CacheRecord>> {
+  const entries = await Promise.all(recordKeys.map(async (recordKey) => {
+    try {
+      const raw = await integrationCacheRedis.send("GET", [
+        integrationCacheRedisKey(integrationId, namespace, recordKey),
+      ]);
+      if (typeof raw !== "string") return null;
+      const parsed = JSON.parse(raw);
+      return isPlainObject(parsed) ? [recordKey, parsed as CacheRecord] as const : null;
+    } catch {
+      return null;
+    }
+  }));
+  return Object.fromEntries(entries.filter((entry): entry is readonly [string, CacheRecord] => entry !== null));
+}
+
+async function writeIntegrationCacheRecord(
+  integrationId: string,
+  namespace: string,
+  recordKey: string,
+  record: CacheRecord,
+  retentionSeconds: number | null,
+) {
+  const invalidatesAt = Number(record.invalidatesAt);
+  const ttl = Number.isFinite(invalidatesAt)
+    ? Math.max(1, Math.ceil((invalidatesAt - Date.now()) / 1000))
+    : Math.max(1, Number(retentionSeconds) || 1);
+  try {
+    await integrationCacheRedis.send("SET", [
+      integrationCacheRedisKey(integrationId, namespace, recordKey),
+      JSON.stringify(record),
+      "EX",
+      String(ttl),
+    ]);
+  } catch {
+    // Redis is an optional cache; a failed write must not break integrations.
+  }
+}
+
+async function deleteIntegrationCacheRecord(integrationId: string, namespace: string, recordKey: string) {
+  try {
+    await integrationCacheRedis.send("DEL", [
+      integrationCacheRedisKey(integrationId, namespace, recordKey),
+    ]);
+  } catch {
+    // Redis is an optional cache.
+  }
+}
+
+async function createIntegrationCacheContext(opts: {
+  integrationId: string;
   localData: unknown;
   type: ConsumerType;
   key: string;
@@ -1098,12 +1163,13 @@ function createIntegrationCacheContext(opts: {
   initialChanged?: boolean;
   sharedEndpointCache?: Map<string, ResolvedEndpointData>;
 }) {
-  const root: Record<string, any> = isPlainObject(opts.localData)
-    ? JSON.parse(JSON.stringify(opts.localData))
-    : {};
-  const cacheKV: Record<string, any> = isPlainObject(root.cacheKV)
-    ? root.cacheKV
-    : (root.cacheKV = {});
+  const sourceLocalData = isPlainObject(opts.localData) ? opts.localData : {};
+  const hadPersistedCache = Object.prototype.hasOwnProperty.call(sourceLocalData, "cacheKV");
+  const root: Record<string, any> = JSON.parse(JSON.stringify(sourceLocalData));
+  // cacheKV used to live in PocketBase localData. Keep it request-local and
+  // hydrate it from Redis so transient endpoint data is not persisted.
+  const cacheKV: Record<string, any> = {};
+  delete root.cacheKV;
 
   const statefulVars = buildConsumerStateVars(opts.integrationJSON, opts.input);
   const stateKey = Buffer.from(
@@ -1121,7 +1187,11 @@ function createIntegrationCacheContext(opts: {
 
   const cacheNamespace = `${opts.type}:${opts.key}:${stateKey}`;
   const runtimeSnapshotKey = `${cacheNamespace}:runtime`;
-  let changed = Boolean(opts.initialChanged);
+  const endpointIds = buildResolvedEndpoints(opts.integrationJSON, {}).map((ep) => ep.id ?? ep.name ?? "").filter(Boolean);
+  const redisCacheKeys = [runtimeSnapshotKey, ...endpointIds.map((id) => `${cacheNamespace}:endpoint:${id}`)];
+  const hydratedCache = await readIntegrationCacheRecords(opts.integrationId, cacheNamespace, redisCacheKeys);
+  Object.assign(cacheKV, hydratedCache);
+  const changed = Boolean(opts.initialChanged) || hadPersistedCache;
 
   const readRecord = (key: string): CacheRecord | null => {
     const record = cacheKV[key];
@@ -1129,7 +1199,7 @@ function createIntegrationCacheContext(opts: {
     const invalidatesAt = Number((record as CacheRecord).invalidatesAt);
     if (Number.isFinite(invalidatesAt) && invalidatesAt <= Date.now()) {
       delete cacheKV[key];
-      changed = true;
+      void deleteIntegrationCacheRecord(opts.integrationId, cacheNamespace, key);
       return null;
     }
     return record as CacheRecord;
@@ -1141,13 +1211,14 @@ function createIntegrationCacheContext(opts: {
     invalidatesAt: number | null,
     retentionSeconds: number | null,
   ) => {
-    cacheKV[key] = {
+    const record = {
       value,
       retentionSeconds,
       invalidatesAt,
       createdAt: Date.now(),
     } satisfies CacheRecord;
-    changed = true;
+    cacheKV[key] = record;
+    void writeIntegrationCacheRecord(opts.integrationId, cacheNamespace, key, record, retentionSeconds);
   };
 
   const endpointKey = (id: string) => `${cacheNamespace}:endpoint:${id}`;

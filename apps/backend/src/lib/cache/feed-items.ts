@@ -1,5 +1,6 @@
 import { RedisClient } from "bun";
 import { config } from "../config";
+import * as devCache from "./feed-items-dev";
 
 export type CachedArticle = {
   dedupeKey: string;
@@ -27,11 +28,6 @@ export type FeedCacheMetadata = {
 const redisUrl = Bun.env.REDIS_URL || Bun.env.VALKEY_URL || "redis://127.0.0.1:6379";
 const client = config.USE_LOCAL_FEED_CACHE ? null : new RedisClient(redisUrl);
 
-const localArticles = new Map<string, CachedArticle>();
-const localArticleSources = new Map<string, Set<string>>();
-const localSubscriptionIndexes = new Map<string, Map<string, number>>();
-const localViews = new Map<string, { order: Map<string, number>; items: Map<string, string> }>();
-const localMetadata = new Map<string, FeedCacheMetadata>();
 
 const toStringValue = (value: unknown) => value == null ? "" : String(value);
 
@@ -90,7 +86,7 @@ function subscriptionIndexEntries(value: unknown): string[] {
 }
 
 async function readArticle(dedupeKey: string): Promise<CachedArticle | null> {
-  if (config.USE_LOCAL_FEED_CACHE) return localArticles.get(dedupeKey) ?? null;
+  if (config.USE_LOCAL_FEED_CACHE) return devCache.readArticle(dedupeKey);
 
   const hash = parseRedisHash(await command("HGETALL", [articleDocumentKey(dedupeKey)]));
   if (!hash?.json) return null;
@@ -105,27 +101,19 @@ async function readArticle(dedupeKey: string): Promise<CachedArticle | null> {
 }
 
 async function readArticleSources(dedupeKey: string): Promise<string[]> {
-  if (config.USE_LOCAL_FEED_CACHE) return Array.from(localArticleSources.get(dedupeKey) ?? []);
+  if (config.USE_LOCAL_FEED_CACHE) return devCache.readArticleSources(dedupeKey);
   return subscriptionIndexEntries(await command("SMEMBERS", [articleSourcesKey(dedupeKey)]));
+}
+
+export function hasSubscriptionArticles(subscriptionId: string) {
+  return config.USE_LOCAL_FEED_CACHE ? devCache.hasSubscriptionArticles(String(subscriptionId || "").trim()) : false;
 }
 
 export async function readSubscriptionArticles(subscriptionId: string): Promise<CachedArticle[]> {
   const id = String(subscriptionId || "").trim();
   if (!id) return [];
 
-  if (config.USE_LOCAL_FEED_CACHE) {
-    const entries = Array.from(localSubscriptionIndexes.get(id)?.entries() ?? [])
-      .sort((left, right) => right[1] - left[1]);
-    const articles: CachedArticle[] = [];
-    for (const [dedupeKey] of entries) {
-      const article = localArticles.get(dedupeKey);
-      if (article) articles.push({ ...article, sourceIds: Array.from(localArticleSources.get(dedupeKey) ?? []) });
-    }
-    return articles.map((article) => ({
-      ...article,
-      json: { ...article.json, subscription_id: id },
-    }));
-  }
+  if (config.USE_LOCAL_FEED_CACHE) return devCache.readSubscriptionArticles(id);
 
   const members = subscriptionIndexEntries(await command("ZREVRANGE", [subscriptionArticlesKey(id), "0", "-1"]));
   const loaded = await Promise.all(members.map(async (dedupeKey) => {
@@ -147,26 +135,7 @@ export async function writeSubscriptionArticles(subscriptionId: string, articles
   const next = new Map(articles.filter((article) => article.dedupeKey).map((article) => [article.dedupeKey, article]));
 
   if (config.USE_LOCAL_FEED_CACHE) {
-    const current = localSubscriptionIndexes.get(id) ?? new Map<string, number>();
-    for (const dedupeKey of current.keys()) {
-      if (next.has(dedupeKey)) continue;
-      current.delete(dedupeKey);
-      const sources = localArticleSources.get(dedupeKey);
-      sources?.delete(id);
-      if (!sources?.size) {
-        localArticleSources.delete(dedupeKey);
-        localArticles.delete(dedupeKey);
-      }
-    }
-    for (const article of next.values()) {
-      const existing = localArticles.get(article.dedupeKey);
-      localArticles.set(article.dedupeKey, existing && JSON.stringify(existing.json).length > JSON.stringify(article.json).length ? existing : article);
-      current.set(article.dedupeKey, article.publishedAt);
-      const sources = localArticleSources.get(article.dedupeKey) ?? new Set<string>();
-      sources.add(id);
-      localArticleSources.set(article.dedupeKey, sources);
-    }
-    localSubscriptionIndexes.set(id, current);
+    devCache.writeSubscriptionArticles(id, articles);
     return;
   }
 
@@ -200,16 +169,7 @@ export async function deleteSubscriptionArticleIndex(subscriptionId: string) {
   const id = String(subscriptionId || "").trim();
   if (!id) return;
   if (config.USE_LOCAL_FEED_CACHE) {
-    const current = localSubscriptionIndexes.get(id) ?? new Map<string, number>();
-    for (const dedupeKey of current.keys()) {
-      const sources = localArticleSources.get(dedupeKey);
-      sources?.delete(id);
-      if (!sources?.size) {
-        localArticleSources.delete(dedupeKey);
-        localArticles.delete(dedupeKey);
-      }
-    }
-    localSubscriptionIndexes.delete(id);
+    devCache.deleteSubscriptionArticleIndex(id);
     return;
   }
 
@@ -236,13 +196,7 @@ export async function readMaterializedFeedPage(
   const orderKey = materializedFeedOrderKey(userId, feedId);
   const itemsKey = materializedFeedItemsKey(userId, feedId);
 
-  if (config.USE_LOCAL_FEED_CACHE) {
-    const view = localViews.get(orderKey);
-    if (!view) return { items: [], total: 0, exists: false };
-    const ids = Array.from(view.order.entries()).sort((left, right) => right[1] - left[1]).map(([id]) => id);
-    const page = ids.slice(offset, offset + limit).map((id) => parseJson<Record<string, unknown>>(view.items.get(id), {}));
-    return { items: page, total: ids.length, exists: true };
-  }
+  if (config.USE_LOCAL_FEED_CACHE) return devCache.readMaterializedFeedPage(userId, feedId, offset, limit);
 
   const revisionBefore = toStringValue(await command("HGET", [materializedFeedMetaKey(userId, feedId), "revision"]));
   const total = Number(await command("ZCARD", [orderKey])) || 0;
@@ -270,7 +224,7 @@ export async function readMaterializedFeedItems(userId: string, feedId: string) 
 
 export async function readFeedCacheMetadata(userId: string, feedId: string): Promise<FeedCacheMetadata | null> {
   const key = materializedFeedMetaKey(userId, feedId);
-  if (config.USE_LOCAL_FEED_CACHE) return localMetadata.get(key) ?? null;
+  if (config.USE_LOCAL_FEED_CACHE) return devCache.readFeedCacheMetadata(userId, feedId);
   const hash = parseRedisHash(await command("HGETALL", [key]));
   if (!hash) return null;
   return {
@@ -292,16 +246,7 @@ export async function writeMaterializedFeed(
   const revision = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
   if (config.USE_LOCAL_FEED_CACHE) {
-    const order = new Map<string, number>();
-    const itemMap = new Map<string, string>();
-    for (const item of items) {
-      order.set(item.id, item.score);
-      itemMap.set(item.id, JSON.stringify(item.json));
-    }
-    localViews.set(orderKey, { order, items: itemMap });
-    localMetadata.set(materializedFeedMetaKey(userId, feedId), {
-      builtAt: new Date().toISOString(), revision, itemCount: items.length, sourceRevision,
-    });
+    devCache.writeMaterializedFeed(userId, feedId, items, sourceRevision);
     return;
   }
 
@@ -338,8 +283,7 @@ export async function deleteMaterializedFeed(userId: string, feedId: string) {
   const metaKey = materializedFeedMetaKey(userId, feedId);
 
   if (config.USE_LOCAL_FEED_CACHE) {
-    localViews.delete(orderKey);
-    localMetadata.delete(metaKey);
+    devCache.deleteMaterializedFeed(userId, feedId);
     return;
   }
 
@@ -352,7 +296,7 @@ export async function readFeedItemsCache(feedId: string): Promise<unknown[] | nu
   const articles = await readSubscriptionArticles(feedId);
   if (articles.length) return articles.map((article) => article.json);
 
-  if (config.USE_LOCAL_FEED_CACHE) return null;
+  if (config.USE_LOCAL_FEED_CACHE) return devCache.readFeedItemsCache(feedId);
   const raw = await command("HGET", [`feedItems:${feedId}`, "json"]);
   const parsed = parseJson<unknown>(toStringValue(raw), null);
   return Array.isArray(parsed) ? parsed : null;
@@ -364,9 +308,5 @@ export async function writeFeedItemsCache(feedId: string, items: unknown[], feed
 }
 
 export function clearLocalFeedCache() {
-  localArticles.clear();
-  localArticleSources.clear();
-  localSubscriptionIndexes.clear();
-  localViews.clear();
-  localMetadata.clear();
+  if (config.USE_LOCAL_FEED_CACHE) devCache.clearLocalFeedCache();
 }

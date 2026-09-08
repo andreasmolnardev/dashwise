@@ -60,11 +60,13 @@ configuration:
     - name: "Countdown"
       key: "countdown"
       template: "countdown"
-      category: "Clock"
+      category: "Calendar"
       data:
         input:
-          date: "2026-12-31"
-          display_name: "New Year"
+          date:
+            type: "date"
+            default: "2026-12-31"
+          display_name: ""
           date_format: "yyyy-MM-dd"
     - name: "Iframe"
       key: "iframe"
@@ -109,6 +111,19 @@ configuration:
               - value: "week"
                 label: "Week"
   glanceables:
+    - name: "Countdown"
+      key: "countdown"
+      icon: "solar:calendar-bold"
+      exampleProps:
+        date: ""
+        display_name: ""
+        date_format: "yyyy-MM-dd"
+      properties:
+        date:
+          type: "date"
+          default: ""
+        display_name: ""
+        date_format: "yyyy-MM-dd"
     - name: "Date"
       icon: none
       text: "${date.now}" 

@@ -10,6 +10,13 @@ export type GlanceableOption = {
   properties?: Record<string, any>;
 };
 
+export type DateSuggestion = {
+  value: string;
+  label: string;
+  date: string;
+  displayName?: string;
+};
+
 export type WidgetPropertiesFormProps = {
   idPrefix?: string;
   schema?: Record<string, any>;
@@ -21,6 +28,8 @@ export type WidgetPropertiesFormProps = {
   glanceableOptions?: GlanceableOption[];
   glanceableSlotPositions?: readonly GlanceableSlotPosition[];
   onEditGlanceable?: (index: number) => void;
+  dateSuggestions?: DateSuggestion[];
+  onDateSuggestionSelect?: (key: string, suggestion: DateSuggestion) => void;
 };
 
 type SelectSchema = {
@@ -355,6 +364,8 @@ export default function WidgetPropertiesForm({
   glanceableOptions = [],
   glanceableSlotPositions = ["left", "right"],
   onEditGlanceable,
+  dateSuggestions = [],
+  onDateSuggestionSelect,
 }: WidgetPropertiesFormProps) {
   const keys = Array.from(new Set([...Object.keys(schema), ...Object.keys(value)]));
 
@@ -372,12 +383,19 @@ export default function WidgetPropertiesForm({
       {keys.map((key) => {
         const schemaValue = schema[key];
         const hasStoredValue = key in value;
-        const currentValue = hasStoredValue ? value[key] : schemaValue;
+        const currentValue = isRecord(schemaValue) && schemaValue.type === "date" && isRecord(value[key])
+          ? value[key].default ?? ""
+          : hasStoredValue
+            ? value[key]
+            : isRecord(schemaValue) && schemaValue.type === "date"
+              ? schemaValue.default ?? ""
+              : schemaValue;
         const selectSchema = isSelectSchema(schemaValue) ? schemaValue : null;
+        const isDateSchema = isRecord(schemaValue) && schemaValue.type === "date";
         const inputId = `${idPrefix}-${key}`;
         const selectOptions = selectSchema ? getSelectOptions(selectSchema) : [];
         const isGlanceablesField = key === "glanceables";
-        const type = isGlanceablesField ? "glanceables" : selectSchema ? "select" : getValueType(schemaValue ?? currentValue);
+        const type = isGlanceablesField ? "glanceables" : selectSchema ? "select" : isDateSchema ? "date" : getValueType(schemaValue ?? currentValue);
         const selectValue = hasStoredValue && value[key] != null && value[key] !== ""
           ? String(value[key])
           : ""
@@ -431,6 +449,32 @@ export default function WidgetPropertiesForm({
                 onChange={(event: ChangeEvent<HTMLInputElement>) => updateValue(key, event.target.value === "" ? null : Number(event.target.value))}
                 className="w-full rounded-md border border-white/15 bg-black/20 px-3 py-2 text-sm outline-none"
               />
+            ) : type === "date" ? (
+              <div className="space-y-2">
+                {dateSuggestions.length > 0 && (
+                  <select
+                    aria-label={`Select calendar event for ${key}`}
+                    value=""
+                    onChange={(event) => {
+                      const suggestion = dateSuggestions.find((item) => item.value === event.target.value);
+                      if (suggestion) onDateSuggestionSelect?.(key, suggestion);
+                    }}
+                    className="w-full rounded-md border border-white/15 bg-black/20 px-3 py-2 text-sm outline-none"
+                  >
+                    <option value="">Select an event from your calendars...</option>
+                    {dateSuggestions.map((suggestion) => (
+                      <option key={suggestion.value} value={suggestion.value}>{suggestion.label}</option>
+                    ))}
+                  </select>
+                )}
+                <input
+                  id={inputId}
+                  type="date"
+                  value={currentValue == null ? "" : String(currentValue).slice(0, 10)}
+                  onChange={(event: ChangeEvent<HTMLInputElement>) => updateValue(key, event.target.value)}
+                  className="w-full rounded-md border border-white/15 bg-black/20 px-3 py-2 text-sm outline-none"
+                />
+              </div>
             ) : type === "string" ? (
               <input
                 id={inputId}

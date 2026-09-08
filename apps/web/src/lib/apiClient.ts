@@ -336,11 +336,11 @@ export async function getLinksTagsAction(auth: ActionAuth) {
   return extractData(await getLinksTags({ headers: authHeaders(auth) }));
 }
 
-export async function createLinkItemAction(auth: ActionAuth, data: { url: string; title: string; iconUrl?: string; description?: string; linkGroup?: string; folder?: string; collection?: string; tags?: string[] }) {
+export async function createLinkItemAction(auth: ActionAuth, data: { url: string; title: string; iconUrl?: string; description?: string; linkGroup?: string; folder?: string; collection?: string; tags?: string[]; secondaryUrls?: { name: string; url: string; routingRule: string }[] }) {
   return extractData(await postLinksItems({ body: data, headers: authHeaders(auth) }));
 }
 
-export async function updateHomeLinkItemAction(auth: ActionAuth, linkId: string, data: { url?: string; title?: string; iconUrl?: string; description?: string; linkGroup?: string; folder?: string }) {
+export async function updateHomeLinkItemAction(auth: ActionAuth, linkId: string, data: { url?: string; title?: string; iconUrl?: string; description?: string; linkGroup?: string; collection?: string; folder?: string; tags?: string[]; secondaryUrls?: { name: string; url: string; routingRule: string }[] }) {
   return extractData(await putLinksItemsByLinkId({ path: { linkId }, body: data, headers: authHeaders(auth) }));
 }
 
@@ -671,6 +671,20 @@ export async function getPageIntegrationDataAction(auth: ActionAuth, pageName?: 
 
 export async function getShortcutsAction(auth: ActionAuth) {
   return extractData(await getShortcuts({ headers: authHeaders(auth) }));
+}
+
+export async function updateShortcutAction(
+  auth: ActionAuth,
+  id: string,
+  patch: { isPinned?: boolean; isDisabled?: boolean; app?: string | null },
+) {
+  const response = await fetch(backendUrl(`/api/v1/shortcuts/${encodeURIComponent(id)}`), {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...authHeaders(auth) },
+    body: JSON.stringify(patch),
+  });
+  if (!response.ok) throw new Error(`Failed to update shortcut (${response.status})`);
+  return response.json();
 }
 
 export async function getFrequentlyUsedShortcutsAction(auth: ActionAuth) {

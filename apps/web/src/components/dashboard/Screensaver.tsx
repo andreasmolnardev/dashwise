@@ -284,7 +284,7 @@ export default function Screensaver(
           return (
             <div
               key={frame.id}
-              className={`min-w-full h-full flex items-center justify-center snap-center relative overflow-hidden border border-white/10 transition-transform duration-200 ease-out ${
+              className={`min-w-full h-full flex items-center justify-center snap-center relative overflow-hidden transition-transform duration-200 ease-out ${
                 showRadius ? "rounded-3xl" : "rounded-none"
               }`}
               style={{ transform: `scale(${scale})` }}

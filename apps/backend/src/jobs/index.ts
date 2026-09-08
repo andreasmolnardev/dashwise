@@ -188,10 +188,12 @@ export function registerJobsCron() {
     await runDefaultIntegrationsJob("scheduled run");
   });
 
-  void runNewsFeedBuilderJob("initial run");
-  Bun.cron(config.FEED_BUILDING_SCHEDULE, async () => {
-    await runNewsFeedBuilderJob("scheduled run");
-  });
+  if (!config.DEV_DISABLE_NEWS_INDEXING) {
+    void runNewsFeedBuilderJob("initial run");
+    Bun.cron(config.FEED_BUILDING_SCHEDULE, async () => {
+      await runNewsFeedBuilderJob("scheduled run");
+    });
+  }
 
   Bun.cron(config.NOTIFICATION_FORWARDER_SCHEDULE, async () => {
     await runNotificationForwarderJob("cron schedule");

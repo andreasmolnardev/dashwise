@@ -39,6 +39,7 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { renderWidget } from "@/components/widgets/Widget";
+import { useActivity } from "@/context/ActivityContext";
 import ShortcutsPicker from "@/components/widgets/ShortcutsPicker";
 import { EditGlanceablesView } from "@/components/settings/pages/EditGlanceablesView";
 import {
@@ -678,6 +679,16 @@ function WidgetInputEditor({
   dataError: string | null;
   setDataError: (value: string | null) => void;
 }) {
+  const { calendarEvents } = useActivity();
+  const dateSuggestions = widgetType === "countdown"
+    ? calendarEvents.map((event) => ({
+        value: event.id,
+        label: `${event.title} — ${formatCalendarEventDate(event.start)}`,
+        date: event.start.slice(0, 10),
+        displayName: event.title,
+      }))
+    : [];
+
   if (widgetType === "rss-feed" || widgetType === "latest-rss-feed") {
     return (
       <NewsFeedWidgetInputEditor
@@ -719,8 +730,19 @@ function WidgetInputEditor({
       onError={setDataError}
       error={dataError}
       emptyMessage="No input properties for this widget."
+      dateSuggestions={dateSuggestions}
+      onDateSuggestionSelect={(key, suggestion) => onChange({
+        ...inputDraft,
+        [key]: suggestion.date,
+        ...(key === "date" && suggestion.displayName ? { display_name: suggestion.displayName } : {}),
+      })}
     />
   );
+}
+
+function formatCalendarEventDate(value: string) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString([], { month: "short", day: "numeric" });
 }
 
 function NewsFeedWidgetInputEditor({

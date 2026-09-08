@@ -35,6 +35,18 @@ export function escapeFilter(value: string) {
   return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 }
 
+export function parseActions(value: unknown): Record<string, string> {
+  if (typeof value === "string") {
+    try { value = JSON.parse(value); } catch { return {}; }
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>)
+      .filter(([label, action]) => label.trim() && typeof action === "string" && action.trim())
+      .map(([label, action]) => [label.trim(), String(action).trim()]),
+  );
+}
+
 export function parseTags(value: unknown): string[] {
   if (Array.isArray(value)) {
     return value
@@ -127,6 +139,7 @@ export async function getShortcuts(userId: string) {
     const actionString = typeof action === "string" ? action : "";
     return {
       id: record.id,
+      sourceId: String((record as any).sourceId ?? ""),
       parentId:
         typeof record.app === "string" && record.app.trim().length > 0
           ? record.app.trim()
@@ -136,8 +149,10 @@ export async function getShortcuts(userId: string) {
       secondaryInfo: String(record.secondary ?? ""),
       type: actionString.startsWith("app:") ? "app" : "link",
       action,
+      actions: parseActions((record as any).secondaryActions),
       tags: parseTags(record.tags),
       isPinned: Boolean(record.isPinned),
+      isDisabled: Boolean((record as any).isDisabled),
       usageStats: record.usageStats,
     };
   });

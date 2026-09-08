@@ -60,6 +60,26 @@ function NewsFeedCarousel({
         { staleTime: 60_000 },
     );
     const items = feedQuery.data?.items ?? [];
+    const hasSimilarArticles = items.some(
+        (item) => Array.isArray(item.relatedArticles) && item.relatedArticles.length > 0,
+    );
+    const carouselGroups = hasSimilarArticles
+        ? items.reduce<NewsFeedItem[][]>((groups, item) => {
+            const hasRelatedArticles = Array.isArray(item.relatedArticles) && item.relatedArticles.length > 0;
+            const lastGroup = groups[groups.length - 1];
+            const lastArticle = lastGroup?.[0];
+            const lastArticleHasRelatedArticles = Array.isArray(lastArticle?.relatedArticles) &&
+                lastArticle.relatedArticles.length > 0;
+
+            if (!hasRelatedArticles && !lastArticleHasRelatedArticles && lastGroup?.length === 1) {
+                lastGroup.push(item);
+            } else {
+                groups.push([item]);
+            }
+
+            return groups;
+        }, [])
+        : items.map((item) => [item]);
     const getIconUrl = (item: NewsFeedItem) => {
         const subscription = subscriptions.find((entry) =>
             String(entry.id || "") === String(item.subscription_id || "") ||
@@ -93,15 +113,20 @@ function NewsFeedCarousel({
             )}
 
             {items.length > 0 && (
-                <div
-                    className="flex snap-x gap-2.5 overflow-x-auto overscroll-x-contain pb-2"
-                >
-                    {items.map((item, index) => (
-                        <OverviewTopicCard
-                            key={`${item.link}-${index}`}
-                            item={item}
-                            iconUrl={getIconUrl(item)}
-                        />
+                <div className="flex snap-x gap-2.5 overflow-x-auto overscroll-x-contain pb-2">
+                    {carouselGroups.map((group, groupIndex) => (
+                        <div
+                            key={`${group[0].link}-${groupIndex}`}
+                            className={group.length > 1 ? "flex w-[min(84vw,20rem)] shrink-0 flex-col gap-2" : "contents"}
+                        >
+                            {group.map((item, itemIndex) => (
+                                <OverviewTopicCard
+                                    key={`${item.link}-${itemIndex}`}
+                                    item={item}
+                                    iconUrl={getIconUrl(item)}
+                                />
+                            ))}
+                        </div>
                     ))}
                 </div>
             )}
@@ -126,11 +151,6 @@ function OverviewTopicCard({ item, iconUrl }: { item: NewsFeedItem; iconUrl?: st
                     ) : (
                         <div className="h-full w-full frosted" />
                     )}
-                    {item.topicTitle && (
-                        <span className="absolute bottom-2 left-3 max-w-[calc(100%-1.5rem)] truncate text-[10px] font-medium uppercase tracking-[0.14em] text-white/70">
-                            {item.topicTitle}
-                        </span>
-                    )}
                 </div>
                 <div className="space-y-1.5">
                     <h3 className="line-clamp-2 text-base font-semibold leading-snug group-hover:text-primary">
@@ -146,21 +166,30 @@ function OverviewTopicCard({ item, iconUrl }: { item: NewsFeedItem; iconUrl?: st
             </a>
 
             {relatedArticles.length > 0 && (
-                <div className="mt-auto border-t border-white/10 p-2.5">
-                    <p className="mb-2 px-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-white/45">
-                        Similar articles
-                    </p>
-                    <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+                <div className="mt-3">
+                    <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-white/45">SIMILAR</p>
+                    <div className="divide-y divide-white/10">
                         {relatedArticles.map((article, index) => (
                             <a
                                 key={`${article.link}-${index}`}
                                 href={article.link}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="w-44 shrink-0 rounded-lg frosted p-2 transition hover:bg-white/10"
+                                className="flex items-center gap-2 py-2 transition hover:text-primary"
                             >
-                                <p className="line-clamp-3 text-xs font-medium leading-snug">{article.title}</p>
-                                <p className="mt-1 truncate text-[10px] text-white/45">{article.subscription_name}</p>
+                                {article.thumbnailUrl ? (
+                                    <img
+                                        src={String(article.thumbnailUrl)}
+                                        alt=""
+                                        className="h-8 w-8 shrink-0 aspect-square rounded object-cover"
+                                    />
+                                ) : (
+                                    <div className="h-8 w-8 shrink-0 aspect-square rounded bg-white/5" />
+                                )}
+                                <div className="min-w-0">
+                                    <p className="line-clamp-2 text-xs font-medium leading-snug">{article.title}</p>
+                                    <p className="mt-0.5 truncate text-[10px] text-white/45">{article.subscription_name}</p>
+                                </div>
                             </a>
                         ))}
                     </div>

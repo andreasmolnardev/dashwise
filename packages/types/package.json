@@ -11,6 +11,10 @@
     "./sdk": {
       "types": "./sdk-types.ts",
       "default": "./sdk-types.ts"
+    },
+    "./links": {
+      "types": "./links.ts",
+      "default": "./links.ts"
     }
   },
   "types": "index.ts",

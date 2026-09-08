@@ -15,6 +15,7 @@ import {
   updateNewsSubscription,
 } from "../../lib/data/superuser";
 import {
+  hasSubscriptionArticles,
   readSubscriptionArticles,
   type CachedArticle,
   writeMaterializedFeed,
@@ -333,7 +334,11 @@ export async function newsFeedBuilder(feedId?: string, options: BuilderOptions =
 
   const fetchResults = await Promise.all(allSubscriptions
     .filter((subscription) => targetSubscriptionIds.has(String(subscription.id)))
-    .map((subscription) => fetchAndCacheSubscription(subscription, result)));
+    .map((subscription) => {
+      const subscriptionId = String(subscription.id || "");
+      if (config.DEV_DISABLE_NEWS_INDEXING && hasSubscriptionArticles(subscriptionId)) return Promise.resolve(false);
+      return fetchAndCacheSubscription(subscription, result);
+    }));
   result.processed = fetchResults.length;
 
   const affectedUsers = new Set<string>(targetUserIds);

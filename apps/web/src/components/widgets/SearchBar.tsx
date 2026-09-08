@@ -27,6 +27,9 @@ type Shortcut = {
   secondaryInfo: string;
   type: 'link' | 'app' | 'karakeepBookmark' | 'jellyfinItem' | 'beszelItem' | 'dashdotItem';
   action: string | ProxyAction;
+  actions?: Record<string, string>;
+  secondaryActions?: Record<string, string>;
+  isDisabled?: boolean;
   tags?: string[];
 };
 

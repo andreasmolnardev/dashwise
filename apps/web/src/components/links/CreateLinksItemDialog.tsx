@@ -4,7 +4,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import AppIcon from "@dashwise/app-icon";
 import {
   createLinkItemAction,
+  createLinksTagAction,
   createLinksFolderAction,
+  updateHomeLinkItemAction,
   getLinksCollectionsAction,
   getLinksFoldersAction,
   getLinksMetadataAction,
@@ -71,6 +73,8 @@ type CreatedLinkItem = {
   id: string;
   title: string;
   url: string;
+  iconUrl?: string;
+  description?: string;
   collection: string;
   folder?: string;
   created: string;
@@ -82,9 +86,12 @@ type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   defaultCollectionId?: string;
+  defaultFolderId?: string;
   defaultTagIds?: string[];
+  editItem?: Partial<CreatedLinkItem> & { id: string } | null;
   onCreated?: (item: CreatedLinkItem) => void;
   onFolderCreated?: (folder: FolderRecord) => void;
+  focusTags?: boolean;
 };
 
 function IconPickerButton({
@@ -275,17 +282,30 @@ function TagMultiSelect({
   selectedTagIds,
   onChange,
   disabled,
+  onCreateTag,
+  autoFocus,
 }: {
   tags: TagRecord[];
   selectedTagIds: string[];
   onChange: (ids: string[]) => void;
+  onCreateTag: (name: string) => void;
   disabled?: boolean;
+  autoFocus?: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const [search, setSearch] = useState("");
   const selectedTags = useMemo(
     () => selectedTagIds.map((id) => tags.find((tag) => tag.id === id)).filter((tag): tag is TagRecord => Boolean(tag)),
     [selectedTagIds, tags],
   );
+
+  useEffect(() => {
+    if (!autoFocus) return;
+
+    const frame = requestAnimationFrame(() => triggerRef.current?.focus());
+    return () => cancelAnimationFrame(frame);
+  }, [autoFocus]);
 
   const toggleTag = (tagId: string) => {
     onChange(
@@ -300,6 +320,7 @@ function TagMultiSelect({
       <PopoverTrigger asChild>
         <Button
           type="button"
+          ref={triggerRef}
           variant="outline"
           role="combobox"
           aria-expanded={open}
@@ -327,9 +348,23 @@ function TagMultiSelect({
       </PopoverTrigger>
       <PopoverContent className="frosted text-foreground w-[min(32rem,calc(100vw-2rem))] p-0">
         <Command className="text-foreground">
-          <CommandInput placeholder="Search tags..." className="h-9" />
+          <CommandInput placeholder="Search tags..." className="h-9" value={search} onValueChange={setSearch} />
           <CommandList>
-            <CommandEmpty>No tags found.</CommandEmpty>
+            <CommandEmpty>
+              <button
+                type="button"
+                className="flex w-full items-center gap-2 px-2 py-2 text-left text-sm text-white/75 hover:bg-white/10 hover:text-white"
+                onClick={() => {
+                  const name = search.trim();
+                  if (!name) return;
+                  onCreateTag(name);
+                  setSearch("");
+                  setOpen(false);
+                }}
+              >
+                <span className="text-base">+</span> Add tag
+              </button>
+            </CommandEmpty>
             <CommandGroup className="text-foreground">
               {tags.map((tag) => (
                 <CommandItem key={tag.id} value={tag.name} onSelect={() => toggleTag(tag.id)}>
@@ -352,9 +387,12 @@ export default function CreateLinksItemDialog({
   open,
   onOpenChange,
   defaultCollectionId,
+defaultFolderId,
   defaultTagIds = [],
+  editItem,
   onCreated,
   onFolderCreated,
+  focusTags = false,
 }: Props) {
   const { withAuth } = useAuth();
   const [title, setTitle] = useState("");
@@ -380,6 +418,10 @@ export default function CreateLinksItemDialog({
   const autoMetadataRef = useRef({ title: "", iconUrl: "", description: "" });
 
   const defaultTagKey = defaultTagIds.join("|");
+  const defaultTagIdsForEffect = useMemo(
+    () => defaultTagKey ? defaultTagKey.split("|") : [],
+    [defaultTagKey],
+  );
 
   useEffect(() => {
     if (!open) {
@@ -410,15 +452,20 @@ export default function CreateLinksItemDialog({
     initializedTargetRef.current = false;
     metadataRequestRef.current += 1;
     autoMetadataRef.current = { title: "", iconUrl: "", description: "" };
-    setTitle("");
-    setUrl("");
-    setIconUrl("");
-    setDescription("");
+    setTitle(editItem?.title ?? "");
+    setUrl(editItem?.url ?? "");
+    setIconUrl(editItem?.iconUrl ?? "");
+    setDescription(editItem?.description ?? "");
+    autoMetadataRef.current = editItem ? {
+      title: editItem.title ?? "",
+      iconUrl: editItem.iconUrl ?? "",
+      description: editItem.description ?? "",
+    } : { title: "", iconUrl: "", description: "" };
     setCollections([]);
     setFolders([]);
     setTags([]);
     setSelectedTargetKey("");
-    setSelectedTagIds(defaultTagIds);
+    setSelectedTagIds(editItem?.tags ?? defaultTagIdsForEffect);
     setActiveTab("link");
     setFolderName("");
     setFolderIconUrl("");
@@ -481,7 +528,7 @@ export default function CreateLinksItemDialog({
     return () => {
       mounted = false;
     };
-  }, [defaultTagKey, open, withAuth]);
+  }, [defaultTagIdsForEffect, defaultTagKey, editItem, open, withAuth]);
 
   useEffect(() => {
     if (!open) return;
@@ -528,7 +575,6 @@ export default function CreateLinksItemDialog({
 
   const targetGroups = useMemo(() => buildTargetGroups(collections, folders), [collections, folders]);
   const allTargetOptions = useMemo(() => targetGroups.flatMap((group) => group.options), [targetGroups]);
-  const tagsById = useMemo(() => new Map(tags.map((tag) => [tag.id, tag])), [tags]);
   const selectedTarget = useMemo(
     () => allTargetOptions.find((option) => option.key === selectedTargetKey) ?? null,
     [allTargetOptions, selectedTargetKey],
@@ -537,39 +583,43 @@ export default function CreateLinksItemDialog({
   useEffect(() => {
     if (!open || initializedTargetRef.current || allTargetOptions.length === 0) return;
 
-    const preferredTarget = defaultCollectionId
-      ? allTargetOptions.find((option) => option.collectionId === defaultCollectionId && !option.folderId)
-        ?? allTargetOptions.find((option) => option.collectionId === defaultCollectionId)
-      : allTargetOptions[0];
+    const preferredTarget = editItem?.folder
+      ? allTargetOptions.find((option) => option.key === `folder:${editItem.folder}`)
+      : defaultFolderId
+        ? allTargetOptions.find((option) => option.key === `folder:${defaultFolderId}`)
+        : defaultCollectionId
+          ? allTargetOptions.find((option) => option.collectionId === defaultCollectionId && !option.folderId)
+            ?? allTargetOptions.find((option) => option.collectionId === defaultCollectionId)
+          : allTargetOptions[0];
 
     if (preferredTarget) {
       setSelectedTargetKey(preferredTarget.key);
       initializedTargetRef.current = true;
     }
-  }, [allTargetOptions, defaultCollectionId, open]);
+  }, [allTargetOptions, defaultCollectionId, defaultFolderId, editItem, open]);
 
   const handleSave = async () => {
     if (!title.trim() || !url.trim() || !selectedTarget) return;
 
-    const saved = await withAuth((auth) => createLinkItemAction(auth, {
+    const payload = {
       title: title.trim(),
       url: url.trim(),
       iconUrl: iconUrl.trim() || undefined,
       description: description.trim() || undefined,
       collection: selectedTarget.collectionId,
-      folder: selectedTarget.folderId,
+      folder: selectedTarget.folderId ?? "",
       tags: selectedTagIds.length > 0 ? selectedTagIds : undefined,
-    }));
-
-    const createdItem = {
-      ...(saved as CreatedLinkItem),
-      tags: selectedTagIds,
     };
+    const saved = editItem?.id
+      ? await withAuth((auth) => updateHomeLinkItemAction(auth, editItem.id, payload))
+      : await withAuth((auth) => createLinkItemAction(auth, payload));
+
+    const createdItem = { ...(editItem ?? {}), ...(saved as CreatedLinkItem), ...payload, tags: selectedTagIds } as CreatedLinkItem;
 
     setAlert({
       open: true,
-      title: "Link created",
-      description: `Created link "${title.trim()}".`,
+      title: editItem ? "Link updated" : "Link created",
+      description: `${editItem ? "Updated" : "Created"} link "${title.trim()}"`,
       variant: "success",
     });
 
@@ -600,7 +650,7 @@ export default function CreateLinksItemDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="frosted text-foreground max-w-3xl">
         <DialogHeader>
-          <DialogTitle>Add to list</DialogTitle>
+          <DialogTitle>{editItem ? "Edit link" : "Add to list"}</DialogTitle>
         </DialogHeader>
 
         {alert.open && (
@@ -623,7 +673,7 @@ export default function CreateLinksItemDialog({
         )}
 
         <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "link" | "folder")} className="space-y-5">
-          <TabsList className="grid w-full grid-cols-2">
+          {!editItem ? <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="link" className="gap-2">
               <Link2 />
               Add link
@@ -632,7 +682,7 @@ export default function CreateLinksItemDialog({
               <FolderPlus />
               Add folder
             </TabsTrigger>
-          </TabsList>
+          </TabsList> : null}
 
           <form
             className="space-y-5"
@@ -722,7 +772,15 @@ export default function CreateLinksItemDialog({
                 tags={tags}
                 selectedTagIds={selectedTagIds}
                 onChange={setSelectedTagIds}
-                disabled={loadingData || tags.length === 0}
+                autoFocus={focusTags}
+                onCreateTag={(name) => {
+                  void withAuth((auth) => createLinksTagAction(auth, { name })).then((created) => {
+                    const tag = created as TagRecord;
+                    setTags((current) => [...current.filter((entry) => entry.id !== tag.id), tag]);
+                    setSelectedTagIds((current) => [...current, tag.id]);
+                  });
+                }}
+                disabled={loadingData}
               />
             </div>
 

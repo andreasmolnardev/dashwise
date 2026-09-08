@@ -9,7 +9,7 @@ import {
   updateHomeLinkFolderIconAction,
 } from '@/lib/apiClient';
 import { PaginatedCarouselViewComponent } from "./PaginatedCarouselView";
-import type { LinkType } from "@dashwise/types/sdk";
+import type { LinkType } from "@dashwise/types/links";
 import {
   Popover,
   PopoverContent,
@@ -802,6 +802,33 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
   );
 }
 
+function getRoutedLinkUrl(link: LinkType): string {
+  const primaryUrl = String(link.url ?? "").trim();
+  if (typeof window === "undefined" || !Array.isArray(link.secondaryUrls)) return primaryUrl;
+
+  const origin = window.location.origin.toLowerCase();
+  const hostname = window.location.hostname.toLowerCase();
+  const host = window.location.host.toLowerCase();
+
+  for (const secondary of link.secondaryUrls) {
+    const rule = String(secondary.routingRule ?? "").trim().toLowerCase().replace(/\/$/, "");
+    if (!rule) continue;
+    let matches = [origin, hostname, host].includes(rule);
+    if (!matches && rule.startsWith("*.")) matches = hostname.endsWith(rule.slice(1));
+    if (!matches) {
+      try {
+        const ruleUrl = new URL(rule.includes("://") ? rule : `https://${rule}`);
+        matches = [ruleUrl.origin.toLowerCase(), ruleUrl.hostname.toLowerCase(), ruleUrl.host.toLowerCase()].some((value) => [origin, hostname, host].includes(value));
+      } catch {
+        // Treat malformed routing rules as non-matches.
+      }
+    }
+    if (matches && String(secondary.url ?? "").trim()) return String(secondary.url).trim();
+  }
+
+  return primaryUrl;
+}
+
 function previewFirstFolderIcons(folderId: string): boolean {
   if (!folderId) return false;
   try {
@@ -853,11 +880,12 @@ function LinkTile({
   const isHealthy = serverStatus === "healthy";
   const isDisabled = serverStatus === "disabled";
   const showDot = Boolean(link.statusCheck);
+  const routedUrl = getRoutedLinkUrl(link);
 
   return (
     <a
       key={link.id || link.url || itemIdx}
-      href={link.url}
+      href={routedUrl}
       target={user?.global?.linkOpenBehaviour === "newtab" ? "_blank" : "_self"}
       rel={user?.global?.linkOpenBehaviour === "newtab"
         ? "noopener noreferrer"
@@ -949,11 +977,12 @@ function CompactLinkTile({
   const isHealthy = serverStatus === "healthy";
   const isDisabled = serverStatus === "disabled";
   const showDot = Boolean(link.statusCheck);
+  const routedUrl = getRoutedLinkUrl(link);
 
   return (
     <a
       key={link.id || link.url || itemIdx}
-      href={link.url}
+      href={routedUrl}
       target={user?.global?.linkOpenBehaviour === "newtab" ? "_blank" : "_self"}
       rel={user?.global?.linkOpenBehaviour === "newtab"
         ? "noopener noreferrer"
