@@ -42,6 +42,9 @@ dashwise-sdk/node_modules
 .DS_Store
 *.pem
 
+# local development data
+**/.data/
+
 # debug
 npm-debug.log*
 yarn-debug.log*

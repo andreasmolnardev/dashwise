@@ -9,6 +9,7 @@ import { readAuthToken, readJsonBody, requireAuth, withJson } from "./shared";
 import { createLogger } from "../lib/logger";
 import { jobsApi } from "../jobs/index";
 import { suggestCommonBlacklistWords } from "../lib/news/topic-suggestions";
+import { config } from "../lib/config";
 
 const logger = createLogger("API");
 
@@ -16,6 +17,11 @@ const FEED_REQUEST_HEADERS = {
   "User-Agent": "Dashwise RSS Reader (+https://github.com/andrew-d/dashwise)",
   "Accept": "application/rss+xml, application/atom+xml, application/xml, text/xml;q=0.9, */*;q=0.8",
 };
+
+async function ensureDevNewsFeed(userId: string, feedId: string) {
+  if (!config.DEV_DISABLE_NEWS_INDEXING) return;
+  await jobsApi.runNewsFeedBuilderJob("dev local cache", feedId, userId);
+}
 
 async function refreshNewsFeed(userId: string, options: { feedIds: string[] }) {
   const { feedIds } = options;
@@ -220,6 +226,7 @@ newsRoute
   }))
   .get("/api/v1/news/feeds/:id", withJson(async (c) => {
     const { userId } = await requireAuth({ token: readAuthToken(c) });
+    await ensureDevNewsFeed(userId, String(c.req.param("id") ?? ""));
     const limit = Number(c.req.query("limit") ?? "");
     const offset = Number(c.req.query("offset") ?? "");
     return getNewsFeed(userId, c.req.param("id"), {
@@ -229,6 +236,7 @@ newsRoute
   }))
   .get("/api/v1/news/feed", withJson(async (c) => {
     const { userId } = await requireAuth({ token: readAuthToken(c) });
+    await ensureDevNewsFeed(userId, c.req.query("feedId") ?? "all");
     const limit = Number(c.req.query("limit") ?? "");
     const offset = Number(c.req.query("offset") ?? "");
     return getNewsFeed(userId, c.req.query("feedId") ?? "all", {

@@ -33,7 +33,8 @@ const truthyEnv = (value?: string | null): boolean => {
 };
 
 const requestedLocalFeedCache = truthyEnv(env.USE_LOCAL_FEED_CACHE);
-const useLocalFeedCache = requestedLocalFeedCache && processEnvironment === "dev";
+const devDisableNewsIndexing = processEnvironment === "dev" && truthyEnv(env.DEV_DISABLE_NEWS_INDEXING);
+const useLocalFeedCache = (requestedLocalFeedCache || devDisableNewsIndexing) && processEnvironment === "dev";
 
 if (requestedLocalFeedCache && !useLocalFeedCache) {
   console.warn("USE_LOCAL_FEED_CACHE is only supported in development and will be ignored");
@@ -55,7 +56,7 @@ const getLogLevel = (): string | undefined => {
 export const config = {
   ENVIRONMENT: processEnvironment === "dev" ? "dev" : "production",
   USE_LOCAL_FEED_CACHE: useLocalFeedCache,
-  DEV_DISABLE_NEWS_INDEXING: processEnvironment === "dev" && truthyEnv(env.DEV_DISABLE_NEWS_INDEXING),
+  DEV_DISABLE_NEWS_INDEXING: devDisableNewsIndexing,
   PORT: Number(env.PORT) || 3000,
   PB_URL: getEnv("PB_URL", "NEXT_PUBLIC_PB_URL") || "http://127.0.0.1:8090",
   PB_BINARY_PATH: env.PB_BINARY_PATH,
