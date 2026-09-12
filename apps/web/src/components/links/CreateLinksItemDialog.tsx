@@ -128,6 +128,16 @@ function IconPickerButton({
   );
 }
 
+function parseMarkdownLink(value: string) {
+  const match = value.trim().match(/^\[([^\]]+)\]\(\s*<?(https?:\/\/[^\s)>]+)>?\s*\)$/i);
+  if (!match) return null;
+
+  return {
+    title: match[1].trim(),
+    url: match[2],
+  };
+}
+
 function buildTargetGroups(collections: CollectionRecord[], folders: FolderRecord[]): TargetGroup[] {
   const foldersByCollection = new Map<string, FolderRecord[]>();
   for (const folder of folders) {
@@ -717,7 +727,19 @@ defaultFolderId,
                 <Input
                   id="link-url"
                   value={url}
-                  onChange={(event) => setUrl(event.target.value)}
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    const markdownLink = parseMarkdownLink(value);
+
+                    if (markdownLink) {
+                      setUrl(markdownLink.url);
+                      autoMetadataRef.current.title = "";
+                      setTitle(markdownLink.title);
+                      return;
+                    }
+
+                    setUrl(value);
+                  }}
                   placeholder="https://n8n.io"
                   required={activeTab === "link"}
                 />
