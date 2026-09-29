@@ -239,6 +239,26 @@ export async function loginUserAction(payload: { email: string; password: string
   return extractData(await postAuthLogin({ body: payload }));
 }
 
+export type DeviceCodeRequest = { code: string; createdAt: string; expiresAt: string; ip: string; userAgent: string };
+
+async function deviceCodeRequest(path: string, auth: ActionAuth, body: Record<string, unknown>) {
+  const response = await fetch(backendUrl(`/api/v1/auth/device-code/${path}`), {
+    method: "POST", headers: { "Content-Type": "application/json", ...(authHeaders(auth) ?? {}) }, body: JSON.stringify(body),
+  });
+  const data = await response.json();
+  if (!response.ok) { const error = new Error(data?.error ?? "Request failed") as Error & { body?: unknown }; error.body = data; throw error; }
+  return data;
+}
+
+export function deviceCodeSocketUrl() {
+  const url = new URL(backendUrl("/api/v1/auth/device-code"));
+  url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+  return url.toString();
+}
+export const lookupDeviceCodeAction = (auth: ActionAuth, code: string) => deviceCodeRequest("lookup", auth, { code }) as Promise<DeviceCodeRequest>;
+export const approveDeviceCodeAction = (auth: ActionAuth, code: string) => deviceCodeRequest("approve", auth, { code });
+export const cancelDeviceCodeAction = (auth: ActionAuth, code: string) => deviceCodeRequest("cancel", auth, { code });
+
 export async function signupUserAction(payload: { _name?: string; email: string; password: string; passwordConfirm: string }) {
   return extractData(await postAuthSignup({ body: payload }));
 }
@@ -256,6 +276,14 @@ export async function updateUserPropertyAction(auth: ActionAuth, propertyName: s
 }
 
 // --- Session actions ---
+
+export async function listSessionsAction(auth: ActionAuth): Promise<SessionRecord[]> {
+  return extractData(await client.get({ url: "/sessions", headers: authHeaders(auth) })) as Promise<SessionRecord[]>;
+}
+
+export async function revokeSessionAction(auth: ActionAuth, sessionId: string) {
+  return extractData(await client.delete({ url: "/sessions/{sessionId}", path: { sessionId }, headers: authHeaders(auth) }));
+}
 
 export async function getCurrentSessionAction(auth: ActionAuth): Promise<SessionRecord> {
   return extractData(await client.get({

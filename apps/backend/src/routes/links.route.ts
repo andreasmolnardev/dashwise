@@ -101,8 +101,7 @@ linksRoute
   }))
   .get("/api/v1/links/tags", withJson(async (c) => {
     const { userId } = await requireAuth({ token: readAuthToken(c) });
-    void userId;
-    return getLinksTags();
+    return getLinksTags(userId);
   }))
   .post("/api/v1/links/tags", withJson(async (c) => {
     const body = await readJsonBody(c);

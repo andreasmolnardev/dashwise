@@ -124,6 +124,18 @@ export async function getCurrentSession(
   return session;
 }
 
+export async function listSessions(pb: { collection: (name: "sessions") => any }, userId: string) {
+  return (await pb.collection("sessions").getFullList({ sort: "-lastSeenAt" }))
+    .filter((session: RecordModel) => session.user === userId).map(toSessionRecord);
+}
+
+export async function revokeSession(pb: { collection: (name: "sessions") => any }, userId: string, rawSessionId: unknown) {
+  const session = await getSessionById(pb, userId, rawSessionId);
+  if (!session) throw new ApiActionError("Session not found", 404, { error: "Session not found" });
+  await pb.collection("sessions").delete(session.id);
+  return { success: true };
+}
+
 export async function renameCurrentSession(
   pb: { collection: (name: "sessions") => any },
   userId: string,

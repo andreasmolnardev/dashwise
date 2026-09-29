@@ -207,9 +207,10 @@ export async function getLinksItems(userId: string, listId: string, folderId?: s
     }));
 }
 
-export async function getLinksTags() {
+export async function getLinksTags(userId: string) {
     const pb = getServerPB();
     const records = await pb.collection("linksTags").getFullList({
+        filter: `user = "${userId}"`,
         sort: "name",
     });
 
@@ -231,11 +232,10 @@ export async function createLinkTag(
         throw new Error("Tag name is required");
     }
 
-    void userId;
-
     const record = await pb.collection("linksTags").create({
         name: normalizedName,
         color: data.color ?? "",
+        user: userId,
     });
 
     return {
@@ -274,7 +274,8 @@ export async function updateLinkTag(
     data: { name?: string; color?: string },
 ): Promise<{ id: string; name: string; color: string }> {
     const pb = getServerPB();
-    void userId;
+    const tag = await pb.collection("linksTags").getOne(tagId);
+    if (tag.user !== userId) throw new ApiActionError("Unauthorized", 401, { error: "Unauthorized" });
 
     const record = await pb.collection("linksTags").update(tagId, {
         ...(data.name !== undefined && { name: String(data.name).trim() }),

@@ -12,6 +12,7 @@ import {
   subscribeActivity,
 } from "./lib/activity";
 import { ensureSession } from "./lib/data/sessions";
+import { authenticateDeviceSocket, closeDeviceRequest, createDeviceRequest } from "./lib/device-code";
 import { jobsApi, registerJobsCron } from "./jobs/index";
 import { startPocketbase } from "./pocketbase";
 import { createLogger } from "./lib/logger";
@@ -93,7 +94,40 @@ app.route("/", dataRoute);
 
 app.get("/health", (c) => c.json({ status: "ok" }));
 
-app.get("/api/v1/activity", upgradeWebSocket((c) => {
+// Device login never accepts credentials in the URL. The first WebSocket frame
+// is only a protocol acknowledgement; the server owns the hidden secret.
+app.get("/api/v1/auth/device-code", upgradeWebSocket((c) => {
+  let requestId = "";
+  return {
+    onOpen(_event, ws) {
+      try {
+        if (config.ENVIRONMENT === "production" && !["https", "wss"].includes((c.req.header("x-forwarded-proto") ?? new URL(c.req.url).protocol.replace(":", "")))) {
+          ws.close(1008, "HTTPS is required");
+          return;
+        }
+        const request = createDeviceRequest(ws, c.req.header("x-forwarded-for")?.split(",")[0] ?? "unknown", c.req.header("user-agent") ?? "unknown");
+        requestId = request.id;
+        ws.send(JSON.stringify({ type: "device-code", code: request.code, secret: request.secret, requestId: request.id, expiresAt: request.expiresAt }));
+      } catch (error) {
+        ws.send(JSON.stringify({ type: "error", message: error instanceof Error ? error.message : "Device login unavailable" }));
+        ws.close(1013, "Device login unavailable");
+      }
+    },
+    onMessage(event, ws) {
+      try {
+        const message = JSON.parse(String(event.data));
+        if (message.type === "authenticate" && requestId && authenticateDeviceSocket(requestId, String(message.secret ?? ""))) {
+          ws.send(JSON.stringify({ type: "authenticated" }));
+        } else {
+          ws.close(1008, "Invalid device login");
+        }
+      } catch { ws.close(1008, "Invalid device login"); }
+    },
+    onClose() { if (requestId) closeDeviceRequest(requestId); },
+  };
+}));
+
+app.get("/api/v1/activity",  upgradeWebSocket((c) => {
   let refreshTimer: ReturnType<typeof setInterval> | undefined;
   let unsubscribeActivity: (() => void) | undefined;
   let unregisterSessionConnection: (() => void) | undefined;
