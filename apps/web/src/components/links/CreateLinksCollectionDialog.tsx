@@ -1,9 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import AppIcon from "@dashwise/app-icon";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import IconPickerComponent, { type IconResult } from "@/components/settings/IconPicker";
 import useAuth from "@/context/useAuth";
 import { createLinksCollectionAction, updateLinksCollectionAction } from '@/lib/apiClient';
 import { LinksFormAlert, type LinksFormAlertState } from "./LinksFormAlert";
@@ -21,6 +24,7 @@ export default function CreateLinksCollectionDialog({ open, onOpenChange, collec
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [icon, setIcon] = useState("");
+  const [iconPickerOpen, setIconPickerOpen] = useState(false);
   const [alert, setAlert] = useState<LinksFormAlertState>({ open: false, title: "", description: "", variant: "success" });
   const isEditing = Boolean(collection?.id);
 
@@ -30,6 +34,7 @@ export default function CreateLinksCollectionDialog({ open, onOpenChange, collec
     setName(collection?.name ?? "");
     setDescription(collection?.description ?? "");
     setIcon(collection?.icon ?? "");
+    setIconPickerOpen(false);
     setAlert({ open: false, title: "", description: "", variant: "success" });
   }, [collection, open]);
 
@@ -69,6 +74,7 @@ export default function CreateLinksCollectionDialog({ open, onOpenChange, collec
               onOpenChange(false);
               setName("");
               setDescription("");
+              setIcon("");
             } catch (error) {
               const message = error instanceof Error ? error.message : String(error);
               setAlert({
@@ -82,16 +88,42 @@ export default function CreateLinksCollectionDialog({ open, onOpenChange, collec
         >
           <div className="space-y-2">
             <Label htmlFor="list-name">List name</Label>
-            <input
-              id="list-name"
-              name="name"
-              type="text"
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              className="w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-foreground outline-none transition-colors placeholder:text-white/35 focus:border-primary"
-              placeholder="Design inspiration"
-              required
-            />
+            <div className="flex items-center gap-2">
+              <input
+                id="list-name"
+                name="name"
+                type="text"
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                className="min-w-0 flex-1 rounded-md border border-white/10 bg-white/5 px-3 py-2 text-foreground outline-none transition-colors placeholder:text-white/35 focus:border-primary"
+                placeholder="Design inspiration"
+                required
+              />
+              {!renameOnly && (
+                <Popover open={iconPickerOpen} onOpenChange={setIconPickerOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      aria-label="Search icons or Enter URL"
+                      title="Search icons or Enter URL"
+                      className="h-9 w-9 shrink-0 rounded-md border-white/10 bg-white/5 p-0 text-white hover:bg-white/10"
+                    >
+                      {icon ? <AppIcon source={icon} alt="" size={20} imageClassName="object-contain" /> : null}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent align="end" className="frosted w-[min(42rem,calc(100vw-2rem))] p-3 text-foreground">
+                    <IconPickerComponent
+                      initialSelection={icon ? { url: icon } : null}
+                      onSelect={(selectedIcon: IconResult) => {
+                        setIcon(selectedIcon.url?.trim() ?? "");
+                        setIconPickerOpen(false);
+                      }}
+                    />
+                  </PopoverContent>
+                </Popover>
+              )}
+            </div>
           </div>
 
           {!renameOnly && (
@@ -106,19 +138,6 @@ export default function CreateLinksCollectionDialog({ open, onOpenChange, collec
                   onChange={(event) => setDescription(event.target.value)}
                   className="w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-foreground outline-none transition-colors placeholder:text-white/35 focus:border-primary"
                   placeholder="Optional note about what belongs here"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="list-icon">Icon</Label>
-                <input
-                  id="list-icon"
-                  name="icon"
-                  type="text"
-                  value={icon}
-                  onChange={(event) => setIcon(event.target.value)}
-                  className="w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-foreground outline-none transition-colors placeholder:text-white/35 focus:border-primary"
-                  placeholder="fa6-solid:folder-open or url:https://..."
                 />
               </div>
             </>

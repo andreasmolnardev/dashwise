@@ -124,6 +124,18 @@ export function CalendarUpcomingWidget({ items = [], maxItems = 5, className = "
     return date.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
   };
 
+  const formatEventTime = (item: CalendarUpcomingItem) => {
+    if (!item.isAllDay) return formatTime(item.start);
+    if (!item.end) return "All day";
+
+    const start = new Date(item.start);
+    const end = new Date(item.end);
+    const inclusiveEnd = new Date(end.getTime() - 1);
+    const spansMultipleDays = start.toDateString() !== inclusiveEnd.toDateString();
+
+    return spansMultipleDays ? `Until ${formatDate(inclusiveEnd.toISOString())}` : "All day";
+  };
+
   const resolved = {
     header: {
       title: "Upcoming Events",
@@ -133,7 +145,7 @@ export function CalendarUpcomingWidget({ items = [], maxItems = 5, className = "
     list: upcoming.map((item) => ({
       title: item.title,
       subtitle: [
-        item.isAllDay ? "All day" : formatTime(item.start),
+        formatEventTime(item),
         item.location,
       ].filter(Boolean) as string[],
       group: formatDate(item.start),
