@@ -126,18 +126,13 @@ function decodeJwtPayload(token: string): Record<string, unknown> | null {
   }
 }
 
-function readTokenClaims(token: string) {
+function readTokenExpiry(token: string): number | null {
   const payload = decodeJwtPayload(token);
-  if (!payload) {
-    return { userId: null, expMs: null };
+  if (!payload || typeof payload.exp !== "number") {
+    return null;
   }
 
-  const payloadRecord = payload as Record<string, unknown>;
-  const userIdCandidates = [payloadRecord.id, payloadRecord.sub, payloadRecord.userId, payloadRecord.recordId];
-  const userId = userIdCandidates.find((value) => typeof value === "string") ?? null;
-  const expMs = typeof payloadRecord.exp === "number" ? payloadRecord.exp * 1000 : null;
-
-  return { userId, expMs };
+  return payload.exp * 1000;
 }
 
 function readCachedUserId(token: string): string | null {
@@ -181,19 +176,6 @@ export async function requireUserAuth(auth?: ActionAuth) {
     return { pb, userId: cachedUserId, authModel: null };
   }
 
-  const now = Date.now();
-  const { userId: claimedUserId, expMs } = readTokenClaims(token);
-  const shouldRefresh =
-    !pb.authStore.isValid ||
-    !claimedUserId ||
-    !expMs ||
-    expMs - now <= AUTH_REFRESH_LEEWAY_MS;
-
-  if (!shouldRefresh) {
-    cacheTokenUserId(token, claimedUserId, expMs);
-    return { pb, userId: claimedUserId, authModel: null };
-  }
-
   try {
     const authModel = await pb.collection("users").authRefresh();
     const userId = authModel?.record?.id;
@@ -202,7 +184,13 @@ export async function requireUserAuth(auth?: ActionAuth) {
       throw new ApiActionError("Unauthorized", 401, { error: "Unauthorized" });
     }
 
-    cacheTokenUserId(pb.authStore.token || token, userId, readTokenClaims(pb.authStore.token || token).expMs);
+    // The user ID comes only from PocketBase's successful verification response.
+    // JWT payload decoding is used for cache expiry only, never authentication.
+    const verifiedToken = pb.authStore.token || token;
+    cacheTokenUserId(token, userId, readTokenExpiry(token));
+    if (verifiedToken !== token) {
+      cacheTokenUserId(verifiedToken, userId, readTokenExpiry(verifiedToken));
+    }
 
     return { pb, userId, authModel };
   } catch (error) {
