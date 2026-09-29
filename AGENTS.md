@@ -44,3 +44,7 @@ This repository is a Bun-based monorepo for `dashwise`, a self-hosted homelab da
 
 - The app is not Next.js; it is a Bun-powered React SPA with a separate Bun/Hono backend.
 - Backend routes and request handling are implemented with Hono.
+
+## OpenClaw instructions
+
+When working with OpenClaw in this repository, also follow [.agents/openclaw/INSTRUCTIONS.md](.agents/openclaw/INSTRUCTIONS.md).
