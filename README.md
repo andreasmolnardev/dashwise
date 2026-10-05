@@ -24,7 +24,7 @@ This is my attempt to solving that.
 - **Integrations**: directly integrates with your favourite self hosted apps. Integrations are defined as YAML files for the widgets, glanceables and shortcuts an integration provides. Refer to [Integrations](https://github.com/dashwise-homelab/integrations) repo for more.
 
 ## Installation
-For production depolyments, use the docker-compose.yaml (image is currently only built for arm, will change later).
+For production depolyments, use the docker-compose.yaml
 
 For local development, install dependencies and start the workspace scripts:
 
