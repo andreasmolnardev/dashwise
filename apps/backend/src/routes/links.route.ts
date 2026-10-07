@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 
-import { createCollection, createCollectionLinkItem, createHomeLinkGroup, createHomeLinkItem, createLinkTag, createLinksFolder, deleteLinkItem, getHomeLinkGroups, getHomeLinks, getLinksCollections, getLinksFolders, getLinksItems, getLinksTags, reorderLinks, updateCollection, updateHomeLinkFolderIcon, updateHomeLinkItem, updateLinkTag, wipeUserLinks } from "../lib/data/links";
+import { createCollection, createCollectionLinkItem, createHomeLinkGroup, createHomeLinkItem, createLinkTag, createLinksFolder, deleteLinkItem, deleteUnusedHomeLinkGroups, getHomeLinkGroups, getHomeLinks, getLinksCollections, getLinksFolders, getLinksItems, getLinksTags, reorderLinks, updateCollection, updateHomeLinkFolderIcon, updateHomeLinkItem, updateLinkTag, wipeUserLinks } from "../lib/data/links";
 
 import { readAuthToken, readJsonBody, requireAuth, withJson } from "./shared";
 import { config } from "../lib/config";
@@ -30,6 +30,10 @@ linksRoute
     const body = await readJsonBody(c);
     const { userId } = await requireAuth({ token: readAuthToken(c) });
     return updateCollection(userId, String(c.req.param("collectionId") ?? ""), body?.data ?? {});
+  }))
+  .post("/api/v1/links/home/groups/cleanup", withJson(async (c) => {
+    const { userId } = await requireAuth({ token: readAuthToken(c) });
+    return deleteUnusedHomeLinkGroups(userId);
   }))
   .get("/api/v1/links/home/groups", withJson(async (c) => {
     const { userId } = await requireAuth({ token: readAuthToken(c) });

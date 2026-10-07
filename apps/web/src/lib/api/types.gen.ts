@@ -439,6 +439,22 @@ export type GetLinksMetadataResponses = {
 
 export type GetLinksMetadataResponse = GetLinksMetadataResponses[keyof GetLinksMetadataResponses];
 
+export type PostLinksHomeGroupsCleanupData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/links/home/groups/cleanup';
+};
+
+export type PostLinksHomeGroupsCleanupResponses = {
+    /**
+     * OK
+     */
+    200: GenericObject;
+};
+
+export type PostLinksHomeGroupsCleanupResponse = PostLinksHomeGroupsCleanupResponses[keyof PostLinksHomeGroupsCleanupResponses];
+
 export type GetLinksHomeGroupsData = {
     body?: never;
     path?: never;

@@ -290,6 +290,14 @@ paths:
                   - description
                   - iconUrl
                 additionalProperties: false
+  /links/home/groups/cleanup:
+    post:
+      tags:
+        - links
+      summary: Delete unused home link groups
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
   /links/home/groups:
     get:
       tags:
