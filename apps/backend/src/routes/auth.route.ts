@@ -10,6 +10,7 @@ import {
 } from "../lib/data/auth";
 import type { UserPropertyValue } from "../lib/data/auth";
 import { ensureBuiltinIntegrations } from "../lib/data/integrations";
+import { revokeSession } from "../lib/data/sessions";
 import { getSuperuserPB } from "../lib/pb/pocketbase";
 import { approveDeviceRequest, cancelDeviceRequest, findDeviceRequest } from "../lib/device-code";
 
@@ -56,10 +57,14 @@ authRoute.get(
       });
     }),
   )
+  .post("/api/v1/auth/logout", withJson(async (c) => {
+    const auth = await requireAuth(readAuth(c));
+    return revokeSession(auth.pb, auth.userId, auth.sessionId);
+  }))
   .post(
     "/api/v1/auth/device-code/lookup",
     withJson(async (c) => {
-      const auth = await requireAuth(readAuth(c));
+      await requireAuth(readAuth(c));
       return findDeviceRequest((await readJsonBody<{ code?: string }>(c)).code, c.req.header("x-forwarded-for")?.split(",")[0] ?? "unknown");
     }),
   )

@@ -77,7 +77,8 @@ export default function LoginCard() {
     setError(null);
     setSuccess(null);
     try {
-      const { token: newToken, user } = await loginMutation.mutateAsync({ email, password }) as { token: string; user: import("@dashwise/types/sdk").AuthUserRecord };
+      const { token: newToken, sessionId, user } = await loginMutation.mutateAsync({ email, password }) as { token: string; sessionId: string; user: import("@dashwise/types/sdk").AuthUserRecord };
+      setClientSessionId(sessionId);
       setAuth(user, newToken);
 
       setSuccess("Login successful! Redirecting to home...");

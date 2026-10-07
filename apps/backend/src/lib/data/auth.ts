@@ -1,4 +1,6 @@
-import { ClientResponseError, getServerPB } from "../pb/pocketbase";
+import type { RecordModel } from "pocketbase";
+import { ClientResponseError, getServerPB, getSuperuserPB } from "../pb/pocketbase";
+import { createSession, hashSessionToken } from "./sessions";
 import { defaultHomeConfig } from "@dashwise/assets";
 import type { UsersResponse } from "@dashwise/types";
 
@@ -106,102 +108,54 @@ export type AuthUserRecord = Partial<
   [key: string]: unknown;
 };
 
-const AUTH_CACHE_TTL_MS = 5000;
-const AUTH_REFRESH_LEEWAY_MS = 30_000;
-const tokenAuthCache = new Map<string, { userId: string; expiresAt: number }>();
-
-function decodeJwtPayload(token: string): Record<string, unknown> | null {
-  const parts = token.split(".");
-  if (parts.length < 2) {
-    return null;
-  }
-
-  try {
-    const base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
-    const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, "=");
-    const decoded = Buffer.from(padded, "base64").toString("utf8");
-    return JSON.parse(decoded);
-  } catch {
-    return null;
-  }
-}
-
-function readTokenExpiry(token: string): number | null {
-  const payload = decodeJwtPayload(token);
-  if (!payload || typeof payload.exp !== "number") {
-    return null;
-  }
-
-  return payload.exp * 1000;
-}
-
-function readCachedUserId(token: string): string | null {
-  const cached = tokenAuthCache.get(token);
-  if (!cached) {
-    return null;
-  }
-
-  if (cached.expiresAt <= Date.now()) {
-    tokenAuthCache.delete(token);
-    return null;
-  }
-
-  return cached.userId;
-}
-
-function cacheTokenUserId(token: string, userId: string, expMs: number | null) {
-  const now = Date.now();
-  const baseExpiresAt = now + AUTH_CACHE_TTL_MS;
-  const tokenSafeUntil = expMs ? expMs - AUTH_REFRESH_LEEWAY_MS : null;
-  const expiresAt = tokenSafeUntil ? Math.min(baseExpiresAt, tokenSafeUntil) : baseExpiresAt;
-
-  if (expiresAt <= now) {
-    return;
-  }
-
-  tokenAuthCache.set(token, { userId, expiresAt });
-}
-
 export async function requireUserAuth(auth?: ActionAuth) {
-  if (!auth?.token) {
+  const token = auth?.token?.trim();
+  if (!token?.startsWith("dws_") || token.length > 128) {
     throw new ApiActionError("Unauthorized", 401, { error: "Unauthorized" });
   }
 
-  const token = auth.token;
-  const pb = getServerPB();
-  pb.authStore.save(token, null);
-
-  const cachedUserId = readCachedUserId(token);
-  if (cachedUserId) {
-    return { pb, userId: cachedUserId, authModel: null };
+  const admin = await getSuperuserPB();
+  let session: RecordModel & {
+    sessionId: string;
+    user: string;
+    tokenHash: string;
+    pocketbaseToken?: string;
+    expiresAt?: string;
+    revokedAt?: string;
+    lastSeenAt?: string;
+  };
+  try {
+    session = await admin.collection("sessions").getFirstListItem(
+      `tokenHash = "${hashSessionToken(token)}"`,
+    );
+  } catch {
+    throw new ApiActionError("Unauthorized", 401, { error: "Unauthorized" });
   }
 
+  const now = Date.now();
+  const idleExpired = !session.lastSeenAt || Date.parse(session.lastSeenAt) + 30 * 24 * 60 * 60 * 1000 <= now;
+  if (session.revokedAt || !session.expiresAt || Date.parse(session.expiresAt) <= now || idleExpired || !session.pocketbaseToken) {
+    throw new ApiActionError("Unauthorized", 401, { error: "Unauthorized" });
+  }
+
+  const pb = getServerPB();
+  pb.authStore.save(session.pocketbaseToken, null);
   try {
     const authModel = await pb.collection("users").authRefresh();
     const userId = authModel?.record?.id;
-
-    if (!userId) {
+    if (!userId || userId !== session.user) {
       throw new ApiActionError("Unauthorized", 401, { error: "Unauthorized" });
     }
-
-    // The user ID comes only from PocketBase's successful verification response.
-    // JWT payload decoding is used for cache expiry only, never authentication.
-    const verifiedToken = pb.authStore.token || token;
-    cacheTokenUserId(token, userId, readTokenExpiry(token));
-    if (verifiedToken !== token) {
-      cacheTokenUserId(verifiedToken, userId, readTokenExpiry(verifiedToken));
-    }
-
-    return { pb, userId, authModel };
+    await admin.collection("sessions").update(session.id, {
+      lastSeenAt: new Date().toISOString(),
+      pocketbaseToken: pb.authStore.token || session.pocketbaseToken,
+    });
+    return { pb, userId, authModel, sessionId: session.sessionId };
   } catch (error) {
-    if (error instanceof ApiActionError) {
-      throw error;
-    }
-
+    if (error instanceof ApiActionError) throw error;
     if (error instanceof ClientResponseError && error.status === 401) {
       throw new ApiActionError("Unauthorized", 401, { error: "Unauthorized" });
     }
-
     throw error;
   }
 }
@@ -249,7 +203,10 @@ export async function loginUser(
     }
   }
 
-  return { token: authData.token, user };
+  const { token, session } = await createSession(pb, user.id, { clientType: "browser" });
+  const safeUser = { ...user };
+  delete safeUser.totpSecret;
+  return { token, sessionId: session.sessionId, user: safeUser };
 }
 
 export async function signupUser(payload: {
@@ -318,24 +275,10 @@ export async function signupUser(payload: {
 }
 
 export async function validateAuthToken(token: string) {
-  if (!token) {
-    throw new ApiActionError("Unauthorized", 401, { error: "Unauthorized" });
-  }
-
-  const pb = getServerPB();
-  pb.authStore.save(token, null);
-  const authModel = await pb.collection("users").authRefresh();
-  const userId = authModel?.record?.id ?? null;
-
-  if (!userId) {
-    throw new ApiActionError("Unauthorized", 401, { error: "Unauthorized" });
-  }
-
-  return {
-    success: true,
-    token: pb.authStore.token ?? token,
-    user: authModel.record,
-  };
+  const { authModel } = await requireUserAuth({ token });
+  const user = { ...authModel.record };
+  delete user.totpSecret;
+  return { success: true, user };
 }
 
 export type ChangePasswordRequest = {
@@ -372,13 +315,7 @@ export async function changePassword(
     );
   }
 
-  const pb = getServerPB();
-  pb.authStore.save(token, null);
-
-  const authModel = await pb.collection("users").authRefresh();
-  if (!authModel?.record) {
-    throw new ApiActionError("Unauthorized", 401, { error: "Unauthorized" });
-  }
+  const { pb, authModel } = await requireUserAuth({ token });
 
   const email = bodyEmail ?? authModel.record.email;
   if (!email) {
@@ -398,16 +335,7 @@ export async function changePassword(
     passwordConfirm: confirmPassword,
   });
 
-  try {
-    await pb.collection("users").authWithPassword(email, newPassword);
-  } catch {
-    return { message: "Password changed - Please log in again." };
-  }
-
-  return {
-    message: "Password changed successfully",
-    token: pb.authStore.token ?? null,
-  };
+  return { message: "Password changed successfully. Please log in again." };
 }
 
 export async function deleteAccount(

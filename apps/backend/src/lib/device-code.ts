@@ -1,7 +1,7 @@
 import { randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 
 import { ApiActionError } from "./data/auth";
-import { ensureSession } from "./data/sessions";
+import { createSession } from "./data/sessions";
 import { config } from "./config";
 
 type DeviceSocket = { send: (data: string) => void; close?: (code?: number, reason?: string) => void };
@@ -99,11 +99,11 @@ export async function approveDeviceRequest(rawCode: unknown, approver: { pb: any
   request.userId = approver.userId;
   request.consumed = true;
   const authModel = await approver.pb.collection("users").authRefresh();
-  const token = authModel.token;
-  const sessionId = randomUUID().replace(/-/g, "");
-  await ensureSession(approver.pb, approver.userId, sessionId, { clientType: "device-code", platform: request.userAgent });
-  request.socket.send(JSON.stringify({ type: "approved", token, user: authModel.record, sessionId }));
-  auditEvents.push({ type: "device_login_approved", userId: approver.userId, approvingSessionId: approver.sessionId, createdSessionId: sessionId, createdAt: new Date().toISOString() });
+  const { token, session } = await createSession(approver.pb, approver.userId, { clientType: "device-code", platform: request.userAgent });
+  const user = { ...authModel.record };
+  delete user.totpSecret;
+  request.socket.send(JSON.stringify({ type: "approved", token, user, sessionId: session.sessionId }));
+  auditEvents.push({ type: "device_login_approved", userId: approver.userId, approvingSessionId: approver.sessionId, createdSessionId: session.sessionId, createdAt: new Date().toISOString() });
   request.socket.close?.(1000, "Approved");
   return { success: true };
 }

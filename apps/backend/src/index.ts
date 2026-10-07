@@ -11,7 +11,7 @@ import {
   registerSessionConnection,
   subscribeActivity,
 } from "./lib/activity";
-import { ensureSession } from "./lib/data/sessions";
+
 import { authenticateDeviceSocket, closeDeviceRequest, createDeviceRequest } from "./lib/device-code";
 import { jobsApi, registerJobsCron } from "./jobs/index";
 import { startPocketbase } from "./pocketbase";
@@ -21,7 +21,7 @@ import { getNotifications } from "./lib/data/notifications/items";
 import { listIntegrations } from "./lib/data/integrations";
 import { getUpcomingEvents } from "./lib/calendar";
 import { systemAgentClient } from "./lib/systemAgent";
-import { readAuth, readSessionMetadata, requireAuth } from "./routes/shared";
+import { requireAuth } from "./routes/shared";
 import authRoute from "./routes/auth.route";
 import sessionsRoute from "./routes/sessions.route";
 import systemRoute from "./routes/system.route";
@@ -71,21 +71,6 @@ app.use("*", async (c, next) => {
 
 app.use("*", cors({ origin: "*" }));
 
-// Session identity is deliberately independent from the auth token. Touch the
-// current device on every authenticated API request that carries its stable id.
-app.use("/api/v1/*", async (c, next) => {
-  const auth = readAuth(c);
-  if (auth.token && auth.sessionId) {
-    try {
-      const { pb, userId } = await requireAuth(auth);
-      await ensureSession(pb, userId, auth.sessionId, readSessionMetadata(c));
-    } catch {
-      // The route handler remains responsible for returning auth errors. This
-      // middleware should not turn a missing/expired session touch into one.
-    }
-  }
-  await next();
-});
 
 app.route("/", authRoute);
 app.route("/", sessionsRoute);
@@ -137,14 +122,12 @@ app.get("/api/v1/activity",  upgradeWebSocket((c) => {
   return {
     async onOpen(_event, ws) {
       const token = c.req.query("token") || "";
-      const sessionId = c.req.query("sessionId") || c.req.header("x-session-id") || null;
+      const requestedSessionId = c.req.query("sessionId") || c.req.header("x-session-id") || null;
       try {
-        const { userId, pb } = await requireAuth({ token, sessionId });
-        const session = await ensureSession(pb, userId, sessionId, readSessionMetadata(c));
-        if (!session) throw new Error("A valid session id is required");
+        const { userId, pb, sessionId } = await requireAuth({ token, sessionId: requestedSessionId });
         connectedUserId = userId;
-        connectedSessionId = session.sessionId;
-        unregisterSessionConnection = registerSessionConnection(userId, session.sessionId, ws);
+        connectedSessionId = sessionId;
+        unregisterSessionConnection = registerSessionConnection(userId, sessionId, ws);
         let calendarEvents: Array<Record<string, any>> = [];
         let calendarRefreshedAt = 0;
         let calendarRefresh: Promise<void> | null = null;
@@ -236,8 +219,7 @@ app.get("/api/v1/monitoring/ssh-hosts/:id/console", upgradeWebSocket((c) => {
       const hostId = c.req.param("id") || "";
 
       try {
-        const { userId, pb } = await requireAuth({ token, sessionId });
-        await ensureSession(pb, userId, sessionId, readSessionMetadata(c));
+        const { userId } = await requireAuth({ token, sessionId });
         const host = await getMonitoringSshHostById(userId, hostId);
         if (!host) {
           ws.send(JSON.stringify({ type: "error", message: "SSH host not found" }));
@@ -325,8 +307,7 @@ app.get("/api/v1/monitoring/hosts/:id/stats/live", upgradeWebSocket((c) => {
       const token = c.req.query("token") || c.req.header("Authorization")?.replace(/^Bearer\s+/i, "") || "";
       const sessionId = c.req.query("sessionId") || c.req.header("x-session-id") || null;
       try {
-        const { userId, pb } = await requireAuth({ token, sessionId });
-        await ensureSession(pb, userId, sessionId, readSessionMetadata(c));
+        const { userId } = await requireAuth({ token, sessionId });
         const host = await getSystemAgentHostById(userId, c.req.param("id") || "");
         if (!host) {
           ws.close(1008, "Monitoring host not found");

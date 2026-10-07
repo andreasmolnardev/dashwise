@@ -17,7 +17,7 @@ sessionsRoute
   .get("/api/v1/sessions/current", withJson(async (c) => {
     const requestAuth = readAuth(c);
     const auth = await requireAuth(requestAuth);
-    return getCurrentSession(auth.pb, auth.userId, requestAuth.sessionId, readSessionMetadata(c));
+    return getCurrentSession(auth.pb, auth.userId, auth.sessionId, readSessionMetadata(c));
   }))
   .patch("/api/v1/sessions/current", withJson(async (c) => {
     const body = await readJsonBody<{ displayName?: unknown }>(c);
@@ -26,7 +26,7 @@ sessionsRoute
     return renameCurrentSession(
       auth.pb,
       auth.userId,
-      requestAuth.sessionId,
+      auth.sessionId,
       body.displayName,
       readSessionMetadata(c),
     );

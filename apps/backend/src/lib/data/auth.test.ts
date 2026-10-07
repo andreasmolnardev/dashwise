@@ -2,11 +2,7 @@ import { describe, expect, test } from "bun:test";
 
 import { registerDashwiseSDKConnector } from "../pb/pocketbase";
 import { ApiActionError, requireUserAuth } from "./auth";
-
-function encodedToken(payload: Record<string, unknown>, signature = "signature") {
-  const encodedPayload = Buffer.from(JSON.stringify(payload)).toString("base64url");
-  return `header.${encodedPayload}.${signature}`;
-}
+import { hashSessionToken } from "./sessions";
 
 type AuthFixture = {
   refreshCalls: string[];
@@ -16,17 +12,39 @@ type AuthFixture = {
 function installAuthFixture(): AuthFixture {
   const refreshCalls: string[] = [];
   let refreshResult: "success" | "unauthorized" = "unauthorized";
-  let token = "";
+  let storedToken = "internal-pb-token";
+  const session = {
+    id: "record-id",
+    sessionId: "session-id",
+    user: "verified-user-id",
+    pocketbaseToken: storedToken,
+    lastSeenAt: new Date().toISOString(),
+    expiresAt: new Date(Date.now() + 60_000).toISOString(),
+  };
 
   const connector = {
+    async getSuperuserClient() {
+      return {
+        collection() {
+          return {
+            async getFirstListItem(filter: string) {
+              if (filter !== `tokenHash = "${hashSessionToken("dws_test-session-token")}"`) throw new Error("not found");
+              return session;
+            },
+            async update(_id: string, value: Record<string, string>) {
+              storedToken = value.pocketbaseToken;
+              return session;
+            },
+          };
+        },
+      };
+    },
     createServerClient() {
+      let token = "";
       return {
         authStore: {
-          token,
-          save(nextToken: string) {
-            token = nextToken;
-            this.token = nextToken;
-          },
+          get token() { return token; },
+          save(nextToken: string) { token = nextToken; },
         },
         collection() {
           return {
@@ -35,11 +53,7 @@ function installAuthFixture(): AuthFixture {
               if (refreshResult === "unauthorized") {
                 throw new ApiActionError("Unauthorized", 401, { error: "Unauthorized" });
               }
-
-              return {
-                record: { id: "verified-user-id" },
-                token,
-              };
+              return { record: { id: "verified-user-id" }, token };
             },
           };
         },
@@ -57,30 +71,19 @@ function installAuthFixture(): AuthFixture {
 }
 
 describe("requireUserAuth", () => {
-  test.each([
-    ["unsigned", encodedToken({ sub: "attacker-chosen-user", exp: Math.floor(Date.now() / 1000) + 3600 }, "")],
-    ["malformed", "not-a-jwt"],
-    ["expired", encodedToken({ sub: "attacker-chosen-user", exp: Math.floor(Date.now() / 1000) - 3600 })],
-    ["incorrectly signed", encodedToken({ sub: "attacker-chosen-user", exp: Math.floor(Date.now() / 1000) + 3600 }, "wrong-signature")],
-  ])("rejects %s tokens instead of trusting their payload", async (_name, token) => {
-    const fixture = installAuthFixture();
-
-    await expect(requireUserAuth({ token })).rejects.toMatchObject({ status: 401 });
-    expect(fixture.refreshCalls).toEqual([token]);
+  test("rejects PocketBase JWTs because only Dashwise session credentials are accepted", async () => {
+    installAuthFixture();
+    await expect(requireUserAuth({ token: "eyJhbGciOiJIUzI1NiJ9.payload.signature" })).rejects.toMatchObject({ status: 401 });
   });
 
-  test("uses the verified record ID and caches only successful verification", async () => {
+  test("resolves user identity through an active Dashwise session", async () => {
     const fixture = installAuthFixture();
     fixture.setRefreshResult("success");
-    const token = encodedToken({ sub: "attacker-chosen-user", exp: Math.floor(Date.now() / 1000) + 3600 });
 
-    await expect(requireUserAuth({ token })).resolves.toMatchObject({
+    await expect(requireUserAuth({ token: "dws_test-session-token" })).resolves.toMatchObject({
       userId: "verified-user-id",
+      sessionId: "session-id",
     });
-    await expect(requireUserAuth({ token })).resolves.toMatchObject({
-      userId: "verified-user-id",
-      authModel: null,
-    });
-    expect(fixture.refreshCalls).toHaveLength(1);
+    expect(fixture.refreshCalls).toEqual(["internal-pb-token"]);
   });
 });
