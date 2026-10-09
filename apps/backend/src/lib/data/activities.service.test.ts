@@ -36,7 +36,14 @@ function createPocketBaseFixture() {
         async create(payload: Record<string, unknown>) {
           calls.push({ collection: name, method: "create" });
           const now = new Date().toISOString();
-          const row = { ...payload, id: `activity-${nextId++}`, created: now, createdAt: now } as Row;
+          const row = {
+            ...payload,
+            id: `activity-${nextId++}`,
+            owner: String(payload.owner ?? ""),
+            occurredAt: String(payload.occurredAt ?? now),
+            created: now,
+            createdAt: now,
+          } as Row;
           if (raceIdempotencyOnce && typeof payload.idempotencyKey === "string") {
             raceIdempotencyOnce = false;
             rows.push(row);
