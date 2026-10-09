@@ -135,8 +135,6 @@ export async function publishIntegrationActivity(
   integrationId: string,
   untrustedInput: unknown,
 ) {
-  const input = validatePublishActivityInput(untrustedInput);
-  enforcePublishRateLimit(userId);
   const pb = await getSuperuserPB();
   const integration = await pb.collection("integrations").getOne(integrationId).catch(() => null);
   if (!integration || relationId(integration.user) !== userId) {
@@ -146,18 +144,34 @@ export async function publishIntegrationActivity(
   const sourceId = integration.id;
   const rawSource = typeof integration.source === "string" ? integration.source.trim() : "";
   const source = rawSource.slice(0, 120) || "integration";
+  return publishActivity(userId, source, untrustedInput, sourceId);
+}
+
+/** Publish a validated activity for a trusted server-side producer. */
+export async function publishActivity(
+  userId: string,
+  source: string,
+  untrustedInput: unknown,
+  sourceId?: string,
+) {
+  const input = validatePublishActivityInput(untrustedInput);
+  enforcePublishRateLimit(userId);
+  const normalizedSource = source.trim().slice(0, 120);
+  if (!normalizedSource) throw new ActivityInputError("Activity source is required");
+  const normalizedSourceId = sourceId?.trim().slice(0, 200);
+  const pb = await getSuperuserPB();
   const rawKey = input.idempotencyKey ?? input.eventId;
   const idempotencyKey = rawKey;
 
   if (idempotencyKey) {
-    const existing = await findDuplicate(pb, userId, source, sourceId, idempotencyKey);
+    const existing = await findDuplicate(pb, userId, normalizedSource, normalizedSourceId ?? "", idempotencyKey);
     if (existing) return { activity: mapActivity(existing), duplicate: true };
   }
 
   const payload = {
     owner: userId,
-    source,
-    sourceId,
+    source: normalizedSource,
+    ...(normalizedSourceId ? { sourceId: normalizedSourceId } : {}),
     ...(input.eventId ? { eventId: input.eventId } : {}),
     ...(idempotencyKey ? { idempotencyKey } : {}),
     type: input.type,
@@ -175,7 +189,7 @@ export async function publishIntegrationActivity(
     return { activity: mapActivity(created), duplicate: false };
   } catch (error) {
     if (idempotencyKey) {
-      const existing = await findDuplicate(pb, userId, source, sourceId, idempotencyKey);
+      const existing = await findDuplicate(pb, userId, normalizedSource, normalizedSourceId ?? "", idempotencyKey);
       if (existing) return { activity: mapActivity(existing), duplicate: true };
     }
     throw error;
