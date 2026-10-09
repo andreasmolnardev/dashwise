@@ -20,7 +20,6 @@ export default function Screensaver(
   const [isHovering, setIsHovering] = useState(false);
   const [activeFrameIndex, setActiveFrameIndex] = useState(0);
   const [frameBackgrounds, setFrameBackgrounds] = useState<Record<string, string>>({});
-  const [scrollLeft, setScrollLeft] = useState(0);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const controlsHideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -209,7 +208,6 @@ export default function Screensaver(
     if (index !== activeFrameIndex) {
       setActiveFrameIndex(index);
     }
-    setScrollLeft(target.scrollLeft);
   };
 
   const scrollToFrame = (index: number) => {
@@ -252,8 +250,8 @@ export default function Screensaver(
     >
       <div
         ref={scrollRef}
-        className="flex-1 flex overflow-x-auto snap-x snap-mandatory hide-scrollbar"
-        style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+        className="min-h-0 min-w-0 flex-1 flex overflow-x-auto overflow-y-hidden overscroll-x-contain snap-x snap-mandatory hide-scrollbar"
+        style={{ scrollbarWidth: "none", msOverflowStyle: "none", touchAction: "pan-x" }}
         onScroll={handleScroll}
       >
         <style
@@ -261,12 +259,7 @@ export default function Screensaver(
             __html: ".hide-scrollbar::-webkit-scrollbar { display: none; }",
           }}
         />
-        {frames.map((frame: any, idx: number) => {
-          const containerWidth = scrollRef.current?.clientWidth ?? 1;
-          const distance = Math.abs(scrollLeft - idx * containerWidth) / containerWidth;
-          const clamped = Math.min(1, Math.max(0, distance));
-          const scale = 1 - 0.1 * clamped;
-          const showRadius = clamped > 0.001;
+        {frames.map((frame: any) => {
           const filters = frame.params?.backgroundFilters as Record<string, any> | undefined;
           const fallbackFilters = user?.appearancePreferences?.wallpaperFilters;
           const blurValue = typeof filters?.blur === "number"
@@ -284,10 +277,7 @@ export default function Screensaver(
           return (
             <div
               key={frame.id}
-              className={`min-w-full h-full flex items-center justify-center snap-center relative overflow-hidden transition-transform duration-200 ease-out ${
-                showRadius ? "rounded-3xl" : "rounded-none"
-              }`}
-              style={{ transform: `scale(${scale})` }}
+              className="h-full w-full flex-none snap-start relative overflow-hidden"
             >
               {backgroundUrl && (
                 <div
