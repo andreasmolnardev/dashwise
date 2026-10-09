@@ -43,6 +43,7 @@ describe("activities PocketBase migration", () => {
 
   test("indexes owner chronology and idempotency per source instance", () => {
     expect(migration).toContain("(owner, occurredAt DESC)");
+    expect(migration).toContain("idx_activities_created_at ON activities (createdAt)");
     expect(migration).toContain("UNIQUE INDEX idx_activities_owner_source_instance_idempotency");
     expect(migration).toContain("(owner, source, sourceId, idempotencyKey)");
     expect(migration).toContain("WHERE idempotencyKey != ''");

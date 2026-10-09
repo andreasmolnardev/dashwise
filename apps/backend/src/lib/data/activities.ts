@@ -245,9 +245,9 @@ export async function deleteExpiredActivities(retentionDays: number) {
   let deleted = 0;
   while (true) {
     const expired = await pb.collection("activities").getList<ActivityRow>(1, 500, {
-      filter: `occurredAt < ${filterString(cutoff)}`,
-      fields: "id,owner",
-      sort: "occurredAt",
+      filter: `createdAt < ${filterString(cutoff)}`,
+      fields: "id,owner,createdAt",
+      sort: "createdAt",
     });
     if (expired.items.length === 0) break;
     for (const record of expired.items) affectedOwners.add(record.owner);

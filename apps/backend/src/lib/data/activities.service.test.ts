@@ -80,13 +80,16 @@ function createPocketBaseFixture() {
             if (severityMatch && item.severity !== severityMatch[1]) return false;
             const before = /occurredAt < "([^"]+)"/.exec(options.filter);
             if (before && !(item.occurredAt < before[1]!)) return false;
+            const createdBefore = /createdAt < "([^"]+)"/.exec(options.filter);
+            if (createdBefore && !(String(item.createdAt || "") < createdBefore[1]!)) return false;
             const from = /occurredAt >= "([^"]+)"/.exec(options.filter);
             if (from && !(item.occurredAt >= from[1]!)) return false;
             const to = /occurredAt <= "([^"]+)"/.exec(options.filter);
             if (to && !(item.occurredAt <= to[1]!)) return false;
             return true;
           });
-          if (options.sort === "occurredAt") matching = matching.sort((a, b) => a.occurredAt.localeCompare(b.occurredAt));
+          if (options.sort === "createdAt") matching = matching.sort((a, b) => String(a.createdAt || "").localeCompare(String(b.createdAt || "")));
+          else if (options.sort === "occurredAt") matching = matching.sort((a, b) => a.occurredAt.localeCompare(b.occurredAt));
           else matching = matching.sort((a, b) => b.occurredAt.localeCompare(a.occurredAt));
           const totalItems = matching.length;
           const start = (page - 1) * perPage;
@@ -96,7 +99,7 @@ function createPocketBaseFixture() {
             perPage,
             totalItems,
             totalPages: Math.ceil(totalItems / perPage),
-            items: options.fields ? items.map(({ id, owner, occurredAt }) => ({ id, owner, occurredAt })) : items,
+            items: options.fields ? items.map(({ id, owner, occurredAt, createdAt }) => ({ id, owner, occurredAt, createdAt })) : items,
           };
         },
         async delete(id: string) {
@@ -200,12 +203,14 @@ describe("activity persistence service", () => {
 
   test("retention deletes only expired records, broadcasts affected owners, and keeps recent events", async () => {
     const expiry = Date.now() - 5 * 24 * 60 * 60 * 1_000;
-    await publishActivity("owner-a", "monitoring", {
-      type: "old.event", title: "Old", occurredAt: new Date(expiry).toISOString(),
+    const expired = await publishActivity("owner-a", "monitoring", {
+      type: "expired.event", title: "Expired", occurredAt: new Date().toISOString(),
     });
     const recent = await publishActivity("owner-b", "monitoring", {
-      type: "new.event", title: "Recent", occurredAt: new Date().toISOString(),
+      type: "late.event", title: "Recently stored late event", occurredAt: new Date(expiry).toISOString(),
     });
+    const expiredRow = fixture.rows.find((row) => row.id === expired.activity.id)!;
+    expiredRow.createdAt = new Date(expiry).toISOString();
     let ownerAEvents = 0;
     let ownerBEvents = 0;
     unsubscribe.push(subscribeActivity("owner-a", async () => { ownerAEvents += 1; }));

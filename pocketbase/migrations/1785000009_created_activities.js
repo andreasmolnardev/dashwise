@@ -188,6 +188,7 @@ migrate((app) => {
     id: "pbc_activity001",
     indexes: [
       "CREATE INDEX idx_activities_owner_occurred_at ON activities (owner, occurredAt DESC)",
+      "CREATE INDEX idx_activities_created_at ON activities (createdAt)",
       "CREATE UNIQUE INDEX idx_activities_owner_source_instance_idempotency ON activities (owner, source, sourceId, idempotencyKey) WHERE idempotencyKey != ''",
     ],
     listRule: null,
