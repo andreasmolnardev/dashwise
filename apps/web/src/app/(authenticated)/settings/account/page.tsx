@@ -17,7 +17,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ChangePasswordRequest } from '@/lib/apiClient';
 import { useNavigate } from "react-router-dom";
 import { changePasswordAction, deleteAccountAction } from '@/lib/apiClient';
-import { getCurrentSessionAction, renameCurrentSessionAction } from '@/lib/apiClient';
+import { approveDeviceCodeAction, cancelDeviceCodeAction, getCurrentSessionAction, listSessionsAction, lookupDeviceCodeAction, renameCurrentSessionAction, revokeSessionAction } from '@/lib/apiClient';
 import { DialogDescription } from "@radix-ui/react-dialog";
 import useAuth from "@/context/useAuth";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -41,7 +41,13 @@ export default function AccountSettingsPage() {
   const [sessionName, setSessionName] = useState("");
   const [sessionError, setSessionError] = useState<string | null>(null);
   const [isDeviceNameDialogOpen, setIsDeviceNameDialogOpen] = useState(false);
+  const [isDeviceCodeDialogOpen, setIsDeviceCodeDialogOpen] = useState(false);
+  const [deviceCode, setDeviceCode] = useState("");
+  const [deviceRequest, setDeviceRequest] = useState<Awaited<ReturnType<typeof lookupDeviceCodeAction>> | null>(null);
+  const [deviceCodeError, setDeviceCodeError] = useState<string | null>(null);
+  const [deviceCodeLoading, setDeviceCodeLoading] = useState(false);
   const queryClient = useQueryClient();
+  const sessionsQuery = useQuery({ queryKey: ["auth", "sessions", token], enabled: Boolean(token), queryFn: () => withAuth(listSessionsAction) });
   const sessionQuery = useQuery({
     queryKey: queryKeys.auth.session(token),
     enabled: Boolean(token),
@@ -78,6 +84,22 @@ export default function AccountSettingsPage() {
   const normalizedSessionDisplayName = sessionQuery.data?.displayName?.trim().toLowerCase();
   const needsDeviceName = !normalizedSessionDisplayName ||
     DEFAULT_SESSION_NAMES.has(normalizedSessionDisplayName);
+
+  const handleDeviceCodeSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault(); setDeviceCodeError(null); setDeviceCodeLoading(true);
+    try { setDeviceRequest(await lookupDeviceCodeAction({ token }, deviceCode)); }
+    catch (cause: any) { setDeviceCodeError(cause?.message ?? "Invalid or expired device code"); }
+    finally { setDeviceCodeLoading(false); }
+  };
+  const approveDeviceCode = async () => {
+    setDeviceCodeLoading(true); setDeviceCodeError(null);
+    try { await approveDeviceCodeAction({ token }, deviceCode); setIsDeviceCodeDialogOpen(false); setDeviceCode(""); setDeviceRequest(null); }
+    catch (cause: any) { setDeviceCodeError(cause?.message ?? "Unable to approve device"); }
+    finally { setDeviceCodeLoading(false); }
+  };
+  const cancelDeviceCode = async () => {
+    try { await cancelDeviceCodeAction({ token }, deviceCode); setIsDeviceCodeDialogOpen(false); setDeviceCode(""); setDeviceRequest(null); } catch (cause: any) { setDeviceCodeError(cause?.message ?? "Unable to cancel device"); }
+  };
 
   const handleChangePasswordSubmit = async (
     e: React.FormEvent<HTMLFormElement>,
@@ -153,7 +175,7 @@ export default function AccountSettingsPage() {
     }
 
     const payload: { email: string; password: string; totp?: string } = {
-      email: user.email ?? user.username ?? "",
+      email: String(user.email ?? user.username ?? ""),
       password: deletePassword,
     };
 
@@ -188,6 +210,7 @@ export default function AccountSettingsPage() {
         </section>
 
         <h2 className="text-xl col-span-full">Authentication</h2>
+        <section className="frosted rounded-lg col-span-full p-3 grid gap-2"><h3>Active sessions</h3>{sessionsQuery.data?.map((session) => <div key={session.sessionId} className="flex items-center justify-between gap-2 text-sm"><span>{session.displayName} · last used {new Date(session.lastSeenAt).toLocaleString()}</span><Button variant="ghost" size="sm" disabled={session.sessionId === sessionQuery.data?.sessionId} onClick={async () => { await withAuth((auth) => revokeSessionAction(auth, session.sessionId)); sessionsQuery.refetch(); }}>Revoke</Button></div>)}{sessionsQuery.data?.length === 0 && <p className="text-sm text-muted-foreground">No active sessions found.</p>}</section>
 
         <Dialog
           open={isDeviceNameDialogOpen}
@@ -249,6 +272,16 @@ export default function AccountSettingsPage() {
                 </Button>
               </DialogFooter>
             </form>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={isDeviceCodeDialogOpen} onOpenChange={(open) => { setIsDeviceCodeDialogOpen(open); if (!open) { setDeviceRequest(null); setDeviceCodeError(null); } }}>
+          <DialogTrigger className="grid grid-cols-subgrid border border-transparent hover-frosted items-center col-span-full p-1.5 rounded-md">
+            <Icon icon="fa6-solid:mobile-screen-button" /><p className="text-left">Authenticate another session using Device Code</p><Icon icon="fa6-solid:caret-right" />
+          </DialogTrigger>
+          <DialogContent className="frosted text-foreground"><DialogHeader><DialogTitle>Authenticate another session using Device Code</DialogTitle><DialogDescription>Enter the code shown on the other browser. Verify its details before approving.</DialogDescription></DialogHeader>
+            <form onSubmit={handleDeviceCodeSubmit} className="grid gap-4"><div className="grid gap-3"><Label htmlFor="device-code">Device code</Label><Input id="device-code" value={deviceCode} onChange={(e) => setDeviceCode(e.target.value.toUpperCase())} placeholder="ABC-DEF" maxLength={7} disabled={deviceCodeLoading || !!deviceRequest} />
+              {deviceRequest && <div className="rounded-md border p-3 text-sm"><p><strong>Requested:</strong> {new Date(deviceRequest.createdAt).toLocaleString()}</p><p><strong>Browser:</strong> {deviceRequest.userAgent}</p><p><strong>IP:</strong> {deviceRequest.ip}</p></div>}{deviceCodeError && <p className="text-sm text-red-300">{deviceCodeError}</p>}</div><DialogFooter>{deviceRequest ? <><Button type="button" variant="outline" onClick={cancelDeviceCode}>Cancel</Button><Button type="button" onClick={approveDeviceCode} disabled={deviceCodeLoading}>{deviceCodeLoading ? "Approving..." : "Approve"}</Button></> : <><DialogClose asChild><Button type="button" variant="outline">Close</Button></DialogClose><Button type="submit" disabled={deviceCodeLoading || deviceCode.length < 7}>{deviceCodeLoading ? "Checking..." : "Continue"}</Button></>}</DialogFooter></form>
           </DialogContent>
         </Dialog>
 

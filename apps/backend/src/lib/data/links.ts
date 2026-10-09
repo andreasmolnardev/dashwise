@@ -207,9 +207,10 @@ export async function getLinksItems(userId: string, listId: string, folderId?: s
     }));
 }
 
-export async function getLinksTags() {
+export async function getLinksTags(userId: string) {
     const pb = getServerPB();
     const records = await pb.collection("linksTags").getFullList({
+        filter: `user = "${userId}"`,
         sort: "name",
     });
 
@@ -231,11 +232,10 @@ export async function createLinkTag(
         throw new Error("Tag name is required");
     }
 
-    void userId;
-
     const record = await pb.collection("linksTags").create({
         name: normalizedName,
         color: data.color ?? "",
+        user: userId,
     });
 
     return {
@@ -274,7 +274,8 @@ export async function updateLinkTag(
     data: { name?: string; color?: string },
 ): Promise<{ id: string; name: string; color: string }> {
     const pb = getServerPB();
-    void userId;
+    const tag = await pb.collection("linksTags").getOne(tagId);
+    if (tag.user !== userId) throw new ApiActionError("Unauthorized", 401, { error: "Unauthorized" });
 
     const record = await pb.collection("linksTags").update(tagId, {
         ...(data.name !== undefined && { name: String(data.name).trim() }),
@@ -544,6 +545,49 @@ async function getOrCreateFolderInList(
     });
 
     return created.id as string;
+}
+
+export async function deleteUnusedHomeLinkGroups(userId: string) {
+    const pb = getServerPB();
+    const homeCollection = await pb
+        .collection("linksLists")
+        .getFirstListItem(`user = "${userId}" && type = "home"`)
+        .catch(() => null);
+
+    if (!homeCollection) return { deletedGroups: [] as string[] };
+
+    const [folders, links] = await Promise.all([
+        pb.collection("linksFolders").getFullList({ filter: `list = "${homeCollection.id}"` }),
+        pb.collection("linkItems").getFullList({ filter: `collection = "${homeCollection.id}"` }),
+    ]);
+    const childrenByParent = new Map<string, any[]>();
+    for (const folder of folders) {
+        const parentId = String(folder.parentFolder || "");
+        const children = childrenByParent.get(parentId) ?? [];
+        children.push(folder);
+        childrenByParent.set(parentId, children);
+    }
+
+    const deletedGroups: string[] = [];
+    for (const group of childrenByParent.get("") ?? []) {
+        const subtreeIds = new Set<string>();
+        const subtree = [group];
+        while (subtree.length) {
+            const folder = subtree.pop()!;
+            subtreeIds.add(String(folder.id));
+            subtree.push(...(childrenByParent.get(String(folder.id)) ?? []));
+        }
+
+        if (links.some((link: any) => subtreeIds.has(String(link.folder || "")))) continue;
+
+        const descendants = [...subtreeIds].reverse();
+        for (const folderId of descendants) {
+            await pb.collection("linksFolders").delete(folderId);
+        }
+        deletedGroups.push(String(group.name || ""));
+    }
+
+    return { deletedGroups };
 }
 
 export async function getHomeLinkGroups(userId: string): Promise<string[]> {

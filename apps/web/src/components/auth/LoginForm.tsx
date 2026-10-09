@@ -1,12 +1,13 @@
 "use client"
 
 import { Link, useNavigate } from "react-router-dom"
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useMutation, useQuery } from "@tanstack/react-query"
 import { getAppConfigAction } from '@/lib/apiClient';
-import { loginUserAction, validateAuthTokenAction } from '@/lib/apiClient';
+import { deviceCodeSocketUrl, loginUserAction, validateAuthTokenAction } from '@/lib/apiClient';
 import useAuth from "@/context/useAuth"
 import { queryKeys } from "@/lib/queryClient";
+import { setClientSessionId } from "@/lib/session";
 
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -30,9 +31,24 @@ export default function LoginCard() {
   const [password, setPassword] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
+  const [deviceCode, setDeviceCode] = useState<string | null>(null)
+  const deviceSocket = useRef<WebSocket | null>(null)
   const appConfigQuery = useQuery({ queryKey: queryKeys.appConfig, queryFn: getAppConfigAction });
   const enableSSO = appConfigQuery.data?.enableSSO ?? false;
   const loginMutation = useMutation({ mutationFn: loginUserAction });
+
+  useEffect(() => {
+    const socket = new WebSocket(deviceCodeSocketUrl());
+    deviceSocket.current = socket;
+    socket.onmessage = (event) => {
+      const message = JSON.parse(event.data);
+      if (message.type === "device-code") { setDeviceCode(message.code); socket.send(JSON.stringify({ type: "authenticate", requestId: message.requestId, secret: message.secret })); }
+      if (message.type === "approved") { setClientSessionId(message.sessionId); setAuth(message.user, message.token); setSuccess("Device approved! Redirecting..."); setTimeout(() => navigate("/home"), 500); }
+      if (message.type === "error") setError(message.message);
+    };
+    socket.onerror = () => setError("Unable to start device login");
+    return () => { socket.close(); deviceSocket.current = null; };
+  }, [navigate, setAuth]);
 
 
   //on load: check for existing auth, validate using /api/v1/auth/validate-auth endpoint if returned success to /home
@@ -61,7 +77,8 @@ export default function LoginCard() {
     setError(null);
     setSuccess(null);
     try {
-      const { token: newToken, user } = await loginMutation.mutateAsync({ email, password }) as { token: string; user: import("@dashwise/types/sdk").AuthUserRecord };
+      const { token: newToken, sessionId, user } = await loginMutation.mutateAsync({ email, password }) as { token: string; sessionId: string; user: import("@dashwise/types/sdk").AuthUserRecord };
+      setClientSessionId(sessionId);
       setAuth(user, newToken);
 
       setSuccess("Login successful! Redirecting to home...");
@@ -153,6 +170,7 @@ export default function LoginCard() {
               className="frosted"
               required
             />
+            <p className="text-sm text-muted-foreground">Or login using Device Code <strong>{deviceCode ?? "connecting..."}</strong></p>
           </div>
 
           <Button type="submit" className="w-full" disabled={loginMutation.isPending}>

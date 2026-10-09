@@ -582,6 +582,34 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/links/home/groups/cleanup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Delete unused home link groups */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                200: components["responses"]["JsonOk"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/links/home/groups": {
         parameters: {
             query?: never;

@@ -1,4 +1,5 @@
 import type { RecordModel } from "pocketbase";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 
 import { ApiActionError } from "./auth";
 
@@ -6,6 +7,10 @@ export type SessionRecord = {
   id: string;
   user: string;
   sessionId: string;
+  tokenHash: string;
+  pocketbaseToken?: string;
+  expiresAt: string;
+  revokedAt?: string;
   displayName: string;
   clientType?: string;
   platform?: string;
@@ -53,6 +58,33 @@ function normalizeMetadata(metadata?: SessionMetadata) {
 
 function toSessionRecord(record: RecordModel) {
   return record as unknown as SessionRecord;
+}
+
+const SESSION_LIFETIME_MS = 90 * 24 * 60 * 60 * 1000;
+
+export function hashSessionToken(token: string) {
+  return createHash("sha256").update(token).digest("hex");
+}
+
+export async function createSession(
+  pb: { collection: (name: "sessions") => any; authStore?: { token?: string } },
+  userId: string,
+  metadata?: SessionMetadata,
+) {
+  const token = `dws_${randomBytes(32).toString("base64url")}`;
+  const now = new Date();
+  const sessionId = randomUUID().replace(/-/g, "");
+  const record = await pb.collection("sessions").create({
+    user: userId,
+    sessionId,
+    tokenHash: hashSessionToken(token),
+    pocketbaseToken: pb.authStore?.token ?? "",
+    displayName: DEFAULT_DISPLAY_NAME,
+    lastSeenAt: now.toISOString(),
+    expiresAt: new Date(now.getTime() + SESSION_LIFETIME_MS).toISOString(),
+    ...normalizeMetadata(metadata),
+  });
+  return { token, session: toSessionRecord(record) };
 }
 
 export async function ensureSession(
@@ -122,6 +154,18 @@ export async function getCurrentSession(
     });
   }
   return session;
+}
+
+export async function listSessions(pb: { collection: (name: "sessions") => any }, userId: string) {
+  return (await pb.collection("sessions").getFullList({ sort: "-lastSeenAt" }))
+    .filter((session: RecordModel) => session.user === userId).map(toSessionRecord);
+}
+
+export async function revokeSession(pb: { collection: (name: "sessions") => any }, userId: string, rawSessionId: unknown) {
+  const session = await getSessionById(pb, userId, rawSessionId);
+  if (!session) throw new ApiActionError("Session not found", 404, { error: "Session not found" });
+  await pb.collection("sessions").delete(session.id);
+  return { success: true };
 }
 
 export async function renameCurrentSession(

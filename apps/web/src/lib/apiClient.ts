@@ -20,7 +20,7 @@ import { getClientSessionHeaders } from "@/lib/session";
 import { client } from "./api/client.gen";
 import * as sdk from "./api/sdk.gen";
 
-const { getAppConfig, getAppInfo, postAuthLogin, postAuthChangePassword, postAuthSignup, postAuthValidateAuth, deleteAuthDeleteAccount, patchAuthUpdateUserProperty, getLinksCollections, getLinksMetadata, postLinksCollections, putLinksCollectionsByCollectionId, postLinksTags, putLinksTagsByTagId, getLinksHomeGroups, postLinksHomeGroups, putLinksFoldersByFolderIdIcon, getLinksHome, getLinksFolders, postLinksFolders, getLinksItems, getLinksTags, postLinksItems, putLinksItemsByLinkId, deleteLinksItemsByLinkId, postLinksReorder, getIntegrations, postIntegrations, putIntegrationsById, deleteIntegrationsById, postIntegrationsTestEndpoint, getIntegrationsWidgetProperties, getWidgetsByIntegration, postIntegrationsConsumerData, getIntegrationsCaldavEvents, postIntegrationsProxyAction, getWidgets, getGlanceables, getGlanceablesByIntegration, getMonitoringStatus, postMonitoringStatus, getMonitoringSshHosts, postMonitoringSshHosts, putMonitoringSshHostsById, getMonitoringHosts, postMonitoringHosts, getMonitoringHostsByIdHistory, getMonitors, getMonitorsById, putMonitorsById, postMonitors, deleteMonitorsById, getNewsFeedRecordsById, postNewsFeedRecords, getNewsSubscriptions, getNewsFeeds, getNewsFeedMetadata, postNewsFeedRefresh, postNewsFeedSubscribe, postNewsFeedUnsubscribe, postNewsFeedUpdate, postNewsFeedRecordsById, postNewsFixMissingTitles, getPageConfig, getPageConfigUserPages, putPageConfig, postPageConfigHome, postPageConfigMigrateLegacy, postPageConfigIntegrationData, getShortcuts, getShortcutsFrequentlyUsed, postShortcutsUsageStats, getLocations, getJobsPullIcons, getNotifications, getNotificationsTopics, postNotificationsTopics, deleteNotificationsTopics, postNotificationsMarkAsRead, postNotificationsTest, getNotificationsTopicTokens, postNotificationsTopicTokens, deleteNotificationsTopicTokens, putNotificationsTopicTokens, getNotificationsForwarders, postNotificationsForwarders, putNotificationsForwarders, deleteNotificationsForwarders, postNotificationsForwardersTest } = sdk;
+const { getAppConfig, getAppInfo, postAuthLogin, postAuthChangePassword, postAuthSignup, postAuthValidateAuth, deleteAuthDeleteAccount, patchAuthUpdateUserProperty, getLinksCollections, getLinksMetadata, postLinksCollections, putLinksCollectionsByCollectionId, postLinksTags, putLinksTagsByTagId, getLinksHomeGroups, postLinksHomeGroups, postLinksHomeGroupsCleanup, putLinksFoldersByFolderIdIcon, getLinksHome, getLinksFolders, postLinksFolders, getLinksItems, getLinksTags, postLinksItems, putLinksItemsByLinkId, deleteLinksItemsByLinkId, postLinksReorder, getIntegrations, postIntegrations, putIntegrationsById, deleteIntegrationsById, postIntegrationsTestEndpoint, getIntegrationsWidgetProperties, getWidgetsByIntegration, postIntegrationsConsumerData, getIntegrationsCaldavEvents, postIntegrationsProxyAction, getWidgets, getGlanceables, getGlanceablesByIntegration, getMonitoringStatus, postMonitoringStatus, getMonitoringSshHosts, postMonitoringSshHosts, putMonitoringSshHostsById, getMonitoringHosts, postMonitoringHosts, getMonitoringHostsByIdHistory, getMonitors, getMonitorsById, putMonitorsById, postMonitors, deleteMonitorsById, getNewsFeedRecordsById, postNewsFeedRecords, getNewsSubscriptions, getNewsFeeds, getNewsFeedMetadata, postNewsFeedRefresh, postNewsFeedSubscribe, postNewsFeedUnsubscribe, postNewsFeedUpdate, postNewsFeedRecordsById, postNewsFixMissingTitles, getPageConfig, getPageConfigUserPages, putPageConfig, postPageConfigHome, postPageConfigMigrateLegacy, postPageConfigIntegrationData, getShortcuts, getShortcutsFrequentlyUsed, postShortcutsUsageStats, getLocations, getJobsPullIcons, getNotifications, getNotificationsTopics, postNotificationsTopics, deleteNotificationsTopics, postNotificationsMarkAsRead, postNotificationsTest, getNotificationsTopicTokens, postNotificationsTopicTokens, deleteNotificationsTopicTokens, putNotificationsTopicTokens, getNotificationsForwarders, postNotificationsForwarders, putNotificationsForwarders, deleteNotificationsForwarders, postNotificationsForwardersTest } = sdk;
 export * from "./api/sdk.gen";
 export type { GenericObject, Error } from "./api/types.gen";
 
@@ -239,6 +239,26 @@ export async function loginUserAction(payload: { email: string; password: string
   return extractData(await postAuthLogin({ body: payload }));
 }
 
+export type DeviceCodeRequest = { code: string; createdAt: string; expiresAt: string; ip: string; userAgent: string };
+
+async function deviceCodeRequest(path: string, auth: ActionAuth, body: Record<string, unknown>) {
+  const response = await fetch(backendUrl(`/api/v1/auth/device-code/${path}`), {
+    method: "POST", headers: { "Content-Type": "application/json", ...(authHeaders(auth) ?? {}) }, body: JSON.stringify(body),
+  });
+  const data = await response.json();
+  if (!response.ok) { const error = new Error(data?.error ?? "Request failed") as Error & { body?: unknown }; error.body = data; throw error; }
+  return data;
+}
+
+export function deviceCodeSocketUrl() {
+  const url = new URL(backendUrl("/api/v1/auth/device-code"));
+  url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+  return url.toString();
+}
+export const lookupDeviceCodeAction = (auth: ActionAuth, code: string) => deviceCodeRequest("lookup", auth, { code }) as Promise<DeviceCodeRequest>;
+export const approveDeviceCodeAction = (auth: ActionAuth, code: string) => deviceCodeRequest("approve", auth, { code });
+export const cancelDeviceCodeAction = (auth: ActionAuth, code: string) => deviceCodeRequest("cancel", auth, { code });
+
 export async function signupUserAction(payload: { _name?: string; email: string; password: string; passwordConfirm: string }) {
   return extractData(await postAuthSignup({ body: payload }));
 }
@@ -256,6 +276,14 @@ export async function updateUserPropertyAction(auth: ActionAuth, propertyName: s
 }
 
 // --- Session actions ---
+
+export async function listSessionsAction(auth: ActionAuth): Promise<SessionRecord[]> {
+  return extractData(await client.get({ url: "/sessions", headers: authHeaders(auth) })) as Promise<SessionRecord[]>;
+}
+
+export async function revokeSessionAction(auth: ActionAuth, sessionId: string) {
+  return extractData(await client.delete({ url: "/sessions/{sessionId}", path: { sessionId }, headers: authHeaders(auth) }));
+}
 
 export async function getCurrentSessionAction(auth: ActionAuth): Promise<SessionRecord> {
   return extractData(await client.get({
@@ -310,6 +338,10 @@ export async function getHomeLinkGroupsAction(auth: ActionAuth) {
 
 export async function createHomeLinkGroupAction(auth: ActionAuth, name: string) {
   return extractData(await postLinksHomeGroups({ body: { auth, name }, headers: authHeaders(auth) }));
+}
+
+export async function deleteUnusedHomeLinkGroupsAction(auth: ActionAuth): Promise<{ deletedGroups: string[] }> {
+  return extractData(await postLinksHomeGroupsCleanup({ headers: authHeaders(auth) })) as Promise<{ deletedGroups: string[] }>;
 }
 
 export async function updateHomeLinkFolderIconAction(auth: ActionAuth, folderId: string, data: { icon?: string }) {
