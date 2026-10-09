@@ -89,7 +89,7 @@ export function LocalizationProvider({ children }: { children: ReactNode }) {
       return new Intl.DateTimeFormat(locale, {
         hour: "2-digit",
         minute: "2-digit",
-        hour12: timeFormat === "12-hour",
+        hourCycle: timeFormat === "12-hour" ? "h12" : "h23",
         ...opts,
       }).format(date);
     };
