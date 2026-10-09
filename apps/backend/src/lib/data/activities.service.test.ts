@@ -16,6 +16,7 @@ function createPocketBaseFixture() {
   const rows: Row[] = [];
   const integrations = new Map<string, { id: string; user: string; source: string }>();
   let nextId = 1;
+  let raceIdempotencyOnce = false;
   const calls: Array<{ collection: string; method: string; filter?: string }> = [];
 
   const pb = {
@@ -36,6 +37,11 @@ function createPocketBaseFixture() {
           calls.push({ collection: name, method: "create" });
           const now = new Date().toISOString();
           const row = { ...payload, id: `activity-${nextId++}`, created: now, createdAt: now } as Row;
+          if (raceIdempotencyOnce && typeof payload.idempotencyKey === "string") {
+            raceIdempotencyOnce = false;
+            rows.push(row);
+            throw new Error("UNIQUE constraint failed: activities.idempotencyKey");
+          }
           rows.push(row);
           return row;
         },
@@ -97,7 +103,12 @@ function createPocketBaseFixture() {
   };
 
   registerDashwiseSDKConnector({ getSuperuserClient: async () => pb } as never);
-  return { rows, integrations, calls };
+  return {
+    rows,
+    integrations,
+    calls,
+    simulateIdempotencyRace() { raceIdempotencyOnce = true; },
+  };
 }
 
 describe("activity persistence service", () => {
@@ -150,6 +161,19 @@ describe("activity persistence service", () => {
       type: "service.offline",
       title: "Spoofed producer",
     })).rejects.toMatchObject({ status: 404 });
+    expect(fixture.rows).toHaveLength(1);
+  });
+
+  test("recovers an idempotency race when persistence reports a unique-key conflict", async () => {
+    fixture.simulateIdempotencyRace();
+    const result = await publishActivity("owner-a", "monitoring", {
+      type: "monitor.availability_changed",
+      title: "Service unavailable",
+      idempotencyKey: "monitor-1:healthy:unhealthy",
+    }, "monitor-1");
+
+    expect(result.duplicate).toBe(true);
+    expect(result.activity).toMatchObject({ ownerId: "owner-a", sourceId: "monitor-1" });
     expect(fixture.rows).toHaveLength(1);
   });
 
