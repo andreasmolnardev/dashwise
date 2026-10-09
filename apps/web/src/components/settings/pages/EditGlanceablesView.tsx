@@ -19,6 +19,7 @@ import { useLocalization } from "@/context/LocalizationContext";
 import { useActivity } from "@/context/ActivityContext";
 import useAuth from "@/context/useAuth";
 import { getIntegrationWithGlanceableAction } from '@/lib/apiClient';
+import ActivityStream from "@/components/activity/ActivityStream";
 
 const PROGRESS_PERIOD_OPTIONS = [
   { value: "year", label: "Year" },
@@ -290,7 +291,7 @@ export function EditGlanceablesView({
                       }`}
                     >
                       <div className="mb-2 flex min-h-8 items-center justify-center overflow-hidden rounded-md bg-black/10 px-1.5">
-                        <GlanceableComponent
+                        {glanceable.type === "activity-stream" ? <ActivityStream maxItems={Number(glanceable.exampleProps?.maxItems ?? 2)} compact /> : <GlanceableComponent
                           type={glanceable.type}
                           params={glanceable.exampleProps ?? {}}
                           formatters={{
@@ -299,7 +300,7 @@ export function EditGlanceablesView({
                             formatDate: localization.formatDate,
                           }}
                           className="truncate rounded-full px-1.5 py-0.5 text-xs"
-                        />
+                        />}
                       </div>
                       <p className="truncate text-[11px] font-medium text-white/90">{glanceable.name}</p>
                       <p className="truncate text-[10px] text-white/45">{getGlanceableGroupName(glanceable)}</p>
@@ -421,6 +422,43 @@ export function EditGlanceablesView({
                 </div>
               )}
 
+              {selectedClockType === "activity-stream" && (
+                <div className="space-y-3">
+                  <div className="space-y-2">
+                    <label htmlFor="activity-stream-count" className="text-xs text-white/70">Maximum entries</label>
+                    <Input
+                      id="activity-stream-count"
+                      type="number"
+                      min={1}
+                      max={25}
+                      value={String(selectedParams.maxItems ?? 5)}
+                      onChange={(event) => updateSelectedParams({ maxItems: Math.max(1, Math.min(25, Number(event.target.value) || 1)) })}
+                      className="h-9 rounded-full border-white/20 bg-transparent px-3 text-sm"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label htmlFor="activity-stream-source" className="text-xs text-white/70">Source filter</label>
+                    <Input
+                      id="activity-stream-source"
+                      value={String(selectedParams.source ?? "")}
+                      onChange={(event) => updateSelectedParams({ source: event.target.value })}
+                      placeholder="All sources"
+                      className="h-9 rounded-full border-white/20 bg-transparent px-3 text-sm"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label htmlFor="activity-stream-type" className="text-xs text-white/70">Activity type filter</label>
+                    <Input
+                      id="activity-stream-type"
+                      value={String(selectedParams.type ?? "")}
+                      onChange={(event) => updateSelectedParams({ type: event.target.value })}
+                      placeholder="All types"
+                      className="h-9 rounded-full border-white/20 bg-transparent px-3 text-sm"
+                    />
+                  </div>
+                </div>
+              )}
+
               {integrationInfo?.environmentDefinitions &&
                 Object.entries(integrationInfo.environmentDefinitions).map(([key, def]) => (
                   <div key={key} className="space-y-2">
@@ -439,7 +477,7 @@ export function EditGlanceablesView({
                   </div>
                 ))}
 
-              {!['date', 'countdown', 'weather'].includes(selectedClockType) && !integrationInfo?.environmentDefinitions && (
+              {!['date', 'countdown', 'weather', 'activity-stream'].includes(selectedClockType) && !integrationInfo?.environmentDefinitions && (
                 <p className="text-xs italic text-white/50">
                   No configurable properties for this glanceable.
                 </p>
