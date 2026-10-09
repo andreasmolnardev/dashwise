@@ -81,7 +81,12 @@ export function ActivityProvider({ children }: { children: ReactNode }) {
             });
             return;
           }
+          if (message.type === "activities:changed") {
+            void queryClient.invalidateQueries({ queryKey: ["api", token, ...queryKeys.activities.root] });
+            return;
+          }
           if (message.type !== "activity:snapshot") return;
+          void queryClient.invalidateQueries({ queryKey: ["api", token, ...queryKeys.activities.root] });
            const nextNotifications = Array.isArray(message.notifications) ? message.notifications : [];
            setNotifications(nextNotifications);
            queryClient.setQueryData(["api", token, ...queryKeys.notifications.items(token)], nextNotifications);

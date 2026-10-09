@@ -160,9 +160,25 @@ export default function SettingsPagesPage() {
                 : {},
             }))
           : [];
-        setGlanceablesCatalog(catalog);
+        const localActivityStream = {
+          type: "activity-stream",
+          name: "Activity stream",
+          appName: "Builtin",
+          exampleProps: { maxItems: 5, source: "", type: "" },
+          properties: { maxItems: { type: "number" }, source: { type: "string" }, type: { type: "string" } },
+        };
+        setGlanceablesCatalog([
+          ...catalog.filter((entry) => entry.type !== localActivityStream.type),
+          localActivityStream,
+        ]);
       })
-      .catch(() => setGlanceablesCatalog([]));
+      .catch(() => setGlanceablesCatalog([{
+        type: "activity-stream",
+        name: "Activity stream",
+        appName: "Builtin",
+        exampleProps: { maxItems: 5, source: "", type: "" },
+        properties: { maxItems: { type: "number" }, source: { type: "string" }, type: { type: "string" } },
+      }]));
   }, [withAuth]);
 
   useEffect(() => {

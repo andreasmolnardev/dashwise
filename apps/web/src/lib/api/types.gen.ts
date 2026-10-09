@@ -5,6 +5,43 @@ export type ClientOptions = {
     baseUrl: `${string}://${string}/api/v1` | (string & {});
 };
 
+export type Activity = {
+    id: string;
+    ownerId: string;
+    source: string;
+    sourceId?: string;
+    eventId?: string;
+    type: string;
+    title: string;
+    description?: string;
+    severity: 'info' | 'success' | 'warning' | 'error';
+    occurredAt: string;
+    createdAt: string;
+    metadata?: {
+        [key: string]: unknown;
+    };
+    action?: {
+        label: string;
+        /**
+         * Safe internal application path only.
+         */
+        target: string;
+    };
+};
+
+export type ActivityPage = {
+    page: number;
+    perPage: number;
+    totalItems: number;
+    totalPages: number;
+    items: Array<Activity>;
+};
+
+export type PublishActivityResult = {
+    activity: Activity;
+    duplicate: boolean;
+};
+
 export type GenericObject = {
     [key: string]: unknown;
 };
@@ -54,6 +91,103 @@ export type GetAppInfoResponses = {
 };
 
 export type GetAppInfoResponse = GetAppInfoResponses[keyof GetAppInfoResponses];
+
+export type GetActivitiesData = {
+    body?: never;
+    path?: never;
+    query?: {
+        page?: number;
+        perPage?: number;
+        source?: string;
+        type?: string;
+        severity?: 'info' | 'success' | 'warning' | 'error';
+        from?: string;
+        to?: string;
+    };
+    url: '/activities';
+};
+
+export type GetActivitiesErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Error;
+};
+
+export type GetActivitiesError = GetActivitiesErrors[keyof GetActivitiesErrors];
+
+export type GetActivitiesResponses = {
+    /**
+     * Activity page
+     */
+    200: ActivityPage;
+};
+
+export type GetActivitiesResponse = GetActivitiesResponses[keyof GetActivitiesResponses];
+
+export type DeleteActivitiesByIdData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/activities/{id}';
+};
+
+export type DeleteActivitiesByIdErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Error;
+    /**
+     * Not Found
+     */
+    404: Error;
+};
+
+export type DeleteActivitiesByIdError = DeleteActivitiesByIdErrors[keyof DeleteActivitiesByIdErrors];
+
+export type DeleteActivitiesByIdResponses = {
+    /**
+     * OK
+     */
+    200: GenericObject;
+};
+
+export type DeleteActivitiesByIdResponse = DeleteActivitiesByIdResponses[keyof DeleteActivitiesByIdResponses];
+
+export type GetActivitiesByIdData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/activities/{id}';
+};
+
+export type GetActivitiesByIdErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Error;
+    /**
+     * Not Found
+     */
+    404: Error;
+};
+
+export type GetActivitiesByIdError = GetActivitiesByIdErrors[keyof GetActivitiesByIdErrors];
+
+export type GetActivitiesByIdResponses = {
+    /**
+     * Activity
+     */
+    200: {
+        activity: Activity;
+    };
+};
+
+export type GetActivitiesByIdResponse = GetActivitiesByIdResponses[keyof GetActivitiesByIdResponses];
 
 export type GetAuthCallbackData = {
     body?: never;
@@ -350,6 +484,63 @@ export type PostIntegrationsResponses = {
 };
 
 export type PostIntegrationsResponse = PostIntegrationsResponses[keyof PostIntegrationsResponses];
+
+export type PostIntegrationsByIntegrationIdActivitiesData = {
+    body: {
+        type: string;
+        title: string;
+        description?: string;
+        severity?: 'info' | 'success' | 'warning' | 'error';
+        eventId?: string;
+        idempotencyKey?: string;
+        occurredAt?: string;
+        metadata?: {
+            [key: string]: unknown;
+        };
+        action?: {
+            label: string;
+            /**
+             * Safe internal application path only.
+             */
+            target: string;
+        };
+    };
+    path: {
+        integrationId: string;
+    };
+    query?: never;
+    url: '/integrations/{integrationId}/activities';
+};
+
+export type PostIntegrationsByIntegrationIdActivitiesErrors = {
+    /**
+     * Bad Request
+     */
+    400: Error;
+    /**
+     * Unauthorized
+     */
+    401: Error;
+    /**
+     * Not Found
+     */
+    404: Error;
+};
+
+export type PostIntegrationsByIntegrationIdActivitiesError = PostIntegrationsByIntegrationIdActivitiesErrors[keyof PostIntegrationsByIntegrationIdActivitiesErrors];
+
+export type PostIntegrationsByIntegrationIdActivitiesResponses = {
+    /**
+     * Duplicate idempotent submission
+     */
+    200: PublishActivityResult;
+    /**
+     * Activity published
+     */
+    201: PublishActivityResult;
+};
+
+export type PostIntegrationsByIntegrationIdActivitiesResponse = PostIntegrationsByIntegrationIdActivitiesResponses[keyof PostIntegrationsByIntegrationIdActivitiesResponses];
 
 export type PostIntegrationsTestEndpointData = {
     body?: JsonBody;

@@ -12,6 +12,7 @@ export const Collections = {
 	Otps: "_otps",
 	Superusers: "_superusers",
 	AppInfo: "appInfo",
+	Activities: "activities",
 	Integrations: "integrations",
 	JobLogs: "jobLogs",
 	LinkItems: "linkItems",
@@ -119,6 +120,23 @@ export type AppInfoRecord = {
 	updateAvailable?: string
 	updated: IsoAutoDateString
 	version?: string
+}
+
+export type ActivitiesRecord = {
+	action?: null | Record<string, unknown>
+	createdAt?: IsoAutoDateString
+	description?: string
+	eventId?: string
+	id: string
+	idempotencyKey?: string
+	metadata?: null | Record<string, unknown>
+	occurredAt: IsoDateString
+	owner: RecordIdString
+	severity?: "info" | "success" | "warning" | "error"
+	source: string
+	sourceId?: string
+	title: string
+	type: string
 }
 
 export const IntegrationsTypeOptions = {
@@ -391,6 +409,7 @@ export type MfasResponse<Texpand = unknown> = Required<MfasRecord> & BaseSystemF
 export type OtpsResponse<Texpand = unknown> = Required<OtpsRecord> & BaseSystemFields<Texpand>
 export type SuperusersResponse<Texpand = unknown> = Required<SuperusersRecord> & AuthSystemFields<Texpand>
 export type AppInfoResponse<Texpand = unknown> = Required<AppInfoRecord> & BaseSystemFields<Texpand>
+export type ActivitiesResponse<Texpand = unknown> = Required<ActivitiesRecord> & BaseSystemFields<Texpand>
 export type IntegrationsResponse<Tconfig = unknown, Tenvironment = unknown, TlocalData = unknown, Texpand = unknown> = Required<IntegrationsRecord<Tconfig, Tenvironment, TlocalData>> & BaseSystemFields<Texpand>
 export type JobLogsResponse<Texpand = unknown> = Required<JobLogsRecord> & BaseSystemFields<Texpand>
 export type LinkItemsResponse<Texpand = unknown> = Required<LinkItemsRecord> & BaseSystemFields<Texpand>
@@ -420,6 +439,7 @@ export type CollectionRecords = {
 	_otps: OtpsRecord
 	_superusers: SuperusersRecord
 	appInfo: AppInfoRecord
+	activities: ActivitiesRecord
 	integrations: IntegrationsRecord
 	jobLogs: JobLogsRecord
 	linkItems: LinkItemsRecord
@@ -448,6 +468,7 @@ export type CollectionResponses = {
 	_otps: OtpsResponse
 	_superusers: SuperusersResponse
 	appInfo: AppInfoResponse
+	activities: ActivitiesResponse
 	integrations: IntegrationsResponse
 	jobLogs: JobLogsResponse
 	linkItems: LinkItemsResponse

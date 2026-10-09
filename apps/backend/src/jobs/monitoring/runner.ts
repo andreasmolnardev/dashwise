@@ -7,6 +7,7 @@ import {
     updateMonitoringJob,
 } from "../../lib/data/superuser";
 import { createNotificationByTopicId } from "../../lib/data/notifications/publish";
+import { publishActivity } from "../../lib/data/activities";
 import { createLogger } from "../../lib/logger";
 import { getLinkIdFromSource, getLinkSource, parseConfigObject, type StatusCheckMethod } from "./shared";
 
@@ -45,6 +46,33 @@ type AvgLatencyInfo = {
 };
 
 const logger = createLogger("Monitoring");
+
+async function publishMonitorTransitionActivity(
+    job: Record<string, any>,
+    previousStatus: string,
+    status: string,
+    occurredAt: string,
+) {
+    const ownerId = String(job.userId || "").trim();
+    const monitorId = String(job.id || "").trim();
+    if (!ownerId || !monitorId) return;
+
+    const recovered = status === "healthy";
+    try {
+        await publishActivity(ownerId, "monitoring", {
+            type: "monitor.availability_changed",
+            title: recovered ? "A monitored service recovered" : "A monitored service is unavailable",
+            description: recovered ? "A monitored service is responding again." : "A monitored service stopped responding.",
+            severity: recovered ? "success" : "warning",
+            occurredAt,
+            eventId: `${monitorId}:${previousStatus}:${status}:${occurredAt}`,
+            metadata: { monitorId, previousStatus, status },
+        }, monitorId);
+    } catch {
+        // Activity persistence is best-effort and must not interrupt monitoring.
+        logger.warn("Could not publish monitor activity", { jobId: monitorId });
+    }
+}
 
 export async function runStatusMonitoringJobs(): Promise<{
     processed: number;
@@ -179,6 +207,8 @@ export async function runStatusMonitoringJobsWithOptions(options?: {
                     ...latencyUpdate.payload,
                 });
 
+                await publishMonitorTransitionActivity(job, currentStatus, newStatus, pingTimestamp);
+
                 if (job.notifyOnStatusChange && job.notifyTopicId) {
                     try {
                         const content = `Monitor "${job.title || job.endpoint || job.source || 'Unnamed'}" changed from ${currentStatus} to ${newStatus}`;
@@ -229,10 +259,13 @@ export async function runStatusMonitoringJobsWithOptions(options?: {
                         },
                     ];
 
+                    const occurredAt = new Date().toISOString();
                     await updateMonitoringJob(job.id, {
                         status: 'unhealthy',
                         pings: updatedPings,
                     });
+
+                    await publishMonitorTransitionActivity(job, currentStatus, 'unhealthy', occurredAt);
 
                     if (job.notifyOnStatusChange && job.notifyTopicId) {
                         try {

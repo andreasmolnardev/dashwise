@@ -15,6 +15,7 @@ import type {
   NewsUpdateInput,
 } from "@dashwise/types/sdk";
 import type { PageConfig } from "@dashwise/types/sdk";
+import type { ActivityPage, ActivityQuery, ActivityRecord } from "@dashwise/types";
 import config from "@/lib/config";
 import { getClientSessionHeaders } from "@/lib/session";
 import { client } from "./api/client.gen";
@@ -73,6 +74,31 @@ export function authHeaders(auth?: ActionAuth | null): Record<string, string> | 
     Authorization: `Bearer ${auth.token}`,
     ...getClientSessionHeaders(auth.sessionId),
   };
+}
+
+async function activityRequest<T>(auth: ActionAuth, path: string, query?: Record<string, string | number | undefined>): Promise<T> {
+  const url = new URL(backendUrl(path));
+  for (const [key, value] of Object.entries(query ?? {})) {
+    if (value !== undefined && value !== "") url.searchParams.set(key, String(value));
+  }
+  const response = await fetch(url, { headers: authHeaders(auth) });
+  handleUnauthorizedResponse(response);
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const error = new Error(typeof body?.error === "string" ? body.error : "Activity request failed") as Error & { status?: number };
+    error.status = response.status;
+    throw error;
+  }
+  return body as T;
+}
+
+export async function getActivityPageAction(auth: ActionAuth, query: ActivityQuery = {}): Promise<ActivityPage> {
+  return activityRequest<ActivityPage>(auth, "/api/v1/activities", query as Record<string, string | number | undefined>);
+}
+
+export async function getActivityAction(auth: ActionAuth, activityId: string): Promise<ActivityRecord> {
+  const result = await activityRequest<{ activity: ActivityRecord }>(auth, `/api/v1/activities/${encodeURIComponent(activityId)}`);
+  return result.activity;
 }
 
 export type MonitoringSshHostRecord = {

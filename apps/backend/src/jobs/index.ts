@@ -19,6 +19,7 @@ import { processQueuedNotifications } from "./notifications/forwarder";
 import { createLogger } from "../lib/logger";
 import { migrateLegacyPageConfig } from "../lib/data/config";
 import { getSuperuserPB } from "../lib/pb/pocketbase";
+import { deleteExpiredActivities } from "../lib/data/activities";
 
 const execFileAsync = promisify(execFile);
 const logger = createLogger("Jobs");
@@ -111,6 +112,13 @@ const runNotificationForwarderJob = (source: string) =>
     errorMessage: "Notification forwarder failed",
   });
 
+const runActivityRetentionJob = (source: string) =>
+  runJob("activityRetention", () => deleteExpiredActivities(config.ACTIVITY_RETENTION_DAYS), {
+    startMessage: `Triggered by ${source}`,
+    successMessage: "Activity retention cleanup completed",
+    errorMessage: "Activity retention cleanup failed",
+  });
+
 const runLegacyUserConfigsMigration = async () => {
   const pb = await getSuperuserPB();
   const users = await pb.collection("users").getFullList<{ id: string }>(500, {
@@ -198,6 +206,11 @@ export function registerJobsCron() {
   Bun.cron(config.NOTIFICATION_FORWARDER_SCHEDULE, async () => {
     await runNotificationForwarderJob("cron schedule");
   });
+
+  void runActivityRetentionJob("server start");
+  Bun.cron("0 5 * * *", async () => {
+    await runActivityRetentionJob("cron schedule");
+  });
 }
 
 export const jobsApi = {
@@ -210,5 +223,6 @@ export const jobsApi = {
   runDefaultIntegrationsJob,
   runNewsFeedBuilderJob,
   runNotificationForwarderJob,
+  runActivityRetentionJob,
   runLegacyUserConfigsMigrationJob,
 };

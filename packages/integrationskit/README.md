@@ -106,6 +106,33 @@ Preview mode is used when `isPreview=true`:
 - runtime data is not fetched from live APIs
 - widget resolution still runs and can render fallback/example placeholder values
 
+## Publishing activities
+
+Integrations can publish meaningful events through the typed activity client. It sends an authenticated request to the integration-scoped API; Dashwise checks that the signed-in user owns that integration and derives the activity owner and source on the server.
+
+```ts
+import { createActivityPublisher } from "@dashwise/integrationskit/activities";
+
+const activities = createActivityPublisher({
+  baseUrl: "https://dashwise.example.com",
+  integrationId: "your-integration-record-id",
+  // Supply the current Dashwise user session token. Never put it in integration YAML.
+  token: () => getCurrentDashwiseSessionToken(),
+});
+
+await activities.publish({
+  type: "service.offline",
+  title: "Nextcloud is offline",
+  severity: "warning",
+  idempotencyKey: "nextcloud:offline:2026-10-10T09:30Z",
+  metadata: { serviceId: "nextcloud" },
+});
+```
+
+`baseUrl` is the Dashwise backend origin and may also end in `/api/v1`. The client adds the integration activity path, validates payload bounds and safe internal action targets, and returns `{ activity, duplicate }`. HTTP errors are thrown as `ActivityPublishError` with an optional `status` and `responseBody`; network failures are also wrapped in that error type. Reuse a stable `idempotencyKey` when retrying the same event.
+
+The SDK does not accept owner or source fields. Publishing requires a valid Dashwise user session and the referenced integration must belong to that user. Do not include credentials, secrets, or large resource contents in metadata. Activity publication is best-effort from producers; callers should catch `ActivityPublishError` where a publishing failure must not interrupt the main integration work.
+
 ## Why this package exists
 
 `integrationskit` keeps integration rendering logic self-contained and declarative.

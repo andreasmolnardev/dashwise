@@ -14,6 +14,7 @@ import { useActivity } from "@/context/ActivityContext";
 import { Bell, CalendarDays } from "lucide-react";
 import { readPageIntegrationConsumer } from "@/lib/pageIntegrationDataCache";
 import type { ClockAppearance } from "../../settings/ClockFontSelectionCarousel";
+import ActivityStream from "@/components/activity/ActivityStream";
 
 type ResolvedGlanceablePayload = {
   consumer: "glanceable";
@@ -41,6 +42,7 @@ const LOCAL_ONLY_GLANCEABLES = new Set([
   "month-progress",
   "year-progress",
   "latest-activities",
+  "activity-stream",
 ]);
 
 type GlanceableClockWidgetProps = WidgetItemProps & {
@@ -341,6 +343,10 @@ function ResolvedGlanceable({
 
   if (type === "latest-activities") {
     return <LatestActivitiesGlanceable className={className} unreadCount={unreadCount} calendarEvents={calendarEvents} />;
+  }
+
+  if (type === "activity-stream") {
+    return <div className={`min-w-0 max-w-full text-xs ${className ?? ""}`}><ActivityStream maxItems={params?.maxItems} source={params?.source} type={params?.type} compact /></div>;
   }
 
   if (preloaded?.success === false) {

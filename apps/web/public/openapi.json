@@ -12,6 +12,9 @@
 	],
 	"tags": [
 		{
+			"name": "activities"
+		},
+		{
 			"name": "app"
 		},
 		{
@@ -118,6 +121,164 @@
 								}
 							}
 						}
+					}
+				}
+			}
+		},
+		"/activities": {
+			"get": {
+				"tags": [
+					"activities"
+				],
+				"summary": "List the authenticated user's activities",
+				"parameters": [
+					{
+						"name": "page",
+						"in": "query",
+						"schema": {
+							"type": "integer",
+							"minimum": 1
+						}
+					},
+					{
+						"name": "perPage",
+						"in": "query",
+						"schema": {
+							"type": "integer",
+							"minimum": 1,
+							"maximum": 100
+						}
+					},
+					{
+						"name": "source",
+						"in": "query",
+						"schema": {
+							"type": "string",
+							"maxLength": 120
+						}
+					},
+					{
+						"name": "type",
+						"in": "query",
+						"schema": {
+							"type": "string",
+							"maxLength": 120
+						}
+					},
+					{
+						"name": "severity",
+						"in": "query",
+						"schema": {
+							"type": "string",
+							"enum": [
+								"info",
+								"success",
+								"warning",
+								"error"
+							]
+						}
+					},
+					{
+						"name": "from",
+						"in": "query",
+						"schema": {
+							"type": "string",
+							"format": "date-time"
+						}
+					},
+					{
+						"name": "to",
+						"in": "query",
+						"schema": {
+							"type": "string",
+							"format": "date-time"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Activity page",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ActivityPage"
+								}
+							}
+						}
+					},
+					"401": {
+						"$ref": "#/components/responses/JsonUnauthorized"
+					}
+				}
+			}
+		},
+		"/activities/{id}": {
+			"get": {
+				"tags": [
+					"activities"
+				],
+				"summary": "Get an activity owned by the authenticated user",
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Activity",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"required": [
+										"activity"
+									],
+									"properties": {
+										"activity": {
+											"$ref": "#/components/schemas/Activity"
+										}
+									}
+								}
+							}
+						}
+					},
+					"401": {
+						"$ref": "#/components/responses/JsonUnauthorized"
+					},
+					"404": {
+						"$ref": "#/components/responses/JsonNotFound"
+					}
+				}
+			},
+			"delete": {
+				"tags": [
+					"activities"
+				],
+				"summary": "Delete an activity owned by the authenticated user",
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"$ref": "#/components/responses/JsonOk"
+					},
+					"401": {
+						"$ref": "#/components/responses/JsonUnauthorized"
+					},
+					"404": {
+						"$ref": "#/components/responses/JsonNotFound"
 					}
 				}
 			}
@@ -364,6 +525,127 @@
 				"responses": {
 					"200": {
 						"$ref": "#/components/responses/JsonOk"
+					}
+				}
+			}
+		},
+		"/integrations/{integrationId}/activities": {
+			"post": {
+				"tags": [
+					"activities"
+				],
+				"summary": "Publish an activity for an integration owned by the authenticated user",
+				"parameters": [
+					{
+						"name": "integrationId",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"required": [
+									"type",
+									"title"
+								],
+								"properties": {
+									"type": {
+										"type": "string",
+										"maxLength": 120
+									},
+									"title": {
+										"type": "string",
+										"maxLength": 200
+									},
+									"description": {
+										"type": "string",
+										"maxLength": 2000
+									},
+									"severity": {
+										"type": "string",
+										"enum": [
+											"info",
+											"success",
+											"warning",
+											"error"
+										]
+									},
+									"eventId": {
+										"type": "string",
+										"maxLength": 200
+									},
+									"idempotencyKey": {
+										"type": "string",
+										"maxLength": 256
+									},
+									"occurredAt": {
+										"type": "string",
+										"format": "date-time"
+									},
+									"metadata": {
+										"type": "object",
+										"maxProperties": 128,
+										"additionalProperties": true
+									},
+									"action": {
+										"type": "object",
+										"required": [
+											"label",
+											"target"
+										],
+										"properties": {
+											"label": {
+												"type": "string",
+												"maxLength": 80
+											},
+											"target": {
+												"type": "string",
+												"maxLength": 2048,
+												"description": "Safe internal application path only."
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "Duplicate idempotent submission",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/PublishActivityResult"
+								}
+							}
+						}
+					},
+					"201": {
+						"description": "Activity published",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/PublishActivityResult"
+								}
+							}
+						}
+					},
+					"400": {
+						"$ref": "#/components/responses/JsonBadRequest"
+					},
+					"401": {
+						"$ref": "#/components/responses/JsonUnauthorized"
+					},
+					"404": {
+						"$ref": "#/components/responses/JsonNotFound"
 					}
 				}
 			}
@@ -2393,6 +2675,135 @@
 			}
 		},
 		"schemas": {
+			"Activity": {
+				"type": "object",
+				"required": [
+					"id",
+					"ownerId",
+					"source",
+					"type",
+					"title",
+					"severity",
+					"occurredAt",
+					"createdAt"
+				],
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"ownerId": {
+						"type": "string"
+					},
+					"source": {
+						"type": "string",
+						"maxLength": 120
+					},
+					"sourceId": {
+						"type": "string",
+						"maxLength": 200
+					},
+					"eventId": {
+						"type": "string",
+						"maxLength": 200
+					},
+					"type": {
+						"type": "string",
+						"maxLength": 120
+					},
+					"title": {
+						"type": "string",
+						"maxLength": 200
+					},
+					"description": {
+						"type": "string",
+						"maxLength": 2000
+					},
+					"severity": {
+						"type": "string",
+						"enum": [
+							"info",
+							"success",
+							"warning",
+							"error"
+						]
+					},
+					"occurredAt": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"createdAt": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"metadata": {
+						"type": "object",
+						"additionalProperties": true
+					},
+					"action": {
+						"type": "object",
+						"required": [
+							"label",
+							"target"
+						],
+						"properties": {
+							"label": {
+								"type": "string",
+								"maxLength": 80
+							},
+							"target": {
+								"type": "string",
+								"maxLength": 2048,
+								"description": "Safe internal application path only."
+							}
+						}
+					}
+				}
+			},
+			"ActivityPage": {
+				"type": "object",
+				"required": [
+					"page",
+					"perPage",
+					"totalItems",
+					"totalPages",
+					"items"
+				],
+				"properties": {
+					"page": {
+						"type": "integer"
+					},
+					"perPage": {
+						"type": "integer"
+					},
+					"totalItems": {
+						"type": "integer"
+					},
+					"totalPages": {
+						"type": "integer"
+					},
+					"items": {
+						"type": "array",
+						"items": {
+							"$ref": "#/components/schemas/Activity"
+						}
+					}
+				}
+			},
+			"PublishActivityResult": {
+				"type": "object",
+				"required": [
+					"activity",
+					"duplicate"
+				],
+				"properties": {
+					"activity": {
+						"$ref": "#/components/schemas/Activity"
+					},
+					"duplicate": {
+						"type": "boolean"
+					}
+				}
+			},
 			"GenericObject": {
 				"type": "object",
 				"additionalProperties": true
