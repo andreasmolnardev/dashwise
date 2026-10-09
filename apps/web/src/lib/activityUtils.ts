@@ -1,11 +1,19 @@
 export function safeActivityTarget(target?: string) {
-  if (!target || !target.startsWith("/") || target.startsWith("//") || target.includes("\\") || /[\u0000-\u001f\u007f]/.test(target)) return null;
+  if (!target || !target.startsWith("/") || target.startsWith("//") || target.includes("\\") || hasControlCharacters(target)) return null;
   try {
     const parsed = new URL(target, "https://dashwise.invalid");
     return parsed.origin === "https://dashwise.invalid" ? `${parsed.pathname}${parsed.search}${parsed.hash}` : null;
   } catch {
     return null;
   }
+}
+
+function hasControlCharacters(value: string) {
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index);
+    if (code <= 0x1f || code === 0x7f) return true;
+  }
+  return false;
 }
 
 export function formatActivityTime(value: string, now = Date.now()) {

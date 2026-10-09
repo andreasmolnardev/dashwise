@@ -345,13 +345,21 @@ function enforcePublishRateLimit(userId: string) {
 }
 
 function isSafeInternalTarget(target: string) {
-  if (!target.startsWith("/") || target.startsWith("//") || target.includes("\\") || /[\u0000-\u001f\u007f]/.test(target)) return false;
+  if (!target.startsWith("/") || target.startsWith("//") || target.includes("\\") || hasControlCharacters(target)) return false;
   try {
     const parsed = new URL(target, "https://dashwise.invalid");
     return parsed.origin === "https://dashwise.invalid" && parsed.pathname.startsWith("/");
   } catch {
     return false;
   }
+}
+
+function hasControlCharacters(value: string) {
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index);
+    if (code <= 0x1f || code === 0x7f) return true;
+  }
+  return false;
 }
 
 function parseIntegerQuery(value: unknown, defaultValue: number, max: number) {
