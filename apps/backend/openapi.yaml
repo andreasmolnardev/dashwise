@@ -6,6 +6,7 @@ info:
 servers:
   - url: /api/v1
 tags:
+  - name: activities
   - name: app
   - name: auth
   - name: config
@@ -64,6 +65,71 @@ paths:
                   - userSignupDisabled
                 additionalProperties: false
   # END GENERATED SYSTEM CONTRACTS
+  /activities:
+    get:
+      tags:
+        - activities
+      summary: List the authenticated user's activities
+      parameters:
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 1 }
+        - name: perPage
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100 }
+        - name: source
+          in: query
+          schema: { type: string, maxLength: 120 }
+        - name: type
+          in: query
+          schema: { type: string, maxLength: 120 }
+        - name: severity
+          in: query
+          schema: { type: string, enum: [info, success, warning, error] }
+        - name: from
+          in: query
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          schema: { type: string, format: date-time }
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+        "401":
+          $ref: "#/components/responses/JsonUnauthorized"
+  /activities/{id}:
+    get:
+      tags:
+        - activities
+      summary: Get an activity owned by the authenticated user
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+        "401":
+          $ref: "#/components/responses/JsonUnauthorized"
+        "404":
+          $ref: "#/components/responses/JsonNotFound"
+    delete:
+      tags:
+        - activities
+      summary: Delete an activity owned by the authenticated user
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+        "401":
+          $ref: "#/components/responses/JsonUnauthorized"
+        "404":
+          $ref: "#/components/responses/JsonNotFound"
   /auth/callback:
     get:
       tags:
@@ -219,6 +285,52 @@ paths:
       responses:
         "200":
           $ref: "#/components/responses/JsonOk"
+  /integrations/{integrationId}/activities:
+    post:
+      tags:
+        - activities
+      summary: Publish an activity for an integration owned by the authenticated user
+      parameters:
+        - name: integrationId
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [type, title]
+              properties:
+                type: { type: string, maxLength: 120 }
+                title: { type: string, maxLength: 200 }
+                description: { type: string, maxLength: 2000 }
+                severity: { type: string, enum: [info, success, warning, error] }
+                eventId: { type: string, maxLength: 200 }
+                idempotencyKey: { type: string, maxLength: 256 }
+                occurredAt: { type: string, format: date-time }
+                metadata: { type: object, maxProperties: 128 }
+                action:
+                  type: object
+                  required: [label, target]
+                  properties:
+                    label: { type: string, maxLength: 80 }
+                    target: { type: string, maxLength: 2048, description: Safe internal application path only. }
+      responses:
+        "201":
+          $ref: "#/components/responses/JsonOk"
+        "200":
+          description: Duplicate idempotent submission
+          content:
+            application/json:
+              schema: { type: object, properties: { activity: { type: object }, duplicate: { type: boolean } } }
+        "400":
+          $ref: "#/components/responses/JsonBadRequest"
+        "401":
+          $ref: "#/components/responses/JsonUnauthorized"
+        "404":
+          $ref: "#/components/responses/JsonNotFound"
   /integrations/test-endpoint:
     post:
       tags:

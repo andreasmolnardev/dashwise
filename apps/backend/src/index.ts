@@ -20,6 +20,7 @@ import { getMonitoringSshHostById, getMonitoringSshHostCredentials, getSystemAge
 import { getNotifications } from "./lib/data/notifications/items";
 import { listIntegrations } from "./lib/data/integrations";
 import { getUpcomingEvents } from "./lib/calendar";
+import { listActivities } from "./lib/data/activities";
 import { systemAgentClient } from "./lib/systemAgent";
 import { requireAuth } from "./routes/shared";
 import authRoute from "./routes/auth.route";
@@ -154,11 +155,17 @@ app.get("/api/v1/activity",  upgradeWebSocket((c) => {
           return calendarRefresh;
         };
         const sendSnapshot = async () => {
-          const [notificationResult] = await Promise.all([
+          const [notificationResult, activityResult] = await Promise.all([
             getNotifications(userId),
+            listActivities(userId, { page: 1, perPage: 20 }),
             refreshCalendarEvents(),
           ]);
-          ws.send(JSON.stringify({ type: "activity:snapshot", notifications: notificationResult.items, calendarEvents }));
+          ws.send(JSON.stringify({
+            type: "activity:snapshot",
+            notifications: notificationResult.items,
+            calendarEvents,
+            activities: activityResult.items,
+          }));
         };
 
         unsubscribeActivity = subscribeActivity(userId, sendSnapshot);
