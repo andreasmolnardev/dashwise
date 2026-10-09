@@ -20,6 +20,11 @@ async function requireActivityOwner(token: string | null) {
   return userId;
 }
 
+function requireActivityId(id: string | undefined) {
+  if (!id) throw new ApiActionError("Activity not found", 404, { error: "Activity not found" });
+  return id;
+}
+
 activitiesRoute.get("/api/v1/activities", withJson(async (c) => {
   const userId = await requireActivityOwner(readAuthToken(c));
   const query = validateActivityQuery(c.req.query());
@@ -28,14 +33,14 @@ activitiesRoute.get("/api/v1/activities", withJson(async (c) => {
 
 activitiesRoute.get("/api/v1/activities/:id", withJson(async (c) => {
   const userId = await requireActivityOwner(readAuthToken(c));
-  const activity = await getActivity(userId, c.req.param("id"));
+  const activity = await getActivity(userId, requireActivityId(c.req.param("id")));
   if (!activity) throw new ApiActionError("Activity not found", 404, { error: "Activity not found" });
   return { activity };
 }));
 
 activitiesRoute.delete("/api/v1/activities/:id", withJson(async (c) => {
   const userId = await requireActivityOwner(readAuthToken(c));
-  const deleted = await deleteActivity(userId, c.req.param("id"));
+  const deleted = await deleteActivity(userId, requireActivityId(c.req.param("id")));
   if (!deleted) throw new ApiActionError("Activity not found", 404, { error: "Activity not found" });
   return { ok: true };
 }));
