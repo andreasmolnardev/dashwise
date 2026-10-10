@@ -59,7 +59,7 @@ authRoute.get(
   )
   .post("/api/v1/auth/logout", withJson(async (c) => {
     const auth = await requireAuth(readAuth(c));
-    return revokeSession(auth.pb, auth.userId, auth.sessionId);
+    return revokeSession(auth.userId, auth.sessionId);
   }))
   .post(
     "/api/v1/auth/device-code/lookup",

@@ -1,6 +1,7 @@
 import type { RecordModel } from "pocketbase";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 
+import { getSuperuserPB } from "../pb/pocketbase";
 import { ApiActionError } from "./auth";
 
 export type SessionRecord = {
@@ -67,14 +68,14 @@ export function hashSessionToken(token: string) {
 }
 
 export async function createSession(
-  pb: { collection: (name: "sessions") => any; authStore?: { token?: string } },
+  pb: { authStore?: { token?: string } },
   userId: string,
   metadata?: SessionMetadata,
 ) {
   const token = `dws_${randomBytes(32).toString("base64url")}`;
   const now = new Date();
   const sessionId = randomUUID().replace(/-/g, "");
-  const record = await pb.collection("sessions").create({
+  const record = await (await getSuperuserPB()).collection("sessions").create({
     user: userId,
     sessionId,
     tokenHash: hashSessionToken(token),
@@ -88,7 +89,6 @@ export async function createSession(
 }
 
 export async function ensureSession(
-  pb: { collection: (name: "sessions") => any },
   userId: string,
   rawSessionId: unknown,
   metadata?: SessionMetadata,
@@ -97,7 +97,7 @@ export async function ensureSession(
   if (!sessionId) return null;
 
   const now = new Date().toISOString();
-  const collection = pb.collection("sessions");
+  const collection = (await getSuperuserPB()).collection("sessions");
   const filter = `user = "${escapeFilter(userId)}" && sessionId = "${escapeFilter(sessionId)}"`;
   const normalizedMetadata = normalizeMetadata(metadata);
 
@@ -142,12 +142,11 @@ function escapeFilter(value: string) {
 }
 
 export async function getCurrentSession(
-  pb: { collection: (name: "sessions") => any },
   userId: string,
   rawSessionId: unknown,
   metadata?: SessionMetadata,
 ) {
-  const session = await ensureSession(pb, userId, rawSessionId, metadata);
+  const session = await ensureSession(userId, rawSessionId, metadata);
   if (!session) {
     throw new ApiActionError("A valid session id is required", 400, {
       error: "A valid session id is required",
@@ -156,26 +155,27 @@ export async function getCurrentSession(
   return session;
 }
 
-export async function listSessions(pb: { collection: (name: "sessions") => any }, userId: string) {
-  return (await pb.collection("sessions").getFullList({ sort: "-lastSeenAt" }))
-    .filter((session: RecordModel) => session.user === userId).map(toSessionRecord);
+export async function listSessions(userId: string) {
+  return (await (await getSuperuserPB()).collection("sessions").getFullList({
+    filter: `user = "${escapeFilter(userId)}"`,
+    sort: "-lastSeenAt",
+  })).map(toSessionRecord);
 }
 
-export async function revokeSession(pb: { collection: (name: "sessions") => any }, userId: string, rawSessionId: unknown) {
-  const session = await getSessionById(pb, userId, rawSessionId);
+export async function revokeSession(userId: string, rawSessionId: unknown) {
+  const session = await getSessionById(await getSuperuserPB(), userId, rawSessionId);
   if (!session) throw new ApiActionError("Session not found", 404, { error: "Session not found" });
-  await pb.collection("sessions").delete(session.id);
+  await (await getSuperuserPB()).collection("sessions").delete(session.id);
   return { success: true };
 }
 
 export async function renameCurrentSession(
-  pb: { collection: (name: "sessions") => any },
   userId: string,
   rawSessionId: unknown,
   displayName: unknown,
   metadata?: SessionMetadata,
 ) {
-  const session = await getCurrentSession(pb, userId, rawSessionId, metadata);
+  const session = await getCurrentSession(userId, rawSessionId, metadata);
   const normalizedName = typeof displayName === "string" ? displayName.trim() : "";
   if (!normalizedName || normalizedName.length > 100) {
     throw new ApiActionError("Display name must be between 1 and 100 characters", 400, {
@@ -183,7 +183,7 @@ export async function renameCurrentSession(
     });
   }
 
-  return toSessionRecord(await pb.collection("sessions").update(session.id, {
+  return toSessionRecord(await (await getSuperuserPB()).collection("sessions").update(session.id, {
     displayName: normalizedName,
     lastSeenAt: new Date().toISOString(),
   }));

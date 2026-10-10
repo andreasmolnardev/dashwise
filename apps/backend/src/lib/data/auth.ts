@@ -265,7 +265,7 @@ export async function signupUser(payload: {
     searchPreferences: userConfig?.preferences?.search || {},
   });
 
-  await pb.collection("pageConfig").create({
+  await (await getSuperuserPB()).collection("pageConfig").create({
     associatedUserId: user.id,
     config: defaultHomeConfig,
     pageName: "home",
