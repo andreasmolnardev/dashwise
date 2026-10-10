@@ -266,9 +266,11 @@ export type NewsFeedsRecord = {
 
 export type NewsSubscriptionsRecord<Tjson = unknown, TlinkReplaceRule = unknown> = {
 	created: IsoAutoDateString
+	enableTopicGrouping?: boolean
 	fallbackThumbnailUrl?: string
 	fetchErrors?: string
 	icon?: string
+	ignoreDescriptionForTopicGrouping?: boolean
 	id: string
 	linkReplaceRule?: null | TlinkReplaceRule
 	thumbnailOverwriteUrl?: string

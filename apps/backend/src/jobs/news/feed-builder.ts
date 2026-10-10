@@ -40,7 +40,7 @@ export type NewsFeedRecord = {
   [key: string]: unknown;
 };
 
-type BuilderOptions = { userId?: string; feedIds?: string[] };
+type BuilderOptions = { userId?: string; feedIds?: string[]; forceRefresh?: boolean };
 
 const logger = createLogger("NewsFeedBuilder");
 
@@ -305,7 +305,7 @@ export async function newsFeedBuilder(feedId?: string, options: BuilderOptions =
   logger.info("Running news feed builder");
 
   const rawSubscriptions = await getAllNewsSubscriptions(2000, {
-    fields: "id,url,icon,title,linkReplaceRule,fallbackThumbnailUrl,thumbnailOverwriteUrl,userId,similarityGroupingWordsBlacklist,enableTopicGrouping,fetchErrors",
+    fields: "id,url,icon,title,linkReplaceRule,fallbackThumbnailUrl,thumbnailOverwriteUrl,userId,similarityGroupingWordsBlacklist,enableTopicGrouping,ignoreDescriptionForTopicGrouping,fetchErrors",
   });
   if (!Array.isArray(rawSubscriptions)) {
     result.errors++;
@@ -366,7 +366,7 @@ export async function newsFeedBuilder(feedId?: string, options: BuilderOptions =
     .filter((subscription) => targetSubscriptionIds.has(String(subscription.id)))
     .map((subscription) => {
       const subscriptionId = String(subscription.id || "");
-      if (config.DEV_DISABLE_NEWS_INDEXING && hasSubscriptionArticles(subscriptionId)) return Promise.resolve(false);
+      if (!options.forceRefresh && config.DEV_DISABLE_NEWS_INDEXING && hasSubscriptionArticles(subscriptionId)) return Promise.resolve(false);
       return fetchAndCacheSubscription(subscription, result);
     }));
   result.processed = fetchResults.length;

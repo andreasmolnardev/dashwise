@@ -677,16 +677,24 @@ export async function refreshNewsFeedAction(auth: ActionAuth, feedIds?: string[]
   return extractData(await postNewsFeedRefresh({ body: { auth, feedIds }, headers: authHeaders(auth) }));
 }
 
-export async function subscribeNewsFeedAction(auth: ActionAuth, sub: NewsSubscribeInput | NewsFeedDraft) {
-  return extractData(await postNewsFeedSubscribe({ body: { auth, sub }, headers: authHeaders(auth) }));
+export async function subscribeNewsFeedAction(
+  auth: ActionAuth,
+  sub: NewsSubscribeInput | NewsFeedDraft,
+  view?: { feedId: string; limit: number; offset: number },
+) {
+  return extractData(await postNewsFeedSubscribe({ body: { auth, sub, view }, headers: authHeaders(auth) }));
 }
 
 export async function unsubscribeNewsFeedAction(auth: ActionAuth, feedUrl: string) {
   return extractData(await postNewsFeedUnsubscribe({ body: { auth, feedUrl }, headers: authHeaders(auth) }));
 }
 
-export async function updateNewsFeedAction(auth: ActionAuth, payload: NewsUpdateInput | NewsFeedDraft) {
-  return extractData(await postNewsFeedUpdate({ body: { auth, payload }, headers: authHeaders(auth) }));
+export async function updateNewsFeedAction(
+  auth: ActionAuth,
+  payload: NewsUpdateInput | NewsFeedDraft,
+  view?: { feedId: string; limit: number; offset: number },
+) {
+  return extractData(await postNewsFeedUpdate({ body: { auth, payload, view }, headers: authHeaders(auth) }));
 }
 
 export async function updateNewsFeedRecordAction(auth: ActionAuth, payload: NewsFeedRecordUpdateInput) {

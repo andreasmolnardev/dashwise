@@ -60,6 +60,7 @@ type NewsSubscription = {
   thumbnailOverwriteUrl?: string;
   similarityGroupingWordsBlacklist?: string;
   enableTopicGrouping?: boolean;
+  ignoreDescriptionForTopicGrouping?: boolean;
   json?: unknown;
   title?: string;
   icon?: string;
@@ -271,11 +272,11 @@ function effectiveTopicBlacklist(value?: string | null, baseBlacklist: Set<strin
   return blacklist;
 }
 
-function topicTokens(item: NewsFeedItem, blacklist = topicStopWords) {
+function topicTokens(item: NewsFeedItem, blacklist = topicStopWords, ignoreDescription = false) {
   const weighted = [
     textValue(item.title),
     textValue(item.title),
-    textValue(item.description),
+    ignoreDescription ? "" : textValue(item.description),
     textValue(item.summary),
     textValue(item.categories),
     textValue(item.tags),
@@ -291,13 +292,15 @@ function topicTokens(item: NewsFeedItem, blacklist = topicStopWords) {
     .filter((token) => token.length >= 3 && !blacklist.has(token));
 }
 
-function uniqueTopicTokens(item: NewsFeedItem, blacklist = topicStopWords) {
-  return new Set(topicTokens(item, blacklist));
+function uniqueTopicTokens(item: NewsFeedItem, blacklist = topicStopWords, ignoreDescription = false) {
+  return new Set(topicTokens(item, blacklist, ignoreDescription));
 }
 
-function similarity(left: NewsFeedItem, right: NewsFeedItem, blacklists: Map<string, Set<string>>) {
-  const leftTokens = uniqueTopicTokens(left, blacklists.get(String(left.subscription_id || "")) ?? topicStopWords);
-  const rightTokens = uniqueTopicTokens(right, blacklists.get(String(right.subscription_id || "")) ?? topicStopWords);
+function similarity(left: NewsFeedItem, right: NewsFeedItem, blacklists: Map<string, Set<string>>, titleOnlyBySubscription: Map<string, boolean>) {
+  const leftSubscriptionId = String(left.subscription_id || "");
+  const rightSubscriptionId = String(right.subscription_id || "");
+  const leftTokens = uniqueTopicTokens(left, blacklists.get(leftSubscriptionId) ?? topicStopWords, titleOnlyBySubscription.get(leftSubscriptionId) === true);
+  const rightTokens = uniqueTopicTokens(right, blacklists.get(rightSubscriptionId) ?? topicStopWords, titleOnlyBySubscription.get(rightSubscriptionId) === true);
   if (!leftTokens.size || !rightTokens.size) return 0;
 
   let overlap = 0;
@@ -308,10 +311,11 @@ function similarity(left: NewsFeedItem, right: NewsFeedItem, blacklists: Map<str
   return overlap / Math.min(leftTokens.size, rightTokens.size);
 }
 
-function topicKeyFor(articles: NewsFeedItem[], blacklists: Map<string, Set<string>>) {
+function topicKeyFor(articles: NewsFeedItem[], blacklists: Map<string, Set<string>>, titleOnlyBySubscription: Map<string, boolean>) {
   const counts = new Map<string, number>();
   for (const article of articles) {
-    for (const token of uniqueTopicTokens(article, blacklists.get(String(article.subscription_id || "")) ?? topicStopWords)) {
+    const subscriptionId = String(article.subscription_id || "");
+    for (const token of uniqueTopicTokens(article, blacklists.get(subscriptionId) ?? topicStopWords, titleOnlyBySubscription.get(subscriptionId) === true)) {
       counts.set(token, (counts.get(token) || 0) + 1);
     }
   }
@@ -335,6 +339,7 @@ export function buildNewsTopics(feed: NewsFeedItem[], subscriptions: NewsSubscri
   const assigned = new Set<string>();
   const subscriptionsById = new Map(subscriptions.filter((subscription) => subscription.id).map((subscription) => [String(subscription.id), subscription]));
   const blacklists = new Map(subscriptions.map((subscription) => [String(subscription.id || ""), effectiveTopicBlacklist(subscription.similarityGroupingWordsBlacklist, globalBlacklist)]));
+  const titleOnlyBySubscription = new Map(subscriptions.map((subscription) => [String(subscription.id || ""), subscription.ignoreDescriptionForTopicGrouping === true]));
   const sorted = [...feed].sort((left, right) => itemTime(right) - itemTime(left));
 
   for (const lead of sorted) {
@@ -352,7 +357,7 @@ export function buildNewsTopics(feed: NewsFeedItem[], subscriptions: NewsSubscri
         if (candidateSubscription?.enableTopicGrouping === false) return false;
         if (titleWordCount(candidate) < 5) return false;
         if (Math.abs(itemTime(lead) - itemTime(candidate)) > 1000 * 60 * 60 * 72) return false;
-        return similarity(lead, candidate, blacklists) >= 0.35;
+        return similarity(lead, candidate, blacklists, titleOnlyBySubscription) >= 0.35;
       })
       .slice(0, 4);
 
@@ -361,7 +366,7 @@ export function buildNewsTopics(feed: NewsFeedItem[], subscriptions: NewsSubscri
     const articles = [lead, ...related];
     for (const article of articles) assigned.add(articleKey(article));
     topics.push({
-      key: topicKeyFor(articles, blacklists),
+      key: topicKeyFor(articles, blacklists, titleOnlyBySubscription),
       title: topicTitleFor(articles),
       articles,
     });
@@ -457,6 +462,7 @@ export function normalizeSubscription(entry: Record<string, unknown> | null): Ne
     thumbnailOverwriteUrl: entry.thumbnailOverwriteUrl ? String(entry.thumbnailOverwriteUrl) : undefined,
     similarityGroupingWordsBlacklist: entry.similarityGroupingWordsBlacklist ? String(entry.similarityGroupingWordsBlacklist) : "",
     enableTopicGrouping: entry.enableTopicGrouping !== false,
+    ignoreDescriptionForTopicGrouping: entry.ignoreDescriptionForTopicGrouping === true,
     fetchErrors: entry.fetchErrors ? String(entry.fetchErrors) : "",
   };
 }
@@ -907,7 +913,7 @@ export async function getNewsSubscriptions(userId: string): Promise<NewsSubscrip
   const feeds = await getUserFeeds(userId);
 
   const allSubscriptions = (await getAllNewsSubscriptions(2000, {
-    fields: "id,url,icon,title,linkReplaceRule,fallbackThumbnailUrl,thumbnailOverwriteUrl,userId,similarityGroupingWordsBlacklist,enableTopicGrouping,fetchErrors",
+    fields: "id,url,icon,title,linkReplaceRule,fallbackThumbnailUrl,thumbnailOverwriteUrl,userId,similarityGroupingWordsBlacklist,enableTopicGrouping,ignoreDescriptionForTopicGrouping,fetchErrors",
   })) as Array<NewsSubscriptionsRecord>;
   const subscriptions = allSubscriptions
     .map(normalizeSubscription)
@@ -931,6 +937,7 @@ export async function getNewsSubscriptions(userId: string): Promise<NewsSubscrip
     thumbnailOverwriteUrl: subscription.thumbnailOverwriteUrl,
     similarityGroupingWordsBlacklist: subscription.similarityGroupingWordsBlacklist,
     enableTopicGrouping: subscription.enableTopicGrouping !== false,
+    ignoreDescriptionForTopicGrouping: subscription.ignoreDescriptionForTopicGrouping === true,
     fetchErrors: subscription.fetchErrors,
   }));
 
@@ -1147,7 +1154,7 @@ export async function rebuildNewsViews(userId: string, feedId?: string) {
 export async function subscribeNewsFeed(
   userId: string,
   sub: NewsSubscribeInput,
-): Promise<{ message: string }> {
+): Promise<{ message: string; subscriptionId: string }> {
   const originalFeedUrl = sub.feedUrl;
   sub.feedUrl = await normalizeNewsFeedUrl(sub.feedUrl);
 
@@ -1161,8 +1168,9 @@ export async function subscribeNewsFeed(
   const existingByUrl = (await getNewsSubscriptionByUrl(sub.feedUrl).catch(() => null)) as NewsSubscription | null;
   const existing = existingByUrl && (!existingByUrl.userId || existingByUrl.userId === userId) ? existingByUrl : null;
 
+  let subscriptionId: string;
   if (existing) {
-    const subscriptionId = existing.id as string;
+    subscriptionId = existing.id as string;
     await updateNewsSubscription(subscriptionId, {
       userId,
       url: sub.feedUrl,
@@ -1172,10 +1180,11 @@ export async function subscribeNewsFeed(
       thumbnailOverwriteUrl: sub.thumbnailOverwriteUrl,
       similarityGroupingWordsBlacklist: sub.similarityGroupingWordsBlacklist,
       enableTopicGrouping: sub.enableTopicGrouping !== false,
+      ignoreDescriptionForTopicGrouping: sub.ignoreDescriptionForTopicGrouping === true,
     });
 
     if (subscriptionId) {
-      const feedIds = await syncSubscriptionFeedRefs(userId, subscriptionId, sub.feedIds ?? [], sub.newFeedTitles ?? []);
+      await syncSubscriptionFeedRefs(userId, subscriptionId, sub.feedIds ?? [], sub.newFeedTitles ?? []);
     }
   } else {
     const created = (await createNewsSubscription({
@@ -1188,16 +1197,18 @@ export async function subscribeNewsFeed(
       thumbnailOverwriteUrl: sub.thumbnailOverwriteUrl,
       similarityGroupingWordsBlacklist: sub.similarityGroupingWordsBlacklist,
       enableTopicGrouping: sub.enableTopicGrouping !== false,
+      ignoreDescriptionForTopicGrouping: sub.ignoreDescriptionForTopicGrouping === true,
     })) as NewsSubscription;
 
     if (created?.id) {
-      const feedIds = await syncSubscriptionFeedRefs(userId, created.id, sub.feedIds ?? [], sub.newFeedTitles ?? []);
+      subscriptionId = String(created.id);
+      await syncSubscriptionFeedRefs(userId, subscriptionId, sub.feedIds ?? [], sub.newFeedTitles ?? []);
+    } else {
+      throw new Error("Unable to create news subscription");
     }
   }
 
-  void rebuildNewsViews(userId).catch(() => undefined);
-
-  return { message: "Feed successfully subscribed." };
+  return { message: "Feed successfully subscribed.", subscriptionId };
 }
 
 export async function unsubscribeNewsFeed(userId: string, subscriptionId: string): Promise<{ message: string }> {
@@ -1214,7 +1225,7 @@ export async function unsubscribeNewsFeed(userId: string, subscriptionId: string
 export async function updateNewsFeed(
   userId: string,
   payload: NewsUpdateInput
-): Promise<{ message: string } | { _status: number; error: string }> {
+): Promise<{ message: string; subscriptionId: string } | { _status: number; error: string }> {
   const target = (payload.subscriptionId
     ? await getNewsSubscriptionById(payload.subscriptionId)
     : payload.oldFeedUrl
@@ -1241,12 +1252,12 @@ export async function updateNewsFeed(
     thumbnailOverwriteUrl: payload.thumbnailOverwriteUrl !== undefined ? payload.thumbnailOverwriteUrl : target.thumbnailOverwriteUrl,
     similarityGroupingWordsBlacklist: payload.similarityGroupingWordsBlacklist !== undefined ? payload.similarityGroupingWordsBlacklist : target.similarityGroupingWordsBlacklist,
     enableTopicGrouping: payload.enableTopicGrouping !== undefined ? payload.enableTopicGrouping !== false : target.enableTopicGrouping !== false,
+    ignoreDescriptionForTopicGrouping: payload.ignoreDescriptionForTopicGrouping !== undefined ? payload.ignoreDescriptionForTopicGrouping === true : target.ignoreDescriptionForTopicGrouping === true,
   });
 
   await syncSubscriptionFeedRefs(userId, subscriptionId, payload.feedIds ?? []);
-  void rebuildNewsViews(userId, subscriptionId).catch(() => undefined);
 
-  return { message: "Subscription updated" };
+  return { message: "Subscription updated", subscriptionId };
 }
 
 export { updateNewsSubscription };

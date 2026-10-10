@@ -115,6 +115,7 @@ export type NewsFeedDraft = {
   thumbnailOverwriteUrl?: string;
   similarityGroupingWordsBlacklist?: string;
   enableTopicGrouping?: boolean;
+  ignoreDescriptionForTopicGrouping?: boolean;
   fetchErrors?: string;
 };
 
@@ -200,6 +201,7 @@ export type NewsSubscribeInput = {
   thumbnailOverwriteUrl?: string;
   similarityGroupingWordsBlacklist?: string;
   enableTopicGrouping?: boolean;
+  ignoreDescriptionForTopicGrouping?: boolean;
 };
 
 export type NewsUpdateInput = {
@@ -214,6 +216,7 @@ export type NewsUpdateInput = {
   thumbnailOverwriteUrl?: string;
   similarityGroupingWordsBlacklist?: string;
   enableTopicGrouping?: boolean;
+  ignoreDescriptionForTopicGrouping?: boolean;
 };
 
 export type SecondaryUrl = {
