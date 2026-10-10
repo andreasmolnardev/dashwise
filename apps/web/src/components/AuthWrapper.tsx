@@ -11,6 +11,7 @@ import { ActivityProvider } from "@/context/ActivityContext";
 import { NotificationProvider } from "@/context/NotificationContext";
 import { normalizeWallpaperFilters } from "./settings/wallpaperFilterDefaults";
 import SearchBar from "./widgets/SearchBar";
+import SessionNamePrompt from "./auth/SessionNamePrompt";
 
 type AuthWrapperProps = {
   children: ReactNode;
@@ -182,6 +183,7 @@ export default function AuthWrapper({ children }: AuthWrapperProps) {
               showTrigger={false}
               enableGlobalShortcut
             />
+            <SessionNamePrompt />
             {children}
           </ActivityProvider>
         </NotificationProvider>
