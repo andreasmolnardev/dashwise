@@ -801,6 +801,43 @@
 						"$ref": "#/components/responses/JsonOk"
 					}
 				}
+			},
+			"put": {
+				"tags": [
+					"links"
+				],
+				"summary": "Rename home link group",
+				"requestBody": {
+					"$ref": "#/components/requestBodies/JsonBody"
+				},
+				"responses": {
+					"200": {
+						"$ref": "#/components/responses/JsonOk"
+					}
+				}
+			}
+		},
+		"/links/home/groups/{groupName}": {
+			"delete": {
+				"tags": [
+					"links"
+				],
+				"summary": "Delete home link group and its contents",
+				"parameters": [
+					{
+						"name": "groupName",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"$ref": "#/components/responses/JsonOk"
+					}
+				}
 			}
 		},
 		"/links/home": {

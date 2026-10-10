@@ -5,7 +5,10 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/useAuth";
 import { getMonitoringStatusAction } from '@/lib/apiClient';
 import {
+  deleteHomeLinkGroupAction,
+  getHomeLinkGroupsAction,
   getHomeLinksAction,
+  renameHomeLinkGroupAction,
   updateHomeLinkFolderIconAction,
 } from '@/lib/apiClient';
 import { PaginatedCarouselViewComponent } from "./PaginatedCarouselView";
@@ -16,6 +19,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Icon } from "@iconify-icon/react";
+import { MoreHorizontal } from "lucide-react";
 import { PopoverClose } from "@radix-ui/react-popover";
 import { Button } from "../ui/button";
 import {
@@ -29,9 +33,18 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
 import LinkDetailsForm from "@/components/settings/LinkDetailsForm";
 import IconPickerComponent from "@/components/settings/IconPicker";
 import AppIcon from "@dashwise/app-icon";
@@ -211,6 +224,7 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
     if (links.length > 0) return links;
     return readCachedHomeLinks(user?.id) ?? links;
   });
+  const [homeGroups, setHomeGroups] = useState<string[]>([]);
 
   const [, setFolderPreviewRev] = useState(0);
 
@@ -234,12 +248,16 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
 
     const fetchLinks = async () => {
       try {
-        const data = await withAuth((auth) => getHomeLinksAction(auth));
+        const [data, groups] = await Promise.all([
+          withAuth((auth) => getHomeLinksAction(auth)),
+          withAuth((auth) => getHomeLinkGroupsAction(auth)).catch(() => null),
+        ]);
         if (Array.isArray(data)) {
           const nextLinks = data as LinkType[];
           setLocalLinks(nextLinks);
           writeCachedHomeLinks(user?.id, nextLinks);
         }
+        if (Array.isArray(groups)) setHomeGroups(groups.filter((group): group is string => typeof group === "string"));
       } catch (err) {
         console.error("Failed to fetch home links:", err);
       }
@@ -259,8 +277,8 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
   const [activeCollection, setActiveCollection] = useState<string | null>(null);
 
   const collections = useMemo(
-    () => [...new Set(localLinks.map(getLinkGroupName))],
-    [localLinks],
+    () => [...new Set([...homeGroups, ...localLinks.map(getLinkGroupName)])],
+    [homeGroups, localLinks],
   );
 
   const sortedLinks = useMemo(() => sortLinksForDisplay(localLinks), [localLinks]);
@@ -328,6 +346,10 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
     } | null
   >(null);
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
+  const [groupAction, setGroupAction] = useState<{ type: "rename" | "delete"; name: string } | null>(null);
+  const [groupNameDraft, setGroupNameDraft] = useState("");
+  const [groupActionError, setGroupActionError] = useState<string | null>(null);
+  const [groupActionPending, setGroupActionPending] = useState(false);
 
   useEffect(() => {
     const search = new URLSearchParams(location.search);
@@ -400,16 +422,74 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
 
   const refreshHomeLinks = React.useCallback(async () => {
     try {
-      const data = await withAuth((auth) => getHomeLinksAction(auth));
+      const [data, groups] = await Promise.all([
+        withAuth((auth) => getHomeLinksAction(auth)),
+        withAuth((auth) => getHomeLinkGroupsAction(auth)).catch(() => null),
+      ]);
       if (Array.isArray(data)) {
         const nextLinks = data as LinkType[];
         setLocalLinks(nextLinks);
         writeCachedHomeLinks(user?.id, nextLinks);
       }
+      if (Array.isArray(groups)) setHomeGroups(groups.filter((group): group is string => typeof group === "string"));
     } catch (err) {
       console.error("Failed to refresh home links:", err);
     }
   }, [user?.id, withAuth]);
+
+  const openGroupAction = (type: "rename" | "delete", name: string) => {
+    setGroupAction({ type, name });
+    setGroupNameDraft(name);
+    setGroupActionError(null);
+  };
+
+  const handleRenameGroup = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!groupAction || groupAction.type !== "rename") return;
+    const nextName = groupNameDraft.trim();
+    if (!nextName || nextName.length > 100) {
+      setGroupActionError("Group name must be between 1 and 100 characters.");
+      return;
+    }
+    setGroupActionPending(true);
+    setGroupActionError(null);
+    try {
+      const renamed = await withAuth((auth) => renameHomeLinkGroupAction(auth, groupAction.name, nextName));
+      setHomeGroups((current) => current.map((name) => name === renamed.oldName ? renamed.name : name));
+      setLocalLinks((current) => {
+        const next = current.map((link) => getLinkGroupName(link) === renamed.oldName ? { ...link, collection: renamed.name } : link);
+        writeCachedHomeLinks(user?.id, next);
+        return next;
+      });
+      setActiveCollection((current) => current === renamed.oldName ? renamed.name : current);
+      setGroupAction(null);
+    } catch (cause) {
+      setGroupActionError(cause instanceof Error ? cause.message : "Could not rename link group.");
+    } finally {
+      setGroupActionPending(false);
+    }
+  };
+
+  const handleDeleteGroup = async () => {
+    if (!groupAction || groupAction.type !== "delete") return;
+    setGroupActionPending(true);
+    setGroupActionError(null);
+    try {
+      const deleted = await withAuth((auth) => deleteHomeLinkGroupAction(auth, groupAction.name));
+      setHomeGroups((current) => current.filter((name) => name !== deleted.deletedGroup));
+      setLocalLinks((current) => {
+        const next = current.filter((link) => getLinkGroupName(link) !== deleted.deletedGroup);
+        writeCachedHomeLinks(user?.id, next);
+        return next;
+      });
+      setActiveCollection((current) => current === deleted.deletedGroup ? null : current);
+      setGroupAction(null);
+    } catch (cause) {
+      setGroupActionError(cause instanceof Error ? cause.message : "Could not delete link group.");
+    } finally {
+      setGroupActionPending(false);
+    }
+  };
 
   const handleOptimisticSave = React.useCallback(
     (
@@ -613,17 +693,38 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
         <div className="flex items-center justify-between gap-2">
           <div className="flex gap-1.5 flex-wrap">
             {collections.map((col) => (
-              <button
-                key={col}
-                onClick={() => setActiveCollection(col)}
-                className={`px-3.5 py-2 rounded-xl font-medium text-sm transition-colors frosted hover:text-primary ${
-                  activeCollection === col
-                    ? " text-white outline-1 outline-primary"
-                    : " text-white/70 hover:text-white"
-                }`}
-              >
-                {col}
-              </button>
+              <div key={col} className="group inline-flex items-center rounded-xl frosted transition-colors hover:text-primary">
+                <button
+                  type="button"
+                  aria-pressed={activeCollection === col}
+                  onClick={() => setActiveCollection(col)}
+                  className={`px-3.5 py-2 rounded-l-xl font-medium text-sm transition-colors ${
+                    activeCollection === col
+                      ? " text-white outline-1 outline-primary"
+                      : " text-white/70 hover:text-white"
+                  }`}
+                >
+                  {col}
+                </button>
+                {col.trim().toLowerCase() !== DEFAULT_LINK_GROUP.toLowerCase() && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        type="button"
+                        aria-label={`Manage ${col} link group`}
+                        title={`Manage ${col}`}
+                        className="mr-1 inline-flex size-8 items-center justify-center rounded-lg text-white/65 opacity-0 transition hover:bg-white/10 hover:text-white focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary group-hover:opacity-100 group-focus-within:opacity-100"
+                      >
+                        <MoreHorizontal className="size-4" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="frosted text-foreground">
+                      <DropdownMenuItem onSelect={() => openGroupAction("rename", col)}>Rename</DropdownMenuItem>
+                      <DropdownMenuItem variant="destructive" onSelect={() => openGroupAction("delete", col)}>Delete</DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
+              </div>
             ))}
           </div>
 
@@ -796,6 +897,54 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
               />
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={groupAction?.type === "rename"}
+        onOpenChange={(open) => {
+          if (!open && !groupActionPending) setGroupAction(null);
+        }}
+      >
+        <DialogContent className="frosted text-foreground">
+          <DialogHeader>
+            <DialogTitle>Rename link group</DialogTitle>
+            <DialogDescription>Links and folders in this group will keep their current organization.</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleRenameGroup} className="grid gap-4">
+            <Input
+              aria-label="Link group name"
+              value={groupNameDraft}
+              onChange={(event) => setGroupNameDraft(event.target.value)}
+              maxLength={100}
+              autoFocus
+              disabled={groupActionPending}
+            />
+            {groupActionError && <p role="alert" className="text-sm text-red-300">{groupActionError}</p>}
+            <DialogFooter>
+              <Button type="button" variant="outline" disabled={groupActionPending} onClick={() => setGroupAction(null)}>Cancel</Button>
+              <Button type="submit" disabled={groupActionPending || !groupNameDraft.trim()}>{groupActionPending ? "Saving…" : "Save name"}</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={groupAction?.type === "delete"}
+        onOpenChange={(open) => {
+          if (!open && !groupActionPending) setGroupAction(null);
+        }}
+      >
+        <DialogContent className="frosted text-foreground">
+          <DialogHeader>
+            <DialogTitle>Delete “{groupAction?.name}”?</DialogTitle>
+            <DialogDescription>This permanently deletes this group, its nested folders, and all links in it. Monitoring checks attached to those links will also be removed.</DialogDescription>
+          </DialogHeader>
+          {groupActionError && <p role="alert" className="text-sm text-red-300">{groupActionError}</p>}
+          <DialogFooter>
+            <Button type="button" variant="outline" disabled={groupActionPending} onClick={() => setGroupAction(null)}>Cancel</Button>
+            <Button type="button" variant="destructive" disabled={groupActionPending} onClick={() => void handleDeleteGroup()}>{groupActionPending ? "Deleting…" : "Delete group"}</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

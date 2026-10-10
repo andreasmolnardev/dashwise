@@ -678,6 +678,40 @@ export type PostLinksHomeGroupsResponses = {
 
 export type PostLinksHomeGroupsResponse = PostLinksHomeGroupsResponses[keyof PostLinksHomeGroupsResponses];
 
+export type PutLinksHomeGroupsData = {
+    body?: JsonBody;
+    path?: never;
+    query?: never;
+    url: '/links/home/groups';
+};
+
+export type PutLinksHomeGroupsResponses = {
+    /**
+     * OK
+     */
+    200: GenericObject;
+};
+
+export type PutLinksHomeGroupsResponse = PutLinksHomeGroupsResponses[keyof PutLinksHomeGroupsResponses];
+
+export type DeleteLinksHomeGroupsByGroupNameData = {
+    body?: never;
+    path: {
+        groupName: string;
+    };
+    query?: never;
+    url: '/links/home/groups/{groupName}';
+};
+
+export type DeleteLinksHomeGroupsByGroupNameResponses = {
+    /**
+     * OK
+     */
+    200: GenericObject;
+};
+
+export type DeleteLinksHomeGroupsByGroupNameResponse = DeleteLinksHomeGroupsByGroupNameResponses[keyof DeleteLinksHomeGroupsByGroupNameResponses];
+
 export type GetLinksHomeData = {
     body?: never;
     path?: never;

@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 
-import { createCollection, createCollectionLinkItem, createHomeLinkGroup, createHomeLinkItem, createLinkTag, createLinksFolder, deleteLinkItem, deleteUnusedHomeLinkGroups, getHomeLinkGroups, getHomeLinks, getLinksCollections, getLinksFolders, getLinksItems, getLinksTags, reorderLinks, updateCollection, updateHomeLinkFolderIcon, updateHomeLinkItem, updateLinkTag, wipeUserLinks } from "../lib/data/links";
+import { createCollection, createCollectionLinkItem, createHomeLinkGroup, createHomeLinkItem, createLinkTag, createLinksFolder, deleteHomeLinkGroup, deleteLinkItem, deleteUnusedHomeLinkGroups, getHomeLinkGroups, getHomeLinks, getLinksCollections, getLinksFolders, getLinksItems, getLinksTags, renameHomeLinkGroup, reorderLinks, updateCollection, updateHomeLinkFolderIcon, updateHomeLinkItem, updateLinkTag, wipeUserLinks } from "../lib/data/links";
 
 import { readAuthToken, readJsonBody, requireAuth, withJson } from "./shared";
 import { config } from "../lib/config";
@@ -43,6 +43,15 @@ linksRoute
     const body = await readJsonBody(c);
     const { userId } = await requireAuth({ token: readAuthToken(c) });
     return createHomeLinkGroup(userId, String(body?.name ?? ""));
+  }))
+  .put("/api/v1/links/home/groups", withJson(async (c) => {
+    const body = await readJsonBody(c);
+    const { userId } = await requireAuth({ token: readAuthToken(c) });
+    return renameHomeLinkGroup(userId, String(body?.currentName ?? ""), String(body?.name ?? ""));
+  }))
+  .delete("/api/v1/links/home/groups/:groupName", withJson(async (c) => {
+    const { userId } = await requireAuth({ token: readAuthToken(c) });
+    return deleteHomeLinkGroup(userId, String(c.req.param("groupName") ?? ""));
   }))
   .put("/api/v1/links/folders/:folderId/icon", withJson(async (c) => {
     const body = await readJsonBody<any>(c);

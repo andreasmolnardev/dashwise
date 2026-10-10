@@ -805,7 +805,19 @@ export interface paths {
                 200: components["responses"]["JsonOk"];
             };
         };
-        put?: never;
+        /** Rename home link group */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: components["requestBodies"]["JsonBody"];
+            responses: {
+                200: components["responses"]["JsonOk"];
+            };
+        };
         /** Create home link group */
         post: {
             parameters: {
@@ -820,6 +832,36 @@ export interface paths {
             };
         };
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/links/home/groups/{groupName}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete home link group and its contents */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    groupName: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                200: components["responses"]["JsonOk"];
+            };
+        };
         options?: never;
         head?: never;
         patch?: never;
