@@ -206,11 +206,30 @@ export default function AccountSettingsPage() {
       <div className="content grid grid-cols-[auto_1fr_auto] font-medium gap-2 items-center">
         <section className="frosted flex rounded-lg justify-center col-span-full p-2 items-center gap-6">
           <Icon icon="fa6-solid:circle-user" className="text-4xl" />
-          <span>{user?.name ?? "Lorem ipsum"}</span>
+          <div className="min-w-0">
+            <p>{user?.name ?? "Lorem ipsum"}</p>
+            <p className="text-sm font-normal text-muted-foreground">{sessionQuery.data?.displayName ?? (sessionQuery.isLoading ? "Loading session…" : "Current session")}</p>
+          </div>
         </section>
 
         <h2 className="text-xl col-span-full">Authentication</h2>
-        <section className="frosted rounded-lg col-span-full p-3 grid gap-2"><h3>Active sessions</h3>{sessionsQuery.data?.map((session) => <div key={session.sessionId} className="flex items-center justify-between gap-2 text-sm"><span>{session.displayName} · last used {new Date(session.lastSeenAt).toLocaleString()}</span><Button variant="ghost" size="sm" disabled={session.sessionId === sessionQuery.data?.sessionId} onClick={async () => { await withAuth((auth) => revokeSessionAction(auth, session.sessionId)); sessionsQuery.refetch(); }}>Revoke</Button></div>)}{sessionsQuery.data?.length === 0 && <p className="text-sm text-muted-foreground">No active sessions found.</p>}</section>
+        <Dialog>
+          <DialogTrigger asChild>
+            <Button variant="outline" className="col-span-full justify-start">View Sessions</Button>
+          </DialogTrigger>
+          <DialogContent className="frosted text-foreground">
+            <DialogHeader>
+              <DialogTitle>Active sessions</DialogTitle>
+              <DialogDescription>Review devices signed in to your account and revoke sessions you no longer use.</DialogDescription>
+            </DialogHeader>
+            <div className="grid max-h-[60vh] gap-2 overflow-y-auto">
+              {sessionsQuery.isLoading && <p className="text-sm text-muted-foreground">Loading sessions…</p>}
+              {sessionsQuery.isError && <p role="alert" className="text-sm text-red-300">Sessions could not be loaded.</p>}
+              {sessionsQuery.data?.map((session) => <div key={session.sessionId} className="flex items-center justify-between gap-2 rounded-md border p-2 text-sm"><span className="min-w-0 break-words">{session.displayName} · last used {new Date(session.lastSeenAt).toLocaleString()}</span><Button variant="ghost" size="sm" disabled={session.sessionId === sessionQuery.data?.sessionId} onClick={async () => { await withAuth((auth) => revokeSessionAction(auth, session.sessionId)); sessionsQuery.refetch(); }}>Revoke</Button></div>)}
+              {sessionsQuery.isSuccess && sessionsQuery.data.length === 0 && <p className="text-sm text-muted-foreground">No active sessions found.</p>}
+            </div>
+          </DialogContent>
+        </Dialog>
 
         <Dialog
           open={isDeviceNameDialogOpen}
