@@ -402,6 +402,48 @@ export async function getLinksTagsAction(auth: ActionAuth) {
   return extractData(await getLinksTags({ headers: authHeaders(auth) }));
 }
 
+export type LinkRssFeedRecord = {
+  id: string;
+  user: string;
+  name: string;
+  listId: string;
+  tagIds: string[];
+  linkIds: string[];
+  requiresAuth: boolean;
+};
+
+export type LinkRssFeedInput = Omit<LinkRssFeedRecord, "id" | "user">;
+
+async function linkRssRequest<T>(auth: ActionAuth, path: string, method = "GET", body?: unknown): Promise<T> {
+  const response = await fetch(backendUrl(`/api/v1/links/rss${path}`), {
+    method,
+    headers: { ...authHeaders(auth), ...(body === undefined ? {} : { "content-type": "application/json" }) },
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  });
+  handleUnauthorizedResponse(response);
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(typeof result?.error === "string" ? result.error : "RSS feed request failed");
+  }
+  return result as T;
+}
+
+export function getLinkRssFeedsAction(auth: ActionAuth) {
+  return linkRssRequest<LinkRssFeedRecord[]>(auth, "");
+}
+
+export function createLinkRssFeedAction(auth: ActionAuth, input: LinkRssFeedInput) {
+  return linkRssRequest<LinkRssFeedRecord>(auth, "", "POST", input);
+}
+
+export function updateLinkRssFeedAction(auth: ActionAuth, feedId: string, input: LinkRssFeedInput) {
+  return linkRssRequest<LinkRssFeedRecord>(auth, `/${encodeURIComponent(feedId)}`, "PUT", input);
+}
+
+export function deleteLinkRssFeedAction(auth: ActionAuth, feedId: string) {
+  return linkRssRequest<{ id: string }>(auth, `/${encodeURIComponent(feedId)}`, "DELETE");
+}
+
 export async function createLinkItemAction(auth: ActionAuth, data: { url: string; title: string; iconUrl?: string; description?: string; linkGroup?: string; folder?: string; collection?: string; tags?: string[]; secondaryUrls?: { name: string; url: string; routingRule: string }[] }) {
   return extractData(await postLinksItems({ body: data, headers: authHeaders(auth) }));
 }
