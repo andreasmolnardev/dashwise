@@ -48,7 +48,10 @@ migrate((app) => {
   }));
   collection.indexes = [
     ...collection.indexes,
-    "CREATE UNIQUE INDEX `idx_sessions_tokenHash` ON `sessions` (`tokenHash`)"
+    // Older session records predate token hashes, so they all contain an empty
+    // value when this field is added. Keep those rows valid while requiring
+    // every populated token hash to be unique.
+    "CREATE UNIQUE INDEX `idx_sessions_tokenHash` ON `sessions` (`tokenHash`) WHERE `tokenHash` != ''"
   ];
   return app.save(collection);
 }, (app) => {
