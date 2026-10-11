@@ -113,11 +113,81 @@ export function defineAction<
 }
 
 export type AppContribution = { id: string; name: string; description?: string; icon?: string };
-export type WidgetContribution<Config extends JsonSchema = JsonSchema> = {
-  id: string; name: string; description?: string; configSchema?: Config;
+
+export type IntegrationConfigFieldBase = {
+  label?: string;
+  description?: string;
+  required?: boolean;
 };
-export type GlanceableContribution<Config extends JsonSchema = JsonSchema> = {
-  id: string; name: string; description?: string; configSchema?: Config;
+export type IntegrationConfigField =
+  | (IntegrationConfigFieldBase & {
+      type: "text" | "url";
+      default?: string;
+      placeholder?: string;
+    })
+  | (IntegrationConfigFieldBase & {
+      type: "number";
+      default?: number;
+      min?: number;
+      max?: number;
+      step?: number;
+    })
+  | (IntegrationConfigFieldBase & { type: "boolean"; default?: boolean })
+  | (IntegrationConfigFieldBase & {
+      type: "select";
+      options: readonly { label: string; value: string }[];
+      default?: string;
+    })
+  | (IntegrationConfigFieldBase & {
+      type: "shortcut-select";
+      /** Single selector stores one Shortcut resource ID. */
+      multiple?: false;
+      /** Limit choices to Shortcuts exposed in any of these Apps. */
+      appIds?: readonly string[];
+      /** Limit choices to resources from any of these collections. */
+      collectionIds?: readonly string[];
+      default?: string;
+    })
+  | (IntegrationConfigFieldBase & {
+      type: "shortcut-select";
+      /** Multiple selector stores an array of Shortcut resource IDs. */
+      multiple: true;
+      appIds?: readonly string[];
+      collectionIds?: readonly string[];
+      default?: readonly string[];
+    });
+
+/** Per-contribution property fields; separate from JSON Schema action inputs. */
+export type IntegrationConfigSchema = Readonly<Record<string, IntegrationConfigField>>;
+type IntegrationConfigFieldValue<Field extends IntegrationConfigField> =
+  Field extends { type: "number" }
+    ? number
+    : Field extends { type: "boolean" }
+      ? boolean
+      : Field extends { type: "shortcut-select"; multiple: true }
+        ? readonly string[]
+        : Field extends { type: "select"; options: readonly (infer Option)[] }
+          ? Option extends { value: infer Value extends string }
+            ? Value
+            : string
+          : string;
+export type IntegrationConfigValues<Schema extends IntegrationConfigSchema> = {
+  readonly [Key in keyof Schema]: Schema[Key] extends { required: true } | { default: unknown }
+    ? IntegrationConfigFieldValue<Schema[Key]>
+    : IntegrationConfigFieldValue<Schema[Key]> | undefined;
+};
+
+export type WidgetContribution<Config extends IntegrationConfigSchema = IntegrationConfigSchema> = {
+  id: string;
+  name: string;
+  description?: string;
+  configSchema?: Config;
+};
+export type GlanceableContribution<Config extends IntegrationConfigSchema = IntegrationConfigSchema> = {
+  id: string;
+  name: string;
+  description?: string;
+  configSchema?: Config;
 };
 export type IntegrationActivity = {
   type: string;
@@ -176,6 +246,8 @@ export type IntegrationsRuntime<
 export type IntegrationDefinition<
   Config extends ConfigSchema = ConfigSchema,
   Resources extends Record<string, ResourceCollectionDefinition> = Record<string, ResourceCollectionDefinition>,
+  Widgets extends readonly WidgetContribution[] = readonly WidgetContribution[],
+  Glanceables extends readonly GlanceableContribution[] = readonly GlanceableContribution[],
 > = {
   id: string;
   name: string;
@@ -185,8 +257,8 @@ export type IntegrationDefinition<
   resources: Resources;
   actions?: Readonly<Record<string, IntegrationAction<any, any, any, any>>>;
   apps?: readonly AppContribution[];
-  widgets?: readonly WidgetContribution[];
-  glanceables?: readonly GlanceableContribution[];
+  widgets?: Widgets;
+  glanceables?: Glanceables;
   setup?(integrations: IntegrationsRuntime<ConfigValues<Config>, SecretConfigKey<Config>, Resources>): void | Promise<void>;
   start?(integrations: IntegrationsRuntime<ConfigValues<Config>, SecretConfigKey<Config>, Resources>): void | Promise<void>;
   stop?(integrations: IntegrationsRuntime<ConfigValues<Config>, SecretConfigKey<Config>, Resources>): void | Promise<void>;
@@ -196,6 +268,10 @@ export type IntegrationDefinition<
 export function defineIntegration<
   const Config extends ConfigSchema,
   const Resources extends Record<string, ResourceCollectionDefinition>,
->(definition: IntegrationDefinition<Config, Resources>): IntegrationDefinition<Config, Resources> {
+  const Widgets extends readonly WidgetContribution[] = readonly WidgetContribution[],
+  const Glanceables extends readonly GlanceableContribution[] = readonly GlanceableContribution[],
+>(
+  definition: IntegrationDefinition<Config, Resources, Widgets, Glanceables>,
+): IntegrationDefinition<Config, Resources, Widgets, Glanceables> {
   return definition;
 }

@@ -57,6 +57,36 @@ confirmed state comes from resource synchronization. Widgets and Glanceables
 declare contributions for existing Dashwise surfaces. Durable Activities are
 published imperatively; high-volume resource changes use transient subscriptions.
 
+Widget and Glanceable `configSchema` values use `IntegrationConfigSchema`, a
+property-field map separate from JSON Schema action inputs. Use a
+`shortcut-select` field to let users choose resource-backed Shortcuts:
+
+```ts
+const widgetConfig = {
+  entity: {
+    type: "shortcut-select",
+    required: true,
+    appIds: ["entities", "lights"],
+    collectionIds: ["entities"],
+  },
+  selectedEntities: {
+    type: "shortcut-select",
+    multiple: true,
+    appIds: ["entities"],
+    collectionIds: ["entities", "sensors"],
+  },
+} as const satisfies IntegrationConfigSchema;
+```
+
+`multiple` defaults to `false`: a single field stores one resource ID (`string`);
+`multiple: true` stores an array of resource IDs (`readonly string[]`). `appIds`
+and `collectionIds` optionally filter choices to resources exposed in any listed
+App or collection. Omitting either filter leaves that dimension unrestricted.
+The runtime validates selected IDs against the owning integration instance and
+applicable filters. `IntegrationConfigValues<typeof widgetConfig>` infers the
+settings value types. Compile-time coverage lives in
+[`contracts/shortcut-select.typecheck.ts`](./contracts/shortcut-select.typecheck.ts).
+
 Lifecycle hooks receive `integrations` with validated config, secret lookup,
 typed resources, serializable instance storage, action dispatch, activities,
 scoped events, managed HTTP/WebSocket/MCP clients, scheduler, logger, and
