@@ -72,7 +72,13 @@ const widgetSchema = {
 const boundWidget = {
   id: "bound-entity-list",
   name: "Bound entity list",
+  template: "columns",
   configSchema: widgetSchema,
+  properties: {
+    header: { title: "Selected entities" },
+    columns: [{ id: "entity", primary: "${name}", secondary: "${state}" }],
+  },
+  exampleProps: { header: { title: "Preview entities" } },
   resourceBindings: {
     currentEntity: { type: "shortcut-select", configKey: "entity" },
     selectedEntities: { type: "shortcut-select", configKey: "selectedEntities" },
@@ -109,6 +115,9 @@ const inferredDefinition = defineIntegration({
   widgets: [{
     id: "bound-widget",
     name: "Bound widget",
+    template: "vertical-list",
+    properties: { list: [{ title: "${entities.0.name}" }] },
+    exampleProps: { list: [{ title: "Example entity" }] },
     configSchema: {
       selected: { type: "shortcut-select", multiple: true },
     },
@@ -119,6 +128,11 @@ const inferredDefinition = defineIntegration({
   glanceables: [{
     id: "bound-glanceable",
     name: "Bound glanceable",
+    icon: { file: "mdi:thermometer", size: 16, description: "Sensor value" },
+    text: "${current.state}",
+    columns: [{ icon: "mdi:thermometer", text: "${current.state}", format: "time" }],
+    properties: { unit: "°C" },
+    exampleProps: { state: "21.5" },
     configSchema: {
       sensor: { type: "shortcut-select" },
     },
@@ -141,6 +155,9 @@ type IsEqual<Left, Right> = (<Value>() => Value extends Left ? 1 : 2) extends
 const widgetConfigKeyIsInferred: IsEqual<WidgetBindingConfigKey, "selected"> = true;
 const glanceableConfigKeyIsInferred: IsEqual<GlanceableBindingConfigKey, "sensor"> = true;
 
+// @ts-expect-error Presentation properties contain JSON values, never executable callbacks.
+const unsafePresentation: WidgetContribution["properties"] = { render: () => "custom UI" };
+
 void [
   oneShortcut,
   manyShortcuts,
@@ -155,4 +172,5 @@ void [
   inferredDefinition,
   widgetConfigKeyIsInferred,
   glanceableConfigKeyIsInferred,
+  unsafePresentation,
 ];

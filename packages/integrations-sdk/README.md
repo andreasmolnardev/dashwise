@@ -91,6 +91,14 @@ applicable filters. `IntegrationConfigValues<typeof widgetConfig>` infers the
 settings value types. Compile-time coverage lives in
 [`contracts/shortcut-select.typecheck.ts`](./contracts/shortcut-select.typecheck.ts).
 
+SDK contributions carry the existing IntegrationsKit presentation payloads.
+Widgets can select `columns`, `vertical-list`, `icon-details-card`, `iframe`,
+or `image` through `template`, and provide JSON-safe `properties` and optional
+`exampleProps`. Glanceables accept JSON-safe `properties`, `icon`, `text`,
+`columns`, and optional `exampleProps`. These map to the existing IntegrationsKit
+Widget and Glanceable JSON formats and renderers; SDK integrations do not provide
+executable frontend components or custom renderer functions.
+
 Use `resourceBindings` on a Widget or Glanceable to declare the resolved data
 it consumes. Each output key references a `shortcut-select` setting by
 `configKey`:
@@ -115,7 +123,9 @@ key (`ResourceRecord | undefined` for a single selection and a readonly record
 array for a multiple selection); resource changes update that bound data without
 requiring integrations to make direct API calls from Dashboard, Search, or
 Frame clients. App and collection filtering is configured on the referenced
-`shortcut-select` field and is validated during resolution.
+`shortcut-select` field and is validated during resolution. The runtime injects
+those values into the existing `data` object passed to IntegrationsKit so the
+standard template/property resolution path consumes the live resource data.
 
 Lifecycle hooks receive `integrations` with validated config, secret lookup,
 typed resources, serializable instance storage, action dispatch, activities,

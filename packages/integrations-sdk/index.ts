@@ -1,6 +1,7 @@
 /** JSON-compatible values accepted by runtime storage and transport. */
 export type JsonPrimitive = string | number | boolean | null;
 export type JsonValue = JsonPrimitive | readonly JsonValue[] | { readonly [key: string]: JsonValue };
+export type JsonObject = Readonly<Record<string, JsonValue>>;
 
 type ConfigFieldBase = { required?: boolean; title?: string; description?: string };
 export type ConfigField =
@@ -208,6 +209,24 @@ export type ResourceBindingValues<
     : never;
 };
 
+/** Templates currently dispatched by @dashwise/integrationskit/Widget. */
+export type WidgetTemplate =
+  | "columns"
+  | "vertical-list"
+  | "icon-details-card"
+  | "iframe"
+  | "image";
+export type GlanceableIcon =
+  | string
+  | null
+  | {
+      file?: string;
+      size?: number;
+      description?: string;
+      useFrostedGradient?: boolean;
+    };
+export type GlanceableColumn = Readonly<Record<string, JsonValue>>;
+
 export type WidgetContribution<
   Config extends ContributionConfigSchema = ContributionConfigSchema,
   Bindings extends ResourceBindingsFor<Config> = ResourceBindingsFor<Config>,
@@ -215,7 +234,13 @@ export type WidgetContribution<
   id: string;
   name: string;
   description?: string;
+  /** Existing IntegrationsKit renderer template; omitted values use "columns". */
+  template?: WidgetTemplate;
   configSchema?: Config;
+  /** JSON-safe declarative properties consumed by the selected renderer. */
+  properties?: JsonObject;
+  /** JSON-safe fallback values used by the existing Widget preview renderer. */
+  exampleProps?: JsonObject;
   /** Resolved current resource data supplied under each declared output key. */
   resourceBindings?: Bindings;
 };
@@ -227,6 +252,13 @@ export type GlanceableContribution<
   name: string;
   description?: string;
   configSchema?: Config;
+  /** JSON-safe declarative values consumed by the existing Glanceable renderer. */
+  properties?: JsonObject;
+  icon?: GlanceableIcon;
+  text?: JsonValue;
+  columns?: readonly GlanceableColumn[];
+  /** JSON-safe fallback values used by the existing Glanceable preview renderer. */
+  exampleProps?: JsonObject;
   /** Resolved current resource data supplied under each declared output key. */
   resourceBindings?: Bindings;
 };
@@ -236,7 +268,13 @@ type IntegrationContributionInput = {
   id: string;
   name: string;
   description?: string;
+  template?: WidgetTemplate;
   configSchema?: ContributionConfigSchema;
+  properties?: JsonObject;
+  exampleProps?: JsonObject;
+  icon?: GlanceableIcon;
+  text?: JsonValue;
+  columns?: readonly GlanceableColumn[];
   resourceBindings?: Readonly<Record<string, ResourceBinding<string>>>;
 };
 export type IntegrationActivity = {
