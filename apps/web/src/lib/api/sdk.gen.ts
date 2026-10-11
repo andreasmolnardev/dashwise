@@ -3,7 +3,7 @@
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { DeleteActivitiesByIdData, DeleteActivitiesByIdErrors, DeleteActivitiesByIdResponses, DeleteAuthDeleteAccountData, DeleteAuthDeleteAccountErrors, DeleteAuthDeleteAccountResponses, DeleteIntegrationsByIdData, DeleteIntegrationsByIdResponses, DeleteLinksDevUserLinksData, DeleteLinksDevUserLinksResponses, DeleteLinksHomeGroupsByGroupNameData, DeleteLinksHomeGroupsByGroupNameResponses, DeleteLinksItemsByLinkIdData, DeleteLinksItemsByLinkIdResponses, DeleteMonitoringHostsByIdData, DeleteMonitoringHostsByIdResponses, DeleteMonitoringSshHostsByIdData, DeleteMonitoringSshHostsByIdResponses, DeleteMonitorsByIdData, DeleteMonitorsByIdResponses, DeleteNewsFeedRecordsByIdData, DeleteNewsFeedRecordsByIdResponses, DeleteNotificationsForwardersData, DeleteNotificationsForwardersResponses, DeleteNotificationsTopicsData, DeleteNotificationsTopicsResponses, DeleteNotificationsTopicTokensData, DeleteNotificationsTopicTokensResponses, GetActivitiesByIdData, GetActivitiesByIdErrors, GetActivitiesByIdResponses, GetActivitiesData, GetActivitiesErrors, GetActivitiesResponses, GetAppConfigData, GetAppConfigResponses, GetAppInfoData, GetAppInfoResponses, GetAuthCallbackData, GetAuthCallbackResponses, GetAuthSsoData, GetAuthSsoResponses, GetGlanceablesByIntegrationData, GetGlanceablesByIntegrationResponses, GetGlanceablesData, GetGlanceablesResponses, GetIntegrationsCaldavEventsData, GetIntegrationsCaldavEventsResponses, GetIntegrationsConsumerDataData, GetIntegrationsConsumerDataResponses, GetIntegrationsData, GetIntegrationsResponses, GetIntegrationsWidgetPropertiesData, GetIntegrationsWidgetPropertiesResponses, GetJobsPullIconsData, GetJobsPullIconsErrors, GetJobsPullIconsResponses, GetJobsShortcutsData, GetJobsShortcutsResponses, GetLinksCollectionsData, GetLinksCollectionsResponses, GetLinksFoldersData, GetLinksFoldersResponses, GetLinksHomeData, GetLinksHomeGroupsData, GetLinksHomeGroupsResponses, GetLinksHomeResponses, GetLinksItemsData, GetLinksItemsResponses, GetLinksMetadataData, GetLinksMetadataResponses, GetLinksTagsData, GetLinksTagsResponses, GetLocationsData, GetLocationsResponses, GetMonitoringHostsByIdData, GetMonitoringHostsByIdHistoryData, GetMonitoringHostsByIdHistoryResponses, GetMonitoringHostsByIdResponses, GetMonitoringHostsByIdStatsData, GetMonitoringHostsByIdStatsResponses, GetMonitoringHostsData, GetMonitoringHostsResponses, GetMonitoringSshHostsData, GetMonitoringSshHostsResponses, GetMonitoringStatusData, GetMonitoringStatusResponses, GetMonitorsByIdData, GetMonitorsByIdResponses, GetMonitorsData, GetMonitorsResponses, GetNewsData, GetNewsFeedData, GetNewsFeedMetadataData, GetNewsFeedMetadataResponses, GetNewsFeedRecordsByIdData, GetNewsFeedRecordsByIdResponses, GetNewsFeedRefreshData, GetNewsFeedRefreshResponses, GetNewsFeedResponses, GetNewsFeedsByIdData, GetNewsFeedsByIdResponses, GetNewsFeedsData, GetNewsFeedsResponses, GetNewsResponses, GetNewsSubscriptionsByIdJsonData, GetNewsSubscriptionsByIdJsonResponses, GetNewsSubscriptionsData, GetNewsSubscriptionsResponses, GetNotificationsData, GetNotificationsForwardersData, GetNotificationsForwardersResponses, GetNotificationsResponses, GetNotificationsTopicsData, GetNotificationsTopicsResponses, GetNotificationsTopicTokensData, GetNotificationsTopicTokensResponses, GetPageConfigData, GetPageConfigResponses, GetPageConfigUserPagesData, GetPageConfigUserPagesResponses, GetSessionsCurrentData, GetSessionsCurrentErrors, GetSessionsCurrentResponses, GetShortcutsData, GetShortcutsFrequentlyUsedData, GetShortcutsFrequentlyUsedResponses, GetShortcutsResponses, GetTestBookmarksData, GetTestBookmarksResponses, GetWallpapersData, GetWallpapersResponses, GetWeatherData, GetWeatherResponses, GetWidgetsByIntegrationData, GetWidgetsByIntegrationResponses, GetWidgetsData, GetWidgetsGlanceableData, GetWidgetsGlanceableResponses, GetWidgetsGlanceablesData, GetWidgetsGlanceablesResponses, GetWidgetsResponses, PatchAuthUpdateUserPropertyData, PatchAuthUpdateUserPropertyErrors, PatchAuthUpdateUserPropertyResponses, PatchSessionsCurrentData, PatchSessionsCurrentErrors, PatchSessionsCurrentResponses, PostAuthChangePasswordData, PostAuthChangePasswordErrors, PostAuthChangePasswordResponses, PostAuthLoginData, PostAuthLoginErrors, PostAuthLoginResponses, PostAuthMfaData, PostAuthMfaErrors, PostAuthMfaResponses, PostAuthSignupData, PostAuthSignupErrors, PostAuthSignupResponses, PostAuthValidateAuthData, PostAuthValidateAuthErrors, PostAuthValidateAuthResponses, PostIntegrationsByIntegrationIdActivitiesData, PostIntegrationsByIntegrationIdActivitiesErrors, PostIntegrationsByIntegrationIdActivitiesResponses, PostIntegrationsConsumerDataData, PostIntegrationsConsumerDataResponses, PostIntegrationsData, PostIntegrationsProxyActionData, PostIntegrationsProxyActionResponses, PostIntegrationsResponses, PostIntegrationsTestEndpointData, PostIntegrationsTestEndpointResponses, PostLinksCollectionsData, PostLinksCollectionsResponses, PostLinksFoldersData, PostLinksFoldersResponses, PostLinksHomeGroupsCleanupData, PostLinksHomeGroupsCleanupResponses, PostLinksHomeGroupsData, PostLinksHomeGroupsResponses, PostLinksItemsData, PostLinksItemsResponses, PostLinksReorderData, PostLinksReorderResponses, PostLinksTagsData, PostLinksTagsResponses, PostMonitoringHostsByIdRefreshData, PostMonitoringHostsByIdRefreshErrors, PostMonitoringHostsByIdRefreshResponses, PostMonitoringHostsData, PostMonitoringHostsResponses, PostMonitoringSshHostsData, PostMonitoringSshHostsResponses, PostMonitoringStatusData, PostMonitoringStatusErrors, PostMonitoringStatusResponses, PostMonitorsData, PostMonitorsResponses, PostNewsFeedRecordsByIdData, PostNewsFeedRecordsByIdResponses, PostNewsFeedRecordsData, PostNewsFeedRecordsResponses, PostNewsFeedRefreshData, PostNewsFeedRefreshResponses, PostNewsFeedSubscribeData, PostNewsFeedSubscribeResponses, PostNewsFeedUnsubscribeData, PostNewsFeedUnsubscribeResponses, PostNewsFeedUpdateData, PostNewsFeedUpdateResponses, PostNewsFixMissingTitlesData, PostNewsFixMissingTitlesResponses, PostNotificationsByTopicData, PostNotificationsByTopicResponses, PostNotificationsData, PostNotificationsForwardersData, PostNotificationsForwardersResponses, PostNotificationsForwardersTestData, PostNotificationsForwardersTestResponses, PostNotificationsMarkAsReadData, PostNotificationsMarkAsReadResponses, PostNotificationsResponses, PostNotificationsTestData, PostNotificationsTestResponses, PostNotificationsTopicsData, PostNotificationsTopicsResponses, PostNotificationsTopicTokensData, PostNotificationsTopicTokensResponses, PostPageConfigHomeData, PostPageConfigHomeResponses, PostPageConfigIntegrationDataData, PostPageConfigIntegrationDataResponses, PostPageConfigMigrateLegacyData, PostPageConfigMigrateLegacyResponses, PostShortcutsAppsData, PostShortcutsAppsErrors, PostShortcutsAppsResponses, PostShortcutsUsageStatsData, PostShortcutsUsageStatsResponses, PostWallpapersData, PostWallpapersResponses, PutIntegrationsByIdData, PutIntegrationsByIdResponses, PutLinksCollectionsByCollectionIdData, PutLinksCollectionsByCollectionIdResponses, PutLinksFoldersByFolderIdIconData, PutLinksFoldersByFolderIdIconResponses, PutLinksHomeGroupsData, PutLinksHomeGroupsResponses, PutLinksItemsByLinkIdData, PutLinksItemsByLinkIdResponses, PutLinksTagsByTagIdData, PutLinksTagsByTagIdResponses, PutMonitoringHostsByIdData, PutMonitoringHostsByIdResponses, PutMonitoringSshHostsByIdData, PutMonitoringSshHostsByIdResponses, PutMonitorsByIdData, PutMonitorsByIdResponses, PutNotificationsForwardersData, PutNotificationsForwardersResponses, PutNotificationsTopicTokensData, PutNotificationsTopicTokensResponses, PutPageConfigData, PutPageConfigResponses, PutShortcutsOnDemandByAppIdData, PutShortcutsOnDemandByAppIdErrors, PutShortcutsOnDemandByAppIdResponses } from './types.gen';
+import type { DeleteActivitiesByIdData, DeleteActivitiesByIdErrors, DeleteActivitiesByIdResponses, DeleteAuthDeleteAccountData, DeleteAuthDeleteAccountErrors, DeleteAuthDeleteAccountResponses, DeleteIntegrationsByIdData, DeleteIntegrationsByIdResponses, DeleteLinksDevUserLinksData, DeleteLinksDevUserLinksResponses, DeleteLinksHomeGroupsByGroupNameData, DeleteLinksHomeGroupsByGroupNameResponses, DeleteLinksItemsByLinkIdData, DeleteLinksItemsByLinkIdResponses, DeleteMonitoringHostsByIdData, DeleteMonitoringHostsByIdResponses, DeleteMonitoringSshHostsByIdData, DeleteMonitoringSshHostsByIdResponses, DeleteMonitorsByIdData, DeleteMonitorsByIdResponses, DeleteNewsFeedRecordsByIdData, DeleteNewsFeedRecordsByIdResponses, DeleteNotificationsForwardersData, DeleteNotificationsForwardersResponses, DeleteNotificationsTopicsData, DeleteNotificationsTopicsResponses, DeleteNotificationsTopicTokensData, DeleteNotificationsTopicTokensResponses, DeleteSessionsBySessionIdData, DeleteSessionsBySessionIdErrors, DeleteSessionsBySessionIdResponses, GetActivitiesByIdData, GetActivitiesByIdErrors, GetActivitiesByIdResponses, GetActivitiesData, GetActivitiesErrors, GetActivitiesResponses, GetAppConfigData, GetAppConfigResponses, GetAppInfoData, GetAppInfoResponses, GetAuthCallbackData, GetAuthCallbackResponses, GetAuthSsoData, GetAuthSsoResponses, GetGlanceablesByIntegrationData, GetGlanceablesByIntegrationResponses, GetGlanceablesData, GetGlanceablesResponses, GetIntegrationsCaldavEventsData, GetIntegrationsCaldavEventsResponses, GetIntegrationsConsumerDataData, GetIntegrationsConsumerDataResponses, GetIntegrationsData, GetIntegrationsResponses, GetIntegrationsWidgetPropertiesData, GetIntegrationsWidgetPropertiesResponses, GetJobsPullIconsData, GetJobsPullIconsErrors, GetJobsPullIconsResponses, GetJobsShortcutsData, GetJobsShortcutsResponses, GetLinksCollectionsData, GetLinksCollectionsResponses, GetLinksFoldersData, GetLinksFoldersResponses, GetLinksHomeData, GetLinksHomeGroupsData, GetLinksHomeGroupsResponses, GetLinksHomeResponses, GetLinksItemsData, GetLinksItemsResponses, GetLinksMetadataData, GetLinksMetadataResponses, GetLinksTagsData, GetLinksTagsResponses, GetLocationsData, GetLocationsResponses, GetMonitoringHostsByIdData, GetMonitoringHostsByIdHistoryData, GetMonitoringHostsByIdHistoryResponses, GetMonitoringHostsByIdResponses, GetMonitoringHostsByIdStatsData, GetMonitoringHostsByIdStatsResponses, GetMonitoringHostsData, GetMonitoringHostsResponses, GetMonitoringSshHostsData, GetMonitoringSshHostsResponses, GetMonitoringStatusData, GetMonitoringStatusResponses, GetMonitorsByIdData, GetMonitorsByIdResponses, GetMonitorsData, GetMonitorsResponses, GetNewsData, GetNewsFeedData, GetNewsFeedMetadataData, GetNewsFeedMetadataResponses, GetNewsFeedRecordsByIdData, GetNewsFeedRecordsByIdResponses, GetNewsFeedRefreshData, GetNewsFeedRefreshResponses, GetNewsFeedResponses, GetNewsFeedsByIdData, GetNewsFeedsByIdResponses, GetNewsFeedsData, GetNewsFeedsResponses, GetNewsResponses, GetNewsSubscriptionsByIdJsonData, GetNewsSubscriptionsByIdJsonResponses, GetNewsSubscriptionsData, GetNewsSubscriptionsResponses, GetNotificationsData, GetNotificationsForwardersData, GetNotificationsForwardersResponses, GetNotificationsResponses, GetNotificationsTopicsData, GetNotificationsTopicsResponses, GetNotificationsTopicTokensData, GetNotificationsTopicTokensResponses, GetPageConfigData, GetPageConfigResponses, GetPageConfigUserPagesData, GetPageConfigUserPagesResponses, GetSessionsCurrentData, GetSessionsCurrentErrors, GetSessionsCurrentResponses, GetSessionsData, GetSessionsErrors, GetSessionsResponses, GetShortcutsData, GetShortcutsFrequentlyUsedData, GetShortcutsFrequentlyUsedResponses, GetShortcutsResponses, GetTestBookmarksData, GetTestBookmarksErrors, GetTestBookmarksResponses, GetWallpapersData, GetWallpapersErrors, GetWallpapersResponses, GetWeatherData, GetWeatherErrors, GetWeatherResponses, GetWidgetsByIntegrationData, GetWidgetsByIntegrationResponses, GetWidgetsData, GetWidgetsGlanceableData, GetWidgetsGlanceableResponses, GetWidgetsGlanceablesData, GetWidgetsGlanceablesResponses, GetWidgetsResponses, PatchAuthUpdateUserPropertyData, PatchAuthUpdateUserPropertyErrors, PatchAuthUpdateUserPropertyResponses, PatchSessionsCurrentData, PatchSessionsCurrentErrors, PatchSessionsCurrentResponses, PostAuthChangePasswordData, PostAuthChangePasswordErrors, PostAuthChangePasswordResponses, PostAuthLoginData, PostAuthLoginErrors, PostAuthLoginResponses, PostAuthMfaData, PostAuthMfaErrors, PostAuthMfaResponses, PostAuthSignupData, PostAuthSignupErrors, PostAuthSignupResponses, PostAuthValidateAuthData, PostAuthValidateAuthErrors, PostAuthValidateAuthResponses, PostIntegrationsByIntegrationIdActivitiesData, PostIntegrationsByIntegrationIdActivitiesErrors, PostIntegrationsByIntegrationIdActivitiesResponses, PostIntegrationsConsumerDataData, PostIntegrationsConsumerDataResponses, PostIntegrationsData, PostIntegrationsProxyActionData, PostIntegrationsProxyActionResponses, PostIntegrationsResponses, PostIntegrationsTestEndpointData, PostIntegrationsTestEndpointResponses, PostLinksCollectionsData, PostLinksCollectionsResponses, PostLinksFoldersData, PostLinksFoldersResponses, PostLinksHomeGroupsCleanupData, PostLinksHomeGroupsCleanupResponses, PostLinksHomeGroupsData, PostLinksHomeGroupsResponses, PostLinksItemsData, PostLinksItemsResponses, PostLinksReorderData, PostLinksReorderResponses, PostLinksTagsData, PostLinksTagsResponses, PostMonitoringHostsByIdRefreshData, PostMonitoringHostsByIdRefreshErrors, PostMonitoringHostsByIdRefreshResponses, PostMonitoringHostsData, PostMonitoringHostsResponses, PostMonitoringSshHostsData, PostMonitoringSshHostsResponses, PostMonitoringStatusData, PostMonitoringStatusErrors, PostMonitoringStatusResponses, PostMonitorsData, PostMonitorsResponses, PostNewsFeedRecordsByIdData, PostNewsFeedRecordsByIdResponses, PostNewsFeedRecordsData, PostNewsFeedRecordsResponses, PostNewsFeedRefreshData, PostNewsFeedRefreshResponses, PostNewsFeedSubscribeData, PostNewsFeedSubscribeResponses, PostNewsFeedUnsubscribeData, PostNewsFeedUnsubscribeResponses, PostNewsFeedUpdateData, PostNewsFeedUpdateResponses, PostNewsFixMissingTitlesData, PostNewsFixMissingTitlesResponses, PostNotificationsByTopicData, PostNotificationsByTopicResponses, PostNotificationsData, PostNotificationsForwardersData, PostNotificationsForwardersResponses, PostNotificationsForwardersTestData, PostNotificationsForwardersTestResponses, PostNotificationsMarkAsReadData, PostNotificationsMarkAsReadResponses, PostNotificationsResponses, PostNotificationsTestData, PostNotificationsTestResponses, PostNotificationsTopicsData, PostNotificationsTopicsResponses, PostNotificationsTopicTokensData, PostNotificationsTopicTokensResponses, PostPageConfigHomeData, PostPageConfigHomeResponses, PostPageConfigIntegrationDataData, PostPageConfigIntegrationDataResponses, PostPageConfigMigrateLegacyData, PostPageConfigMigrateLegacyResponses, PostShortcutsAppsData, PostShortcutsAppsErrors, PostShortcutsAppsResponses, PostShortcutsUsageStatsData, PostShortcutsUsageStatsResponses, PostWallpapersData, PostWallpapersErrors, PostWallpapersResponses, PutIntegrationsByIdData, PutIntegrationsByIdResponses, PutLinksCollectionsByCollectionIdData, PutLinksCollectionsByCollectionIdResponses, PutLinksFoldersByFolderIdIconData, PutLinksFoldersByFolderIdIconResponses, PutLinksHomeGroupsData, PutLinksHomeGroupsResponses, PutLinksItemsByLinkIdData, PutLinksItemsByLinkIdResponses, PutLinksTagsByTagIdData, PutLinksTagsByTagIdResponses, PutMonitoringHostsByIdData, PutMonitoringHostsByIdResponses, PutMonitoringSshHostsByIdData, PutMonitoringSshHostsByIdResponses, PutMonitorsByIdData, PutMonitorsByIdResponses, PutNotificationsForwardersData, PutNotificationsForwardersResponses, PutNotificationsTopicTokensData, PutNotificationsTopicTokensResponses, PutPageConfigData, PutPageConfigResponses, PutShortcutsOnDemandByAppIdData, PutShortcutsOnDemandByAppIdErrors, PutShortcutsOnDemandByAppIdResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -63,8 +63,11 @@ export const postAuthChangePassword = <ThrowOnError extends boolean = false>(opt
 
 /**
  * Delete account
+ *
+ * Requires an active device session plus password/TOTP confirmation for the same user.
  */
 export const deleteAuthDeleteAccount = <ThrowOnError extends boolean = false>(options?: Options<DeleteAuthDeleteAccountData, ThrowOnError>): RequestResult<DeleteAuthDeleteAccountResponses, DeleteAuthDeleteAccountErrors, ThrowOnError> => (options?.client ?? client).delete<DeleteAuthDeleteAccountResponses, DeleteAuthDeleteAccountErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
     url: '/auth/delete-account',
     ...options,
     headers: {
@@ -139,14 +142,41 @@ export const patchAuthUpdateUserProperty = <ThrowOnError extends boolean = false
 });
 
 /**
- * Get the current client session
+ * List device sessions
  */
-export const getSessionsCurrent = <ThrowOnError extends boolean = false>(options?: Options<GetSessionsCurrentData, ThrowOnError>): RequestResult<GetSessionsCurrentResponses, GetSessionsCurrentErrors, ThrowOnError> => (options?.client ?? client).get<GetSessionsCurrentResponses, GetSessionsCurrentErrors, ThrowOnError>({ url: '/sessions/current', ...options });
+export const getSessions = <ThrowOnError extends boolean = false>(options?: Options<GetSessionsData, ThrowOnError>): RequestResult<GetSessionsResponses, GetSessionsErrors, ThrowOnError> => (options?.client ?? client).get<GetSessionsResponses, GetSessionsErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/sessions',
+    ...options
+});
+
+/**
+ * Revoke a device session and close its active connections
+ */
+export const deleteSessionsBySessionId = <ThrowOnError extends boolean = false>(options: Options<DeleteSessionsBySessionIdData, ThrowOnError>): RequestResult<DeleteSessionsBySessionIdResponses, DeleteSessionsBySessionIdErrors, ThrowOnError> => (options.client ?? client).delete<DeleteSessionsBySessionIdResponses, DeleteSessionsBySessionIdErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/sessions/{sessionId}',
+    ...options
+});
+
+/**
+ * Get the current client session
+ *
+ * Returns public session metadata only; internal authentication credentials are never returned.
+ */
+export const getSessionsCurrent = <ThrowOnError extends boolean = false>(options?: Options<GetSessionsCurrentData, ThrowOnError>): RequestResult<GetSessionsCurrentResponses, GetSessionsCurrentErrors, ThrowOnError> => (options?.client ?? client).get<GetSessionsCurrentResponses, GetSessionsCurrentErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/sessions/current',
+    ...options
+});
 
 /**
  * Rename the current client session
+ *
+ * Updates the authenticated session display name and returns public metadata only.
  */
 export const patchSessionsCurrent = <ThrowOnError extends boolean = false>(options?: Options<PatchSessionsCurrentData, ThrowOnError>): RequestResult<PatchSessionsCurrentResponses, PatchSessionsCurrentErrors, ThrowOnError> => (options?.client ?? client).patch<PatchSessionsCurrentResponses, PatchSessionsCurrentErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
     url: '/sessions/current',
     ...options,
     headers: {
@@ -615,6 +645,8 @@ export const postNotificationsMarkAsRead = <ThrowOnError extends boolean = false
 
 /**
  * Send notification to topic
+ *
+ * Accepts a scoped topic token in the path, or a topic ID with a Dashwise device-session bearer token. User/password Basic authentication is not supported.
  */
 export const postNotificationsByTopic = <ThrowOnError extends boolean = false>(options: Options<PostNotificationsByTopicData, ThrowOnError>): RequestResult<PostNotificationsByTopicResponses, unknown, ThrowOnError> => (options.client ?? client).post<PostNotificationsByTopicResponses, unknown, ThrowOnError>({
     url: '/notifications/{topic}',
@@ -724,18 +756,33 @@ export const getPageConfigUserPages = <ThrowOnError extends boolean = false>(opt
 
 /**
  * Test bookmarks
+ *
+ * Authenticated placeholder endpoint.
  */
-export const getTestBookmarks = <ThrowOnError extends boolean = false>(options?: Options<GetTestBookmarksData, ThrowOnError>): RequestResult<GetTestBookmarksResponses, unknown, ThrowOnError> => (options?.client ?? client).get<GetTestBookmarksResponses, unknown, ThrowOnError>({ url: '/test/bookmarks', ...options });
+export const getTestBookmarks = <ThrowOnError extends boolean = false>(options?: Options<GetTestBookmarksData, ThrowOnError>): RequestResult<GetTestBookmarksResponses, GetTestBookmarksErrors, ThrowOnError> => (options?.client ?? client).get<GetTestBookmarksResponses, GetTestBookmarksErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/test/bookmarks',
+    ...options
+});
 
 /**
  * Get wallpaper
+ *
+ * Requires an active device session and returns only its user's wallpaper with private, no-store caching.
  */
-export const getWallpapers = <ThrowOnError extends boolean = false>(options?: Options<GetWallpapersData, ThrowOnError>): RequestResult<GetWallpapersResponses, unknown, ThrowOnError> => (options?.client ?? client).get<GetWallpapersResponses, unknown, ThrowOnError>({ url: '/wallpapers', ...options });
+export const getWallpapers = <ThrowOnError extends boolean = false>(options?: Options<GetWallpapersData, ThrowOnError>): RequestResult<GetWallpapersResponses, GetWallpapersErrors, ThrowOnError> => (options?.client ?? client).get<GetWallpapersResponses, GetWallpapersErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/wallpapers',
+    ...options
+});
 
 /**
  * Upload or update wallpaper
+ *
+ * Accepts a Dashwise device-session token. Authorization headers take precedence over legacy body/query transports.
  */
-export const postWallpapers = <ThrowOnError extends boolean = false>(options: Options<PostWallpapersData, ThrowOnError>): RequestResult<PostWallpapersResponses, unknown, ThrowOnError> => (options.client ?? client).post<PostWallpapersResponses, unknown, ThrowOnError>({
+export const postWallpapers = <ThrowOnError extends boolean = false>(options: Options<PostWallpapersData, ThrowOnError>): RequestResult<PostWallpapersResponses, PostWallpapersErrors, ThrowOnError> => (options.client ?? client).post<PostWallpapersResponses, PostWallpapersErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
     url: '/wallpapers',
     ...options,
     headers: {
@@ -761,8 +808,14 @@ export const getWidgetsGlanceables = <ThrowOnError extends boolean = false>(opti
 
 /**
  * Get weather
+ *
+ * Authenticated placeholder endpoint.
  */
-export const getWeather = <ThrowOnError extends boolean = false>(options?: Options<GetWeatherData, ThrowOnError>): RequestResult<GetWeatherResponses, unknown, ThrowOnError> => (options?.client ?? client).get<GetWeatherResponses, unknown, ThrowOnError>({ url: '/weather', ...options });
+export const getWeather = <ThrowOnError extends boolean = false>(options?: Options<GetWeatherData, ThrowOnError>): RequestResult<GetWeatherResponses, GetWeatherErrors, ThrowOnError> => (options?.client ?? client).get<GetWeatherResponses, GetWeatherErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/weather',
+    ...options
+});
 
 /**
  * Create home page

@@ -5,8 +5,12 @@ import { upgradeWebSocket, websocket } from "hono/bun";
 import { cors } from "hono/cors";
 import { Client as SshClient } from "ssh2";
 
+import { isSessionActive } from "./lib/data/sessions";
+import { trackSessionConnection, type SessionConnection } from "./lib/session-connections";
+
 import { config } from "./lib/config";
 import {
+  type ActivityConnection,
   handleActivityMessage,
   registerSessionConnection,
   subscribeActivity,
@@ -117,6 +121,16 @@ app.get("/api/v1/activity",  upgradeWebSocket((c) => {
   let refreshTimer: ReturnType<typeof setInterval> | undefined;
   let unsubscribeActivity: (() => void) | undefined;
   let unregisterSessionConnection: (() => void) | undefined;
+  let lifecycle: SessionConnection | undefined;
+  let closed = false;
+  const cleanup = () => {
+    closed = true;
+    if (refreshTimer) clearInterval(refreshTimer);
+    unsubscribeActivity?.();
+    unregisterSessionConnection?.();
+    lifecycle?.dispose();
+  };
+  let activityConnection: ActivityConnection | undefined;
   let connectedUserId = "";
   let connectedSessionId = "";
 
@@ -126,9 +140,24 @@ app.get("/api/v1/activity",  upgradeWebSocket((c) => {
       const requestedSessionId = c.req.query("sessionId") || c.req.header("x-session-id") || null;
       try {
         const { userId, pb, sessionId } = await requireAuth({ token, sessionId: requestedSessionId });
+        if (closed) return;
+        lifecycle = trackSessionConnection({ userId, sessionId,
+          validate: () => isSessionActive(userId, sessionId),
+          close: () => { cleanup(); ws.close(1008, "Session ended"); },
+        });
+        if (!await lifecycle.ensureValid() || !lifecycle?.isActive()) return;
         connectedUserId = userId;
         connectedSessionId = sessionId;
-        unregisterSessionConnection = registerSessionConnection(userId, sessionId, ws);
+        activityConnection = {
+          send(data) {
+            void lifecycle?.ensureValid().then((valid) => {
+              if (valid && lifecycle?.isActive()) {
+                try { ws.send(data); } catch { cleanup(); }
+              }
+            });
+          },
+        };
+        unregisterSessionConnection = registerSessionConnection(userId, sessionId, activityConnection);
         let calendarEvents: Array<Record<string, any>> = [];
         let calendarRefreshedAt = 0;
         let calendarRefresh: Promise<void> | null = null;
@@ -155,11 +184,13 @@ app.get("/api/v1/activity",  upgradeWebSocket((c) => {
           return calendarRefresh;
         };
         const sendSnapshot = async () => {
+          if (!await lifecycle?.ensureValid() || !lifecycle?.isActive()) return;
           const [notificationResult, activityResult] = await Promise.all([
             getNotifications(userId),
             listActivities(userId, { page: 1, perPage: 20 }),
             refreshCalendarEvents(),
           ]);
+          if (!await lifecycle?.ensureValid() || !lifecycle?.isActive()) return;
           ws.send(JSON.stringify({
             type: "activity:snapshot",
             notifications: notificationResult.items,
@@ -170,19 +201,21 @@ app.get("/api/v1/activity",  upgradeWebSocket((c) => {
 
         unsubscribeActivity = subscribeActivity(userId, sendSnapshot);
         await sendSnapshot();
+        if (!lifecycle?.isActive()) return;
         refreshTimer = setInterval(() => void sendSnapshot().catch(() => undefined), 30_000);
         (ws as typeof ws & { data: { sendSnapshot: () => Promise<void> } }).data = { sendSnapshot };
       } catch {
         ws.close(1008, "Unauthorized");
       }
     },
-    onMessage(event, ws) {
+    async onMessage(event, ws) {
+      if (!await lifecycle?.ensureValid() || !lifecycle?.isActive()) return;
       try {
         const message = JSON.parse(String(event.data));
-        if (connectedUserId && connectedSessionId && handleActivityMessage(
+        if (connectedUserId && connectedSessionId && activityConnection && handleActivityMessage(
           connectedUserId,
           connectedSessionId,
-          ws,
+          activityConnection,
           message,
         )) return;
         if (message.type === "activity:subscribe" || message.type === "activity:refresh") {
@@ -193,18 +226,19 @@ app.get("/api/v1/activity",  upgradeWebSocket((c) => {
       }
     },
     onClose() {
-      if (refreshTimer) clearInterval(refreshTimer);
-      unsubscribeActivity?.();
-      unregisterSessionConnection?.();
+      cleanup();
     },
   };
 }));
 
 app.get("/api/v1/monitoring/ssh-hosts/:id/console", upgradeWebSocket((c) => {
+  let lifecycle: SessionConnection | undefined;
+  let closed = false;
   let ssh: SshClient | null = null;
   let stream: import("ssh2").ClientChannel | null = null;
 
-  const sendJson = (ws: { send: (data: string) => void }, payload: Record<string, unknown>) => {
+  const sendJson = async (ws: { send: (data: string) => void }, payload: Record<string, unknown>) => {
+    if (!await lifecycle?.ensureValid() || !lifecycle?.isActive()) return;
     try {
       ws.send(JSON.stringify(payload));
     } catch {
@@ -213,6 +247,8 @@ app.get("/api/v1/monitoring/ssh-hosts/:id/console", upgradeWebSocket((c) => {
   };
 
   const cleanup = () => {
+    closed = true;
+    lifecycle?.dispose();
     stream?.end();
     stream = null;
     ssh?.end();
@@ -226,7 +262,13 @@ app.get("/api/v1/monitoring/ssh-hosts/:id/console", upgradeWebSocket((c) => {
       const hostId = c.req.param("id") || "";
 
       try {
-        const { userId } = await requireAuth({ token, sessionId });
+        const { userId, sessionId: resolvedSessionId } = await requireAuth({ token, sessionId });
+        if (closed) return;
+        lifecycle = trackSessionConnection({ userId, sessionId: resolvedSessionId,
+          validate: () => isSessionActive(userId, resolvedSessionId),
+          close: () => { cleanup(); ws.close(1008, "Session ended"); },
+        });
+        if (!await lifecycle.ensureValid() || !lifecycle?.isActive()) return;
         const host = await getMonitoringSshHostById(userId, hostId);
         if (!host) {
           ws.send(JSON.stringify({ type: "error", message: "SSH host not found" }));
@@ -240,9 +282,11 @@ app.get("/api/v1/monitoring/ssh-hosts/:id/console", upgradeWebSocket((c) => {
           return;
         }
 
+        if (!await lifecycle.ensureValid() || !lifecycle?.isActive()) return;
         ssh = new SshClient();
         ssh
-          .on("ready", () => {
+          .on("ready", async () => {
+            if (!await lifecycle?.ensureValid() || !lifecycle?.isActive()) return;
             sendJson(ws, { type: "status", status: "connected", message: `Connected to ${host.username}@${host.hostname}:${host.port}` });
             ssh?.shell({ term: "xterm-256color", cols: 120, rows: 32 }, (error, channel) => {
               if (error) {
@@ -251,6 +295,7 @@ app.get("/api/v1/monitoring/ssh-hosts/:id/console", upgradeWebSocket((c) => {
                 return;
               }
 
+              if (!lifecycle?.isActive()) { channel.end(); return; }
               stream = channel;
               channel.on("data", (data: Buffer) => {
                 sendJson(ws, { type: "stdout", data: data.toString("utf8") });
@@ -286,8 +331,8 @@ app.get("/api/v1/monitoring/ssh-hosts/:id/console", upgradeWebSocket((c) => {
         ws.close(1008, "Unauthorized");
       }
     },
-    onMessage(event) {
-      if (!stream) return;
+    async onMessage(event) {
+      if (!await lifecycle?.ensureValid() || !lifecycle?.isActive() || !stream) return;
       try {
         const message = JSON.parse(String(event.data)) as { type?: string; cols?: number; rows?: number; data?: string };
 
@@ -309,18 +354,29 @@ app.get("/api/v1/monitoring/ssh-hosts/:id/console", upgradeWebSocket((c) => {
 
 app.get("/api/v1/monitoring/hosts/:id/stats/live", upgradeWebSocket((c) => {
   let unsubscribe: (() => void) | undefined;
+  let lifecycle: SessionConnection | undefined;
+  let closed = false;
+  const cleanup = () => { closed = true; unsubscribe?.(); lifecycle?.dispose(); };
   return {
     async onOpen(_event, ws) {
       const token = c.req.query("token") || c.req.header("Authorization")?.replace(/^Bearer\s+/i, "") || "";
       const sessionId = c.req.query("sessionId") || c.req.header("x-session-id") || null;
       try {
-        const { userId } = await requireAuth({ token, sessionId });
+        const { userId, sessionId: resolvedSessionId } = await requireAuth({ token, sessionId });
+        if (closed) return;
+        lifecycle = trackSessionConnection({ userId, sessionId: resolvedSessionId,
+          validate: () => isSessionActive(userId, resolvedSessionId),
+          close: () => { cleanup(); ws.close(1008, "Session ended"); },
+        });
+        if (!await lifecycle.ensureValid() || !lifecycle?.isActive()) return;
         const host = await getSystemAgentHostById(userId, c.req.param("id") || "");
         if (!host) {
           ws.close(1008, "Monitoring host not found");
           return;
         }
-        unsubscribe = systemAgentClient.subscribe(host.id, (entry) => {
+        if (!await lifecycle.ensureValid() || !lifecycle?.isActive()) return;
+        unsubscribe = systemAgentClient.subscribe(host.id, async (entry) => {
+          if (!await lifecycle?.ensureValid() || !lifecycle?.isActive()) return;
           try {
             ws.send(JSON.stringify(entry));
           } catch {
@@ -332,7 +388,7 @@ app.get("/api/v1/monitoring/hosts/:id/stats/live", upgradeWebSocket((c) => {
       }
     },
     onClose() {
-      unsubscribe?.();
+      cleanup();
     },
   };
 }));
@@ -449,6 +505,8 @@ app.get("/dashwise-icon.png", async (c) => servePublicFile(new URL(c.req.url).pa
 app.get("/dashwise-icon.svg", async (c) => servePublicFile(new URL(c.req.url).pathname));
 app.get("/dashwise-light.png", async (c) => servePublicFile(new URL(c.req.url).pathname));
 app.get("/dashwise-light.svg", async (c) => servePublicFile(new URL(c.req.url).pathname));
+
+app.all("/api/*", (c) => c.json({ error: "Not found" }, 404));
 
 app.get("*", async () => {
   const indexFile = Bun.file(join(publicDir, "index.html"));

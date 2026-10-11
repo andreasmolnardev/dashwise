@@ -5,13 +5,18 @@ import { getLocations } from "../lib/data/misc";
 import { runPullIcons } from "../lib/data/jobs";
 
 import { jobsApi, validateJobsBasicAuth } from "../jobs/index";
-import { readAuthToken, requireAuth, withGetContract, withJson } from "./shared";
+import { jsonErrorBody, readAuthToken, requireAuth, withGetContract, withJson } from "./shared";
 import {
   appConfigContract,
   appInfoContract,
 } from "../features/system/system.contract";
 
 const systemRoute = new Hono();
+
+systemRoute.onError((error, c) => {
+  const response = jsonErrorBody(error);
+  return c.json(response.body, response.status as any);
+});
 
 systemRoute.get("/api/v1/appConfig", withGetContract(appConfigContract, () => getAppConfig()));
 systemRoute.get("/api/v1/appInfo", withGetContract(appInfoContract, () => getAppInfo()));
@@ -45,7 +50,13 @@ systemRoute.get("/api/v1/jobs/pullIcons", async (c) => {
   return c.json(result, (result._status ?? 200) as any);
 });
 
-systemRoute.get("/api/v1/weather", async (c) => c.json({}));
-systemRoute.get("/api/v1/test/bookmarks", async (c) => c.json({}));
+systemRoute.get("/api/v1/weather", withJson(async (c) => {
+  await requireAuth({ token: readAuthToken(c) });
+  return {};
+}));
+systemRoute.get("/api/v1/test/bookmarks", withJson(async (c) => {
+  await requireAuth({ token: readAuthToken(c) });
+  return {};
+}));
 
 export default systemRoute;

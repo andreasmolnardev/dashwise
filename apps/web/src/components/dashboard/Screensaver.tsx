@@ -277,7 +277,7 @@ export default function Screensaver(
           return (
             <div
               key={frame.id}
-              className="h-full w-full flex-none snap-start relative overflow-hidden"
+              className="h-full w-full flex-none snap-start relative flex items-center justify-center overflow-hidden"
             >
               {backgroundUrl && (
                 <div

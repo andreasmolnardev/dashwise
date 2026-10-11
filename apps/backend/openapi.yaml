@@ -169,6 +169,9 @@ paths:
       tags:
         - auth
       summary: Delete account
+      description: Requires an active device session plus password/TOTP confirmation for the same user.
+      security:
+        - bearerAuth: []
       requestBody:
         $ref: "#/components/requestBodies/JsonBody"
       responses:
@@ -246,25 +249,74 @@ paths:
           $ref: "#/components/responses/JsonOk"
         "401":
           $ref: "#/components/responses/JsonUnauthorized"
+  /sessions:
+    get:
+      tags: [sessions]
+      summary: List device sessions
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Public session metadata
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PublicSession"
+        "401":
+          $ref: "#/components/responses/JsonUnauthorized"
+  /sessions/{sessionId}:
+    delete:
+      tags: [sessions]
+      summary: Revoke a device session and close its active connections
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+        "401":
+          $ref: "#/components/responses/JsonUnauthorized"
+        "404":
+          $ref: "#/components/responses/JsonNotFound"
   /sessions/current:
     get:
       tags:
         - sessions
       summary: Get the current client session
+      description: Returns public session metadata only; internal authentication credentials are never returned.
+      security:
+        - bearerAuth: []
       responses:
         "200":
-          $ref: "#/components/responses/JsonOk"
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicSession"
         "401":
           $ref: "#/components/responses/JsonUnauthorized"
     patch:
       tags:
         - sessions
       summary: Rename the current client session
+      description: Updates the authenticated session display name and returns public metadata only.
+      security:
+        - bearerAuth: []
       requestBody:
         $ref: "#/components/requestBodies/JsonBody"
       responses:
         "200":
-          $ref: "#/components/responses/JsonOk"
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicSession"
         "400":
           $ref: "#/components/responses/JsonBadRequest"
         "401":
@@ -942,6 +994,7 @@ paths:
       tags:
         - notifications
       summary: Send notification to topic
+      description: Accepts a scoped topic token in the path, or a topic ID with a Dashwise device-session bearer token. User/password Basic authentication is not supported.
       parameters:
         - name: topic
           in: path
@@ -1058,14 +1111,22 @@ paths:
       tags:
         - test
       summary: Test bookmarks
+      description: Authenticated placeholder endpoint.
+      security:
+        - bearerAuth: []
       responses:
         "200":
           $ref: "#/components/responses/JsonOk"
+        "401":
+          $ref: "#/components/responses/JsonUnauthorized"
   /wallpapers:
     post:
       tags:
         - wallpapers
       summary: Upload or update wallpaper
+      description: Accepts a Dashwise device-session token. Authorization headers take precedence over legacy body/query transports.
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -1106,13 +1167,20 @@ paths:
       responses:
         "200":
           $ref: "#/components/responses/JsonOk"
+        "401":
+          $ref: "#/components/responses/JsonUnauthorized"
     get:
       tags:
         - wallpapers
       summary: Get wallpaper
+      description: Requires an active device session and returns only its user's wallpaper with private, no-store caching.
+      security:
+        - bearerAuth: []
       responses:
         "200":
           $ref: "#/components/responses/JsonOk"
+        "401":
+          $ref: "#/components/responses/JsonUnauthorized"
   /widgets:
     get:
       tags:
@@ -1142,9 +1210,14 @@ paths:
       tags:
         - weather
       summary: Get weather
+      description: Authenticated placeholder endpoint.
+      security:
+        - bearerAuth: []
       responses:
         "200":
           $ref: "#/components/responses/JsonOk"
+        "401":
+          $ref: "#/components/responses/JsonUnauthorized"
   /pageConfig/home:
     post:
       tags:
@@ -1666,6 +1739,22 @@ components:
         activity:
           $ref: "#/components/schemas/Activity"
         duplicate: { type: boolean }
+    PublicSession:
+      type: object
+      additionalProperties: false
+      required: [id, user, sessionId, displayName, lastSeenAt]
+      properties:
+        id: { type: string }
+        user: { type: string }
+        sessionId: { type: string }
+        displayName: { type: string }
+        clientType: { type: string }
+        platform: { type: string }
+        lastSeenAt: { type: string }
+        expiresAt: { type: string }
+        revokedAt: { type: string }
+        created: { type: string }
+        updated: { type: string }
     GenericObject:
       type: object
       additionalProperties: true
@@ -1714,3 +1803,4 @@ components:
     bearerAuth:
       type: http
       scheme: bearer
+      description: Dashwise opaque device-session token with the dws_ prefix.

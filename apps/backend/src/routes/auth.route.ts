@@ -73,7 +73,7 @@ authRoute.get(
     withJson(async (c) => {
       const requestAuth = readAuth(c);
       const auth = await requireAuth(requestAuth);
-      return approveDeviceRequest((await readJsonBody<{ code?: string }>(c)).code, { ...auth, sessionId: requestAuth.sessionId }, c.req.header("x-forwarded-for")?.split(",")[0] ?? "unknown");
+      return approveDeviceRequest((await readJsonBody<{ code?: string }>(c)).code, auth, c.req.header("x-forwarded-for")?.split(",")[0] ?? "unknown");
     }),
   )
   .post(
@@ -137,9 +137,10 @@ authRoute.get(
     "/api/v1/auth/delete-account",
     withJson(async (c) => {
       const body = await readJsonBody<
-        { payload?: { email?: string; password?: string; totp?: string } }
+        { auth?: { token?: string | null; sessionId?: string | null }; payload?: { email?: string; password?: string; totp?: string } }
       >(c);
-      return deleteAccount({
+      const headerAuth = readAuth(c);
+      return deleteAccount(headerAuth.token ? headerAuth : body.auth ?? {}, {
         email: String(body?.payload?.email ?? ""),
         password: String(body?.payload?.password ?? ""),
         totp: typeof body?.payload?.totp === "string"

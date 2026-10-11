@@ -1,6 +1,7 @@
 import type { RecordModel } from "pocketbase";
 import { ClientResponseError, getServerPB, getSuperuserPB } from "../pb/pocketbase";
-import { createSession, hashSessionToken } from "./sessions";
+import { createSession, hashSessionToken, revokeUserSessions } from "./sessions";
+import { revokeUserConnections } from "../session-connections";
 import { defaultHomeConfig } from "@dashwise/assets";
 import type { UsersResponse } from "@dashwise/types";
 
@@ -133,8 +134,10 @@ export async function requireUserAuth(auth?: ActionAuth) {
   }
 
   const now = Date.now();
-  const idleExpired = !session.lastSeenAt || Date.parse(session.lastSeenAt) + 30 * 24 * 60 * 60 * 1000 <= now;
-  if (session.revokedAt || !session.expiresAt || Date.parse(session.expiresAt) <= now || idleExpired || !session.pocketbaseToken) {
+  const expiresAt = Date.parse(session.expiresAt ?? "");
+  const lastSeenAt = Date.parse(session.lastSeenAt ?? "");
+  const idleExpired = !Number.isFinite(lastSeenAt) || lastSeenAt + 30 * 24 * 60 * 60 * 1000 <= now;
+  if (session.revokedAt || !Number.isFinite(expiresAt) || expiresAt <= now || idleExpired || !session.pocketbaseToken || !session.sessionId) {
     throw new ApiActionError("Unauthorized", 401, { error: "Unauthorized" });
   }
 
@@ -335,12 +338,15 @@ export async function changePassword(
     passwordConfirm: confirmPassword,
   });
 
+  await revokeUserSessions(userId);
   return { message: "Password changed successfully. Please log in again." };
 }
 
 export async function deleteAccount(
+  auth: ActionAuth,
   payload: { email: string; password: string; totp?: string },
 ) {
+  const { userId } = await requireUserAuth(auth);
   const { email, password, totp } = payload;
   if (!email || !password) {
     throw new ApiActionError("Email and password are required", 400, {
@@ -354,6 +360,10 @@ export async function deleteAccount(
     password,
   );
   const user = authData.record as AuthUserRecord & { id: string; totpSecret?: string };
+
+  if (user.id !== userId) {
+    throw new ApiActionError("Unauthorized", 401, { error: "Unauthorized" });
+  }
 
   if (user.totpSecret) {
     if (!totp) {
@@ -381,6 +391,7 @@ export async function deleteAccount(
   }
 
   await pb.collection("users").delete(user.id);
+  revokeUserConnections(userId);
   try {
     pb.authStore.clear();
   } catch {

@@ -3,11 +3,13 @@ Dashwise can act as a notification gateway for anything that can call an HTTP we
 
 ## Receiving notifications from external systems
 
-### POST /api/v1/notifications
-- **Auth:** A topic token (see below) passed either as `Authorization: Bearer <topicToken>` or via the `?token=` query parameter.
-- **Body:** Any JSON payload. Whatever you send becomes the `content` of the `notificationItems` entry in PocketBase (Dashwise does not impose a schema).
-- **Behavior:** The token is resolved against `notificationTopicTokens`. If it exists, is not expired, and is linked to a topic, the server creates a `notificationItems` document with `status: sent`, `source: token`, and the provided content. The response is `201 Created` with `{ ok: true, topicId, itemId }`.
-- **Errors:** `401` if the token is missing or invalid, `400` if the token resolves but lacks a topic.
+### POST /api/v1/notifications/{topic}
+- **Auth:** Use a scoped topic token as `{topic}`, or use an owned topic ID with `Authorization: Bearer <dws_session_token>`. User/password Basic authentication is not supported.
+- **Body:** JSON containing `content`, or a JSON payload to use directly as notification content.
+- **Behavior:** A valid scoped token publishes to its linked topic. With a device-session token, the server checks ownership of the topic ID before publishing. The response is `200 OK` with `{ ok: true, topicId, itemId }`.
+- **Errors:** `401` for invalid credentials; `404` when a topic ID is unavailable to the authenticated user.
+
+`POST /api/v1/notifications` is an authenticated compatibility acknowledgement returning `{ ok: true }`; use the topic-specific route to publish a notification.
 
 ## Topic tokens (automation keys)
 Topic tokens let automation systems send notifications on behalf of a topic without exposing a full user session. Tokens are stored in `notificationTopicTokens` and tie back to a `notificationTopics` record.
@@ -28,10 +30,9 @@ Headers: Authorization: Bearer ${topicToken}
 
 ### cURL (send notification via token)
 ```bash
-curl -X POST ${URL}/api/v1/notifications \
-  -H "Authorization: Bearer ${topicToken}" \
+curl -X POST "${URL}/api/v1/notifications/${topicToken}" \
   -H "Content-Type: application/json" \
   -d '{"summary":"Backing up TV shows","details":"Backup completed"}'
 ```
 
-Every request that reaches `/api/v1/notifications` with a valid topic token becomes a PocketBase `notificationItems` record for the linked topic. Dashwise’s frontend consumes the items via `/api/v1/notifications` for the current user, marks the items as `received`, and lets the UI display unread counts or badge states.
+Every request that reaches `/api/v1/notifications/{topicToken}` with a valid topic token becomes a PocketBase `notificationItems` record for the linked topic. Dashwise’s frontend consumes the items via `/api/v1/notifications` for the current user, marks the items as `received`, and lets the UI display unread counts or badge states.

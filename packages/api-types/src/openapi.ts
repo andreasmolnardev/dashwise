@@ -260,7 +260,10 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Delete account */
+        /**
+         * Delete account
+         * @description Requires an active device session plus password/TOTP confirmation for the same user.
+         */
         delete: {
             parameters: {
                 query?: never;
@@ -459,14 +462,14 @@ export interface paths {
         };
         trace?: never;
     };
-    "/sessions/current": {
+    "/sessions": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** Get the current client session */
+        /** List device sessions */
         get: {
             parameters: {
                 query?: never;
@@ -476,7 +479,15 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                200: components["responses"]["JsonOk"];
+                /** @description Public session metadata */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PublicSession"][];
+                    };
+                };
                 401: components["responses"]["JsonUnauthorized"];
             };
         };
@@ -485,7 +496,82 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Rename the current client session */
+        patch?: never;
+        trace?: never;
+    };
+    "/sessions/{sessionId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Revoke a device session and close its active connections */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    sessionId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                200: components["responses"]["JsonOk"];
+                401: components["responses"]["JsonUnauthorized"];
+                404: components["responses"]["JsonNotFound"];
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/sessions/current": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the current client session
+         * @description Returns public session metadata only; internal authentication credentials are never returned.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PublicSession"];
+                    };
+                };
+                401: components["responses"]["JsonUnauthorized"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Rename the current client session
+         * @description Updates the authenticated session display name and returns public metadata only.
+         */
         patch: {
             parameters: {
                 query?: never;
@@ -495,7 +581,15 @@ export interface paths {
             };
             requestBody?: components["requestBodies"]["JsonBody"];
             responses: {
-                200: components["responses"]["JsonOk"];
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PublicSession"];
+                    };
+                };
                 400: components["responses"]["JsonBadRequest"];
                 401: components["responses"]["JsonUnauthorized"];
             };
@@ -1860,7 +1954,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Send notification to topic */
+        /**
+         * Send notification to topic
+         * @description Accepts a scoped topic token in the path, or a topic ID with a Dashwise device-session bearer token. User/password Basic authentication is not supported.
+         */
         post: {
             parameters: {
                 query?: never;
@@ -2102,7 +2199,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Test bookmarks */
+        /**
+         * Test bookmarks
+         * @description Authenticated placeholder endpoint.
+         */
         get: {
             parameters: {
                 query?: never;
@@ -2113,6 +2213,7 @@ export interface paths {
             requestBody?: never;
             responses: {
                 200: components["responses"]["JsonOk"];
+                401: components["responses"]["JsonUnauthorized"];
             };
         };
         put?: never;
@@ -2130,7 +2231,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get wallpaper */
+        /**
+         * Get wallpaper
+         * @description Requires an active device session and returns only its user's wallpaper with private, no-store caching.
+         */
         get: {
             parameters: {
                 query?: never;
@@ -2141,10 +2245,14 @@ export interface paths {
             requestBody?: never;
             responses: {
                 200: components["responses"]["JsonOk"];
+                401: components["responses"]["JsonUnauthorized"];
             };
         };
         put?: never;
-        /** Upload or update wallpaper */
+        /**
+         * Upload or update wallpaper
+         * @description Accepts a Dashwise device-session token. Authorization headers take precedence over legacy body/query transports.
+         */
         post: {
             parameters: {
                 query?: never;
@@ -2175,6 +2283,7 @@ export interface paths {
             };
             responses: {
                 200: components["responses"]["JsonOk"];
+                401: components["responses"]["JsonUnauthorized"];
             };
         };
         delete?: never;
@@ -2274,7 +2383,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get weather */
+        /**
+         * Get weather
+         * @description Authenticated placeholder endpoint.
+         */
         get: {
             parameters: {
                 query?: never;
@@ -2285,6 +2397,7 @@ export interface paths {
             requestBody?: never;
             responses: {
                 200: components["responses"]["JsonOk"];
+                401: components["responses"]["JsonUnauthorized"];
             };
         };
         put?: never;
@@ -3280,6 +3393,19 @@ export interface components {
         PublishActivityResult: {
             activity: components["schemas"]["Activity"];
             duplicate: boolean;
+        };
+        PublicSession: {
+            id: string;
+            user: string;
+            sessionId: string;
+            displayName: string;
+            clientType?: string;
+            platform?: string;
+            lastSeenAt: string;
+            expiresAt?: string;
+            revokedAt?: string;
+            created?: string;
+            updated?: string;
         };
         GenericObject: {
             [key: string]: unknown;

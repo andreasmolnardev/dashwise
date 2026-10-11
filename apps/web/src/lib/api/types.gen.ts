@@ -42,6 +42,20 @@ export type PublishActivityResult = {
     duplicate: boolean;
 };
 
+export type PublicSession = {
+    id: string;
+    user: string;
+    sessionId: string;
+    displayName: string;
+    clientType?: string;
+    platform?: string;
+    lastSeenAt: string;
+    expiresAt?: string;
+    revokedAt?: string;
+    created?: string;
+    updated?: string;
+};
+
 export type GenericObject = {
     [key: string]: unknown;
 };
@@ -396,6 +410,62 @@ export type PatchAuthUpdateUserPropertyResponses = {
 
 export type PatchAuthUpdateUserPropertyResponse = PatchAuthUpdateUserPropertyResponses[keyof PatchAuthUpdateUserPropertyResponses];
 
+export type GetSessionsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/sessions';
+};
+
+export type GetSessionsErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Error;
+};
+
+export type GetSessionsError = GetSessionsErrors[keyof GetSessionsErrors];
+
+export type GetSessionsResponses = {
+    /**
+     * Public session metadata
+     */
+    200: Array<PublicSession>;
+};
+
+export type GetSessionsResponse = GetSessionsResponses[keyof GetSessionsResponses];
+
+export type DeleteSessionsBySessionIdData = {
+    body?: never;
+    path: {
+        sessionId: string;
+    };
+    query?: never;
+    url: '/sessions/{sessionId}';
+};
+
+export type DeleteSessionsBySessionIdErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Error;
+    /**
+     * Not Found
+     */
+    404: Error;
+};
+
+export type DeleteSessionsBySessionIdError = DeleteSessionsBySessionIdErrors[keyof DeleteSessionsBySessionIdErrors];
+
+export type DeleteSessionsBySessionIdResponses = {
+    /**
+     * OK
+     */
+    200: GenericObject;
+};
+
+export type DeleteSessionsBySessionIdResponse = DeleteSessionsBySessionIdResponses[keyof DeleteSessionsBySessionIdResponses];
+
 export type GetSessionsCurrentData = {
     body?: never;
     path?: never;
@@ -416,7 +486,7 @@ export type GetSessionsCurrentResponses = {
     /**
      * OK
      */
-    200: GenericObject;
+    200: PublicSession;
 };
 
 export type GetSessionsCurrentResponse = GetSessionsCurrentResponses[keyof GetSessionsCurrentResponses];
@@ -445,7 +515,7 @@ export type PatchSessionsCurrentResponses = {
     /**
      * OK
      */
-    200: GenericObject;
+    200: PublicSession;
 };
 
 export type PatchSessionsCurrentResponse = PatchSessionsCurrentResponses[keyof PatchSessionsCurrentResponses];
@@ -1655,6 +1725,15 @@ export type GetTestBookmarksData = {
     url: '/test/bookmarks';
 };
 
+export type GetTestBookmarksErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Error;
+};
+
+export type GetTestBookmarksError = GetTestBookmarksErrors[keyof GetTestBookmarksErrors];
+
 export type GetTestBookmarksResponses = {
     /**
      * OK
@@ -1670,6 +1749,15 @@ export type GetWallpapersData = {
     query?: never;
     url: '/wallpapers';
 };
+
+export type GetWallpapersErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Error;
+};
+
+export type GetWallpapersError = GetWallpapersErrors[keyof GetWallpapersErrors];
 
 export type GetWallpapersResponses = {
     /**
@@ -1694,6 +1782,15 @@ export type PostWallpapersData = {
     query?: never;
     url: '/wallpapers';
 };
+
+export type PostWallpapersErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Error;
+};
+
+export type PostWallpapersError = PostWallpapersErrors[keyof PostWallpapersErrors];
 
 export type PostWallpapersResponses = {
     /**
@@ -1758,6 +1855,15 @@ export type GetWeatherData = {
     query?: never;
     url: '/weather';
 };
+
+export type GetWeatherErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Error;
+};
+
+export type GetWeatherError = GetWeatherErrors[keyof GetWeatherErrors];
 
 export type GetWeatherResponses = {
     /**
