@@ -11,6 +11,7 @@ tags:
   - name: auth
   - name: config
   - name: integrations
+  - name: sdk-integrations
   - name: jobs
   - name: links
   - name: locations
@@ -140,6 +141,173 @@ paths:
           $ref: "#/components/responses/JsonOk"
         "401":
           $ref: "#/components/responses/JsonUnauthorized"
+        "404":
+          $ref: "#/components/responses/JsonNotFound"
+  /sdk-integrations/catalog:
+    get:
+      tags: [sdk-integrations]
+      summary: List trusted SDK integrations available for installation
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+        "401":
+          $ref: "#/components/responses/JsonUnauthorized"
+  /sdk-integrations/instances:
+    get:
+      tags: [sdk-integrations]
+      summary: List SDK integration instances owned by the authenticated user
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+        "401":
+          $ref: "#/components/responses/JsonUnauthorized"
+    post:
+      tags: [sdk-integrations]
+      summary: Install a trusted SDK integration for the authenticated user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SdkIntegrationInstanceCreate"
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+        "400":
+          $ref: "#/components/responses/JsonBadRequest"
+        "401":
+          $ref: "#/components/responses/JsonUnauthorized"
+        "404":
+          $ref: "#/components/responses/JsonNotFound"
+  /sdk-integrations/instances/{id}:
+    get:
+      tags: [sdk-integrations]
+      summary: Get an owned SDK integration instance
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+        "401":
+          $ref: "#/components/responses/JsonUnauthorized"
+        "404":
+          $ref: "#/components/responses/JsonNotFound"
+    patch:
+      tags: [sdk-integrations]
+      summary: Update an owned SDK integration instance
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      requestBody:
+        $ref: "#/components/requestBodies/JsonBody"
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+        "400":
+          $ref: "#/components/responses/JsonBadRequest"
+        "401":
+          $ref: "#/components/responses/JsonUnauthorized"
+        "404":
+          $ref: "#/components/responses/JsonNotFound"
+    delete:
+      tags: [sdk-integrations]
+      summary: Remove an owned SDK integration instance
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+        "401":
+          $ref: "#/components/responses/JsonUnauthorized"
+        "404":
+          $ref: "#/components/responses/JsonNotFound"
+  /sdk-integrations/instances/{id}/resources:
+    get:
+      tags: [sdk-integrations]
+      summary: List persisted resources belonging to an owned SDK integration instance
+      parameters:
+        - $ref: "#/components/parameters/Id"
+        - name: collectionId
+          in: query
+          schema: { type: string, maxLength: 120 }
+        - name: collectionIds
+          in: query
+          style: form
+          explode: true
+          schema: { type: array, maxItems: 100, items: { type: string, maxLength: 120 } }
+        - name: appId
+          in: query
+          schema: { type: string, maxLength: 120 }
+        - name: appIds
+          in: query
+          style: form
+          explode: true
+          schema: { type: array, maxItems: 100, items: { type: string, maxLength: 120 } }
+        - name: resourceIds
+          in: query
+          style: form
+          explode: true
+          schema: { type: array, maxItems: 200, items: { type: string, maxLength: 200 } }
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+        "401":
+          $ref: "#/components/responses/JsonUnauthorized"
+        "404":
+          $ref: "#/components/responses/JsonNotFound"
+  /sdk-integrations/instances/{id}/contributions/{kind}/{contributionId}/resolve:
+    post:
+      tags: [sdk-integrations]
+      summary: Resolve selected shortcut resources for an owned SDK contribution
+      parameters:
+        - $ref: "#/components/parameters/Id"
+        - name: kind
+          in: path
+          required: true
+          schema: { type: string, enum: [widget, glanceable] }
+        - name: contributionId
+          in: path
+          required: true
+          schema: { type: string, maxLength: 200 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SdkContributionResolveRequest"
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+        "400":
+          $ref: "#/components/responses/JsonBadRequest"
+        "401":
+          $ref: "#/components/responses/JsonUnauthorized"
+        "404":
+          $ref: "#/components/responses/JsonNotFound"
+  /sdk-integrations/instances/{id}/actions/{actionId}:
+    post:
+      tags: [sdk-integrations]
+      summary: Execute a declared action on an owned SDK resource
+      parameters:
+        - $ref: "#/components/parameters/Id"
+        - name: actionId
+          in: path
+          required: true
+          schema: { type: string, maxLength: 200 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SdkIntegrationActionRequest"
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+        "400":
+          $ref: "#/components/responses/JsonBadRequest"
+        "401":
+          $ref: "#/components/responses/JsonUnauthorized"
+        "403":
+          $ref: "#/components/responses/JsonForbidden"
         "404":
           $ref: "#/components/responses/JsonNotFound"
   /auth/callback:
@@ -1698,6 +1866,28 @@ components:
       schema:
         type: string
   schemas:
+    SdkIntegrationInstanceCreate:
+      type: object
+      additionalProperties: false
+      required: [source, config]
+      properties:
+        source: { type: string, maxLength: 120, description: Stable ID from the trusted SDK catalog. }
+        name: { type: string, maxLength: 120 }
+        config: { type: object, additionalProperties: true }
+    SdkIntegrationActionRequest:
+      type: object
+      additionalProperties: false
+      required: [collectionId, resourceId]
+      properties:
+        collectionId: { type: string, maxLength: 120 }
+        resourceId: { type: string, maxLength: 200 }
+        input: {}
+    SdkContributionResolveRequest:
+      type: object
+      additionalProperties: false
+      required: [config]
+      properties:
+        config: { type: object, additionalProperties: true, description: Contribution selector values such as selected resource IDs. }
     Activity:
       type: object
       required: [id, ownerId, source, type, title, severity, occurredAt, createdAt]
@@ -1789,6 +1979,12 @@ components:
             $ref: "#/components/schemas/Error"
     JsonNotFound:
       description: Not Found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    JsonForbidden:
+      description: Forbidden
       content:
         application/json:
           schema:

@@ -9,6 +9,8 @@ import {
 import { getSessionById } from "./sessions";
 import { getSuperuserPB } from "../pb/pocketbase";
 import type { ShortcutsResponse } from "@dashwise/types";
+import { listSdkInstances } from "../integrations-sdk/persistence";
+import { getSdkIntegrationDefinition } from "../integrations-sdk/catalog";
 
 export type ShortcutAppType = "just-in-time" | "on-demand";
 
@@ -134,7 +136,7 @@ export async function getShortcuts(userId: string) {
     sort: "name",
   })) as Array<ShortcutsResponse>;
 
-  return records.map((record) => {
+  const configured = records.map((record) => {
     const action = parseAction(record.action);
     const actionString = typeof action === "string" ? action : "";
     return {
@@ -156,6 +158,90 @@ export async function getShortcuts(userId: string) {
       usageStats: record.usageStats,
     };
   });
+
+  const sdkInstances = await listSdkInstances(userId);
+  if (sdkInstances.length === 0) return configured;
+  const { listSdkResourceSnapshot } = await import("../integrations-sdk/runtime");
+  const appRows = await pb.collection("shortcutsApps").getFullList(1000, {
+    filter: `user="${escapeFilter(userId)}"`,
+  });
+  const appIdBySource = new Map(appRows.map((app) => [String(app.sourceId ?? ""), String(app.id)]));
+  const sdkApps = [];
+  const sdkResources = [];
+
+  for (const instance of sdkInstances) {
+    const definition = getSdkIntegrationDefinition(instance.source);
+    if (!definition) continue;
+    const appIdMap = new Map<string, string>();
+    for (const app of definition.apps ?? []) {
+      const sourceId = `sdk:${instance.id}:${app.id}`;
+      let appRecordId = appIdBySource.get(sourceId);
+      if (!appRecordId) {
+        const created = await ensureShortcutsApp(pb, userId, sourceId, { name: app.name, icon: app.icon });
+        appRecordId = String(created.id);
+        appIdBySource.set(sourceId, appRecordId);
+      }
+      appIdMap.set(app.id, appRecordId);
+      sdkApps.push({
+        id: `sdk-app:${instance.id}:${app.id}`,
+        sourceId,
+        name: app.name,
+        icon: app.icon ?? "",
+        secondaryInfo: instance.name,
+        type: "app",
+        action: `app:${appRecordId}`,
+        sdkIntegrationInstanceId: instance.id,
+      });
+    }
+
+    const resources = await listSdkResourceSnapshot(userId, instance.id);
+    for (const resource of resources) {
+      const collectionId = resource.collectionId;
+      const collectionDefinition = definition.resources[collectionId];
+      if (!collectionDefinition?.shortcuts) continue;
+      const membership = (resource.apps ?? collectionDefinition.apps ?? []).map((appId) => appIdMap.get(appId)).filter((id): id is string => Boolean(id));
+      const declaredActions = resource.actions ?? [];
+      const actions = declaredActions
+        .map((actionId) => Object.values(definition.actions ?? {}).find((action) => action.id === actionId))
+        .filter((action): action is NonNullable<typeof action> => Boolean(action))
+        .map(({ id, name, description, inputSchema }) => ({ id, name, ...(description ? { description } : {}), ...(inputSchema ? { inputSchema } : {}) }));
+      sdkResources.push({
+        id: `sdk:${instance.id}:${collectionId}:${resource.id}`,
+        sourceId: `${instance.id}:${collectionId}:${resource.id}`,
+        integrationInstanceId: instance.id,
+        collectionId,
+        resourceId: resource.id,
+        name: resource.name,
+        icon: resource.icon ?? "",
+        type: "sdk-resource",
+        action: { type: "sdk-resource", instanceId: instance.id, collectionId, resourceId: resource.id },
+        actions,
+        apps: membership,
+        parentIds: membership,
+        parentId: membership.length === 1 ? membership[0] : undefined,
+        secondaryInfo: displayResourceState(resource.state, resource.available),
+        state: resource.state,
+        attributes: resource.attributes ?? {},
+        tags: resource.tags ?? [],
+        available: resource.available !== false,
+        isDisabled: resource.available === false,
+        revision: resource.revision,
+        stale: resource.stale,
+        isPinned: false,
+        usageStats: [],
+      });
+    }
+  }
+
+  return [...configured, ...sdkApps, ...sdkResources];
+}
+
+function displayResourceState(state: unknown, available: boolean | undefined) {
+  if (typeof state === "string") return state;
+  if (state !== undefined && state !== null) {
+    try { return JSON.stringify(state); } catch { /* use availability below */ }
+  }
+  return available === false ? "Unavailable" : "";
 }
 
 export async function ensureShortcutsApp(

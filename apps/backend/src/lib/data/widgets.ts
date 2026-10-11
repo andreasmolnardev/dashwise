@@ -299,7 +299,7 @@ async function getDefaultGlanceables(): Promise<GlanceableCatalogItem[]> {
 async function getIntegrationGlanceables(userId: string): Promise<GlanceableCatalogItem[]> {
     const pb = await getSuperuserPB();
     const list = (await pb.collection("integrations").getFullList({
-        filter: `user="${userId}"`,
+        filter: `user="${userId}" && type != "sdk"`,
         sort: "-updated",
     })) as Array<IntegrationsResponse<Record<string, unknown>, Record<string, string>, Record<string, unknown>>>;
 
@@ -346,7 +346,7 @@ export async function getUserWidgets(userId: string) {
     }
 
     const list = (await pb.collection("integrations").getFullList({
-        filter: `user=\"${userId}\"`,
+        filter: `user=\"${userId}\" && type != \"sdk\"`,
         sort: "-updated",
     })) as Array<IntegrationsResponse<Record<string, unknown>, Record<string, string>, Record<string, unknown>>>;
 

@@ -14,6 +14,7 @@ import {
   handleActivityMessage,
   registerSessionConnection,
   subscribeActivity,
+  subscribeSdkResourceRevisions,
 } from "./lib/activity";
 
 import { authenticateDeviceSocket, closeDeviceRequest, createDeviceRequest } from "./lib/device-code";
@@ -25,6 +26,10 @@ import { getNotifications } from "./lib/data/notifications/items";
 import { listIntegrations } from "./lib/data/integrations";
 import { getUpcomingEvents } from "./lib/calendar";
 import { listActivities } from "./lib/data/activities";
+import { getOwnedSdkInstance } from "./lib/integrations-sdk/persistence";
+import { requireSdkIntegrationDefinition } from "./lib/integrations-sdk/catalog";
+import "./lib/integrations-sdk/builtins";
+import { listSdkResourceSnapshot, startSdkIntegrationRuntime, stopSdkIntegrationRuntime } from "./lib/integrations-sdk/runtime";
 import { systemAgentClient } from "./lib/systemAgent";
 import { requireAuth } from "./routes/shared";
 import authRoute from "./routes/auth.route";
@@ -41,6 +46,7 @@ const assetRoots = {
 } as const;
 
 const { process: pbProcess } = await startPocketbase();
+await startSdkIntegrationRuntime();
 const logger = createLogger("API");
 
 type SshCredentials =
@@ -48,9 +54,10 @@ type SshCredentials =
   | { method: "key"; privateKey: string; publicKey?: string; passphrase?: string };
 
 
-const shutdown = () => {
+const shutdown = async () => {
   logger.info("Shutting down");
   systemAgentClient.stop();
+  await stopSdkIntegrationRuntime();
   process.exit(0);
 };
 
@@ -120,6 +127,7 @@ app.get("/api/v1/auth/device-code", upgradeWebSocket((c) => {
 app.get("/api/v1/activity",  upgradeWebSocket((c) => {
   let refreshTimer: ReturnType<typeof setInterval> | undefined;
   let unsubscribeActivity: (() => void) | undefined;
+  let unsubscribeSdkResources: (() => void) | undefined;
   let unregisterSessionConnection: (() => void) | undefined;
   let lifecycle: SessionConnection | undefined;
   let closed = false;
@@ -127,12 +135,16 @@ app.get("/api/v1/activity",  upgradeWebSocket((c) => {
     closed = true;
     if (refreshTimer) clearInterval(refreshTimer);
     unsubscribeActivity?.();
+    unsubscribeSdkResources?.();
     unregisterSessionConnection?.();
     lifecycle?.dispose();
   };
   let activityConnection: ActivityConnection | undefined;
   let connectedUserId = "";
   let connectedSessionId = "";
+  const sdkResourceIdentities = new Set<string>();
+  const resourceIdentity = (value: { instanceId: string; collectionId: string; resourceId: string }) =>
+    `${value.instanceId}\0${value.collectionId}\0${value.resourceId}`;
 
   return {
     async onOpen(_event, ws) {
@@ -158,6 +170,14 @@ app.get("/api/v1/activity",  upgradeWebSocket((c) => {
           },
         };
         unregisterSessionConnection = registerSessionConnection(userId, sessionId, activityConnection);
+        unsubscribeSdkResources = subscribeSdkResourceRevisions(userId, (event) => {
+          if (!sdkResourceIdentities.has(resourceIdentity(event))) return;
+          void lifecycle?.ensureValid().then((valid) => {
+            if (valid && lifecycle?.isActive()) {
+              try { ws.send(JSON.stringify({ type: "sdk:resource-revision", ...event })); } catch { cleanup(); }
+            }
+          });
+        });
         let calendarEvents: Array<Record<string, any>> = [];
         let calendarRefreshedAt = 0;
         let calendarRefresh: Promise<void> | null = null;
@@ -212,6 +232,54 @@ app.get("/api/v1/activity",  upgradeWebSocket((c) => {
       if (!await lifecycle?.ensureValid() || !lifecycle?.isActive()) return;
       try {
         const message = JSON.parse(String(event.data));
+        if (message.type === "sdk:resources:subscribe" && Array.isArray(message.resources)) {
+          const requested = message.resources.filter((resource: unknown) =>
+            Boolean(resource && typeof resource === "object"
+              && typeof (resource as Record<string, unknown>).instanceId === "string"
+              && typeof (resource as Record<string, unknown>).collectionId === "string"
+              && typeof (resource as Record<string, unknown>).resourceId === "string"),
+          ).slice(0, 200) as Array<{ instanceId: string; collectionId: string; resourceId: string }>;
+          const accepted: typeof requested = [];
+          const resourcesByInstance = new Map<string, Awaited<ReturnType<typeof listSdkResourceSnapshot>>>();
+          for (const identity of requested) {
+            const { instanceId, collectionId, resourceId } = identity;
+            if (!/^[A-Za-z0-9_-]{1,128}$/.test(instanceId)
+              || !/^[A-Za-z0-9._-]{1,120}$/.test(collectionId)
+              || !/^[A-Za-z0-9._:-]{1,200}$/.test(resourceId)) continue;
+            try {
+              const { instance } = await getOwnedSdkInstance(connectedUserId, instanceId);
+              if (!requireSdkIntegrationDefinition(instance.source).resources[collectionId]) continue;
+              sdkResourceIdentities.add(resourceIdentity(identity));
+              accepted.push(identity);
+              if (!resourcesByInstance.has(instanceId)) resourcesByInstance.set(instanceId, await listSdkResourceSnapshot(connectedUserId, instanceId));
+            } catch {
+              sdkResourceIdentities.delete(resourceIdentity(identity));
+            }
+          }
+          ws.send(JSON.stringify({ type: "sdk:resources:subscribed", resources: accepted }));
+          for (const identity of accepted) {
+            const current = resourcesByInstance.get(identity.instanceId)?.find((resource) =>
+              resource.collectionId === identity.collectionId && resource.id === identity.resourceId);
+            ws.send(JSON.stringify({
+              type: "sdk:resource-revision",
+              ...identity,
+              revision: current?.revision ?? 0,
+              operation: current ? "upsert" : "remove",
+            }));
+          }
+          return;
+        }
+        if (message.type === "sdk:resources:unsubscribe" && Array.isArray(message.resources)) {
+          for (const identity of message.resources) {
+            if (identity && typeof identity === "object"
+              && typeof identity.instanceId === "string"
+              && typeof identity.collectionId === "string"
+              && typeof identity.resourceId === "string") {
+              sdkResourceIdentities.delete(resourceIdentity(identity));
+            }
+          }
+          return;
+        }
         if (connectedUserId && connectedSessionId && activityConnection && handleActivityMessage(
           connectedUserId,
           connectedSessionId,

@@ -12,6 +12,7 @@ export async function runIntegrationUpdaterJob() {
   const integrations = await pb.collection("integrations").getFullList().catch(() => []);
 
   for (const record of integrations) {
+    if (record.type === "sdk") continue;
     if (!record.source || !record.source.startsWith("http")) {
       continue;
     }

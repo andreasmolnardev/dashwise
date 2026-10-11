@@ -1,4 +1,12 @@
 type ActivitySubscriber = () => Promise<void>;
+export type SdkResourceRevisionEvent = {
+  instanceId: string;
+  collectionId: string;
+  resourceId: string;
+  revision: number;
+  operation: "upsert" | "remove";
+};
+type SdkResourceSubscriber = (event: SdkResourceRevisionEvent) => void;
 
 export type ActivityConnection = {
   send: (data: string) => void;
@@ -11,6 +19,7 @@ export type ShortcutExecutionResult = {
 };
 
 const subscribers = new Map<string, Set<ActivitySubscriber>>();
+const sdkResourceSubscribers = new Map<string, Set<SdkResourceSubscriber>>();
 const sessionConnections = new Map<string, Map<string, Set<ActivityConnection>>>();
 const pendingShortcutRequests = new Map<string, {
   userId: string;
@@ -35,6 +44,23 @@ export function subscribeActivity(userId: string, subscriber: ActivitySubscriber
 export function broadcastActivity(userId: string) {
   for (const subscriber of subscribers.get(userId) ?? []) {
     void subscriber().catch(() => undefined);
+  }
+}
+
+/** Resource changes are transient state notifications, not persisted Activities. */
+export function subscribeSdkResourceRevisions(userId: string, subscriber: SdkResourceSubscriber) {
+  const userSubscribers = sdkResourceSubscribers.get(userId) ?? new Set<SdkResourceSubscriber>();
+  userSubscribers.add(subscriber);
+  sdkResourceSubscribers.set(userId, userSubscribers);
+  return () => {
+    userSubscribers.delete(subscriber);
+    if (userSubscribers.size === 0) sdkResourceSubscribers.delete(userId);
+  };
+}
+
+export function broadcastSdkResourceRevision(userId: string, event: SdkResourceRevisionEvent) {
+  for (const subscriber of sdkResourceSubscribers.get(userId) ?? []) {
+    try { subscriber(event); } catch { /* A disconnected subscriber must not block the runtime. */ }
   }
 }
 

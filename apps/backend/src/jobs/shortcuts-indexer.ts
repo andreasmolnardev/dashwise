@@ -23,6 +23,7 @@ type SearchIndexIntegrationRecord = {
   source?: string | null;
   config?: unknown;
   environment?: unknown;
+  type?: string;
 };
 
 type ShortcutDefaultsRow = {
@@ -119,7 +120,7 @@ export async function runShortcutsIndexing() {
 
     const enabledIntegrations = await getEnabledIntegrationsMap(pb, userId);
     const integrations = await pb.collection("integrations").getFullList<SearchIndexIntegrationRecord>(500, {
-      filter: `user=\"${userId.replace(/"/g, '\\\"')}\"`,
+      filter: `user=\"${userId.replace(/"/g, '\\\"')}\" && type != \"sdk\"`,
       sort: "-updated",
     });
 

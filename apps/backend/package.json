@@ -19,6 +19,8 @@
   },
   "dependencies": {
     "@dashwise/assets": "workspace:*",
+    "@dashwise/integration-example-rest": "workspace:*",
+    "@dashwise/integrations-sdk": "workspace:*",
     "@dashwise/integrationskit": "workspace:*",
     "@dashwise/types": "workspace:*",
     "@gonetone/get-youtube-id-by-url": "^2.0.0",

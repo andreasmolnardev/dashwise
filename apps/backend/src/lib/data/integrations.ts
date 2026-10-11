@@ -15,7 +15,7 @@ const METHOD_WITHOUT_BODY = new Set(["GET", "HEAD"]);
 
 type IntegrationRecord = {
     id: string;
-    type?: "plugin" | "caldav";
+    type?: "plugin" | "caldav" | "sdk";
     name: string | null;
     source: string | null;
     userId: string | null;
@@ -114,7 +114,7 @@ export async function listIntegrations(userId: string) {
     const pb = await getSuperuserPB();
     await ensureBuiltinIntegrations(userId, pb);
     const list = await pb.collection("integrations").getFullList({
-        filter: `user="${userId}"`,
+        filter: `user="${userId}" && type != "sdk"`,
         sort: "-updated",
     });
     return { integrations: list.map(mapIntegration) };
@@ -123,7 +123,7 @@ export async function listIntegrations(userId: string) {
 export async function getIntegration(userId: string, integrationId: string, resolveEndpoints = false) {
     const pb = await getSuperuserPB();
     const record = await pb.collection("integrations").getOne(integrationId);
-    if (!ownsIntegration(record, userId)) throw new ApiActionError("Not found", 404, { error: "Not found" });
+    if (!ownsIntegration(record, userId) || record.type === "sdk") throw new ApiActionError("Not found", 404, { error: "Not found" });
 
     const integration = mapIntegration(record);
     if (!resolveEndpoints) return { integration };
@@ -175,7 +175,7 @@ export async function updateIntegration(
 ) {
     const pb = await getSuperuserPB();
     const record = await pb.collection("integrations").getOne(integrationId);
-    if (!ownsIntegration(record, userId)) throw new ApiActionError("Not found", 404, { error: "Not found" });
+    if (!ownsIntegration(record, userId) || record.type === "sdk") throw new ApiActionError("Not found", 404, { error: "Not found" });
 
     const updateData: Record<string, unknown> = {};
     if (payload.name !== undefined) updateData.name = payload.name;
@@ -189,7 +189,7 @@ export async function updateIntegration(
 export async function deleteIntegration(userId: string, integrationId: string) {
     const pb = await getSuperuserPB();
     const record = await pb.collection("integrations").getOne(integrationId);
-    if (!ownsIntegration(record, userId)) throw new ApiActionError("Not found", 404, { error: "Not found" });
+    if (!ownsIntegration(record, userId) || record.type === "sdk") throw new ApiActionError("Not found", 404, { error: "Not found" });
     const integration = mapIntegration(record);
     await prunePageConfigConsumersForIntegration(userId, integrationId, integration.config as Record<string, any>);
     await pb.collection("integrations").delete(integrationId);
@@ -209,7 +209,7 @@ export async function testIntegrationEndpoint(userId: string, rawTarget: string)
 
     const pb = await getSuperuserPB();
     const record = await pb.collection("integrations").getOne(integrationId);
-    if (!ownsIntegration(record, userId)) throw new ApiActionError("Not found", 404, { error: "Not found" });
+    if (!ownsIntegration(record, userId) || record.type === "sdk") throw new ApiActionError("Not found", 404, { error: "Not found" });
 
     const integration = mapIntegration(record);
     integration.environment = await resolveEnvVarsViaEndpoints(
@@ -523,7 +523,9 @@ export async function ensureBuiltinIntegrations(userId: string, pb: Awaited<Retu
     const seeds = await loadBuiltinSeeds();
     if (seeds.length === 0) return;
 
-    const existing = await pb.collection("integrations").getFullList({ filter: `user="${escapeFilter(userId)}"` });
+    const existing = await pb.collection("integrations").getFullList({
+        filter: `user="${escapeFilter(userId)}" && type != "sdk"`,
+    });
 
     for (const seed of seeds) {
         const matchBySource = existing.find((r) => r.source === seed.source);
