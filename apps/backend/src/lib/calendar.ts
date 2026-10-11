@@ -75,7 +75,8 @@ export async function getUpcomingEvents(
           });
 
           console.log(`[caldav] Got ${events.length} events from ${cal.displayName || cal.url}`);
-          return events;
+          const calendarName = cal.displayName || cal.name || cal.url;
+          return events.map((event: any) => ({ ...event, calendarName }));
         } catch (error) {
           console.error("[caldav] Failed to fetch events for calendar:", cal.displayName || cal.url, error);
           return [];
@@ -98,6 +99,7 @@ export async function getUpcomingEvents(
       end: event.end,
       location: event.location,
       isAllDay: event.wholeDay,
+      calendarName: event.calendarName,
     }));
 
     if (updateLocalData) {
