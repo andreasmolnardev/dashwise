@@ -336,7 +336,7 @@ export default function Screensaver(
       </div>
 
       <div
-        className={`absolute bottom-0 left-0 right-0 p-8 flex justify-center items-center pointer-events-none transition-opacity duration-300 ${
+        className={`absolute bottom-0 left-0 right-0 z-20 p-8 flex justify-center items-center pointer-events-none transition-opacity duration-300 ${
           isHovering ? "opacity-100" : "opacity-0"
         }`}
       >
@@ -358,7 +358,7 @@ export default function Screensaver(
       </div>
 
       <div
-        className={`absolute bottom-8 right-8 transition-opacity duration-300 group ${
+        className={`absolute bottom-8 right-8 z-20 transition-opacity duration-300 group ${
           isHovering ? "opacity-100" : "opacity-0"
         }`}
         onClick={onExit}
