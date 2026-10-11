@@ -87,6 +87,32 @@ applicable filters. `IntegrationConfigValues<typeof widgetConfig>` infers the
 settings value types. Compile-time coverage lives in
 [`contracts/shortcut-select.typecheck.ts`](./contracts/shortcut-select.typecheck.ts).
 
+Use `resourceBindings` on a Widget or Glanceable to declare the resolved data
+it consumes. Each output key references a `shortcut-select` setting by
+`configKey`:
+
+```ts
+{
+  id: "entity-list",
+  name: "Entity list",
+  configSchema: {
+    selectedEntities: { type: "shortcut-select", multiple: true },
+  },
+  resourceBindings: {
+    entities: { type: "shortcut-select", configKey: "selectedEntities" },
+  },
+}
+```
+
+The runtime verifies that each binding points to a `shortcut-select` field,
+resolves its configured resource IDs, and subscribes to those resource
+identities. It supplies the current `ResourceRecord` under the declared output
+key (`ResourceRecord | undefined` for a single selection and a readonly record
+array for a multiple selection); resource changes update that bound data without
+requiring integrations to make direct API calls from Dashboard, Search, or
+Frame clients. App and collection filtering is configured on the referenced
+`shortcut-select` field and is validated during resolution.
+
 Lifecycle hooks receive `integrations` with validated config, secret lookup,
 typed resources, serializable instance storage, action dispatch, activities,
 scoped events, managed HTTP/WebSocket/MCP clients, scheduler, logger, and

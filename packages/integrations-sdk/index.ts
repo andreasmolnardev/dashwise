@@ -177,17 +177,53 @@ export type IntegrationConfigValues<Schema extends IntegrationConfigSchema> = {
     : IntegrationConfigFieldValue<Schema[Key]> | undefined;
 };
 
-export type WidgetContribution<Config extends IntegrationConfigSchema = IntegrationConfigSchema> = {
-  id: string;
-  name: string;
-  description?: string;
-  configSchema?: Config;
+export type ResourceBinding<ConfigKey extends string = string> = {
+  type: "shortcut-select";
+  configKey: ConfigKey;
 };
-export type GlanceableContribution<Config extends IntegrationConfigSchema = IntegrationConfigSchema> = {
+export type ShortcutSelectConfigKey<Schema extends IntegrationConfigSchema> = {
+  [Key in keyof Schema]: Schema[Key] extends { type: "shortcut-select" } ? Key : never;
+}[keyof Schema] & string;
+export type ResourceBindings<Schema extends IntegrationConfigSchema> = Readonly<
+  Record<string, ResourceBinding<ShortcutSelectConfigKey<Schema>>>
+>;
+type ResourceBindingValue<Schema extends IntegrationConfigSchema, ConfigKey extends keyof Schema> =
+  Schema[ConfigKey] extends { type: "shortcut-select"; multiple: true }
+    ? readonly ResourceRecord[]
+    : ResourceRecord | undefined;
+/** Resolved resource values keyed by a contribution's declared output bindings. */
+export type ResourceBindingValues<
+  Schema extends IntegrationConfigSchema,
+  Bindings extends ResourceBindings<Schema>,
+> = {
+  readonly [OutputKey in keyof Bindings]: Bindings[OutputKey] extends ResourceBinding<infer ConfigKey>
+    ? ConfigKey extends keyof Schema
+      ? ResourceBindingValue<Schema, ConfigKey>
+      : never
+    : never;
+};
+
+export type WidgetContribution<
+  Config extends IntegrationConfigSchema = IntegrationConfigSchema,
+  Bindings extends ResourceBindings<Config> = ResourceBindings<Config>,
+> = {
   id: string;
   name: string;
   description?: string;
   configSchema?: Config;
+  /** Resolved current resource data supplied under each declared output key. */
+  resourceBindings?: Bindings;
+};
+export type GlanceableContribution<
+  Config extends IntegrationConfigSchema = IntegrationConfigSchema,
+  Bindings extends ResourceBindings<Config> = ResourceBindings<Config>,
+> = {
+  id: string;
+  name: string;
+  description?: string;
+  configSchema?: Config;
+  /** Resolved current resource data supplied under each declared output key. */
+  resourceBindings?: Bindings;
 };
 export type IntegrationActivity = {
   type: string;
