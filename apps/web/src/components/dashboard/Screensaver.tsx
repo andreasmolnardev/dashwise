@@ -259,16 +259,15 @@ export default function Screensaver(
             __html: `
               .hide-scrollbar::-webkit-scrollbar { display: none; }
               @media (max-width: 1279px) {
-                .screensaver-frame-grid--stacked {
+                .screensaver-frame-grid--compact {
                   width: min(90vw, 48rem) !important;
                   height: auto !important;
                   max-height: 90vh;
-                  grid-template-columns: minmax(0, 1fr) !important;
                   grid-auto-rows: max-content;
                   gap: 1rem !important;
                   overflow-y: auto;
                 }
-                .screensaver-frame-grid--stacked > .screensaver-frame-cell {
+                .screensaver-frame-grid--compact > .screensaver-frame-cell {
                   min-height: 10rem;
                 }
               }
@@ -308,7 +307,7 @@ export default function Screensaver(
               )}
               {Array.isArray(frame.params?.sections) && frame.params?.layout ? (
                 <div
-                  className={`screensaver-frame-grid relative z-10 grid h-[70vh] w-[70vw] gap-6 ${frame.params.sections.length > 1 ? "screensaver-frame-grid--stacked" : ""}`}
+                  className={`screensaver-frame-grid relative z-10 grid h-[70vh] w-[70vw] gap-6 ${frame.params.sections.length > 1 ? "screensaver-frame-grid--compact" : ""}`}
                   style={{ gridTemplateColumns: `repeat(${frame.params.layout.cols ?? 1}, minmax(0, 1fr))` }}
                 >
                   {frame.params.sections.map((section: any) => (
