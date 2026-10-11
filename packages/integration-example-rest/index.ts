@@ -102,8 +102,7 @@ const definition = defineIntegration({
     name: "Service health",
     description: "Show whether the configured endpoint is responding.",
     configSchema: {
-      type: "object",
-      properties: { showStatusCode: { type: "boolean", title: "Show HTTP status code" } },
+      showStatusCode: { type: "boolean", label: "Show HTTP status code", default: true },
     },
   }],
   glanceables: [{
