@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "baseUrl": ".",
+    "paths": {
+      "@dashwise/integrations-sdk": ["../integrations-sdk/index.ts"]
+    }
+  },
+  "include": ["./**/*.ts"]
+}
