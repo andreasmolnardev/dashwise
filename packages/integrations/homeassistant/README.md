@@ -52,14 +52,16 @@ resource's later subscribed state is the confirmation of the resulting state.
 ## Contributions
 
 The package declares Entities, Lights, Automations, Helpers, Sensors, Scenes,
-Scripts, and Devices Apps. It also contributes an entity list Widget, a sensor
-overview Widget, connection status and lights-on count Glanceables, and a
-selected sensor value Glanceable. The entity list binds selected entity
-Shortcuts to its `entities` data key; the sensor overview and sensor Glanceable
-bind selected sensor Shortcuts; and the lights-on-count Glanceable binds the
-selected lights. Each binding resolves current entity records and follows those
-resource identities through the generic SDK contract, without Home
-Assistant-specific Dashboard code.
+Scripts, Devices, and Status Apps. It contributes vertical-list entity and
+sensor Widgets plus sensor-value, connection-status, and lights-on-count
+Glanceables. Their render templates use the generic IntegrationsKit property
+format and bind live resource identities through the SDK.
+
+The persistent `status` collection exposes connection and lights-on metrics as
+Status App Shortcuts. Connection state is updated during connect, disconnect,
+reconnect, and shutdown. The light count is derived from the authoritative
+entity snapshot, excludes disabled registry entries, and is marked unavailable
+while disconnected or before the first successful snapshot.
 
 Meaningful Home Assistant stop/start events are published as Activities. A
 connection outage must last 30 seconds before an unreachable Activity is

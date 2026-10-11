@@ -10,6 +10,7 @@ export const APP_IDS = {
   scenes: "scenes",
   scripts: "scripts",
   devices: "devices",
+  status: "status",
 } as const;
 
 export type HomeAssistantAction =

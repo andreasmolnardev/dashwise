@@ -11,6 +11,13 @@ import { actions, attachClient, detachClient, stopClient } from "./actions";
 import { HomeAssistantWebSocketClient } from "./client";
 import type { HassState } from "./ha-types";
 import { APP_IDS, mapEntities } from "./mapping";
+import {
+  buildStatusResources,
+  countLightsOn,
+  STATUS_RESOURCE_IDS,
+  type ConnectionStatus,
+  type StatusResource,
+} from "./status";
 
 type EntityResource = ResourceRecord & {
   type: string;
@@ -23,7 +30,13 @@ type EntityResource = ResourceRecord & {
 const entityCollection = resourceCollection<EntityResource>({
   persistent: true,
   shortcuts: true,
-  apps: Object.values(APP_IDS),
+  apps: Object.values(APP_IDS).filter((appId) => appId !== APP_IDS.status),
+});
+
+const statusCollection = resourceCollection<StatusResource>({
+  persistent: true,
+  shortcuts: true,
+  apps: [APP_IDS.status],
 });
 
 function buildAppContributions() {
@@ -36,10 +49,12 @@ function buildAppContributions() {
     { id: APP_IDS.scenes, name: "Home Assistant Scenes", icon: "mdi:palette" },
     { id: APP_IDS.scripts, name: "Home Assistant Scripts", icon: "mdi:script-text" },
     { id: APP_IDS.devices, name: "Home Assistant Devices", icon: "mdi:devices" },
+    { id: APP_IDS.status, name: "Home Assistant Status", icon: "mdi:heart-pulse" },
   ] as const;
 }
 
 const actionDefinitions = actions;
+const statusPublishers = new WeakMap<object, (state: ConnectionStatus) => Promise<void>>();
 
 const entityListConfig = {
   selectedEntities: {
@@ -54,6 +69,21 @@ const entityListWidget = {
   id: "entity-list",
   name: "Home Assistant Entity List",
   description: "Show selected entities and their current state.",
+  template: "vertical-list",
+  properties: {
+    header: { title: "Home Assistant entities", icon: "mdi:home-assistant" },
+    list: {
+      iterate_over: "entities",
+      max_items: 20,
+      prototype: { title: "${name}", subtitle: "${state}", icon: "${icon}" },
+    },
+  },
+  exampleProps: {
+    entities: [
+      { name: "Kitchen light", state: "on", icon: "mdi:lightbulb" },
+      { name: "Hall temperature", state: "21.5", icon: "mdi:thermometer" },
+    ],
+  },
   configSchema: entityListConfig,
   resourceBindings: {
     entities: { type: "shortcut-select", configKey: "selectedEntities" },
@@ -73,6 +103,21 @@ const sensorOverviewWidget = {
   id: "sensor-overview",
   name: "Home Assistant Sensor Overview",
   description: "Show the latest values from selected sensors.",
+  template: "vertical-list",
+  properties: {
+    header: { title: "Home Assistant sensors", icon: "mdi:eye" },
+    list: {
+      iterate_over: "sensors",
+      max_items: 20,
+      prototype: { title: "${name}", subtitle: "${state}", icon: "${icon}" },
+    },
+  },
+  exampleProps: {
+    sensors: [
+      { name: "Living room temperature", state: "21.5", icon: "mdi:thermometer" },
+      { name: "Humidity", state: "46", icon: "mdi:water-percent" },
+    ],
+  },
   configSchema: sensorOverviewConfig,
   resourceBindings: {
     sensors: { type: "shortcut-select", configKey: "sensors" },
@@ -89,29 +134,64 @@ const sensorGlanceableConfig = {
 const sensorValueGlanceable = {
   id: "sensor-value",
   name: "Home Assistant Sensor Value",
+  icon: { file: "${sensor.icon}", size: 16, description: "Selected Home Assistant sensor" },
+  text: "${sensor.name}: ${sensor.state}",
+  columns: [{ icon: "${sensor.icon}", text: "${sensor.state}", format: "text" }],
+  properties: { label: "${sensor.name}", value: "${sensor.state}" },
+  exampleProps: { sensor: { name: "Living room temperature", state: "21.5", icon: "mdi:thermometer" } },
   configSchema: sensorGlanceableConfig,
   resourceBindings: {
     sensor: { type: "shortcut-select", configKey: "sensor" },
   },
 } as const satisfies GlanceableContribution<typeof sensorGlanceableConfig>;
 
-const lightsOnCountConfig = {
-  lights: {
+const connectionStatusConfig = {
+  connectionStatus: {
     type: "shortcut-select",
-    label: "Lights",
-    description: "Choose the lights to include in the count.",
-    multiple: true,
-    appIds: [APP_IDS.lights],
+    label: "Connection status resource",
+    required: true,
+    default: STATUS_RESOURCE_IDS.connection,
+    appIds: [APP_IDS.status],
+    collectionIds: ["status"],
   },
 } as const satisfies IntegrationConfigSchema;
-const lightsOnCountGlanceable = {
+const connectionStatusGlanceable = {
+  id: "connection-status",
+  name: "Home Assistant Connection",
+  icon: { file: "${connection.icon}", size: 16, description: "Home Assistant connection" },
+  text: "${connection.state}",
+  columns: [{ icon: "${connection.icon}", text: "${connection.state}", format: "text" }],
+  properties: { label: "Connection", value: "${connection.state}" },
+  exampleProps: { connection: { state: "connected", icon: "mdi:lan-connect" } },
+  configSchema: connectionStatusConfig,
+  resourceBindings: {
+    connection: { type: "shortcut-select", configKey: "connectionStatus" },
+  },
+} as const satisfies GlanceableContribution<typeof connectionStatusConfig>;
+
+const lightsOnConfig = {
+  lightsOn: {
+    type: "shortcut-select",
+    label: "Lights on resource",
+    required: true,
+    default: STATUS_RESOURCE_IDS.lightsOn,
+    appIds: [APP_IDS.status],
+    collectionIds: ["status"],
+  },
+} as const satisfies IntegrationConfigSchema;
+const lightsOnGlanceable = {
   id: "lights-on-count",
   name: "Home Assistant Lights On",
-  configSchema: lightsOnCountConfig,
+  icon: { file: "${lightsOn.icon}", size: 16, description: "Home Assistant lights currently on" },
+  text: "${lightsOn.state} lights on",
+  columns: [{ icon: "${lightsOn.icon}", text: "${lightsOn.state}", format: "number" }],
+  properties: { label: "Lights on", value: "${lightsOn.state}" },
+  exampleProps: { lightsOn: { state: 2, icon: "mdi:lightbulb-on" } },
+  configSchema: lightsOnConfig,
   resourceBindings: {
-    lights: { type: "shortcut-select", configKey: "lights" },
+    lightsOn: { type: "shortcut-select", configKey: "lightsOn" },
   },
-} as const satisfies GlanceableContribution<typeof lightsOnCountConfig>;
+} as const satisfies GlanceableContribution<typeof lightsOnConfig>;
 
 function activityError(error: unknown): string {
   return error instanceof Error ? error.message : "Unknown Home Assistant integration error";
@@ -132,13 +212,13 @@ const homeAssistant = defineIntegration({
     url: { type: "url", required: true, title: "Home Assistant URL" },
     accessToken: { type: "secret", required: true, title: "Long-lived access token" },
   },
-  resources: { entities: entityCollection },
+  resources: { entities: entityCollection, status: statusCollection },
   actions: actionDefinitions,
   apps: buildAppContributions(),
   widgets: [entityListWidget, sensorOverviewWidget],
   glanceables: [
-    { id: "connection-status", name: "Home Assistant Connection" },
-    lightsOnCountGlanceable,
+    connectionStatusGlanceable,
+    lightsOnGlanceable,
     sensorValueGlanceable,
   ],
 
@@ -154,10 +234,32 @@ const homeAssistant = defineIntegration({
     if (!accessToken) throw new Error("Home Assistant long-lived access token is missing");
 
     const client = new HomeAssistantWebSocketClient(integrations.config.url, accessToken);
+    let connectionStatus: ConnectionStatus = "connecting";
+    let hasSnapshot = false;
+    let lightsOn = 0;
+    let statusSync = Promise.resolve();
+    const publishStatuses = () => {
+      const records = buildStatusResources({
+        connection: connectionStatus,
+        lightsOn,
+        hasSnapshot,
+        updatedAt: new Date().toISOString(),
+      });
+      statusSync = statusSync.catch(() => undefined).then(() =>
+        integrations.resources.status.sync(records, { completeness: "complete" }),
+      );
+      return statusSync;
+    };
+    statusPublishers.set(integrations, async (state) => {
+      connectionStatus = state;
+      await publishStatuses();
+    });
     let connectionLossCount = 0;
     let reportedOffline = false;
     const stopConnectionListener = client.onConnectionChange((connectionState) => {
       if (connectionState === "disconnected") {
+        connectionStatus = "disconnected";
+        void publishStatuses().catch((error) => integrations.logger.error("Could not update Home Assistant status resources", { error: activityError(error) }));
         connectionLossCount += 1;
         const thisLoss = connectionLossCount;
         integrations.scheduler.timeout("connection-lost-activity", 30_000, async (signal) => {
@@ -172,6 +274,8 @@ const homeAssistant = defineIntegration({
           });
         });
       } else if (connectionState === "ready") {
+        connectionStatus = "connected";
+        void publishStatuses().catch((error) => integrations.logger.error("Could not update Home Assistant status resources", { error: activityError(error) }));
         integrations.scheduler.cancel("connection-lost-activity");
         if (reportedOffline) {
           reportedOffline = false;
@@ -184,6 +288,8 @@ const homeAssistant = defineIntegration({
           }).catch((error) => integrations.logger.error("Could not publish Home Assistant recovery activity", { error: activityError(error) }));
         }
       } else {
+        connectionStatus = "reconnect_error";
+        void publishStatuses().catch((error) => integrations.logger.error("Could not update Home Assistant status resources", { error: activityError(error) }));
         integrations.scheduler.cancel("connection-lost-activity");
         void integrations.activities.publish({
           type: "homeassistant.connection.reconnect_failed",
@@ -197,6 +303,7 @@ const homeAssistant = defineIntegration({
     integrations.onDispose(stopConnectionListener);
 
     try {
+      await publishStatuses();
       await client.start(async (states: HassState[], registries) => {
         if (registries.registryErrors?.length) {
           integrations.logger.warn("Home Assistant registry metadata is incomplete; retaining the last known registry data", {
@@ -205,6 +312,10 @@ const homeAssistant = defineIntegration({
         }
         const records = mapEntities(states, registries.entities);
         await integrations.resources.entities.sync(records, { completeness: "complete" });
+        lightsOn = countLightsOn(records);
+        hasSnapshot = true;
+        if (connectionStatus === "connecting") connectionStatus = "connected";
+        await publishStatuses();
       });
       attachClient(integrations, client);
       integrations.onDispose(() => detachClient(integrations));
@@ -212,6 +323,9 @@ const homeAssistant = defineIntegration({
         instanceId: integrations.instanceId,
       });
     } catch (error) {
+      connectionStatus = "reconnect_error";
+      await publishStatuses().catch((statusError) => integrations.logger.error("Could not update Home Assistant status resources", { error: activityError(statusError) }));
+      statusPublishers.delete(integrations);
       await client.stop();
       stopConnectionListener();
       throw error;
@@ -261,10 +375,16 @@ const homeAssistant = defineIntegration({
 
   async stop(integrations) {
     integrations.scheduler.cancel("connection-lost-activity");
+    const publishStatus = statusPublishers.get(integrations);
+    statusPublishers.delete(integrations);
+    await publishStatus?.("disconnected").catch((error) => integrations.logger.error("Could not update Home Assistant status resources", { error: activityError(error) }));
     await stopClient(integrations);
   },
   async dispose(integrations) {
     integrations.scheduler.cancel("connection-lost-activity");
+    const publishStatus = statusPublishers.get(integrations);
+    statusPublishers.delete(integrations);
+    await publishStatus?.("disconnected").catch((error) => integrations.logger.error("Could not update Home Assistant status resources", { error: activityError(error) }));
     await stopClient(integrations);
   },
 });
