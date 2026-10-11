@@ -159,6 +159,8 @@ export type IntegrationConfigField =
 
 /** Per-contribution property fields; separate from JSON Schema action inputs. */
 export type IntegrationConfigSchema = Readonly<Record<string, IntegrationConfigField>>;
+/** Legacy JSON Schema configs remain accepted alongside typed property fields. */
+export type ContributionConfigSchema = IntegrationConfigSchema | JsonSchema;
 type IntegrationConfigFieldValue<Field extends IntegrationConfigField> =
   Field extends { type: "number" }
     ? number
@@ -187,6 +189,9 @@ export type ShortcutSelectConfigKey<Schema extends IntegrationConfigSchema> = {
 export type ResourceBindings<Schema extends IntegrationConfigSchema> = Readonly<
   Record<string, ResourceBinding<ShortcutSelectConfigKey<Schema>>>
 >;
+type ResourceBindingsFor<Schema extends ContributionConfigSchema> = Schema extends IntegrationConfigSchema
+  ? ResourceBindings<Schema>
+  : Readonly<Record<string, ResourceBinding<string>>>;
 type ResourceBindingValue<Schema extends IntegrationConfigSchema, ConfigKey extends keyof Schema> =
   Schema[ConfigKey] extends { type: "shortcut-select"; multiple: true }
     ? readonly ResourceRecord[]
@@ -204,8 +209,8 @@ export type ResourceBindingValues<
 };
 
 export type WidgetContribution<
-  Config extends IntegrationConfigSchema = IntegrationConfigSchema,
-  Bindings extends ResourceBindings<Config> = ResourceBindings<Config>,
+  Config extends ContributionConfigSchema = ContributionConfigSchema,
+  Bindings extends ResourceBindingsFor<Config> = ResourceBindingsFor<Config>,
 > = {
   id: string;
   name: string;
@@ -215,8 +220,8 @@ export type WidgetContribution<
   resourceBindings?: Bindings;
 };
 export type GlanceableContribution<
-  Config extends IntegrationConfigSchema = IntegrationConfigSchema,
-  Bindings extends ResourceBindings<Config> = ResourceBindings<Config>,
+  Config extends ContributionConfigSchema = ContributionConfigSchema,
+  Bindings extends ResourceBindingsFor<Config> = ResourceBindingsFor<Config>,
 > = {
   id: string;
   name: string;
@@ -224,6 +229,15 @@ export type GlanceableContribution<
   configSchema?: Config;
   /** Resolved current resource data supplied under each declared output key. */
   resourceBindings?: Bindings;
+};
+
+/** Broad input shape used only while inferring contribution literals in defineIntegration. */
+type IntegrationContributionInput = {
+  id: string;
+  name: string;
+  description?: string;
+  configSchema?: ContributionConfigSchema;
+  resourceBindings?: Readonly<Record<string, ResourceBinding<string>>>;
 };
 export type IntegrationActivity = {
   type: string;
@@ -282,8 +296,8 @@ export type IntegrationsRuntime<
 export type IntegrationDefinition<
   Config extends ConfigSchema = ConfigSchema,
   Resources extends Record<string, ResourceCollectionDefinition> = Record<string, ResourceCollectionDefinition>,
-  Widgets extends readonly WidgetContribution[] = readonly WidgetContribution[],
-  Glanceables extends readonly GlanceableContribution[] = readonly GlanceableContribution[],
+  Widgets extends readonly IntegrationContributionInput[] = readonly IntegrationContributionInput[],
+  Glanceables extends readonly IntegrationContributionInput[] = readonly IntegrationContributionInput[],
 > = {
   id: string;
   name: string;
@@ -304,8 +318,8 @@ export type IntegrationDefinition<
 export function defineIntegration<
   const Config extends ConfigSchema,
   const Resources extends Record<string, ResourceCollectionDefinition>,
-  const Widgets extends readonly WidgetContribution[] = readonly WidgetContribution[],
-  const Glanceables extends readonly GlanceableContribution[] = readonly GlanceableContribution[],
+  const Widgets extends readonly IntegrationContributionInput[] = readonly IntegrationContributionInput[],
+  const Glanceables extends readonly IntegrationContributionInput[] = readonly IntegrationContributionInput[],
 >(
   definition: IntegrationDefinition<Config, Resources, Widgets, Glanceables>,
 ): IntegrationDefinition<Config, Resources, Widgets, Glanceables> {

@@ -5,6 +5,7 @@ import type {
   ResourceBindingValues,
   WidgetContribution,
 } from "../index";
+import { defineIntegration } from "../index";
 
 const widget = {
   id: "entity-list",
@@ -99,6 +100,47 @@ const invalidBinding: WidgetContribution<typeof widgetSchema> = {
   },
 };
 
+const inferredDefinition = defineIntegration({
+  id: "inference-contract",
+  name: "Inference contract",
+  version: "1.0.0",
+  config: {},
+  resources: {},
+  widgets: [{
+    id: "bound-widget",
+    name: "Bound widget",
+    configSchema: {
+      selected: { type: "shortcut-select", multiple: true },
+    },
+    resourceBindings: {
+      entities: { type: "shortcut-select", configKey: "selected" },
+    },
+  }],
+  glanceables: [{
+    id: "bound-glanceable",
+    name: "Bound glanceable",
+    configSchema: {
+      sensor: { type: "shortcut-select" },
+    },
+    resourceBindings: {
+      current: { type: "shortcut-select", configKey: "sensor" },
+    },
+  }],
+});
+
+type InferredWidget = NonNullable<typeof inferredDefinition.widgets>[number];
+type InferredGlanceable = NonNullable<typeof inferredDefinition.glanceables>[number];
+type WidgetBindingConfigKey = InferredWidget["resourceBindings"] extends {
+  entities: { configKey: infer ConfigKey };
+} ? ConfigKey : never;
+type GlanceableBindingConfigKey = InferredGlanceable["resourceBindings"] extends {
+  current: { configKey: infer ConfigKey };
+} ? ConfigKey : never;
+type IsEqual<Left, Right> = (<Value>() => Value extends Left ? 1 : 2) extends
+  (<Value>() => Value extends Right ? 1 : 2) ? true : false;
+const widgetConfigKeyIsInferred: IsEqual<WidgetBindingConfigKey, "selected"> = true;
+const glanceableConfigKeyIsInferred: IsEqual<GlanceableBindingConfigKey, "sensor"> = true;
+
 void [
   oneShortcut,
   manyShortcuts,
@@ -110,4 +152,7 @@ void [
   multipleResolvedResources,
   missingSingleResolvedResource,
   invalidBinding,
+  inferredDefinition,
+  widgetConfigKeyIsInferred,
+  glanceableConfigKeyIsInferred,
 ];

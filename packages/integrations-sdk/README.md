@@ -57,8 +57,12 @@ confirmed state comes from resource synchronization. Widgets and Glanceables
 declare contributions for existing Dashwise surfaces. Durable Activities are
 published imperatively; high-volume resource changes use transient subscriptions.
 
-Widget and Glanceable `configSchema` values use `IntegrationConfigSchema`, a
-property-field map separate from JSON Schema action inputs. Use a
+Widget and Glanceable `configSchema` values can use `IntegrationConfigSchema`,
+a typed property-field map separate from JSON Schema action inputs. Existing
+JSON Schema contribution configs remain accepted for compatibility; use typed
+property fields when declaring resource selectors. `defineIntegration`
+preserves nested contribution settings and binding keys when inferring the
+definition. Use a
 `shortcut-select` field to let users choose resource-backed Shortcuts:
 
 ```ts
