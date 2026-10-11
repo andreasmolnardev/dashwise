@@ -1,0 +1,9 @@
+{
+  "name": "@dashwise/integrations-sdk",
+  "version": "2.0.0",
+  "type": "module",
+  "main": "index.ts",
+  "types": "index.ts",
+  "exports": { ".": { "types": "./index.ts", "default": "./index.ts" } },
+  "scripts": { "typecheck": "tsc --noEmit -p tsconfig.json" }
+}

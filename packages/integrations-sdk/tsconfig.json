@@ -1,0 +1,9 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "include": ["**/*.ts"],
+  "compilerOptions": {
+    "incremental": false,
+    "baseUrl": ".",
+    "paths": { "@dashwise/integrations-sdk": ["./index.ts"] }
+  }
+}
