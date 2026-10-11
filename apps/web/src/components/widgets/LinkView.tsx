@@ -698,7 +698,7 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
                   type="button"
                   aria-pressed={activeCollection === col}
                   onClick={() => setActiveCollection(col)}
-                  className={`px-3.5 py-2 rounded-l-xl font-medium text-sm transition-colors ${
+                  className={`pl-3.5 pr-1 py-2 rounded-l-xl font-medium text-sm transition-colors ${
                     activeCollection === col
                       ? " text-white outline-1 outline-primary"
                       : " text-white/70 hover:text-white"
@@ -713,7 +713,7 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
                         type="button"
                         aria-label={`Manage ${col} link group`}
                         title={`Manage ${col}`}
-                        className="mr-1 inline-flex size-8 items-center justify-center rounded-lg text-white/65 opacity-0 transition hover:bg-white/10 hover:text-white focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary group-hover:opacity-100 group-focus-within:opacity-100"
+                        className="mr-2 inline-flex size-5 items-center justify-center rounded text-white/65 opacity-0 transition-opacity hover:text-white focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary group-hover:opacity-100"
                       >
                         <MoreHorizontal className="size-4" />
                       </button>
