@@ -33,7 +33,7 @@ type ResourceRow = Record<string, unknown> & {
   id: string;
   owner: string;
   instance: string;
-  collectionId: string;
+  resourceCollection: string;
   resourceId: string;
   appIds?: unknown;
   data: unknown;
@@ -142,12 +142,12 @@ export async function deleteSdkInstance(userId: string, instanceId: string) {
   const { pb } = await getOwnedSdkInstance(userId, instanceId);
   const resources = await pb.collection("sdkIntegrationResources").getFullList<ResourceRow>({
     filter: `owner = "${escapeFilter(userId)}" && instance = "${escapeFilter(instanceId)}"`,
-    fields: "collectionId,resourceId,revision",
+    fields: "resourceCollection,resourceId,revision",
   });
   for (const resource of resources) {
     broadcastSdkResourceRevision(userId, {
       instanceId,
-      collectionId: resource.collectionId,
+      collectionId: resource.resourceCollection,
       resourceId: resource.resourceId,
       revision: Number(resource.revision ?? 0) + 1,
       operation: "remove",
@@ -172,10 +172,10 @@ export async function getSdkInstanceConfig(userId: string, instanceId: string) {
 export async function listSdkResources(userId: string, instanceId: string, collectionId?: string) {
   const { pb } = await getOwnedSdkInstance(userId, instanceId);
   const clauses = [`owner = "${escapeFilter(userId)}"`, `instance = "${escapeFilter(instanceId)}"`];
-  if (collectionId) clauses.push(`collectionId = "${escapeFilter(collectionId)}"`);
+  if (collectionId) clauses.push(`resourceCollection = "${escapeFilter(collectionId)}"`);
   const rows = await pb.collection("sdkIntegrationResources").getFullList<ResourceRow>({
     filter: clauses.join(" && "),
-    sort: "collectionId,resourceId",
+    sort: "resourceCollection,resourceId",
   });
   return rows.map(mapResourceRow);
 }
@@ -226,7 +226,7 @@ export async function upsertSdkResource(
   const record = {
     owner: userId,
     instance: instanceId,
-    collectionId,
+    resourceCollection: collectionId,
     resourceId: resource.id,
     appIds: resource.apps,
     data,
@@ -324,7 +324,7 @@ function mapResourceRow(row: ResourceRow): SdkResourceRecord & { collectionId: s
     ...data,
     id: row.resourceId,
     apps: Array.isArray(row.appIds) ? row.appIds.filter((value): value is string => typeof value === "string") : [],
-    collectionId: row.collectionId,
+    collectionId: row.resourceCollection,
     revision: Number(row.revision ?? 0),
     stale: row.stale === true,
     ...(typeof row.upstreamId === "string" && row.upstreamId ? { upstreamId: row.upstreamId } : {}),
@@ -386,7 +386,7 @@ function validateIdentifier(value: unknown, label: string, maxLength: number) {
 }
 
 function resourceFilter(userId: string, instanceId: string, collectionId: string, resourceId: string) {
-  return `owner = "${escapeFilter(userId)}" && instance = "${escapeFilter(instanceId)}" && collectionId = "${escapeFilter(collectionId)}" && resourceId = "${escapeFilter(resourceId)}"`;
+  return `owner = "${escapeFilter(userId)}" && instance = "${escapeFilter(instanceId)}" && resourceCollection = "${escapeFilter(collectionId)}" && resourceId = "${escapeFilter(resourceId)}"`;
 }
 
 function relationId(value: unknown) {

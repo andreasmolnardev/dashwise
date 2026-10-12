@@ -41,6 +41,9 @@ COPY packages/app-icon/package.json ./packages/app-icon/
 COPY packages/assets/package.json ./packages/assets/
 COPY packages/api-types/package.json ./packages/api-types/
 COPY packages/types/package.json ./packages/types/
+COPY packages/integration-example-rest/package.json ./packages/integration-example-rest/
+COPY packages/integrations-sdk/package.json ./packages/integrations-sdk/
+COPY packages/integrations/homeassistant/package.json ./packages/integrations/homeassistant/
 RUN bun install --frozen-lockfile
 
 FROM deps AS build

@@ -18,6 +18,22 @@ import { parseEntitySnapshot } from "./snapshot";
 
 type HassEntitySnapshot = Record<string, HassState>;
 
+export type HomeAssistantWebSocketApi = {
+  createConnection: typeof createConnection;
+  createLongLivedTokenAuth: typeof createLongLivedTokenAuth;
+  getStates: typeof getStates;
+  subscribeEntities: typeof subscribeEntities;
+  callService: typeof callService;
+};
+
+const defaultHomeAssistantWebSocketApi: HomeAssistantWebSocketApi = {
+  createConnection,
+  createLongLivedTokenAuth,
+  getStates,
+  subscribeEntities,
+  callService,
+};
+
 /**
  * Uses Home Assistant's maintained websocket client for authentication,
  * event subscription, state snapshots, service calls, and reconnects.
@@ -39,6 +55,7 @@ export class HomeAssistantWebSocketClient implements HomeAssistantClient {
     private readonly url: string,
     private readonly token: string,
     private readonly snapshotTimeoutMs = 30_000,
+    private readonly api: HomeAssistantWebSocketApi = defaultHomeAssistantWebSocketApi,
   ) {}
 
   async start(
@@ -52,8 +69,8 @@ export class HomeAssistantWebSocketClient implements HomeAssistantClient {
     if (!this.token.trim()) throw new Error("Home Assistant access token is required");
     this.stopped = false;
     this.snapshotHandler = onSnapshot;
-    const auth = createLongLivedTokenAuth(url, this.token);
-    const connection = await createConnection({ auth, setupRetry: 2, connectTimeout: 10_000 });
+    const auth = this.api.createLongLivedTokenAuth(url, this.token);
+    const connection = await this.api.createConnection({ auth, setupRetry: 2, connectTimeout: 10_000 });
     this.connection = connection;
     connection.addEventListener("ready", this.handleReady);
     connection.addEventListener("disconnected", this.handleDisconnect);
@@ -88,7 +105,7 @@ export class HomeAssistantWebSocketClient implements HomeAssistantClient {
     target?: Record<string, unknown>,
   ): Promise<unknown> {
     if (!this.connection || this.stopped) throw new Error("Home Assistant is not connected");
-    return callService(this.connection, domain, service, serviceData, target);
+    return this.api.callService(this.connection, domain, service, serviceData, target);
   }
 
   async refreshRegistries(): Promise<HassRegistrySnapshot> {
@@ -122,7 +139,7 @@ export class HomeAssistantWebSocketClient implements HomeAssistantClient {
     this.registryRefresh = (async () => {
       const [registries, states] = await Promise.all([
         this.refreshRegistries(),
-        getStates(connection) as Promise<HassState[]>,
+        this.api.getStates(connection) as Promise<HassState[]>,
       ]);
       if (!Array.isArray(states)) throw new Error("Home Assistant returned an invalid state snapshot");
       await snapshotHandler(states, registries);
@@ -162,7 +179,7 @@ export class HomeAssistantWebSocketClient implements HomeAssistantClient {
       await new Promise<void>((resolve, reject) => {
         timeout = setTimeout(() => reject(new Error("Timed out waiting for Home Assistant entity snapshot")), this.snapshotTimeoutMs);
         try {
-          unsubscribe = subscribeEntities(connection, (snapshot: HassEntitySnapshot) => {
+          unsubscribe = this.api.subscribeEntities(connection, (snapshot: HassEntitySnapshot) => {
             let states: HassState[];
             try {
               states = parseEntitySnapshot(snapshot);

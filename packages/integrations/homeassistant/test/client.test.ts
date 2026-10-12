@@ -1,5 +1,7 @@
-import { describe, expect, it, mock } from "bun:test";
+import { describe, expect, it } from "bun:test";
 import type { AreaRegistryEntry, DeviceRegistryEntry, EntityRegistryEntry, HassState } from "../src/ha-types";
+import { HomeAssistantWebSocketClient, normalizeHomeAssistantUrl, type HomeAssistantWebSocketApi } from "../src/client";
+import type { Connection } from "home-assistant-js-websocket";
 
 type ServerEvent = (event: unknown) => void;
 
@@ -89,18 +91,20 @@ class MockHomeAssistantServer {
 }
 
 const server = new MockHomeAssistantServer();
-mock.module("home-assistant-js-websocket", () => ({
-  createLongLivedTokenAuth: (url: string, accessToken: string) => ({ url, accessToken }),
-  async createConnection({ auth }: { auth: { url: string; accessToken: string } }) { return server.authenticate(auth); },
-  async getStates() { return server.states; },
-  subscribeEntities: (_connection: unknown, listener: (snapshot: Record<string, HassState>) => void) => server.subscribeEntities(listener),
-  async callService(_connection: unknown, ...args: unknown[]) {
+const api: HomeAssistantWebSocketApi = {
+  createLongLivedTokenAuth: (url, accessToken) => ({ url, accessToken } as never),
+  async createConnection(options) {
+    const auth = (options as unknown as { auth: { url: string; accessToken: string } }).auth;
+    return server.authenticate(auth) as unknown as Connection;
+  },
+  async getStates() { return server.states as never; },
+  subscribeEntities: (_connection, listener) =>
+    server.subscribeEntities(listener as unknown as (snapshot: Record<string, HassState>) => void),
+  async callService(_connection, ...args) {
     server.serviceCalls.push(args);
     return { context: { id: "service-context" } };
   },
-}));
-
-const { HomeAssistantWebSocketClient, normalizeHomeAssistantUrl } = await import("../src/client");
+};
 
 describe("Home Assistant SDK WebSocket client", () => {
   it("authenticates, synchronizes live entity and registry snapshots, dispatches services, and cleans up", async () => {
@@ -109,7 +113,7 @@ describe("Home Assistant SDK WebSocket client", () => {
     server.credentials.url = "";
     server.credentials.token = "";
     server.serviceCalls.length = 0;
-    const client = new HomeAssistantWebSocketClient(" https://ha.example/homeassistant/?view=dashboard#home ", "valid-long-lived-token");
+    const client = new HomeAssistantWebSocketClient(" https://ha.example/homeassistant/?view=dashboard#home ", "valid-long-lived-token", 30_000, api);
     const snapshots: Array<{ states: HassState[]; registries: Record<string, unknown> }> = [];
     const connectionStates: string[] = [];
 
@@ -157,7 +161,7 @@ describe("Home Assistant SDK WebSocket client", () => {
   it("rejects invalid protocol, embedded credentials, and missing access tokens", async () => {
     expect(() => normalizeHomeAssistantUrl("ws://ha.example")).toThrow("http or https");
     expect(() => normalizeHomeAssistantUrl("https://user:secret@ha.example")).toThrow("Credentials");
-    const client = new HomeAssistantWebSocketClient("https://ha.example", "  ");
+    const client = new HomeAssistantWebSocketClient("https://ha.example", "  ", 30_000, api);
     await expect(client.start(async () => {})).rejects.toThrow("access token is required");
   });
 });
