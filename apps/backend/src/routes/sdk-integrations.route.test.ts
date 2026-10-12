@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
 import { getDashwiseSDKConnector, registerDashwiseSDKConnector } from "../lib/pb/pocketbase";
 import { hashSessionToken } from "../lib/data/sessions";
+import { subscribeSdkResourceRevisions, type SdkResourceRevisionEvent } from "../lib/activity";
 import { registerSdkIntegration } from "../lib/integrations-sdk/catalog";
 import { startSdkIntegrationRuntime, stopSdkIntegrationRuntime } from "../lib/integrations-sdk/runtime";
 import sdkIntegrationsRoute from "./sdk-integrations.route";
@@ -139,6 +140,7 @@ function createPocketBaseFixture() {
 
 let previousConnector: ReturnType<typeof getDashwiseSDKConnector>;
 let fixture: ReturnType<typeof createPocketBaseFixture>;
+let stopResourceSubscriptions: (() => void) | undefined;
 
 beforeEach(() => {
   previousConnector = getDashwiseSDKConnector();
@@ -149,9 +151,12 @@ beforeEach(() => {
   haConnectionAttempts = 0;
   haConnectionFailure = false;
   haConnectionStartGate = null;
+  hassState.state = "off";
+  stopResourceSubscriptions = undefined;
   registerDashwiseSDKConnector(fixture.connector as never);
 });
 afterEach(async () => {
+  stopResourceSubscriptions?.();
   await stopSdkIntegrationRuntime();
   registerDashwiseSDKConnector(previousConnector);
 });
@@ -194,6 +199,14 @@ describe("SDK integration API with an in-memory PocketBase connector", () => {
   });
 
   test("restores a configured Home Assistant instance after runtime restart and syncs resources, actions, and Activities", async () => {
+    const ownerEvents: SdkResourceRevisionEvent[] = [];
+    const otherUserEvents: SdkResourceRevisionEvent[] = [];
+    const unsubscribeOwner = subscribeSdkResourceRevisions(userId, (event) => ownerEvents.push(event));
+    const unsubscribeOtherUser = subscribeSdkResourceRevisions("another-user", (event) => otherUserEvents.push(event));
+    stopResourceSubscriptions = () => {
+      unsubscribeOwner();
+      unsubscribeOtherUser();
+    };
     const request = (path: string, init: RequestInit = {}) => sdkIntegrationsRoute.fetch(new Request(`http://localhost${path}`, {
       ...init,
       headers: {
@@ -234,6 +247,27 @@ describe("SDK integration API with an in-memory PocketBase connector", () => {
     expect(await resourceResponse.json()).toMatchObject({ resources: [{
       id: "light.kitchen", name: "Kitchen lamp", state: "off", collectionId: "entities", stale: false,
     }] });
+    const initialResourceRevision = Math.max(0, ...ownerEvents
+      .filter((event) => event.instanceId === instanceId && event.collectionId === "entities" && event.resourceId === "light.kitchen")
+      .map((event) => event.revision));
+    hassState.state = "on";
+    await haEventListeners.get("entity_registry_updated")?.({});
+    for (let attempt = 0; attempt < 100 && !ownerEvents.some((event) =>
+      event.instanceId === instanceId
+      && event.collectionId === "entities"
+      && event.resourceId === "light.kitchen"
+      && event.revision > initialResourceRevision
+    ); attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 1));
+    }
+    expect(ownerEvents.some((event) =>
+      event.instanceId === instanceId
+      && event.collectionId === "entities"
+      && event.resourceId === "light.kitchen"
+      && event.operation === "upsert"
+      && event.revision > initialResourceRevision
+    )).toBe(true);
+    expect(otherUserEvents).toHaveLength(0);
 
     await stopSdkIntegrationRuntime();
     expect(haConnectionClosed).toBe(true);
@@ -243,7 +277,7 @@ describe("SDK integration API with an in-memory PocketBase connector", () => {
     const restoredResourceResponse = await request(`/api/v1/sdk-integrations/instances/${instanceId}/resources?collectionId=entities`);
     expect(restoredResourceResponse.status).toBe(200);
     expect(await restoredResourceResponse.json()).toMatchObject({ resources: [{
-      id: "light.kitchen", name: "Kitchen lamp", state: "off", collectionId: "entities", stale: false,
+      id: "light.kitchen", name: "Kitchen lamp", state: "on", collectionId: "entities", stale: false,
     }] });
 
     const actionResponse = await request(`/api/v1/sdk-integrations/instances/${instanceId}/actions/turnOn`, {
