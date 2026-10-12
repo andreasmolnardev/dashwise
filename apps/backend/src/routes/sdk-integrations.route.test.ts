@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
 import { getDashwiseSDKConnector, registerDashwiseSDKConnector } from "../lib/pb/pocketbase";
 import { hashSessionToken } from "../lib/data/sessions";
 import { registerSdkIntegration } from "../lib/integrations-sdk/catalog";
-import { stopSdkIntegrationRuntime } from "../lib/integrations-sdk/runtime";
+import { startSdkIntegrationRuntime, stopSdkIntegrationRuntime } from "../lib/integrations-sdk/runtime";
 import sdkIntegrationsRoute from "./sdk-integrations.route";
 
 const userId = "sdk-test-user";
@@ -11,6 +11,7 @@ const source = "homeassistant";
 const haServiceCalls: unknown[][] = [];
 const haEventListeners = new Map<string, (event: unknown) => unknown>();
 let haConnectionClosed = false;
+let haConnectionAttempts = 0;
 const hassState = {
   entity_id: "light.kitchen",
   state: "off",
@@ -33,7 +34,11 @@ const connection = {
 
 mock.module("home-assistant-js-websocket", () => ({
   createLongLivedTokenAuth: (url: string, accessToken: string) => ({ url, accessToken }),
-  async createConnection() { return connection; },
+  async createConnection() {
+    haConnectionAttempts += 1;
+    haConnectionClosed = false;
+    return connection;
+  },
   async getStates() { return [hassState]; },
   subscribeEntities(_connection: unknown, listener: (snapshot: Record<string, typeof hassState>) => void) {
     listener({ [hassState.entity_id]: hassState });
@@ -137,6 +142,7 @@ beforeEach(() => {
   haServiceCalls.length = 0;
   haEventListeners.clear();
   haConnectionClosed = false;
+  haConnectionAttempts = 0;
   registerDashwiseSDKConnector(fixture.connector as never);
 });
 afterEach(async () => {
@@ -147,7 +153,7 @@ afterEach(async () => {
 registerSdkIntegration(homeAssistant);
 
 describe("SDK integration API with an in-memory PocketBase connector", () => {
-  test("runs the Home Assistant lifecycle through the SDK API, syncs resources, executes a service, and publishes Activity", async () => {
+  test("restores a configured Home Assistant instance after runtime restart and syncs resources, actions, and Activities", async () => {
     const request = (path: string, init: RequestInit = {}) => sdkIntegrationsRoute.fetch(new Request(`http://localhost${path}`, {
       ...init,
       headers: {
@@ -171,6 +177,17 @@ describe("SDK integration API with an in-memory PocketBase connector", () => {
     expect(resourceResponse.status).toBe(200);
     expect(await resourceResponse.json()).toMatchObject({ resources: [{
       id: "light.kitchen", name: "Kitchen lamp", state: "off", collectionId: "entities", revision: 1, stale: false,
+    }] });
+
+    await stopSdkIntegrationRuntime();
+    expect(haConnectionClosed).toBe(true);
+    await startSdkIntegrationRuntime();
+    expect(haConnectionAttempts).toBe(2);
+    expect(haEventListeners.has("homeassistant_stop")).toBe(true);
+    const restoredResourceResponse = await request(`/api/v1/sdk-integrations/instances/${instanceId}/resources?collectionId=entities`);
+    expect(restoredResourceResponse.status).toBe(200);
+    expect(await restoredResourceResponse.json()).toMatchObject({ resources: [{
+      id: "light.kitchen", name: "Kitchen lamp", state: "off", collectionId: "entities", stale: false,
     }] });
 
     const actionResponse = await request(`/api/v1/sdk-integrations/instances/${instanceId}/actions/turnOn`, {
