@@ -7,8 +7,10 @@ class MockHomeAssistantClient implements HomeAssistantClient {
   readonly serviceCalls: unknown[][] = [];
   readonly eventHandlers = new Map<string, Array<(event: unknown) => void | Promise<void>>>();
   private readonly connectionListeners = new Set<(state: "ready" | "disconnected" | "error") => void>();
+  private snapshotHandler?: (states: HassState[], registries: HassRegistrySnapshot) => Promise<void>;
 
   async start(onSnapshot: (states: HassState[], registries: HassRegistrySnapshot) => Promise<void>): Promise<void> {
+    this.snapshotHandler = onSnapshot;
     for (const listener of this.connectionListeners) listener("ready");
     await onSnapshot([
       {
@@ -20,8 +22,25 @@ class MockHomeAssistantClient implements HomeAssistantClient {
     ], { entities: [], devices: [], areas: [] });
   }
 
-  async refreshDiscovery(): Promise<void> {}
-  async stop(): Promise<void> {}
+  async refreshDiscovery(): Promise<void> {
+    await this.snapshotHandler?.([
+      {
+        entity_id: "light.study",
+        state: "on",
+        attributes: { friendly_name: "Study light", supported_color_modes: ["brightness"] },
+      },
+      { entity_id: "sensor.office_temperature", state: "22", attributes: { friendly_name: "Office temperature" } },
+    ], { entities: [], devices: [], areas: [] });
+  }
+  async stop(): Promise<void> { this.snapshotHandler = undefined; }
+
+  async emitSnapshot(states: HassState[], registries: HassRegistrySnapshot = { entities: [], devices: [], areas: [] }) {
+    await this.snapshotHandler?.(states, registries);
+  }
+
+  emitConnectionState(state: "ready" | "disconnected" | "error") {
+    for (const listener of this.connectionListeners) listener(state);
+  }
 
   async callService(
     domain: string,
@@ -61,6 +80,7 @@ function makeRuntime() {
   const syncOptions: Record<string, unknown> = {};
   const activities: Array<Record<string, unknown>> = [];
   const secretReads: string[] = [];
+  const scheduled = new Map<string, (signal: AbortSignal) => void | Promise<void>>();
   const runtime = {
     instanceId: "ha-test-instance",
     config: { url: "http://homeassistant.local:8123" },
@@ -91,11 +111,19 @@ function makeRuntime() {
         return { id: `activity-${activities.length}`, duplicate: false };
       },
     },
-    scheduler: { timeout() {}, cancel() {}, every() {} },
+    scheduler: {
+      timeout(name: string, _delayMs: number, task: (signal: AbortSignal) => void | Promise<void>) { scheduled.set(name, task); },
+      cancel(name: string) { scheduled.delete(name); },
+      every() {},
+    },
     logger: { info() {}, warn() {}, error() {} },
     onDispose() {},
   };
-  return { runtime, synced, syncOptions, activities, secretReads };
+  return { runtime, synced, syncOptions, activities, secretReads, scheduled };
+}
+
+function flushAsyncUpdates() {
+  return new Promise<void>((resolve) => setTimeout(resolve, 0));
 }
 
 describe("Home Assistant SDK lifecycle", () => {
@@ -152,6 +180,44 @@ describe("Home Assistant SDK lifecycle", () => {
       ["homeassistant.server.stopping", "ha-stop-context"],
       ["homeassistant.server.started", "ha-start-context"],
     ]);
+
+    await integration.stop?.(sdkRuntime);
+    await integration.dispose?.(sdkRuntime);
+  });
+
+  it("reconciles renamed and removed entities and publishes debounced connection recovery", async () => {
+    const client = new MockHomeAssistantClient();
+    const integration = createHomeAssistantIntegration(() => client);
+    const { runtime, synced, syncOptions, activities, scheduled } = makeRuntime();
+    type Runtime = Parameters<NonNullable<typeof integration.start>>[0];
+    const sdkRuntime = runtime as unknown as Runtime;
+
+    await integration.start?.(sdkRuntime);
+    await client.emitSnapshot([
+      {
+        entity_id: "light.study_lamp",
+        state: "off",
+        attributes: { friendly_name: "Reading lamp", supported_color_modes: ["brightness"] },
+      },
+    ]);
+
+    expect(synced.entities.map(({ id }) => id)).toEqual(["light.study_lamp"]);
+    expect(synced.entities[0]?.name).toBe("Reading lamp");
+    expect(syncOptions.entities).toEqual({ completeness: "complete" });
+
+    client.emitConnectionState("disconnected");
+    await flushAsyncUpdates();
+    expect(synced.status.find(({ id }) => id === "connection")?.state).toBe("disconnected");
+    const lossActivity = scheduled.get("connection-lost-activity");
+    expect(lossActivity).toBeDefined();
+    await lossActivity?.(new AbortController().signal);
+    await flushAsyncUpdates();
+    expect(activities.map(({ type }) => type)).toContain("homeassistant.connection.lost");
+
+    client.emitConnectionState("ready");
+    await flushAsyncUpdates();
+    expect(synced.status.find(({ id }) => id === "connection")?.state).toBe("connected");
+    expect(activities.map(({ type }) => type)).toContain("homeassistant.connection.recovered");
 
     await integration.stop?.(sdkRuntime);
     await integration.dispose?.(sdkRuntime);
