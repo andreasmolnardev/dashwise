@@ -50,6 +50,9 @@ type GlanceableCatalogItem = {
   appName?: string;
   exampleProps: Record<string, any>;
   properties?: Record<string, any>;
+  sdkInstanceId?: string;
+  sdkContributionId?: string;
+  sdkConfigSchema?: Record<string, unknown>;
 };
 
 function getGlanceableGroupName(entry: Partial<GlanceableCatalogItem> & Record<string, any>) {

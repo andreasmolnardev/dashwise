@@ -9,7 +9,7 @@ import {
 } from "@dashwise/integrations-sdk";
 import { actions, attachClient, detachClient, stopClient } from "./actions";
 import { HomeAssistantWebSocketClient } from "./client";
-import type { HassState } from "./ha-types";
+import type { HassState, HomeAssistantClient } from "./ha-types";
 import { APP_IDS, mapEntities } from "./mapping";
 import {
   buildStatusResources,
@@ -203,7 +203,11 @@ function eventContextId(event: unknown): string | undefined {
   return typeof context?.id === "string" ? context.id : undefined;
 }
 
-const homeAssistant = defineIntegration({
+export function createHomeAssistantIntegration(
+  createClient: (url: string, accessToken: string) => HomeAssistantClient = (url, accessToken) =>
+    new HomeAssistantWebSocketClient(url, accessToken),
+) {
+  return defineIntegration({
   id: "homeassistant",
   name: "Home Assistant",
   version: "1.0.0",
@@ -233,7 +237,8 @@ const homeAssistant = defineIntegration({
     const accessToken = await integrations.secrets.get("accessToken");
     if (!accessToken) throw new Error("Home Assistant long-lived access token is missing");
 
-    const client = new HomeAssistantWebSocketClient(integrations.config.url, accessToken);
+    const safeUrl = await integrations.http.assertSafeUrl(integrations.config.url, ["http:", "https:"]);
+    const client = createClient(safeUrl.toString(), accessToken);
     let connectionStatus: ConnectionStatus = "connecting";
     let hasSnapshot = false;
     let lightsOn = 0;
@@ -387,7 +392,10 @@ const homeAssistant = defineIntegration({
     await publishStatus?.("disconnected").catch((error) => integrations.logger.error("Could not update Home Assistant status resources", { error: activityError(error) }));
     await stopClient(integrations);
   },
-});
+  });
+}
+
+const homeAssistant = createHomeAssistantIntegration();
 
 export default homeAssistant;
 export { homeAssistant };

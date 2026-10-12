@@ -103,7 +103,7 @@ export type IntegrationAction<
   name: string;
   description?: string;
   inputSchema?: JsonSchema;
-  execute(integrations: Integrations, resource: Resource, input: Input): Result | Promise<Result>;
+  execute(integrations: Integrations, resource: Resource, input: Input, signal?: AbortSignal): Result | Promise<Result>;
 };
 export function defineAction<
   Input = unknown,
@@ -296,7 +296,11 @@ export type IntegrationLogger = {
   warn(message: string, metadata?: Record<string, JsonValue>): void;
   error(message: string, metadata?: Record<string, JsonValue>): void;
 };
-export type IntegrationHttp = { fetch(input: string | URL, init?: RequestInit): Promise<Response> };
+export type IntegrationHttp = {
+  fetch(input: string | URL, init?: RequestInit): Promise<Response>;
+  /** Validate a configured endpoint before handing it to a client with its own transport. */
+  assertSafeUrl(input: string | URL, protocols?: readonly string[]): Promise<URL>;
+};
 export type IntegrationWebSocket = { connect(url: string | URL, protocols?: string | string[]): Promise<WebSocket> };
 export type IntegrationScheduler = {
   every(name: string, intervalMs: number, task: (signal: AbortSignal) => void | Promise<void>): void;

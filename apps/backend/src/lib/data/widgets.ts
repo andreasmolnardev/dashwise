@@ -5,6 +5,8 @@ import { readFile } from "fs/promises";
 import path from "path";
 import YAML from "yaml";
 import type { IntegrationsResponse } from "@dashwise/types";
+import { listSdkInstances } from "./../integrations-sdk/persistence";
+import { requireSdkIntegrationDefinition } from "./../integrations-sdk/catalog";
 
 type WidgetPreviewData = {
     template?: string;
@@ -25,6 +27,9 @@ type WidgetCatalogItem = {
     };
     exampleProps?: Record<string, any>;
     preview?: WidgetPreviewData;
+    sdkInstanceId?: string;
+    sdkContributionId?: string;
+    sdkConfigSchema?: Record<string, unknown>;
 };
 
 type WidgetCatalog = Record<string, WidgetCatalogItem[]>;
@@ -39,6 +44,12 @@ type GlanceableCatalogItem = {
     description?: string;
     exampleProps: Record<string, any>;
     properties?: Record<string, any>;
+    icon?: unknown;
+    text?: unknown;
+    columns?: unknown[];
+    sdkInstanceId?: string;
+    sdkContributionId?: string;
+    sdkConfigSchema?: Record<string, unknown>;
 };
 
 function sortWidgetsByIndex<T extends { index?: number }>(widgets: T[]) {
@@ -333,6 +344,28 @@ async function getIntegrationGlanceables(userId: string): Promise<GlanceableCata
         );
     }
 
+    const sdkInstances = await listSdkInstances(userId);
+    for (const instance of sdkInstances) {
+        const definition = requireSdkIntegrationDefinition(instance.source);
+        glanceables.push(...(definition.glanceables ?? []).map((entry) => ({
+            type: sdkContributionKey(instance.id, "glanceable", entry.id),
+            displayName: entry.name,
+            integrationId: instance.id,
+            integrationName: definition.name,
+            integrationDisplayName: instance.name,
+            appName: instance.name,
+            ...(entry.description ? { description: entry.description } : {}),
+            exampleProps: { ...(entry.exampleProps ?? {}) },
+            properties: { ...(entry.properties ?? {}) },
+            ...(entry.icon !== undefined ? { icon: entry.icon } : {}),
+            ...(entry.text !== undefined ? { text: entry.text } : {}),
+            ...(entry.columns ? { columns: entry.columns as unknown[] } : {}),
+            sdkInstanceId: instance.id,
+            sdkContributionId: entry.id,
+            sdkConfigSchema: { ...(entry.configSchema ?? {}) },
+        })));
+    }
+
     return glanceables;
 }
 
@@ -380,6 +413,25 @@ export async function getUserWidgets(userId: string) {
         }
     }
 
+    const sdkInstances = await listSdkInstances(userId);
+    for (const instance of sdkInstances) {
+        const definition = requireSdkIntegrationDefinition(instance.source);
+        const category = `integration-${normalizeWidgetSlug(definition.name)}`;
+        const widgets = (definition.widgets ?? []).map((entry) => ({
+            key: sdkContributionKey(instance.id, "widget", entry.id),
+            integrationId: instance.id,
+            name: entry.name,
+            description: entry.description ?? `${definition.name} widget`,
+            template: entry.template ?? "columns",
+            properties: { ...(entry.properties ?? {}) },
+            exampleProps: { ...(entry.exampleProps ?? {}) },
+            sdkInstanceId: instance.id,
+            sdkContributionId: entry.id,
+            sdkConfigSchema: { ...(entry.configSchema ?? {}) },
+        }));
+        if (widgets.length > 0) merged[category] = [...(merged[category] ?? []), ...widgets];
+    }
+
     for (const [category, widgets] of Object.entries(merged)) {
         merged[category] = sortWidgetsByIndex(widgets);
     }
@@ -398,4 +450,8 @@ export async function getUserGlanceable(userId: string) {
 
 export async function getUserGlanceables(userId: string) {
     return getUserGlanceable(userId);
+}
+
+function sdkContributionKey(instanceId: string, kind: "widget" | "glanceable", contributionId: string) {
+    return `sdk#${instanceId}#${kind}#${encodeURIComponent(contributionId)}`;
 }

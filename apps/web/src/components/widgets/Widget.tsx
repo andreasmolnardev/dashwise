@@ -25,6 +25,7 @@ import ImageTemplate from "@dashwise/integrationskit/templates/Image";
 import Widget from "@dashwise/integrationskit/Widget";
 import ProgressWidget from "./ProgressWidget";
 import ShortcutsWidget from "./ShortcutsWidget";
+import { parseSdkContributionKey, SdkIntegrationWidget } from "./SdkIntegrationContribution";
 import { useLocalization } from "@/context/LocalizationContext";
 import useAuth from "@/context/useAuth";
 import { useActivity } from "@/context/ActivityContext";
@@ -68,6 +69,17 @@ export function renderWidget({
   const resolvedType = type === "widget" && typeof renderParams?.key === "string" && renderParams.key.trim()
     ? renderParams.key.trim()
     : type;
+  const sdkContribution = parseSdkContributionKey(resolvedType);
+  if (sdkContribution?.kind === "widget") {
+    return (
+      <SdkIntegrationWidget
+        address={sdkContribution}
+        config={renderParams}
+        isPreview={isPreview}
+        className={className}
+      />
+    );
+  }
   const usesFrameGlanceableLayout = resolvedType === "glanceable-clock" ||
     Array.isArray(renderParams?.glanceables) ||
     Array.isArray(renderParams?.glanceables?.slots?.list);

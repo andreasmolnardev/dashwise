@@ -20,6 +20,7 @@ import { useActivity } from "@/context/ActivityContext";
 import useAuth from "@/context/useAuth";
 import { getIntegrationWithGlanceableAction } from '@/lib/apiClient';
 import ActivityStream from "@/components/activity/ActivityStream";
+import SdkContributionConfigForm from "@/components/settings/integrations/SdkContributionConfigForm";
 
 const PROGRESS_PERIOD_OPTIONS = [
   { value: "year", label: "Year" },
@@ -36,6 +37,8 @@ type GlanceableCatalogItem = {
   integrationDisplayName?: string;
   exampleProps: Record<string, any>;
   properties?: Record<string, any>;
+  sdkInstanceId?: string;
+  sdkConfigSchema?: Record<string, unknown>;
 };
 
 function formatCalendarEventDate(value: string) {
@@ -117,7 +120,7 @@ export function EditGlanceablesView({
   );
 
   useEffect(() => {
-    if (!selectedClockType || ["date", "countdown", "greeting", "local-timezone", "world-clock", "progress"].includes(selectedClockType)) {
+    if (!selectedClockType || selectedCatalogItem?.sdkInstanceId || ["date", "countdown", "greeting", "local-timezone", "world-clock", "progress"].includes(selectedClockType)) {
       setIntegrationInfo(null);
       return;
     }
@@ -127,7 +130,7 @@ export function EditGlanceablesView({
         setIntegrationInfo(data ?? null);
       })
       .catch(() => setIntegrationInfo(null));
-  }, [selectedClockType, withAuth]);
+  }, [selectedCatalogItem?.sdkInstanceId, selectedClockType, withAuth]);
 
   useEffect(() => {
     setSelectedGlanceableId((currentId) =>
@@ -476,6 +479,15 @@ export function EditGlanceablesView({
                     )}
                   </div>
                 ))}
+
+              {selectedCatalogItem?.sdkInstanceId && selectedCatalogItem.sdkConfigSchema && (
+                <SdkContributionConfigForm
+                  instanceId={selectedCatalogItem.sdkInstanceId}
+                  schema={selectedCatalogItem.sdkConfigSchema}
+                  value={selectedParams}
+                  onChange={(next) => setClockGlanceables((current) => ({ ...current, [selectedGlanceable.id]: next }))}
+                />
+              )}
 
               {!['date', 'countdown', 'weather', 'activity-stream'].includes(selectedClockType) && !integrationInfo?.environmentDefinitions && (
                 <p className="text-xs italic text-white/50">

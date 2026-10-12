@@ -57,7 +57,7 @@ sdkIntegrationsRoute.patch("/api/v1/sdk-integrations/instances/:id", withJson(as
   const id = requireId(c.req.param("id"));
   const { instance, row } = await getOwnedSdkInstance(userId, id);
   const body = await readJsonBody<Record<string, unknown>>(c);
-  const update: { name?: string; config?: Record<string, unknown> } = {};
+  const update: { name?: string; config?: Record<string, unknown>; enabled?: boolean } = {};
   if (body.name !== undefined) {
     if (typeof body.name !== "string") throw new ApiActionError("Name must be a string", 400, { error: "Name must be a string" });
     update.name = body.name;
@@ -72,8 +72,13 @@ sdkIntegrationsRoute.patch("/api/v1/sdk-integrations/instances/:id", withJson(as
     const merged = { ...current, ...(incoming as Record<string, unknown>) };
     update.config = validateSdkConfig(definition, merged, current).complete;
   }
+  if (body.enabled !== undefined) {
+    if (typeof body.enabled !== "boolean") throw new ApiActionError("Enabled must be a boolean", 400, { error: "Enabled must be a boolean" });
+    update.enabled = body.enabled;
+  }
   await updateSdkInstance(userId, id, update);
-  if (body.config !== undefined) await restartSdkIntegrationInstance(userId, id).catch(() => undefined);
+  if (body.enabled === false) await stopSdkIntegrationInstance(id);
+  else if (body.enabled === true || body.config !== undefined) await restartSdkIntegrationInstance(userId, id).catch(() => undefined);
   return { instance: await instanceResponse(userId, id) };
 }));
 
@@ -108,6 +113,21 @@ sdkIntegrationsRoute.get("/api/v1/sdk-integrations/instances/:id/resources", wit
       && (!appIds.length || appIds.some((appId) => resource.apps?.includes(appId)))
       && (!resourceIds.length || resourceIds.includes(resource.id))),
   };
+}));
+
+sdkIntegrationsRoute.get("/api/v1/sdk-integrations/instances/:id/contributions/:kind/:contributionId", withJson(async (c) => {
+  const userId = await requireSdkUser(readAuthToken(c));
+  const { instance } = await getOwnedSdkInstance(userId, requireId(c.req.param("id")));
+  const definition = requireSdkIntegrationDefinition(instance.source);
+  const kind = c.req.param("kind");
+  if (kind !== "widget" && kind !== "glanceable") {
+    throw new ApiActionError("Contribution kind must be widget or glanceable", 400, { error: "Contribution kind must be widget or glanceable" });
+  }
+  const contributionId = requireId(c.req.param("contributionId"));
+  const contribution = (kind === "widget" ? definition.widgets : definition.glanceables)
+    ?.find((entry) => entry.id === contributionId);
+  if (!contribution) throw new ApiActionError("Integration contribution not found", 404, { error: "Integration contribution not found" });
+  return { contribution };
 }));
 
 sdkIntegrationsRoute.post("/api/v1/sdk-integrations/instances/:id/contributions/:kind/:contributionId/resolve", withJson(async (c) => {

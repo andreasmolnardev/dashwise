@@ -28,6 +28,7 @@ import {
   type SdkResourceRecord,
 } from "./persistence";
 import { validateSdkConfig } from "./catalog";
+import { assertSafeIntegrationUrl, guardedIntegrationFetch } from "./network-guard";
 
 type RuntimeResources = Record<string, Map<string, ResourceRecord>>;
 type ResolvedSdkResource = SdkResourceRecord & { collectionId: string; revision: number; stale: boolean };
@@ -42,11 +43,13 @@ type RuntimeEntry = {
   secretValues: string[];
   resources: RuntimeResources;
   revisions: Map<string, number>;
+  staleResources: Set<string>;
   cleanups: Array<() => void | Promise<void>>;
   events: Map<string, Set<(event: { name: string; payload: JsonValue }) => void | Promise<void>>>;
   scheduler: Map<string, ScheduledTask>;
   sockets: Set<WebSocket>;
   abortControllers: Set<AbortController>;
+  activeActionResources: Set<string>;
   running: boolean;
 };
 
@@ -84,6 +87,7 @@ export async function startSdkIntegrationInstance(userId: string, instanceId: st
 async function startInstance(userId: string, instanceId: string) {
   await stopSdkIntegrationInstance(instanceId);
   const { instance, row } = await getOwnedSdkInstance(userId, instanceId);
+  if (!instance.enabled) return;
   const definition = requireSdkIntegrationDefinition(instance.source);
   const pb = await getSuperuserPB();
   for (const app of definition.apps ?? []) {
@@ -99,6 +103,7 @@ async function startInstance(userId: string, instanceId: string) {
   const persistedResources = await listSdkResources(userId, instanceId);
   const resources: RuntimeResources = {};
   const revisions = new Map<string, number>();
+  const staleResources = new Set<string>();
   for (const [collectionId] of Object.entries(definition.resources)) resources[collectionId] = new Map();
   for (const resource of persistedResources) {
     if (!persistentCollectionIds.has(resource.collectionId)) continue;
@@ -106,9 +111,10 @@ async function startInstance(userId: string, instanceId: string) {
     const { collectionId: _collectionId, revision: _revision, stale: _stale, ...record } = resource as SdkResourceRecord & { collectionId: string; revision: number; stale: boolean };
     resources[resource.collectionId].set(resource.id, record);
     revisions.set(resourceIdentity(resource.collectionId, resource.id), resource.revision);
+    if (resource.stale) staleResources.add(resourceIdentity(resource.collectionId, resource.id));
   }
 
-  const entry = createRuntimeEntry(userId, instance, definition, publicConfig, secrets, resources, revisions);
+  const entry = createRuntimeEntry(userId, instance, definition, publicConfig, secrets, resources, revisions, staleResources);
   runtimes.set(instanceId, entry);
   try {
     await definition.setup?.(entry.api);
@@ -136,7 +142,7 @@ export async function listRuntimeSdkResources(userId: string, instanceId?: strin
           ...resource,
           collectionId,
           revision: entry.revisions.get(resourceIdentity(collectionId, resource.id)) ?? 0,
-          stale: false,
+          stale: entry.staleResources.has(resourceIdentity(collectionId, resource.id)),
         } as SdkResourceRecord & { collectionId: string; revision: number; stale: boolean });
       }
     }
@@ -152,7 +158,10 @@ export async function listSdkResourceSnapshot(userId: string, instanceId: string
   const byIdentity = new Map<string, ResolvedSdkResource>();
   for (const resource of persisted) {
     if (definition.resources[resource.collectionId]?.persistent !== true) continue;
-    byIdentity.set(`${resource.collectionId}\0${resource.id}`, resource);
+    byIdentity.set(`${resource.collectionId}\0${resource.id}`, {
+      ...resource,
+      stale: !instance.enabled || resource.stale,
+    });
   }
   for (const resource of current) byIdentity.set(`${resource.collectionId}\0${resource.id}`, resource);
   return [...byIdentity.values()];
@@ -206,10 +215,11 @@ function createRuntimeEntry(
   secrets: Record<string, string>,
   resources: RuntimeResources,
   revisions: Map<string, number>,
+  staleResources: Set<string>,
 ): RuntimeEntry {
   const entry: RuntimeEntry = {
-    userId, instance, definition, resources, revisions, secretValues: Object.values(secrets).filter((value) => value.length > 0),
-    cleanups: [], events: new Map(), scheduler: new Map(), sockets: new Set(), abortControllers: new Set(),
+    userId, instance, definition, resources, revisions, staleResources, secretValues: Object.values(secrets).filter((value) => value.length > 0),
+    cleanups: [], events: new Map(), scheduler: new Map(), sockets: new Set(), abortControllers: new Set(), activeActionResources: new Set(),
     api: undefined as unknown as IntegrationsRuntime<any, any, any>,
     running: false,
   };
@@ -231,6 +241,7 @@ function createRuntimeEntry(
           ? persistRuntimeResource(entry, collectionId, (await upsertSdkResource(userId, instance.id, collectionId, resource)).resource)
           : upsertRuntimeResource(entry, collectionId, resource);
         cache.set(resource.id, saved);
+        entry.staleResources.delete(resourceIdentity(collectionId, resource.id));
         return saved;
       },
       async update(id: string, changes: Partial<Omit<ResourceRecord, "id">>) {
@@ -243,6 +254,7 @@ function createRuntimeEntry(
           ? persistRuntimeResource(entry, collectionId, (await upsertSdkResource(userId, instance.id, collectionId, resource)).resource)
           : upsertRuntimeResource(entry, collectionId, resource);
         cache.set(id, saved);
+        entry.staleResources.delete(resourceIdentity(collectionId, id));
         return saved;
       },
       async remove(id: string) {
@@ -250,6 +262,7 @@ function createRuntimeEntry(
           ? markRuntimeResourceRemoved(entry, collectionId, id, await removeSdkResource(userId, instance.id, collectionId, id))
           : removeRuntimeResource(entry, collectionId, id);
         cache.delete(id);
+        entry.staleResources.delete(resourceIdentity(collectionId, id));
         return removed;
       },
       async sync(rawResources: readonly ResourceRecord[], options: { completeness: "complete" | "partial" }) {
@@ -269,6 +282,7 @@ function createRuntimeEntry(
           }
         }
         for (const resource of saved) cache.set(resource.id, resource);
+        for (const resource of saved) entry.staleResources.delete(resourceIdentity(collectionId, resource.id));
       },
     };
   }
@@ -319,26 +333,48 @@ function createRuntimeEntry(
       },
     },
     http: {
+      async assertSafeUrl(input, protocols) {
+        return assertSafeIntegrationUrl(input, protocols);
+      },
       async fetch(input, init) {
         const controller = new AbortController();
         entry.abortControllers.add(controller);
+        const timeout = setTimeout(() => controller.abort(), 15_000);
         const signal = init?.signal
           ? AbortSignal.any([init.signal, controller.signal])
           : controller.signal;
-        try { return await fetch(input, { ...init, signal }); }
-        finally { entry.abortControllers.delete(controller); }
+        try { return await guardedIntegrationFetch(input, { ...init, signal }); }
+        finally {
+          clearTimeout(timeout);
+          entry.abortControllers.delete(controller);
+        }
       },
     },
     websocket: {
       async connect(url, protocols) {
-        const socket = new WebSocket(url, protocols);
+        const safeUrl = await assertSafeIntegrationUrl(url, ["ws:", "wss:"]);
+        const socket = new WebSocket(safeUrl, protocols);
         entry.sockets.add(socket);
         try {
           await new Promise<void>((resolve, reject) => {
-          const onOpen = () => { socket.removeEventListener("error", onError); resolve(); };
-          const onError = () => { socket.removeEventListener("open", onOpen); reject(new Error("WebSocket connection failed")); };
-          socket.addEventListener("open", onOpen, { once: true });
-          socket.addEventListener("error", onError, { once: true });
+            const onOpen = () => {
+              clearTimeout(timeout);
+              socket.removeEventListener("error", onError);
+              resolve();
+            };
+            const onError = () => {
+              clearTimeout(timeout);
+              socket.removeEventListener("open", onOpen);
+              reject(new Error("WebSocket connection failed"));
+            };
+            const timeout = setTimeout(() => {
+              socket.removeEventListener("open", onOpen);
+              socket.removeEventListener("error", onError);
+              try { socket.close(); } catch { /* already closed */ }
+              reject(new Error("WebSocket connection timed out"));
+            }, 10_000);
+            socket.addEventListener("open", onOpen, { once: true });
+            socket.addEventListener("error", onError, { once: true });
           });
           socket.addEventListener("close", () => entry.sockets.delete(socket), { once: true });
           return socket;
@@ -396,6 +432,7 @@ export async function executeSdkIntegrationAction(
   input: unknown,
 ) {
   const { instance } = await getOwnedSdkInstance(userId, instanceId);
+  if (!instance.enabled) throw new ApiActionError("Integration instance is disabled", 503, { error: "Integration instance is disabled" });
   let entry = runtimes.get(instanceId);
   if (!entry) {
     await startSdkIntegrationInstance(userId, instanceId);
@@ -425,12 +462,23 @@ export async function resolveSdkContributionBindings(
   const contribution = contributions.find((item) => item.id === contributionId);
   if (!contribution) throw new ApiActionError("Integration contribution not found", 404, { error: "Integration contribution not found" });
   if (!isObject(rawConfig)) throw new ApiActionError("Contribution config must be an object", 400, { error: "Contribution config must be an object" });
-  const configSchema = (contribution.configSchema ?? {}) as IntegrationConfigSchema;
+  const rawConfigSchema = contribution.configSchema ?? {};
+  const schemaRecord = isObject(rawConfigSchema) ? rawConfigSchema : {};
+  const configFields = isObject(schemaRecord.properties)
+    ? schemaRecord.properties
+    : schemaRecord;
+  const configSchema = configFields as IntegrationConfigSchema;
+  const requiredConfigKeys = Array.isArray(schemaRecord.required)
+    ? schemaRecord.required.filter((key): key is string => typeof key === "string")
+    : Object.entries(configSchema)
+        .filter(([, field]) => isObject(field) && field.required === true)
+        .map(([key]) => key);
   if (Object.keys(rawConfig).some((key) => !(key in configSchema))) {
     throw new ApiActionError("Contribution config contains an unknown field", 400, { error: "Contribution config contains an unknown field" });
   }
-  for (const [key, field] of Object.entries(configSchema)) {
-    if (field.required && rawConfig[key] === undefined && field.default === undefined) {
+  for (const key of requiredConfigKeys) {
+    const field = configSchema[key];
+    if (rawConfig[key] === undefined && (!isObject(field) || field.default === undefined)) {
       throw new ApiActionError(`Missing contribution config: ${key}`, 400, { error: `Missing contribution config: ${key}` });
     }
   }
@@ -500,18 +548,56 @@ function resolveSelectedResource(
 }
 
 async function executeAction(entry: RuntimeEntry, actionId: string, collectionId: string, resourceId: string, input: unknown) {
+  if (!entry.running) throw new ApiActionError("Integration instance is not ready", 503, { error: "Integration instance is not ready" });
   const action = Object.values(entry.definition.actions ?? {}).find((candidate) => candidate.id === actionId);
   if (!action) throw new ApiActionError("Action is not declared by this integration", 404, { error: "Action is not declared by this integration" });
   const collection = entry.definition.resources[collectionId];
   if (!collection) throw new ApiActionError("Resource collection not found", 404, { error: "Resource collection not found" });
   const resource = entry.resources[collectionId]?.get(resourceId);
   if (!resource) throw new ApiActionError("Resource not found", 404, { error: "Resource not found" });
+  if (entry.staleResources.has(resourceIdentity(collectionId, resourceId))) {
+    throw new ApiActionError("Resource state is stale", 409, { error: "Resource state is stale" });
+  }
   if (resource.available === false) throw new ApiActionError("Resource is unavailable", 409, { error: "Resource is unavailable" });
   if (!resource.actions?.includes(actionId)) throw new ApiActionError("Action is not available for this resource", 403, { error: "Action is not available for this resource" });
   validateJsonSchema(input, action.inputSchema, "action input");
-  const result = await action.execute(entry.api, resource, input);
-  assertNoSecrets(entry, result, "action result");
-  return result;
+  const resourceKey = resourceIdentity(collectionId, resourceId);
+  if (entry.activeActionResources.has(resourceKey)) {
+    throw new ApiActionError("Another action is already running for this resource", 409, { error: "Another action is already running for this resource" });
+  }
+
+  entry.activeActionResources.add(resourceKey);
+  const controller = new AbortController();
+  entry.abortControllers.add(controller);
+  let timedOut = false;
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  const execution = Promise.resolve().then(() => action.execute(entry.api, resource, input, controller.signal));
+  const deadline = new Promise<never>((_resolve, reject) => {
+    timeout = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+      reject(new ApiActionError("Integration action timed out", 504, { error: "Integration action timed out" }));
+    }, 30_000);
+  });
+
+  try {
+    const result = await Promise.race([execution, deadline]);
+    assertNoSecrets(entry, result, "action result");
+    return result;
+  } finally {
+    if (timeout) clearTimeout(timeout);
+    if (timedOut) {
+      // Keep the per-resource lock until non-cooperative handlers actually settle.
+      void execution.finally(() => {
+        entry.abortControllers.delete(controller);
+        entry.activeActionResources.delete(resourceKey);
+      }).catch(() => undefined);
+    } else {
+      controller.abort();
+      entry.abortControllers.delete(controller);
+      entry.activeActionResources.delete(resourceKey);
+    }
+  }
 }
 
 function validateAppMembership(resource: ResourceRecord, shortcuts: boolean, defaults: readonly string[], declaredApps: Set<string>) {
@@ -559,6 +645,7 @@ function upsertRuntimeResource(entry: RuntimeEntry, collectionId: string, resour
 function markRuntimeResourceRemoved(entry: RuntimeEntry, collectionId: string, resourceId: string, removed: boolean) {
   if (!removed) return false;
   const identity = resourceIdentity(collectionId, resourceId);
+  entry.staleResources.delete(identity);
   const revision = (entry.revisions.get(identity) ?? 0) + 1;
   entry.revisions.set(identity, revision);
   return true;
@@ -567,8 +654,10 @@ function markRuntimeResourceRemoved(entry: RuntimeEntry, collectionId: string, r
 function removeRuntimeResource(entry: RuntimeEntry, collectionId: string, resourceId: string) {
   const removed = Boolean(entry.resources[collectionId]?.has(resourceId));
   if (!removed) return false;
-  const revision = (entry.revisions.get(resourceIdentity(collectionId, resourceId)) ?? 0) + 1;
-  entry.revisions.set(resourceIdentity(collectionId, resourceId), revision);
+  const identity = resourceIdentity(collectionId, resourceId);
+  entry.staleResources.delete(identity);
+  const revision = (entry.revisions.get(identity) ?? 0) + 1;
+  entry.revisions.set(identity, revision);
   broadcastSdkResourceRevision(entry.userId, {
     instanceId: entry.instance.id,
     collectionId,

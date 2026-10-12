@@ -102,13 +102,35 @@ const definition = defineIntegration({
     name: "Service health",
     description: "Show whether the configured endpoint is responding.",
     configSchema: {
+      endpoint: {
+        type: "shortcut-select",
+        label: "Service endpoint",
+        required: true,
+        appIds: ["services"],
+        collectionIds: ["endpoint"],
+      },
       showStatusCode: { type: "boolean", label: "Show HTTP status code", default: true },
+    },
+    resourceBindings: {
+      endpoint: { type: "shortcut-select", configKey: "endpoint" },
     },
   }],
   glanceables: [{
     id: "health-state",
     name: "Service health state",
     description: "Show the latest health check result.",
+    configSchema: {
+      endpoint: {
+        type: "shortcut-select",
+        label: "Service endpoint",
+        required: true,
+        appIds: ["services"],
+        collectionIds: ["endpoint"],
+      },
+    },
+    resourceBindings: {
+      endpoint: { type: "shortcut-select", configKey: "endpoint" },
+    },
   }],
   async start(integrations) {
     const refresh = (signal: AbortSignal) => checkEndpoint(integrations, signal);

@@ -254,6 +254,29 @@ paths:
           $ref: "#/components/responses/JsonUnauthorized"
         "404":
           $ref: "#/components/responses/JsonNotFound"
+  /sdk-integrations/instances/{id}/contributions/{kind}/{contributionId}:
+    get:
+      tags: [sdk-integrations]
+      summary: Read a declared contribution for an owned SDK integration
+      parameters:
+        - $ref: "#/components/parameters/Id"
+        - name: kind
+          in: path
+          required: true
+          schema: { type: string, enum: [widget, glanceable] }
+        - name: contributionId
+          in: path
+          required: true
+          schema: { type: string, maxLength: 200 }
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+        "400":
+          $ref: "#/components/responses/JsonBadRequest"
+        "401":
+          $ref: "#/components/responses/JsonUnauthorized"
+        "404":
+          $ref: "#/components/responses/JsonNotFound"
   /sdk-integrations/instances/{id}/contributions/{kind}/{contributionId}/resolve:
     post:
       tags: [sdk-integrations]

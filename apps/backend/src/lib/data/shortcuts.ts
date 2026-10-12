@@ -224,7 +224,6 @@ export async function getShortcuts(userId: string) {
         attributes: resource.attributes ?? {},
         tags: resource.tags ?? [],
         available: resource.available !== false,
-        isDisabled: resource.available === false,
         revision: resource.revision,
         stale: resource.stale,
         isPinned: false,

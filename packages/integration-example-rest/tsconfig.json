@@ -7,5 +7,6 @@
       "@dashwise/integrations-sdk": ["../integrations-sdk/index.ts"]
     }
   },
-  "include": ["./**/*.ts"]
+  "include": ["./**/*.ts"],
+  "exclude": ["./test"]
 }

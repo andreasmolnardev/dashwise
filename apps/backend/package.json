@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "@dashwise/assets": "workspace:*",
+    "@dashwise/integration-homeassistant": "workspace:*",
     "@dashwise/integration-example-rest": "workspace:*",
     "@dashwise/integrations-sdk": "workspace:*",
     "@dashwise/integrationskit": "workspace:*",

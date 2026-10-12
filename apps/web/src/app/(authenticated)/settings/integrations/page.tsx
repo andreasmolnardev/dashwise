@@ -40,6 +40,7 @@ import { MoreHorizontal, Pencil, SlidersHorizontal, Trash2 } from "lucide-react"
 import useAuth from "@/context/useAuth";
 import { EndpointTestResult, EnvDefinition } from "@/lib/integrations/types";
 import AppIcon from "@dashwise/app-icon";
+import SdkIntegrationsManager from "@/components/settings/integrations/SdkIntegrationsManager";
 
 const dateFormatter = new Intl.DateTimeFormat(undefined, {
   dateStyle: "medium",
@@ -673,6 +674,8 @@ export default function IntegrationsModularSettingsPage() {
       <header>
         <p className="text-2xl font-semibold">Manage your integrations</p>
       </header>
+
+      <SdkIntegrationsManager />
 
       <div className="flex w-full flex-wrap items-center justify-between gap-3">
         <Button

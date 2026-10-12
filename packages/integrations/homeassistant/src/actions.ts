@@ -1,10 +1,10 @@
-import type { HomeAssistantWebSocketClient } from "./client";
+import type { HomeAssistantClient } from "./ha-types";
 import type { IntegrationAction, ResourceRecord } from "@dashwise/integrations-sdk";
 import { getDomain } from "./mapping";
 
-const clients = new WeakMap<object, HomeAssistantWebSocketClient>();
+const clients = new WeakMap<object, HomeAssistantClient>();
 
-export function attachClient(integrations: object, client: HomeAssistantWebSocketClient): void {
+export function attachClient(integrations: object, client: HomeAssistantClient): void {
   clients.set(integrations, client);
 }
 
@@ -18,7 +18,7 @@ export async function stopClient(integrations: object): Promise<void> {
   await client?.stop();
 }
 
-function clientFor(integrations: object): HomeAssistantWebSocketClient {
+function clientFor(integrations: object): HomeAssistantClient {
   const client = clients.get(integrations);
   if (!client) throw new Error("Home Assistant connection is not running");
   return client;

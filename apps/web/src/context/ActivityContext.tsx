@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, type ReactNode, useContext, useEffect, useRef, useState } from "react";
+import { createContext, type ReactNode, useCallback, useContext, useEffect, useRef, useState } from "react";
 import useAuth from "@/context/useAuth";
 import { backendUrl } from "@/lib/apiClient";
 import { useQueryClient } from "@tanstack/react-query";
@@ -26,15 +26,34 @@ export type ActivityCalendarEvent = {
   isAllDay?: boolean;
 };
 
+export type SdkResourceIdentity = {
+  instanceId: string;
+  collectionId: string;
+  resourceId: string;
+};
+
+export type SdkResourceRevision = SdkResourceIdentity & {
+  revision: number;
+  operation: "upsert" | "remove";
+};
+
 type ActivityContextValue = {
   notifications: ActivityNotification[];
   unreadCount: number;
   calendarEvents: ActivityCalendarEvent[];
   refresh: () => void;
   markNotificationsAsRead: (ids: string[]) => void;
+  subscribeSdkResources: (
+    resources: readonly SdkResourceIdentity[],
+    listener: (event: SdkResourceRevision) => void,
+  ) => () => void;
 };
 
 const ActivityContext = createContext<ActivityContextValue | null>(null);
+
+function sdkResourceKey(resource: SdkResourceIdentity) {
+  return JSON.stringify([resource.instanceId, resource.collectionId, resource.resourceId]);
+}
 
 function socketUrl(token: string, sessionId: string | null) {
   const url = new URL(backendUrl("api/v1/activity"));
@@ -50,6 +69,10 @@ export function ActivityProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
   const socket = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<number | null>(null);
+  const sdkResourceSubscriptions = useRef(new Map<string, {
+    resource: SdkResourceIdentity;
+    listeners: Set<(event: SdkResourceRevision) => void>;
+  }>());
   const [notifications, setNotifications] = useState<ActivityNotification[]>([]);
   const [calendarEvents, setCalendarEvents] = useState<ActivityCalendarEvent[]>([]);
 
@@ -57,6 +80,7 @@ export function ActivityProvider({ children }: { children: ReactNode }) {
     if (!token) {
       setNotifications([]);
       setCalendarEvents([]);
+      sdkResourceSubscriptions.current.clear();
       queryClient.removeQueries({ queryKey: ["api", token, ...queryKeys.notifications.items(null)] });
       return;
     }
@@ -65,7 +89,13 @@ export function ActivityProvider({ children }: { children: ReactNode }) {
     const connect = () => {
       const nextSocket = new WebSocket(socketUrl(token, sessionId));
       socket.current = nextSocket;
-      nextSocket.onopen = () => nextSocket.send(JSON.stringify({ type: "activity:subscribe" }));
+      nextSocket.onopen = () => {
+        nextSocket.send(JSON.stringify({ type: "activity:subscribe" }));
+        const resources = [...sdkResourceSubscriptions.current.values()].map(({ resource }) => resource);
+        if (resources.length > 0) {
+          nextSocket.send(JSON.stringify({ type: "sdk:resources:subscribe", resources }));
+        }
+      };
       nextSocket.onmessage = (event) => {
         try {
           const message = JSON.parse(String(event.data));
@@ -83,6 +113,19 @@ export function ActivityProvider({ children }: { children: ReactNode }) {
           }
           if (message.type === "activities:changed") {
             void queryClient.invalidateQueries({ queryKey: ["api", token, ...queryKeys.activities.root] });
+            return;
+          }
+          if (
+            message.type === "sdk:resource-revision"
+            && typeof message.instanceId === "string"
+            && typeof message.collectionId === "string"
+            && typeof message.resourceId === "string"
+            && typeof message.revision === "number"
+            && (message.operation === "upsert" || message.operation === "remove")
+          ) {
+            const revision = message as SdkResourceRevision;
+            const subscription = sdkResourceSubscriptions.current.get(sdkResourceKey(revision));
+            subscription?.listeners.forEach((listener) => listener(revision));
             return;
           }
           if (message.type !== "activity:snapshot") return;
@@ -115,6 +158,38 @@ export function ActivityProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const subscribeSdkResources = useCallback((
+    resources: readonly SdkResourceIdentity[],
+    listener: (event: SdkResourceRevision) => void,
+  ) => {
+    const uniqueResources = new Map(resources.map((resource) => [sdkResourceKey(resource), resource]));
+    for (const [key, resource] of uniqueResources) {
+      const subscription = sdkResourceSubscriptions.current.get(key);
+      if (subscription) {
+        subscription.listeners.add(listener);
+      } else {
+        sdkResourceSubscriptions.current.set(key, { resource, listeners: new Set([listener]) });
+        if (socket.current?.readyState === WebSocket.OPEN) {
+          socket.current.send(JSON.stringify({ type: "sdk:resources:subscribe", resources: [resource] }));
+        }
+      }
+    }
+
+    return () => {
+      for (const [key, resource] of uniqueResources) {
+        const subscription = sdkResourceSubscriptions.current.get(key);
+        if (!subscription) continue;
+        subscription.listeners.delete(listener);
+        if (subscription.listeners.size === 0) {
+          sdkResourceSubscriptions.current.delete(key);
+          if (socket.current?.readyState === WebSocket.OPEN) {
+            socket.current.send(JSON.stringify({ type: "sdk:resources:unsubscribe", resources: [resource] }));
+          }
+        }
+      }
+    };
+  }, []);
+
   const markNotificationsAsRead = (ids: string[]) => {
     const markAsRead = (currentNotifications: ActivityNotification[]) =>
       currentNotifications.map((notification) =>
@@ -130,7 +205,7 @@ export function ActivityProvider({ children }: { children: ReactNode }) {
   };
 
   const unreadCount = notifications.filter((notification) => notification.status !== "read").length;
-  return <ActivityContext.Provider value={{ notifications, unreadCount, calendarEvents, refresh, markNotificationsAsRead }}>{children}</ActivityContext.Provider>;
+  return <ActivityContext.Provider value={{ notifications, unreadCount, calendarEvents, refresh, markNotificationsAsRead, subscribeSdkResources }}>{children}</ActivityContext.Provider>;
 }
 
 export function useActivity() {

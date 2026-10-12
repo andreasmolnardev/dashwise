@@ -41,6 +41,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { renderWidget } from "@/components/widgets/Widget";
 import { useActivity } from "@/context/ActivityContext";
 import ShortcutsPicker from "@/components/widgets/ShortcutsPicker";
+import SdkContributionConfigForm from "@/components/settings/integrations/SdkContributionConfigForm";
 import { EditGlanceablesView } from "@/components/settings/pages/EditGlanceablesView";
 import {
   ClockGlanceableIntervals,
@@ -82,6 +83,8 @@ type DashboardWidgetPreviewProps = {
     name: string;
     exampleProps: Record<string, any>;
     properties?: Record<string, any>;
+    sdkInstanceId?: string;
+    sdkConfigSchema?: Record<string, unknown>;
   }>;
   selectedClockPart: GlanceableSide | "clock";
   setSelectedClockPart: (part: GlanceableSide | "clock") => void;
@@ -481,6 +484,8 @@ function WidgetTile({
                             widgetId={columnWidget.id}
                             widgetType={columnWidget.type}
                             schema={widgetConfig?.input ?? {}}
+                            sdkInstanceId={widgetConfig?.sdkInstanceId}
+                            sdkConfigSchema={widgetConfig?.sdkConfigSchema}
                             inputDraft={inputDraft}
                             onChange={setInputDraft}
                             dataError={dataError}
@@ -535,6 +540,8 @@ function WidgetTile({
                           widgetId={columnWidget.id}
                           widgetType={columnWidget.type}
                           schema={widgetConfig?.input ?? {}}
+                          sdkInstanceId={widgetConfig?.sdkInstanceId}
+                          sdkConfigSchema={widgetConfig?.sdkConfigSchema}
                           inputDraft={inputDraft}
                           onChange={setInputDraft}
                           dataError={dataError}
@@ -666,6 +673,8 @@ function WidgetInputEditor({
   widgetId,
   widgetType,
   schema,
+  sdkInstanceId,
+  sdkConfigSchema,
   inputDraft,
   onChange,
   dataError,
@@ -674,6 +683,8 @@ function WidgetInputEditor({
   widgetId: string;
   widgetType: string;
   schema?: Record<string, any>;
+  sdkInstanceId?: string;
+  sdkConfigSchema?: Record<string, unknown>;
   inputDraft: Record<string, any>;
   onChange: (next: Record<string, any>) => void;
   dataError: string | null;
@@ -688,6 +699,17 @@ function WidgetInputEditor({
         displayName: event.title,
       }))
     : [];
+
+  if (sdkInstanceId && sdkConfigSchema) {
+    return (
+      <SdkContributionConfigForm
+        instanceId={sdkInstanceId}
+        schema={sdkConfigSchema}
+        value={inputDraft}
+        onChange={onChange}
+      />
+    );
+  }
 
   if (widgetType === "rss-feed" || widgetType === "latest-rss-feed") {
     return (

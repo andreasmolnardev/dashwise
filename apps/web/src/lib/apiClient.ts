@@ -92,6 +92,142 @@ async function activityRequest<T>(auth: ActionAuth, path: string, query?: Record
   return body as T;
 }
 
+export type SdkIntegrationCatalogEntry = {
+  id: string;
+  name: string;
+  version: string;
+  description?: string;
+  config: Record<string, Record<string, unknown>>;
+  resources: Record<string, { persistent: boolean; shortcuts: boolean; apps: string[] }>;
+  apps: Array<{ id: string; name: string; description?: string; icon?: string }>;
+  actions: Array<{ id: string; name: string; description?: string; inputSchema?: Record<string, unknown> }>;
+  widgets: Array<Record<string, unknown> & { id: string; name: string }>;
+  glanceables: Array<Record<string, unknown> & { id: string; name: string }>;
+};
+
+export type SdkIntegrationInstance = {
+  id: string;
+  userId: string;
+  name: string;
+  source: string;
+  type: "sdk";
+  enabled: boolean;
+  created: string;
+  updated: string;
+  config: Record<string, unknown>;
+  configuredSecrets: string[];
+};
+
+export type SdkResourceRecord = {
+  id: string;
+  name: string;
+  icon?: string;
+  type?: string;
+  tags?: string[];
+  state?: unknown;
+  attributes?: Record<string, unknown>;
+  available?: boolean;
+  actions?: string[];
+  apps?: string[];
+  updatedAt?: string;
+  upstreamId?: string;
+  collectionId: string;
+  revision: number;
+  stale: boolean;
+};
+
+export type SdkContributionKind = "widget" | "glanceable";
+export type SdkContributionResolution = {
+  data: Record<string, unknown>;
+  revisions: Array<{ collectionId: string; resourceId: string; revision: number; operation: "upsert" | "remove" }>;
+};
+
+async function sdkIntegrationRequest<T>(auth: ActionAuth, path: string, method = "GET", body?: unknown): Promise<T> {
+  const response = await fetch(backendUrl(`/api/v1/sdk-integrations${path}`), {
+    method,
+    headers: { ...authHeaders(auth), ...(body === undefined ? {} : { "content-type": "application/json" }) },
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  });
+  handleUnauthorizedResponse(response);
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(typeof result?.error === "string" ? result.error : "Integration request failed");
+  }
+  return result as T;
+}
+
+export async function getSdkIntegrationCatalogAction(auth: ActionAuth) {
+  return (await sdkIntegrationRequest<{ integrations: SdkIntegrationCatalogEntry[] }>(auth, "/catalog")).integrations;
+}
+
+export async function getSdkIntegrationInstancesAction(auth: ActionAuth) {
+  return (await sdkIntegrationRequest<{ instances: SdkIntegrationInstance[] }>(auth, "/instances")).instances;
+}
+
+export async function createSdkIntegrationInstanceAction(
+  auth: ActionAuth,
+  input: { source: string; name?: string; config: Record<string, unknown> },
+) {
+  return (await sdkIntegrationRequest<{ instance: SdkIntegrationInstance }>(auth, "/instances", "POST", input)).instance;
+}
+
+export async function updateSdkIntegrationInstanceAction(
+  auth: ActionAuth,
+  instanceId: string,
+  input: { name?: string; config?: Record<string, unknown>; enabled?: boolean },
+) {
+  return (await sdkIntegrationRequest<{ instance: SdkIntegrationInstance }>(auth, `/instances/${encodeURIComponent(instanceId)}`, "PATCH", input)).instance;
+}
+
+export async function deleteSdkIntegrationInstanceAction(auth: ActionAuth, instanceId: string) {
+  return sdkIntegrationRequest<{ success: boolean }>(auth, `/instances/${encodeURIComponent(instanceId)}`, "DELETE");
+}
+
+export async function getSdkIntegrationResourcesAction(auth: ActionAuth, instanceId: string) {
+  return (await sdkIntegrationRequest<{ resources: SdkResourceRecord[] }>(auth, `/instances/${encodeURIComponent(instanceId)}/resources`)).resources;
+}
+
+export async function resolveSdkContributionAction(
+  auth: ActionAuth,
+  instanceId: string,
+  kind: SdkContributionKind,
+  contributionId: string,
+  config: Record<string, unknown>,
+) {
+  return sdkIntegrationRequest<SdkContributionResolution>(
+    auth,
+    `/instances/${encodeURIComponent(instanceId)}/contributions/${kind}/${encodeURIComponent(contributionId)}/resolve`,
+    "POST",
+    { config },
+  );
+}
+
+export async function getSdkContributionDefinitionAction(
+  auth: ActionAuth,
+  instanceId: string,
+  kind: SdkContributionKind,
+  contributionId: string,
+) {
+  return (await sdkIntegrationRequest<{ contribution: Record<string, unknown> }>(
+    auth,
+    `/instances/${encodeURIComponent(instanceId)}/contributions/${kind}/${encodeURIComponent(contributionId)}`,
+  )).contribution;
+}
+
+export async function runSdkIntegrationAction(
+  auth: ActionAuth,
+  instanceId: string,
+  actionId: string,
+  resource: { collectionId: string; resourceId: string; input?: unknown },
+) {
+  return sdkIntegrationRequest<{ result: unknown }>(
+    auth,
+    `/instances/${encodeURIComponent(instanceId)}/actions/${encodeURIComponent(actionId)}`,
+    "POST",
+    resource,
+  );
+}
+
 export async function getActivityPageAction(auth: ActionAuth, query: ActivityQuery = {}): Promise<ActivityPage> {
   return activityRequest<ActivityPage>(auth, "/api/v1/activities", query as Record<string, string | number | undefined>);
 }

@@ -9,6 +9,10 @@ export type GlanceableDefinition = {
 export type WidgetDefinition = {
   key: string;
   index?: number;
+  integrationId?: string;
+  sdkInstanceId?: string;
+  sdkContributionId?: string;
+  sdkConfigSchema?: Record<string, unknown>;
   data?: {
     input?: Record<string, any>;
   };
@@ -36,6 +40,10 @@ export type GlanceableCatalogItem = {
   name: string;
   appName?: string;
   exampleProps: Record<string, any>;
+  properties?: Record<string, any>;
+  sdkInstanceId?: string;
+  sdkContributionId?: string;
+  sdkConfigSchema?: Record<string, unknown>;
 };
 
 const LOCAL_GLANCEABLE_TYPES = new Set([
@@ -81,6 +89,9 @@ export type WidgetCatalogItem = {
   };
   properties: Record<string, any>;
   input?: Record<string, any>;
+  sdkInstanceId?: string;
+  sdkContributionId?: string;
+  sdkConfigSchema?: Record<string, unknown>;
 };
 
 function sortByIndex<T extends { index?: number }>(items: T[]) {
@@ -179,6 +190,9 @@ export function flattenWidgetCatalog(widgetsData: Record<string, WidgetDefinitio
       category,
       key: widget.key,
       integrationId: (widget as WidgetDefinition & { integrationId?: string }).integrationId,
+      sdkInstanceId: widget.sdkInstanceId,
+      sdkContributionId: widget.sdkContributionId,
+      sdkConfigSchema: widget.sdkConfigSchema,
       index: widget.index,
       name: widget.name ?? widget.key,
       description: widget.description ?? "",

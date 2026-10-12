@@ -24,6 +24,7 @@ type IntegrationRow = Record<string, unknown> & {
   source?: string;
   name?: string | null;
   sdkConfig?: string;
+  sdkEnabled?: boolean;
   created?: string;
   updated?: string;
 };
@@ -43,6 +44,7 @@ type ResourceRow = Record<string, unknown> & {
 
 const MAX_JSON_BYTES = 200_000;
 const MAX_JSON_DEPTH = 12;
+const SDK_STORAGE_ENVELOPE = "dashwise.sdk-storage.v1";
 
 export function encodeSdkConfig(config: Record<string, unknown>) {
   return encryptSecret(config);
@@ -53,6 +55,22 @@ export function decodeSdkConfig(value: string | null | undefined): Record<string
   return decoded && typeof decoded === "object" && !Array.isArray(decoded)
     ? decoded as Record<string, unknown>
     : {};
+}
+
+function encodeSdkStorage(value: unknown) {
+  return { format: SDK_STORAGE_ENVELOPE, ciphertext: encryptSecret(value) };
+}
+
+function decodeSdkStorage(value: unknown) {
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    const envelope = value as { format?: unknown; ciphertext?: unknown };
+    if (envelope.format === SDK_STORAGE_ENVELOPE && typeof envelope.ciphertext === "string") {
+      return decryptSecret(envelope.ciphertext);
+    }
+  }
+  // Preserve storage values written by earlier SDK builds. The next write
+  // upgrades them to the encrypted envelope above.
+  return value;
 }
 
 export async function createSdkInstance(
@@ -69,6 +87,7 @@ export async function createSdkInstance(
     name,
     user: userId,
     sdkConfig: encodeSdkConfig(input.config),
+    sdkEnabled: true,
     environment: {},
   }) as IntegrationRow;
   return mapInstance(row, userId);
@@ -86,7 +105,7 @@ export async function listSdkInstances(userId: string): Promise<SdkInstanceRecor
 export async function listAllSdkInstancesForRuntime() {
   const pb = await getSuperuserPB();
   const rows = await pb.collection("integrations").getFullList<IntegrationRow>({
-    filter: `type = "sdk"`,
+    filter: `type = "sdk" && sdkEnabled = true`,
     sort: "created",
   });
   return rows.map((row) => mapInstance(row, relationId(row.user)));
@@ -104,11 +123,12 @@ export async function getOwnedSdkInstance(userId: string, instanceId: string) {
 export async function updateSdkInstance(
   userId: string,
   instanceId: string,
-  update: { name?: string; config?: Record<string, unknown> },
+  update: { name?: string; config?: Record<string, unknown>; enabled?: boolean },
 ) {
   const { pb } = await getOwnedSdkInstance(userId, instanceId);
   const body: Record<string, unknown> = {};
   if (update.name !== undefined) body.name = String(update.name).trim().slice(0, 120);
+  if (update.enabled !== undefined) body.sdkEnabled = update.enabled;
   if (update.config !== undefined) {
     validateJsonValue(update.config);
     body.sdkConfig = encodeSdkConfig(update.config);
@@ -165,7 +185,7 @@ export async function getSdkStorage(userId: string, instanceId: string, key: str
   const row = await pb.collection("sdkIntegrationStorage").getFirstListItem(
     `owner = "${escapeFilter(userId)}" && instance = "${escapeFilter(instanceId)}" && key = "${escapeFilter(validateIdentifier(key, "storage key", 200))}"`,
   ).catch(() => null);
-  return row?.value ?? null;
+  return row?.value == null ? null : decodeSdkStorage(row.value);
 }
 
 export async function setSdkStorage(userId: string, instanceId: string, key: string, value: unknown) {
@@ -174,8 +194,9 @@ export async function setSdkStorage(userId: string, instanceId: string, key: str
   const { pb } = await getOwnedSdkInstance(userId, instanceId);
   const filter = `owner = "${escapeFilter(userId)}" && instance = "${escapeFilter(instanceId)}" && key = "${escapeFilter(key)}"`;
   const existing = await pb.collection("sdkIntegrationStorage").getFirstListItem(filter).catch(() => null);
-  if (existing) return pb.collection("sdkIntegrationStorage").update(existing.id, { value });
-  return pb.collection("sdkIntegrationStorage").create({ owner: userId, instance: instanceId, key, value });
+  const storedValue = encodeSdkStorage(value);
+  if (existing) return pb.collection("sdkIntegrationStorage").update(existing.id, { value: storedValue });
+  return pb.collection("sdkIntegrationStorage").create({ owner: userId, instance: instanceId, key, value: storedValue });
 }
 
 export async function removeSdkStorage(userId: string, instanceId: string, key: string) {
@@ -291,7 +312,7 @@ function mapInstance(row: IntegrationRow, userId: string): SdkInstanceRecord {
     name: String(row.name ?? row.source ?? "Integration"),
     source: String(row.source ?? ""),
     type: "sdk",
-    enabled: true,
+    enabled: row.sdkEnabled !== false,
     created: String(row.created ?? ""),
     updated: String(row.updated ?? ""),
   };

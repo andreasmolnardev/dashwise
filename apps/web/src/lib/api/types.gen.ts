@@ -5,6 +5,32 @@ export type ClientOptions = {
     baseUrl: `${string}://${string}/api/v1` | (string & {});
 };
 
+export type SdkIntegrationInstanceCreate = {
+    /**
+     * Stable ID from the trusted SDK catalog.
+     */
+    source: string;
+    name?: string;
+    config: {
+        [key: string]: unknown;
+    };
+};
+
+export type SdkIntegrationActionRequest = {
+    collectionId: string;
+    resourceId: string;
+    input?: unknown;
+};
+
+export type SdkContributionResolveRequest = {
+    /**
+     * Contribution selector values such as selected resource IDs.
+     */
+    config: {
+        [key: string]: unknown;
+    };
+};
+
 export type Activity = {
     id: string;
     ownerId: string;
@@ -202,6 +228,337 @@ export type GetActivitiesByIdResponses = {
 };
 
 export type GetActivitiesByIdResponse = GetActivitiesByIdResponses[keyof GetActivitiesByIdResponses];
+
+export type GetSdkIntegrationsCatalogData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/sdk-integrations/catalog';
+};
+
+export type GetSdkIntegrationsCatalogErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Error;
+};
+
+export type GetSdkIntegrationsCatalogError = GetSdkIntegrationsCatalogErrors[keyof GetSdkIntegrationsCatalogErrors];
+
+export type GetSdkIntegrationsCatalogResponses = {
+    /**
+     * OK
+     */
+    200: GenericObject;
+};
+
+export type GetSdkIntegrationsCatalogResponse = GetSdkIntegrationsCatalogResponses[keyof GetSdkIntegrationsCatalogResponses];
+
+export type GetSdkIntegrationsInstancesData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/sdk-integrations/instances';
+};
+
+export type GetSdkIntegrationsInstancesErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Error;
+};
+
+export type GetSdkIntegrationsInstancesError = GetSdkIntegrationsInstancesErrors[keyof GetSdkIntegrationsInstancesErrors];
+
+export type GetSdkIntegrationsInstancesResponses = {
+    /**
+     * OK
+     */
+    200: GenericObject;
+};
+
+export type GetSdkIntegrationsInstancesResponse = GetSdkIntegrationsInstancesResponses[keyof GetSdkIntegrationsInstancesResponses];
+
+export type PostSdkIntegrationsInstancesData = {
+    body: SdkIntegrationInstanceCreate;
+    path?: never;
+    query?: never;
+    url: '/sdk-integrations/instances';
+};
+
+export type PostSdkIntegrationsInstancesErrors = {
+    /**
+     * Bad Request
+     */
+    400: Error;
+    /**
+     * Unauthorized
+     */
+    401: Error;
+    /**
+     * Not Found
+     */
+    404: Error;
+};
+
+export type PostSdkIntegrationsInstancesError = PostSdkIntegrationsInstancesErrors[keyof PostSdkIntegrationsInstancesErrors];
+
+export type PostSdkIntegrationsInstancesResponses = {
+    /**
+     * OK
+     */
+    200: GenericObject;
+};
+
+export type PostSdkIntegrationsInstancesResponse = PostSdkIntegrationsInstancesResponses[keyof PostSdkIntegrationsInstancesResponses];
+
+export type DeleteSdkIntegrationsInstancesByIdData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/sdk-integrations/instances/{id}';
+};
+
+export type DeleteSdkIntegrationsInstancesByIdErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Error;
+    /**
+     * Not Found
+     */
+    404: Error;
+};
+
+export type DeleteSdkIntegrationsInstancesByIdError = DeleteSdkIntegrationsInstancesByIdErrors[keyof DeleteSdkIntegrationsInstancesByIdErrors];
+
+export type DeleteSdkIntegrationsInstancesByIdResponses = {
+    /**
+     * OK
+     */
+    200: GenericObject;
+};
+
+export type DeleteSdkIntegrationsInstancesByIdResponse = DeleteSdkIntegrationsInstancesByIdResponses[keyof DeleteSdkIntegrationsInstancesByIdResponses];
+
+export type GetSdkIntegrationsInstancesByIdData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/sdk-integrations/instances/{id}';
+};
+
+export type GetSdkIntegrationsInstancesByIdErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Error;
+    /**
+     * Not Found
+     */
+    404: Error;
+};
+
+export type GetSdkIntegrationsInstancesByIdError = GetSdkIntegrationsInstancesByIdErrors[keyof GetSdkIntegrationsInstancesByIdErrors];
+
+export type GetSdkIntegrationsInstancesByIdResponses = {
+    /**
+     * OK
+     */
+    200: GenericObject;
+};
+
+export type GetSdkIntegrationsInstancesByIdResponse = GetSdkIntegrationsInstancesByIdResponses[keyof GetSdkIntegrationsInstancesByIdResponses];
+
+export type PatchSdkIntegrationsInstancesByIdData = {
+    body?: JsonBody;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/sdk-integrations/instances/{id}';
+};
+
+export type PatchSdkIntegrationsInstancesByIdErrors = {
+    /**
+     * Bad Request
+     */
+    400: Error;
+    /**
+     * Unauthorized
+     */
+    401: Error;
+    /**
+     * Not Found
+     */
+    404: Error;
+};
+
+export type PatchSdkIntegrationsInstancesByIdError = PatchSdkIntegrationsInstancesByIdErrors[keyof PatchSdkIntegrationsInstancesByIdErrors];
+
+export type PatchSdkIntegrationsInstancesByIdResponses = {
+    /**
+     * OK
+     */
+    200: GenericObject;
+};
+
+export type PatchSdkIntegrationsInstancesByIdResponse = PatchSdkIntegrationsInstancesByIdResponses[keyof PatchSdkIntegrationsInstancesByIdResponses];
+
+export type GetSdkIntegrationsInstancesByIdResourcesData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: {
+        collectionId?: string;
+        collectionIds?: Array<string>;
+        appId?: string;
+        appIds?: Array<string>;
+        resourceIds?: Array<string>;
+    };
+    url: '/sdk-integrations/instances/{id}/resources';
+};
+
+export type GetSdkIntegrationsInstancesByIdResourcesErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Error;
+    /**
+     * Not Found
+     */
+    404: Error;
+};
+
+export type GetSdkIntegrationsInstancesByIdResourcesError = GetSdkIntegrationsInstancesByIdResourcesErrors[keyof GetSdkIntegrationsInstancesByIdResourcesErrors];
+
+export type GetSdkIntegrationsInstancesByIdResourcesResponses = {
+    /**
+     * OK
+     */
+    200: GenericObject;
+};
+
+export type GetSdkIntegrationsInstancesByIdResourcesResponse = GetSdkIntegrationsInstancesByIdResourcesResponses[keyof GetSdkIntegrationsInstancesByIdResourcesResponses];
+
+export type GetSdkIntegrationsInstancesByIdContributionsByKindByContributionIdData = {
+    body?: never;
+    path: {
+        id: string;
+        kind: 'widget' | 'glanceable';
+        contributionId: string;
+    };
+    query?: never;
+    url: '/sdk-integrations/instances/{id}/contributions/{kind}/{contributionId}';
+};
+
+export type GetSdkIntegrationsInstancesByIdContributionsByKindByContributionIdErrors = {
+    /**
+     * Bad Request
+     */
+    400: Error;
+    /**
+     * Unauthorized
+     */
+    401: Error;
+    /**
+     * Not Found
+     */
+    404: Error;
+};
+
+export type GetSdkIntegrationsInstancesByIdContributionsByKindByContributionIdError = GetSdkIntegrationsInstancesByIdContributionsByKindByContributionIdErrors[keyof GetSdkIntegrationsInstancesByIdContributionsByKindByContributionIdErrors];
+
+export type GetSdkIntegrationsInstancesByIdContributionsByKindByContributionIdResponses = {
+    /**
+     * OK
+     */
+    200: GenericObject;
+};
+
+export type GetSdkIntegrationsInstancesByIdContributionsByKindByContributionIdResponse = GetSdkIntegrationsInstancesByIdContributionsByKindByContributionIdResponses[keyof GetSdkIntegrationsInstancesByIdContributionsByKindByContributionIdResponses];
+
+export type PostSdkIntegrationsInstancesByIdContributionsByKindByContributionIdResolveData = {
+    body: SdkContributionResolveRequest;
+    path: {
+        id: string;
+        kind: 'widget' | 'glanceable';
+        contributionId: string;
+    };
+    query?: never;
+    url: '/sdk-integrations/instances/{id}/contributions/{kind}/{contributionId}/resolve';
+};
+
+export type PostSdkIntegrationsInstancesByIdContributionsByKindByContributionIdResolveErrors = {
+    /**
+     * Bad Request
+     */
+    400: Error;
+    /**
+     * Unauthorized
+     */
+    401: Error;
+    /**
+     * Not Found
+     */
+    404: Error;
+};
+
+export type PostSdkIntegrationsInstancesByIdContributionsByKindByContributionIdResolveError = PostSdkIntegrationsInstancesByIdContributionsByKindByContributionIdResolveErrors[keyof PostSdkIntegrationsInstancesByIdContributionsByKindByContributionIdResolveErrors];
+
+export type PostSdkIntegrationsInstancesByIdContributionsByKindByContributionIdResolveResponses = {
+    /**
+     * OK
+     */
+    200: GenericObject;
+};
+
+export type PostSdkIntegrationsInstancesByIdContributionsByKindByContributionIdResolveResponse = PostSdkIntegrationsInstancesByIdContributionsByKindByContributionIdResolveResponses[keyof PostSdkIntegrationsInstancesByIdContributionsByKindByContributionIdResolveResponses];
+
+export type PostSdkIntegrationsInstancesByIdActionsByActionIdData = {
+    body: SdkIntegrationActionRequest;
+    path: {
+        id: string;
+        actionId: string;
+    };
+    query?: never;
+    url: '/sdk-integrations/instances/{id}/actions/{actionId}';
+};
+
+export type PostSdkIntegrationsInstancesByIdActionsByActionIdErrors = {
+    /**
+     * Bad Request
+     */
+    400: Error;
+    /**
+     * Unauthorized
+     */
+    401: Error;
+    /**
+     * Forbidden
+     */
+    403: Error;
+    /**
+     * Not Found
+     */
+    404: Error;
+};
+
+export type PostSdkIntegrationsInstancesByIdActionsByActionIdError = PostSdkIntegrationsInstancesByIdActionsByActionIdErrors[keyof PostSdkIntegrationsInstancesByIdActionsByActionIdErrors];
+
+export type PostSdkIntegrationsInstancesByIdActionsByActionIdResponses = {
+    /**
+     * OK
+     */
+    200: GenericObject;
+};
+
+export type PostSdkIntegrationsInstancesByIdActionsByActionIdResponse = PostSdkIntegrationsInstancesByIdActionsByActionIdResponses[keyof PostSdkIntegrationsInstancesByIdActionsByActionIdResponses];
 
 export type GetAuthCallbackData = {
     body?: never;

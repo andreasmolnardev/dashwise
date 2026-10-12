@@ -14,6 +14,10 @@ import QRCode from "qrcode";
 import { getFrequentlyUsedShortcutsAction, getHomeLinksAction, logShortcutUsageAction } from '@/lib/apiClient';
 import { getRoutedLinkUrl } from "@/lib/linkRouting";
 import { proxyIntegrationAction, updateShortcutAction } from '@/lib/apiClient';
+import SdkShortcutActionDialog, {
+  type SdkShortcutActionDefinition,
+  type SdkShortcutResource,
+} from "./SdkShortcutActionDialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -45,6 +49,9 @@ type LinkItem = {
   isPinned?: boolean;
   isDisabled?: boolean;
   actions?: Record<string, string>;
+  parentIds?: string[];
+  sdkResource?: SdkShortcutResource;
+  sdkActions?: SdkShortcutActionDefinition[];
   proxyAction?: boolean;
   _section?: string;
 };
@@ -67,19 +74,30 @@ type IncomingShortcut = {
   icon?: string;
   secondaryInfo?: string;
   type?: string;
-  action?: string | ProxyAction;
+  action?: string | ProxyAction | SdkResourceAction;
   url?: string;
   linkGroup?: string;
   tags?: string[];
   isPinned?: boolean;
   isDisabled?: boolean;
-  actions?: Record<string, string>;
+  actions?: Record<string, string> | SdkShortcutActionDefinition[];
+  parentIds?: string[];
+  integrationInstanceId?: string;
+  collectionId?: string;
+  resourceId?: string;
 };
 
 type ProxyAction = {
   type: string;
   url?: string;
   proxy?: boolean;
+};
+
+type SdkResourceAction = {
+  type: "sdk-resource";
+  instanceId: string;
+  collectionId: string;
+  resourceId: string;
 };
 
 type CommandBarProps = {
@@ -92,7 +110,7 @@ type CommandBarProps = {
 function normalizeConfigLinks(input: IncomingShortcut[] = []): LinkItem[] {
   return input
     .filter((it) =>
-      !it.isDisabled && (!it.type || it.type === "link" || it.type === "app" ||
+      !it.isDisabled && (!it.type || it.type === "link" || it.type === "app" || it.type === "sdk-resource" ||
       it.type === "karakeepBookmark" || it.type === "jellyfinItem" ||
       it.type === "beszelItem" || it.type === "dashdotItem")
     )
@@ -103,7 +121,9 @@ function normalizeConfigLinks(input: IncomingShortcut[] = []): LinkItem[] {
 
       if (actionValue && typeof actionValue === "object") {
         const actionType = String((actionValue as ProxyAction).type ?? "").trim().toLowerCase();
-        if (actionType === "post") {
+        if (actionType === "sdk-resource") {
+          url = "__sdk_resource__";
+        } else if (actionType === "post") {
           url = "__proxy_action__";
           proxyAction = true;
         } else if (actionType === "url") {
@@ -142,6 +162,8 @@ function normalizeConfigLinks(input: IncomingShortcut[] = []): LinkItem[] {
         type = "Jellyfin";
       } else if (it.type === "app") {
         type = "App";
+      } else if (it.type === "sdk-resource") {
+        type = "Integration";
       } else if (it.type === "beszelItem") {
         type = "Beszel";
       } else if (it.type === "dashdotItem") {
@@ -154,6 +176,7 @@ function normalizeConfigLinks(input: IncomingShortcut[] = []): LinkItem[] {
         id: it.id,
         sourceId: it.sourceId,
         parentId: (it as any).parentId,
+        parentIds: it.parentIds,
         name: it.name || "",
         icon: it.icon || undefined,
         linkGroup: it.secondaryInfo || it.linkGroup || "",
@@ -163,7 +186,15 @@ function normalizeConfigLinks(input: IncomingShortcut[] = []): LinkItem[] {
         proxyAction,
         isPinned: it.isPinned,
         isDisabled: it.isDisabled,
-        actions: it.actions ?? (it as any).secondaryActions,
+        actions: Array.isArray(it.actions) ? undefined : it.actions ?? (it as any).secondaryActions,
+        sdkActions: Array.isArray(it.actions) ? it.actions : undefined,
+        sdkResource: it.type === "sdk-resource"
+          ? {
+            instanceId: it.integrationInstanceId ?? (actionValue as SdkResourceAction | undefined)?.instanceId ?? "",
+            collectionId: it.collectionId ?? (actionValue as SdkResourceAction | undefined)?.collectionId ?? "",
+            resourceId: it.resourceId ?? (actionValue as SdkResourceAction | undefined)?.resourceId ?? "",
+          }
+          : undefined,
       } as LinkItem;
     });
 }
@@ -211,6 +242,10 @@ export default function CommandBar(
   const [homeLinks, setHomeLinks] = React.useState<Array<{ id: string; url: string; secondaryUrls?: Array<{ url: string; routingRule: string }> }>>([]);
   const [frequentlyUsedIds, setFrequentlyUsedIds] = React.useState<string[]>([]);
   const [actionsMenuOpen, setActionsMenuOpen] = React.useState(false);
+  const [pendingSdkAction, setPendingSdkAction] = React.useState<{
+    resource: SdkShortcutResource;
+    action: SdkShortcutActionDefinition;
+  } | null>(null);
   const inputRef = React.useRef<HTMLInputElement | null>(null);
 
   // Fetch frequently used items
@@ -258,9 +293,11 @@ export default function CommandBar(
 
   //item filtering
   React.useEffect(() => {
+    const belongsToApp = (item: LinkItem, appId: string) =>
+      item.parentIds?.includes(appId) || item.parentId === appId;
     const visibleLinks = currentAppId
-      ? links.filter((item) => item.parentId === currentAppId)
-      : links.filter((item) => !item.parentId);
+      ? links.filter((item) => belongsToApp(item, currentAppId))
+      : links.filter((item) => !item.parentId && !item.parentIds?.length);
 
     const q = query.trim().toLowerCase();
     if (!q) {
@@ -293,16 +330,23 @@ export default function CommandBar(
     const results = visibleLinks
       .map((item) => {
         // turn tags into words: split on non-word chars so "foo-bar" -> ["foo","bar"]
-        const tagWords = (item.tags || [])
-          .flatMap((t) => String(t).toLowerCase().split(/\W+/).filter(Boolean));
+        const searchableWords = [
+          ...(item.tags ?? []),
+          item.name,
+          item.linkGroup,
+          item.type,
+          item.sourceId,
+        ]
+          .filter((value): value is string => typeof value === "string" && value.length > 0)
+          .flatMap((value) => value.toLowerCase().split(/\W+/).filter(Boolean));
 
         // for each query word, find if it matches any tag word (count each query word at most once)
         let matchedQueryCount = 0;
         for (const qw of queryWords) {
-          const matched = tagWords.some((tw) => {
-            //if (matchMode === 'whole') return tw === qw;
-            if (matchMode === "prefix") return tw.startsWith(qw);
-            return tw === qw;
+          const matched = searchableWords.some((word) => {
+            //if (matchMode === 'whole') return word === qw;
+            if (matchMode === "prefix") return word.startsWith(qw);
+            return word === qw;
           });
           if (matched) matchedQueryCount += 1;
         }
@@ -513,7 +557,7 @@ export default function CommandBar(
       });
 
     return items;
-  }, [filtered, defaultEngine, query, searchEngines]);
+  }, [filtered, defaultEngine, query, searchEngines, currentAppId]);
 
   const selectedAction = actions[highlightIndex];
   const showQrPreview = Boolean(
@@ -594,6 +638,8 @@ export default function CommandBar(
       openSearch(query);
     } else if (a.url === "__qr_action__") {
       return;
+    } else if (a.url === "__sdk_resource__") {
+      setActionsMenuOpen(true);
     } else if (a.url === "__source_link__") {
       const sourceLink = a.sourceId && homeLinks.find((link) => link.id === a.sourceId);
       if (sourceLink) openUrl(getRoutedLinkUrl(sourceLink), config?.global?.linkOpenBehaviour);
@@ -839,6 +885,7 @@ export default function CommandBar(
   }
 
   return (
+    <>
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTitle className="hidden">Search Bar</DialogTitle>
       <DialogContent
@@ -1058,23 +1105,38 @@ export default function CommandBar(
                 <DropdownMenuContent align="end" className="frosted min-w-56 text-foreground">
                   <DropdownMenuLabel>{selectedShortcut.name}</DropdownMenuLabel>
                   <DropdownMenuSeparator className="bg-white/15" />
-                  <DropdownMenuItem onSelect={() => void runSecondaryAction("", selectedShortcut.isPinned ? "Remove favourite" : "Add shortcut as favourite")}>
-                    <IconifyIcon icon={selectedShortcut.isPinned ? "fa6-solid:star" : "fa6-regular:star"} />
-                    {selectedShortcut.isPinned ? "Remove favourite" : "Add shortcut as favourite"}
-                    <DropdownMenuShortcut>F</DropdownMenuShortcut>
-                  </DropdownMenuItem>
-                  {currentAppId && <DropdownMenuItem onSelect={() => void runSecondaryAction("", "Add shortcut to root shortcuts")}>
-                    <IconifyIcon icon="fa6-solid:house" />
-                    Add shortcut to root shortcuts
-                  </DropdownMenuItem>}
-                  <DropdownMenuItem onSelect={() => void runSecondaryAction("", "Copy link")}>
-                    <IconifyIcon icon="fa6-solid:copy" />
-                    Copy link
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onSelect={() => void runSecondaryAction("", "Hide/disable shortcut")}>
-                    <IconifyIcon icon="fa6-solid:eye-slash" />
-                    Hide/disable shortcut
-                  </DropdownMenuItem>
+                  {!selectedShortcut.sdkResource && <>
+                    <DropdownMenuItem onSelect={() => void runSecondaryAction("", selectedShortcut.isPinned ? "Remove favourite" : "Add shortcut as favourite")}>
+                      <IconifyIcon icon={selectedShortcut.isPinned ? "fa6-solid:star" : "fa6-regular:star"} />
+                      {selectedShortcut.isPinned ? "Remove favourite" : "Add shortcut as favourite"}
+                      <DropdownMenuShortcut>F</DropdownMenuShortcut>
+                    </DropdownMenuItem>
+                    {currentAppId && <DropdownMenuItem onSelect={() => void runSecondaryAction("", "Add shortcut to root shortcuts")}>
+                      <IconifyIcon icon="fa6-solid:house" />
+                      Add shortcut to root shortcuts
+                    </DropdownMenuItem>}
+                    <DropdownMenuItem onSelect={() => void runSecondaryAction("", "Copy link")}>
+                      <IconifyIcon icon="fa6-solid:copy" />
+                      Copy link
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => void runSecondaryAction("", "Hide/disable shortcut")}>
+                      <IconifyIcon icon="fa6-solid:eye-slash" />
+                      Hide/disable shortcut
+                    </DropdownMenuItem>
+                  </>}
+                  {selectedShortcut.sdkActions?.map((action) => (
+                    <DropdownMenuItem
+                      key={action.id}
+                      onSelect={() => {
+                        if (!selectedShortcut.sdkResource?.instanceId || !selectedShortcut.sdkResource.collectionId || !selectedShortcut.sdkResource.resourceId) return;
+                        setActionsMenuOpen(false);
+                        setPendingSdkAction({ resource: selectedShortcut.sdkResource, action });
+                      }}
+                    >
+                      <IconifyIcon icon="fa6-solid:bolt" />
+                      {action.name}
+                    </DropdownMenuItem>
+                  ))}
                   {Object.entries(selectedShortcut.actions ?? {}).map(([label, value]) => (
                     <DropdownMenuItem key={label} onSelect={() => void runSecondaryAction(value, label)}>
                       <IconifyIcon icon="fa6-solid:bolt" />
@@ -1088,6 +1150,14 @@ export default function CommandBar(
         </section>
       </DialogContent>
     </Dialog>
+    <SdkShortcutActionDialog
+      open={Boolean(pendingSdkAction)}
+      onOpenChange={(isOpen) => { if (!isOpen) setPendingSdkAction(null); }}
+      resource={pendingSdkAction?.resource ?? null}
+      action={pendingSdkAction?.action ?? null}
+      onComplete={refreshShortcutCache}
+    />
+    </>
   );
 }
 
