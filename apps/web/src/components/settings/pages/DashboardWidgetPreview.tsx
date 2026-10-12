@@ -319,7 +319,13 @@ function WidgetTile({
     });
   };
 
-  const canEditData = hasEditableWidgetData(columnWidget, widgetConfig) || supportsUserCustomizations;
+  const hasSdkContributionConfig = Boolean(
+    widgetConfig?.sdkInstanceId &&
+      widgetConfig.sdkConfigSchema &&
+      Object.keys(widgetConfig.sdkConfigSchema).length > 0,
+  );
+  const canEditData = hasEditableWidgetData(columnWidget, widgetConfig) ||
+    supportsUserCustomizations || hasSdkContributionConfig;
   const isPlaceholderWidget = columnWidget.type === "placeholder";
   const params = {
     ...(widgetConfig?.properties ?? {}),

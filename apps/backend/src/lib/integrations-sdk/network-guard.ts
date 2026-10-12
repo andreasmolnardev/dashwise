@@ -147,7 +147,9 @@ export async function createGuardedIntegrationWebSocket(
       ? { tls: { serverName: normalizeHostname(destination.url.hostname) } }
       : {}),
   };
-  return (options.webSocketFactory ?? ((url, init) => new WebSocket(url, init)))(pinnedUrl, socketOptions);
+  const defaultWebSocketFactory: NonNullable<typeof options.webSocketFactory> = (url, init) =>
+    new (WebSocket as unknown as new (url: string | URL, options: Bun.WebSocketOptions) => WebSocket)(url, init);
+  return (options.webSocketFactory ?? defaultWebSocketFactory)(pinnedUrl, socketOptions);
 }
 
 async function fetchPinnedRequest(request: Request, url: URL, address: string): Promise<Response> {

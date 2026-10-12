@@ -16,6 +16,14 @@ export type SdkIntegrationInstanceCreate = {
     };
 };
 
+export type SdkIntegrationInstanceUpdate = {
+    name?: string;
+    config?: {
+        [key: string]: unknown;
+    };
+    enabled?: boolean;
+};
+
 export type SdkIntegrationActionRequest = {
     collectionId: string;
     resourceId: string;
@@ -35,6 +43,145 @@ export type SdkContributionResolveRequest = {
     config: {
         [key: string]: unknown;
     };
+};
+
+export type SdkIntegrationConfigField = {
+    type: 'string' | 'url' | 'secret' | 'number' | 'boolean' | 'enum';
+    title?: string;
+    description?: string;
+    required?: boolean;
+    default?: unknown;
+    min?: number;
+    max?: number;
+    options?: Array<unknown>;
+    [key: string]: unknown;
+};
+
+export type SdkIntegrationResourceCollection = {
+    persistent: boolean;
+    shortcuts: boolean;
+    apps: Array<string>;
+    schema?: {
+        [key: string]: unknown;
+    };
+};
+
+export type SdkIntegrationActionContribution = {
+    id: string;
+    name: string;
+    description?: string;
+    inputSchema?: {
+        [key: string]: unknown;
+    };
+};
+
+export type SdkIntegrationAppContribution = {
+    id: string;
+    name: string;
+    description?: string;
+    icon?: string;
+};
+
+export type SdkContribution = {
+    id: string;
+    name: string;
+    description?: string;
+    configSchema?: {
+        [key: string]: unknown;
+    };
+    resourceBindings?: {
+        [key: string]: unknown;
+    };
+    template?: string;
+    properties?: {
+        [key: string]: unknown;
+    };
+    columns?: Array<{
+        [key: string]: unknown;
+    }>;
+    [key: string]: unknown;
+};
+
+export type SdkIntegrationCatalogEntry = {
+    id: string;
+    name: string;
+    version: string;
+    description?: string;
+    config: {
+        [key: string]: SdkIntegrationConfigField;
+    };
+    resources: {
+        [key: string]: SdkIntegrationResourceCollection;
+    };
+    actions: Array<SdkIntegrationActionContribution>;
+    apps: Array<SdkIntegrationAppContribution>;
+    widgets: Array<SdkContribution>;
+    glanceables: Array<SdkContribution>;
+};
+
+export type SdkIntegrationCatalogResponse = {
+    integrations: Array<SdkIntegrationCatalogEntry>;
+};
+
+export type SdkIntegrationInstance = {
+    id: string;
+    userId: string;
+    name: string;
+    source: string;
+    type: 'sdk';
+    enabled: boolean;
+    created: string;
+    updated: string;
+    config: {
+        [key: string]: unknown;
+    };
+    configuredSecrets: Array<string>;
+};
+
+export type SdkIntegrationInstanceResponse = {
+    instance: SdkIntegrationInstance;
+};
+
+export type SdkIntegrationInstancesResponse = {
+    instances: Array<SdkIntegrationInstance>;
+};
+
+export type SdkResourceRecord = {
+    id: string;
+    name: string;
+    icon?: string;
+    type?: string;
+    tags?: Array<string>;
+    state?: unknown;
+    attributes?: {
+        [key: string]: unknown;
+    };
+    available?: boolean;
+    actions?: Array<string>;
+    apps?: Array<string>;
+    updatedAt?: string;
+    upstreamId?: string;
+    collectionId: string;
+    revision: number;
+    stale: boolean;
+};
+
+export type SdkIntegrationResourcesResponse = {
+    resources: Array<SdkResourceRecord>;
+};
+
+export type SdkContributionRevision = {
+    instanceId: string;
+    collectionId: string;
+    resourceId: string;
+    revision: number;
+};
+
+export type SdkContributionResolution = {
+    data: {
+        [key: string]: unknown;
+    };
+    revisions: Array<SdkContributionRevision>;
 };
 
 export type Activity = {
@@ -253,9 +400,9 @@ export type GetSdkIntegrationsCatalogError = GetSdkIntegrationsCatalogErrors[key
 
 export type GetSdkIntegrationsCatalogResponses = {
     /**
-     * OK
+     * Trusted integration catalog
      */
-    200: GenericObject;
+    200: SdkIntegrationCatalogResponse;
 };
 
 export type GetSdkIntegrationsCatalogResponse = GetSdkIntegrationsCatalogResponses[keyof GetSdkIntegrationsCatalogResponses];
@@ -278,9 +425,9 @@ export type GetSdkIntegrationsInstancesError = GetSdkIntegrationsInstancesErrors
 
 export type GetSdkIntegrationsInstancesResponses = {
     /**
-     * OK
+     * Owned integration instances
      */
-    200: GenericObject;
+    200: SdkIntegrationInstancesResponse;
 };
 
 export type GetSdkIntegrationsInstancesResponse = GetSdkIntegrationsInstancesResponses[keyof GetSdkIntegrationsInstancesResponses];
@@ -311,9 +458,9 @@ export type PostSdkIntegrationsInstancesError = PostSdkIntegrationsInstancesErro
 
 export type PostSdkIntegrationsInstancesResponses = {
     /**
-     * OK
+     * Created integration instance
      */
-    200: GenericObject;
+    200: SdkIntegrationInstanceResponse;
 };
 
 export type PostSdkIntegrationsInstancesResponse = PostSdkIntegrationsInstancesResponses[keyof PostSdkIntegrationsInstancesResponses];
@@ -342,9 +489,11 @@ export type DeleteSdkIntegrationsInstancesByIdError = DeleteSdkIntegrationsInsta
 
 export type DeleteSdkIntegrationsInstancesByIdResponses = {
     /**
-     * OK
+     * Deleted integration instance
      */
-    200: GenericObject;
+    200: {
+        success: boolean;
+    };
 };
 
 export type DeleteSdkIntegrationsInstancesByIdResponse = DeleteSdkIntegrationsInstancesByIdResponses[keyof DeleteSdkIntegrationsInstancesByIdResponses];
@@ -373,15 +522,15 @@ export type GetSdkIntegrationsInstancesByIdError = GetSdkIntegrationsInstancesBy
 
 export type GetSdkIntegrationsInstancesByIdResponses = {
     /**
-     * OK
+     * Owned integration instance
      */
-    200: GenericObject;
+    200: SdkIntegrationInstanceResponse;
 };
 
 export type GetSdkIntegrationsInstancesByIdResponse = GetSdkIntegrationsInstancesByIdResponses[keyof GetSdkIntegrationsInstancesByIdResponses];
 
 export type PatchSdkIntegrationsInstancesByIdData = {
-    body?: JsonBody;
+    body: SdkIntegrationInstanceUpdate;
     path: {
         id: string;
     };
@@ -408,9 +557,9 @@ export type PatchSdkIntegrationsInstancesByIdError = PatchSdkIntegrationsInstanc
 
 export type PatchSdkIntegrationsInstancesByIdResponses = {
     /**
-     * OK
+     * Updated integration instance
      */
-    200: GenericObject;
+    200: SdkIntegrationInstanceResponse;
 };
 
 export type PatchSdkIntegrationsInstancesByIdResponse = PatchSdkIntegrationsInstancesByIdResponses[keyof PatchSdkIntegrationsInstancesByIdResponses];
@@ -512,9 +661,9 @@ export type GetSdkIntegrationsInstancesByIdResourcesError = GetSdkIntegrationsIn
 
 export type GetSdkIntegrationsInstancesByIdResourcesResponses = {
     /**
-     * OK
+     * Owner-scoped resources
      */
-    200: GenericObject;
+    200: SdkIntegrationResourcesResponse;
 };
 
 export type GetSdkIntegrationsInstancesByIdResourcesResponse = GetSdkIntegrationsInstancesByIdResourcesResponses[keyof GetSdkIntegrationsInstancesByIdResourcesResponses];
@@ -549,9 +698,11 @@ export type GetSdkIntegrationsInstancesByIdContributionsByKindByContributionIdEr
 
 export type GetSdkIntegrationsInstancesByIdContributionsByKindByContributionIdResponses = {
     /**
-     * OK
+     * Declared integration contribution
      */
-    200: GenericObject;
+    200: {
+        contribution: SdkContribution;
+    };
 };
 
 export type GetSdkIntegrationsInstancesByIdContributionsByKindByContributionIdResponse = GetSdkIntegrationsInstancesByIdContributionsByKindByContributionIdResponses[keyof GetSdkIntegrationsInstancesByIdContributionsByKindByContributionIdResponses];
@@ -586,9 +737,9 @@ export type PostSdkIntegrationsInstancesByIdContributionsByKindByContributionIdR
 
 export type PostSdkIntegrationsInstancesByIdContributionsByKindByContributionIdResolveResponses = {
     /**
-     * OK
+     * Resolved resource bindings
      */
-    200: GenericObject;
+    200: SdkContributionResolution;
 };
 
 export type PostSdkIntegrationsInstancesByIdContributionsByKindByContributionIdResolveResponse = PostSdkIntegrationsInstancesByIdContributionsByKindByContributionIdResolveResponses[keyof PostSdkIntegrationsInstancesByIdContributionsByKindByContributionIdResolveResponses];
@@ -626,9 +777,11 @@ export type PostSdkIntegrationsInstancesByIdActionsByActionIdError = PostSdkInte
 
 export type PostSdkIntegrationsInstancesByIdActionsByActionIdResponses = {
     /**
-     * OK
+     * Action result
      */
-    200: GenericObject;
+    200: {
+        result: unknown;
+    };
 };
 
 export type PostSdkIntegrationsInstancesByIdActionsByActionIdResponse = PostSdkIntegrationsInstancesByIdActionsByActionIdResponses[keyof PostSdkIntegrationsInstancesByIdActionsByActionIdResponses];

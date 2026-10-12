@@ -20,6 +20,17 @@ import config from "@/lib/config";
 import { getClientSessionHeaders } from "@/lib/session";
 import { client } from "./api/client.gen";
 import * as sdk from "./api/sdk.gen";
+import type {
+  SdkIntegrationActionRequest as GeneratedSdkIntegrationActionRequest,
+  SdkIntegrationInstanceCreate as GeneratedSdkIntegrationInstanceCreate,
+  SdkContribution as GeneratedSdkContribution,
+  SdkContributionResolution as GeneratedSdkContributionResolution,
+  SdkIntegrationCatalogEntry as GeneratedSdkIntegrationCatalogEntry,
+  SdkIntegrationInstance as GeneratedSdkIntegrationInstance,
+  SdkIntegrationInstanceUpdate as GeneratedSdkIntegrationInstanceUpdate,
+  SdkIntegrationRuntimeStatus as GeneratedSdkIntegrationRuntimeStatus,
+  SdkResourceRecord as GeneratedSdkResourceRecord,
+} from "./api/types.gen";
 
 const { getAppConfig, getAppInfo, postAuthLogin, postAuthChangePassword, postAuthSignup, postAuthValidateAuth, deleteAuthDeleteAccount, patchAuthUpdateUserProperty, getLinksCollections, getLinksMetadata, postLinksCollections, putLinksCollectionsByCollectionId, postLinksTags, putLinksTagsByTagId, getLinksHomeGroups, postLinksHomeGroups, putLinksHomeGroups, deleteLinksHomeGroupsByGroupName, postLinksHomeGroupsCleanup, putLinksFoldersByFolderIdIcon, getLinksHome, getLinksFolders, postLinksFolders, getLinksItems, getLinksTags, postLinksItems, putLinksItemsByLinkId, deleteLinksItemsByLinkId, postLinksReorder, getIntegrations, postIntegrations, putIntegrationsById, deleteIntegrationsById, postIntegrationsTestEndpoint, getIntegrationsWidgetProperties, getWidgetsByIntegration, postIntegrationsConsumerData, getIntegrationsCaldavEvents, postIntegrationsProxyAction, getWidgets, getGlanceables, getGlanceablesByIntegration, getMonitoringStatus, postMonitoringStatus, getMonitoringSshHosts, postMonitoringSshHosts, putMonitoringSshHostsById, getMonitoringHosts, postMonitoringHosts, getMonitoringHostsByIdHistory, getMonitors, getMonitorsById, putMonitorsById, postMonitors, deleteMonitorsById, getNewsFeedRecordsById, postNewsFeedRecords, getNewsSubscriptions, getNewsFeeds, getNewsFeedMetadata, postNewsFeedRefresh, postNewsFeedSubscribe, postNewsFeedUnsubscribe, postNewsFeedUpdate, postNewsFeedRecordsById, postNewsFixMissingTitles, getPageConfig, getPageConfigUserPages, putPageConfig, postPageConfigHome, postPageConfigMigrateLegacy, postPageConfigIntegrationData, getShortcuts, getShortcutsFrequentlyUsed, postShortcutsUsageStats, getLocations, getJobsPullIcons, getNotifications, getNotificationsTopics, postNotificationsTopics, deleteNotificationsTopics, postNotificationsMarkAsRead, postNotificationsTest, getNotificationsTopicTokens, postNotificationsTopicTokens, deleteNotificationsTopicTokens, putNotificationsTopicTokens, getNotificationsForwarders, postNotificationsForwarders, putNotificationsForwarders, deleteNotificationsForwarders, postNotificationsForwardersTest } = sdk;
 export * from "./api/sdk.gen";
@@ -92,121 +103,84 @@ async function activityRequest<T>(auth: ActionAuth, path: string, query?: Record
   return body as T;
 }
 
-export type SdkIntegrationCatalogEntry = {
-  id: string;
-  name: string;
-  version: string;
-  description?: string;
-  config: Record<string, Record<string, unknown>>;
-  resources: Record<string, { persistent: boolean; shortcuts: boolean; apps: string[] }>;
-  apps: Array<{ id: string; name: string; description?: string; icon?: string }>;
-  actions: Array<{ id: string; name: string; description?: string; inputSchema?: Record<string, unknown> }>;
-  widgets: Array<Record<string, unknown> & { id: string; name: string }>;
-  glanceables: Array<Record<string, unknown> & { id: string; name: string }>;
-};
-
-export type SdkIntegrationInstance = {
-  id: string;
-  userId: string;
-  name: string;
-  source: string;
-  type: "sdk";
-  enabled: boolean;
-  created: string;
-  updated: string;
-  config: Record<string, unknown>;
-  configuredSecrets: string[];
-};
-
-export type SdkIntegrationRuntimeStatus = {
-  state: "disabled" | "stopped" | "starting" | "ready" | "error";
-  updatedAt: string;
-  message?: string;
-};
-
-export type SdkResourceRecord = {
-  id: string;
-  name: string;
-  icon?: string;
-  type?: string;
-  tags?: string[];
-  state?: unknown;
-  attributes?: Record<string, unknown>;
-  available?: boolean;
-  actions?: string[];
-  apps?: string[];
-  updatedAt?: string;
-  upstreamId?: string;
-  collectionId: string;
-  revision: number;
-  stale: boolean;
-};
+export type SdkIntegrationCatalogEntry = GeneratedSdkIntegrationCatalogEntry;
+export type SdkIntegrationInstance = GeneratedSdkIntegrationInstance;
+export type SdkIntegrationRuntimeStatus = GeneratedSdkIntegrationRuntimeStatus;
+export type SdkResourceRecord = GeneratedSdkResourceRecord;
 
 export type SdkContributionKind = "widget" | "glanceable";
-export type SdkContributionResolution = {
-  data: Record<string, unknown>;
-  revisions: Array<{ collectionId: string; resourceId: string; revision: number; operation: "upsert" | "remove" }>;
-};
-
-async function sdkIntegrationRequest<T>(auth: ActionAuth, path: string, method = "GET", body?: unknown): Promise<T> {
-  const response = await fetch(backendUrl(`/api/v1/sdk-integrations${path}`), {
-    method,
-    headers: { ...authHeaders(auth), ...(body === undefined ? {} : { "content-type": "application/json" }) },
-    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-  });
-  handleUnauthorizedResponse(response);
-  const result = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw new Error(typeof result?.error === "string" ? result.error : "Integration request failed");
-  }
-  return result as T;
-}
+export type SdkContributionResolution = GeneratedSdkContributionResolution;
 
 export async function getSdkIntegrationCatalogAction(auth: ActionAuth) {
-  return (await sdkIntegrationRequest<{ integrations: SdkIntegrationCatalogEntry[] }>(auth, "/catalog")).integrations;
+  const { data } = await sdk.getSdkIntegrationsCatalog({ headers: authHeaders(auth), throwOnError: true });
+  return data.integrations;
 }
 
 export async function getSdkIntegrationInstancesAction(auth: ActionAuth) {
-  return (await sdkIntegrationRequest<{ instances: SdkIntegrationInstance[] }>(auth, "/instances")).instances;
+  const { data } = await sdk.getSdkIntegrationsInstances({ headers: authHeaders(auth), throwOnError: true });
+  return data.instances;
 }
 
 export async function createSdkIntegrationInstanceAction(
   auth: ActionAuth,
-  input: { source: string; name?: string; config: Record<string, unknown> },
+  input: GeneratedSdkIntegrationInstanceCreate,
 ) {
-  return (await sdkIntegrationRequest<{ instance: SdkIntegrationInstance }>(auth, "/instances", "POST", input)).instance;
+  const { data } = await sdk.postSdkIntegrationsInstances({
+    headers: authHeaders(auth),
+    body: input,
+    throwOnError: true,
+  });
+  return data.instance;
 }
 
 export async function updateSdkIntegrationInstanceAction(
   auth: ActionAuth,
   instanceId: string,
-  input: { name?: string; config?: Record<string, unknown>; enabled?: boolean },
+  input: GeneratedSdkIntegrationInstanceUpdate,
 ) {
-  return (await sdkIntegrationRequest<{ instance: SdkIntegrationInstance }>(auth, `/instances/${encodeURIComponent(instanceId)}`, "PATCH", input)).instance;
+  const { data } = await sdk.patchSdkIntegrationsInstancesById({
+    headers: authHeaders(auth),
+    path: { id: instanceId },
+    body: input,
+    throwOnError: true,
+  });
+  return data.instance;
 }
 
 export async function deleteSdkIntegrationInstanceAction(auth: ActionAuth, instanceId: string) {
-  return sdkIntegrationRequest<{ success: boolean }>(auth, `/instances/${encodeURIComponent(instanceId)}`, "DELETE");
+  const { data } = await sdk.deleteSdkIntegrationsInstancesById({
+    headers: authHeaders(auth),
+    path: { id: instanceId },
+    throwOnError: true,
+  });
+  return data;
 }
 
 export async function getSdkIntegrationInstanceStatusAction(auth: ActionAuth, instanceId: string) {
-  return (await sdkIntegrationRequest<{ status: SdkIntegrationRuntimeStatus }>(
-    auth,
-    `/instances/${encodeURIComponent(instanceId)}/status`,
-  )).status;
+  const { data } = await sdk.getSdkIntegrationsInstancesByIdStatus({
+    headers: authHeaders(auth),
+    path: { id: instanceId },
+    throwOnError: true,
+  });
+  return data.status;
 }
 
 export async function testSdkIntegrationConnectionAction(auth: ActionAuth, instanceId: string) {
-  return sdkIntegrationRequest<{ success: boolean; status: SdkIntegrationRuntimeStatus }>(
-    auth,
-    `/instances/${encodeURIComponent(instanceId)}/test-connection`,
-    "POST",
-    {},
-  );
+  const { data } = await sdk.postSdkIntegrationsInstancesByIdTestConnection({
+    headers: authHeaders(auth),
+    path: { id: instanceId },
+    throwOnError: true,
+  });
+  return data;
 }
 
 export async function getSdkIntegrationResourcesAction(auth: ActionAuth, instanceId: string) {
-  return (await sdkIntegrationRequest<{ resources: SdkResourceRecord[] }>(auth, `/instances/${encodeURIComponent(instanceId)}/resources`)).resources;
+  const { data } = await sdk.getSdkIntegrationsInstancesByIdResources({
+    headers: authHeaders(auth),
+    path: { id: instanceId },
+    throwOnError: true,
+  });
+  return data.resources;
 }
 
 export async function resolveSdkContributionAction(
@@ -216,12 +190,13 @@ export async function resolveSdkContributionAction(
   contributionId: string,
   config: Record<string, unknown>,
 ) {
-  return sdkIntegrationRequest<SdkContributionResolution>(
-    auth,
-    `/instances/${encodeURIComponent(instanceId)}/contributions/${kind}/${encodeURIComponent(contributionId)}/resolve`,
-    "POST",
-    { config },
-  );
+  const { data } = await sdk.postSdkIntegrationsInstancesByIdContributionsByKindByContributionIdResolve({
+    headers: authHeaders(auth),
+    path: { id: instanceId, kind, contributionId },
+    body: { config },
+    throwOnError: true,
+  });
+  return data;
 }
 
 export async function getSdkContributionDefinitionAction(
@@ -230,24 +205,27 @@ export async function getSdkContributionDefinitionAction(
   kind: SdkContributionKind,
   contributionId: string,
 ) {
-  return (await sdkIntegrationRequest<{ contribution: Record<string, unknown> }>(
-    auth,
-    `/instances/${encodeURIComponent(instanceId)}/contributions/${kind}/${encodeURIComponent(contributionId)}`,
-  )).contribution;
+  const { data } = await sdk.getSdkIntegrationsInstancesByIdContributionsByKindByContributionId({
+    headers: authHeaders(auth),
+    path: { id: instanceId, kind, contributionId },
+    throwOnError: true,
+  });
+  return data.contribution;
 }
 
 export async function runSdkIntegrationAction(
   auth: ActionAuth,
   instanceId: string,
   actionId: string,
-  resource: { collectionId: string; resourceId: string; input?: unknown },
+  resource: GeneratedSdkIntegrationActionRequest,
 ) {
-  return sdkIntegrationRequest<{ result: unknown }>(
-    auth,
-    `/instances/${encodeURIComponent(instanceId)}/actions/${encodeURIComponent(actionId)}`,
-    "POST",
-    resource,
-  );
+  const { data } = await sdk.postSdkIntegrationsInstancesByIdActionsByActionId({
+    headers: authHeaders(auth),
+    path: { id: instanceId, actionId },
+    body: resource,
+    throwOnError: true,
+  });
+  return data;
 }
 
 export async function getActivityPageAction(auth: ActionAuth, query: ActivityQuery = {}): Promise<ActivityPage> {

@@ -1,10 +1,12 @@
 'use client';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import useAuth, { COMMAND_BAR_OPEN_EVENT } from "@/context/useAuth";
+import { useActivity } from "@/context/ActivityContext";
 import CommandBar from './CommandBar';
 import { getShortcutsAction } from '@/lib/apiClient';
 import { useApiQuery } from "@/hooks/useApiQuery";
 import { queryKeys } from "@/lib/queryClient";
+import { getSdkShortcutResourceIdentities } from "@/lib/sdkShortcutResources";
 
 type SearchBarProps = {
   useRedirect: boolean;
@@ -17,6 +19,9 @@ type ProxyAction = {
   type: string;
   url?: string;
   proxy?: boolean;
+  instanceId?: string;
+  collectionId?: string;
+  resourceId?: string;
 };
 
 type Shortcut = {
@@ -25,7 +30,7 @@ type Shortcut = {
   name: string;
   icon: string;
   secondaryInfo: string;
-  type: 'link' | 'app' | 'karakeepBookmark' | 'jellyfinItem' | 'beszelItem' | 'dashdotItem';
+  type: string;
   action: string | ProxyAction;
   actions?: Record<string, string>;
   secondaryActions?: Record<string, string>;
@@ -63,9 +68,18 @@ export default function SearchBar({
   const [open, setOpen] = useState(() => !!defaultOpen); // control CommandBar
   const didMountRef = useRef(false);
   const { user } = useAuth();
+  const { subscribeSdkResources } = useActivity();
 
   const shortcutsQuery = useApiQuery(queryKeys.links.search, getShortcutsAction, { enabled: open });
-  const shortcuts = normalizeShortcuts(shortcutsQuery.data);
+  const shortcuts = useMemo(() => normalizeShortcuts(shortcutsQuery.data), [shortcutsQuery.data]);
+  const sdkResources = useMemo(() => getSdkShortcutResourceIdentities(shortcuts), [shortcuts]);
+
+  useEffect(() => {
+    if (!open || sdkResources.length === 0) return;
+    return subscribeSdkResources(sdkResources, () => {
+      void shortcutsQuery.refetch();
+    });
+  }, [open, sdkResources, shortcutsQuery.refetch, subscribeSdkResources]);
 
   useEffect(() => {
     if (!didMountRef.current) {

@@ -149,7 +149,11 @@ paths:
       summary: List trusted SDK integrations available for installation
       responses:
         "200":
-          $ref: "#/components/responses/JsonOk"
+          description: Trusted integration catalog
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SdkIntegrationCatalogResponse"
         "401":
           $ref: "#/components/responses/JsonUnauthorized"
   /sdk-integrations/instances:
@@ -158,7 +162,11 @@ paths:
       summary: List SDK integration instances owned by the authenticated user
       responses:
         "200":
-          $ref: "#/components/responses/JsonOk"
+          description: Owned integration instances
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SdkIntegrationInstancesResponse"
         "401":
           $ref: "#/components/responses/JsonUnauthorized"
     post:
@@ -172,7 +180,11 @@ paths:
               $ref: "#/components/schemas/SdkIntegrationInstanceCreate"
       responses:
         "200":
-          $ref: "#/components/responses/JsonOk"
+          description: Created integration instance
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SdkIntegrationInstanceResponse"
         "400":
           $ref: "#/components/responses/JsonBadRequest"
         "401":
@@ -187,7 +199,11 @@ paths:
         - $ref: "#/components/parameters/Id"
       responses:
         "200":
-          $ref: "#/components/responses/JsonOk"
+          description: Owned integration instance
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SdkIntegrationInstanceResponse"
         "401":
           $ref: "#/components/responses/JsonUnauthorized"
         "404":
@@ -198,10 +214,18 @@ paths:
       parameters:
         - $ref: "#/components/parameters/Id"
       requestBody:
-        $ref: "#/components/requestBodies/JsonBody"
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SdkIntegrationInstanceUpdate"
       responses:
         "200":
-          $ref: "#/components/responses/JsonOk"
+          description: Updated integration instance
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SdkIntegrationInstanceResponse"
         "400":
           $ref: "#/components/responses/JsonBadRequest"
         "401":
@@ -215,7 +239,14 @@ paths:
         - $ref: "#/components/parameters/Id"
       responses:
         "200":
-          $ref: "#/components/responses/JsonOk"
+          description: Deleted integration instance
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success]
+                properties:
+                  success: { type: boolean }
         "401":
           $ref: "#/components/responses/JsonUnauthorized"
         "404":
@@ -292,7 +323,11 @@ paths:
           schema: { type: array, maxItems: 200, items: { type: string, maxLength: 200 } }
       responses:
         "200":
-          $ref: "#/components/responses/JsonOk"
+          description: Owner-scoped resources
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SdkIntegrationResourcesResponse"
         "401":
           $ref: "#/components/responses/JsonUnauthorized"
         "404":
@@ -313,7 +348,15 @@ paths:
           schema: { type: string, maxLength: 200 }
       responses:
         "200":
-          $ref: "#/components/responses/JsonOk"
+          description: Declared integration contribution
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [contribution]
+                properties:
+                  contribution:
+                    $ref: "#/components/schemas/SdkContribution"
         "400":
           $ref: "#/components/responses/JsonBadRequest"
         "401":
@@ -342,7 +385,11 @@ paths:
               $ref: "#/components/schemas/SdkContributionResolveRequest"
       responses:
         "200":
-          $ref: "#/components/responses/JsonOk"
+          description: Resolved resource bindings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SdkContributionResolution"
         "400":
           $ref: "#/components/responses/JsonBadRequest"
         "401":
@@ -367,7 +414,14 @@ paths:
               $ref: "#/components/schemas/SdkIntegrationActionRequest"
       responses:
         "200":
-          $ref: "#/components/responses/JsonOk"
+          description: Action result
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [result]
+                properties:
+                  result: {}
         "400":
           $ref: "#/components/responses/JsonBadRequest"
         "401":
@@ -1940,6 +1994,13 @@ components:
         source: { type: string, maxLength: 120, description: Stable ID from the trusted SDK catalog. }
         name: { type: string, maxLength: 120 }
         config: { type: object, additionalProperties: true }
+    SdkIntegrationInstanceUpdate:
+      type: object
+      additionalProperties: false
+      properties:
+        name: { type: string, maxLength: 120 }
+        config: { type: object, additionalProperties: true }
+        enabled: { type: boolean }
     SdkIntegrationActionRequest:
       type: object
       additionalProperties: false
@@ -1962,6 +2023,207 @@ components:
       required: [config]
       properties:
         config: { type: object, additionalProperties: true, description: Contribution selector values such as selected resource IDs. }
+    SdkIntegrationConfigField:
+      type: object
+      required: [type]
+      properties:
+        type: { type: string, enum: [string, url, secret, number, boolean, enum] }
+        title: { type: string }
+        description: { type: string }
+        required: { type: boolean }
+        default: {}
+        min: { type: number }
+        max: { type: number }
+        options:
+          type: array
+          items: {}
+      additionalProperties: true
+    SdkIntegrationResourceCollection:
+      type: object
+      required: [persistent, shortcuts, apps]
+      properties:
+        persistent: { type: boolean }
+        shortcuts: { type: boolean }
+        apps:
+          type: array
+          items: { type: string }
+        schema:
+          type: object
+          additionalProperties: true
+      additionalProperties: false
+    SdkIntegrationActionContribution:
+      type: object
+      required: [id, name]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        description: { type: string }
+        inputSchema:
+          type: object
+          additionalProperties: true
+      additionalProperties: false
+    SdkIntegrationAppContribution:
+      type: object
+      required: [id, name]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        description: { type: string }
+        icon: { type: string }
+      additionalProperties: false
+    SdkContribution:
+      type: object
+      required: [id, name]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        description: { type: string }
+        configSchema:
+          type: object
+          additionalProperties: true
+        resourceBindings:
+          type: object
+          additionalProperties: true
+        template: { type: string }
+        properties:
+          type: object
+          additionalProperties: true
+        columns:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+      additionalProperties: true
+    SdkIntegrationCatalogEntry:
+      type: object
+      required: [id, name, version, config, resources, actions, apps, widgets, glanceables]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        version: { type: string }
+        description: { type: string }
+        config:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/SdkIntegrationConfigField"
+        resources:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/SdkIntegrationResourceCollection"
+        actions:
+          type: array
+          items:
+            $ref: "#/components/schemas/SdkIntegrationActionContribution"
+        apps:
+          type: array
+          items:
+            $ref: "#/components/schemas/SdkIntegrationAppContribution"
+        widgets:
+          type: array
+          items:
+            $ref: "#/components/schemas/SdkContribution"
+        glanceables:
+          type: array
+          items:
+            $ref: "#/components/schemas/SdkContribution"
+    SdkIntegrationCatalogResponse:
+      type: object
+      required: [integrations]
+      properties:
+        integrations:
+          type: array
+          items:
+            $ref: "#/components/schemas/SdkIntegrationCatalogEntry"
+    SdkIntegrationInstance:
+      type: object
+      required: [id, userId, name, source, type, enabled, created, updated, config, configuredSecrets]
+      properties:
+        id: { type: string }
+        userId: { type: string }
+        name: { type: string }
+        source: { type: string }
+        type: { type: string, enum: [sdk] }
+        enabled: { type: boolean }
+        created: { type: string, format: date-time }
+        updated: { type: string, format: date-time }
+        config:
+          type: object
+          additionalProperties: true
+        configuredSecrets:
+          type: array
+          items: { type: string }
+      additionalProperties: false
+    SdkIntegrationInstanceResponse:
+      type: object
+      required: [instance]
+      properties:
+        instance:
+          $ref: "#/components/schemas/SdkIntegrationInstance"
+    SdkIntegrationInstancesResponse:
+      type: object
+      required: [instances]
+      properties:
+        instances:
+          type: array
+          items:
+            $ref: "#/components/schemas/SdkIntegrationInstance"
+    SdkResourceRecord:
+      type: object
+      required: [id, name, collectionId, revision, stale]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        icon: { type: string }
+        type: { type: string }
+        tags:
+          type: array
+          items: { type: string }
+        state: {}
+        attributes:
+          type: object
+          additionalProperties: true
+        available: { type: boolean }
+        actions:
+          type: array
+          items: { type: string }
+        apps:
+          type: array
+          items: { type: string }
+        updatedAt: { type: string, format: date-time }
+        upstreamId: { type: string }
+        collectionId: { type: string }
+        revision: { type: integer, minimum: 0 }
+        stale: { type: boolean }
+      additionalProperties: false
+    SdkIntegrationResourcesResponse:
+      type: object
+      required: [resources]
+      properties:
+        resources:
+          type: array
+          items:
+            $ref: "#/components/schemas/SdkResourceRecord"
+    SdkContributionRevision:
+      type: object
+      required: [instanceId, collectionId, resourceId, revision]
+      properties:
+        instanceId: { type: string }
+        collectionId: { type: string }
+        resourceId: { type: string }
+        revision: { type: integer, minimum: 0 }
+      additionalProperties: false
+    SdkContributionResolution:
+      type: object
+      required: [data, revisions]
+      properties:
+        data:
+          type: object
+          additionalProperties: true
+        revisions:
+          type: array
+          items:
+            $ref: "#/components/schemas/SdkContributionRevision"
+      additionalProperties: false
     Activity:
       type: object
       required: [id, ownerId, source, type, title, severity, occurredAt, createdAt]

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import useAuth from "@/context/useAuth";
 import { getSdkIntegrationResourcesAction, type SdkResourceRecord } from "@/lib/apiClient";
 import { Input } from "@/components/ui/input";
@@ -56,14 +56,30 @@ export default function SdkContributionConfigForm({
 }) {
   const { withAuth } = useAuth();
   const [resources, setResources] = useState<SdkResourceRecord[]>([]);
+  const [resourcesLoading, setResourcesLoading] = useState(true);
+  const [resourceError, setResourceError] = useState<string | null>(null);
   const schemaFields = useMemo(() => getSchemaFields(schema), [schema]);
+  const loadResources = useCallback(async (isCurrent: () => boolean = () => true) => {
+    setResourcesLoading(true);
+    setResourceError(null);
+    try {
+      const next = await withAuth((auth) => getSdkIntegrationResourcesAction(auth, instanceId));
+      if (isCurrent()) setResources(next);
+    } catch (error) {
+      if (isCurrent()) {
+        setResources([]);
+        setResourceError(error instanceof Error ? error.message : "Could not load integration resources.");
+      }
+    } finally {
+      if (isCurrent()) setResourcesLoading(false);
+    }
+  }, [instanceId, withAuth]);
+
   useEffect(() => {
     let cancelled = false;
-    void withAuth((auth) => getSdkIntegrationResourcesAction(auth, instanceId))
-      .then((next) => { if (!cancelled) setResources(next); })
-      .catch(() => { if (!cancelled) setResources([]); });
+    void loadResources(() => !cancelled);
     return () => { cancelled = true; };
-  }, [instanceId, withAuth]);
+  }, [loadResources]);
 
   const setField = (key: string, next: unknown) => onChange({ ...value, [key]: next });
   const allShortcuts = useMemo(() => resources.filter((resource) => resource.available !== false), [resources]);
@@ -100,10 +116,19 @@ export default function SdkContributionConfigForm({
                     </label>
                   );
                 })}
-                {selectedResources.length === 0 && <p className="p-2 text-sm text-white/50">No matching resources are available.</p>}
+                {resourcesLoading && <p className="p-2 text-sm text-white/50">Loading resources…</p>}
+                {!resourcesLoading && resourceError && (
+                  <p role="alert" className="p-2 text-sm text-destructive">
+                    Could not load resources: {resourceError}{" "}
+                    <button type="button" className="underline" onClick={() => void loadResources()}>Retry</button>
+                  </p>
+                )}
+                {!resourcesLoading && !resourceError && selectedResources.length === 0 && (
+                  <p className="p-2 text-sm text-white/50">No matching resources are available.</p>
+                )}
               </div>
             ) : (
-              <select id={fieldId} value={String(currentValue ?? "")} onChange={(event) => setField(key, event.target.value || undefined)} className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
+              <select id={fieldId} disabled={resourcesLoading || Boolean(resourceError)} value={String(currentValue ?? "")} onChange={(event) => setField(key, event.target.value || undefined)} className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
                 <option value="">Select a resource…</option>
                 {selectedResources.map((resource) => <option key={`${resource.collectionId}:${resource.id}`} value={resource.id}>{resource.name}</option>)}
               </select>
@@ -131,6 +156,12 @@ export default function SdkContributionConfigForm({
                 max={typeof field.max === "number" ? field.max : undefined}
                 step={typeof field.step === "number" ? field.step : undefined}
               />
+            )}
+            {field.type === "shortcut-select" && !field.multiple && resourceError && (
+              <p role="alert" className="text-sm text-destructive">
+                Could not load resources: {resourceError}{" "}
+                <button type="button" className="underline" onClick={() => void loadResources()}>Retry</button>
+              </p>
             )}
             {field.description && <p className="text-xs text-white/50">{String(field.description)}</p>}
           </div>

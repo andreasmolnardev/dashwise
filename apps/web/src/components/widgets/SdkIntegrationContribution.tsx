@@ -6,32 +6,17 @@ import Glanceable from "@dashwise/integrationskit/Glanceable";
 import useAuth from "@/context/useAuth";
 import { getSdkContributionDefinitionAction, type SdkContributionKind } from "@/lib/apiClient";
 import { useSdkContributionData } from "@/hooks/useSdkContributionData";
+import type { SdkContributionAddress } from "./sdkContributionKey";
+import { parseSdkContributionKey } from "./sdkContributionKey";
+
+export { parseSdkContributionKey } from "./sdkContributionKey";
+export type { SdkContributionAddress } from "./sdkContributionKey";
 
 type SdkGlanceableFormatters = {
   formatTemperature?: (value: number | null | undefined, inputUnit?: string, options?: { includeUnit?: boolean; decimals?: number }) => string;
   formatTime?: (value?: Date | string | number, options?: Intl.DateTimeFormatOptions) => string;
   formatDate?: (value?: Date | string | number, format?: string) => string;
 };
-
-export type SdkContributionAddress = {
-  instanceId: string;
-  kind: SdkContributionKind;
-  contributionId: string;
-};
-
-export function parseSdkContributionKey(value: string): SdkContributionAddress | null {
-  const match = value.match(/^sdk#([^#]+)#(widget|glanceable)#(.+)$/);
-  if (!match) return null;
-  try {
-    return {
-      instanceId: match[1],
-      kind: match[2] as SdkContributionKind,
-      contributionId: decodeURIComponent(match[3]),
-    };
-  } catch {
-    return null;
-  }
-}
 
 function useSdkContributionDefinition(address: SdkContributionAddress) {
   const { withAuth } = useAuth();

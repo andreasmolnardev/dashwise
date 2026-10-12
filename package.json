@@ -32,7 +32,7 @@
     "lint": "eslint . --quiet",
     "lint:all": "eslint .",
     "typecheck": "bun run --workspaces --if-present typecheck",
-    "test": "bun test",
+    "test": "bun test --parallel=4 --path-ignore-patterns='**/dist/**'",
     "test:contract": "bun scripts/contract-smoke.ts",
     "check:generated": "bun run generate && git diff --exit-code -- apps/web/public/openapi.json apps/web/src/lib/api packages/api-types/src/openapi.ts",
     "check": "bun run lint && bun run typecheck && bun run check:generated"

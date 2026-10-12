@@ -482,10 +482,22 @@ function createRuntimeEntry(
       cancel(name) { cancelScheduledTask(entry, name); },
     },
     logger: {
-      debug(message, metadata) { logger.debug(`[${instance.id}] ${message}`, metadata); },
-      info(message, metadata) { logger.info(`[${instance.id}] ${message}`, metadata); },
-      warn(message, metadata) { logger.warn(`[${instance.id}] ${message}`, metadata); },
-      error(message, metadata) { logger.error(`[${instance.id}] ${message}`, metadata); },
+      debug(message, metadata) {
+        const safe = redactSdkIntegrationLog(entry.secretValues, message, metadata);
+        logger.debug(`[${instance.id}] ${safe.message}`, safe.metadata);
+      },
+      info(message, metadata) {
+        const safe = redactSdkIntegrationLog(entry.secretValues, message, metadata);
+        logger.info(`[${instance.id}] ${safe.message}`, safe.metadata);
+      },
+      warn(message, metadata) {
+        const safe = redactSdkIntegrationLog(entry.secretValues, message, metadata);
+        logger.warn(`[${instance.id}] ${safe.message}`, safe.metadata);
+      },
+      error(message, metadata) {
+        const safe = redactSdkIntegrationLog(entry.secretValues, message, metadata);
+        logger.error(`[${instance.id}] ${safe.message}`, safe.metadata);
+      },
     },
     onDispose(cleanup) { entry.cleanups.push(cleanup); },
   };
@@ -789,6 +801,44 @@ function messageOf(error: unknown) { return error instanceof Error ? error.messa
 function safeErrorMessage(entry: RuntimeEntry, error: unknown) {
   const message = messageOf(error);
   return entry.secretValues.some((secret) => message.includes(secret)) ? "Integration action failed" : message;
+}
+
+export function redactSdkIntegrationLog(
+  secrets: readonly string[],
+  message: string,
+  metadata?: Record<string, JsonValue>,
+) {
+  return {
+    message: redactSecretText(secrets, message),
+    metadata: redactLogMetadata(secrets, metadata),
+  };
+}
+
+function redactSecretText(secrets: readonly string[], value: string) {
+  return secrets.reduce(
+    (redacted, secret) => secret ? redacted.split(secret).join("[REDACTED]") : redacted,
+    value,
+  );
+}
+
+function redactLogMetadata(
+  secrets: readonly string[],
+  metadata?: Record<string, JsonValue>,
+): Record<string, JsonValue> | undefined {
+  if (!metadata) return undefined;
+  return Object.fromEntries(Object.entries(metadata).map(([key, value]) => [
+    redactSecretText(secrets, key),
+    redactLogValue(secrets, value),
+  ])) as Record<string, JsonValue>;
+}
+
+function redactLogValue(secrets: readonly string[], value: JsonValue): JsonValue {
+  if (typeof value === "string") return redactSecretText(secrets, value);
+  if (Array.isArray(value)) return value.map((item) => redactLogValue(secrets, item));
+  if (value && typeof value === "object") {
+    return redactLogMetadata(secrets, value as Record<string, JsonValue>) ?? {};
+  }
+  return value;
 }
 
 function assertNoSecrets(entry: RuntimeEntry, value: unknown, label: string) {

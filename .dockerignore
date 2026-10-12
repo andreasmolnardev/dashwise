@@ -16,4 +16,6 @@ pocketbase/pb_data/
 pocketbase/pb_data_old/
 .vscode
 dist
+**/dist/
+.git/
 .env

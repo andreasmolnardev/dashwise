@@ -62,6 +62,16 @@ function createRuntime(fetch: typeof globalThis.fetch) {
 }
 
 describe("REST status integration", () => {
+  test("exposes a resource-backed health widget with preview data", () => {
+    const widget = definition.widgets?.find((candidate) => candidate.id === "health-summary");
+
+    expect(widget).toMatchObject({
+      template: "icon-details-card",
+      resourceBindings: { endpoint: { type: "shortcut-select", configKey: "endpoint" } },
+      exampleProps: { endpoint: { name: "Example service", state: "online", attributes: { statusCode: 200 } } },
+    });
+  });
+
   test("performs an authenticated initial check and schedules the configured interval", async () => {
     const requests: Array<{ input: string | URL | Request; init?: RequestInit }> = [];
     const runtime = createRuntime(async (input, init) => {

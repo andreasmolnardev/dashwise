@@ -7,6 +7,9 @@ import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/queryClient";
 import { getClientSessionId } from "@/lib/session";
 import { executeRegisteredActivityShortcut } from "@/lib/activityShortcuts";
+import { SdkResourceSubscriptions, type SdkResourceIdentity, type SdkResourceRevision } from "@/lib/sdkResourceSubscriptions";
+
+export type { SdkResourceIdentity, SdkResourceRevision } from "@/lib/sdkResourceSubscriptions";
 
 export type ActivityNotification = {
   id: string;
@@ -26,17 +29,6 @@ export type ActivityCalendarEvent = {
   isAllDay?: boolean;
 };
 
-export type SdkResourceIdentity = {
-  instanceId: string;
-  collectionId: string;
-  resourceId: string;
-};
-
-export type SdkResourceRevision = SdkResourceIdentity & {
-  revision: number;
-  operation: "upsert" | "remove";
-};
-
 type ActivityContextValue = {
   notifications: ActivityNotification[];
   unreadCount: number;
@@ -50,10 +42,6 @@ type ActivityContextValue = {
 };
 
 const ActivityContext = createContext<ActivityContextValue | null>(null);
-
-function sdkResourceKey(resource: SdkResourceIdentity) {
-  return JSON.stringify([resource.instanceId, resource.collectionId, resource.resourceId]);
-}
 
 function socketUrl(token: string, sessionId: string | null) {
   const url = new URL(backendUrl("api/v1/activity"));
@@ -69,10 +57,7 @@ export function ActivityProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
   const socket = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<number | null>(null);
-  const sdkResourceSubscriptions = useRef(new Map<string, {
-    resource: SdkResourceIdentity;
-    listeners: Set<(event: SdkResourceRevision) => void>;
-  }>());
+  const sdkResourceSubscriptions = useRef(new SdkResourceSubscriptions());
   const [notifications, setNotifications] = useState<ActivityNotification[]>([]);
   const [calendarEvents, setCalendarEvents] = useState<ActivityCalendarEvent[]>([]);
 
@@ -91,7 +76,7 @@ export function ActivityProvider({ children }: { children: ReactNode }) {
       socket.current = nextSocket;
       nextSocket.onopen = () => {
         nextSocket.send(JSON.stringify({ type: "activity:subscribe" }));
-        const resources = [...sdkResourceSubscriptions.current.values()].map(({ resource }) => resource);
+        const resources = sdkResourceSubscriptions.current.resources();
         if (resources.length > 0) {
           nextSocket.send(JSON.stringify({ type: "sdk:resources:subscribe", resources }));
         }
@@ -124,8 +109,7 @@ export function ActivityProvider({ children }: { children: ReactNode }) {
             && (message.operation === "upsert" || message.operation === "remove")
           ) {
             const revision = message as SdkResourceRevision;
-            const subscription = sdkResourceSubscriptions.current.get(sdkResourceKey(revision));
-            subscription?.listeners.forEach((listener) => listener(revision));
+            sdkResourceSubscriptions.current.dispatch(revision);
             return;
           }
           if (message.type !== "activity:snapshot") return;
@@ -162,30 +146,15 @@ export function ActivityProvider({ children }: { children: ReactNode }) {
     resources: readonly SdkResourceIdentity[],
     listener: (event: SdkResourceRevision) => void,
   ) => {
-    const uniqueResources = new Map(resources.map((resource) => [sdkResourceKey(resource), resource]));
-    for (const [key, resource] of uniqueResources) {
-      const subscription = sdkResourceSubscriptions.current.get(key);
-      if (subscription) {
-        subscription.listeners.add(listener);
-      } else {
-        sdkResourceSubscriptions.current.set(key, { resource, listeners: new Set([listener]) });
-        if (socket.current?.readyState === WebSocket.OPEN) {
-          socket.current.send(JSON.stringify({ type: "sdk:resources:subscribe", resources: [resource] }));
-        }
-      }
+    const subscription = sdkResourceSubscriptions.current.subscribe(resources, listener);
+    if (socket.current?.readyState === WebSocket.OPEN && subscription.added.length > 0) {
+      socket.current.send(JSON.stringify({ type: "sdk:resources:subscribe", resources: subscription.added }));
     }
 
     return () => {
-      for (const [key, resource] of uniqueResources) {
-        const subscription = sdkResourceSubscriptions.current.get(key);
-        if (!subscription) continue;
-        subscription.listeners.delete(listener);
-        if (subscription.listeners.size === 0) {
-          sdkResourceSubscriptions.current.delete(key);
-          if (socket.current?.readyState === WebSocket.OPEN) {
-            socket.current.send(JSON.stringify({ type: "sdk:resources:unsubscribe", resources: [resource] }));
-          }
-        }
+      const removed = subscription.unsubscribe();
+      if (socket.current?.readyState === WebSocket.OPEN && removed.length > 0) {
+        socket.current.send(JSON.stringify({ type: "sdk:resources:unsubscribe", resources: removed }));
       }
     };
   }, []);

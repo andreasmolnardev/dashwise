@@ -25,7 +25,8 @@ import ImageTemplate from "@dashwise/integrationskit/templates/Image";
 import Widget from "@dashwise/integrationskit/Widget";
 import ProgressWidget from "./ProgressWidget";
 import ShortcutsWidget from "./ShortcutsWidget";
-import { parseSdkContributionKey, SdkIntegrationWidget } from "./SdkIntegrationContribution";
+import { SdkIntegrationWidget } from "./SdkIntegrationContribution";
+import { parseSdkContributionKey } from "./sdkContributionKey";
 import { useLocalization } from "@/context/LocalizationContext";
 import useAuth from "@/context/useAuth";
 import { useActivity } from "@/context/ActivityContext";
@@ -69,7 +70,9 @@ export function renderWidget({
   const resolvedType = type === "widget" && typeof renderParams?.key === "string" && renderParams.key.trim()
     ? renderParams.key.trim()
     : type;
-  const sdkContribution = parseSdkContributionKey(resolvedType);
+  const sdkContribution = [resolvedType, consumerKey, renderParams?.configKey, renderParams?.key]
+    .map((candidate) => typeof candidate === "string" ? parseSdkContributionKey(candidate) : null)
+    .find((candidate) => candidate !== null);
   if (sdkContribution?.kind === "widget") {
     return (
       <SdkIntegrationWidget

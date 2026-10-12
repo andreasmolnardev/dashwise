@@ -1,5 +1,5 @@
 import type { ServerWebSocket } from "bun";
-import { createServer } from "node:net";
+import { randomInt } from "node:crypto";
 import type { AreaRegistryEntry, DeviceRegistryEntry, EntityRegistryEntry, HassState } from "../src/ha-types";
 
 type MockSocketData = {
@@ -42,28 +42,44 @@ export class MockHomeAssistantServer {
     return `http://127.0.0.1:${this.server.port}`;
   }
 
+  get entitySubscriptionCount(): number {
+    return [...this.sockets].filter((socket) =>
+      [...socket.data.subscriptions.values()].includes("__entities__")
+    ).length;
+  }
+
   async start(): Promise<void> {
     if (this.server) throw new Error("Mock Home Assistant server is already running");
-    const port = await findAvailablePort();
-    this.server = Bun.serve<MockSocketData>({
-      hostname: "127.0.0.1",
-      port,
-      fetch: (request, server) => {
-        if (this.unavailable) return new Response("Home Assistant is restarting", { status: 503 });
-        if (server.upgrade(request, { data: { authenticated: false, subscriptions: new Map() } })) {
-          return undefined;
-        }
-        return new Response("WebSocket endpoint only", { status: 404 });
-      },
-      websocket: {
-        open: (socket) => {
-          this.sockets.add(socket);
-          socket.send(JSON.stringify({ type: "auth_required", ha_version: "2025.1.0" }));
-        },
-        message: (socket, rawMessage) => this.handleMessage(socket, rawMessage),
-        close: (socket) => { this.sockets.delete(socket); },
-      },
-    });
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      const port = randomInt(20_000, 60_000);
+      try {
+        this.server = Bun.serve<MockSocketData>({
+          hostname: "127.0.0.1",
+          port,
+          fetch: (request, server) => {
+            if (this.unavailable) return new Response("Home Assistant is restarting", { status: 503 });
+            if (server.upgrade(request, { data: { authenticated: false, subscriptions: new Map() } })) {
+              return undefined;
+            }
+            return new Response("WebSocket endpoint only", { status: 404 });
+          },
+          websocket: {
+            open: (socket) => {
+              this.sockets.add(socket);
+              socket.send(JSON.stringify({ type: "auth_required", ha_version: "2025.1.0" }));
+            },
+            message: (socket, rawMessage) => this.handleMessage(socket, rawMessage),
+            close: (socket) => { this.sockets.delete(socket); },
+          },
+        });
+        return;
+      } catch (error) {
+        const code = typeof error === "object" && error !== null && "code" in error
+          ? error.code
+          : undefined;
+        if (code !== "EADDRINUSE" || attempt === 9) throw error;
+      }
+    }
   }
 
   async stop(): Promise<void> {
@@ -217,20 +233,4 @@ export class MockHomeAssistantServer {
       lu: seconds,
     };
   }
-}
-
-async function findAvailablePort(): Promise<number> {
-  const probe = createServer();
-  await new Promise<void>((resolve, reject) => {
-    probe.once("error", reject);
-    probe.listen(0, "127.0.0.1", resolve);
-  });
-  const address = probe.address();
-  if (!address || typeof address === "string") {
-    probe.close();
-    throw new Error("Could not allocate a local port for the Home Assistant fixture");
-  }
-  const { port } = address;
-  await new Promise<void>((resolve, reject) => probe.close((error) => error ? reject(error) : resolve()));
-  return port;
 }

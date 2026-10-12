@@ -101,6 +101,21 @@ const definition = defineIntegration({
     id: "health-summary",
     name: "Service health",
     description: "Show whether the configured endpoint is responding.",
+    template: "icon-details-card",
+    properties: {
+      header: { title: "${endpoint.name}", icon: "mdi:server-network" },
+      icon: { file: "${endpoint.icon}", size: 32, description: "Service status" },
+      primary: "${endpoint.state}",
+      secondary: "HTTP ${endpoint.attributes.statusCode}",
+    },
+    exampleProps: {
+      endpoint: {
+        name: "Example service",
+        state: "online",
+        icon: "mdi:server-network",
+        attributes: { statusCode: 200 },
+      },
+    },
     configSchema: {
       endpoint: {
         type: "shortcut-select",

@@ -9,33 +9,21 @@ import { isSessionActive } from "./lib/data/sessions";
 import { trackSessionConnection, type SessionConnection } from "./lib/session-connections";
 
 import { config } from "./lib/config";
-import {
-  type ActivityConnection,
-  handleActivityMessage,
-  registerSessionConnection,
-  subscribeActivity,
-  subscribeSdkResourceRevisions,
-} from "./lib/activity";
 
 import { authenticateDeviceSocket, closeDeviceRequest, createDeviceRequest } from "./lib/device-code";
 import { jobsApi, registerJobsCron } from "./jobs/index";
 import { startPocketbase } from "./pocketbase";
 import { createLogger } from "./lib/logger";
 import { getMonitoringSshHostById, getMonitoringSshHostCredentials, getSystemAgentHostById } from "./lib/data/monitoring";
-import { getNotifications } from "./lib/data/notifications/items";
-import { listIntegrations } from "./lib/data/integrations";
-import { getUpcomingEvents } from "./lib/calendar";
-import { listActivities } from "./lib/data/activities";
-import { getOwnedSdkInstance } from "./lib/integrations-sdk/persistence";
-import { requireSdkIntegrationDefinition } from "./lib/integrations-sdk/catalog";
 import "./lib/integrations-sdk/builtins";
-import { listSdkResourceSnapshot, startSdkIntegrationRuntime, stopSdkIntegrationRuntime } from "./lib/integrations-sdk/runtime";
+import { startSdkIntegrationRuntime, stopSdkIntegrationRuntime } from "./lib/integrations-sdk/runtime";
 import { systemAgentClient } from "./lib/systemAgent";
 import { requireAuth } from "./routes/shared";
 import authRoute from "./routes/auth.route";
 import sessionsRoute from "./routes/sessions.route";
 import systemRoute from "./routes/system.route";
 import dataRoute from "./routes/data.route";
+import activityWebSocketRoute from "./routes/activity.websocket";
 
 const app = new Hono();
 const devAutoLoginEmail = "testenv@dashwise.local";
@@ -124,180 +112,7 @@ app.get("/api/v1/auth/device-code", upgradeWebSocket((c) => {
   };
 }));
 
-app.get("/api/v1/activity",  upgradeWebSocket((c) => {
-  let refreshTimer: ReturnType<typeof setInterval> | undefined;
-  let unsubscribeActivity: (() => void) | undefined;
-  let unsubscribeSdkResources: (() => void) | undefined;
-  let unregisterSessionConnection: (() => void) | undefined;
-  let lifecycle: SessionConnection | undefined;
-  let closed = false;
-  const cleanup = () => {
-    closed = true;
-    if (refreshTimer) clearInterval(refreshTimer);
-    unsubscribeActivity?.();
-    unsubscribeSdkResources?.();
-    unregisterSessionConnection?.();
-    lifecycle?.dispose();
-  };
-  let activityConnection: ActivityConnection | undefined;
-  let connectedUserId = "";
-  let connectedSessionId = "";
-  const sdkResourceIdentities = new Set<string>();
-  const resourceIdentity = (value: { instanceId: string; collectionId: string; resourceId: string }) =>
-    `${value.instanceId}\0${value.collectionId}\0${value.resourceId}`;
-
-  return {
-    async onOpen(_event, ws) {
-      const token = c.req.query("token") || "";
-      const requestedSessionId = c.req.query("sessionId") || c.req.header("x-session-id") || null;
-      try {
-        const { userId, pb, sessionId } = await requireAuth({ token, sessionId: requestedSessionId });
-        if (closed) return;
-        lifecycle = trackSessionConnection({ userId, sessionId,
-          validate: () => isSessionActive(userId, sessionId),
-          close: () => { cleanup(); ws.close(1008, "Session ended"); },
-        });
-        if (!await lifecycle.ensureValid() || !lifecycle?.isActive()) return;
-        connectedUserId = userId;
-        connectedSessionId = sessionId;
-        activityConnection = {
-          send(data) {
-            void lifecycle?.ensureValid().then((valid) => {
-              if (valid && lifecycle?.isActive()) {
-                try { ws.send(data); } catch { cleanup(); }
-              }
-            });
-          },
-        };
-        unregisterSessionConnection = registerSessionConnection(userId, sessionId, activityConnection);
-        unsubscribeSdkResources = subscribeSdkResourceRevisions(userId, (event) => {
-          if (!sdkResourceIdentities.has(resourceIdentity(event))) return;
-          void lifecycle?.ensureValid().then((valid) => {
-            if (valid && lifecycle?.isActive()) {
-              try { ws.send(JSON.stringify({ type: "sdk:resource-revision", ...event })); } catch { cleanup(); }
-            }
-          });
-        });
-        let calendarEvents: Array<Record<string, any>> = [];
-        let calendarRefreshedAt = 0;
-        let calendarRefresh: Promise<void> | null = null;
-        const refreshCalendarEvents = async () => {
-          if (Date.now() - calendarRefreshedAt < 5 * 60 * 1000) return;
-          if (calendarRefresh) return calendarRefresh;
-
-          calendarRefresh = (async () => {
-            const integrationResult = await listIntegrations(userId);
-            calendarEvents = (await Promise.all(
-              integrationResult.integrations
-                .filter((integration) => integration.type === "caldav")
-                .map((integration) => getUpcomingEvents(
-                  integration.environment,
-                  integration.localData,
-                  (localData) => pb.collection("integrations").update(integration.id, { localData }).then(() => undefined),
-                ).then((events) => events.map((event) => ({ ...event, id: `${integration.id}:${event.id}` }))).catch(() => [])),
-            )).flat().filter((event) => new Date(event.start).getTime() >= new Date().setHours(0, 0, 0, 0));
-            calendarRefreshedAt = Date.now();
-          })().finally(() => {
-            calendarRefresh = null;
-          });
-
-          return calendarRefresh;
-        };
-        const sendSnapshot = async () => {
-          if (!await lifecycle?.ensureValid() || !lifecycle?.isActive()) return;
-          const [notificationResult, activityResult] = await Promise.all([
-            getNotifications(userId),
-            listActivities(userId, { page: 1, perPage: 20 }),
-            refreshCalendarEvents(),
-          ]);
-          if (!await lifecycle?.ensureValid() || !lifecycle?.isActive()) return;
-          ws.send(JSON.stringify({
-            type: "activity:snapshot",
-            notifications: notificationResult.items,
-            calendarEvents,
-            activities: activityResult.items,
-          }));
-        };
-
-        unsubscribeActivity = subscribeActivity(userId, sendSnapshot);
-        await sendSnapshot();
-        if (!lifecycle?.isActive()) return;
-        refreshTimer = setInterval(() => void sendSnapshot().catch(() => undefined), 30_000);
-        (ws as typeof ws & { data: { sendSnapshot: () => Promise<void> } }).data = { sendSnapshot };
-      } catch {
-        ws.close(1008, "Unauthorized");
-      }
-    },
-    async onMessage(event, ws) {
-      if (!await lifecycle?.ensureValid() || !lifecycle?.isActive()) return;
-      try {
-        const message = JSON.parse(String(event.data));
-        if (message.type === "sdk:resources:subscribe" && Array.isArray(message.resources)) {
-          const requested = message.resources.filter((resource: unknown) =>
-            Boolean(resource && typeof resource === "object"
-              && typeof (resource as Record<string, unknown>).instanceId === "string"
-              && typeof (resource as Record<string, unknown>).collectionId === "string"
-              && typeof (resource as Record<string, unknown>).resourceId === "string"),
-          ).slice(0, 200) as Array<{ instanceId: string; collectionId: string; resourceId: string }>;
-          const accepted: typeof requested = [];
-          const resourcesByInstance = new Map<string, Awaited<ReturnType<typeof listSdkResourceSnapshot>>>();
-          for (const identity of requested) {
-            const { instanceId, collectionId, resourceId } = identity;
-            if (!/^[A-Za-z0-9_-]{1,128}$/.test(instanceId)
-              || !/^[A-Za-z0-9._-]{1,120}$/.test(collectionId)
-              || !/^[A-Za-z0-9._:-]{1,200}$/.test(resourceId)) continue;
-            try {
-              const { instance } = await getOwnedSdkInstance(connectedUserId, instanceId);
-              if (!requireSdkIntegrationDefinition(instance.source).resources[collectionId]) continue;
-              sdkResourceIdentities.add(resourceIdentity(identity));
-              accepted.push(identity);
-              if (!resourcesByInstance.has(instanceId)) resourcesByInstance.set(instanceId, await listSdkResourceSnapshot(connectedUserId, instanceId));
-            } catch {
-              sdkResourceIdentities.delete(resourceIdentity(identity));
-            }
-          }
-          ws.send(JSON.stringify({ type: "sdk:resources:subscribed", resources: accepted }));
-          for (const identity of accepted) {
-            const current = resourcesByInstance.get(identity.instanceId)?.find((resource) =>
-              resource.collectionId === identity.collectionId && resource.id === identity.resourceId);
-            ws.send(JSON.stringify({
-              type: "sdk:resource-revision",
-              ...identity,
-              revision: current?.revision ?? 0,
-              operation: current ? "upsert" : "remove",
-            }));
-          }
-          return;
-        }
-        if (message.type === "sdk:resources:unsubscribe" && Array.isArray(message.resources)) {
-          for (const identity of message.resources) {
-            if (identity && typeof identity === "object"
-              && typeof identity.instanceId === "string"
-              && typeof identity.collectionId === "string"
-              && typeof identity.resourceId === "string") {
-              sdkResourceIdentities.delete(resourceIdentity(identity));
-            }
-          }
-          return;
-        }
-        if (connectedUserId && connectedSessionId && activityConnection && handleActivityMessage(
-          connectedUserId,
-          connectedSessionId,
-          activityConnection,
-          message,
-        )) return;
-        if (message.type === "activity:subscribe" || message.type === "activity:refresh") {
-          void (ws as typeof ws & { data?: { sendSnapshot: () => Promise<void> } }).data?.sendSnapshot();
-        }
-      } catch {
-        // Ignore unsupported client activity messages.
-      }
-    },
-    onClose() {
-      cleanup();
-    },
-  };
-}));
+app.route("/", activityWebSocketRoute);
 
 app.get("/api/v1/monitoring/ssh-hosts/:id/console", upgradeWebSocket((c) => {
   let lifecycle: SessionConnection | undefined;

@@ -203,7 +203,15 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                200: components["responses"]["JsonOk"];
+                /** @description Trusted integration catalog */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SdkIntegrationCatalogResponse"];
+                    };
+                };
                 401: components["responses"]["JsonUnauthorized"];
             };
         };
@@ -232,7 +240,15 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                200: components["responses"]["JsonOk"];
+                /** @description Owned integration instances */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SdkIntegrationInstancesResponse"];
+                    };
+                };
                 401: components["responses"]["JsonUnauthorized"];
             };
         };
@@ -251,7 +267,15 @@ export interface paths {
                 };
             };
             responses: {
-                200: components["responses"]["JsonOk"];
+                /** @description Created integration instance */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SdkIntegrationInstanceResponse"];
+                    };
+                };
                 400: components["responses"]["JsonBadRequest"];
                 401: components["responses"]["JsonUnauthorized"];
                 404: components["responses"]["JsonNotFound"];
@@ -282,7 +306,15 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                200: components["responses"]["JsonOk"];
+                /** @description Owned integration instance */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SdkIntegrationInstanceResponse"];
+                    };
+                };
                 401: components["responses"]["JsonUnauthorized"];
                 404: components["responses"]["JsonNotFound"];
             };
@@ -301,7 +333,17 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                200: components["responses"]["JsonOk"];
+                /** @description Deleted integration instance */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            success: boolean;
+                        };
+                    };
+                };
                 401: components["responses"]["JsonUnauthorized"];
                 404: components["responses"]["JsonNotFound"];
             };
@@ -318,9 +360,21 @@ export interface paths {
                 };
                 cookie?: never;
             };
-            requestBody?: components["requestBodies"]["JsonBody"];
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SdkIntegrationInstanceUpdate"];
+                };
+            };
             responses: {
-                200: components["responses"]["JsonOk"];
+                /** @description Updated integration instance */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SdkIntegrationInstanceResponse"];
+                    };
+                };
                 400: components["responses"]["JsonBadRequest"];
                 401: components["responses"]["JsonUnauthorized"];
                 404: components["responses"]["JsonNotFound"];
@@ -438,7 +492,15 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                200: components["responses"]["JsonOk"];
+                /** @description Owner-scoped resources */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SdkIntegrationResourcesResponse"];
+                    };
+                };
                 401: components["responses"]["JsonUnauthorized"];
                 404: components["responses"]["JsonNotFound"];
             };
@@ -472,7 +534,17 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                200: components["responses"]["JsonOk"];
+                /** @description Declared integration contribution */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            contribution: components["schemas"]["SdkContribution"];
+                        };
+                    };
+                };
                 400: components["responses"]["JsonBadRequest"];
                 401: components["responses"]["JsonUnauthorized"];
                 404: components["responses"]["JsonNotFound"];
@@ -513,7 +585,15 @@ export interface paths {
                 };
             };
             responses: {
-                200: components["responses"]["JsonOk"];
+                /** @description Resolved resource bindings */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SdkContributionResolution"];
+                    };
+                };
                 400: components["responses"]["JsonBadRequest"];
                 401: components["responses"]["JsonUnauthorized"];
                 404: components["responses"]["JsonNotFound"];
@@ -551,7 +631,17 @@ export interface paths {
                 };
             };
             responses: {
-                200: components["responses"]["JsonOk"];
+                /** @description Action result */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            result: unknown;
+                        };
+                    };
+                };
                 400: components["responses"]["JsonBadRequest"];
                 401: components["responses"]["JsonUnauthorized"];
                 403: components["responses"]["JsonForbidden"];
@@ -3745,6 +3835,13 @@ export interface components {
                 [key: string]: unknown;
             };
         };
+        SdkIntegrationInstanceUpdate: {
+            name?: string;
+            config?: {
+                [key: string]: unknown;
+            };
+            enabled?: boolean;
+        };
         SdkIntegrationActionRequest: {
             collectionId: string;
             resourceId: string;
@@ -3762,6 +3859,138 @@ export interface components {
             config: {
                 [key: string]: unknown;
             };
+        };
+        SdkIntegrationConfigField: {
+            /** @enum {string} */
+            type: "string" | "url" | "secret" | "number" | "boolean" | "enum";
+            title?: string;
+            description?: string;
+            required?: boolean;
+            default?: unknown;
+            min?: number;
+            max?: number;
+            options?: unknown[];
+        } & {
+            [key: string]: unknown;
+        };
+        SdkIntegrationResourceCollection: {
+            persistent: boolean;
+            shortcuts: boolean;
+            apps: string[];
+            schema?: {
+                [key: string]: unknown;
+            };
+        };
+        SdkIntegrationActionContribution: {
+            id: string;
+            name: string;
+            description?: string;
+            inputSchema?: {
+                [key: string]: unknown;
+            };
+        };
+        SdkIntegrationAppContribution: {
+            id: string;
+            name: string;
+            description?: string;
+            icon?: string;
+        };
+        SdkContribution: {
+            id: string;
+            name: string;
+            description?: string;
+            configSchema?: {
+                [key: string]: unknown;
+            };
+            resourceBindings?: {
+                [key: string]: unknown;
+            };
+            template?: string;
+            properties?: {
+                [key: string]: unknown;
+            };
+            columns?: {
+                [key: string]: unknown;
+            }[];
+        } & {
+            [key: string]: unknown;
+        };
+        SdkIntegrationCatalogEntry: {
+            id: string;
+            name: string;
+            version: string;
+            description?: string;
+            config: {
+                [key: string]: components["schemas"]["SdkIntegrationConfigField"];
+            };
+            resources: {
+                [key: string]: components["schemas"]["SdkIntegrationResourceCollection"];
+            };
+            actions: components["schemas"]["SdkIntegrationActionContribution"][];
+            apps: components["schemas"]["SdkIntegrationAppContribution"][];
+            widgets: components["schemas"]["SdkContribution"][];
+            glanceables: components["schemas"]["SdkContribution"][];
+        };
+        SdkIntegrationCatalogResponse: {
+            integrations: components["schemas"]["SdkIntegrationCatalogEntry"][];
+        };
+        SdkIntegrationInstance: {
+            id: string;
+            userId: string;
+            name: string;
+            source: string;
+            /** @enum {string} */
+            type: "sdk";
+            enabled: boolean;
+            /** Format: date-time */
+            created: string;
+            /** Format: date-time */
+            updated: string;
+            config: {
+                [key: string]: unknown;
+            };
+            configuredSecrets: string[];
+        };
+        SdkIntegrationInstanceResponse: {
+            instance: components["schemas"]["SdkIntegrationInstance"];
+        };
+        SdkIntegrationInstancesResponse: {
+            instances: components["schemas"]["SdkIntegrationInstance"][];
+        };
+        SdkResourceRecord: {
+            id: string;
+            name: string;
+            icon?: string;
+            type?: string;
+            tags?: string[];
+            state?: unknown;
+            attributes?: {
+                [key: string]: unknown;
+            };
+            available?: boolean;
+            actions?: string[];
+            apps?: string[];
+            /** Format: date-time */
+            updatedAt?: string;
+            upstreamId?: string;
+            collectionId: string;
+            revision: number;
+            stale: boolean;
+        };
+        SdkIntegrationResourcesResponse: {
+            resources: components["schemas"]["SdkResourceRecord"][];
+        };
+        SdkContributionRevision: {
+            instanceId: string;
+            collectionId: string;
+            resourceId: string;
+            revision: number;
+        };
+        SdkContributionResolution: {
+            data: {
+                [key: string]: unknown;
+            };
+            revisions: components["schemas"]["SdkContributionRevision"][];
         };
         Activity: {
             id: string;

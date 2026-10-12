@@ -7,6 +7,7 @@ import useAuth from "@/context/useAuth";
 import { getConsumerDataAction } from '@/lib/apiClient';
 import { updatePageIntegrationConsumerCache } from "@/lib/pageIntegrationDataCache";
 import GlanceableComponent from "@dashwise/integrationskit/Glanceable";
+import { parseSdkContributionKey, SdkIntegrationGlanceable } from "@/components/widgets/SdkIntegrationContribution";
 import { usePageConfig } from "@/hooks/usePageConfig";
 import type { WidgetItemProps } from "../Widget";
 import { useLocalization } from "@/context/LocalizationContext";
@@ -347,6 +348,18 @@ function ResolvedGlanceable({
 
   if (type === "activity-stream") {
     return <div className={`min-w-0 max-w-full text-xs ${className ?? ""}`}><ActivityStream maxItems={params?.maxItems} source={params?.source} type={params?.type} compact /></div>;
+  }
+
+  const sdkContribution = parseSdkContributionKey(type);
+  if (sdkContribution?.kind === "glanceable") {
+    return (
+      <SdkIntegrationGlanceable
+        address={sdkContribution}
+        config={params}
+        formatters={formatters}
+        className={className}
+      />
+    );
   }
 
   if (preloaded?.success === false) {
