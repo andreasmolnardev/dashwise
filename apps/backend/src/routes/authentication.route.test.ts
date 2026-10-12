@@ -37,6 +37,28 @@ describe("protected REST API authentication", () => {
           },
         };
       },
+      createServerClient() {
+        return {
+          collection(name: string) {
+            return {
+              async getOne(id: string) {
+                if (name === "linkRssFeeds" && id === "audit-id") {
+                  return {
+                    id,
+                    user: "rss-feed-owner",
+                    name: "Protected feed",
+                    listId: "list-id",
+                    tagIds: [],
+                    linkIds: ["link-id"],
+                    requiresAuth: true,
+                  };
+                }
+                throw new Error("Record not found");
+              },
+            };
+          },
+        };
+      },
     } as never);
   });
   afterEach(() => registerDashwiseSDKConnector(previousConnector));
