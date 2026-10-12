@@ -4,14 +4,20 @@ import { assertSafeIntegrationUrl, guardedIntegrationFetch } from "./network-gua
 const privateResolver = async () => ["192.168.1.20"];
 
 describe("SDK integration outbound network guard", () => {
-  test("permits configured private homelab addresses and DNS names", async () => {
-    await expect(assertSafeIntegrationUrl("http://192.168.1.20:8123")).resolves.toMatchObject({
+  test("permits private homelab endpoints only when explicitly configured", async () => {
+    await expect(assertSafeIntegrationUrl("http://192.168.1.20:8123", ["http:"], privateResolver))
+      .rejects.toThrow("not explicitly configured");
+    await expect(assertSafeIntegrationUrl("http://192.168.1.20:8123", ["http:"], privateResolver, ["http://192.168.1.20:8123"]))
+      .resolves.toMatchObject({
       hostname: "192.168.1.20",
       port: "8123",
     });
-    await expect(assertSafeIntegrationUrl("https://ha.home.arpa", ["https:"], privateResolver)).resolves.toMatchObject({
-      hostname: "ha.home.arpa",
-    });
+    await expect(assertSafeIntegrationUrl("https://ha.home.arpa", ["https:"], privateResolver, ["https://ha.home.arpa"]))
+      .resolves.toMatchObject({ hostname: "ha.home.arpa" });
+    await expect(assertSafeIntegrationUrl("wss://ha.home.arpa", ["wss:"], privateResolver, ["https://ha.home.arpa"]))
+      .resolves.toMatchObject({ hostname: "ha.home.arpa" });
+    await expect(assertSafeIntegrationUrl("http://192.168.1.20:8124", ["http:"], privateResolver, ["http://192.168.1.20:8123"]))
+      .rejects.toThrow("not explicitly configured");
   });
 
   test("rejects cloud metadata names and literal addresses, including alternate IP forms", async () => {
@@ -25,6 +31,17 @@ describe("SDK integration outbound network guard", () => {
     ]) {
       await expect(assertSafeIntegrationUrl(url)).rejects.toThrow("cloud metadata endpoint");
     }
+  });
+
+  test("requires exact configuration for IPv4 and IPv6 special-use addresses", async () => {
+    await expect(assertSafeIntegrationUrl("http://10.0.0.8:8080"))
+      .rejects.toThrow("not explicitly configured");
+    await expect(assertSafeIntegrationUrl("http://[fd00::1]:8123"))
+      .rejects.toThrow("not explicitly configured");
+    await expect(assertSafeIntegrationUrl("http://[fd00::1]:8123", ["http:"], undefined, ["http://[fd00::1]:8123"]))
+      .resolves.toMatchObject({ hostname: "[fd00::1]", port: "8123" });
+    await expect(assertSafeIntegrationUrl("https://[2606:4700:4700::1111]"))
+      .resolves.toMatchObject({ hostname: "[2606:4700:4700::1111]" });
   });
 
   test("rejects a hostname that resolves to a metadata address", async () => {
@@ -46,7 +63,8 @@ describe("SDK integration outbound network guard", () => {
     };
 
     await expect(guardedIntegrationFetch("http://ha.home.arpa/status", {}, {
-      resolveHost: privateResolver,
+      resolveHost: async (hostname) => hostname === "ha.home.arpa" ? ["192.168.1.20"] : ["93.184.216.34"],
+      allowedPrivateUrls: ["http://ha.home.arpa"],
       fetchImpl,
     })).rejects.toThrow("cross-origin redirect");
     expect(calls).toBe(1);
@@ -66,7 +84,7 @@ describe("SDK integration outbound network guard", () => {
       method: "POST",
       body: "payload",
       headers: { "content-type": "text/plain" },
-    }, { resolveHost: privateResolver, fetchImpl });
+    }, { resolveHost: privateResolver, allowedPrivateUrls: ["http://ha.home.arpa"], fetchImpl });
 
     expect(await response.text()).toBe("ok");
     expect(requests).toHaveLength(2);

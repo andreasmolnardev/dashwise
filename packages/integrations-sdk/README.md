@@ -266,10 +266,12 @@ changes as backend code. Use configured service URLs, validate response data,
 bound response sizes and polling rates, and avoid constructing request
 destinations from untrusted resource values. This trust boundary permits local
 and private homelab service addresses; it is not a sandbox for arbitrary code.
-The runtime rejects cloud metadata hostnames and addresses, checks DNS answers
-for metadata IPs, and refuses cross-origin HTTP redirects. DNS is checked
-before the transport connects, but the transport may resolve the hostname
-again; DNS rebinding is not fully prevented by this preflight check.
+The runtime rejects cloud metadata hostnames and addresses, and allows private
+or special-use IP ranges only when the matching host and port appear in a
+declared URL configuration field for that instance. It checks DNS answers and
+refuses cross-origin HTTP redirects. DNS is checked before the transport
+connects, but the transport may resolve the hostname again; DNS rebinding is
+not fully prevented by this preflight check.
 
 Instance ownership is checked by the backend for resource reads, contribution
 resolution, Action execution, and subscriptions. Never treat an instance ID or

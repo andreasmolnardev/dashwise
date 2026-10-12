@@ -17,6 +17,8 @@ const supportedProtocols = new Set(["http:", "https:", "ws:", "wss:"]);
 export type NetworkGuardOptions = {
   resolveHost?: (hostname: string) => Promise<readonly string[]>;
   fetchImpl?: (request: Request) => Promise<Response>;
+  /** URL endpoints explicitly supplied in this integration instance's config. */
+  allowedPrivateUrls?: readonly (string | URL)[];
 };
 
 type ResolveHost = (hostname: string) => Promise<readonly string[]>;
@@ -28,6 +30,7 @@ export async function assertSafeIntegrationUrl(
   value: string | URL,
   protocols: readonly string[] = ["http:", "https:"],
   resolve: ResolveHost = resolveHost,
+  allowedPrivateUrls: readonly (string | URL)[] = [],
 ): Promise<URL> {
   let url: URL;
   try {
@@ -46,8 +49,10 @@ export async function assertSafeIntegrationUrl(
     throw new Error("Integration URL targets a cloud metadata endpoint");
   }
 
-  if (!isIP(hostname)) {
-    let addresses: readonly string[];
+  let addresses: readonly string[];
+  if (isIP(hostname)) {
+    addresses = [hostname];
+  } else {
     try {
       addresses = await resolve(hostname);
     } catch {
@@ -57,6 +62,9 @@ export async function assertSafeIntegrationUrl(
     if (addresses.some((address) => isMetadataIp(normalizeHostname(address)))) {
       throw new Error("Integration URL resolves to a cloud metadata endpoint");
     }
+  }
+  if (addresses.some((address) => isNonPublicIp(normalizeHostname(address))) && !isExplicitlyConfigured(url, allowedPrivateUrls)) {
+    throw new Error("Integration URL targets a private network address that is not explicitly configured");
   }
   return url;
 }
@@ -72,7 +80,7 @@ export async function guardedIntegrationFetch(
   let request = input instanceof Request
     ? new Request(input)
     : new Request(input.toString(), init);
-  let url = await assertSafeIntegrationUrl(request.url, ["http:", "https:"], resolve);
+  let url = await assertSafeIntegrationUrl(request.url, ["http:", "https:"], resolve, options.allowedPrivateUrls);
 
   for (let redirects = 0; ; redirects++) {
     const response = await fetchImpl(request.clone() as unknown as Request);
@@ -82,7 +90,7 @@ export async function guardedIntegrationFetch(
     if (!location) return response;
     if (redirects >= maxRedirects) throw new Error("Integration request exceeded the redirect limit");
 
-    const nextUrl = await assertSafeIntegrationUrl(new URL(location, url), ["http:", "https:"], resolve);
+    const nextUrl = await assertSafeIntegrationUrl(new URL(location, url), ["http:", "https:"], resolve, options.allowedPrivateUrls);
     if (nextUrl.origin !== url.origin) throw new Error("Integration request attempted a cross-origin redirect");
     try { await response.body?.cancel(); } catch { /* the redirect body is not needed */ }
 
@@ -124,4 +132,79 @@ function isMetadataIp(hostname: string) {
     return first === 169 && second === 254;
   }
   return false;
+}
+
+function isExplicitlyConfigured(url: URL, configuredUrls: readonly (string | URL)[]) {
+  const endpoint = privateEndpointKey(url);
+  if (!endpoint) return false;
+  return configuredUrls.some((value) => {
+    try {
+      const configured = new URL(value.toString());
+      if (configured.username || configured.password) return false;
+      return privateEndpointKey(configured) === endpoint;
+    } catch {
+      return false;
+    }
+  });
+}
+
+function privateEndpointKey(url: URL) {
+  if (!supportedProtocols.has(url.protocol)) return null;
+  const family = url.protocol === "http:" || url.protocol === "ws:" ? "insecure" : "secure";
+  const defaultPort = family === "insecure" ? "80" : "443";
+  return `${family}://${normalizeHostname(url.hostname)}:${url.port || defaultPort}`;
+}
+
+/** Treat special-use and non-global IP ranges as private destinations. */
+function isNonPublicIp(hostname: string) {
+  const version = isIP(hostname);
+  if (version === 4) {
+    const octets = hostname.split(".").map(Number);
+    const address = (((octets[0]! << 24) | (octets[1]! << 16) | (octets[2]! << 8) | octets[3]!) >>> 0);
+    const ranges: Array<[string, number]> = [
+      ["0.0.0.0", 8], ["10.0.0.0", 8], ["100.64.0.0", 10], ["127.0.0.0", 8],
+      ["169.254.0.0", 16], ["172.16.0.0", 12], ["192.0.0.0", 24], ["192.0.2.0", 24],
+      ["192.88.99.0", 24], ["192.168.0.0", 16], ["198.18.0.0", 15], ["198.51.100.0", 24],
+      ["203.0.113.0", 24], ["224.0.0.0", 4], ["240.0.0.0", 4],
+    ];
+    return ranges.some(([base, prefix]) => {
+      const baseAddress = base.split(".").map(Number).reduce((value, octet) => ((value << 8) | octet) >>> 0, 0);
+      const mask = prefix === 0 ? 0 : (0xffffffff << (32 - prefix)) >>> 0;
+      return (address & mask) === (baseAddress & mask);
+    });
+  }
+  if (version !== 6) return false;
+
+  const groups = ipv6ToGroups(hostname);
+  if (!groups) return true;
+  if (groups.slice(0, 5).every((group) => group === 0) && groups[5] === 0xffff) {
+    return isNonPublicIp(`${groups[6]! >>> 8}.${groups[6]! & 255}.${groups[7]! >>> 8}.${groups[7]! & 255}`);
+  }
+  // Global unicast currently occupies 2000::/3. Treat all other ranges as
+  // special-use, including loopback, link-local, unique-local and multicast.
+  if (groups[0]! < 0x2000 || groups[0]! > 0x3fff) return true;
+  // Documentation and benchmarking ranges are not routable public destinations.
+  if (groups[0] === 0x2001 && (groups[1] === 0x0db8 || (groups[1]! & 0xfff0) === 0x0010)) return true;
+  return false;
+}
+
+function ipv6ToGroups(hostname: string) {
+  const normalized = hostname.split("%")[0]!.toLowerCase();
+  const halves = normalized.split("::");
+  if (halves.length > 2) return null;
+  const parseHalf = (half: string) => half ? half.split(":").flatMap((part) => {
+    if (part.includes(".")) {
+      const octets = part.split(".").map(Number);
+      if (octets.length !== 4 || octets.some((octet) => !Number.isInteger(octet) || octet < 0 || octet > 255)) return [];
+      return [((octets[0]! << 8) | octets[1]!).toString(16), ((octets[2]! << 8) | octets[3]!).toString(16)];
+    }
+    return [part];
+  }) : [];
+  const left = parseHalf(halves[0]!);
+  const right = parseHalf(halves[1] ?? "");
+  const missing = 8 - left.length - right.length;
+  if (missing < 0 || (halves.length === 1 && missing !== 0)) return null;
+  const groups = [...left, ...Array(missing).fill("0"), ...right];
+  if (groups.length !== 8 || groups.some((group) => !/^[\da-f]{1,4}$/i.test(group))) return null;
+  return groups.map((group) => Number.parseInt(group, 16));
 }

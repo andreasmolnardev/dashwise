@@ -224,6 +224,9 @@ function createRuntimeEntry(
     running: false,
   };
   const declaredApps = new Set((definition.apps ?? []).map((app) => app.id));
+  const allowedPrivateUrls = Object.entries(definition.config)
+    .filter(([key, field]) => field.type === "url" && typeof config[key] === "string")
+    .map(([key]) => config[key] as string);
   const collections: Record<string, unknown> = {};
 
   for (const [collectionId, collectionDefinition] of Object.entries(definition.resources)) {
@@ -334,7 +337,7 @@ function createRuntimeEntry(
     },
     http: {
       async assertSafeUrl(input, protocols) {
-        return assertSafeIntegrationUrl(input, protocols);
+        return assertSafeIntegrationUrl(input, protocols, undefined, allowedPrivateUrls);
       },
       async fetch(input, init) {
         const controller = new AbortController();
@@ -343,7 +346,7 @@ function createRuntimeEntry(
         const signal = init?.signal
           ? AbortSignal.any([init.signal, controller.signal])
           : controller.signal;
-        try { return await guardedIntegrationFetch(input, { ...init, signal }); }
+        try { return await guardedIntegrationFetch(input, { ...init, signal }, { allowedPrivateUrls }); }
         finally {
           clearTimeout(timeout);
           entry.abortControllers.delete(controller);
@@ -352,7 +355,7 @@ function createRuntimeEntry(
     },
     websocket: {
       async connect(url, protocols) {
-        const safeUrl = await assertSafeIntegrationUrl(url, ["ws:", "wss:"]);
+        const safeUrl = await assertSafeIntegrationUrl(url, ["ws:", "wss:"], undefined, allowedPrivateUrls);
         const socket = new WebSocket(safeUrl, protocols);
         entry.sockets.add(socket);
         try {
