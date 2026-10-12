@@ -268,10 +268,9 @@ destinations from untrusted resource values. This trust boundary permits local
 and private homelab service addresses; it is not a sandbox for arbitrary code.
 The runtime rejects cloud metadata hostnames and addresses, and allows private
 or special-use IP ranges only when the matching host and port appear in a
-declared URL configuration field for that instance. It checks DNS answers and
-refuses cross-origin HTTP redirects. DNS is checked before the transport
-connects, but the transport may resolve the hostname again; DNS rebinding is
-not fully prevented by this preflight check.
+declared URL configuration field for that instance. It pins HTTP and WebSocket
+connections to the validated DNS address, preserves the original Host header
+and TLS server name, and refuses cross-origin HTTP redirects.
 
 Instance ownership is checked by the backend for resource reads, contribution
 resolution, Action execution, and subscriptions. Never treat an instance ID or
