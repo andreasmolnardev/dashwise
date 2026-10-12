@@ -2,8 +2,17 @@
 migrate((app) => {
   const integrations = app.findCollectionByNameOrId("integrations");
   const typeField = integrations.fields.getByName("type");
-  if (typeField && typeField.type === "select" && !typeField.values.includes("sdk")) {
-    typeField.values = [...typeField.values, "sdk"];
+  if (typeField && typeField.type() === "select" && !typeField.values.includes("sdk")) {
+    integrations.fields.add(new SelectField({
+      hidden: typeField.hidden,
+      id: typeField.id,
+      maxSelect: typeField.maxSelect,
+      name: typeField.name,
+      presentable: typeField.presentable,
+      required: typeField.required,
+      system: typeField.system,
+      values: [...typeField.values, "sdk"],
+    }));
   }
   if (!integrations.fields.getByName("sdkConfig")) {
     integrations.fields.add(new Field({
@@ -18,6 +27,10 @@ migrate((app) => {
       type: "text",
     }));
   }
+  // Persist the SDK type option and configuration field before creating the
+  // runtime collections. Mutating the in-memory collection alone leaves the
+  // integrations schema unchanged, so PocketBase rejects type="sdk" records.
+  app.save(integrations);
 
   const resources = new Collection({
     createRule: null,
@@ -74,8 +87,17 @@ migrate((app) => {
   const integrations = app.findCollectionByNameOrId("integrations");
   integrations.fields.removeByName("sdkConfig");
   const typeField = integrations.fields.getByName("type");
-  if (typeField && typeField.type === "select") {
-    typeField.values = typeField.values.filter((value) => value !== "sdk");
+  if (typeField && typeField.type() === "select") {
+    integrations.fields.add(new SelectField({
+      hidden: typeField.hidden,
+      id: typeField.id,
+      maxSelect: typeField.maxSelect,
+      name: typeField.name,
+      presentable: typeField.presentable,
+      required: typeField.required,
+      system: typeField.system,
+      values: typeField.values.filter((value) => value !== "sdk"),
+    }));
   }
   return app.save(integrations);
 });
