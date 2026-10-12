@@ -693,14 +693,19 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
         <div className="flex items-center justify-between gap-2">
           <div className="flex gap-1.5 flex-wrap">
             {collections.map((col) => (
-              <div key={col} className="group inline-flex items-center rounded-xl frosted transition-colors hover:text-primary">
+              <div
+                key={col}
+                className={`group inline-flex w-fit items-center gap-1 rounded-full frosted px-3.5 py-2 transition-colors hover:text-primary ${
+                  activeCollection === col ? "outline-1 outline-primary" : ""
+                }`}
+              >
                 <button
                   type="button"
                   aria-pressed={activeCollection === col}
                   onClick={() => setActiveCollection(col)}
-                  className={`pl-3.5 pr-1 py-2 rounded-l-xl font-medium text-sm transition-colors ${
+                  className={`inline-flex w-auto flex-none appearance-none border-0 !bg-transparent p-0 font-medium text-sm !shadow-none transition-colors focus-visible:outline-none ${
                     activeCollection === col
-                      ? " text-white outline-1 outline-primary"
+                      ? "text-white"
                       : " text-white/70 hover:text-white"
                   }`}
                 >
@@ -713,9 +718,9 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
                         type="button"
                         aria-label={`Manage ${col} link group`}
                         title={`Manage ${col}`}
-                        className="mr-2 inline-flex size-5 items-center justify-center rounded text-white/65 opacity-0 transition-opacity hover:text-white focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary group-hover:opacity-100"
+                        className="inline-flex size-4 shrink-0 appearance-none items-center justify-center rounded-none !border-0 !bg-transparent p-0 text-white/65 opacity-0 !shadow-none transition-opacity duration-150 hover:!border-0 hover:!bg-transparent hover:text-white active:!bg-transparent focus-visible:!bg-transparent focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary group-hover:opacity-100 group-focus-within:opacity-100 data-[state=open]:!bg-transparent data-[state=open]:opacity-100"
                       >
-                        <MoreHorizontal className="size-4" />
+                        <MoreHorizontal className="size-4 shrink-0" />
                       </button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="frosted text-foreground">
