@@ -118,6 +118,12 @@ export type SdkIntegrationInstance = {
   configuredSecrets: string[];
 };
 
+export type SdkIntegrationRuntimeStatus = {
+  state: "disabled" | "stopped" | "starting" | "ready" | "error";
+  updatedAt: string;
+  message?: string;
+};
+
 export type SdkResourceRecord = {
   id: string;
   name: string;
@@ -181,6 +187,22 @@ export async function updateSdkIntegrationInstanceAction(
 
 export async function deleteSdkIntegrationInstanceAction(auth: ActionAuth, instanceId: string) {
   return sdkIntegrationRequest<{ success: boolean }>(auth, `/instances/${encodeURIComponent(instanceId)}`, "DELETE");
+}
+
+export async function getSdkIntegrationInstanceStatusAction(auth: ActionAuth, instanceId: string) {
+  return (await sdkIntegrationRequest<{ status: SdkIntegrationRuntimeStatus }>(
+    auth,
+    `/instances/${encodeURIComponent(instanceId)}/status`,
+  )).status;
+}
+
+export async function testSdkIntegrationConnectionAction(auth: ActionAuth, instanceId: string) {
+  return sdkIntegrationRequest<{ success: boolean; status: SdkIntegrationRuntimeStatus }>(
+    auth,
+    `/instances/${encodeURIComponent(instanceId)}/test-connection`,
+    "POST",
+    {},
+  );
 }
 
 export async function getSdkIntegrationResourcesAction(auth: ActionAuth, instanceId: string) {

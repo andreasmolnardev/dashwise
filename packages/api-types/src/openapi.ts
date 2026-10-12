@@ -328,6 +328,91 @@ export interface paths {
         };
         trace?: never;
     };
+    "/sdk-integrations/instances/{id}/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get the authenticated user's current SDK integration runtime status */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Runtime status */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            status: components["schemas"]["SdkIntegrationRuntimeStatus"];
+                        };
+                    };
+                };
+                401: components["responses"]["JsonUnauthorized"];
+                404: components["responses"]["JsonNotFound"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/sdk-integrations/instances/{id}/test-connection": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Restart an enabled SDK integration and report whether its connection initialized */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Connection test result */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            success: boolean;
+                            status: components["schemas"]["SdkIntegrationRuntimeStatus"];
+                        };
+                    };
+                };
+                401: components["responses"]["JsonUnauthorized"];
+                404: components["responses"]["JsonNotFound"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/sdk-integrations/instances/{id}/resources": {
         parameters: {
             query?: never;
@@ -3664,6 +3749,13 @@ export interface components {
             collectionId: string;
             resourceId: string;
             input?: unknown;
+        };
+        SdkIntegrationRuntimeStatus: {
+            /** @enum {string} */
+            state: "disabled" | "stopped" | "starting" | "ready" | "error";
+            /** Format: date-time */
+            updatedAt: string;
+            message?: string;
         };
         SdkContributionResolveRequest: {
             /** @description Contribution selector values such as selected resource IDs. */

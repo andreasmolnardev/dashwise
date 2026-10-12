@@ -12,11 +12,25 @@ async function waitFor(predicate: () => boolean, timeoutMs = 5_000): Promise<voi
   throw new Error("Timed out waiting for the Home Assistant WebSocket fixture");
 }
 
+function connectWebSocket(url: string | URL): Promise<WebSocket> {
+  return new Promise((resolve, reject) => {
+    const socket = new WebSocket(url);
+    const cleanup = () => {
+      socket.removeEventListener("open", onOpen);
+      socket.removeEventListener("error", onError);
+    };
+    const onOpen = () => { cleanup(); resolve(socket); };
+    const onError = () => { cleanup(); reject(new Error("Could not open the mock Home Assistant WebSocket")); };
+    socket.addEventListener("open", onOpen, { once: true });
+    socket.addEventListener("error", onError, { once: true });
+  });
+}
+
 describe("Home Assistant SDK against the protocol-level mock server", () => {
   it("authenticates, reads registries, dispatches services, reconciles entities, and recovers after a server restart", async () => {
     const server = new MockHomeAssistantServer();
     await server.start();
-    const client = new HomeAssistantWebSocketClient(server.url, server.validToken, 5_000);
+    const client = new HomeAssistantWebSocketClient(server.url, server.validToken, 5_000, undefined, connectWebSocket);
     const snapshots: Array<{ states: HassState[]; registries: HassRegistrySnapshot }> = [];
     const connectionStates: string[] = [];
     const events: unknown[] = [];
@@ -87,7 +101,7 @@ describe("Home Assistant SDK against the protocol-level mock server", () => {
   it("rejects invalid credentials through the Home Assistant auth handshake", async () => {
     const server = new MockHomeAssistantServer();
     await server.start();
-    const client = new HomeAssistantWebSocketClient(server.url, "invalid-token", 5_000);
+    const client = new HomeAssistantWebSocketClient(server.url, "invalid-token", 5_000, undefined, connectWebSocket);
     try {
       await expect(client.start(async () => {})).rejects.toThrow();
     } finally {

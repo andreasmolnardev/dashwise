@@ -22,6 +22,12 @@ export type SdkIntegrationActionRequest = {
     input?: unknown;
 };
 
+export type SdkIntegrationRuntimeStatus = {
+    state: 'disabled' | 'stopped' | 'starting' | 'ready' | 'error';
+    updatedAt: string;
+    message?: string;
+};
+
 export type SdkContributionResolveRequest = {
     /**
      * Contribution selector values such as selected resource IDs.
@@ -408,6 +414,73 @@ export type PatchSdkIntegrationsInstancesByIdResponses = {
 };
 
 export type PatchSdkIntegrationsInstancesByIdResponse = PatchSdkIntegrationsInstancesByIdResponses[keyof PatchSdkIntegrationsInstancesByIdResponses];
+
+export type GetSdkIntegrationsInstancesByIdStatusData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/sdk-integrations/instances/{id}/status';
+};
+
+export type GetSdkIntegrationsInstancesByIdStatusErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Error;
+    /**
+     * Not Found
+     */
+    404: Error;
+};
+
+export type GetSdkIntegrationsInstancesByIdStatusError = GetSdkIntegrationsInstancesByIdStatusErrors[keyof GetSdkIntegrationsInstancesByIdStatusErrors];
+
+export type GetSdkIntegrationsInstancesByIdStatusResponses = {
+    /**
+     * Runtime status
+     */
+    200: {
+        status: SdkIntegrationRuntimeStatus;
+    };
+};
+
+export type GetSdkIntegrationsInstancesByIdStatusResponse = GetSdkIntegrationsInstancesByIdStatusResponses[keyof GetSdkIntegrationsInstancesByIdStatusResponses];
+
+export type PostSdkIntegrationsInstancesByIdTestConnectionData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/sdk-integrations/instances/{id}/test-connection';
+};
+
+export type PostSdkIntegrationsInstancesByIdTestConnectionErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Error;
+    /**
+     * Not Found
+     */
+    404: Error;
+};
+
+export type PostSdkIntegrationsInstancesByIdTestConnectionError = PostSdkIntegrationsInstancesByIdTestConnectionErrors[keyof PostSdkIntegrationsInstancesByIdTestConnectionErrors];
+
+export type PostSdkIntegrationsInstancesByIdTestConnectionResponses = {
+    /**
+     * Connection test result
+     */
+    200: {
+        success: boolean;
+        status: SdkIntegrationRuntimeStatus;
+    };
+};
+
+export type PostSdkIntegrationsInstancesByIdTestConnectionResponse = PostSdkIntegrationsInstancesByIdTestConnectionResponses[keyof PostSdkIntegrationsInstancesByIdTestConnectionResponses];
 
 export type GetSdkIntegrationsInstancesByIdResourcesData = {
     body?: never;

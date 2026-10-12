@@ -16,7 +16,7 @@ const supportedProtocols = new Set(["http:", "https:", "ws:", "wss:"]);
 
 export type NetworkGuardOptions = {
   resolveHost?: (hostname: string) => Promise<readonly string[]>;
-  fetchImpl?: (request: Request) => Promise<Response>;
+  fetchImpl?: (request: Request, destination: { url: URL; address: string }) => Promise<Response>;
   /** URL endpoints explicitly supplied in this integration instance's config. */
   allowedPrivateUrls?: readonly (string | URL)[];
 };
@@ -32,6 +32,15 @@ export async function assertSafeIntegrationUrl(
   resolve: ResolveHost = resolveHost,
   allowedPrivateUrls: readonly (string | URL)[] = [],
 ): Promise<URL> {
+  return (await resolveSafeIntegrationUrl(value, protocols, resolve, allowedPrivateUrls)).url;
+}
+
+async function resolveSafeIntegrationUrl(
+  value: string | URL,
+  protocols: readonly string[],
+  resolve: ResolveHost,
+  allowedPrivateUrls: readonly (string | URL)[],
+): Promise<{ url: URL; address: string }> {
   let url: URL;
   try {
     url = new URL(value.toString());
@@ -66,7 +75,7 @@ export async function assertSafeIntegrationUrl(
   if (addresses.some((address) => isNonPublicIp(normalizeHostname(address))) && !isExplicitlyConfigured(url, allowedPrivateUrls)) {
     throw new Error("Integration URL targets a private network address that is not explicitly configured");
   }
-  return url;
+  return { url, address: normalizeHostname(addresses[0]!) };
 }
 
 /** Fetch with manual redirects so an integration cannot forward a request across origins. */
@@ -75,35 +84,36 @@ export async function guardedIntegrationFetch(
   init: RequestInit = {},
   options: NetworkGuardOptions = {},
 ): Promise<Response> {
-  const fetchImpl = options.fetchImpl ?? ((request) => fetch(request as unknown as Parameters<typeof fetch>[0]));
   const resolve = options.resolveHost ?? resolveHost;
   let request = input instanceof Request
-    ? new Request(input)
-    : new Request(input.toString(), init);
-  let url = await assertSafeIntegrationUrl(request.url, ["http:", "https:"], resolve, options.allowedPrivateUrls);
+    ? new Request(input, { redirect: "manual" })
+    : new Request(input.toString(), { ...init, redirect: "manual" });
+  let destination = await resolveSafeIntegrationUrl(request.url, ["http:", "https:"], resolve, options.allowedPrivateUrls ?? []);
 
   for (let redirects = 0; ; redirects++) {
-    const response = await fetchImpl(request.clone() as unknown as Request);
+    const response = options.fetchImpl
+      ? await options.fetchImpl(request.clone() as unknown as Request, destination)
+      : await fetchPinnedRequest(request, destination.url, destination.address);
     if (!redirectStatuses.has(response.status)) return response;
 
     const location = response.headers.get("location");
     if (!location) return response;
     if (redirects >= maxRedirects) throw new Error("Integration request exceeded the redirect limit");
 
-    const nextUrl = await assertSafeIntegrationUrl(new URL(location, url), ["http:", "https:"], resolve, options.allowedPrivateUrls);
-    if (nextUrl.origin !== url.origin) throw new Error("Integration request attempted a cross-origin redirect");
+    const nextDestination = await resolveSafeIntegrationUrl(new URL(location, destination.url), ["http:", "https:"], resolve, options.allowedPrivateUrls ?? []);
+    if (nextDestination.url.origin !== destination.url.origin) throw new Error("Integration request attempted a cross-origin redirect");
     try { await response.body?.cancel(); } catch { /* the redirect body is not needed */ }
 
     const method = request.method.toUpperCase();
     if (response.status === 303 || ((response.status === 301 || response.status === 302) && method === "POST")) {
-      request = new Request(nextUrl.href, {
+      request = new Request(nextDestination.url.href, {
         method: "GET",
         headers: request.headers,
         signal: request.signal,
         redirect: "manual",
       });
     } else {
-      request = new Request(nextUrl.href, {
+      request = new Request(nextDestination.url.href, {
         method: request.method,
         headers: request.headers,
         body: request.method === "GET" || request.method === "HEAD" ? undefined : request.clone().body,
@@ -111,8 +121,64 @@ export async function guardedIntegrationFetch(
         redirect: "manual",
       });
     }
-    url = nextUrl;
+    destination = nextDestination;
   }
+}
+
+/** Create a WebSocket after pinning its connection to the address checked by the guard. */
+export async function createGuardedIntegrationWebSocket(
+  value: string | URL,
+  protocols?: string | string[],
+  options: Pick<NetworkGuardOptions, "resolveHost" | "allowedPrivateUrls"> & {
+    webSocketFactory?: (url: string | URL, options: Bun.WebSocketOptions) => WebSocket;
+  } = {},
+): Promise<WebSocket> {
+  const destination = await resolveSafeIntegrationUrl(
+    value,
+    ["ws:", "wss:"],
+    options.resolveHost ?? resolveHost,
+    options.allowedPrivateUrls ?? [],
+  );
+  const pinnedUrl = withIpAddress(destination.url, destination.address);
+  const socketOptions: Bun.WebSocketOptions = {
+    headers: { Host: destination.url.host },
+    ...(protocols ? { protocols } : {}),
+    ...(destination.url.protocol === "wss:"
+      ? { tls: { serverName: normalizeHostname(destination.url.hostname) } }
+      : {}),
+  };
+  return (options.webSocketFactory ?? ((url, init) => new WebSocket(url, init)))(pinnedUrl, socketOptions);
+}
+
+async function fetchPinnedRequest(request: Request, url: URL, address: string): Promise<Response> {
+  const pinned = pinIntegrationHttpRequest(request, url, address);
+  return fetch(pinned.request, pinned.init);
+}
+
+export function pinIntegrationHttpRequest(request: Request, url: URL, address: string) {
+  const headers = new Headers(request.headers);
+  headers.set("Host", url.host);
+  const requestInit = {
+    method: request.method,
+    headers: Object.fromEntries(headers.entries()),
+    body: request.method === "GET" || request.method === "HEAD" ? undefined : request.clone().body,
+    signal: request.signal,
+    redirect: "manual",
+  } as unknown as RequestInit;
+  const pinnedRequest = new Request(withIpAddress(url, address).href, requestInit);
+  const init: RequestInit & { proxy: false; tls?: { serverName: string } } = {
+    redirect: "manual",
+    proxy: false,
+    ...(url.protocol === "https:" ? { tls: { serverName: normalizeHostname(url.hostname) } } : {}),
+  };
+  return { request: pinnedRequest, init };
+}
+
+function withIpAddress(url: URL, address: string) {
+  const pinnedUrl = new URL(url);
+  const ipHost = isIP(address) === 6 ? `[${address}]` : address;
+  pinnedUrl.hostname = ipHost;
+  return pinnedUrl;
 }
 
 function normalizeHostname(hostname: string) {

@@ -12,6 +12,8 @@ const haServiceCalls: unknown[][] = [];
 const haEventListeners = new Map<string, (event: unknown) => unknown>();
 let haConnectionClosed = false;
 let haConnectionAttempts = 0;
+let haConnectionFailure = false;
+let haConnectionStartGate: Promise<void> | null = null;
 const hassState = {
   entity_id: "light.kitchen",
   state: "off",
@@ -37,6 +39,8 @@ mock.module("home-assistant-js-websocket", () => ({
   async createConnection() {
     haConnectionAttempts += 1;
     haConnectionClosed = false;
+    if (haConnectionFailure) throw new Error("Home Assistant is unreachable");
+    if (haConnectionStartGate) await haConnectionStartGate;
     return connection;
   },
   async getStates() { return [hassState]; },
@@ -143,6 +147,8 @@ beforeEach(() => {
   haEventListeners.clear();
   haConnectionClosed = false;
   haConnectionAttempts = 0;
+  haConnectionFailure = false;
+  haConnectionStartGate = null;
   registerDashwiseSDKConnector(fixture.connector as never);
 });
 afterEach(async () => {
@@ -153,6 +159,40 @@ afterEach(async () => {
 registerSdkIntegration(homeAssistant);
 
 describe("SDK integration API with an in-memory PocketBase connector", () => {
+  test("serializes stop requests behind an in-progress instance startup", async () => {
+    let allowConnection!: () => void;
+    haConnectionStartGate = new Promise<void>((resolve) => { allowConnection = resolve; });
+    const request = (path: string, init: RequestInit = {}) => sdkIntegrationsRoute.fetch(new Request(`http://localhost${path}`, {
+      ...init,
+      headers: {
+        Authorization: `Bearer ${token}`,
+        ...(init.body ? { "Content-Type": "application/json" } : {}),
+        ...init.headers,
+      },
+    }));
+    const createPromise = request("/api/v1/sdk-integrations/instances", {
+      method: "POST",
+      body: JSON.stringify({ source, name: "Local Home Service", config: { url: "http://192.168.1.50:8123", accessToken: "fixture-secret-token" } }),
+    });
+
+    for (let attempt = 0; attempt < 100 && haConnectionAttempts === 0; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 1));
+    }
+    expect(haConnectionAttempts).toBe(1);
+
+    const stopPromise = stopSdkIntegrationRuntime();
+    const earlyStop = await Promise.race([
+      stopPromise.then(() => "stopped"),
+      new Promise<string>((resolve) => setTimeout(() => resolve("startup-pending"), 10)),
+    ]);
+    expect(earlyStop).toBe("startup-pending");
+
+    allowConnection();
+    expect((await createPromise).status).toBe(200);
+    await stopPromise;
+    expect(haConnectionClosed).toBe(true);
+  });
+
   test("restores a configured Home Assistant instance after runtime restart and syncs resources, actions, and Activities", async () => {
     const request = (path: string, init: RequestInit = {}) => sdkIntegrationsRoute.fetch(new Request(`http://localhost${path}`, {
       ...init,
@@ -173,16 +213,32 @@ describe("SDK integration API with an in-memory PocketBase connector", () => {
     expect(created.instance.configuredSecrets).toEqual(["accessToken"]);
     expect(haEventListeners.has("homeassistant_stop")).toBe(true);
 
+    const statusResponse = await request(`/api/v1/sdk-integrations/instances/${instanceId}/status`);
+    expect(statusResponse.status).toBe(200);
+    expect(await statusResponse.json()).toMatchObject({ status: { state: "ready" } });
+
+    haConnectionFailure = true;
+    const failedTestResponse = await request(`/api/v1/sdk-integrations/instances/${instanceId}/test-connection`, { method: "POST", body: "{}" });
+    expect(failedTestResponse.status).toBe(200);
+    expect(await failedTestResponse.json()).toMatchObject({
+      success: false,
+      status: { state: "error", message: "Home Assistant is unreachable" },
+    });
+    haConnectionFailure = false;
+    const successfulTestResponse = await request(`/api/v1/sdk-integrations/instances/${instanceId}/test-connection`, { method: "POST", body: "{}" });
+    expect(successfulTestResponse.status).toBe(200);
+    expect(await successfulTestResponse.json()).toMatchObject({ success: true, status: { state: "ready" } });
+
     const resourceResponse = await request(`/api/v1/sdk-integrations/instances/${instanceId}/resources?collectionId=entities`);
     expect(resourceResponse.status).toBe(200);
     expect(await resourceResponse.json()).toMatchObject({ resources: [{
-      id: "light.kitchen", name: "Kitchen lamp", state: "off", collectionId: "entities", revision: 1, stale: false,
+      id: "light.kitchen", name: "Kitchen lamp", state: "off", collectionId: "entities", stale: false,
     }] });
 
     await stopSdkIntegrationRuntime();
     expect(haConnectionClosed).toBe(true);
     await startSdkIntegrationRuntime();
-    expect(haConnectionAttempts).toBe(2);
+    expect(haConnectionAttempts).toBe(4);
     expect(haEventListeners.has("homeassistant_stop")).toBe(true);
     const restoredResourceResponse = await request(`/api/v1/sdk-integrations/instances/${instanceId}/resources?collectionId=entities`);
     expect(restoredResourceResponse.status).toBe(200);

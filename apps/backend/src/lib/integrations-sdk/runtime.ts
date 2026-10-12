@@ -28,12 +28,17 @@ import {
   type SdkResourceRecord,
 } from "./persistence";
 import { validateSdkConfig } from "./catalog";
-import { assertSafeIntegrationUrl, guardedIntegrationFetch } from "./network-guard";
+import { assertSafeIntegrationUrl, createGuardedIntegrationWebSocket, guardedIntegrationFetch } from "./network-guard";
 
 type RuntimeResources = Record<string, Map<string, ResourceRecord>>;
 type ResolvedSdkResource = SdkResourceRecord & { collectionId: string; revision: number; stale: boolean };
 type RuntimeLogger = ReturnType<typeof createLogger>;
 type ScheduledTask = { timer: ReturnType<typeof setTimeout> | ReturnType<typeof setInterval>; controller: AbortController };
+export type SdkIntegrationRuntimeStatus = {
+  state: "disabled" | "stopped" | "starting" | "ready" | "error";
+  updatedAt: string;
+  message?: string;
+};
 
 type RuntimeEntry = {
   userId: string;
@@ -56,6 +61,8 @@ type RuntimeEntry = {
 const logger = createLogger("SDK Integration Runtime");
 const runtimes = new Map<string, RuntimeEntry>();
 const startupTasks = new Map<string, Promise<void>>();
+const lifecycleTasks = new Map<string, Promise<void>>();
+const runtimeStatuses = new Map<string, SdkIntegrationRuntimeStatus>();
 type SdkMcpToolProvider = (server: string, tool: string, input: JsonValue | undefined, signal: AbortSignal) => Promise<JsonValue>;
 let mcpToolProvider: SdkMcpToolProvider | null = null;
 
@@ -73,21 +80,35 @@ export async function startSdkIntegrationRuntime() {
 }
 
 export async function stopSdkIntegrationRuntime() {
-  await Promise.all([...runtimes.keys()].map((instanceId) => stopSdkIntegrationInstance(instanceId)));
+  const instanceIds = new Set([...runtimes.keys(), ...lifecycleTasks.keys()]);
+  await Promise.all([...instanceIds].map((instanceId) => stopSdkIntegrationInstance(instanceId)));
 }
 
 export async function startSdkIntegrationInstance(userId: string, instanceId: string) {
   const pending = startupTasks.get(instanceId);
   if (pending) return pending;
-  const task = startInstance(userId, instanceId).finally(() => startupTasks.delete(instanceId));
+  const task = runInstanceLifecycle(instanceId, async () => {
+    try {
+      await startInstance(userId, instanceId);
+    } catch (error) {
+      if (runtimeStatuses.get(instanceId)?.state === "starting") {
+        setRuntimeStatus(instanceId, "error", "Integration failed before it could start.");
+      }
+      throw error;
+    }
+  }).finally(() => startupTasks.delete(instanceId));
   startupTasks.set(instanceId, task);
   return task;
 }
 
 async function startInstance(userId: string, instanceId: string) {
-  await stopSdkIntegrationInstance(instanceId);
+  await stopInstance(instanceId);
+  setRuntimeStatus(instanceId, "starting");
   const { instance, row } = await getOwnedSdkInstance(userId, instanceId);
-  if (!instance.enabled) return;
+  if (!instance.enabled) {
+    setRuntimeStatus(instanceId, "disabled");
+    return;
+  }
   const definition = requireSdkIntegrationDefinition(instance.source);
   const pb = await getSuperuserPB();
   for (const app of definition.apps ?? []) {
@@ -120,8 +141,10 @@ async function startInstance(userId: string, instanceId: string) {
     await definition.setup?.(entry.api);
     await definition.start?.(entry.api);
     entry.running = true;
+    setRuntimeStatus(instanceId, "ready");
     entry.api.logger.info("Integration instance started", { instanceId, source: instance.source });
   } catch (error) {
+    setRuntimeStatus(instanceId, "error", safeErrorMessage(entry, error));
     await disposeEntry(entry, false);
     runtimes.delete(instanceId);
     throw error;
@@ -168,15 +191,59 @@ export async function listSdkResourceSnapshot(userId: string, instanceId: string
 }
 
 export async function stopSdkIntegrationInstance(instanceId: string) {
+  return runInstanceLifecycle(instanceId, () => stopInstance(instanceId));
+}
+
+async function stopInstance(instanceId: string) {
   const entry = runtimes.get(instanceId);
-  if (!entry) return;
+  if (!entry) {
+    setRuntimeStatus(instanceId, "stopped");
+    return;
+  }
   runtimes.delete(instanceId);
   await disposeEntry(entry, true);
+  setRuntimeStatus(instanceId, "stopped");
+}
+
+export async function getSdkIntegrationRuntimeStatus(userId: string, instanceId: string) {
+  const { instance } = await getOwnedSdkInstance(userId, instanceId);
+  if (!instance.enabled) return { state: "disabled", updatedAt: instance.updated } satisfies SdkIntegrationRuntimeStatus;
+  return runtimeStatuses.get(instanceId) ?? { state: "stopped", updatedAt: instance.updated } satisfies SdkIntegrationRuntimeStatus;
+}
+
+export function forgetSdkIntegrationRuntimeStatus(instanceId: string) {
+  runtimeStatuses.delete(instanceId);
+}
+
+function setRuntimeStatus(instanceId: string, state: SdkIntegrationRuntimeStatus["state"], message?: string) {
+  runtimeStatuses.set(instanceId, {
+    state,
+    updatedAt: new Date().toISOString(),
+    ...(message ? { message } : {}),
+  });
 }
 
 export async function restartSdkIntegrationInstance(userId: string, instanceId: string) {
-  await stopSdkIntegrationInstance(instanceId);
-  return startSdkIntegrationInstance(userId, instanceId);
+  return runInstanceLifecycle(instanceId, async () => {
+    try {
+      await startInstance(userId, instanceId);
+    } catch (error) {
+      if (runtimeStatuses.get(instanceId)?.state === "starting") {
+        setRuntimeStatus(instanceId, "error", "Integration failed before it could start.");
+      }
+      throw error;
+    }
+  });
+}
+
+function runInstanceLifecycle(instanceId: string, operation: () => Promise<void>) {
+  const previous = lifecycleTasks.get(instanceId);
+  const task = (previous?.catch(() => undefined) ?? Promise.resolve()).then(operation);
+  lifecycleTasks.set(instanceId, task);
+  void task.finally(() => {
+    if (lifecycleTasks.get(instanceId) === task) lifecycleTasks.delete(instanceId);
+  }).catch(() => undefined);
+  return task;
 }
 
 async function disposeEntry(entry: RuntimeEntry, invokeHooks: boolean) {
@@ -355,8 +422,7 @@ function createRuntimeEntry(
     },
     websocket: {
       async connect(url, protocols) {
-        const safeUrl = await assertSafeIntegrationUrl(url, ["ws:", "wss:"], undefined, allowedPrivateUrls);
-        const socket = new WebSocket(safeUrl, protocols);
+        const socket = await createGuardedIntegrationWebSocket(url, protocols, { allowedPrivateUrls });
         entry.sockets.add(socket);
         try {
           await new Promise<void>((resolve, reject) => {

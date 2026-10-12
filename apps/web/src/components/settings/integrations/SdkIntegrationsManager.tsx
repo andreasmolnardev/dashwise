@@ -7,10 +7,13 @@ import {
   createSdkIntegrationInstanceAction,
   deleteSdkIntegrationInstanceAction,
   getSdkIntegrationCatalogAction,
+  getSdkIntegrationInstanceStatusAction,
   getSdkIntegrationInstancesAction,
+  testSdkIntegrationConnectionAction,
   updateSdkIntegrationInstanceAction,
   type SdkIntegrationCatalogEntry,
   type SdkIntegrationInstance,
+  type SdkIntegrationRuntimeStatus,
 } from "@/lib/apiClient";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -27,6 +30,8 @@ export default function SdkIntegrationsManager() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [testingId, setTestingId] = useState<string | null>(null);
+  const [runtimeStatuses, setRuntimeStatuses] = useState<Record<string, SdkIntegrationRuntimeStatus>>({});
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<SdkIntegrationInstance | null>(null);
   const [installing, setInstalling] = useState<SdkIntegrationCatalogEntry | null>(null);
@@ -43,6 +48,11 @@ export default function SdkIntegrationsManager() {
       ]);
       setCatalog(nextCatalog);
       setInstances(nextInstances);
+      const nextStatuses = await Promise.all(nextInstances.map(async (instance) => {
+        const status = await withAuth((auth) => getSdkIntegrationInstanceStatusAction(auth, instance.id)).catch(() => null);
+        return [instance.id, status] as const;
+      }));
+      setRuntimeStatuses(Object.fromEntries(nextStatuses.filter((entry): entry is readonly [string, SdkIntegrationRuntimeStatus] => entry[1] !== null)));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "SDK integrations could not be loaded.");
     } finally {
@@ -132,6 +142,20 @@ export default function SdkIntegrationsManager() {
     }
   };
 
+  const testConnection = async (instance: SdkIntegrationInstance) => {
+    setTestingId(instance.id);
+    setError(null);
+    try {
+      const result = await withAuth((auth) => testSdkIntegrationConnectionAction(auth, instance.id));
+      setRuntimeStatuses((current) => ({ ...current, [instance.id]: result.status }));
+      if (!result.success) setError(result.status.message ?? `Could not connect ${instance.name}.`);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "The connection test failed.");
+    } finally {
+      setTestingId(null);
+    }
+  };
+
   return (
     <section className="space-y-4">
       <header className="flex items-center justify-between gap-3">
@@ -171,9 +195,16 @@ export default function SdkIntegrationsManager() {
                         <div key={instance.id} className="flex items-center justify-between gap-2 rounded-lg bg-black/10 px-3 py-2">
                           <div className="min-w-0">
                             <p className="truncate text-sm font-medium">{instance.name}</p>
-                            <p className="text-xs text-muted-foreground">{instance.enabled ? "Enabled" : "Disabled"}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {instance.enabled ? "Enabled" : "Disabled"}
+                              {runtimeStatuses[instance.id] ? ` · ${runtimeStatuses[instance.id].state}` : ""}
+                            </p>
                           </div>
                           <div className="flex shrink-0 gap-1">
+                            <Button type="button" size="sm" variant="ghost" onClick={() => void testConnection(instance)} disabled={!instance.enabled || testingId === instance.id}>
+                              {testingId === instance.id && <Loader2 className="mr-1.5 size-4 animate-spin" />}
+                              Test connection
+                            </Button>
                             <Button type="button" size="sm" variant="ghost" aria-label={`${instance.enabled ? "Disable" : "Enable"} ${instance.name}`} onClick={() => void toggleEnabled(instance)} disabled={togglingId === instance.id}>
                               {togglingId === instance.id ? <Loader2 className="size-4 animate-spin" /> : <Power className="size-4" />}
                               {instance.enabled ? "Disable" : "Enable"}

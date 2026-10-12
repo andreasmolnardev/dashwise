@@ -5,6 +5,8 @@ import {
   getStates,
   subscribeEntities,
   type Connection,
+  type ConnectionOptions,
+  type HaWebSocket,
 } from "home-assistant-js-websocket";
 import type {
   AreaRegistryEntry,
@@ -56,6 +58,7 @@ export class HomeAssistantWebSocketClient implements HomeAssistantClient {
     private readonly token: string,
     private readonly snapshotTimeoutMs = 30_000,
     private readonly api: HomeAssistantWebSocketApi = defaultHomeAssistantWebSocketApi,
+    private readonly connectWebSocket?: (url: string | URL) => Promise<WebSocket>,
   ) {}
 
   async start(
@@ -70,7 +73,13 @@ export class HomeAssistantWebSocketClient implements HomeAssistantClient {
     this.stopped = false;
     this.snapshotHandler = onSnapshot;
     const auth = this.api.createLongLivedTokenAuth(url, this.token);
-    const connection = await this.api.createConnection({ auth, setupRetry: 2, connectTimeout: 10_000 });
+    const connectWebSocket = this.connectWebSocket;
+    const connection = await this.api.createConnection({
+      auth,
+      setupRetry: 2,
+      connectTimeout: 10_000,
+      ...(connectWebSocket ? { createSocket: (options) => createAuthenticatedSocket(options, connectWebSocket) } : {}),
+    });
     this.connection = connection;
     connection.addEventListener("ready", this.handleReady);
     connection.addEventListener("disconnected", this.handleDisconnect);
@@ -229,6 +238,93 @@ export class HomeAssistantWebSocketClient implements HomeAssistantClient {
   private emit(state: "ready" | "disconnected" | "error"): void {
     for (const listener of this.listeners) listener(state);
   }
+}
+
+async function createAuthenticatedSocket(
+  options: ConnectionOptions,
+  connectWebSocket: (url: string | URL) => Promise<WebSocket>,
+): Promise<HaWebSocket> {
+  const auth = options.auth;
+  if (!auth) throw new Error("Home Assistant authentication is required");
+  const timeoutMs = options.connectTimeout ?? 10_000;
+  let retriesLeft = options.setupRetry;
+
+  for (;;) {
+    let socket: WebSocket | undefined;
+    try {
+      socket = await connectWebSocket(auth.wsUrl);
+      if (auth.expired) await auth.refreshAccessToken();
+      const haVersion = await waitForAuthResult(socket, timeoutMs, auth.accessToken);
+      Object.assign(socket, { haVersion });
+      if (supportsCoalescedMessages(haVersion)) {
+        socket.send(JSON.stringify({ type: "supported_features", id: 1, features: { coalesce_messages: 1 } }));
+      }
+      return socket as HaWebSocket;
+    } catch (error) {
+      socket?.close();
+      if (error instanceof InvalidHomeAssistantAuthError || retriesLeft === 0) throw error;
+      if (retriesLeft > 0) retriesLeft -= 1;
+      await new Promise((resolve) => setTimeout(resolve, 1_000));
+    }
+  }
+}
+
+class InvalidHomeAssistantAuthError extends Error {}
+
+function waitForAuthResult(socket: WebSocket, timeoutMs: number, accessToken: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const cleanup = () => {
+      clearTimeout(timeout);
+      socket.removeEventListener("message", onMessage);
+      socket.removeEventListener("close", onClose);
+      socket.removeEventListener("error", onError);
+    };
+    const timeout = setTimeout(() => {
+      cleanup();
+      reject(new Error("Timed out waiting for Home Assistant authentication"));
+    }, timeoutMs);
+    const onMessage = (event: MessageEvent) => {
+      let message: { type?: string; ha_version?: string; message?: string };
+      try {
+        message = JSON.parse(String(event.data));
+      } catch {
+        cleanup();
+        reject(new Error("Home Assistant sent an invalid authentication response"));
+        return;
+      }
+      if (message.type === "auth_required") return;
+      if (message.type === "auth_invalid") {
+        cleanup();
+        reject(new InvalidHomeAssistantAuthError("Home Assistant rejected the access token"));
+        return;
+      }
+      if (message.type !== "auth_ok" || typeof message.ha_version !== "string") return;
+      cleanup();
+      resolve(message.ha_version);
+    };
+    const onClose = () => {
+      cleanup();
+      reject(new Error("Home Assistant closed the socket during authentication"));
+    };
+    const onError = () => {
+      cleanup();
+      reject(new Error("Home Assistant socket failed during authentication"));
+    };
+    socket.addEventListener("message", onMessage);
+    socket.addEventListener("close", onClose, { once: true });
+    socket.addEventListener("error", onError, { once: true });
+    try {
+      socket.send(JSON.stringify({ type: "auth", access_token: accessToken }));
+    } catch (error) {
+      cleanup();
+      reject(error);
+    }
+  });
+}
+
+function supportsCoalescedMessages(version: string) {
+  const [major = 0, minor = 0] = version.split(".").map(Number);
+  return major > 2022 || (major === 2022 && minor >= 9);
 }
 
 async function commandArray<T>(connection: Connection, type: string): Promise<T[]> {

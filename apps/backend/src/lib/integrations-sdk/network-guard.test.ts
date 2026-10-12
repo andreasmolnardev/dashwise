@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { assertSafeIntegrationUrl, guardedIntegrationFetch } from "./network-guard";
+import { assertSafeIntegrationUrl, createGuardedIntegrationWebSocket, guardedIntegrationFetch, pinIntegrationHttpRequest } from "./network-guard";
 
 const privateResolver = async () => ["192.168.1.20"];
 
@@ -91,5 +91,53 @@ describe("SDK integration outbound network guard", () => {
     expect(requests[1]?.url).toBe("http://ha.home.arpa/v2/status");
     expect(requests[1]?.method).toBe("POST");
     expect(await requests[1]?.text()).toBe("payload");
+  });
+
+  test("pins a validated WebSocket hostname to the resolved address", async () => {
+    let target: string | URL | undefined;
+    let options: Bun.WebSocketOptions | undefined;
+    const socket = {} as WebSocket;
+    await createGuardedIntegrationWebSocket("wss://ha.home.arpa:8443/api/websocket", ["ha-v1"], {
+      resolveHost: privateResolver,
+      allowedPrivateUrls: ["https://ha.home.arpa:8443"],
+      webSocketFactory(url, init) {
+        target = url;
+        options = init;
+        return socket;
+      },
+    });
+
+    expect(target?.toString()).toBe("wss://192.168.1.20:8443/api/websocket");
+    expect(options?.headers).toEqual({ Host: "ha.home.arpa:8443" });
+    expect((options as { protocols?: string | string[] } | undefined)?.protocols).toEqual(["ha-v1"]);
+    expect(options?.tls?.serverName).toBe("ha.home.arpa");
+  });
+
+  test("passes the checked DNS address to the HTTP transport", async () => {
+    let checkedAddress: string | undefined;
+    const response = await guardedIntegrationFetch("https://status.example/health", {}, {
+      resolveHost: async () => ["93.184.216.34"],
+      fetchImpl: async (_request, destination) => {
+        checkedAddress = destination.address;
+        return new Response("ok");
+      },
+    });
+
+    expect(await response.text()).toBe("ok");
+    expect(checkedAddress).toBe("93.184.216.34");
+  });
+
+  test("pins HTTP transport to the checked address while preserving the origin host and TLS name", () => {
+    const { request, init } = pinIntegrationHttpRequest(
+      new Request("https://status.example/health?full=1", { headers: { Authorization: "Bearer test" } }),
+      new URL("https://status.example/health?full=1"),
+      "93.184.216.34",
+    );
+    expect(request.url).toBe("https://93.184.216.34/health?full=1");
+    expect(request.headers.get("host")).toBe("status.example");
+    expect(request.headers.get("authorization")).toBe("Bearer test");
+    expect((init as RequestInit & { tls?: { serverName: string }; proxy?: false }).tls?.serverName).toBe("status.example");
+    expect((init as RequestInit & { proxy?: false }).proxy).toBe(false);
+    expect(init.redirect).toBe("manual");
   });
 });

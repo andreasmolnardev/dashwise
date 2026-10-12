@@ -204,8 +204,12 @@ function eventContextId(event: unknown): string | undefined {
 }
 
 export function createHomeAssistantIntegration(
-  createClient: (url: string, accessToken: string) => HomeAssistantClient = (url, accessToken) =>
-    new HomeAssistantWebSocketClient(url, accessToken),
+  createClient: (
+    url: string,
+    accessToken: string,
+    connectWebSocket?: (url: string | URL) => Promise<WebSocket>,
+  ) => HomeAssistantClient = (url, accessToken, connectWebSocket) =>
+    new HomeAssistantWebSocketClient(url, accessToken, undefined, undefined, connectWebSocket),
 ) {
   return defineIntegration({
   id: "homeassistant",
@@ -238,7 +242,7 @@ export function createHomeAssistantIntegration(
     if (!accessToken) throw new Error("Home Assistant long-lived access token is missing");
 
     const safeUrl = await integrations.http.assertSafeUrl(integrations.config.url, ["http:", "https:"]);
-    const client = createClient(safeUrl.toString(), accessToken);
+    const client = createClient(safeUrl.toString(), accessToken, (url) => integrations.websocket.connect(url));
     let connectionStatus: ConnectionStatus = "connecting";
     let hasSnapshot = false;
     let lightsOn = 0;

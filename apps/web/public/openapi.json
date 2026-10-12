@@ -422,6 +422,88 @@
 				}
 			}
 		},
+		"/sdk-integrations/instances/{id}/status": {
+			"get": {
+				"tags": [
+					"sdk-integrations"
+				],
+				"summary": "Get the authenticated user's current SDK integration runtime status",
+				"parameters": [
+					{
+						"$ref": "#/components/parameters/Id"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Runtime status",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"required": [
+										"status"
+									],
+									"properties": {
+										"status": {
+											"$ref": "#/components/schemas/SdkIntegrationRuntimeStatus"
+										}
+									}
+								}
+							}
+						}
+					},
+					"401": {
+						"$ref": "#/components/responses/JsonUnauthorized"
+					},
+					"404": {
+						"$ref": "#/components/responses/JsonNotFound"
+					}
+				}
+			}
+		},
+		"/sdk-integrations/instances/{id}/test-connection": {
+			"post": {
+				"tags": [
+					"sdk-integrations"
+				],
+				"summary": "Restart an enabled SDK integration and report whether its connection initialized",
+				"parameters": [
+					{
+						"$ref": "#/components/parameters/Id"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Connection test result",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"required": [
+										"success",
+										"status"
+									],
+									"properties": {
+										"success": {
+											"type": "boolean"
+										},
+										"status": {
+											"$ref": "#/components/schemas/SdkIntegrationRuntimeStatus"
+										}
+									}
+								}
+							}
+						}
+					},
+					"401": {
+						"$ref": "#/components/responses/JsonUnauthorized"
+					},
+					"404": {
+						"$ref": "#/components/responses/JsonNotFound"
+					}
+				}
+			}
+		},
 		"/sdk-integrations/instances/{id}/resources": {
 			"get": {
 				"tags": [
@@ -3262,6 +3344,34 @@
 						"maxLength": 200
 					},
 					"input": {}
+				}
+			},
+			"SdkIntegrationRuntimeStatus": {
+				"type": "object",
+				"additionalProperties": false,
+				"required": [
+					"state",
+					"updatedAt"
+				],
+				"properties": {
+					"state": {
+						"type": "string",
+						"enum": [
+							"disabled",
+							"stopped",
+							"starting",
+							"ready",
+							"error"
+						]
+					},
+					"updatedAt": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"message": {
+						"type": "string",
+						"maxLength": 2000
+					}
 				}
 			},
 			"SdkContributionResolveRequest": {

@@ -9,7 +9,7 @@ import {
   listSdkInstances,
   updateSdkInstance,
 } from "../lib/integrations-sdk/persistence";
-import { executeSdkIntegrationAction, listSdkResourceSnapshot, resolveSdkContributionBindings, restartSdkIntegrationInstance, startSdkIntegrationInstance, stopSdkIntegrationInstance } from "../lib/integrations-sdk/runtime";
+import { executeSdkIntegrationAction, forgetSdkIntegrationRuntimeStatus, getSdkIntegrationRuntimeStatus, listSdkResourceSnapshot, resolveSdkContributionBindings, restartSdkIntegrationInstance, startSdkIntegrationInstance, stopSdkIntegrationInstance } from "../lib/integrations-sdk/runtime";
 import { readAuthToken, readJsonBody, requireAuth, withJson } from "./shared";
 
 const sdkIntegrationsRoute = new Hono();
@@ -52,6 +52,25 @@ sdkIntegrationsRoute.get("/api/v1/sdk-integrations/instances/:id", withJson(asyn
   return { instance: await instanceResponse(userId, requireId(c.req.param("id"))) };
 }));
 
+sdkIntegrationsRoute.get("/api/v1/sdk-integrations/instances/:id/status", withJson(async (c) => {
+  const userId = await requireSdkUser(readAuthToken(c));
+  const id = requireId(c.req.param("id"));
+  return { status: await getSdkIntegrationRuntimeStatus(userId, id) };
+}));
+
+sdkIntegrationsRoute.post("/api/v1/sdk-integrations/instances/:id/test-connection", withJson(async (c) => {
+  const userId = await requireSdkUser(readAuthToken(c));
+  const id = requireId(c.req.param("id"));
+  await getOwnedSdkInstance(userId, id);
+  try {
+    await restartSdkIntegrationInstance(userId, id);
+  } catch {
+    // Startup records a redacted runtime status; return it for the settings UI.
+  }
+  const status = await getSdkIntegrationRuntimeStatus(userId, id);
+  return { success: status.state === "ready", status };
+}));
+
 sdkIntegrationsRoute.patch("/api/v1/sdk-integrations/instances/:id", withJson(async (c) => {
   const userId = await requireSdkUser(readAuthToken(c));
   const id = requireId(c.req.param("id"));
@@ -87,7 +106,9 @@ sdkIntegrationsRoute.delete("/api/v1/sdk-integrations/instances/:id", withJson(a
   const id = requireId(c.req.param("id"));
   await getOwnedSdkInstance(userId, id);
   await stopSdkIntegrationInstance(id);
-  return deleteSdkInstance(userId, id);
+  const result = await deleteSdkInstance(userId, id);
+  forgetSdkIntegrationRuntimeStatus(id);
+  return result;
 }));
 
 sdkIntegrationsRoute.get("/api/v1/sdk-integrations/instances/:id/resources", withJson(async (c) => {
