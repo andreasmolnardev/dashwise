@@ -20,6 +20,8 @@ export default function Screensaver(
   const [isHovering, setIsHovering] = useState(false);
   const [activeFrameIndex, setActiveFrameIndex] = useState(0);
   const [frameBackgrounds, setFrameBackgrounds] = useState<Record<string, string>>({});
+  const [backgroundIndexes, setBackgroundIndexes] = useState<Record<string, number>>({});
+  const backgroundElapsedRef = useRef<Record<string, number>>({});
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const controlsHideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -155,6 +157,31 @@ export default function Screensaver(
   }, [screensaverConfig, clockFont, clockFontWeight, color, size]);
 
   useEffect(() => {
+    if (!active) return;
+    const timer = window.setInterval(() => {
+      const nextIndexes: Record<string, number> = {};
+      let changed = false;
+      for (const frame of frames as any[]) {
+        const images = Array.isArray(frame?.params?.backgroundImages)
+          ? frame.params.backgroundImages.filter((item: unknown) => typeof item === "string")
+          : [];
+        if (images.length < 2) continue;
+        const interval = Math.max(1, Number(frame.params?.backgroundInterval ?? 30) || 30);
+        const elapsed = (backgroundElapsedRef.current[frame.id] ?? 0) + 1;
+        if (elapsed >= interval) {
+          backgroundElapsedRef.current[frame.id] = 0;
+          nextIndexes[frame.id] = ((backgroundIndexes[frame.id] ?? 0) + 1) % images.length;
+          changed = true;
+        } else {
+          backgroundElapsedRef.current[frame.id] = elapsed;
+        }
+      }
+      if (changed) setBackgroundIndexes((current) => ({ ...current, ...nextIndexes }));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [active, frames, backgroundIndexes]);
+
+  useEffect(() => {
     let cancelled = false;
     const revokeUrls: string[] = [];
 
@@ -166,8 +193,15 @@ export default function Screensaver(
           const source = String(frame?.params?.backgroundSource ?? "");
           if (source === "none") return;
 
-          const rawUrl = source === "current"
+          const images = Array.isArray(frame?.params?.backgroundImages)
+            ? frame.params.backgroundImages.filter((item: unknown) => typeof item === "string")
+            : [];
+          const rawUrl = source === "global-frame"
+            ? String(screensaverConfig?.backgroundImageUrl ?? user?.appearancePreferences?.backgroundImageUrl ?? "")
+            : source === "current"
             ? String(user?.appearancePreferences?.backgroundImageUrl ?? "")
+            : images.length
+            ? String(images[(backgroundIndexes[frame.id] ?? 0) % images.length])
             : String(frame?.params?.backgroundImageUrl ?? "");
           if (!rawUrl) return;
 
@@ -200,7 +234,7 @@ export default function Screensaver(
       cancelled = true;
       revokeUrls.forEach((url) => URL.revokeObjectURL(url));
     };
-  }, [frames, token, user?.appearancePreferences?.backgroundImageUrl]);
+  }, [frames, token, backgroundIndexes, screensaverConfig?.backgroundImageUrl, user?.appearancePreferences?.backgroundImageUrl]);
 
   const handleScroll = (event: React.UIEvent<HTMLDivElement>) => {
     const target = event.currentTarget;

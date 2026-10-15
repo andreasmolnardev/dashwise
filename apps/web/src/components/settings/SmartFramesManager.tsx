@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown, MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
+import { Check, ChevronDown, ExternalLink, MoreHorizontal, Pencil, Plus, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,7 +16,6 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { PopoverClose } from "@radix-ui/react-popover";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import {
   Select,
@@ -39,6 +38,7 @@ import { EditGlanceablesView } from "./pages/EditGlanceablesView";
 
 const LOCAL_WIDGET_OPTIONS = [
   { value: "glanceable-clock", label: "Glanceable Clock" },
+  { value: "iframe", label: "Website" },
   { value: "calendar-today", label: "Calendar Overview: Today" },
   { value: "calendar-week", label: "Calendar Overview: Week" },
   { value: "calendar-upcoming", label: "Calendar Overview: Upcoming" },
@@ -68,6 +68,7 @@ const EXCLUDED_FRAME_WIDGETS = new Set([
 ]);
 
 const LOCAL_WIDGET_SCHEMAS: Record<string, Record<string, any>> = {
+  iframe: { url: "", title: "", min_height: "", max_height: "" },
   "calendar-today": { startMonday: true },
   "calendar-week": { startMonday: true },
   "calendar-upcoming": { maxEvents: 5 },
@@ -112,8 +113,9 @@ type FrameGlanceable = {
   params: Record<string, any>;
 };
 
-type BackgroundMode = "current" | "none" | "upload" | "url";
+type BackgroundMode = "global-frame" | "current" | "none" | "upload" | "url";
 type RulesScope = "global" | "device";
+type FrameKind = "clock" | "widgets" | "website" | "media-player";
 
 function readDeviceRules() {
   if (typeof window === "undefined") return {};
@@ -611,7 +613,13 @@ export default function SmartFramesManager({
   const { user, withAuth } = useAuth();
   const [selectedFrameIndex, setSelectedFrameIndex] = useState(0);
   const [dialogOpen, setDialogOpen] = useState(true);
+  const [isAddingFrame, setIsAddingFrame] = useState(false);
   const [editFrameId, setEditFrameId] = useState<string | null>(null);
+  const [draftName, setDraftName] = useState("");
+  const [draftFrameKind, setDraftFrameKind] = useState<FrameKind>("clock");
+  const [editingWidgetSectionId, setEditingWidgetSectionId] = useState<string | null>(null);
+  const [isRulesModalOpen, setIsRulesModalOpen] = useState(false);
+  const [newlyCreatedFrameIds, setNewlyCreatedFrameIds] = useState<string[]>([]);
   const [draftType, setDraftType] = useState("glanceable-clock");
   const [layoutPreset, setLayoutPreset] = useState("1x1");
   const [customCols, setCustomCols] = useState(2);
@@ -628,7 +636,6 @@ export default function SmartFramesManager({
   const [widgetCategories, setWidgetCategories] = useState<string[]>([]);
   const [selectedWidgetCategory, setSelectedWidgetCategory] = useState("frame");
   const [isWidgetCarouselOpen, setIsWidgetCarouselOpen] = useState(false);
-  const [settingsTab, setSettingsTab] = useState("widgets");
   const [rulesScope, setRulesScope] = useState<RulesScope>("global");
   const [draftDisplayRules, setDraftDisplayRules] = useState<Record<string, any>>(
     () => getGlobalRules(user?.screensaverPreferences as Record<string, any> | undefined),
@@ -645,6 +652,8 @@ export default function SmartFramesManager({
   >("current");
   const [draftBackgroundUrl, setDraftBackgroundUrl] = useState("");
   const [existingBackgroundUrl, setExistingBackgroundUrl] = useState("");
+  const [draftBackgroundImages, setDraftBackgroundImages] = useState<string[]>([]);
+  const [backgroundInterval, setBackgroundInterval] = useState(30);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [uploadPreview, setUploadPreview] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -702,11 +711,11 @@ export default function SmartFramesManager({
   useEffect(() => {
     if (selectedFrame) {
       handleOpenEdit(selectedFrame);
-    } else {
+    } else if (!isAddingFrame && !editFrameId) {
       setDialogOpen(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedFrame?.id]);
+  }, [selectedFrame?.id, isAddingFrame]);
 
   const handleRemoveFrame = (id: string) => {
     void Promise.resolve(onChange(frames.filter((frame) => frame.id !== id))).catch((saveError) => {
@@ -737,6 +746,34 @@ export default function SmartFramesManager({
       console.error(saveError);
       setError("Failed to save frame.");
     });
+  };
+
+  const addBackgroundFiles = async (fileList: FileList | File[]) => {
+    const files = Array.from(fileList).filter((file) => file.type.startsWith("image/"));
+    if (!files.length) return;
+    setUploading(true);
+    setError(null);
+    try {
+      const uploaded = await Promise.all(files.map(async (file) => {
+        const formData = new FormData();
+        formData.append("image", file, file.name);
+        formData.append("fileName", file.name);
+        formData.append("convertToWebp", "false");
+        const body: any = await withAuth((auth) => uploadWallpaperAction(auth, formData));
+        const path = String(body?.path ?? "");
+        if (!path) throw new Error("Upload did not return a path");
+        return path;
+      }));
+      setDraftBackgroundImages((current) => [...current, ...uploaded]);
+      setExistingBackgroundUrl(uploaded[0] ?? "");
+      setDraftBackgroundMode("upload");
+      if (editFrameId) draftDirtyRef.current = true;
+    } catch (uploadError) {
+      console.error(uploadError);
+      setError("Failed to upload background image.");
+    } finally {
+      setUploading(false);
+    }
   };
 
   const updateSection = (sectionId: string, patch: Partial<FrameSection>) => {
@@ -889,9 +926,11 @@ export default function SmartFramesManager({
 
   const resetDraft = () => {
     draftDirtyRef.current = false;
+    setIsAddingFrame(false);
     setEditFrameId(null);
+    setDraftName("");
+    setDraftFrameKind("clock");
     setEditingFrameGlanceable(null);
-    setSettingsTab("widgets");
     setDraftDisplayRules({});
     setDraftDeviceRules({});
     setDraftType("glanceable-clock");
@@ -903,6 +942,8 @@ export default function SmartFramesManager({
     setDraftBackgroundMode("current");
     setDraftBackgroundUrl("");
     setExistingBackgroundUrl("");
+    setDraftBackgroundImages([]);
+    setBackgroundInterval(30);
     setUploadFile(null);
     setUploadPreview(null);
     setUploading(false);
@@ -911,10 +952,18 @@ export default function SmartFramesManager({
     setWidgetParamsError(null);
     setError(null);
     setIsWidgetCarouselOpen(false);
+    setEditingWidgetSectionId(null);
+    setIsRulesModalOpen(false);
   };
 
   const handleOpenAdd = () => {
     resetDraft();
+    setIsAddingFrame(true);
+    setSelectedFrameIndex(frames.length);
+    setDraftName("New frame");
+    setDraftFrameKind("clock");
+    setLayoutPreset("1x1");
+    setSections(buildSections(1, 1, [{ id: "cell-0-0", label: "", widgetType: "glanceable-clock", params: {} }]));
     setDraftDisplayRules(
       getGlobalRules(user?.screensaverPreferences as Record<string, any> | undefined),
     );
@@ -930,6 +979,8 @@ export default function SmartFramesManager({
   };
 
   const handleOpenEdit = (frame: Frame) => {
+    setIsAddingFrame(false);
+    draftDirtyRef.current = false;
     setEditingFrameGlanceable(null);
     const backgroundImageUrl = String(frame.params?.backgroundImageUrl ?? "");
     const backgroundSource = frame.params?.backgroundSource as
@@ -988,13 +1039,15 @@ export default function SmartFramesManager({
       : fallbackFilters.blur;
 
     setEditFrameId(frame.id);
+    setDraftName(getFrameName(frame, frames.findIndex((item) => item.id === frame.id)));
+    const savedKind = String(frame.params?.frameKind ?? "");
+    setDraftFrameKind(savedKind === "widgets" || savedKind === "website" || savedKind === "media-player" ? savedKind : (nextSections[0]?.widgetType === "glanceable-clock" || nextSections[0]?.widgetType === "main-clock" ? "clock" : "widgets"));
     setDraftDisplayRules(
       getGlobalRules(user?.screensaverPreferences as Record<string, any> | undefined),
     );
     setDraftDeviceRules(
       getDeviceRules(),
     );
-    setSettingsTab("widgets");
     setDraftType(nextSections[0]?.widgetType ?? frame.type);
     setLayoutPreset(preset);
     setCustomCols(cols);
@@ -1003,7 +1056,12 @@ export default function SmartFramesManager({
     setSelectedSectionId(nextSections[0]?.id ?? "cell-0-0");
     setDraftBackgroundMode(inferredMode);
     setDraftBackgroundUrl(backgroundImageUrl);
-    setExistingBackgroundUrl(backgroundImageUrl);
+    const savedBackgroundImages = Array.isArray(frame.params?.backgroundImages)
+      ? frame.params.backgroundImages.filter((item: unknown) => typeof item === "string")
+      : backgroundImageUrl ? [backgroundImageUrl] : [];
+    setExistingBackgroundUrl(savedBackgroundImages[0] ?? backgroundImageUrl);
+    setDraftBackgroundImages(savedBackgroundImages);
+    setBackgroundInterval(Math.max(1, Number(frame.params?.backgroundInterval ?? 30) || 30));
     setUploadFile(null);
     setUploadPreview(null);
     setUploading(false);
@@ -1033,6 +1091,10 @@ export default function SmartFramesManager({
 
     if (draftBackgroundMode === "current") {
       backgroundSource = "current";
+    }
+
+    if (draftBackgroundMode === "global-frame") {
+      backgroundSource = "global-frame";
     }
 
     if (draftBackgroundMode === "none") {
@@ -1085,6 +1147,8 @@ export default function SmartFramesManager({
 
     const nextParams = { ...(existingFrame?.params ?? {}) } as Record<string, any>;
     delete nextParams.backgroundImageUrl;
+    delete nextParams.backgroundImages;
+    delete nextParams.backgroundInterval;
     delete nextParams.backgroundSource;
     delete nextParams.backgroundFilters;
     delete nextParams.layout;
@@ -1104,8 +1168,12 @@ export default function SmartFramesManager({
       }));
     nextParams.layout = { cols: layoutCols, rows: layoutRows };
     nextParams.sections = normalizedSections;
+    nextParams.name = draftName.trim() || `Frame ${frames.length + 1}`;
+    nextParams.frameKind = draftFrameKind;
+    nextParams.backgroundInterval = backgroundInterval;
+    if (draftBackgroundMode === "upload" && draftBackgroundImages.length) nextParams.backgroundImages = draftBackgroundImages;
 
-    if (draftBackgroundMode === "current" || draftBackgroundMode === "none") {
+    if (draftBackgroundMode === "current" || draftBackgroundMode === "global-frame" || draftBackgroundMode === "none") {
       delete nextParams.backgroundImageUrl;
       nextParams.backgroundSource = backgroundSource;
     } else if (backgroundImageUrl) {
@@ -1138,7 +1206,10 @@ export default function SmartFramesManager({
         );
       } else {
         await onChange([...frames, nextFrame]);
+        setNewlyCreatedFrameIds((current) => [...current, nextFrame.id]);
         setSelectedFrameIndex(frames.length);
+        setEditFrameId(nextFrame.id);
+        setIsAddingFrame(false);
       }
     } catch (saveError) {
       console.error(saveError);
@@ -1151,6 +1222,15 @@ export default function SmartFramesManager({
       setDialogOpen(false);
       resetDraft();
     }
+  };
+
+  const handleCommitName = () => {
+    if (!draftName.trim()) {
+      setError("Enter a name for this frame.");
+      return;
+    }
+    draftDirtyRef.current = true;
+    void handleSaveFrame(false);
   };
 
   useEffect(() => {
@@ -1166,10 +1246,14 @@ export default function SmartFramesManager({
   }, [
     dialogOpen,
     editFrameId,
+    draftName,
+    draftFrameKind,
     layoutCols,
     layoutRows,
     sections,
     draftBackgroundMode,
+    draftBackgroundImages,
+    backgroundInterval,
     draftBackgroundUrl,
     uploadFile,
     brightnessPercent,
@@ -1200,14 +1284,16 @@ export default function SmartFramesManager({
                   className="h-40 w-full max-w-full overflow-hidden rounded-2xl bg-transparent"
                   style={{ height: FRAME_PREVIEW_SIZE.height }}
                 >
-                  <FrameLayoutPreview
-                    frame={frame}
-                    resolveWidgetLabel={resolveWidgetLabel}
-                    onSelectSection={(sectionId) => {
-                      setSelectedFrameIndex(index);
-                      setSelectedSectionId(sectionId);
-                    }}
-                  />
+                  {newlyCreatedFrameIds.includes(frame.id)
+                    ? <div className="flex h-full items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-sm text-white/60">Preview available after reopening settings</div>
+                    : <FrameLayoutPreview
+                        frame={frame}
+                        resolveWidgetLabel={resolveWidgetLabel}
+                        onSelectSection={(sectionId) => {
+                          setSelectedFrameIndex(index);
+                          setSelectedSectionId(sectionId);
+                        }}
+                      />}
                 </div>
                 <div className="relative mt-3 flex items-center gap-2 pr-8">
                   <Popover>
@@ -1359,17 +1445,72 @@ export default function SmartFramesManager({
         }`}
       >
         <div className="min-h-0 overflow-hidden">
-          <section className="space-y-4 rounded-md rounded-b-xl border border-transparent text-foreground">
+          <section className="frosted space-y-4 rounded-2xl border border-white/15 bg-white/5 p-4 text-foreground">
 
             <div className="min-w-0 space-y-4 overflow-hidden">
-              <Tabs value={settingsTab} onValueChange={setSettingsTab} className="space-y-4">
-                <TabsList className="self-center">
-                  <TabsTrigger value="background">Background</TabsTrigger>
-                  <TabsTrigger value="widgets">Widgets</TabsTrigger>
-                  <TabsTrigger value="rules">Display Rules</TabsTrigger>
-                </TabsList>
+              <div className="flex items-center gap-2">
+                <Input
+                  autoFocus={!editFrameId}
+                  aria-label="Frame name"
+                  value={draftName}
+                  onChange={(event) => {
+                    setDraftName(event.target.value);
+                    if (editFrameId) draftDirtyRef.current = true;
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      handleCommitName();
+                    }
+                    if (event.key === "Escape") {
+                      if (!editFrameId) handleDialogChange(false);
+                      else setDraftName(getFrameName(frames.find((frame) => frame.id === editFrameId) ?? { id: editFrameId, type: "", params: {} }, selectedFrameIndex));
+                    }
+                  }}
+                  placeholder="Frame name"
+                  className="max-w-sm text-lg font-semibold"
+                />
+                <Button type="button" variant="ghost" size="icon" aria-label="Save frame name" onClick={handleCommitName}>
+                  <Check className="h-5 w-5" />
+                </Button>
+                <Button type="button" variant="ghost" size="icon" aria-label="Cancel frame editing" onClick={() => handleDialogChange(false)}>
+                  <X className="h-5 w-5" />
+                </Button>
+              </div>
 
-                <TabsContent value="widgets" className="space-y-4">
+              <div className="space-y-3">
+                <Label>Type</Label>
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  {([
+                    ["clock", "Clock"],
+                    ["widgets", "Widgets"],
+                    ["website", "Website"],
+                    ["media-player", "Media Player"],
+                  ] as const).map(([kind, label]) => (
+                    <button
+                      key={kind}
+                      type="button"
+                      onClick={() => {
+                        setDraftFrameKind(kind);
+                        if (editFrameId) draftDirtyRef.current = true;
+                        const widgetType = kind === "clock" ? "glanceable-clock" : kind === "website" ? "iframe" : kind === "media-player" ? "iframe" : undefined;
+                        if (kind !== "widgets") {
+                          setLayoutPreset("1x1");
+                          setCustomCols(1);
+                          setCustomRows(1);
+                          if (widgetType) setSections(buildSections(1, 1, [{ id: "cell-0-0", label, widgetType, params: kind === "website" ? { url: "" } : kind === "media-player" ? { url: "", title: "Media player" } : {} }]));
+                        }
+                      }}
+                      className={`space-y-2 rounded-xl border p-3 text-left transition ${draftFrameKind === kind ? "border-primary bg-primary/15" : "border-white/15 bg-black/10 hover:bg-white/10"}`}
+                    >
+                      <span className="block h-16 rounded-lg border border-white/15 bg-black/20" />
+                      <span className="block text-sm font-medium">{label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {draftFrameKind === "widgets" && <>
                   <div className="frosted space-y-4 rounded-2xl border border-white/10 bg-white/5 p-4">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div>
@@ -1413,45 +1554,41 @@ export default function SmartFramesManager({
                   </div>
                   <div className="space-y-4">
                     {sections.map((section) => (
-                      <FrameWidgetSlotEditor
-                        key={section.id}
-                        section={section}
-                        isSelected={selectedSectionId === section.id}
-                        isCarouselOpen={selectedSectionId === section.id && isWidgetCarouselOpen}
-                        widgetCategories={widgetCategories}
-                        selectedWidgetCategory={selectedWidgetCategory}
-                        selectedWidgetOptions={selectedWidgetOptions}
-                        widgetSchemas={widgetSchemas}
-                        glanceableOptions={glanceableOptions}
-                        widgetParamsError={widgetParamsError}
-                        resolveWidgetLabel={resolveWidgetLabel}
-                        onSelect={() => {
-                          setSelectedSectionId(section.id);
-                          setIsWidgetCarouselOpen(false);
-                        }}
-                        onToggleCarousel={() => {
-                          setSelectedSectionId(section.id);
-                          setIsWidgetCarouselOpen((current) => selectedSectionId !== section.id || !current);
-                        }}
-                        onCategoryChange={setSelectedWidgetCategory}
-                        onUpdate={(patch) => {
-                          setSelectedSectionId(section.id);
-                          updateSection(section.id, patch);
-                        }}
-                        onError={setWidgetParamsError}
-                        onEditGlanceable={(index) =>
-                          setEditingFrameGlanceable({ sectionId: section.id, index })}
-                      />
+                      <div key={section.id} className="frosted flex items-center gap-4 rounded-xl border border-white/10 bg-white/5 p-3">
+                        <div className="h-20 w-28 shrink-0 overflow-hidden rounded-lg">
+                          {renderWidget({ type: section.widgetType, params: section.params ?? {}, className: "h-full w-full", isPreview: true })}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="font-medium">{resolveWidgetLabel(section.widgetType)}</div>
+                          <div className="text-sm text-white/60">{section.label}</div>
+                        </div>
+                        <Button type="button" variant="ghost" size="icon" aria-label={`Edit ${resolveWidgetLabel(section.widgetType)}`} onClick={() => { setSelectedSectionId(section.id); setEditingWidgetSectionId(section.id); }}>
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                      </div>
                     ))}
                   </div>
-                </TabsContent>
+              </>}
+              {draftFrameKind !== "widgets" && sections[0] && (
+                <div className="frosted flex items-center gap-4 rounded-xl border border-white/10 bg-white/5 p-3">
+                  <div className="h-20 w-28 shrink-0 overflow-hidden rounded-lg">
+                    {renderWidget({ type: sections[0].widgetType, params: sections[0].params ?? {}, className: "h-full w-full", isPreview: true })}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="font-medium">{resolveWidgetLabel(sections[0].widgetType)}</div>
+                    <div className="text-sm text-white/60">{draftFrameKind === "website" ? "Website" : draftFrameKind === "media-player" ? "Media player" : "Clock"}</div>
+                  </div>
+                  <Button type="button" variant="ghost" size="icon" aria-label={`Edit ${resolveWidgetLabel(sections[0].widgetType)}`} onClick={() => { setSelectedSectionId(sections[0].id); setEditingWidgetSectionId(sections[0].id); }}>
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
 
-                <TabsContent value="background" className="space-y-3">
-                  <div className="frosted space-y-3 rounded-2xl border border-white/10 bg-white/5 p-4">
+              <div className="frosted space-y-3 rounded-2xl border border-white/10 bg-white/5 p-4">
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <h2 className="text-lg font-semibold">Background</h2>
-                    <p className="text-sm text-white/60">Choose the background for this frame.</p>
+                    <p className="text-sm text-white/60">Use the dashboard background or set a background for this frame.</p>
                   </div>
                 </div>
                 <RadioGroup
@@ -1462,7 +1599,7 @@ export default function SmartFramesManager({
                   }}
                   className="grid gap-3 grid-cols-[repeat(auto-fit,minmax(140px,1fr))]"
                 >
-                  {(["none", "current", "upload", "url"] as const).map((mode) => (
+                  {(["global-frame", "current", "upload", "url", "none"] as const).map((mode) => (
                     <div key={mode}>
                       <RadioGroupItem
                         id={`frame-bg-${mode}`}
@@ -1476,43 +1613,51 @@ export default function SmartFramesManager({
                         {mode === "none"
                           ? "None"
                           : mode === "current"
-                          ? "Current"
-                          : mode === "upload"
-                          ? "Upload"
-                          : "Add from URL"}
+                          ? "Dashboard background"
+                          : mode === "global-frame"
+                          ? "Global frame background"
+                          : mode === "url"
+                          ? "Add from URL"
+                          : "Custom carousel"}
                       </Label>
                     </div>
                   ))}
                 </RadioGroup>
 
                 {draftBackgroundMode === "upload" && (
-                  <div className="space-y-2">
-                    <Label htmlFor="frame-bg-file">Image file</Label>
-                    <Input
-                      id="frame-bg-file"
-                      type="file"
-                      accept="image/*"
-                      onChange={(event) => {
-                        if (editFrameId) draftDirtyRef.current = true;
-                        setUploadFile(event.target.files?.[0] ?? null);
-                      }}
-                    />
+                  <div
+                    className="space-y-3 rounded-xl border border-dashed border-white/25 p-4"
+                    onDragOver={(event) => { event.preventDefault(); }}
+                    onDrop={(event) => { event.preventDefault(); void addBackgroundFiles(event.dataTransfer.files); }}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <Label htmlFor="frame-bg-file">Background carousel</Label>
+                        <p className="text-sm text-white/60">Drop images here or choose files to add.</p>
+                      </div>
+                      <Input id="frame-bg-file" type="file" accept="image/*" multiple className="max-w-56" onChange={(event) => { if (event.target.files) void addBackgroundFiles(event.target.files); event.target.value = ""; }} />
+                    </div>
+                    <div className="flex flex-wrap gap-3">
+                      {draftBackgroundImages.map((image, index) => (
+                        <div key={`${image}-${index}`} className="relative h-24 w-40 overflow-hidden rounded-lg border border-white/15">
+                          <img src={image} alt={`Background ${index + 1}`} className="h-full w-full object-cover" />
+                          <button type="button" aria-label={`Remove background ${index + 1}`} className="absolute right-1 top-1 rounded-full bg-black/70 p-1" onClick={() => { const nextImages = draftBackgroundImages.filter((_, itemIndex) => itemIndex !== index); setDraftBackgroundImages(nextImages); setExistingBackgroundUrl(nextImages[0] ?? ""); if (editFrameId) draftDirtyRef.current = true; }}><X className="h-3 w-3" /></button>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex items-center justify-between gap-3">
+                      <Label htmlFor="frame-background-interval">Default interval</Label>
+                      <select id="frame-background-interval" value={backgroundInterval} onChange={(event) => { setBackgroundInterval(Number(event.target.value)); if (editFrameId) draftDirtyRef.current = true; }} className="rounded-lg border border-white/15 bg-black/20 px-3 py-2 text-sm">
+                        {[10, 15, 30, 60, 120].map((seconds) => <option key={seconds} value={seconds}>{seconds}s</option>)}
+                      </select>
+                    </div>
                   </div>
                 )}
 
                 {draftBackgroundMode === "url" && (
                   <div className="space-y-2">
                     <Label htmlFor="frame-bg-url-input">Image URL</Label>
-                    <Input
-                      id="frame-bg-url-input"
-                      type="url"
-                      placeholder="https://example.com/background.jpg"
-                      value={draftBackgroundUrl}
-                      onChange={(event) => {
-                        if (editFrameId) draftDirtyRef.current = true;
-                        setDraftBackgroundUrl(event.target.value);
-                      }}
-                    />
+                    <Input id="frame-bg-url-input" type="url" placeholder="https://example.com/background.jpg" value={draftBackgroundUrl} onChange={(event) => { setDraftBackgroundUrl(event.target.value); if (editFrameId) draftDirtyRef.current = true; }} />
                   </div>
                 )}
 
@@ -1566,9 +1711,13 @@ export default function SmartFramesManager({
                   </div>
                 )}
                   </div>
-                </TabsContent>
 
-                <TabsContent value="rules" className="space-y-4">
+                <Button type="button" variant="ghost" className="w-fit px-1" onClick={() => setIsRulesModalOpen(true)}>
+                  Open Display rules modal <ExternalLink className="ml-2 h-4 w-4" />
+                </Button>
+                <Dialog open={isRulesModalOpen} onOpenChange={setIsRulesModalOpen}>
+                  <DialogContent className="frosted max-h-[90vh] overflow-y-auto text-foreground">
+                    <h2 className="text-lg font-semibold">Display rules</h2>
                   <div className="flex items-center gap-2 overflow-x-auto">
                     <button
                       type="button"
@@ -1630,27 +1779,39 @@ export default function SmartFramesManager({
                       ))}
                     </div>
                   </div>
-                </TabsContent>
-              </Tabs>
+                  </DialogContent>
+                </Dialog>
 
               {error && <div className="text-sm text-red-400">{error}</div>}
             </div>
 
-            <div className="flex items-center justify-end gap-2">
-              {!editFrameId && (
-                <>
-                  <Button variant="ghost" onClick={() => handleDialogChange(false)}>
-                    Cancel
-                  </Button>
-              <Button onClick={handleSaveFrame} disabled={uploading}>
-                    {uploading ? "Saving..." : "Add Frame"}
-                  </Button>
-                </>
-              )}
-            </div>
           </section>
         </div>
       </div>
+      <Dialog open={Boolean(editingWidgetSectionId)} onOpenChange={(open) => { if (!open) setEditingWidgetSectionId(null); }}>
+        <DialogContent className="frosted max-h-[90vh] overflow-x-hidden overflow-y-auto text-foreground">
+          {editingWidgetSectionId && sections.find((section) => section.id === editingWidgetSectionId) && (
+            <FrameWidgetSlotEditor
+              section={sections.find((section) => section.id === editingWidgetSectionId)!}
+              isSelected
+              isCarouselOpen={isWidgetCarouselOpen}
+              widgetCategories={widgetCategories}
+              selectedWidgetCategory={selectedWidgetCategory}
+              selectedWidgetOptions={selectedWidgetOptions}
+              widgetSchemas={widgetSchemas}
+              glanceableOptions={glanceableOptions}
+              widgetParamsError={widgetParamsError}
+              resolveWidgetLabel={resolveWidgetLabel}
+              onSelect={() => undefined}
+              onToggleCarousel={() => setIsWidgetCarouselOpen((current) => !current)}
+              onCategoryChange={setSelectedWidgetCategory}
+              onUpdate={(patch) => updateSection(editingWidgetSectionId, patch)}
+              onError={setWidgetParamsError}
+              onEditGlanceable={(index) => setEditingFrameGlanceable({ sectionId: editingWidgetSectionId, index })}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
       <Dialog
         open={Boolean(editingGlanceable)}
         onOpenChange={(open) => {
