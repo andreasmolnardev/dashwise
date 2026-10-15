@@ -590,7 +590,9 @@ export default function CommandBar(
     return items;
   }, [filtered, defaultEngine, query, searchEngines, currentAppId]);
 
-  const selectedAction = actions[highlightIndex];
+  const defaultHighlightIndex = actions.findIndex((action) => action.url !== "__app_back__");
+  const activeHighlightIndex = hasExplicitSelection ? highlightIndex : defaultHighlightIndex;
+  const selectedAction = actions[activeHighlightIndex];
   const showQrPreview = Boolean(
     selectedAction?.url === "__qr_action__" || selectedAction?.isQrAction,
   );
@@ -602,7 +604,7 @@ export default function CommandBar(
 
   // Scroll the highlighted item into view as the last visible item
   React.useEffect(() => {
-    const el = itemRefs.current[highlightIndex];
+    const el = itemRefs.current[activeHighlightIndex];
     if (!el || !listRef.current) return;
 
     try {
@@ -614,7 +616,7 @@ export default function CommandBar(
     } catch {
       el.scrollIntoView(false);
     }
-  }, [highlightIndex]);
+  }, [activeHighlightIndex]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     const actionsCount = actions.length;
@@ -636,15 +638,17 @@ export default function CommandBar(
     }
     if (e.key === "ArrowDown") {
       e.preventDefault();
-      setHighlightIndex((i) => (i + 1) % actionsCount);
+      if (actionsCount === 0) return;
+      setHighlightIndex(activeHighlightIndex < 0 ? 0 : (activeHighlightIndex + 1) % actionsCount);
       setHasExplicitSelection(true);
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
-      setHighlightIndex((i) => (i - 1 + actionsCount) % actionsCount);
+      if (actionsCount === 0) return;
+      setHighlightIndex(activeHighlightIndex < 0 ? actionsCount - 1 : (activeHighlightIndex - 1 + actionsCount) % actionsCount);
       setHasExplicitSelection(true);
     } else if (e.key === "Enter") {
       e.preventDefault();
-      triggerAction(highlightIndex);
+      if (activeHighlightIndex >= 0) triggerAction(activeHighlightIndex);
     } else if (e.key === "Escape") {
       e.preventDefault();
       setOpen(false);
@@ -672,7 +676,12 @@ export default function CommandBar(
     } else if (a.url === "__qr_action__") {
       return;
     } else if (a.url === "__sdk_resource__") {
-      setActionsMenuOpen(true);
+      const toggleAction = a.sdkActions?.find((action) => action.id === "toggle");
+      if (toggleAction && a.sdkResource) {
+        setPendingSdkAction({ resource: a.sdkResource, action: toggleAction });
+      } else {
+        setActionsMenuOpen(true);
+      }
     } else if (a.url === "__source_link__") {
       const sourceLink = a.sourceId && homeLinks.find((link) => link.id === a.sourceId);
       if (sourceLink) openUrl(getRoutedLinkUrl(sourceLink), config?.global?.linkOpenBehaviour);
@@ -921,7 +930,7 @@ export default function CommandBar(
       <DialogTitle className="hidden">Search Bar</DialogTitle>
       <DialogContent
         showCloseButton={false}
-        className="min-w-[50vw] min-h-[50vh] mx-auto frosted backdrop-blur-md grid grid-rows-[auto_1fr_auto] rounded-lg p-0 shadow-lg text-foreground"
+        className="min-w-[50vw] min-h-[50vh] mx-auto frosted backdrop-blur-md grid grid-rows-[auto_1fr_auto] rounded-lg p-0 shadow-lg text-foreground data-[state=open]:slide-in-from-bottom-2 data-[state=closed]:slide-out-to-bottom-2"
       >
         <div className="absolute top-4 right-4 z-20 flex items-center gap-2">
           {query && (
@@ -1000,7 +1009,7 @@ export default function CommandBar(
                 item.isQrAction;
               const isCommand = !isSearchAction && !isBangAction &&
                 item.url?.startsWith("command:");
-              const isHighlighted = highlightIndex === index;
+              const isHighlighted = activeHighlightIndex === index;
 
               const showSectionHeader = !query && item._section &&
                 (index === 0 || actions[index - 1]?._section !== item._section);
@@ -1017,8 +1026,8 @@ export default function CommandBar(
                       itemRefs.current[index] = el;
                     }}
                     onClick={() => {
-                      if (hasExplicitSelection && highlightIndex === index) {
-                        if (item.url !== "__sdk_resource__") triggerAction(index);
+                      if (activeHighlightIndex === index) {
+                        triggerAction(index);
                         return;
                       }
                       setHighlightIndex(index);
@@ -1143,7 +1152,7 @@ export default function CommandBar(
                 <DropdownMenuContent align="end" className="frosted min-w-56 text-foreground">
                   <DropdownMenuLabel>{selectedShortcut.name}</DropdownMenuLabel>
                   <DropdownMenuSeparator className="bg-white/15" />
-                  <DropdownMenuItem onSelect={() => void runSecondaryAction("", selectedShortcut.isPinned ? "Remove favourite" : "Add shortcut as favourite")}>
+                  <DropdownMenuItem onSelect={() => void runSecondaryAction("", selectedShortcut.isPinned ? "Remove from root shortcuts" : "Pin to root shortcuts")}>
                     <IconifyIcon icon={selectedShortcut.isPinned ? "fa6-solid:star" : "fa6-regular:star"} />
                     {selectedShortcut.isPinned ? "Remove from root shortcuts" : "Pin to root shortcuts"}
                     <DropdownMenuShortcut>F</DropdownMenuShortcut>
