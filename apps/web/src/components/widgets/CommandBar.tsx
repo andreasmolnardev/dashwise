@@ -2,7 +2,8 @@ import React from "react";
 
 import { Dialog, DialogClose, DialogContent } from "../ui/dialog";
 import { useQueryClient } from "@tanstack/react-query";
-import { usePageConfig } from "@/hooks/usePageConfig";
+import { useApiQuery } from "@/hooks/useApiQuery";
+import { queryKeys } from "@/lib/queryClient";
 import useAuth from "@/context/useAuth";
 import { Separator } from "../ui/separator";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
@@ -268,30 +269,20 @@ export default function CommandBar(
   const [qrCodeLoading, setQrCodeLoading] = React.useState(false);
   const [qrCodeError, setQrCodeError] = React.useState<string | null>(null);
   const [homeLinks, setHomeLinks] = React.useState<Array<{ id: string; url: string; secondaryUrls?: Array<{ url: string; routingRule: string }> }>>([]);
-  const [frequentlyUsedIds, setFrequentlyUsedIds] = React.useState<string[]>([]);
+  const frequentlyUsedQuery = useApiQuery(
+    [...queryKeys.links.search, "frequently-used"],
+    getFrequentlyUsedShortcutsAction,
+    { enabled: open },
+  );
+  const frequentlyUsedIds = React.useMemo(() => Array.isArray(frequentlyUsedQuery.data)
+    ? frequentlyUsedQuery.data.map((item: { id: string }) => item.id)
+    : [], [frequentlyUsedQuery.data]);
   const [actionsMenuOpen, setActionsMenuOpen] = React.useState(false);
   const [pendingSdkAction, setPendingSdkAction] = React.useState<{
     resource: SdkShortcutResource;
     action: SdkShortcutActionDefinition;
   } | null>(null);
   const inputRef = React.useRef<HTMLInputElement | null>(null);
-
-  // Fetch frequently used items
-  React.useEffect(() => {
-    if (!user?.id || !token) {
-      return;
-    }
-
-    void getFrequentlyUsedShortcutsAction({ token })
-      .then((data) => {
-        if (Array.isArray(data)) {
-          setFrequentlyUsedIds(data.map((item: any) => item.id));
-        }
-      })
-      .catch(() => {
-        // ignore failures
-      });
-  }, [user?.id, token]);
 
   // Ref for the scrollable list container
   const listRef = React.useRef<HTMLDivElement | null>(null);

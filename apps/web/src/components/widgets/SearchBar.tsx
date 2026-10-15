@@ -1,12 +1,13 @@
 'use client';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useState, type SetStateAction } from 'react';
 import useAuth, { COMMAND_BAR_OPEN_EVENT } from "@/context/useAuth";
 import { useActivity } from "@/context/ActivityContext";
-import CommandBar from './CommandBar';
 import { getShortcutsAction } from '@/lib/apiClient';
 import { useApiQuery } from "@/hooks/useApiQuery";
 import { queryKeys } from "@/lib/queryClient";
 import { getSdkShortcutResourceIdentities } from "@/lib/sdkShortcutResources";
+
+const CommandBar = lazy(() => import('./CommandBar'));
 
 type SearchBarProps = {
   useRedirect: boolean;
@@ -65,60 +66,13 @@ export default function SearchBar({
   enableGlobalShortcut = false,
 }: SearchBarProps) {
   const [redirecting, setRedirecting] = useState(false);
-  const [open, setOpen] = useState(() => !!defaultOpen); // control CommandBar
-  const didMountRef = useRef(false);
-  const { user } = useAuth();
-  const { subscribeSdkResources } = useActivity();
-
-  const shortcutsQuery = useApiQuery(queryKeys.links.search, getShortcutsAction, { enabled: open });
-  const shortcuts = useMemo(() => normalizeShortcuts(shortcutsQuery.data), [shortcutsQuery.data]);
-  const sdkResources = useMemo(() => getSdkShortcutResourceIdentities(shortcuts), [shortcuts]);
-
   useEffect(() => {
-    if (!open || sdkResources.length === 0) return;
-    return subscribeSdkResources(sdkResources, () => {
-      void shortcutsQuery.refetch();
-    });
-  }, [open, sdkResources, shortcutsQuery.refetch, subscribeSdkResources]);
-
-  useEffect(() => {
-    if (!didMountRef.current) {
-      didMountRef.current = true;
-      return;
-    }
-
-    if (defaultOpen) setOpen(true);
+    if (defaultOpen) window.dispatchEvent(new Event(COMMAND_BAR_OPEN_EVENT));
   }, [defaultOpen]);
 
-  useEffect(() => {
-    if (!enableGlobalShortcut) return;
-
-    const handleKey = (event: KeyboardEvent) => {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
-        event.preventDefault();
-        setOpen((previousOpen) => !previousOpen);
-      }
-    };
-
-    window.addEventListener("keydown", handleKey);
-    return () => window.removeEventListener("keydown", handleKey);
-  }, [enableGlobalShortcut]);
-
-  useEffect(() => {
-    if (!enableGlobalShortcut) return;
-
-    const handleOpenCommandBar = () => setOpen(true);
-    window.addEventListener(COMMAND_BAR_OPEN_EVENT, handleOpenCommandBar);
-    return () => window.removeEventListener(COMMAND_BAR_OPEN_EVENT, handleOpenCommandBar);
-  }, [enableGlobalShortcut]);
-
-
   const handleFocus = () => {
-    if (useRedirect) {
-      setRedirecting(true);
-      setTimeout(() => { }, 30);
-    }
-    setOpen(true);
+    if (useRedirect) setRedirecting(true);
+    window.dispatchEvent(new Event(COMMAND_BAR_OPEN_EVENT));
   };
 
   return (
@@ -140,7 +94,51 @@ export default function SearchBar({
         </div>
       )}
 
-      <CommandBar open={open} setOpen={setOpen} shortcuts={shortcuts} config={user?.searchPreferences ?? {}}/>
+      {enableGlobalShortcut && <CommandBarHost />}
     </>
   );
+}
+
+/** One authenticated host; dashboard search widgets only dispatch open events. */
+function CommandBarHost() {
+  const [{ open, hasOpened }, setState] = useState({ open: false, hasOpened: false });
+  const { token, user } = useAuth();
+  const { subscribeSdkResources } = useActivity();
+  const setOpen = useCallback((next: SetStateAction<boolean>) => {
+    setState((previous) => {
+      const open = typeof next === "function" ? next(previous.open) : next;
+      return { open, hasOpened: previous.hasOpened || open };
+    });
+  }, []);
+  const shortcutsQuery = useApiQuery(queryKeys.links.search, getShortcutsAction, { enabled: open });
+  const shortcuts = useMemo(() => normalizeShortcuts(shortcutsQuery.data), [shortcutsQuery.data]);
+  const sdkResources = useMemo(() => getSdkShortcutResourceIdentities(shortcuts), [shortcuts]);
+
+  useEffect(() => {
+    if (!open || sdkResources.length === 0) return;
+    return subscribeSdkResources(sdkResources, () => { void shortcutsQuery.refetch(); });
+  }, [open, sdkResources, shortcutsQuery.refetch, subscribeSdkResources]);
+
+  useLayoutEffect(() => {
+    const handleKey = (event: KeyboardEvent) => {
+      if (!event.repeat && !event.defaultPrevented && (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setOpen((previous) => !previous);
+      }
+    };
+    const handleOpen = () => setOpen(true);
+    window.addEventListener("keydown", handleKey);
+    window.addEventListener(COMMAND_BAR_OPEN_EVENT, handleOpen);
+    return () => {
+      window.removeEventListener("keydown", handleKey);
+      window.removeEventListener(COMMAND_BAR_OPEN_EVENT, handleOpen);
+    };
+  }, [setOpen]);
+
+  // Keep action dialogs alive after closing search, but never load them at startup.
+  return hasOpened ? (
+    <Suspense fallback={open ? <div role="status" className="fixed left-1/2 top-1/4 z-50 -translate-x-1/2 rounded-lg frosted p-4 text-sm">Loading search…</div> : null}>
+      <CommandBar key={token} open={open} setOpen={setOpen} shortcuts={shortcuts} config={user?.searchPreferences ?? {}} />
+    </Suspense>
+  ) : null;
 }
