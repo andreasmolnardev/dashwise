@@ -12,8 +12,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { PopoverClose } from "@radix-ui/react-popover";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
@@ -54,6 +52,13 @@ const FRAME_LAYOUTS = [
   { value: "2x1", label: "2x1", cols: 2, rows: 1 },
   { value: "2x2", label: "2x2", cols: 2, rows: 2 },
   { value: "custom", label: "Custom", cols: 2, rows: 2 },
+] as const;
+
+const FRAME_KIND_OPTIONS = [
+  { value: "clock", label: "Clock" },
+  { value: "widgets", label: "Widgets" },
+  { value: "website", label: "Website" },
+  { value: "media-player", label: "Media Player" },
 ] as const;
 
 const FRAME_PREVIEW_SIZE = {
@@ -617,6 +622,7 @@ export default function SmartFramesManager({
   const [editFrameId, setEditFrameId] = useState<string | null>(null);
   const [draftName, setDraftName] = useState("");
   const [draftFrameKind, setDraftFrameKind] = useState<FrameKind>("clock");
+  const [isFrameTypeCarouselOpen, setIsFrameTypeCarouselOpen] = useState(false);
   const [editingWidgetSectionId, setEditingWidgetSectionId] = useState<string | null>(null);
   const [isRulesModalOpen, setIsRulesModalOpen] = useState(false);
   const [newlyCreatedFrameIds, setNewlyCreatedFrameIds] = useState<string[]>([]);
@@ -930,6 +936,7 @@ export default function SmartFramesManager({
     setEditFrameId(null);
     setDraftName("");
     setDraftFrameKind("clock");
+    setIsFrameTypeCarouselOpen(false);
     setEditingFrameGlanceable(null);
     setDraftDisplayRules({});
     setDraftDeviceRules({});
@@ -980,6 +987,7 @@ export default function SmartFramesManager({
 
   const handleOpenEdit = (frame: Frame) => {
     setIsAddingFrame(false);
+    setIsFrameTypeCarouselOpen(false);
     draftDirtyRef.current = false;
     setEditingFrameGlanceable(null);
     const backgroundImageUrl = String(frame.params?.backgroundImageUrl ?? "");
@@ -1296,84 +1304,6 @@ export default function SmartFramesManager({
                       />}
                 </div>
                 <div className="relative mt-3 flex items-center gap-2 pr-8">
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 shrink-0 rounded-full text-white/70 hover:bg-white/10 hover:text-white"
-                        onClick={() => setSelectedFrameIndex(index)}
-                        aria-label={`Change layout for ${getFrameName(frame, index)}`}
-                      >
-                        <LayoutPreview
-                          cols={getFrameLayout(frame).cols}
-                          rows={getFrameLayout(frame).rows}
-                          className="h-4 w-4"
-                        />
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent align="start" className="w-72 space-y-3 frosted text-foreground">
-                      <div>
-                        <div className="text-sm font-medium">Layout</div>
-                        <div className="text-xs text-white/60">Choose page grid</div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2">
-                        {FRAME_LAYOUTS.map((layout) => {
-                          const active = layout.value === layoutPreset;
-                          const tile = (
-                            <button
-                              type="button"
-                              onClick={() => setLayoutPreset(layout.value)}
-                              className={`space-y-2 rounded-xl border p-2 text-left transition ${
-                                active
-                                  ? "border-primary bg-primary/15"
-                                  : "border-white/10 bg-white/5 hover:bg-white/10"
-                              }`}
-                            >
-                              <LayoutPreview cols={layout.cols} rows={layout.rows} className="h-12 w-12" />
-                              <div className="text-sm font-medium">{layout.label}</div>
-                            </button>
-                          );
-                          return (
-                            layout.value === "custom"
-                              ? <div key={layout.value}>{tile}</div>
-                              : <PopoverClose asChild key={layout.value}>{tile}</PopoverClose>
-                          );
-                        })}
-                      </div>
-                      {layoutPreset === "custom" && (
-                        <div className="grid grid-cols-2 gap-2 border-t border-white/10 pt-3">
-                          <div className="space-y-1">
-                            <Label className="text-xs text-white/70">Columns</Label>
-                            <Input
-                              type="number"
-                              min={1}
-                              max={4}
-                              value={customCols}
-                              onChange={(event) =>
-                                setCustomCols(
-                                  clampLayoutSize(Number(event.target.value)),
-                                )}
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <Label className="text-xs text-white/70">Rows</Label>
-                            <Input
-                              type="number"
-                              min={1}
-                              max={4}
-                              value={customRows}
-                              onChange={(event) =>
-                                setCustomRows(
-                                  clampLayoutSize(Number(event.target.value)),
-                                )}
-                            />
-                          </div>
-                        </div>
-                      )}
-                    </PopoverContent>
-                  </Popover>
                   <button
                     type="button"
                     onClick={() => setSelectedFrameIndex(index)}
@@ -1479,39 +1409,51 @@ export default function SmartFramesManager({
               </div>
 
               <div className="space-y-3">
-                <Label>Type</Label>
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                  {([
-                    ["clock", "Clock"],
-                    ["widgets", "Widgets"],
-                    ["website", "Website"],
-                    ["media-player", "Media Player"],
-                  ] as const).map(([kind, label]) => (
-                    <button
-                      key={kind}
-                      type="button"
-                      onClick={() => {
-                        setDraftFrameKind(kind);
-                        if (editFrameId) draftDirtyRef.current = true;
-                        const widgetType = kind === "clock" ? "glanceable-clock" : kind === "website" ? "iframe" : kind === "media-player" ? "iframe" : undefined;
-                        if (kind !== "widgets") {
-                          setLayoutPreset("1x1");
-                          setCustomCols(1);
-                          setCustomRows(1);
-                          if (widgetType) setSections(buildSections(1, 1, [{ id: "cell-0-0", label, widgetType, params: kind === "website" ? { url: "" } : kind === "media-player" ? { url: "", title: "Media player" } : {} }]));
-                        }
-                      }}
-                      className={`space-y-2 rounded-xl border p-3 text-left transition ${draftFrameKind === kind ? "border-primary bg-primary/15" : "border-white/15 bg-black/10 hover:bg-white/10"}`}
-                    >
-                      <span className="block h-16 rounded-lg border border-white/15 bg-black/20" />
-                      <span className="block text-sm font-medium">{label}</span>
-                    </button>
-                  ))}
+                <div className="flex items-center gap-3">
+                  <Label className="shrink-0">Type</Label>
+                  <div className="min-w-0 flex-1" />
+                  <button
+                    type="button"
+                    onClick={() => setIsFrameTypeCarouselOpen((current) => !current)}
+                    aria-expanded={isFrameTypeCarouselOpen}
+                    className="frosted flex max-w-full items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white/90 transition hover:bg-white/10"
+                  >
+                    <span className="max-w-[18rem] truncate">
+                      {FRAME_KIND_OPTIONS.find((option) => option.value === draftFrameKind)?.label ?? "Clock"}
+                    </span>
+                    <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${isFrameTypeCarouselOpen ? "rotate-180" : ""}`} />
+                  </button>
+                </div>
+                <div className={`grid transition-all duration-250 ease-out ${isFrameTypeCarouselOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0 pointer-events-none"}`}>
+                  <div className="min-h-0 overflow-hidden">
+                    <div className="flex max-w-full snap-x gap-3 overflow-x-auto overscroll-x-contain pb-2">
+                      {FRAME_KIND_OPTIONS.map(({ value: kind, label }) => (
+                        <button
+                          key={kind}
+                          type="button"
+                          onClick={() => {
+                            setDraftFrameKind(kind);
+                            if (editFrameId) draftDirtyRef.current = true;
+                            const widgetType = kind === "clock" ? "glanceable-clock" : kind === "website" || kind === "media-player" ? "iframe" : undefined;
+                            if (kind !== "widgets") {
+                              setLayoutPreset("1x1");
+                              setCustomCols(1);
+                              setCustomRows(1);
+                              if (widgetType) setSections(buildSections(1, 1, [{ id: "cell-0-0", label, widgetType, params: kind === "website" ? { url: "" } : kind === "media-player" ? { url: "", title: "Media player" } : {} }]));
+                            }
+                          }}
+                          className={`shrink-0 snap-start rounded-xl px-4 py-2 text-sm transition ${draftFrameKind === kind ? "text-white ring-1 ring-primary" : "text-white/70 hover:bg-white/10 hover:text-white"}`}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               </div>
 
               {draftFrameKind === "widgets" && <>
-                  <div className="frosted space-y-4 rounded-2xl border border-white/10 bg-white/5 p-4">
+                  <div className="space-y-4 border-b border-white/10 pb-4">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div>
                         <h2 className="text-lg font-semibold">Layout</h2>
@@ -1552,9 +1494,9 @@ export default function SmartFramesManager({
                       </div>
                     )}
                   </div>
-                  <div className="space-y-4">
+                  <div className="divide-y divide-white/10">
                     {sections.map((section) => (
-                      <div key={section.id} className="frosted flex items-center gap-4 rounded-xl border border-white/10 bg-white/5 p-3">
+                      <div key={section.id} className="flex items-center gap-4 py-3">
                         <div className="h-20 w-28 shrink-0 overflow-hidden rounded-lg">
                           {renderWidget({ type: section.widgetType, params: section.params ?? {}, className: "h-full w-full", isPreview: true })}
                         </div>
@@ -1570,7 +1512,7 @@ export default function SmartFramesManager({
                   </div>
               </>}
               {draftFrameKind !== "widgets" && sections[0] && (
-                <div className="frosted flex items-center gap-4 rounded-xl border border-white/10 bg-white/5 p-3">
+                <div className="flex items-center gap-4 border-b border-white/10 py-3">
                   <div className="h-20 w-28 shrink-0 overflow-hidden rounded-lg">
                     {renderWidget({ type: sections[0].widgetType, params: sections[0].params ?? {}, className: "h-full w-full", isPreview: true })}
                   </div>
@@ -1584,7 +1526,7 @@ export default function SmartFramesManager({
                 </div>
               )}
 
-              <div className="frosted space-y-3 rounded-2xl border border-white/10 bg-white/5 p-4">
+              <div className="space-y-3 border-t border-white/10 pt-4">
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <h2 className="text-lg font-semibold">Background</h2>
@@ -1608,7 +1550,7 @@ export default function SmartFramesManager({
                       />
                       <Label
                         htmlFor={`frame-bg-${mode}`}
-                        className="group flex h-20 cursor-pointer flex-col items-center justify-center rounded-xl border border-transparent p-3 text-center text-sm frosted outline outline-transparent outline-offset-2 peer-data-[state=checked]:outline-(--primary) peer-focus-visible:outline peer-focus-visible:outline-(--primary)"
+                        className="group flex h-12 cursor-pointer items-center justify-center rounded-full border border-white/15 px-3 text-center text-sm transition hover:bg-white/10 peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/15 peer-focus-visible:outline peer-focus-visible:outline-(--primary)"
                       >
                         {mode === "none"
                           ? "None"
