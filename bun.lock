@@ -25,7 +25,10 @@
       "dependencies": {
         "@dashwise/assets": "workspace:*",
         "@dashwise/integration-example-rest": "workspace:*",
+        "@dashwise/integration-groovewise": "workspace:*",
         "@dashwise/integration-homeassistant": "workspace:*",
+        "@dashwise/integration-jellyfin": "workspace:*",
+        "@dashwise/integration-music-assistant": "workspace:*",
         "@dashwise/integrations-sdk": "workspace:*",
         "@dashwise/integrationskit": "workspace:*",
         "@dashwise/types": "workspace:*",
@@ -159,12 +162,42 @@
       "name": "@dashwise/integrations-sdk",
       "version": "2.0.0",
     },
+    "packages/integrations/groovewise": {
+      "name": "@dashwise/integration-groovewise",
+      "version": "1.0.0",
+      "dependencies": {
+        "@dashwise/integrations-sdk": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/bun": "latest",
+      },
+    },
     "packages/integrations/homeassistant": {
       "name": "@dashwise/integration-homeassistant",
       "version": "1.0.0",
       "dependencies": {
         "@dashwise/integrations-sdk": "workspace:*",
         "home-assistant-js-websocket": "^9.7.1",
+      },
+      "devDependencies": {
+        "@types/bun": "latest",
+      },
+    },
+    "packages/integrations/jellyfin": {
+      "name": "@dashwise/integration-jellyfin",
+      "version": "1.0.0",
+      "dependencies": {
+        "@dashwise/integrations-sdk": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/bun": "latest",
+      },
+    },
+    "packages/integrations/music-assistant": {
+      "name": "@dashwise/integration-music-assistant",
+      "version": "1.0.0",
+      "dependencies": {
+        "@dashwise/integrations-sdk": "workspace:*",
       },
       "devDependencies": {
         "@types/bun": "latest",
@@ -246,7 +279,13 @@
 
     "@dashwise/integration-example-rest": ["@dashwise/integration-example-rest@workspace:packages/integration-example-rest"],
 
+    "@dashwise/integration-groovewise": ["@dashwise/integration-groovewise@workspace:packages/integrations/groovewise"],
+
     "@dashwise/integration-homeassistant": ["@dashwise/integration-homeassistant@workspace:packages/integrations/homeassistant"],
+
+    "@dashwise/integration-jellyfin": ["@dashwise/integration-jellyfin@workspace:packages/integrations/jellyfin"],
+
+    "@dashwise/integration-music-assistant": ["@dashwise/integration-music-assistant@workspace:packages/integrations/music-assistant"],
 
     "@dashwise/integrations-sdk": ["@dashwise/integrations-sdk@workspace:packages/integrations-sdk"],
 

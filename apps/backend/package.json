@@ -20,6 +20,9 @@
   "dependencies": {
     "@dashwise/assets": "workspace:*",
     "@dashwise/integration-homeassistant": "workspace:*",
+    "@dashwise/integration-groovewise": "workspace:*",
+    "@dashwise/integration-jellyfin": "workspace:*",
+    "@dashwise/integration-music-assistant": "workspace:*",
     "@dashwise/integration-example-rest": "workspace:*",
     "@dashwise/integrations-sdk": "workspace:*",
     "@dashwise/integrationskit": "workspace:*",
