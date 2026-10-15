@@ -162,6 +162,13 @@ export async function getShortcuts(userId: string) {
   const sdkInstances = await listSdkInstances(userId);
   if (sdkInstances.length === 0) return configured;
   const { listSdkResourceSnapshot } = await import("../integrations-sdk/runtime");
+  const userRecord = await pb.collection("users").getOne(userId, { fields: "searchPreferences" });
+  const searchPreferences = parseObject(userRecord.searchPreferences);
+  const pinnedSdkShortcuts = new Set(
+    Array.isArray(searchPreferences.pinnedSdkShortcuts)
+      ? searchPreferences.pinnedSdkShortcuts.filter((id): id is string => typeof id === "string")
+      : [],
+  );
   const appRows = await pb.collection("shortcutsApps").getFullList(1000, {
     filter: `user="${escapeFilter(userId)}"`,
   });
@@ -226,13 +233,54 @@ export async function getShortcuts(userId: string) {
         available: resource.available !== false,
         revision: resource.revision,
         stale: resource.stale,
-        isPinned: false,
+        isPinned: pinnedSdkShortcuts.has(`sdk:${instance.id}:${collectionId}:${resource.id}`),
         usageStats: [],
       });
     }
   }
 
   return [...configured, ...sdkApps, ...sdkResources];
+}
+
+export async function setSdkShortcutPinned(userId: string, shortcutId: string, isPinned: boolean) {
+  const match = shortcutId.match(/^sdk:([^:]+):([^:]+):(.+)$/);
+  if (!match) throw new ApiActionError("Invalid SDK shortcut", 404, { error: "Not found" });
+  const [, instanceId, collectionId, resourceId] = match;
+
+  const instances = await listSdkInstances(userId);
+  if (!instances.some((instance) => instance.id === instanceId)) {
+    throw new ApiActionError("SDK shortcut not found", 404, { error: "Not found" });
+  }
+
+  const { listSdkResourceSnapshot } = await import("../integrations-sdk/runtime");
+  const resources = await listSdkResourceSnapshot(userId, instanceId);
+  if (!resources.some((resource) => resource.collectionId === collectionId && resource.id === resourceId)) {
+    throw new ApiActionError("SDK shortcut not found", 404, { error: "Not found" });
+  }
+
+  const pb = await getSuperuserPB();
+  const userRecord = await pb.collection("users").getOne(userId, { fields: "searchPreferences" });
+  const searchPreferences = parseObject(userRecord.searchPreferences);
+  const pinned = new Set(
+    Array.isArray(searchPreferences.pinnedSdkShortcuts)
+      ? searchPreferences.pinnedSdkShortcuts.filter((id): id is string => typeof id === "string")
+      : [],
+  );
+  if (isPinned) pinned.add(shortcutId);
+  else pinned.delete(shortcutId);
+
+  await pb.collection("users").update(userId, {
+    searchPreferences: { ...searchPreferences, pinnedSdkShortcuts: [...pinned] },
+  });
+}
+
+function parseObject(value: unknown): Record<string, unknown> {
+  if (typeof value === "string") {
+    try { value = JSON.parse(value); } catch { return {}; }
+  }
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
 }
 
 function displayResourceState(state: unknown, available: boolean | undefined) {

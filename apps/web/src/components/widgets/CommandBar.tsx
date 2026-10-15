@@ -847,7 +847,11 @@ export default function CommandBar(
   async function runSecondaryAction(value: string, label: string) {
     if (!selectedShortcut) return;
     const normalizedLabel = label.toLowerCase();
-    if (normalizedLabel.includes("favorite") || normalizedLabel.includes("favourite")) {
+    if (
+      normalizedLabel.includes("favorite") ||
+      normalizedLabel.includes("favourite") ||
+      normalizedLabel.includes("root shortcuts")
+    ) {
       if (!token || !selectedShortcut.id) return;
       const shortcutId = selectedShortcut.id;
       const previousPinned = Boolean(selectedShortcut.isPinned);

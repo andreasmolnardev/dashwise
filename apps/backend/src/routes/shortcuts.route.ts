@@ -3,6 +3,7 @@ import { Hono } from "hono";
 import {
   createOnDemandShortcutApp,
   getShortcuts,
+  setSdkShortcutPinned,
   syncOnDemandShortcuts,
 } from "../lib/data/shortcuts";
 import { getSuperuserPB } from "../lib/pb/pocketbase";
@@ -40,8 +41,16 @@ shortcutsRoute
     withJson(async (c) => {
       const body = await readJsonBody<{ isPinned?: unknown; isDisabled?: unknown; app?: unknown }>(c);
       const { userId } = await requireAuth({ token: readAuthToken(c) });
+      const shortcutId = String(c.req.param("id") ?? "");
+      if (shortcutId.startsWith("sdk:")) {
+        if (typeof body?.isPinned !== "boolean") {
+          throw new ApiActionError("SDK shortcuts only support pinning", 400, { error: "Invalid shortcut update" });
+        }
+        await setSdkShortcutPinned(userId, shortcutId, body.isPinned);
+        return { success: true };
+      }
       const pb = await getSuperuserPB();
-      const record = await pb.collection("shortcuts").getOne(String(c.req.param("id") ?? ""));
+      const record = await pb.collection("shortcuts").getOne(shortcutId);
       if (String(record.user ?? "") !== userId) {
         throw new ApiActionError("Unauthorized", 403, { error: "Unauthorized" });
       }
