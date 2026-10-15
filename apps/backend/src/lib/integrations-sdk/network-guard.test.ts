@@ -93,7 +93,7 @@ describe("SDK integration outbound network guard", () => {
     expect(await requests[1]?.text()).toBe("payload");
   });
 
-  test("pins a validated WebSocket hostname to the resolved address", async () => {
+  test("preserves the validated WebSocket hostname", async () => {
     let target: string | URL | undefined;
     let options: Bun.WebSocketOptions | undefined;
     const socket = {} as WebSocket;
@@ -107,7 +107,7 @@ describe("SDK integration outbound network guard", () => {
       },
     });
 
-    expect(target?.toString()).toBe("wss://192.168.1.20:8443/api/websocket");
+    expect(target?.toString()).toBe("wss://ha.home.arpa:8443/api/websocket");
     expect(options?.headers).toEqual({ Host: "ha.home.arpa:8443" });
     expect((options as { protocols?: string | string[] } | undefined)?.protocols).toEqual(["ha-v1"]);
     expect(options?.tls?.serverName).toBe("ha.home.arpa");

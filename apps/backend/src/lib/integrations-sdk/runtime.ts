@@ -431,10 +431,16 @@ function createRuntimeEntry(
               socket.removeEventListener("error", onError);
               resolve();
             };
-            const onError = () => {
+            const onError = (event: Event) => {
               clearTimeout(timeout);
               socket.removeEventListener("open", onOpen);
-              reject(new Error("WebSocket connection failed"));
+              const errorEvent = event as Event & { error?: unknown; message?: unknown };
+              const detail = errorEvent.error instanceof Error && errorEvent.error.message
+                ? errorEvent.error.message
+                : typeof errorEvent.message === "string" && errorEvent.message.trim()
+                  ? errorEvent.message
+                  : "WebSocket connection failed";
+              reject(new Error(detail));
             };
             const timeout = setTimeout(() => {
               socket.removeEventListener("open", onOpen);

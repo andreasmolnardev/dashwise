@@ -125,7 +125,7 @@ export async function guardedIntegrationFetch(
   }
 }
 
-/** Create a WebSocket after pinning its connection to the address checked by the guard. */
+/** Validate a WebSocket destination while preserving its configured hostname for the connection. */
 export async function createGuardedIntegrationWebSocket(
   value: string | URL,
   protocols?: string | string[],
@@ -139,7 +139,6 @@ export async function createGuardedIntegrationWebSocket(
     options.resolveHost ?? resolveHost,
     options.allowedPrivateUrls ?? [],
   );
-  const pinnedUrl = withIpAddress(destination.url, destination.address);
   const socketOptions: Bun.WebSocketOptions = {
     headers: { Host: destination.url.host },
     ...(protocols ? { protocols } : {}),
@@ -149,7 +148,7 @@ export async function createGuardedIntegrationWebSocket(
   };
   const defaultWebSocketFactory: NonNullable<typeof options.webSocketFactory> = (url, init) =>
     new (WebSocket as unknown as new (url: string | URL, options: Bun.WebSocketOptions) => WebSocket)(url, init);
-  return (options.webSocketFactory ?? defaultWebSocketFactory)(pinnedUrl, socketOptions);
+  return (options.webSocketFactory ?? defaultWebSocketFactory)(destination.url, socketOptions);
 }
 
 async function fetchPinnedRequest(request: Request, url: URL, address: string): Promise<Response> {
