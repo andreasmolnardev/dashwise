@@ -16,9 +16,10 @@ export async function getAppInfo() {
   }).catch(() => ({ items: [] }));
 
   const record = result.items[0] as AppInfoResponse | undefined;
+  const updateAvailableValue = String(record?.updateAvailable ?? "").trim();
 
   return {
-    updateAvailable: record?.updateAvailable || false,
+    updateAvailable: updateAvailableValue && updateAvailableValue !== "0" ? updateAvailableValue : false,
     currentAppVersion: config.DASHWISE_VERSION || "unknown",
     userSignupDisabled: config.DISABLE_USER_SIGNUP || false,
   };

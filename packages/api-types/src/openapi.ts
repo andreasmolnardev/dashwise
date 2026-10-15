@@ -67,7 +67,7 @@ export interface paths {
                     };
                     content: {
                         "application/json": {
-                            updateAvailable: boolean;
+                            updateAvailable: string | false;
                             currentAppVersion: string;
                             userSignupDisabled: boolean;
                         };

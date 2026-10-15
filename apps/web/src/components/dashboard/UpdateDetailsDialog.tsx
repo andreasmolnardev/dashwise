@@ -8,11 +8,14 @@ import { useApiQuery } from "@/hooks/useApiQuery";
 
 export default function UpdateDetailsDialogComponent() {
   const appInfoQuery = useApiQuery(["app-info"], async (auth) =>
-    getAppInfoAction(auth) as Promise<{ updateAvailable?: string; currentAppVersion?: string }>,
+    getAppInfoAction(auth) as Promise<{ updateAvailable?: string | false; currentAppVersion?: string }>,
   );
-  const updateAvailable = appInfoQuery.data?.updateAvailable !== undefined && appInfoQuery.data.updateAvailable !== "0";
+  const updateAvailable = typeof appInfoQuery.data?.updateAvailable === "string"
+    && appInfoQuery.data.updateAvailable !== "0";
   const currentVersion = appInfoQuery.data?.currentAppVersion ?? "";
-  const newVersion = appInfoQuery.data?.updateAvailable ?? "unknown";
+  const newVersion = typeof appInfoQuery.data?.updateAvailable === "string"
+    ? appInfoQuery.data.updateAvailable
+    : "unknown";
 
   if (!updateAvailable) return null; // only show if update exists
 

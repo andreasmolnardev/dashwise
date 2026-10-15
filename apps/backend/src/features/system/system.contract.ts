@@ -14,7 +14,7 @@ export const appInfoContract = defineGetContract({
   tags: ["app"],
   query: emptyQuerySchema,
   response: z.object({
-    updateAvailable: z.boolean(),
+    updateAvailable: z.union([z.string(), z.literal(false)]),
     currentAppVersion: z.string(),
     userSignupDisabled: z.boolean(),
   }),

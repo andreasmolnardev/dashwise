@@ -316,7 +316,7 @@ export type GetAppInfoResponses = {
      * OK
      */
     200: {
-        updateAvailable: boolean;
+        updateAvailable: string | false;
         currentAppVersion: string;
         userSignupDisabled: boolean;
     };
