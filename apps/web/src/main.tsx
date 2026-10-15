@@ -3,6 +3,8 @@ import ReactDOM from 'react-dom/client';
 import { RouterProvider } from 'react-router-dom';
 import { appRouter } from './router';
 import { QueryProvider } from '@/components/QueryProvider';
+import '@fontsource-variable/geist';
+import '@fontsource-variable/geist-mono';
 import './app/globals.css';
 
 if ('serviceWorker' in navigator) {

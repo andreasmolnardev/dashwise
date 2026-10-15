@@ -1,3 +1,5 @@
+import defaultWallpaperUrl from "@/assets/dashboard-wallpaper.webp";
+
 interface Config {
   instance_name?: string | undefined;
   backend_url: string;
@@ -41,7 +43,7 @@ const config: Config = {
 
   pb_url: env.NEXT_PUBLIC_PB_URL || "http://127.0.0.1:8090",
 
-  default_bg_url: env.NEXT_PUBLIC_DEFAULT_BG_URL || "/dashboard-wallpaper.png",
+  default_bg_url: env.NEXT_PUBLIC_DEFAULT_BG_URL || defaultWallpaperUrl,
 
   version: env.NEXT_PUBLIC_VERSION || "development",
 

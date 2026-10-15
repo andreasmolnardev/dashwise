@@ -4,6 +4,8 @@ import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { validateAuthTokenAction } from '@/lib/apiClient';
 import useAuth from "@/context/useAuth";
+import config from "@/lib/config";
+import { resolveWallpaperSource } from "@/lib/wallpaper";
 import { cn } from "@/lib/utils";
 import { fetchWallpaperBlob } from "@/lib/apiClient";
 import { LocalizationProvider } from "@/context/LocalizationContext";
@@ -95,8 +97,7 @@ export default function AuthWrapper({ children }: AuthWrapperProps) {
   useEffect(() => {
     if (!hasAppearancePreferences) return;
 
-    const rawImgUrl = backgroundImageUrl || "/dashboard-wallpaper.png";
-    const imgUrl = rawImgUrl.startsWith("/assets/") ? rawImgUrl.replace(/^\/assets\//, "/") : rawImgUrl;
+    const imgUrl = resolveWallpaperSource(backgroundImageUrl, config.default_bg_url);
     const tokenToUse = token;
     let revokeUrl: string | null = null;
 
