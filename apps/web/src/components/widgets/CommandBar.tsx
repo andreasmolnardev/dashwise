@@ -1,5 +1,4 @@
 import React from "react";
-import type { SyntheticEvent } from "react";
 
 import { Dialog, DialogClose, DialogContent } from "../ui/dialog";
 import { useQueryClient } from "@tanstack/react-query";
@@ -54,6 +53,34 @@ type LinkItem = {
   sdkActions?: SdkShortcutActionDefinition[];
   proxyAction?: boolean;
   _section?: string;
+};
+
+const SDK_ACTION_ICONS: Record<string, string> = {
+  openDetails: "fa6-solid:circle-info",
+  toggle: "fa6-solid:toggle-on",
+  turnOn: "fa6-solid:power-off",
+  turnOff: "fa6-solid:power-off",
+  setBrightness: "fa6-solid:sun",
+  setColor: "fa6-solid:palette",
+  enable: "fa6-solid:circle-check",
+  disable: "fa6-solid:circle-xmark",
+  trigger: "fa6-solid:play",
+  setValue: "fa6-solid:sliders",
+  press: "fa6-solid:hand-pointer",
+  open: "fa6-solid:door-open",
+  close: "fa6-solid:door-closed",
+  stop: "fa6-solid:stop",
+  lock: "fa6-solid:lock",
+  unlock: "fa6-solid:unlock",
+  setTemperature: "fa6-solid:temperature-half",
+  start: "fa6-solid:play",
+  pause: "fa6-solid:pause",
+  cancel: "fa6-solid:xmark",
+  increment: "fa6-solid:plus",
+  decrement: "fa6-solid:minus",
+  reset: "fa6-solid:rotate-left",
+  execute: "fa6-solid:play",
+  activate: "fa6-solid:bolt",
 };
 
 type SearchEngine = {
@@ -236,6 +263,7 @@ export default function CommandBar(
   const [filtered, setFiltered] = React.useState<LinkItem[]>(links);
   const [currentAppId, setCurrentAppId] = React.useState<string | null>(null);
   const [highlightIndex, setHighlightIndex] = React.useState(0);
+  const [hasExplicitSelection, setHasExplicitSelection] = React.useState(false);
   const [qrCodeDataUrl, setQrCodeDataUrl] = React.useState("");
   const [qrCodeLoading, setQrCodeLoading] = React.useState(false);
   const [qrCodeError, setQrCodeError] = React.useState<string | null>(null);
@@ -287,6 +315,7 @@ export default function CommandBar(
       setFiltered(links);
       setCurrentAppId(null);
       setHighlightIndex(0);
+      setHasExplicitSelection(false);
       setClipboardText("");
     }
   }, [open, links]);
@@ -297,7 +326,7 @@ export default function CommandBar(
       item.parentIds?.includes(appId) || item.parentId === appId;
     const visibleLinks = currentAppId
       ? links.filter((item) => belongsToApp(item, currentAppId))
-      : links.filter((item) => !item.parentId && !item.parentIds?.length);
+      : links.filter((item) => item.isPinned || (!item.parentId && !item.parentIds?.length));
 
     const q = query.trim().toLowerCase();
     if (!q) {
@@ -319,6 +348,7 @@ export default function CommandBar(
 
       setFiltered(grouped);
       setHighlightIndex(0);
+      setHasExplicitSelection(false);
       return;
     }
 
@@ -368,6 +398,7 @@ export default function CommandBar(
 
     setFiltered(results);
     setHighlightIndex(0);
+    setHasExplicitSelection(false);
   }, [query, links, currentAppId, frequentlyUsedIds]);
 
   const normalizedUrl = React.useMemo(() => {
@@ -606,9 +637,11 @@ export default function CommandBar(
     if (e.key === "ArrowDown") {
       e.preventDefault();
       setHighlightIndex((i) => (i + 1) % actionsCount);
+      setHasExplicitSelection(true);
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
       setHighlightIndex((i) => (i - 1 + actionsCount) % actionsCount);
+      setHasExplicitSelection(true);
     } else if (e.key === "Enter") {
       e.preventDefault();
       triggerAction(highlightIndex);
@@ -878,12 +911,6 @@ export default function CommandBar(
     if (value.trim().startsWith("command:")) openCommandClient(value.trim());
   }
 
-  function onClickLink(e: SyntheticEvent, a: LinkItem) {
-    e.preventDefault();
-    const idx = actions.indexOf(a);
-    triggerAction(idx);
-  }
-
   return (
     <>
     <Dialog open={open} onOpenChange={setOpen}>
@@ -985,7 +1012,14 @@ export default function CommandBar(
                     ref={(el) => {
                       itemRefs.current[index] = el;
                     }}
-                    onClick={(e) => onClickLink(e, item)}
+                    onClick={() => {
+                      if (hasExplicitSelection && highlightIndex === index) {
+                        if (item.url !== "__sdk_resource__") triggerAction(index);
+                        return;
+                      }
+                      setHighlightIndex(index);
+                      setHasExplicitSelection(true);
+                    }}
                     className={`w-full text-left px-2 py-2 flex items-center gap-3 rounded ${
                       isHighlighted
                         ? "bg-white/20 text-white"
@@ -1105,12 +1139,12 @@ export default function CommandBar(
                 <DropdownMenuContent align="end" className="frosted min-w-56 text-foreground">
                   <DropdownMenuLabel>{selectedShortcut.name}</DropdownMenuLabel>
                   <DropdownMenuSeparator className="bg-white/15" />
+                  <DropdownMenuItem onSelect={() => void runSecondaryAction("", selectedShortcut.isPinned ? "Remove favourite" : "Add shortcut as favourite")}>
+                    <IconifyIcon icon={selectedShortcut.isPinned ? "fa6-solid:star" : "fa6-regular:star"} />
+                    {selectedShortcut.isPinned ? "Remove from root shortcuts" : "Pin to root shortcuts"}
+                    <DropdownMenuShortcut>F</DropdownMenuShortcut>
+                  </DropdownMenuItem>
                   {!selectedShortcut.sdkResource && <>
-                    <DropdownMenuItem onSelect={() => void runSecondaryAction("", selectedShortcut.isPinned ? "Remove favourite" : "Add shortcut as favourite")}>
-                      <IconifyIcon icon={selectedShortcut.isPinned ? "fa6-solid:star" : "fa6-regular:star"} />
-                      {selectedShortcut.isPinned ? "Remove favourite" : "Add shortcut as favourite"}
-                      <DropdownMenuShortcut>F</DropdownMenuShortcut>
-                    </DropdownMenuItem>
                     {currentAppId && <DropdownMenuItem onSelect={() => void runSecondaryAction("", "Add shortcut to root shortcuts")}>
                       <IconifyIcon icon="fa6-solid:house" />
                       Add shortcut to root shortcuts
@@ -1133,7 +1167,7 @@ export default function CommandBar(
                         setPendingSdkAction({ resource: selectedShortcut.sdkResource, action });
                       }}
                     >
-                      <IconifyIcon icon="fa6-solid:bolt" />
+                      <IconifyIcon icon={SDK_ACTION_ICONS[action.id] ?? "fa6-solid:bolt"} />
                       {action.name}
                     </DropdownMenuItem>
                   ))}

@@ -675,8 +675,6 @@ export default function IntegrationsModularSettingsPage() {
         <p className="text-2xl font-semibold">Manage your integrations</p>
       </header>
 
-      <SdkIntegrationsManager />
-
       <div className="flex w-full flex-wrap items-center justify-between gap-3">
         <Button
           variant="outline"
@@ -737,11 +735,12 @@ export default function IntegrationsModularSettingsPage() {
             ))}
           </div>
 
-          {curatedLoading ? (
+          {curatedLoading && (
             <div className="flex h-32 items-center justify-center">
               <Loader2 className="h-6 w-6 animate-spin" />
             </div>
-          ) : curatedError ? (
+          )}
+          {curatedError && (
             <Card className="border border-destructive/40 bg-destructive/5 text-destructive-foreground">
               <CardContent className="flex items-center justify-between gap-4">
                 <p className="text-sm">{curatedError}</p>
@@ -750,10 +749,11 @@ export default function IntegrationsModularSettingsPage() {
                 </Button>
               </CardContent>
             </Card>
-          ) : visibleCuratedIntegrations.length === 0 ? (
+          )}
+          {!curatedLoading && !curatedError && selectedCuratedCategory !== "all" && visibleCuratedIntegrations.length === 0 && (
             <p className="p-6 text-sm text-muted-foreground">No integrations match this tag.</p>
-          ) : (
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          )}
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {visibleCuratedIntegrations.map((integration) => {
                 const isLoading = loadingCuratedUrl === integration.url;
                 const isConfigured = integrations.some(
@@ -806,8 +806,8 @@ export default function IntegrationsModularSettingsPage() {
                   </button>
                 );
               })}
-            </div>
-          )}
+              {selectedCuratedCategory === "all" && <SdkIntegrationsManager view="catalog" />}
+          </div>
           <p className="text-xs text-muted-foreground">
             Source:{" "}
             <a
@@ -870,10 +870,11 @@ export default function IntegrationsModularSettingsPage() {
             <div className="flex h-32 items-center justify-center">
               <Loader2 className="h-6 w-6 animate-spin" />
             </div>
-          ) : integrations.length === 0 ? (
-            <p className="p-6 text-sm">No integrations yet. Create one to get started.</p>
           ) : (
             <div className="space-y-2">
+              {integrations.length === 0 && (
+                <p className="p-6 text-sm">No installed YAML integrations yet.</p>
+              )}
               {integrations.map((integration) => {
                 const isSelected = integration.id === selectedIntegration?.id;
                 return (
@@ -894,9 +895,14 @@ export default function IntegrationsModularSettingsPage() {
                   >
                     <AppIcon source={integration?.config?.details?.icon} fallbackSource="fa6-solid:puzzle" alt={integration.name ?? ""} className="h-8 w-8 text-[1.5rem] row-span-2" />
                     <div className="flex items-center justify-between">
-                      <p className="text-sm font-semibold group-hover:text-primary">
-                        {integration.name ?? "Unnamed"}
-                      </p>
+                      <div className="flex min-w-0 flex-wrap items-center gap-2">
+                        <p className="text-sm font-semibold group-hover:text-primary">
+                          {integration.name ?? "Unnamed"}
+                        </p>
+                        <Badge variant="outline" className="border-white/20 bg-white/5 text-[0.7rem] text-white/80">
+                          YAML integration
+                        </Badge>
+                      </div>
                       <div className="flex items-center gap-2">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
@@ -946,6 +952,7 @@ export default function IntegrationsModularSettingsPage() {
 
                 );
               })}
+              <SdkIntegrationsManager view="installed" />
             </div>
           )}
         </div>

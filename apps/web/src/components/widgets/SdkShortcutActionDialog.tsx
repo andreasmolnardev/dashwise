@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import useAuth from "@/context/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -48,6 +48,7 @@ export default function SdkShortcutActionDialog({
   const [values, setValues] = useState<Record<string, string | boolean>>({});
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const autoRunKey = useRef<string | null>(null);
   const fields = useMemo(() => Object.entries(action?.inputSchema?.properties ?? {}), [action]);
   const required = new Set(action?.inputSchema?.required ?? []);
 
@@ -59,6 +60,39 @@ export default function SdkShortcutActionDialog({
     ])));
     setError(null);
   }, [action, open]);
+
+  const runAction = useCallback(async (input: Record<string, unknown>) => {
+    if (!resource || !action) return;
+
+    setSubmitting(true);
+    setError(null);
+    try {
+      await withAuth((auth) => runSdkIntegrationAction(auth, resource.instanceId, action.id, {
+        collectionId: resource.collectionId,
+        resourceId: resource.resourceId,
+        input,
+      }));
+      await onComplete?.();
+      onOpenChange(false);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "The integration action failed.");
+    } finally {
+      setSubmitting(false);
+    }
+  }, [resource, action, withAuth, onComplete, onOpenChange]);
+
+  useEffect(() => {
+    if (!open) {
+      autoRunKey.current = null;
+      return;
+    }
+    if (!resource || !action || fields.length > 0) return;
+
+    const key = `${resource.instanceId}:${resource.collectionId}:${resource.resourceId}:${action.id}`;
+    if (autoRunKey.current === key) return;
+    autoRunKey.current = key;
+    void runAction({});
+  }, [open, resource, action, fields.length, runAction]);
 
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -82,24 +116,16 @@ export default function SdkShortcutActionDialog({
         }
       }
 
-      setSubmitting(true);
-      setError(null);
-      await withAuth((auth) => runSdkIntegrationAction(auth, resource.instanceId, action.id, {
-        collectionId: resource.collectionId,
-        resourceId: resource.resourceId,
-        input,
-      }));
-      await onComplete?.();
-      onOpenChange(false);
+      await runAction(input);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "The integration action failed.");
-    } finally {
-      setSubmitting(false);
     }
   };
 
+  const showDialog = open && (fields.length > 0 || Boolean(error));
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={showDialog} onOpenChange={onOpenChange}>
       <DialogContent className="frosted text-foreground sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{action?.name ?? "Run integration action"}</DialogTitle>
@@ -152,8 +178,14 @@ export default function SdkShortcutActionDialog({
           })}
           {error && <p role="alert" className="text-sm text-red-300">{error}</p>}
           <div className="flex justify-end gap-2">
-            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} disabled={submitting}>Cancel</Button>
-            <Button type="submit" disabled={submitting || !resource || !action}>{submitting ? "Running…" : "Run action"}</Button>
+            {fields.length > 0 ? (
+              <>
+                <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} disabled={submitting}>Cancel</Button>
+                <Button type="submit" disabled={submitting || !resource || !action}>{submitting ? "Running…" : "Run action"}</Button>
+              </>
+            ) : (
+              <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Close</Button>
+            )}
           </div>
         </form>
       </DialogContent>

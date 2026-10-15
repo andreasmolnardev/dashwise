@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Loader2, Pencil, Plus, Power, Trash2 } from "lucide-react";
+import { Loader2, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import useAuth from "@/context/useAuth";
 import {
   createSdkIntegrationInstanceAction,
@@ -16,14 +16,16 @@ import {
   type SdkIntegrationRuntimeStatus,
 } from "@/lib/apiClient";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import AppIcon from "@dashwise/app-icon";
 
 type ConfigField = Record<string, unknown> & { type?: string; label?: string; description?: string; required?: boolean };
 
-export default function SdkIntegrationsManager() {
+export default function SdkIntegrationsManager({ view }: { view: "installed" | "catalog" }) {
   const { withAuth } = useAuth();
   const [catalog, setCatalog] = useState<SdkIntegrationCatalogEntry[]>([]);
   const [instances, setInstances] = useState<SdkIntegrationInstance[]>([]);
@@ -42,11 +44,12 @@ export default function SdkIntegrationsManager() {
     setLoading(true);
     setError(null);
     try {
-      const [nextCatalog, nextInstances] = await Promise.all([
-        withAuth(getSdkIntegrationCatalogAction),
-        withAuth(getSdkIntegrationInstancesAction),
-      ]);
-      setCatalog(nextCatalog);
+      if (view === "catalog") {
+        setCatalog(await withAuth(getSdkIntegrationCatalogAction));
+        return;
+      }
+
+      const nextInstances = await withAuth(getSdkIntegrationInstancesAction);
       setInstances(nextInstances);
       const nextStatuses = await Promise.all(nextInstances.map(async (instance) => {
         const status = await withAuth((auth) => getSdkIntegrationInstanceStatusAction(auth, instance.id)).catch(() => null);
@@ -58,7 +61,7 @@ export default function SdkIntegrationsManager() {
     } finally {
       setLoading(false);
     }
-  }, [withAuth]);
+  }, [view, withAuth]);
 
   useEffect(() => { void refresh(); }, [refresh]);
 
@@ -147,85 +150,127 @@ export default function SdkIntegrationsManager() {
     setError(null);
     try {
       const result = await withAuth((auth) => testSdkIntegrationConnectionAction(auth, instance.id));
-      setRuntimeStatuses((current) => ({ ...current, [instance.id]: result.status }));
-      if (!result.success) setError(result.status.message ?? `Could not connect ${instance.name}.`);
+      setRuntimeStatuses((current) => ({
+        ...current,
+        [instance.id]: !result.success && !result.status.message
+          ? { ...result.status, message: `Could not connect ${instance.name}.` }
+          : result.status,
+      }));
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "The connection test failed.");
+      const message = cause instanceof Error ? cause.message : "The connection test failed.";
+      setRuntimeStatuses((current) => ({
+        ...current,
+        [instance.id]: {
+          state: "error",
+          updatedAt: new Date().toISOString(),
+          message: `${instance.name}: ${message}`,
+        },
+      }));
     } finally {
       setTestingId(null);
     }
   };
 
   return (
-    <section className="space-y-4">
-      <header className="flex items-center justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-semibold">SDK integrations</h2>
-          <p className="text-sm text-muted-foreground">Install built-in integrations and manage their connections.</p>
+    <>
+      {view === "installed" && (loading ? (
+        <div className="flex h-16 items-center justify-center">
+          <Loader2 className="size-5 animate-spin" />
         </div>
-        <Button type="button" variant="outline" size="sm" className="frosted" onClick={() => void refresh()} disabled={loading}>
-          {loading ? <Loader2 className="mr-2 size-4 animate-spin" /> : <Plus className="mr-2 size-4" />}
-          Refresh
-        </Button>
-      </header>
+      ) : instances.map((instance) => {
+        const status = runtimeStatuses[instance.id];
+        const iconSource = instance.source === "homeassistant" ? "mdi:home-assistant" : undefined;
+        return (
+          <div
+            key={instance.id}
+            className="grid grid-cols-[auto_1fr] items-center w-full gap-1 rounded-2xl border p-4 text-left transition frosted group relative"
+          >
+            <AppIcon source={iconSource} fallbackSource="fa6-solid:puzzle" alt={instance.name} className="h-8 w-8 text-[1.5rem] row-span-2" />
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
+                <p className="truncate text-sm font-semibold group-hover:text-primary">{instance.name}</p>
+                <Badge variant="outline" className="border-white/20 bg-white/5 text-[0.7rem] text-white/80">
+                  SDK integration
+                </Badge>
+              </div>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" aria-label={`Actions for ${instance.name}`}>
+                    <MoreHorizontal className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem disabled={!instance.enabled || testingId === instance.id} onClick={() => void testConnection(instance)}>
+                    {testingId === instance.id ? "Testing connection…" : "Test connection"}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem disabled={togglingId === instance.id} onClick={() => void toggleEnabled(instance)}>
+                    {instance.enabled ? "Disable" : "Enable"}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => openEdit(instance)}>
+                    <Pencil className="mr-2 h-4 w-4" /> Edit
+                  </DropdownMenuItem>
+                  <DropdownMenuItem variant="destructive" onClick={() => void remove(instance)}>
+                    <Trash2 className="mr-2 h-4 w-4" /> Remove
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+            <p className={`text-xs ${status?.state === "error" ? "text-destructive" : "text-white/80"}`}>
+              {instance.enabled ? "Enabled" : "Disabled"}
+              {status ? ` · ${status.state}` : ""}
+            </p>
+            {status?.state === "error" && (
+              <details className="col-span-2 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm">
+                <summary className="cursor-pointer font-medium text-destructive">
+                  Show more error details for {instance.name}
+                </summary>
+                <p className="mt-2 break-words text-white/80">
+                  {instance.name}: {status.message ?? "The integration failed to start."}
+                </p>
+              </details>
+            )}
+          </div>
+        );
+      }))}
 
-      {error && <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm">{error}</p>}
-
-      {loading ? (
-        <div className="flex h-20 items-center justify-center"><Loader2 className="size-5 animate-spin" /></div>
-      ) : (
-        <div className="grid gap-3 md:grid-cols-2">
-          {catalog.map((definition) => {
-            const installed = instances.filter((instance) => instance.source === definition.id);
-            return (
-              <Card key={definition.id} className="frosted border-white/10">
-                <CardContent className="space-y-3 p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <h3 className="font-medium">{definition.name}</h3>
-                      <p className="text-xs text-muted-foreground">{definition.description ?? `Version ${definition.version}`}</p>
-                    </div>
-                    <Button type="button" size="sm" variant="outline" onClick={() => openInstall(definition)}>
-                      <Plus className="mr-1.5 size-4" /> Install
-                    </Button>
-                  </div>
-                  {installed.length > 0 && (
-                    <div className="space-y-2 border-t border-white/10 pt-3">
-                      {installed.map((instance) => (
-                        <div key={instance.id} className="flex items-center justify-between gap-2 rounded-lg bg-black/10 px-3 py-2">
-                          <div className="min-w-0">
-                            <p className="truncate text-sm font-medium">{instance.name}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {instance.enabled ? "Enabled" : "Disabled"}
-                              {runtimeStatuses[instance.id] ? ` · ${runtimeStatuses[instance.id].state}` : ""}
-                            </p>
-                          </div>
-                          <div className="flex shrink-0 gap-1">
-                            <Button type="button" size="sm" variant="ghost" onClick={() => void testConnection(instance)} disabled={!instance.enabled || testingId === instance.id}>
-                              {testingId === instance.id && <Loader2 className="mr-1.5 size-4 animate-spin" />}
-                              Test connection
-                            </Button>
-                            <Button type="button" size="sm" variant="ghost" aria-label={`${instance.enabled ? "Disable" : "Enable"} ${instance.name}`} onClick={() => void toggleEnabled(instance)} disabled={togglingId === instance.id}>
-                              {togglingId === instance.id ? <Loader2 className="size-4 animate-spin" /> : <Power className="size-4" />}
-                              {instance.enabled ? "Disable" : "Enable"}
-                            </Button>
-                            <Button type="button" size="icon" variant="ghost" aria-label={`Edit ${instance.name}`} onClick={() => openEdit(instance)}>
-                              <Pencil className="size-4" />
-                            </Button>
-                            <Button type="button" size="icon" variant="ghost" aria-label={`Remove ${instance.name}`} onClick={() => void remove(instance)}>
-                              <Trash2 className="size-4" />
-                            </Button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            );
-          })}
-          {catalog.length === 0 && <p className="text-sm text-muted-foreground">No SDK integrations are available.</p>}
-        </div>
+      {view === "catalog" && (
+        <>
+          {error && <p role="alert" className="col-span-full rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-white">{error}</p>}
+          {loading && catalog.length === 0 && (
+            <div className="col-span-full flex h-16 items-center justify-center">
+              <Loader2 className="size-5 animate-spin" />
+            </div>
+          )}
+          {catalog.map((definition) => (
+            <button
+              key={definition.id}
+              type="button"
+              className="frosted group flex min-w-0 flex-row items-start gap-2 rounded-2xl border p-2 text-left transition hover:border-primary/60 hover:bg-primary/5"
+              onClick={() => openInstall(definition)}
+            >
+              <span className="flex h-7 w-10 shrink-0 self-center items-center justify-center text-white/70 transition group-hover:text-primary">
+                <AppIcon
+                  source={definition.id === "homeassistant" ? "mdi:home-assistant" : undefined}
+                  fallbackSource="fa6-solid:puzzle"
+                  alt={definition.name}
+                  className="h-7 w-10 text-[1.5rem] text-white"
+                  imageClassName="object-contain"
+                />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="flex flex-wrap items-center gap-2">
+                  <span className="truncate font-semibold transition group-hover:text-primary">{definition.name}</span>
+                  <Badge variant="outline" className="border-white/20 bg-white/5 text-[0.7rem] text-white/80">
+                    SDK integration
+                  </Badge>
+                </span>
+                <span className="mt-1 block line-clamp-2 text-xs text-muted-foreground">
+                  {definition.description ?? `Version ${definition.version}`}
+                </span>
+              </span>
+            </button>
+          ))}
+        </>
       )}
 
       <Dialog open={!!editing || !!installing} onOpenChange={closeDialog}>
@@ -289,6 +334,6 @@ export default function SdkIntegrationsManager() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </section>
+    </>
   );
 }
