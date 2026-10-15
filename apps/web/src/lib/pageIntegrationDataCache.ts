@@ -18,6 +18,17 @@ type PageIntegrationDataResponse = {
 };
 
 const consumerCache = new Map<string, any>();
+const consumerListeners = new Map<string, Set<(item: any) => void>>();
+let activePageSessions = 0;
+
+export function registerPageIntegrationSession() {
+  activePageSessions += 1;
+  return () => { activePageSessions = Math.max(0, activePageSessions - 1); };
+}
+
+export function hasActivePageIntegrationSession() {
+  return activePageSessions > 0;
+}
 
 function resolveCanonicalConsumerKey(item: CachedConsumerPayload) {
   if (item.key && item.key.includes("#")) {
@@ -85,6 +96,8 @@ export function updatePageIntegrationConsumerCache(item: CachedConsumerPayload |
     buildConsumerCacheKey(item.consumer, item.key, item.properties),
     item,
   );
+  const listeners = consumerListeners.get(buildConsumerCacheKey(item.consumer, item.key, item.properties));
+  listeners?.forEach((listener) => listener(item));
 
   if (item.consumer === "glanceable") {
     const aliasKey = item.key.startsWith("local-")
@@ -95,6 +108,22 @@ export function updatePageIntegrationConsumerCache(item: CachedConsumerPayload |
       item,
     );
   }
+}
+
+export function subscribePageIntegrationConsumer(
+  consumer: ConsumerType,
+  key: string,
+  properties: Record<string, any> | undefined,
+  listener: (item: any) => void,
+) {
+  const cacheKey = buildConsumerCacheKey(consumer, key, properties);
+  const listeners = consumerListeners.get(cacheKey) ?? new Set();
+  listeners.add(listener);
+  consumerListeners.set(cacheKey, listeners);
+  return () => {
+    listeners.delete(listener);
+    if (listeners.size === 0) consumerListeners.delete(cacheKey);
+  };
 }
 
 export function clearPageIntegrationConsumerCache() {

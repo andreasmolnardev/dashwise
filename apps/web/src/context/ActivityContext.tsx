@@ -39,6 +39,7 @@ type ActivityContextValue = {
     resources: readonly SdkResourceIdentity[],
     listener: (event: SdkResourceRevision) => void,
   ) => () => void;
+  subscribePageWidgets: (pageId: string, listener: (item: Record<string, unknown>) => void) => () => void;
 };
 
 const ActivityContext = createContext<ActivityContextValue | null>(null);
@@ -58,6 +59,7 @@ export function ActivityProvider({ children }: { children: ReactNode }) {
   const socket = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<number | null>(null);
   const sdkResourceSubscriptions = useRef(new SdkResourceSubscriptions());
+  const pageWidgetSubscriptions = useRef(new Map<string, Set<(item: Record<string, unknown>) => void>>());
   const [notifications, setNotifications] = useState<ActivityNotification[]>([]);
   const [calendarEvents, setCalendarEvents] = useState<ActivityCalendarEvent[]>([]);
 
@@ -75,10 +77,17 @@ export function ActivityProvider({ children }: { children: ReactNode }) {
       const nextSocket = new WebSocket(socketUrl(token, sessionId));
       socket.current = nextSocket;
       nextSocket.onopen = () => {
+        if (closed) {
+          nextSocket.close();
+          return;
+        }
         nextSocket.send(JSON.stringify({ type: "activity:subscribe" }));
         const resources = sdkResourceSubscriptions.current.resources();
         if (resources.length > 0) {
           nextSocket.send(JSON.stringify({ type: "sdk:resources:subscribe", resources }));
+        }
+        for (const pageId of pageWidgetSubscriptions.current.keys()) {
+          nextSocket.send(JSON.stringify({ type: "page-hello", pageId }));
         }
       };
       nextSocket.onmessage = (event) => {
@@ -112,6 +121,12 @@ export function ActivityProvider({ children }: { children: ReactNode }) {
             sdkResourceSubscriptions.current.dispatch(revision);
             return;
           }
+          if (message.type === "page-widget" && typeof message.pageId === "string" && message.item && typeof message.item === "object") {
+            for (const listener of pageWidgetSubscriptions.current.get(message.pageId) ?? []) {
+              listener(message.item as Record<string, unknown>);
+            }
+            return;
+          }
           if (message.type !== "activity:snapshot") return;
           void queryClient.invalidateQueries({ queryKey: ["api", token, ...queryKeys.activities.root] });
            const nextNotifications = Array.isArray(message.notifications) ? message.notifications : [];
@@ -131,7 +146,15 @@ export function ActivityProvider({ children }: { children: ReactNode }) {
     return () => {
       closed = true;
       if (reconnectTimer.current !== null) window.clearTimeout(reconnectTimer.current);
-      socket.current?.close();
+      const currentSocket = socket.current;
+      if (currentSocket?.readyState === WebSocket.CONNECTING) {
+        currentSocket.onopen = () => currentSocket.close();
+        currentSocket.onmessage = null;
+        currentSocket.onerror = null;
+        currentSocket.onclose = null;
+      } else {
+        currentSocket?.close();
+      }
       socket.current = null;
     };
   }, [queryClient, sessionId, token]);
@@ -159,6 +182,24 @@ export function ActivityProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  const subscribePageWidgets = useCallback((pageId: string, listener: (item: Record<string, unknown>) => void) => {
+    const listeners = pageWidgetSubscriptions.current.get(pageId) ?? new Set();
+    listeners.add(listener);
+    pageWidgetSubscriptions.current.set(pageId, listeners);
+    if (socket.current?.readyState === WebSocket.OPEN) {
+      socket.current.send(JSON.stringify({ type: "page-hello", pageId }));
+    }
+    return () => {
+      listeners.delete(listener);
+      if (listeners.size === 0) {
+        pageWidgetSubscriptions.current.delete(pageId);
+        if (socket.current?.readyState === WebSocket.OPEN) {
+          socket.current.send(JSON.stringify({ type: "page-goodbye", pageId }));
+        }
+      }
+    };
+  }, []);
+
   const markNotificationsAsRead = (ids: string[]) => {
     const markAsRead = (currentNotifications: ActivityNotification[]) =>
       currentNotifications.map((notification) =>
@@ -174,7 +215,7 @@ export function ActivityProvider({ children }: { children: ReactNode }) {
   };
 
   const unreadCount = notifications.filter((notification) => notification.status !== "read").length;
-  return <ActivityContext.Provider value={{ notifications, unreadCount, calendarEvents, refresh, markNotificationsAsRead, subscribeSdkResources }}>{children}</ActivityContext.Provider>;
+  return <ActivityContext.Provider value={{ notifications, unreadCount, calendarEvents, refresh, markNotificationsAsRead, subscribeSdkResources, subscribePageWidgets }}>{children}</ActivityContext.Provider>;
 }
 
 export function useActivity() {

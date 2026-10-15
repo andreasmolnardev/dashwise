@@ -30,6 +30,11 @@ import {
   getNewsFeedAction,
   previewImageSourceAction,
 } from '@/lib/apiClient';
+import {
+  hasActivePageIntegrationSession,
+  readPageIntegrationConsumer,
+  subscribePageIntegrationConsumer,
+} from "@/lib/pageIntegrationDataCache";
 
 const GlanceableClockWidget = lazy(() => import("./dashboard/GlanceableClock"));
 const CountdownWidget = lazy(() => import("@dashwise/integrationskit/static-widgets/CountdownWidget"));
@@ -47,6 +52,7 @@ export type WidgetProps = {
   isPreview?: boolean;
   previewTemplate?: string;
   defaultOpen?: boolean;
+  loadingLabel?: string;
 };
 
 // Kept for compatibility with existing widget item components.
@@ -61,10 +67,26 @@ function stripWidgetIndex(params?: Record<string, any>) {
 
 export function renderWidget(props: WidgetProps): ReactNode {
   return (
-    <Suspense fallback={<WidgetLoadingState className={props.className} />}>
+    <Suspense fallback={<WidgetLoadingState className={props.className} label={props.loadingLabel ?? resolveWidgetLoadingLabel(props.type, props.params)} />}>
       <ResolvedWidget {...props} />
     </Suspense>
   );
+}
+
+function resolveWidgetLoadingLabel(type: string, params?: Record<string, any>) {
+  const configuredName = [params?.widgetName, params?.displayName, params?.name, params?.title]
+    .find((value): value is string => typeof value === "string" && value.trim().length > 0);
+  const source = configuredName ?? (type === "widget" && typeof params?.key === "string" ? params.key : type);
+  const separatorIndex = source.lastIndexOf("#");
+  const displayName = separatorIndex >= 0 && separatorIndex < source.length - 1
+    ? source.slice(separatorIndex + 1).trim()
+    : source;
+  return displayName
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/[-_]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (letter) => letter.toUpperCase()) || "Widget";
 }
 
 function ResolvedWidget({
@@ -74,6 +96,7 @@ function ResolvedWidget({
   className,
   isPreview,
   defaultOpen,
+  loadingLabel,
 }: WidgetProps): ReactNode {
   const renderParams = stripWidgetIndex(params);
   const resolvedType = type === "widget" && typeof renderParams?.key === "string" && renderParams.key.trim()
@@ -167,6 +190,7 @@ function ResolvedWidget({
           isPreview={isPreview}
           properties={renderParams}
           className={finalClassName}
+          loadingLabel={loadingLabel ?? resolveWidgetLoadingLabel(resolvedType, renderParams)}
         />
       );
   }
@@ -519,7 +543,7 @@ function ImageWidget({
     };
   }, [altTemplate, imageUrlPath, isPreview, sourceUrl, titleTemplate, withAuth]);
 
-  if (loading) return <WidgetLoadingState className={className} />;
+  if (loading) return <WidgetLoadingState className={className} label={title || "Image"} />;
   if (error) return <WidgetErrorState className={className} message={error} />;
 
   return (
@@ -633,12 +657,14 @@ function IntegrationWidget({
   properties,
   isPreview,
   className,
+  loadingLabel,
 }: {
   type: string;
   consumerKey?: string;
   properties?: Record<string, any>;
   isPreview?: boolean;
   className?: string;
+  loadingLabel?: string;
 }) {
   const localization = useLocalization();
   const { withAuth } = useAuth();
@@ -671,6 +697,32 @@ function IntegrationWidget({
     const environmentOverrides = extractEnvironmentOverrides(
       resolvedProperties,
     );
+
+    const pageSessionActive = !isPreview && hasActivePageIntegrationSession();
+    const pagePayload = !isPreview
+      ? readPageIntegrationConsumer("widget", type, resolvedProperties)
+      : null;
+    const unsubscribePage = !isPreview
+      ? subscribePageIntegrationConsumer("widget", type, resolvedProperties, (item) => {
+          if (cancelled) return;
+          setLocalError(null);
+          setConsumerPayload(item);
+          setLoading(false);
+        })
+      : undefined;
+
+    if (pagePayload) {
+      setConsumerPayload(pagePayload);
+      setLocalError(null);
+      setLoading(false);
+    }
+    if (pageSessionActive) {
+      setLoading(!pagePayload);
+      return () => {
+        cancelled = true;
+        unsubscribePage?.();
+      };
+    }
 
     if (loadingTimeoutRef.current !== null) {
       window.clearTimeout(loadingTimeoutRef.current);
@@ -719,6 +771,7 @@ function IntegrationWidget({
 
     return () => {
       cancelled = true;
+      unsubscribePage?.();
     };
   }, [type, requestKey, propertiesKey, isPreview, withAuth]);
 
@@ -747,7 +800,7 @@ function IntegrationWidget({
   }
 
   if (loading || !consumerPayload) {
-    return <WidgetLoadingState className={className} />;
+    return <WidgetLoadingState className={className} label={loadingLabel ?? type} />;
   }
 
   if (!consumerPayload?.blueprint?.widgetJSON) {
@@ -879,14 +932,14 @@ function WidgetErrorState({
   );
 }
 
-function WidgetLoadingState({ className }: { className?: string }) {
+function WidgetLoadingState({ className, label = "Widget" }: { className?: string; label?: string }) {
   return (
     <div
       className={`rounded-xl p-3 flex items-center justify-center min-h-25 ${
         className ?? "frosted"
       }`}
     >
-      <div className="text-xs text-white/50 animate-pulse">Loading widget data...</div>
+      <div className="text-xs text-white/50 animate-pulse">Loading {label}...</div>
     </div>
   );
 }

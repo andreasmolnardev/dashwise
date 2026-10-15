@@ -17,20 +17,28 @@ import {
 } from "../lib/activity";
 import { trackSessionConnection, type SessionConnection } from "../lib/session-connections";
 import { requireAuth } from "./shared";
+import { getPageConfigJSON } from "../lib/data/pageConfig";
+import { normalizePageName } from "./shared";
+import { collectPageConsumers } from "./pageConfig.route";
+import { resolveConsumerDataForRequest } from "./integrations.route";
 
 const activityRoute = new Hono();
 export const activityWebSocketServerOptions = websocket;
 
 activityRoute.get("/api/v1/activity",  upgradeWebSocket((c) => {
   let refreshTimer: ReturnType<typeof setInterval> | undefined;
+  let pageRefreshTimer: ReturnType<typeof setInterval> | undefined;
+  let activePageId: string | undefined;
   let unsubscribeActivity: (() => void) | undefined;
   let unsubscribeSdkResources: (() => void) | undefined;
   let unregisterSessionConnection: (() => void) | undefined;
   let lifecycle: SessionConnection | undefined;
+  let sendPageWidgets: ((pageId: string) => Promise<void>) | undefined;
   let closed = false;
   const cleanup = () => {
     closed = true;
     if (refreshTimer) clearInterval(refreshTimer);
+    if (pageRefreshTimer) clearInterval(pageRefreshTimer);
     unsubscribeActivity?.();
     unsubscribeSdkResources?.();
     unregisterSessionConnection?.();
@@ -116,6 +124,50 @@ activityRoute.get("/api/v1/activity",  upgradeWebSocket((c) => {
           }));
         };
 
+        sendPageWidgets = async (pageId: string) => {
+          if (pageId !== activePageId || !await lifecycle?.ensureValid() || !lifecycle?.isActive()) return;
+          const pageName = normalizePageName(pageId);
+          const pageConfig = (await getPageConfigJSON(userId, pageName)) ?? {};
+          const consumers = collectPageConsumers(pageConfig);
+          const sharedRuntimeCache = new Map<string, any>();
+          await Promise.all(consumers.map(async (consumer) => {
+            let item: Record<string, unknown>;
+            try {
+              const payload = await resolveConsumerDataForRequest({
+                userId,
+                pb,
+                type: consumer.consumer,
+                key: consumer.key,
+                properties: consumer.properties,
+                isPreview: false,
+                sharedRuntimeCache,
+              });
+              item = {
+                consumer: consumer.consumer,
+                key: consumer.key,
+                properties: consumer.properties,
+                integrationId: payload.integrationId ?? null,
+                consumerKey: consumer.consumerKey,
+                success: true,
+                data: payload.data,
+                blueprint: payload.blueprint,
+              };
+            } catch (error) {
+              item = {
+                consumer: consumer.consumer,
+                key: consumer.key,
+                properties: consumer.properties,
+                integrationId: null,
+                consumerKey: consumer.consumerKey,
+                success: false,
+                error: error instanceof Error ? error.message : String(error),
+              };
+            }
+            if (pageId !== activePageId || !await lifecycle?.ensureValid() || !lifecycle?.isActive()) return;
+            ws.send(JSON.stringify({ type: "page-widget", pageId, item }));
+          }));
+        };
+
         unsubscribeActivity = subscribeActivity(userId, sendSnapshot);
         await sendSnapshot();
         if (!lifecycle?.isActive()) return;
@@ -175,6 +227,21 @@ activityRoute.get("/api/v1/activity",  upgradeWebSocket((c) => {
               sdkResourceIdentities.delete(resourceIdentity(identity));
             }
           }
+          return;
+        }
+        if (message.type === "page-hello" && typeof message.pageId === "string" && message.pageId.length <= 128) {
+          activePageId = normalizePageName(message.pageId);
+          if (pageRefreshTimer) clearInterval(pageRefreshTimer);
+          const pageId = activePageId;
+          void sendPageWidgets?.(pageId).catch(() => undefined);
+          pageRefreshTimer = setInterval(() => void sendPageWidgets?.(pageId).catch(() => undefined), 10_000);
+          return;
+        }
+        if (message.type === "page-goodbye" && typeof message.pageId === "string"
+          && normalizePageName(message.pageId) === activePageId) {
+          activePageId = undefined;
+          if (pageRefreshTimer) clearInterval(pageRefreshTimer);
+          pageRefreshTimer = undefined;
           return;
         }
         if (connectedUserId && connectedSessionId && activityConnection && handleActivityMessage(

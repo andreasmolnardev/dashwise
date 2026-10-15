@@ -6,6 +6,7 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Icon } from "@iconify-icon/react";
 import { Edit3, EyeOff, Maximize2, MoreHorizontal, RefreshCw } from "lucide-react";
 import PagesTabs from "../PagesTabs";
+import DashboardMediaPlayerButton from "./DashboardMediaPlayerButton";
 import UpdateDetailsDialogComponent from "./UpdateDetailsDialog";
 import QuickLaunchPopover from "./QuickLaunchPopover";
 import useAuth from "@/context/useAuth";
@@ -13,7 +14,7 @@ import { useActivity } from "@/context/ActivityContext";
 import { getPageIntegrationDataAction } from '@/lib/apiClient';
 import { renderWidget } from "../widgets/Widget";
 import PageNotFound from "../errorPages/PageNotFound";
-import { primePageIntegrationConsumerCache } from "@/lib/pageIntegrationDataCache";
+import { primePageIntegrationConsumerCache, registerPageIntegrationSession, updatePageIntegrationConsumerCache } from "@/lib/pageIntegrationDataCache";
 import config from "@/lib/config";
 import {
     DropdownMenu,
@@ -258,6 +259,7 @@ export default function DashboardLayoutTemplate({
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
     const { token, user, withAuth } = useAuth();
+    const { subscribePageWidgets } = useActivity();
     const openFromURL = searchParams.get("search") === "1";
     const hasSearchBarWidget = useMemo(() => {
         const columns = config?.columns as
@@ -299,59 +301,18 @@ export default function DashboardLayoutTemplate({
         primePageIntegrationConsumerCache(response);
     }, [pageName, withAuth]);
 
-    useEffect(() => {
-        let cancelled = false;
-        let refreshInFlight = false;
-
-        const primeIntegrationData = async () => {
-            if (refreshInFlight || document.visibilityState !== "visible") return;
-            refreshInFlight = true;
-            try {
-                await refreshPageIntegrationData();
-                if (cancelled) return;
-            } catch (error) {
-                if (!cancelled) {
-                    console.error("Failed to prime page integration data", error);
-                }
-            } finally {
-                refreshInFlight = false;
-            }
-        };
-
-        void primeIntegrationData();
-
-        // Poll for integration data periodically instead of using websockets.
-        let intervalId: number | null = null;
-        const POLL_INTERVAL_MS = 10000;
-
-        const startPolling = () => {
-            if (intervalId) return;
-            intervalId = window.setInterval(() => void primeIntegrationData(), POLL_INTERVAL_MS);
-        };
-
-        const stopPolling = () => {
-            if (intervalId) window.clearInterval(intervalId);
-            intervalId = null;
-        };
-
-        const handleVisibilityChange = () => {
-            if (document.visibilityState === "visible" && token) {
-                void primeIntegrationData();
-                startPolling();
-            } else {
-                stopPolling();
-            }
-        };
-
-        if (token && document.visibilityState === "visible") startPolling();
-        document.addEventListener("visibilitychange", handleVisibilityChange);
-
+    useLayoutEffect(() => {
+        if (!token) return;
+        const unregisterPageSession = registerPageIntegrationSession();
+        const pageId = (pageName ?? "home").trim().toLowerCase() || "home";
+        const unsubscribe = subscribePageWidgets(pageId, (item) => {
+            updatePageIntegrationConsumerCache(item as any);
+        });
         return () => {
-            cancelled = true;
-            document.removeEventListener("visibilitychange", handleVisibilityChange);
-            stopPolling();
+            unsubscribe();
+            unregisterPageSession();
         };
-    }, [refreshPageIntegrationData, token]);
+    }, [pageName, subscribePageWidgets, token]);
 
     // Start each dashboard page on its center panel on mobile.
     useLayoutEffect(() => {
@@ -1101,6 +1062,9 @@ function BottomNavbar({
                         </Link>
                     </li>
                 )}
+                <li className="hidden md:block">
+                    <DashboardMediaPlayerButton />
+                </li>
                 <li className="relative">
                     <Link
                         to="/apps/monitoring/notifications"

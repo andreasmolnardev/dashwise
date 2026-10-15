@@ -22,7 +22,7 @@ const FRONTEND_ONLY_GLANCEABLES = new Set([
   "latest-activities",
 ]);
 
-type PageConsumerCandidate = {
+export type PageConsumerCandidate = {
   consumer: "widget" | "glanceable";
   key: string;
   properties: Record<string, any>;
@@ -132,7 +132,7 @@ pageConfigRoute
 
 export default pageConfigRoute;
 
-function collectPageConsumers(config: PageConfig): PageConsumerCandidate[] {
+export function collectPageConsumers(config: PageConfig): PageConsumerCandidate[] {
   const dedupe = new Set<string>();
   const result: PageConsumerCandidate[] = [];
 
