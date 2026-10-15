@@ -1,5 +1,5 @@
 "use client";
-import { ReactNode, useEffect, useState } from "react";
+import { ReactNode, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { validateAuthTokenAction } from '@/lib/apiClient';
@@ -23,17 +23,12 @@ type ThemeMode = "light" | "dark" | "system";
 export default function AuthWrapper({ children }: AuthWrapperProps) {
   const navigate = useNavigate();
   const { token, user, setAuth, logout } = useAuth();
-  const [isMounted, setIsMounted] = useState(false);
   const authValidation = useQuery({
     queryKey: ["auth", "validate", token],
     enabled: Boolean(token),
     retry: false,
     queryFn: () => validateAuthTokenAction({ token }),
   });
-
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
 
   useEffect(() => {
     if (!token) {
@@ -142,20 +137,6 @@ export default function AuthWrapper({ children }: AuthWrapperProps) {
     };
   }, [backgroundImageUrl, hasAppearancePreferences, token]);
 
-
-  if (!isMounted) {
-    return (
-      <LocalizationProvider>
-        <NotificationProvider>
-          <MediaPlayerProvider>
-            <ActivityProvider>
-              <div className={cn("min-h-screen overflow-hidden")}>{children}</div>
-            </ActivityProvider>
-          </MediaPlayerProvider>
-        </NotificationProvider>
-      </LocalizationProvider>
-    );
-  }
 
   if (!token) {
     return null;
