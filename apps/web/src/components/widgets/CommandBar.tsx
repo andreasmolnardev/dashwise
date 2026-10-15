@@ -1,11 +1,10 @@
 import React from "react";
 
-import { Dialog, DialogClose, DialogContent } from "../ui/dialog";
+import { Dialog, DialogContent } from "../ui/dialog";
 import { useQueryClient } from "@tanstack/react-query";
 import { useApiQuery } from "@/hooks/useApiQuery";
 import { queryKeys } from "@/lib/queryClient";
 import useAuth from "@/context/useAuth";
-import { Separator } from "../ui/separator";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import { DialogTitle } from "@radix-ui/react-dialog";
 import { Icon as IconifyIcon } from "@iconify-icon/react";
@@ -37,6 +36,7 @@ type LinkItem = {
   icon?: string;
   linkGroup?: string;
   type?: string;
+  integrationName?: string;
   name: string;
   url: string;
   tags?: string[];
@@ -83,6 +83,31 @@ const SDK_ACTION_ICONS: Record<string, string> = {
   execute: "fa6-solid:play",
   activate: "fa6-solid:bolt",
 };
+const SDK_PLAYBACK_ACTION_ID = "__dashwise_playback";
+
+function getEnterActionLabel(item?: LinkItem) {
+  if (!item) return "Select an item";
+  if (item.url === "__sdk_resource__") {
+    if (item.sdkActions?.some((action) => action.id === SDK_PLAYBACK_ACTION_ID)) {
+      return `Play ${item.name}`;
+    }
+    const toggleAction = item.sdkActions?.find((action) => action.id === "toggle");
+    return toggleAction ? `${toggleAction.name} ${item.name}` : `More actions for ${item.name}`;
+  }
+  if (item.url === "__app_back__") return "Go back";
+  if (item.url === "__qr_action__") return "Generate QR code";
+  if (item.url === "__search_action__") return item.name;
+  if (item.url === "__bang_search__") return `Search with ${item.bangEngineName ?? item.linkGroup ?? "engine"}`;
+  if (item.url === "__forward_search__") return `Forward to ${item.bangEngineName ?? "search engine"}`;
+  if (item.url === "__logout_action__") return "Log out";
+  if (item.url === "__privacy_action__") return "Toggle privacy mode";
+  if (item.url === "__toggle_theme__") return "Toggle theme";
+  if (item.url === "__toggle_link_tile_layout__") return "Toggle link layout";
+  if (item.url.startsWith("__engine_search__:")) return `Search with ${item.engineSlug ?? "engine"}`;
+  if (item.url === "__proxy_action__" || item.url.toLowerCase().startsWith("shortcut:")) return `Run ${item.name}`;
+  if (item.url.startsWith("app:")) return `Open ${item.name}`;
+  return `Open ${item.name || "item"}`;
+}
 
 type SearchEngine = {
   icon?: string;
@@ -102,6 +127,7 @@ type IncomingShortcut = {
   icon?: string;
   secondaryInfo?: string;
   type?: string;
+  integrationName?: string;
   action?: string | ProxyAction | SdkResourceAction;
   url?: string;
   linkGroup?: string;
@@ -210,6 +236,7 @@ function normalizeConfigLinks(input: IncomingShortcut[] = []): LinkItem[] {
         linkGroup: it.secondaryInfo || it.linkGroup || "",
         tags: it.tags || "",
         type,
+        integrationName: it.integrationName,
         url,
         proxyAction,
         isPinned: it.isPinned,
@@ -584,6 +611,7 @@ export default function CommandBar(
   const defaultHighlightIndex = actions.findIndex((action) => action.url !== "__app_back__");
   const activeHighlightIndex = hasExplicitSelection ? highlightIndex : defaultHighlightIndex;
   const selectedAction = actions[activeHighlightIndex];
+  const enterActionLabel = getEnterActionLabel(selectedAction);
   const showQrPreview = Boolean(
     selectedAction?.url === "__qr_action__" || selectedAction?.isQrAction,
   );
@@ -667,9 +695,11 @@ export default function CommandBar(
     } else if (a.url === "__qr_action__") {
       return;
     } else if (a.url === "__sdk_resource__") {
+      const playbackAction = a.sdkActions?.find((action) => action.id === SDK_PLAYBACK_ACTION_ID);
       const toggleAction = a.sdkActions?.find((action) => action.id === "toggle");
-      if (toggleAction && a.sdkResource) {
-        setPendingSdkAction({ resource: a.sdkResource, action: toggleAction });
+      const defaultSdkAction = playbackAction ?? toggleAction;
+      if (defaultSdkAction && a.sdkResource) {
+        setPendingSdkAction({ resource: a.sdkResource, action: defaultSdkAction });
       } else {
         setActionsMenuOpen(true);
       }
@@ -921,39 +951,10 @@ export default function CommandBar(
       <DialogTitle className="hidden">Search Bar</DialogTitle>
       <DialogContent
         showCloseButton={false}
-        className="min-w-[50vw] min-h-[50vh] mx-auto frosted backdrop-blur-md grid grid-rows-[auto_1fr_auto] rounded-lg p-0 shadow-lg text-foreground data-[state=open]:slide-in-from-bottom-2 data-[state=closed]:slide-out-to-bottom-2"
+        className="fixed w-[min(800px,calc(100vw-2rem))] max-w-none sm:max-w-none h-[min(80vh,calc(100dvh-1rem))] max-h-[calc(100dvh-1rem)] mx-auto frosted backdrop-blur-md grid grid-rows-[auto_minmax(0,1fr)] gap-0 overflow-hidden rounded-[4rem] p-0 text-foreground shadow-2xl data-[state=open]:slide-in-from-bottom-2 data-[state=closed]:slide-out-to-bottom-2"
       >
-        <div className="absolute top-4 right-4 z-20 flex items-center gap-2">
-          {query && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setQuery("");
-                    inputRef.current?.focus();
-                  }}
-                  className="rounded-xs opacity-70 transition-opacity hover:opacity-100 focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2 ring-offset-background"
-                  aria-label="Delete Input"
-                >
-                  <IconifyIcon icon="mynaui:delete-solid" className="size-4" />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent>Delete Input</TooltipContent>
-            </Tooltip>
-          )}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <DialogClose className="rounded-xs opacity-70 transition-opacity hover:opacity-100 focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2 ring-offset-background">
-                <IconifyIcon icon="lucide:x" className="size-4" />
-                <span className="sr-only">Close Search</span>
-              </DialogClose>
-            </TooltipTrigger>
-            <TooltipContent>Close Search</TooltipContent>
-          </Tooltip>
-        </div>
-        <div>
-          <div className="relative flex mx-3 mt-3 pt-1 items-center">
+        <div className="flex h-14 min-w-0 items-center px-3">
+          <div className="relative flex h-10 min-w-0 flex-1 items-center gap-3 rounded-full frosted px-3">
             <input
               ref={inputRef}
               value={query}
@@ -969,29 +970,46 @@ export default function CommandBar(
               autoCorrect="off"
               autoCapitalize="off"
               spellCheck={false}
-              className="w-full flex-1 rounded border border-none bg-transparent pr-16 focus:outline-none relative z-10"
+              className="relative z-10 h-full min-w-0 flex-1 border-none bg-transparent text-[15px] text-foreground outline-none placeholder:text-foreground/50 focus:outline-none"
               aria-label="Command search"
             />
             {!query && clipboardText && (
-              <div className="absolute inset-y-0 left-0 flex items-center pointer-events-none text-muted-foreground opacity-50 z-0">
-                <span className="truncate max-w-[40vw]">{clipboardText}</span>
-                <span className="ml-2 text-[10px] border border-muted-foreground/50 rounded px-1.5 py-0.5">
+              <div className="pointer-events-none absolute inset-y-0 left-4 z-0 flex items-center text-foreground/50">
+                <span className="max-w-[40vw] truncate">{clipboardText}</span>
+                <span className="ml-2 shrink-0 rounded border border-white/25 px-1.5 py-0.5 text-[10px] text-foreground/70">
                   Tab
                 </span>
               </div>
             )}
+            {query && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setQuery("");
+                      inputRef.current?.focus();
+                    }}
+                    className="shrink-0 rounded-full p-2 text-foreground/65 transition-colors hover:bg-white/10 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    aria-label="Delete Input"
+                  >
+                    <IconifyIcon icon="mynaui:delete-solid" className="size-4" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>Delete Input</TooltipContent>
+              </Tooltip>
+            )}
           </div>
-          <Separator className="mt-2 bg-(--text-primary)/20" />
         </div>
 
         <div
-          className={`grid min-h-0 gap-3 px-2 pb-2 ${
+          className={`grid min-h-0 gap-3 px-1.5 py-2 ${
             showQrPreview
               ? "lg:grid-cols-[minmax(0,1fr)_14rem]"
               : "lg:grid-cols-1"
           }`}
         >
-          <div ref={listRef} className="max-h-[35vh] overflow-auto">
+          <div ref={listRef} className="h-full min-h-0 overflow-auto overscroll-contain px-1 pb-14 scrollbar-thin">
             {actions.map((item, index) => {
               const isSearchAction = item.url === "__search_action__";
               const isBangAction = item.url === "__bang_search__" ||
@@ -1008,7 +1026,7 @@ export default function CommandBar(
               return (
                 <React.Fragment key={item.url + item.name + index}>
                   {showSectionHeader && (
-                    <div className="px-2 py-1 mt-1 text-xs font-semibold text-muted-foreground">
+                    <div className="mt-1 px-2 py-1.5 text-xs font-semibold text-foreground/60">
                       {item._section}
                     </div>
                   )}
@@ -1024,14 +1042,14 @@ export default function CommandBar(
                       setHighlightIndex(index);
                       setHasExplicitSelection(true);
                     }}
-                    className={`w-full text-left px-2 py-2 flex items-center gap-3 rounded ${
+                    className={`mx-0.5 flex w-[calc(100%-0.25rem)] items-center gap-3 rounded-md px-2.5 py-2 text-left transition-colors ${
                       isHighlighted
-                        ? "bg-white/20 text-white"
-                        : "hover:bg-white/10"
+                        ? "bg-white/20 text-white shadow-sm"
+                        : "text-foreground hover:bg-white/10"
                     }`}
                   >
                     <div
-                      className={`w-6 h-6 rounded-md flex items-center justify-center bg-white/20`}
+                      className="flex size-6 shrink-0 items-center justify-center rounded-md bg-white/15"
                     >
                     {item.icon
                       ? (
@@ -1059,21 +1077,21 @@ export default function CommandBar(
                       )
                       : <div className="w-4 h-4 bg-gray-300 rounded-sm" />}
                   </div>
-                  <div className="flex-1 flex items-center min-w-0">
-                    <div className="flex-1 min-w-0 flex gap-2 items-center overflow-hidden">
-                      <div className="text-sm font-medium truncate shrink min-w-0">
+                  <div className="flex min-w-0 flex-1 items-center">
+                    <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
+                      <div className="min-w-0 shrink truncate text-sm font-medium">
                         {item.name}
                       </div>
 
-                      <span className="text-xs text-muted-foreground truncate shrink-0 max-w-[30%]">
+                      <span className="max-w-[30%] shrink-0 truncate text-xs text-foreground/55">
                         {item.linkGroup || ""}
                       </span>
                     </div>
 
-                    <div className="ml-3 text-xs text-muted-foreground whitespace-nowrap">
+                    <div className="ml-3 whitespace-nowrap text-xs text-foreground/60">
                       {isCommand
                         ? <span className="italic">use client</span>
-                        : <span>{item.type}</span>}
+                        : <span>{item.integrationName || item.type}</span>}
                     </div>
                   </div>
                   </button>
@@ -1127,17 +1145,23 @@ export default function CommandBar(
             : null}
         </div>
 
-        <section>
-          <Separator className="bg-(--text-primary)/20 my-2" />
-
-          <div className="mx-3 mb-3 flex items-center justify-between gap-3 text-xs text-gray-400">
-            <span><code>esc</code> Close searchbar · <code>Enter</code> Open shortcut</span>
+        <section className="pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/25 via-black/10 to-transparent px-4 pb-2 pt-4">
+          <div className="grid min-h-12 grid-cols-3 items-center text-xs text-foreground/70">
+            <span className="pointer-events-auto inline-flex w-fit items-center gap-2 rounded-full frosted px-3 py-1.5 justify-self-start">
+              <kbd className="inline-flex h-5 min-w-5 items-center justify-center rounded-md border border-white/15 bg-white/[0.06] px-1 text-[10px] text-foreground/80">esc</kbd>
+              Close
+            </span>
+            <span className="pointer-events-auto inline-flex w-fit items-center gap-2 rounded-full frosted px-3 py-1.5 justify-self-center">
+              <span className="max-w-[34vw] truncate" title={enterActionLabel}>{enterActionLabel}</span>
+              <kbd className="inline-flex h-5 min-w-5 items-center justify-center rounded-md border border-white/15 bg-white/[0.06] px-1 text-[10px] text-foreground/80">↵</kbd>
+            </span>
             {selectedShortcut && (
               <DropdownMenu open={actionsMenuOpen} onOpenChange={setActionsMenuOpen}>
                 <DropdownMenuTrigger asChild>
-                  <button type="button" className="rounded px-2 py-1 text-foreground/80 hover:bg-white/10">
-                    <IconifyIcon icon="glyphs:arrow-external-bold" className="mr-1 align-[-0.1em]" />
-                    More Actions <kbd className="ml-1">(*)</kbd>
+                  <button type="button" className="pointer-events-auto inline-flex w-fit items-center gap-2 rounded-full frosted px-3 py-1.5 text-foreground/80 transition-colors hover:text-primary justify-self-end">
+                    <IconifyIcon icon="glyphs:arrow-external-bold" />
+                    More Actions
+                    <kbd className="inline-flex h-5 items-center justify-center rounded-md border border-white/15 bg-white/[0.06] px-1.5 text-[10px] text-foreground/80">(*)</kbd>
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="frosted min-w-56 text-foreground">
@@ -1184,6 +1208,7 @@ export default function CommandBar(
                 </DropdownMenuContent>
               </DropdownMenu>
             )}
+            {!selectedShortcut && <span className="justify-self-end" />}
           </div>
         </section>
       </DialogContent>

@@ -1,5 +1,5 @@
 'use client';
-import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useState, type SetStateAction } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type SetStateAction } from 'react';
 import useAuth, { COMMAND_BAR_OPEN_EVENT } from "@/context/useAuth";
 import { useActivity } from "@/context/ActivityContext";
 import { getShortcutsAction } from '@/lib/apiClient';
@@ -32,6 +32,7 @@ type Shortcut = {
   icon: string;
   secondaryInfo: string;
   type: string;
+  integrationName?: string;
   action: string | ProxyAction;
   actions?: Record<string, string>;
   secondaryActions?: Record<string, string>;
@@ -113,11 +114,36 @@ function CommandBarHost() {
   const shortcutsQuery = useApiQuery(queryKeys.links.search, getShortcutsAction, { enabled: open });
   const shortcuts = useMemo(() => normalizeShortcuts(shortcutsQuery.data), [shortcutsQuery.data]);
   const sdkResources = useMemo(() => getSdkShortcutResourceIdentities(shortcuts), [shortcuts]);
+  const sdkResourceSignature = JSON.stringify(sdkResources);
+  const stableSdkResources = useRef({ signature: sdkResourceSignature, resources: sdkResources });
+  if (stableSdkResources.current.signature !== sdkResourceSignature) {
+    stableSdkResources.current = { signature: sdkResourceSignature, resources: sdkResources };
+  }
+  const subscribedSdkResources = stableSdkResources.current.resources;
+  const pendingShortcutRefresh = useRef<number | null>(null);
 
   useEffect(() => {
-    if (!open || sdkResources.length === 0) return;
-    return subscribeSdkResources(sdkResources, () => { void shortcutsQuery.refetch(); });
-  }, [open, sdkResources, shortcutsQuery.refetch, subscribeSdkResources]);
+    if (!open || subscribedSdkResources.length === 0) return;
+    const unsubscribe = subscribeSdkResources(subscribedSdkResources, () => {
+      // A subscription sends an initial revision for every resource. Batch those
+      // messages, and live bursts, into one shortcut refresh instead of starting
+      // a separate full fetch for each resource.
+      if (pendingShortcutRefresh.current !== null) {
+        window.clearTimeout(pendingShortcutRefresh.current);
+      }
+      pendingShortcutRefresh.current = window.setTimeout(() => {
+        pendingShortcutRefresh.current = null;
+        void shortcutsQuery.refetch();
+      }, 100);
+    });
+    return () => {
+      unsubscribe();
+      if (pendingShortcutRefresh.current !== null) {
+        window.clearTimeout(pendingShortcutRefresh.current);
+        pendingShortcutRefresh.current = null;
+      }
+    };
+  }, [open, subscribedSdkResources, shortcutsQuery.refetch, subscribeSdkResources]);
 
   useLayoutEffect(() => {
     const handleKey = (event: KeyboardEvent) => {

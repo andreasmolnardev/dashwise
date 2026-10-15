@@ -181,10 +181,14 @@ export async function getShortcuts(userId: string) {
     if (!definition) continue;
     const appIdMap = new Map<string, string>();
     for (const app of definition.apps ?? []) {
+      const integrationPrefix = `${definition.name.trim()} `;
+      const appDisplayName = app.name.toLowerCase().startsWith(integrationPrefix.toLowerCase())
+        ? app.name.slice(integrationPrefix.length).trim()
+        : app.name;
       const sourceId = `sdk:${instance.id}:${app.id}`;
       let appRecordId = appIdBySource.get(sourceId);
       if (!appRecordId) {
-        const created = await ensureShortcutsApp(pb, userId, sourceId, { name: app.name, icon: app.icon });
+        const created = await ensureShortcutsApp(pb, userId, sourceId, { name: appDisplayName, icon: app.icon });
         appRecordId = String(created.id);
         appIdBySource.set(sourceId, appRecordId);
       }
@@ -192,7 +196,7 @@ export async function getShortcuts(userId: string) {
       sdkApps.push({
         id: `sdk-app:${instance.id}:${app.id}`,
         sourceId,
-        name: app.name,
+        name: appDisplayName,
         icon: app.icon ?? "",
         secondaryInfo: instance.name,
         type: "app",
@@ -224,6 +228,7 @@ export async function getShortcuts(userId: string) {
         integrationInstanceId: instance.id,
         collectionId,
         resourceId: resource.id,
+        integrationName: instance.name,
         name: resource.name,
         icon: resource.icon ?? "",
         type: "sdk-resource",
