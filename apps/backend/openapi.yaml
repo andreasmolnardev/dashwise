@@ -12,6 +12,7 @@ tags:
   - name: config
   - name: integrations
   - name: sdk-integrations
+  - name: media
   - name: jobs
   - name: links
   - name: locations
@@ -143,6 +144,125 @@ paths:
           $ref: "#/components/responses/JsonUnauthorized"
         "404":
           $ref: "#/components/responses/JsonNotFound"
+  /media/sessions:
+    post:
+      tags: [media]
+      summary: Resolve a playable integration resource into a protected media session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [resource]
+              properties:
+                resource:
+                  $ref: "#/components/schemas/PlaybackResourceIdentity"
+      responses:
+        "200":
+          description: Session with a scoped stream URL; upstream credentials stay on the server
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MediaPlaybackSession"
+        "401": { description: Unauthorized }
+        "404": { description: Playable resource unavailable }
+  /media/sessions/{id}/events:
+    post:
+      tags: [media]
+      summary: Report an observed playback event to the originating integration
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MediaPlaybackEvent"
+      responses:
+        "200":
+          description: Whether this event was accepted; duplicate or closed-session events are ignored
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [accepted]
+                properties:
+                  accepted: { type: boolean }
+        "400": { description: Invalid event }
+        "401": { description: Unauthorized }
+        "404": { description: Session not found }
+        "410": { description: Session expired }
+  /media/sessions/{id}:
+    delete:
+      tags: [media]
+      summary: Close an owned media session and release provider resources
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Session closed
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success]
+                properties:
+                  success: { type: boolean }
+        "401": { description: Unauthorized }
+        "404": { description: Session not found }
+  /media/streams/{id}:
+    get:
+      tags: [media]
+      summary: Stream media using the session-scoped capability
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+        - name: capability
+          in: query
+          required: true
+          schema: { type: string }
+        - name: Range
+          in: header
+          schema: { type: string }
+      responses:
+        "200":
+          description: Streamed media
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+        "206":
+          description: Partial media content
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+        "404": { description: Session unavailable or invalid capability }
+        "415": { description: Unsupported streaming format }
+        "416": { description: Unsatisfiable byte range }
+        "502": { description: Upstream stream unavailable }
+    head:
+      tags: [media]
+      summary: Inspect the protected media stream headers
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+        - name: capability
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: Stream headers }
+        "404": { description: Session unavailable or invalid capability }
   /sdk-integrations/catalog:
     get:
       tags: [sdk-integrations]
@@ -2167,6 +2287,45 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/SdkIntegrationInstance"
+    PlaybackResourceIdentity:
+      type: object
+      required: [integrationInstanceId, collectionId, resourceId]
+      properties:
+        integrationInstanceId: { type: string }
+        collectionId: { type: string }
+        resourceId: { type: string }
+    MediaPlaybackMetadata:
+      type: object
+      properties:
+        title: { type: string }
+        artist: { type: string }
+        artworkUrl: { type: string }
+        durationSeconds: { type: number, minimum: 0 }
+    MediaPlaybackSource:
+      type: object
+      required: [url]
+      description: Browser-safe source; authentication headers are never exposed
+      properties:
+        url: { type: string }
+        kind: { type: string, enum: [audio, video] }
+        mimeType: { type: string }
+        metadata:
+          $ref: "#/components/schemas/MediaPlaybackMetadata"
+    MediaPlaybackSession:
+      type: object
+      required: [id, source]
+      properties:
+        id: { type: string }
+        source:
+          $ref: "#/components/schemas/MediaPlaybackSource"
+    MediaPlaybackEvent:
+      type: object
+      required: [sequence, type]
+      properties:
+        sequence: { type: integer, minimum: 0 }
+        type: { type: string, enum: [started, paused, resumed, progress, ended, stopped, error] }
+        positionSeconds: { type: number, minimum: 0 }
+        reason: { type: string, maxLength: 120 }
     SdkResourceRecord:
       type: object
       required: [id, name, collectionId, revision, stale]
@@ -2183,6 +2342,7 @@ components:
           type: object
           additionalProperties: true
         available: { type: boolean }
+        playback: { type: boolean, description: Can be resolved by the integration playback provider }
         actions:
           type: array
           items: { type: string }

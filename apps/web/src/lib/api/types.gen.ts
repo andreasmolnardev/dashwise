@@ -146,6 +146,41 @@ export type SdkIntegrationInstancesResponse = {
     instances: Array<SdkIntegrationInstance>;
 };
 
+export type PlaybackResourceIdentity = {
+    integrationInstanceId: string;
+    collectionId: string;
+    resourceId: string;
+};
+
+export type MediaPlaybackMetadata = {
+    title?: string;
+    artist?: string;
+    artworkUrl?: string;
+    durationSeconds?: number;
+};
+
+/**
+ * Browser-safe source; authentication headers are never exposed
+ */
+export type MediaPlaybackSource = {
+    url: string;
+    kind?: 'audio' | 'video';
+    mimeType?: string;
+    metadata?: MediaPlaybackMetadata;
+};
+
+export type MediaPlaybackSession = {
+    id: string;
+    source: MediaPlaybackSource;
+};
+
+export type MediaPlaybackEvent = {
+    sequence: number;
+    type: 'started' | 'paused' | 'resumed' | 'progress' | 'ended' | 'stopped' | 'error';
+    positionSeconds?: number;
+    reason?: string;
+};
+
 export type SdkResourceRecord = {
     id: string;
     name: string;
@@ -157,6 +192,10 @@ export type SdkResourceRecord = {
         [key: string]: unknown;
     };
     available?: boolean;
+    /**
+     * Can be resolved by the integration playback provider
+     */
+    playback?: boolean;
     actions?: Array<string>;
     apps?: Array<string>;
     updatedAt?: string;
@@ -381,6 +420,176 @@ export type GetActivitiesByIdResponses = {
 };
 
 export type GetActivitiesByIdResponse = GetActivitiesByIdResponses[keyof GetActivitiesByIdResponses];
+
+export type PostMediaSessionsData = {
+    body: {
+        resource: PlaybackResourceIdentity;
+    };
+    path?: never;
+    query?: never;
+    url: '/media/sessions';
+};
+
+export type PostMediaSessionsErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Playable resource unavailable
+     */
+    404: unknown;
+};
+
+export type PostMediaSessionsResponses = {
+    /**
+     * Session with a scoped stream URL; upstream credentials stay on the server
+     */
+    200: MediaPlaybackSession;
+};
+
+export type PostMediaSessionsResponse = PostMediaSessionsResponses[keyof PostMediaSessionsResponses];
+
+export type PostMediaSessionsByIdEventsData = {
+    body: MediaPlaybackEvent;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/media/sessions/{id}/events';
+};
+
+export type PostMediaSessionsByIdEventsErrors = {
+    /**
+     * Invalid event
+     */
+    400: unknown;
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Session not found
+     */
+    404: unknown;
+    /**
+     * Session expired
+     */
+    410: unknown;
+};
+
+export type PostMediaSessionsByIdEventsResponses = {
+    /**
+     * Whether this event was accepted; duplicate or closed-session events are ignored
+     */
+    200: {
+        accepted: boolean;
+    };
+};
+
+export type PostMediaSessionsByIdEventsResponse = PostMediaSessionsByIdEventsResponses[keyof PostMediaSessionsByIdEventsResponses];
+
+export type DeleteMediaSessionsByIdData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/media/sessions/{id}';
+};
+
+export type DeleteMediaSessionsByIdErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Session not found
+     */
+    404: unknown;
+};
+
+export type DeleteMediaSessionsByIdResponses = {
+    /**
+     * Session closed
+     */
+    200: {
+        success: boolean;
+    };
+};
+
+export type DeleteMediaSessionsByIdResponse = DeleteMediaSessionsByIdResponses[keyof DeleteMediaSessionsByIdResponses];
+
+export type GetMediaStreamsByIdData = {
+    body?: never;
+    headers?: {
+        Range?: string;
+    };
+    path: {
+        id: string;
+    };
+    query: {
+        capability: string;
+    };
+    url: '/media/streams/{id}';
+};
+
+export type GetMediaStreamsByIdErrors = {
+    /**
+     * Session unavailable or invalid capability
+     */
+    404: unknown;
+    /**
+     * Unsupported streaming format
+     */
+    415: unknown;
+    /**
+     * Unsatisfiable byte range
+     */
+    416: unknown;
+    /**
+     * Upstream stream unavailable
+     */
+    502: unknown;
+};
+
+export type GetMediaStreamsByIdResponses = {
+    /**
+     * Streamed media
+     */
+    200: Blob | File;
+    /**
+     * Partial media content
+     */
+    206: Blob | File;
+};
+
+export type GetMediaStreamsByIdResponse = GetMediaStreamsByIdResponses[keyof GetMediaStreamsByIdResponses];
+
+export type HeadMediaStreamsByIdData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query: {
+        capability: string;
+    };
+    url: '/media/streams/{id}';
+};
+
+export type HeadMediaStreamsByIdErrors = {
+    /**
+     * Session unavailable or invalid capability
+     */
+    404: unknown;
+};
+
+export type HeadMediaStreamsByIdResponses = {
+    /**
+     * Stream headers
+     */
+    200: unknown;
+};
 
 export type GetSdkIntegrationsCatalogData = {
     body?: never;

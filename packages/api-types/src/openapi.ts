@@ -186,6 +186,296 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/media/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Resolve a playable integration resource into a protected media session */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        resource: components["schemas"]["PlaybackResourceIdentity"];
+                    };
+                };
+            };
+            responses: {
+                /** @description Session with a scoped stream URL; upstream credentials stay on the server */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MediaPlaybackSession"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Playable resource unavailable */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/media/sessions/{id}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Report an observed playback event to the originating integration */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["MediaPlaybackEvent"];
+                };
+            };
+            responses: {
+                /** @description Whether this event was accepted; duplicate or closed-session events are ignored */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            accepted: boolean;
+                        };
+                    };
+                };
+                /** @description Invalid event */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Session not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Session expired */
+                410: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/media/sessions/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Close an owned media session and release provider resources */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Session closed */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            success: boolean;
+                        };
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Session not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/media/streams/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Stream media using the session-scoped capability */
+        get: {
+            parameters: {
+                query: {
+                    capability: string;
+                };
+                header?: {
+                    Range?: string;
+                };
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Streamed media */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/octet-stream": string;
+                    };
+                };
+                /** @description Partial media content */
+                206: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/octet-stream": string;
+                    };
+                };
+                /** @description Session unavailable or invalid capability */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Unsupported streaming format */
+                415: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Unsatisfiable byte range */
+                416: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Upstream stream unavailable */
+                502: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        /** Inspect the protected media stream headers */
+        head: {
+            parameters: {
+                query: {
+                    capability: string;
+                };
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Stream headers */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Session unavailable or invalid capability */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        patch?: never;
+        trace?: never;
+    };
     "/sdk-integrations/catalog": {
         parameters: {
             query?: never;
@@ -3957,6 +4247,36 @@ export interface components {
         SdkIntegrationInstancesResponse: {
             instances: components["schemas"]["SdkIntegrationInstance"][];
         };
+        PlaybackResourceIdentity: {
+            integrationInstanceId: string;
+            collectionId: string;
+            resourceId: string;
+        };
+        MediaPlaybackMetadata: {
+            title?: string;
+            artist?: string;
+            artworkUrl?: string;
+            durationSeconds?: number;
+        };
+        /** @description Browser-safe source; authentication headers are never exposed */
+        MediaPlaybackSource: {
+            url: string;
+            /** @enum {string} */
+            kind?: "audio" | "video";
+            mimeType?: string;
+            metadata?: components["schemas"]["MediaPlaybackMetadata"];
+        };
+        MediaPlaybackSession: {
+            id: string;
+            source: components["schemas"]["MediaPlaybackSource"];
+        };
+        MediaPlaybackEvent: {
+            sequence: number;
+            /** @enum {string} */
+            type: "started" | "paused" | "resumed" | "progress" | "ended" | "stopped" | "error";
+            positionSeconds?: number;
+            reason?: string;
+        };
         SdkResourceRecord: {
             id: string;
             name: string;
@@ -3968,6 +4288,8 @@ export interface components {
                 [key: string]: unknown;
             };
             available?: boolean;
+            /** @description Can be resolved by the integration playback provider */
+            playback?: boolean;
             actions?: string[];
             apps?: string[];
             /** Format: date-time */
