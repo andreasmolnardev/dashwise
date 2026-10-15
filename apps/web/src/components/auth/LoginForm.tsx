@@ -6,6 +6,7 @@ import { useMutation, useQuery } from "@tanstack/react-query"
 import { getAppConfigAction } from '@/lib/apiClient';
 import { deviceCodeSocketUrl, loginUserAction, validateAuthTokenAction } from '@/lib/apiClient';
 import useAuth from "@/context/useAuth"
+import { useNotification } from "@/context/NotificationContext"
 import { queryKeys } from "@/lib/queryClient";
 import { setClientSessionId } from "@/lib/session";
 
@@ -13,7 +14,6 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import {
   Dialog,
   DialogContent,
@@ -22,15 +22,13 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { Icon } from "@iconify-icon/react"
 
 export default function LoginCard() {
   const navigate = useNavigate()
   const { token, setAuth } = useAuth();
+  const { notify } = useNotification();
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
-  const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState<string | null>(null)
   const [deviceCode, setDeviceCode] = useState<string | null>(null)
   const deviceSocket = useRef<WebSocket | null>(null)
   const appConfigQuery = useQuery({ queryKey: queryKeys.appConfig, queryFn: getAppConfigAction });
@@ -38,17 +36,47 @@ export default function LoginCard() {
   const loginMutation = useMutation({ mutationFn: loginUserAction });
 
   useEffect(() => {
-    const socket = new WebSocket(deviceCodeSocketUrl());
-    deviceSocket.current = socket;
-    socket.onmessage = (event) => {
-      const message = JSON.parse(event.data);
-      if (message.type === "device-code") { setDeviceCode(message.code); socket.send(JSON.stringify({ type: "authenticate", requestId: message.requestId, secret: message.secret })); }
-      if (message.type === "approved") { setClientSessionId(message.sessionId); setAuth(message.user, message.token); setSuccess("Device approved! Redirecting..."); setTimeout(() => navigate("/home"), 500); }
-      if (message.type === "error") setError(message.message);
+    let socket: WebSocket | null = null;
+    let disposed = false;
+
+    // React Strict Mode replays effects in development. Defer the connection
+    // one task so the replay cleanup can cancel before opening a socket that
+    // would immediately be closed while its handshake is still in progress.
+    const connectTimer = window.setTimeout(() => {
+      if (disposed) return;
+      socket = new WebSocket(deviceCodeSocketUrl());
+      deviceSocket.current = socket;
+      socket.onmessage = (event) => {
+        if (disposed) return;
+        const message = JSON.parse(event.data);
+        if (message.type === "device-code") {
+          setDeviceCode(message.code);
+          socket?.send(JSON.stringify({ type: "authenticate", requestId: message.requestId, secret: message.secret }));
+        }
+        if (message.type === "approved") {
+          setClientSessionId(message.sessionId);
+          setAuth(message.user, message.token);
+          notify({ title: "Device approved", description: "Redirecting...", variant: "success" });
+          setTimeout(() => navigate("/home"), 500);
+        }
+        if (message.type === "error") {
+          notify({ title: "Device login failed", description: message.message, variant: "error" });
+        }
+      };
+      socket.onerror = () => {
+        if (!disposed) {
+          notify({ title: "Device login failed", description: "Unable to start device login", variant: "error" });
+        }
+      };
+    }, 0);
+
+    return () => {
+      disposed = true;
+      window.clearTimeout(connectTimer);
+      if (deviceSocket.current === socket) deviceSocket.current = null;
+      if (socket && socket.readyState < WebSocket.CLOSING) socket.close();
     };
-    socket.onerror = () => setError("Unable to start device login");
-    return () => { socket.close(); deviceSocket.current = null; };
-  }, [navigate, setAuth]);
+  }, [navigate, notify, setAuth]);
 
 
   //on load: check for existing auth, validate using /api/v1/auth/validate-auth endpoint if returned success to /home
@@ -74,14 +102,12 @@ export default function LoginCard() {
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
-    setError(null);
-    setSuccess(null);
     try {
       const { token: newToken, sessionId, user } = await loginMutation.mutateAsync({ email, password }) as { token: string; sessionId: string; user: import("@dashwise/types/sdk").AuthUserRecord };
       setClientSessionId(sessionId);
       setAuth(user, newToken);
 
-      setSuccess("Login successful! Redirecting to home...");
+      notify({ title: "Login successful", description: "Redirecting to home...", variant: "success" });
       setTimeout(() => {
         setEmail("");
         setPassword("");
@@ -89,7 +115,7 @@ export default function LoginCard() {
       }, 2000);
     } catch (err: any) {
       console.error(err);
-      setError(err?.message || "Login failed");
+      notify({ title: "Login failed", description: err?.message || "Login failed", variant: "error" });
     }
   }
 
@@ -104,22 +130,6 @@ export default function LoginCard() {
       </CardHeader>
       <CardContent>
         <form onSubmit={handleLogin} className="flex flex-col gap-6">
-          {error && (
-            <Alert variant="destructive">
-              <Icon icon="fa6-solid:triangle-exclamation" className="h-4 w-4" />
-              <AlertTitle>Error</AlertTitle>
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
-
-          {success && (
-            <Alert>
-              <Icon icon="fa6-solid:circle-check" className="h-4 w-4" />
-              <AlertTitle>Success!</AlertTitle>
-              <AlertDescription>{success}</AlertDescription>
-            </Alert>
-          )}
-
           <div className="grid gap-2">
             <Label htmlFor="email">Email</Label>
             <Input

@@ -2,6 +2,7 @@ import { Suspense, useEffect } from "react";
 import { Outlet, useLocation } from "react-router-dom";
 import "./globals.css";
 import config from "@/lib/config";
+import { NotificationProvider } from "@/context/NotificationContext";
 
 function formatTitleSegment(segment: string) {
   return segment
@@ -71,25 +72,27 @@ export default function RootLayout() {
   }, [location.pathname]);
 
   return (
-    <Suspense
-      fallback={
-        windowInitialized ? null : (
-          <div
-            style={{
-              minHeight: "100vh",
-              display: "grid",
-              placeItems: "center",
-              color: "rgba(255, 255, 255, 0.72)",
-              background: "#0b1020",
-              fontSize: 14,
-            }}
-          >
-            Loading dashwise...
-          </div>
-        )
-      }
-    >
-      <Outlet />
-    </Suspense>
+    <NotificationProvider>
+      <Suspense
+        fallback={
+          windowInitialized ? null : (
+            <div
+              style={{
+                minHeight: "100vh",
+                display: "grid",
+                placeItems: "center",
+                color: "rgba(255, 255, 255, 0.72)",
+                background: "#0b1020",
+                fontSize: 14,
+              }}
+            >
+              Loading dashwise...
+            </div>
+          )
+        }
+      >
+        <Outlet />
+      </Suspense>
+    </NotificationProvider>
   );
 }
