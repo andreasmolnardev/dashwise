@@ -7,6 +7,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { runSdkIntegrationAction } from "@/lib/apiClient";
+import { useMediaPlayer } from "@/context/MediaPlayerContext";
+
+const PLAYBACK_ACTION_ID = "__dashwise_playback";
+const ENQUEUE_ACTION_ID = "__dashwise_enqueue";
 
 export type SdkShortcutActionDefinition = {
   id: string;
@@ -45,6 +49,7 @@ export default function SdkShortcutActionDialog({
   onComplete?: () => void | Promise<void>;
 }) {
   const { withAuth } = useAuth();
+  const { playResource, enqueue } = useMediaPlayer();
   const [values, setValues] = useState<Record<string, string | boolean>>({});
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -59,7 +64,7 @@ export default function SdkShortcutActionDialog({
       field.type === "boolean" ? Boolean(field.default) : field.default == null ? "" : String(field.default),
     ])));
     setError(null);
-  }, [action, open]);
+  }, [action, open, fields]);
 
   const runAction = useCallback(async (input: Record<string, unknown>) => {
     if (!resource || !action) return;
@@ -67,6 +72,26 @@ export default function SdkShortcutActionDialog({
     setSubmitting(true);
     setError(null);
     try {
+      if (action.id === PLAYBACK_ACTION_ID) {
+        await playResource({
+          integrationInstanceId: resource.instanceId,
+          collectionId: resource.collectionId,
+          resourceId: resource.resourceId,
+        });
+        await onComplete?.();
+        onOpenChange(false);
+        return;
+      }
+      if (action.id === ENQUEUE_ACTION_ID) {
+        enqueue({
+          integrationInstanceId: resource.instanceId,
+          collectionId: resource.collectionId,
+          resourceId: resource.resourceId,
+        });
+        await onComplete?.();
+        onOpenChange(false);
+        return;
+      }
       await withAuth((auth) => runSdkIntegrationAction(auth, resource.instanceId, action.id, {
         collectionId: resource.collectionId,
         resourceId: resource.resourceId,
@@ -79,7 +104,7 @@ export default function SdkShortcutActionDialog({
     } finally {
       setSubmitting(false);
     }
-  }, [resource, action, withAuth, onComplete, onOpenChange]);
+  }, [resource, action, withAuth, onComplete, onOpenChange, playResource, enqueue]);
 
   useEffect(() => {
     if (!open) {

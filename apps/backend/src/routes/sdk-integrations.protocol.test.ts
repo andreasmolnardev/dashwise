@@ -40,7 +40,7 @@ function matches(row: Row, filter = "") {
 }
 
 function createPocketBaseFixture() {
-  const tables = new Map<string, Row[]>([["sessions", [{
+  const tables = new Map<string, Row[]>([["users", [{ id: userId, searchPreferences: {} }]], ["sessions", [{
     id: "session-record",
     user: userId,
     sessionId: "session-device",

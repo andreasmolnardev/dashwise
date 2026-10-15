@@ -212,6 +212,12 @@ export async function getShortcuts(userId: string) {
         .map((actionId) => Object.values(definition.actions ?? {}).find((action) => action.id === actionId))
         .filter((action): action is NonNullable<typeof action> => Boolean(action))
         .map(({ id, name, description, inputSchema }) => ({ id, name, ...(description ? { description } : {}), ...(inputSchema ? { inputSchema } : {}) }));
+      if (resource.playback === true && definition.playback) {
+        actions.unshift(
+          { id: "__dashwise_playback", name: "Play" },
+          { id: "__dashwise_enqueue", name: "Add to queue" },
+        );
+      }
       sdkResources.push({
         id: `sdk:${instance.id}:${collectionId}:${resource.id}`,
         sourceId: `${instance.id}:${collectionId}:${resource.id}`,
@@ -223,6 +229,7 @@ export async function getShortcuts(userId: string) {
         type: "sdk-resource",
         action: { type: "sdk-resource", instanceId: instance.id, collectionId, resourceId: resource.id },
         actions,
+        ...(resource.playback === true && definition.playback ? { playback: true } : {}),
         apps: membership,
         parentIds: membership,
         parentId: membership.length === 1 ? membership[0] : undefined,
