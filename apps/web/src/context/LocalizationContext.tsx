@@ -1,7 +1,6 @@
 "use client";
 
 import { createContext, ReactNode, useContext, useMemo } from "react";
-import { usePageConfig } from "@/hooks/usePageConfig";
 import useAuth from "@/context/useAuth";
 
 type TimeFormatPreference = "12-hour" | "24-hour";
@@ -22,7 +21,6 @@ type LocalizationContextType = {
   formatTemperature: (value: number | null | undefined, inputUnit?: string, opts?: FormatTemperatureOptions) => string;
   formatTime: (date?: Date | string | number, opts?: Intl.DateTimeFormatOptions) => string;
   formatDate: (date?: Date | string | number, overrideFormat?: string) => string;
-  refresh: () => void;
 };
 
 const LocalizationContext = createContext<LocalizationContextType | undefined>(undefined);
@@ -46,7 +44,6 @@ function toDate(input?: Date | string | number): Date {
 }
 
 export function LocalizationProvider({ children }: { children: ReactNode }) {
-  const { refreshConfig } = usePageConfig();
   const { user } = useAuth();
 
   const localizationPreferences = user?.localizationPreferences ?? {};
@@ -128,9 +125,8 @@ export function LocalizationProvider({ children }: { children: ReactNode }) {
       formatTemperature,
       formatTime,
       formatDate,
-      refresh: refreshConfig,
     };
-  }, [dateFormat, locale, timeFormat, weatherUnit, refreshConfig]);
+  }, [dateFormat, locale, timeFormat, weatherUnit]);
 
   return <LocalizationContext.Provider value={value}>{children}</LocalizationContext.Provider>;
 }

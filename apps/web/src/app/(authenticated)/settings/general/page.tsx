@@ -18,7 +18,6 @@ import {
 import LocationSelectFormComponent from "@/components/settings/LocationSelectForm";
 import useAuth from "@/context/useAuth";
 import { deleteUnusedHomeLinkGroupsAction, runPullIconsAction, wipeUserLinksAction } from '@/lib/apiClient';
-import { useLocalization } from "@/context/LocalizationContext";
 
 type TimeFormatValue = "24-hour" | "12-hour";
 
@@ -229,7 +228,6 @@ export default function GeneralSettingsPage() {
 
 function LocalizationSettings() {
   const { user, updateUserProperty } = useAuth();
-  const { refresh } = useLocalization();
 
   const globalConfig = user?.localizationPreferences ?? {};
   const timeFormat = normalizeTimeFormat(globalConfig?.timeFormat ?? globalConfig?.["time-format"]);
@@ -245,7 +243,6 @@ function LocalizationSettings() {
         ),
       }
     );
-    refresh();
   }
 
   return (
@@ -297,7 +294,6 @@ function LocalizationSettings() {
 }
 
 function WeatherUnitSelector() {
-  const { refresh } = useLocalization();
   const { user, updateUserProperty } = useAuth();
   const value = user?.localizationPreferences?.weatherUnit ?? "c";
 
@@ -306,7 +302,6 @@ function WeatherUnitSelector() {
       ...(user?.localizationPreferences || {}),
       weatherUnit: unit,
     });
-    refresh();
   }
 
   return (
@@ -337,7 +332,6 @@ function WeatherUnitSelector() {
 
 function WeatherLocationSelector() {
   const { user, updateUserProperty } = useAuth();
-  const { refresh } = useLocalization();
   const [open, setOpen] = useState(false);
 
   // derive current global location (if any)
@@ -377,7 +371,6 @@ function WeatherLocationSelector() {
         ...(user?.localizationPreferences || {}),
         weatherLocation: nextWeatherLocation,
       });
-      refresh();
       setOpen(false);
     } catch (err) {
       console.error("Failed to update weatherLocation", err);

@@ -8,7 +8,7 @@ import { useLocation } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, type SetStateAction } from "react";
 
-const nonPageSegments = new Set(["settings", "notifications", "onboarding", "screensaver", "auth", "frame"]);
+const nonPageSegments = new Set(["apps", "settings", "notifications", "onboarding", "screensaver", "auth", "frame"]);
 
 export function resolveRequestedPageName(pathname: string | null): string {
   const firstSegment = pathname?.split("/").filter(Boolean)[0] ?? "home";
@@ -34,9 +34,7 @@ export function usePageConfig(options?: UsePageConfigOptions) {
     enabled: Boolean(token),
     queryFn: () => getPageConfigAction({ token }, resolvedPageName),
   });
-  const pageConfig = pageConfigQuery.data === undefined
-    ? null
-    : (pageConfigQuery.data ?? {}) as PageConfig;
+  const pageConfig = pageConfigQuery.data ?? null;
 
   const patchConfig = useCallback((updater: SetStateAction<PageConfig | null>) => {
     queryClient.setQueryData<PageConfig | null>(queryKey, (current) =>
@@ -44,14 +42,15 @@ export function usePageConfig(options?: UsePageConfigOptions) {
     );
   }, [queryClient, queryKey]);
 
+  const { refetch } = pageConfigQuery;
   const refreshConfig = useCallback(async () => {
     if (!token) return;
-    await pageConfigQuery.refetch();
-  }, [pageConfigQuery, token]);
+    await refetch();
+  }, [refetch, token]);
 
   useEffect(() => {
     const handleUpdated = () => {
-      void queryClient.invalidateQueries({ queryKey });
+      void queryClient.invalidateQueries({ queryKey }, { cancelRefetch: false });
     };
     window.addEventListener("config:updated", handleUpdated);
     return () => window.removeEventListener("config:updated", handleUpdated);
