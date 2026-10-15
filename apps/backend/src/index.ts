@@ -1,4 +1,6 @@
-import { join, resolve } from "node:path";
+import { resolve } from "node:path";
+
+import { createPublicFileServer } from "./lib/public-files";
 
 import { Hono } from "hono";
 import { upgradeWebSocket, websocket } from "hono/bun";
@@ -312,63 +314,14 @@ app.get("/integrations/*", (c) => serveWorkspaceAsset("integrations", new URL(c.
 const publicDir = resolve(process.cwd(), "dist/public");
 const openApiYamlPath = resolve(process.cwd(), "openapi.yaml");
 
-async function servePublicFile(requestPath: string) {
-  const relativePath = requestPath.replace(/^\/+/, "");
+const servePublicFile = createPublicFileServer(publicDir);
 
-  if (!relativePath) {
-    return new Response("Not found", { status: 404 });
-  }
-
-  const assetPath = resolve(publicDir, relativePath);
-  const rootPath = `${publicDir}/`;
-
-  if (assetPath !== publicDir && !assetPath.startsWith(rootPath)) {
-    return new Response("Not found", { status: 404 });
-  }
-
-  const assetFile = Bun.file(assetPath);
-
-  if (!(await assetFile.exists())) {
-    return new Response("Not found", { status: 404 });
-  }
-
-  const extension = assetPath.slice(assetPath.lastIndexOf(".")).toLowerCase();
-  const isFont = extension === ".ttf" || extension === ".woff" || extension === ".woff2";
-  const contentType = {
-    ".css": "text/css; charset=utf-8",
-    ".html": "text/html; charset=utf-8",
-    ".ico": "image/x-icon",
-    ".jpeg": "image/jpeg",
-    ".jpg": "image/jpeg",
-    ".js": "application/javascript; charset=utf-8",
-    ".json": "application/json; charset=utf-8",
-    ".map": "application/json; charset=utf-8",
-    ".mjs": "application/javascript; charset=utf-8",
-    ".png": "image/png",
-    ".svg": "image/svg+xml",
-    ".ttf": "font/ttf",
-    ".txt": "text/plain; charset=utf-8",
-    ".webmanifest": "application/manifest+json; charset=utf-8",
-    ".webp": "image/webp",
-    ".woff": "font/woff",
-    ".woff2": "font/woff2",
-    ".xml": "application/xml; charset=utf-8",
-  }[extension] || "application/octet-stream";
-
-  return new Response(assetFile, {
-    headers: {
-      "Content-Type": contentType,
-      ...(isFont ? { "Cache-Control": "public, max-age=31536000, immutable" } : {}),
-    },
-  });
-}
-
-app.get("/assets/*", async (c) => servePublicFile(new URL(c.req.url).pathname));
-app.get("/favicons/*", async (c) => servePublicFile(new URL(c.req.url).pathname));
-app.get("/fonts/*", async (c) => servePublicFile(new URL(c.req.url).pathname));
-app.get("/icons/*", async (c) => servePublicFile(new URL(c.req.url).pathname));
-app.get("/weather-icons/*", async (c) => servePublicFile(new URL(c.req.url).pathname));
-app.get("/sw.js", async (c) => servePublicFile(new URL(c.req.url).pathname));
+app.get("/assets/*", async (c) => servePublicFile(new URL(c.req.url).pathname, c.req.raw));
+app.get("/favicons/*", async (c) => servePublicFile(new URL(c.req.url).pathname, c.req.raw));
+app.get("/fonts/*", async (c) => servePublicFile(new URL(c.req.url).pathname, c.req.raw));
+app.get("/icons/*", async (c) => servePublicFile(new URL(c.req.url).pathname, c.req.raw));
+app.get("/weather-icons/*", async (c) => servePublicFile(new URL(c.req.url).pathname, c.req.raw));
+app.get("/sw.js", async (c) => servePublicFile(new URL(c.req.url).pathname, c.req.raw));
 app.get("/openapi.yaml", async () => {
   const specFile = Bun.file(openApiYamlPath);
 
@@ -382,23 +335,20 @@ app.get("/openapi.yaml", async () => {
     },
   });
 });
-app.get("/openapi.json", async (c) => servePublicFile(new URL(c.req.url).pathname));
-app.get("/integrations.json", async (c) => servePublicFile(new URL(c.req.url).pathname));
-app.get("/bangs.js", async (c) => servePublicFile(new URL(c.req.url).pathname));
-app.get("/dashboard-wallpaper.png", async (c) => servePublicFile(new URL(c.req.url).pathname));
-app.get("/dashwise-icon.png", async (c) => servePublicFile(new URL(c.req.url).pathname));
-app.get("/dashwise-icon.svg", async (c) => servePublicFile(new URL(c.req.url).pathname));
-app.get("/dashwise-light.png", async (c) => servePublicFile(new URL(c.req.url).pathname));
-app.get("/dashwise-light.svg", async (c) => servePublicFile(new URL(c.req.url).pathname));
+app.get("/openapi.json", async (c) => servePublicFile(new URL(c.req.url).pathname, c.req.raw));
+app.get("/integrations.json", async (c) => servePublicFile(new URL(c.req.url).pathname, c.req.raw));
+app.get("/bangs.js", async (c) => servePublicFile(new URL(c.req.url).pathname, c.req.raw));
+app.get("/dashboard-wallpaper.png", async (c) => servePublicFile(new URL(c.req.url).pathname, c.req.raw));
+app.get("/dashwise-icon.png", async (c) => servePublicFile(new URL(c.req.url).pathname, c.req.raw));
+app.get("/dashwise-icon.svg", async (c) => servePublicFile(new URL(c.req.url).pathname, c.req.raw));
+app.get("/dashwise-light.png", async (c) => servePublicFile(new URL(c.req.url).pathname, c.req.raw));
+app.get("/dashwise-light.svg", async (c) => servePublicFile(new URL(c.req.url).pathname, c.req.raw));
 
 app.all("/api/*", (c) => c.json({ error: "Not found" }, 404));
 
-app.get("*", async () => {
-  const indexFile = Bun.file(join(publicDir, "index.html"));
-
-  if (await indexFile.exists()) {
-    return new Response(indexFile);
-  }
+app.get("*", async (c) => {
+  const indexResponse = await servePublicFile("/index.html", c.req.raw);
+  if (indexResponse.status !== 404) return indexResponse;
 
   return new Response("Backend running. Frontend not built.", {
     status: 200,

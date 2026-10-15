@@ -2,6 +2,7 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import { readFileSync } from "node:fs";
 import path from "path";
+import { precompress } from "./scripts/precompress";
 
 const version = readFileSync(path.resolve(__dirname, "../../VERSION"), "utf8").trim();
 
@@ -14,7 +15,7 @@ export default defineConfig({
   define: {
     "import.meta.env.NEXT_PUBLIC_VERSION": JSON.stringify(version),
   },
-  plugins: [react()],
+  plugins: [react(), precompress()],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
