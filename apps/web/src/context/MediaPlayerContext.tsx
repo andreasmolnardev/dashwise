@@ -1,9 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode, type SyntheticEvent } from "react";
-import { Pause, Play, SkipBack, SkipForward, Volume2, X } from "lucide-react";
 import useAuth from "@/context/useAuth";
-import { Button } from "@/components/ui/button";
 import { backendUrl } from "@/lib/apiClient";
 import {
   createMediaSession,
@@ -36,6 +34,7 @@ type MediaPlayerContextValue = {
   setVolume: (volume: number) => void;
   next: () => void;
   previous: () => void;
+  playQueued: (index: number) => void;
   removeFromQueue: (index: number) => void;
   clearQueue: () => void;
   clear: () => void;
@@ -50,22 +49,6 @@ export function useMediaPlayer() {
 
 function requestFromResource(resource: PlaybackResourceIdentity, options?: { metadata?: PlaybackMetadata; kind?: "audio" | "video" }): ResourceTrack {
   return { type: "resource", resource, metadata: options?.metadata, kind: options?.kind };
-}
-
-function trackLabel(track: CurrentTrack) {
-  return track.source?.metadata?.title ?? (track.request.type === "resource" ? track.request.resource.resourceId : "Media");
-}
-
-function requestLabel(request: TrackRequest) {
-  return request.type === "resource"
-    ? request.metadata?.title ?? request.resource.resourceId
-    : request.source.metadata?.title ?? request.source.url;
-}
-
-function formatTime(seconds: number) {
-  if (!Number.isFinite(seconds) || seconds < 0) return "0:00";
-  const total = Math.floor(seconds);
-  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
 }
 
 export function MediaPlayerProvider({ children }: { children: ReactNode }) {
@@ -221,6 +204,13 @@ export function MediaPlayerProvider({ children }: { children: ReactNode }) {
     setUpcoming((items) => items.filter((_, itemIndex) => itemIndex !== index));
   }, []);
 
+  const playQueued = useCallback((index: number) => {
+    const request = upcomingRef.current[index];
+    if (!request) return;
+    setUpcoming((items) => items.filter((_, itemIndex) => itemIndex !== index));
+    void resolveAndPlay(request);
+  }, [resolveAndPlay]);
+
   const clearQueue = useCallback(() => setUpcoming([]), []);
 
   const clear = useCallback(() => {
@@ -361,8 +351,8 @@ export function MediaPlayerProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<MediaPlayerContextValue>(() => ({
     current, upcoming, isPlaying, currentTime, duration, volume,
-    playResource, enqueue, playUrl, toggle, seek, setVolume, next, previous, removeFromQueue, clearQueue, clear,
-  }), [current, upcoming, isPlaying, currentTime, duration, volume, playResource, enqueue, playUrl, toggle, seek, setVolume, next, previous, removeFromQueue, clearQueue, clear]);
+    playResource, enqueue, playUrl, toggle, seek, setVolume, next, previous, playQueued, removeFromQueue, clearQueue, clear,
+  }), [current, upcoming, isPlaying, currentTime, duration, volume, playResource, enqueue, playUrl, toggle, seek, setVolume, next, previous, playQueued, removeFromQueue, clearQueue, clear]);
 
   return (
     <MediaPlayerContext.Provider value={value}>
@@ -392,50 +382,6 @@ export function MediaPlayerProvider({ children }: { children: ReactNode }) {
         onEnded={onEnded}
         onError={onError}
       />
-      {current && (
-        <section aria-label="media player" className="fixed bottom-3 left-1/2 z-[60] flex w-[min(44rem,calc(100vw-1.5rem))] -translate-x-1/2 items-center gap-3 rounded-xl border border-white/20 bg-black/65 px-3 py-2 text-white shadow-xl backdrop-blur-md">
-          {current.source?.metadata?.artworkUrl ? (
-            <img src={current.source.metadata.artworkUrl} alt="" className="size-10 rounded-md object-cover" />
-          ) : <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-white/10"><Volume2 className="size-5" /></div>}
-          <div className="min-w-0 flex-1">
-            <div className="truncate text-sm font-medium">{trackLabel(current)}</div>
-            {current.source?.metadata?.artist && <div className="truncate text-xs text-white/65">{current.source.metadata.artist}</div>}
-            {current.error && <div role="alert" className="truncate text-xs text-red-300">{current.error}</div>}
-            {current.loading && <div className="text-xs text-white/65">Resolving media…</div>}
-            {current.source && !current.loading && (
-              <div className="mt-1 flex items-center gap-2">
-                <span className="text-[10px] tabular-nums text-white/65">{formatTime(currentTime)}</span>
-                <input aria-label="seek" type="range" min={0} max={duration || current.source.metadata?.durationSeconds || 0} step={1} value={Math.min(currentTime, duration || current.source.metadata?.durationSeconds || currentTime)} onChange={(event) => seek(Number(event.target.value))} className="h-1 min-w-12 flex-1 accent-sky-400" />
-                <span className="text-[10px] tabular-nums text-white/65">{formatTime(duration || current.source.metadata?.durationSeconds || 0)}</span>
-              </div>
-            )}
-          </div>
-          <Button variant="ghost" size="icon" aria-label="previous" onClick={previous}><SkipBack className="size-4" /></Button>
-          <Button variant="secondary" size="icon" aria-label={isPlaying ? "pause" : "play"} disabled={!current.source || current.loading} onClick={toggle}>{isPlaying ? <Pause className="size-4" /> : <Play className="size-4" />}</Button>
-          <Button variant="ghost" size="icon" aria-label="next" disabled={upcoming.length === 0} onClick={next}><SkipForward className="size-4" /></Button>
-          <label className="hidden items-center gap-1 md:flex" aria-label="volume"><Volume2 className="size-4" /><input type="range" min={0} max={1} step={0.05} value={volume} onChange={(event) => setVolume(Number(event.target.value))} className="w-16 accent-sky-400" /></label>
-          <Button variant="ghost" size="icon" aria-label="close player" onClick={clear}><X className="size-4" /></Button>
-          {upcoming.length > 0 && (
-            <details className="relative shrink-0">
-              <summary className="cursor-pointer list-none text-xs text-white/75">{upcoming.length} queued</summary>
-              <div className="absolute right-0 bottom-full mb-3 max-h-64 w-64 overflow-auto rounded-lg border border-white/20 bg-black/85 p-2 shadow-xl backdrop-blur-md">
-                <div className="mb-1 flex items-center justify-between text-xs text-white/70">
-                  <span>up next</span>
-                  <button type="button" onClick={clearQueue} className="hover:text-white">clear</button>
-                </div>
-                <ol className="space-y-1">
-                  {upcoming.map((item, index) => (
-                    <li key={`${requestLabel(item)}:${index}`} className="flex items-center gap-2 rounded px-2 py-1.5 text-xs hover:bg-white/10">
-                      <button type="button" className="min-w-0 flex-1 truncate text-left" onClick={() => { removeFromQueue(index); void resolveAndPlay(item); }}>{requestLabel(item)}</button>
-                      <button type="button" aria-label={`remove ${requestLabel(item)} from queue`} onClick={() => removeFromQueue(index)} className="text-white/60 hover:text-white">×</button>
-                    </li>
-                  ))}
-                </ol>
-              </div>
-            </details>
-          )}
-        </section>
-      )}
     </MediaPlayerContext.Provider>
   );
 }

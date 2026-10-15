@@ -44,6 +44,7 @@ export function mapGroovewiseItem(value: unknown, parentPodcastId?: string): Gro
     type: podcast ? "podcast" : "track",
     icon: "mdi:music-note",
     playback: true,
+    apps: [podcast ? "podcasts" : "library"],
     actions: [],
     attributes: {
       ...(artist ? { artist } : {}),
