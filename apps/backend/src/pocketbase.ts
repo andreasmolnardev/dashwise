@@ -193,7 +193,8 @@ export async function startPocketbase(): Promise<PocketBaseStartResult> {
   process.on("SIGINT", shutdown);
   process.on("SIGTERM", shutdown);
 
-  await waitForPocketBaseReady(healthUrl, pb);
+  // Local development data can take longer to open on a cold Docker start.
+  await waitForPocketBaseReady(healthUrl, pb, 120_000);
 
   const pbClient = await getSuperuserPB();
   const pbLogger =

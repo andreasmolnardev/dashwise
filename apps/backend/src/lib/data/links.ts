@@ -419,9 +419,10 @@ async function getHomeListId(userId: string) {
     const list = await pb.collection("linksLists").getFirstListItem(
         `user = "${userId}" && type = "home"`,
         { fields: "id", skipTotal: true },
-    );
-    homeListIdByUser.set(userId, list.id);
-    return list.id;
+    ).catch(() => null);
+    const homeList = list ?? await getOrCreateHomeCollection(pb, userId);
+    homeListIdByUser.set(userId, homeList.id);
+    return homeList.id;
 }
 
 export async function getHomeLinks(userId: string) {

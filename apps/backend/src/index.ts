@@ -37,7 +37,6 @@ const assetRoots = {
 } as const;
 
 const { process: pbProcess } = await startPocketbase();
-await startSdkIntegrationRuntime();
 const logger = createLogger("API");
 
 type SshCredentials =
@@ -416,6 +415,12 @@ Bun.serve({
 
 logger.info(`Running on 0.0.0.0:${port}`);
 logger.info(`PocketBase target URL: ${config.PB_URL}`);
+// Integration startup may perform slow upstream I/O. Keep it out of the API
+// startup path so a single unavailable integration cannot block /health or
+// prevent the backend from listening.
+void startSdkIntegrationRuntime().catch((error) => {
+  logger.error(`Failed to initialize SDK integrations: ${error instanceof Error ? error.message : String(error)}`);
+});
 void printDevAutoLoginUrl();
 
 export type AppType = typeof app;
