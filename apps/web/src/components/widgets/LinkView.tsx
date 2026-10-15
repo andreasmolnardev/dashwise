@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/useAuth";
 import { getMonitoringStatusAction } from '@/lib/apiClient';
@@ -45,8 +45,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import LinkDetailsForm from "@/components/settings/LinkDetailsForm";
-import IconPickerComponent from "@/components/settings/IconPicker";
 import AppIcon from "@dashwise/app-icon";
 import {
   closestCenter,
@@ -67,6 +65,9 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { updateLinksOrderAction } from '@/lib/apiClient';
+
+const LinkDetailsForm = lazy(() => import("@/components/settings/LinkDetailsForm"));
+const IconPickerComponent = lazy(() => import("@/components/settings/IconPicker"));
 
 const HOME_LINKS_CACHE_PREFIX = "dashwise_home_links_cache_v1";
 const DEFAULT_LINK_GROUP = "Default";
@@ -805,14 +806,16 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
           <DialogHeader>
             <DialogTitle>Add Link</DialogTitle>
           </DialogHeader>
-          <LinkDetailsForm
-            onClose={async () => {
-              setIsAddDialogOpen(false);
-              await refreshHomeLinks();
-            }}
-            preselectOpenedGroup={activeCollection ?? collections[0]}
-            onOptimisticSave={handleOptimisticSave}
-          />
+          <Suspense fallback={<p className="text-sm text-muted-foreground">Loading link editor…</p>}>
+            <LinkDetailsForm
+              onClose={async () => {
+                setIsAddDialogOpen(false);
+                await refreshHomeLinks();
+              }}
+              preselectOpenedGroup={activeCollection ?? collections[0]}
+              onOptimisticSave={handleOptimisticSave}
+            />
+          </Suspense>
         </DialogContent>
       </Dialog>
 
@@ -824,24 +827,26 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
           <DialogHeader>
             <DialogTitle>Edit Link</DialogTitle>
           </DialogHeader>
-          <LinkDetailsForm
-            link={editingLink
-              ? {
-                id: editingLink.id,
-                name: editingLink.title,
-                url: editingLink.url,
-                icon: editingLink.iconUrl,
-                linkGroup: editingLink.collection,
-                folder: editingLink.folder,
-                statusCheck: editingLink.statusCheck,
-              }
-              : undefined}
-            onClose={async () => {
-              setEditingLink(null);
-              await refreshHomeLinks();
-            }}
-            onOptimisticSave={handleOptimisticSave}
-          />
+          <Suspense fallback={<p className="text-sm text-muted-foreground">Loading link editor…</p>}>
+            <LinkDetailsForm
+              link={editingLink
+                ? {
+                  id: editingLink.id,
+                  name: editingLink.title,
+                  url: editingLink.url,
+                  icon: editingLink.iconUrl,
+                  linkGroup: editingLink.collection,
+                  folder: editingLink.folder,
+                  statusCheck: editingLink.statusCheck,
+                }
+                : undefined}
+              onClose={async () => {
+                setEditingLink(null);
+                await refreshHomeLinks();
+              }}
+              onOptimisticSave={handleOptimisticSave}
+            />
+          </Suspense>
         </DialogContent>
       </Dialog>
 
@@ -876,30 +881,32 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
                 </div>
               </div>
 
-              <IconPickerComponent
-                onSelect={async (iconObj) => {
-                  if (!editingFolder?.id) return;
-                  await withAuth((auth) =>
-                    updateHomeLinkFolderIconAction(auth, editingFolder.id, {
-                      icon: iconObj.url ?? "",
-                    })
-                  );
-                  setLocalLinks((current) => {
-                    const nextLinks = current.map((link) =>
-                      link.folderId === editingFolder.id
-                        ? { ...link, folderIcon: iconObj.url ?? "" }
-                        : link
+              <Suspense fallback={<p className="text-sm text-muted-foreground">Loading icons…</p>}>
+                <IconPickerComponent
+                  onSelect={async (iconObj) => {
+                    if (!editingFolder?.id) return;
+                    await withAuth((auth) =>
+                      updateHomeLinkFolderIconAction(auth, editingFolder.id, {
+                        icon: iconObj.url ?? "",
+                      })
                     );
-                    writeCachedHomeLinks(user?.id, nextLinks);
-                    return nextLinks;
-                  });
-                  setEditingFolder((current) =>
-                    current ? { ...current, icon: iconObj?.url ?? "" } : current
-                  );
-                  await refreshHomeLinks();
-                  setEditingFolder(null);
-                }}
-              />
+                    setLocalLinks((current) => {
+                      const nextLinks = current.map((link) =>
+                        link.folderId === editingFolder.id
+                          ? { ...link, folderIcon: iconObj.url ?? "" }
+                          : link
+                      );
+                      writeCachedHomeLinks(user?.id, nextLinks);
+                      return nextLinks;
+                    });
+                    setEditingFolder((current) =>
+                      current ? { ...current, icon: iconObj?.url ?? "" } : current
+                    );
+                    await refreshHomeLinks();
+                    setEditingFolder(null);
+                  }}
+                />
+              </Suspense>
             </div>
           )}
         </DialogContent>

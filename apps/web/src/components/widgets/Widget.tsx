@@ -9,23 +9,16 @@ import {
   useRef,
   useState,
 } from "react";
-import GlanceableClockWidget from "./dashboard/GlanceableClock";
 import {
   CalendarTodayWidget,
   CalendarUpcomingWidget,
   default as CalendarWeekWidget,
 } from "@dashwise/integrationskit/static-widgets/CalendarWidgets";
-import CountdownWidget from "@dashwise/integrationskit/static-widgets/CountdownWidget";
-import RssFeedWidget from "@dashwise/integrationskit/static-widgets/RssFeedWidget";
 import VerticalList from "@dashwise/integrationskit/templates/VerticalList";
-import LinkView from "./LinkView";
 import SearchBar from "./SearchBar";
 import IframeTemplate from "@dashwise/integrationskit/templates/IFrame";
 import ImageTemplate from "@dashwise/integrationskit/templates/Image";
-import Widget from "@dashwise/integrationskit/Widget";
 import ProgressWidget from "./ProgressWidget";
-import ShortcutsWidget from "./ShortcutsWidget";
-import { SdkIntegrationWidget } from "./SdkIntegrationContribution";
 import { parseSdkContributionKey } from "./sdkContributionKey";
 import { useLocalization } from "@/context/LocalizationContext";
 import useAuth from "@/context/useAuth";
@@ -37,6 +30,14 @@ import {
   getNewsFeedAction,
   previewImageSourceAction,
 } from '@/lib/apiClient';
+
+const GlanceableClockWidget = lazy(() => import("./dashboard/GlanceableClock"));
+const CountdownWidget = lazy(() => import("@dashwise/integrationskit/static-widgets/CountdownWidget"));
+const RssFeedWidget = lazy(() => import("@dashwise/integrationskit/static-widgets/RssFeedWidget"));
+const LinkView = lazy(() => import("./LinkView"));
+const Widget = lazy(() => import("@dashwise/integrationskit/Widget"));
+const ShortcutsWidget = lazy(() => import("./ShortcutsWidget"));
+const SdkIntegrationWidget = lazy(() => import("./SdkIntegrationContribution").then((module) => ({ default: module.SdkIntegrationWidget })));
 
 export type WidgetProps = {
   type: string;
@@ -58,7 +59,15 @@ function stripWidgetIndex(params?: Record<string, any>) {
   return rest;
 }
 
-export function renderWidget({
+export function renderWidget(props: WidgetProps): ReactNode {
+  return (
+    <Suspense fallback={<WidgetLoadingState className={props.className} />}>
+      <ResolvedWidget {...props} />
+    </Suspense>
+  );
+}
+
+function ResolvedWidget({
   type,
   consumerKey,
   params,

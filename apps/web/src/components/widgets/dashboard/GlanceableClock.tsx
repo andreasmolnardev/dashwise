@@ -1,13 +1,12 @@
 // components/widgets/dashboard/GlanceableClock.tsx
 "use client";
 
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import ClockWidget from "../ClockWidget";
 import useAuth from "@/context/useAuth";
 import { getConsumerDataAction } from '@/lib/apiClient';
 import { updatePageIntegrationConsumerCache } from "@/lib/pageIntegrationDataCache";
-import GlanceableComponent from "@dashwise/integrationskit/Glanceable";
-import { parseSdkContributionKey, SdkIntegrationGlanceable } from "@/components/widgets/SdkIntegrationContribution";
+import { parseSdkContributionKey } from "../sdkContributionKey";
 import { usePageConfig } from "@/hooks/usePageConfig";
 import type { WidgetItemProps } from "../Widget";
 import { useLocalization } from "@/context/LocalizationContext";
@@ -16,6 +15,9 @@ import { Bell, CalendarDays } from "lucide-react";
 import { readPageIntegrationConsumer } from "@/lib/pageIntegrationDataCache";
 import type { ClockAppearance } from "../../settings/ClockFontSelectionCarousel";
 import ActivityStream from "@/components/activity/ActivityStream";
+
+const GlanceableComponent = lazy(() => import("@dashwise/integrationskit/Glanceable"));
+const SdkIntegrationGlanceable = lazy(() => import("../SdkIntegrationContribution").then((module) => ({ default: module.SdkIntegrationGlanceable })));
 
 type ResolvedGlanceablePayload = {
   consumer: "glanceable";
@@ -257,7 +259,13 @@ function getCarouselInterval(value: unknown) {
   return Number.isFinite(interval) && interval >= 1 ? interval : DEFAULT_CAROUSEL_INTERVAL_SECONDS;
 }
 
-function ResolvedGlanceable({
+function ResolvedGlanceable(props: Parameters<typeof ResolvedGlanceableContent>[0]) {
+  return <Suspense fallback={<span className="text-xs text-white/60">Loading…</span>}>
+    <ResolvedGlanceableContent {...props} />
+  </Suspense>;
+}
+
+function ResolvedGlanceableContent({
   type,
   params,
   className,
