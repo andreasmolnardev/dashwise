@@ -44,6 +44,9 @@ COPY packages/types/package.json ./packages/types/
 COPY packages/integration-example-rest/package.json ./packages/integration-example-rest/
 COPY packages/integrations-sdk/package.json ./packages/integrations-sdk/
 COPY packages/integrations/homeassistant/package.json ./packages/integrations/homeassistant/
+COPY packages/integrations/groovewise/package.json ./packages/integrations/groovewise/
+COPY packages/integrations/jellyfin/package.json ./packages/integrations/jellyfin/
+COPY packages/integrations/music-assistant/package.json ./packages/integrations/music-assistant/
 RUN bun install --frozen-lockfile
 
 FROM deps AS build
