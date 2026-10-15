@@ -4,6 +4,10 @@ import type {
   IntegrationsRuntime,
   JsonValue,
   ResourceRecord,
+  PlaybackEvent,
+  PlaybackListenerContext,
+  PlaybackResolveContext,
+  PlaybackSource,
 } from "@dashwise/integrations-sdk";
 import { publishIntegrationActivity } from "../data/activities";
 import { broadcastSdkResourceRevision } from "../activity";
@@ -55,6 +59,7 @@ type RuntimeEntry = {
   sockets: Set<WebSocket>;
   abortControllers: Set<AbortController>;
   activeActionResources: Set<string>;
+  playbackSessions: Set<PlaybackListenerContext>;
   running: boolean;
 };
 
@@ -173,6 +178,121 @@ export async function listRuntimeSdkResources(userId: string, instanceId?: strin
   return output;
 }
 
+/** Resolve a trusted SDK resource to a protected server-side media source. */
+export async function resolveSdkPlayback(
+  identity: PlaybackResolveContext,
+): Promise<{ source: PlaybackSource; context?: JsonValue; resource: ResourceRecord; listenerContext: PlaybackListenerContext }> {
+  const entry = runtimes.get(identity.integrationInstanceId);
+  if (!entry || !entry.running || entry.userId !== identity.userId) {
+    throw new ApiActionError("Playback integration is unavailable", 404, { error: "Playback integration is unavailable" });
+  }
+  const playback = entry.definition.playback;
+  if (!playback) throw new ApiActionError("Resource does not support playback", 404, { error: "Resource does not support playback" });
+  const resource = entry.resources[identity.collectionId]?.get(identity.resourceId);
+  if (!resource || resource.playback !== true || resource.available === false || entry.staleResources.has(resourceIdentity(identity.collectionId, identity.resourceId))) {
+    throw new ApiActionError("Playable resource is unavailable", 404, { error: "Playable resource is unavailable" });
+  }
+  let resolved: Awaited<ReturnType<typeof playback.resolve>>;
+  try {
+    resolved = await playback.resolve(entry.api, resource, identity);
+  } catch (error) {
+    throw new ApiActionError(safeErrorMessage(entry, error), 502, { error: safeErrorMessage(entry, error) });
+  }
+  const source = resolved?.source;
+  if (!source || typeof source.url !== "string" || !source.url.trim()) {
+    throw new ApiActionError("Integration returned an invalid playback source", 502, { error: "Integration returned an invalid playback source" });
+  }
+  if (source.url.length > 8192 || Object.keys(source.auth?.headers ?? {}).length > 32) {
+    throw new ApiActionError("Integration returned an invalid playback source", 502, { error: "Integration returned an invalid playback source" });
+  }
+  try {
+    const allowedPrivateUrls = Object.entries(entry.definition.config)
+      .filter(([key, field]) => field.type === "url" && typeof entry.api.config[key] === "string")
+      .map(([key]) => entry.api.config[key] as string);
+    const safeUrl = await assertSafeIntegrationUrl(source.url, ["http:", "https:"], undefined, allowedPrivateUrls);
+    if (safeUrl.username || safeUrl.password) throw new Error("invalid URL credentials");
+    for (const [name, value] of Object.entries(source.auth?.headers ?? {})) {
+      if (!name.trim() || typeof value !== "string" || value.length > 8192) throw new Error("invalid auth headers");
+      new Headers({ [name]: value });
+    }
+    if (resolved.context !== undefined) assertNoSecrets(entry, resolved.context, "playback context");
+    assertNoSecrets(entry, { metadata: source.metadata, kind: source.kind, mimeType: source.mimeType }, "playback metadata");
+    if (source.kind !== undefined && source.kind !== "audio" && source.kind !== "video") throw new Error("invalid media kind");
+    if (source.mimeType !== undefined && (typeof source.mimeType !== "string" || source.mimeType.length > 120)) throw new Error("invalid mime type");
+    if (source.metadata?.durationSeconds !== undefined && (!Number.isFinite(source.metadata.durationSeconds) || source.metadata.durationSeconds < 0)) throw new Error("invalid duration");
+    if (source.metadata && (!isObject(source.metadata)
+      || [source.metadata.title, source.metadata.artist, source.metadata.artworkUrl].some((value) => value !== undefined && (typeof value !== "string" || value.length > 1000)))) throw new Error("invalid metadata");
+    const listenerContext: PlaybackListenerContext = {
+      ...identity, resource, source,
+      ...(resolved.context !== undefined ? { context: resolved.context } : {}),
+    };
+    entry.playbackSessions.add(listenerContext);
+    return { source, context: resolved.context, resource, listenerContext };
+  } catch {
+    throw new ApiActionError("Integration returned an unsafe playback source", 502, { error: "Integration returned an unsafe playback source" });
+  }
+}
+
+export async function dispatchSdkPlaybackEvent(
+  context: PlaybackListenerContext,
+  event: PlaybackEvent,
+) {
+  const entry = runtimes.get(context.integrationInstanceId);
+  if (!entry || !entry.running || entry.userId !== context.userId || !entry.playbackSessions.has(context)) return;
+  try {
+    await entry.definition.playback?.listeners?.[event.type]?.(entry.api, context, event);
+  } catch (error) {
+    entry.api.logger.warn("Playback listener failed", { event: event.type, error: safeErrorMessage(entry, error) });
+  }
+}
+
+export async function disposeSdkPlayback(context: PlaybackListenerContext) {
+  const entry = runtimes.get(context.integrationInstanceId);
+  if (!entry || entry.userId !== context.userId) return;
+  if (!entry.playbackSessions.has(context)) return;
+  entry.playbackSessions.delete(context);
+  await entry.definition.playback?.dispose?.(entry.api, context);
+}
+
+export async function fetchSdkPlaybackSource(
+  context: PlaybackListenerContext,
+  request: Request,
+) {
+  const entry = runtimes.get(context.integrationInstanceId);
+  if (!entry || !entry.running || entry.userId !== context.userId || !entry.playbackSessions.has(context)) {
+    throw new ApiActionError("Playback source is unavailable", 404, { error: "Playback source is unavailable" });
+  }
+  const headers = new Headers(context.source.auth?.headers);
+  for (const name of ["range", "if-range", "if-none-match", "if-modified-since"]) {
+    const value = request.headers.get(name);
+    if (value) headers.set(name, value);
+  }
+  const response = await entry.api.http.fetch(context.source.url, {
+    method: request.method,
+    headers,
+    signal: request.signal,
+  });
+  const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
+  if (contentType.includes("mpegurl") || /\.m3u8(?:$|\?)/i.test(context.source.url)) {
+    await response.body?.cancel();
+    throw new ApiActionError("HLS playback sources are not supported by this media proxy", 415, { error: "HLS playback sources are not supported by this media proxy" });
+  }
+  if (!response.ok && response.status !== 304 && response.status !== 416) {
+    await response.body?.cancel();
+    throw new ApiActionError("Media source request failed", 502, { error: "Media source request failed" });
+  }
+  if (response.status === 416) {
+    const headers = new Headers();
+    for (const name of ["content-range", "accept-ranges"]) {
+      const value = response.headers.get(name);
+      if (value) headers.set(name, value);
+    }
+    await response.body?.cancel();
+    return new Response(null, { status: 416, headers });
+  }
+  return response;
+}
+
 export async function listSdkResourceSnapshot(userId: string, instanceId: string) {
   const { instance } = await getOwnedSdkInstance(userId, instanceId);
   const definition = requireSdkIntegrationDefinition(instance.source);
@@ -199,6 +319,10 @@ async function stopInstance(instanceId: string) {
   if (!entry) {
     setRuntimeStatus(instanceId, "stopped");
     return;
+  }
+  for (const context of [...entry.playbackSessions]) {
+    try { await disposeSdkPlayback(context); }
+    catch (error) { entry.api.logger.warn("Playback session cleanup failed", { error: safeErrorMessage(entry, error) }); }
   }
   runtimes.delete(instanceId);
   await disposeEntry(entry, true);
@@ -286,7 +410,7 @@ function createRuntimeEntry(
 ): RuntimeEntry {
   const entry: RuntimeEntry = {
     userId, instance, definition, resources, revisions, staleResources, secretValues: Object.values(secrets).filter((value) => value.length > 0),
-    cleanups: [], events: new Map(), scheduler: new Map(), sockets: new Set(), abortControllers: new Set(), activeActionResources: new Set(),
+    cleanups: [], events: new Map(), scheduler: new Map(), sockets: new Set(), abortControllers: new Set(), activeActionResources: new Set(), playbackSessions: new Set(),
     api: undefined as unknown as IntegrationsRuntime<any, any, any>,
     running: false,
   };

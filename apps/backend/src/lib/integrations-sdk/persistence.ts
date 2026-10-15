@@ -345,6 +345,7 @@ function resourceToJson(resource: SdkResourceRecord) {
     ...(resource.apps ? { apps: resource.apps } : {}),
     ...(resource.updatedAt ? { updatedAt: resource.updatedAt } : {}),
     ...(resource.upstreamId ? { upstreamId: resource.upstreamId } : {}),
+    ...(resource.playback ? { playback: true } : {}),
   };
 }
 

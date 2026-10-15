@@ -24,6 +24,7 @@ import sessionsRoute from "./routes/sessions.route";
 import systemRoute from "./routes/system.route";
 import dataRoute from "./routes/data.route";
 import activityWebSocketRoute from "./routes/activity.websocket";
+import mediaRoute from "./routes/media.route";
 
 const app = new Hono();
 const devAutoLoginEmail = "testenv@dashwise.local";
@@ -76,6 +77,7 @@ app.route("/", authRoute);
 app.route("/", sessionsRoute);
 app.route("/", systemRoute);
 app.route("/", dataRoute);
+app.route("/", mediaRoute);
 
 app.get("/health", (c) => c.json({ status: "ok" }));
 

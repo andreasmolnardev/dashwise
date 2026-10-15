@@ -57,6 +57,45 @@ export type ResourceRecord = {
   apps?: readonly string[];
   updatedAt?: string;
   upstreamId?: string;
+  /** Indicates that this resource can be resolved to playable media. */
+  playback?: boolean;
+};
+export type PlaybackSource = {
+  url: string;
+  auth?: { headers: Readonly<Record<string, string>> };
+  metadata?: { title?: string; artist?: string; artworkUrl?: string; durationSeconds?: number };
+  kind?: "audio" | "video";
+  mimeType?: string;
+};
+export type PlaybackEvent = {
+  sequence: number;
+  type: "started" | "paused" | "resumed" | "progress" | "ended" | "stopped" | "error";
+  positionSeconds?: number;
+  reason?: string;
+};
+export type PlaybackResolveContext = {
+  userId: string;
+  integrationInstanceId: string;
+  sessionId: string;
+  collectionId: string;
+  resourceId: string;
+};
+export type PlaybackListenerContext = PlaybackResolveContext & {
+  resource: ResourceRecord;
+  source: PlaybackSource;
+  context?: JsonValue;
+};
+export type PlaybackListener<Runtime extends IntegrationsRuntime<any, any, any> = IntegrationsRuntime> = {
+  invoke(integrations: Runtime, context: PlaybackListenerContext, event: PlaybackEvent): void | Promise<void>;
+}["invoke"];
+export type IntegrationPlayback<Runtime extends IntegrationsRuntime<any, any, any> = IntegrationsRuntime> = {
+  resolve(
+    integrations: Runtime,
+    resource: ResourceRecord,
+    context: PlaybackResolveContext,
+  ): Promise<{ source: PlaybackSource; context?: JsonValue }> | { source: PlaybackSource; context?: JsonValue };
+  listeners?: Partial<Record<PlaybackEvent["type"], PlaybackListener<Runtime>>>;
+  dispose?(integrations: Runtime, context: PlaybackListenerContext): void | Promise<void>;
 };
 export type ResourceCollectionDefinition<Resource extends ResourceRecord = ResourceRecord> = {
   persistent?: boolean;
@@ -351,6 +390,7 @@ export type IntegrationDefinition<
   apps?: readonly AppContribution[];
   widgets?: Widgets;
   glanceables?: Glanceables;
+  playback?: IntegrationPlayback<IntegrationsRuntime<ConfigValues<Config>, SecretConfigKey<Config>, Resources>>;
   setup?(integrations: IntegrationsRuntime<ConfigValues<Config>, SecretConfigKey<Config>, Resources>): void | Promise<void>;
   start?(integrations: IntegrationsRuntime<ConfigValues<Config>, SecretConfigKey<Config>, Resources>): void | Promise<void>;
   stop?(integrations: IntegrationsRuntime<ConfigValues<Config>, SecretConfigKey<Config>, Resources>): void | Promise<void>;
