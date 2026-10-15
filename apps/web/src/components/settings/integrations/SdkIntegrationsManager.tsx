@@ -23,7 +23,38 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import AppIcon from "@dashwise/app-icon";
 
-type ConfigField = Record<string, unknown> & { type?: string; label?: string; description?: string; required?: boolean };
+type ConfigField = Record<string, unknown> & {
+  type?: string;
+  label?: string;
+  title?: string;
+  description?: string;
+  required?: boolean;
+  options?: readonly unknown[];
+};
+
+function getErrorEndpoint(message?: string) {
+  const match = message?.match(/https?:\/\/[^\s"'<>]+/);
+  if (!match) return null;
+  const raw = match[0].replace(/[),.;]+$/, "");
+  try {
+    const endpoint = new URL(raw);
+    endpoint.username = "";
+    endpoint.password = "";
+    return `${endpoint.origin}${endpoint.pathname}`;
+  } catch {
+    return null;
+  }
+}
+
+function buildErrorCurl(endpoint: string) {
+  const quotedEndpoint = `'${endpoint.replace(/'/g, "'\\''")}'`;
+  return [
+    "curl --fail-with-body --silent --show-error",
+    "  -H 'Accept: application/json'",
+    "  -H 'Authorization: Bearer INSERT_TOKEN'",
+    `  ${quotedEndpoint}`,
+  ].join(" \\\n");
+}
 
 export default function SdkIntegrationsManager({ view }: { view: "installed" | "catalog" }) {
   const { withAuth } = useAuth();
@@ -39,13 +70,14 @@ export default function SdkIntegrationsManager({ view }: { view: "installed" | "
   const [installing, setInstalling] = useState<SdkIntegrationCatalogEntry | null>(null);
   const [name, setName] = useState("");
   const [draft, setDraft] = useState<Record<string, unknown>>({});
+  const [curlCopyStatus, setCurlCopyStatus] = useState<{ instanceId: string; status: "copied" | "failed" } | null>(null);
 
   const refresh = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
+      setCatalog(await withAuth(getSdkIntegrationCatalogAction));
       if (view === "catalog") {
-        setCatalog(await withAuth(getSdkIntegrationCatalogAction));
         return;
       }
 
@@ -171,6 +203,17 @@ export default function SdkIntegrationsManager({ view }: { view: "installed" | "
     }
   };
 
+  const copyErrorCurl = async (instance: SdkIntegrationInstance) => {
+    const endpoint = getErrorEndpoint(runtimeStatuses[instance.id]?.message);
+    if (!endpoint) return;
+    try {
+      await navigator.clipboard.writeText(buildErrorCurl(endpoint));
+      setCurlCopyStatus({ instanceId: instance.id, status: "copied" });
+    } catch {
+      setCurlCopyStatus({ instanceId: instance.id, status: "failed" });
+    }
+  };
+
   return (
     <>
       {view === "installed" && (loading ? (
@@ -224,9 +267,18 @@ export default function SdkIntegrationsManager({ view }: { view: "installed" | "
                 <summary className="cursor-pointer font-medium text-destructive">
                   Show more error details for {instance.name}
                 </summary>
-                <p className="mt-2 break-words text-white/80">
-                  {instance.name}: {status.message ?? "The integration failed to start."}
-                </p>
+                <div className="mt-2 flex items-start justify-between gap-3">
+                  <p className="mt-2 break-words text-white/80">
+                    {instance.name}: {status.message ?? "The integration failed to start."}
+                  </p>
+                  {getErrorEndpoint(status.message) && (
+                    <Button type="button" size="sm" variant="outline" className="shrink-0" onClick={() => void copyErrorCurl(instance)}>
+                      {curlCopyStatus?.instanceId === instance.id
+                        ? curlCopyStatus.status === "copied" ? "Copied" : "Copy failed"
+                        : "Copy cURL"}
+                    </Button>
+                  )}
+                </div>
               </details>
             )}
           </div>
@@ -287,7 +339,7 @@ export default function SdkIntegrationsManager({ view }: { view: "installed" | "
               </div>
               {Object.entries(selectedDefinition.config).map(([key, rawField]) => {
                 const field = rawField as ConfigField;
-                const label = field.label ?? key;
+                const label = field.label ?? field.title ?? key;
                 const value = draft[key];
                 const common = { id: `sdk-config-${key}`, required: field.required === true && !(editing && field.type === "secret"), placeholder: String(field.placeholder ?? "") };
                 return (
@@ -298,12 +350,31 @@ export default function SdkIntegrationsManager({ view }: { view: "installed" | "
                         <input id={common.id} type="checkbox" checked={typeof value === "boolean" ? value : Boolean(field.default)} onChange={(event) => setDraft((current) => ({ ...current, [key]: event.target.checked }))} />
                         Enabled
                       </label>
-                    ) : field.type === "select" ? (
-                      <select id={common.id} value={String(value ?? field.default ?? "")} onChange={(event) => setDraft((current) => ({ ...current, [key]: event.target.value }))} className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
+                    ) : field.type === "select" || field.type === "enum" ? (
+                      <select
+                        id={common.id}
+                        required={common.required}
+                        value={String(value ?? field.default ?? "")}
+                        onChange={(event) => {
+                          const selected = (Array.isArray(field.options) ? field.options : [])
+                            .map((rawOption) => {
+                              if (typeof rawOption === "object" && rawOption !== null && "value" in rawOption) {
+                                const option = rawOption as { value: unknown };
+                                return option.value;
+                              }
+                              return rawOption;
+                            })
+                            .find((option) => String(option) === event.target.value);
+                          setDraft((current) => ({ ...current, [key]: selected ?? event.target.value }));
+                        }}
+                        className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                      >
                         <option value="">Select…</option>
                         {(Array.isArray(field.options) ? field.options : []).map((rawOption) => {
-                          const option = rawOption as { label?: string; value?: unknown };
-                          return <option key={String(option.value)} value={String(option.value)}>{option.label ?? String(option.value)}</option>;
+                          const isOptionObject = typeof rawOption === "object" && rawOption !== null && "value" in rawOption;
+                          const option = isOptionObject ? rawOption as { label?: string; value: unknown } : null;
+                          const optionValue = option?.value ?? rawOption;
+                          return <option key={String(optionValue)} value={String(optionValue)}>{option?.label ?? String(optionValue)}</option>;
                         })}
                       </select>
                     ) : (

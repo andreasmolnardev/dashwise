@@ -101,7 +101,7 @@ export default function IntegrationsModularSettingsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [settingsTab, setSettingsTab] = useState<"local" | "curated">("curated");
+  const [settingsTab, setSettingsTab] = useState<"local" | "curated">("local");
   const [curatedIntegrations, setCuratedIntegrations] = useState<CuratedIntegration[]>([]);
   const [curatedLoading, setCuratedLoading] = useState(false);
   const [curatedError, setCuratedError] = useState<string | null>(null);
