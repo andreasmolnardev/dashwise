@@ -9,6 +9,12 @@ const owner = "playback-runtime-test-user";
 const privateToken = "provider-private-playback-token";
 let listenerCalls = 0;
 let exposeSecretAsMetadata = false;
+let scheduledActive = 0;
+let scheduledMaxActive = 0;
+let scheduledRuns = 0;
+let scheduledStarts = 0;
+let releaseScheduledTask: (() => void) | null = null;
+let schedulerGate = new Promise<void>((resolve) => { releaseScheduledTask = resolve; });
 const playbackDefinition = defineIntegration({
   id: "playback-runtime-test",
   name: "Playback Runtime Test",
@@ -41,6 +47,37 @@ const playbackDefinition = defineIntegration({
 });
 
 registerSdkIntegration(playbackDefinition);
+
+const schedulerDefinition = defineIntegration({
+  id: "scheduler-runtime-test",
+  name: "Scheduler Runtime Test",
+  version: "1.0.0",
+  config: {},
+  resources: { status: {} },
+  start(runtime) {
+    runtime.scheduler.every("overlap", 100, async () => {
+      scheduledActive += 1;
+      scheduledMaxActive = Math.max(scheduledMaxActive, scheduledActive);
+      scheduledStarts += 1;
+      await schedulerGate;
+      scheduledActive -= 1;
+      scheduledRuns += 1;
+    });
+  },
+});
+registerSdkIntegration(schedulerDefinition);
+
+const invalidSchedulerDefinition = defineIntegration({
+  id: "invalid-scheduler-runtime-test",
+  name: "Invalid Scheduler Runtime Test",
+  version: "1.0.0",
+  config: {},
+  resources: { status: {} },
+  start(runtime) {
+    runtime.scheduler.every("too-fast", 1, () => undefined);
+  },
+});
+registerSdkIntegration(invalidSchedulerDefinition);
 
 function createConnector() {
   const tables = new Map<string, Array<Record<string, any>>>();
@@ -78,9 +115,18 @@ function createConnector() {
 
 let previousConnector = getDashwiseSDKConnector();
 afterEach(async () => {
+  await stopSdkIntegrationRuntime();
+  releaseScheduledTask?.();
+  await Promise.resolve();
   exposeSecretAsMetadata = false;
   listenerCalls = 0;
-  await stopSdkIntegrationRuntime();
+  scheduledActive = 0;
+  scheduledMaxActive = 0;
+  scheduledRuns = 0;
+  scheduledStarts = 0;
+  releaseScheduledTask?.();
+  releaseScheduledTask = null;
+  schedulerGate = new Promise<void>((resolve) => { releaseScheduledTask = resolve; });
   registerDashwiseSDKConnector(previousConnector);
   previousConnector = getDashwiseSDKConnector();
 });
@@ -129,5 +175,37 @@ describe("SDK playback runtime", () => {
       collectionId: "tracks",
       resourceId: "provider/track-1",
     })).rejects.toThrow("unsafe playback source");
+  });
+
+  test("skips overlapping scheduler ticks and cancels future runs on stop", async () => {
+    previousConnector = getDashwiseSDKConnector();
+    registerDashwiseSDKConnector(createConnector() as never);
+    const instance = await createSdkInstance(owner, { source: schedulerDefinition.id, config: {} });
+    await startSdkIntegrationInstance(owner, instance.id);
+    const waitFor = async (predicate: () => boolean) => {
+      const deadline = Date.now() + 2_000;
+      while (!predicate() && Date.now() < deadline) await new Promise((resolve) => setTimeout(resolve, 10));
+      expect(predicate()).toBe(true);
+    };
+    await waitFor(() => scheduledStarts >= 1);
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    expect(scheduledMaxActive).toBe(1);
+    expect(scheduledStarts).toBe(1);
+
+    releaseScheduledTask?.();
+    await waitFor(() => scheduledStarts >= 2);
+    await stopSdkIntegrationRuntime();
+    releaseScheduledTask = null;
+    await new Promise((resolve) => setTimeout(resolve, 180));
+    const runsAtStop = scheduledRuns;
+    await new Promise((resolve) => setTimeout(resolve, 180));
+    expect(scheduledRuns).toBe(runsAtStop);
+  });
+
+  test("rejects scheduler intervals below the supported minimum", async () => {
+    previousConnector = getDashwiseSDKConnector();
+    registerDashwiseSDKConnector(createConnector() as never);
+    const instance = await createSdkInstance(owner, { source: invalidSchedulerDefinition.id, config: {} });
+    await expect(startSdkIntegrationInstance(owner, instance.id)).rejects.toThrow("between 100ms and 2147483647ms");
   });
 });

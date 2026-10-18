@@ -342,6 +342,7 @@ export type IntegrationHttp = {
 };
 export type IntegrationWebSocket = { connect(url: string | URL, protocols?: string | string[]): Promise<WebSocket> };
 export type IntegrationScheduler = {
+  /** Runs at most once at a time; intervalMs must be 100–2147483647ms. */
   every(name: string, intervalMs: number, task: (signal: AbortSignal) => void | Promise<void>): void;
   timeout(name: string, delayMs: number, task: (signal: AbortSignal) => void | Promise<void>): void;
   cancel(name: string): void;

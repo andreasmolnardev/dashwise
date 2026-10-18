@@ -64,6 +64,7 @@ type RuntimeEntry = {
 };
 
 const logger = createLogger("SDK Integration Runtime");
+const maxSchedulerSafeTimeoutMs = 2_147_483_647;
 const runtimes = new Map<string, RuntimeEntry>();
 const startupTasks = new Map<string, Promise<void>>();
 const lifecycleTasks = new Map<string, Promise<void>>();
@@ -595,8 +596,8 @@ function createRuntimeEntry(
     },
     scheduler: {
       every(name, intervalMs, task) {
-        if (!Number.isFinite(intervalMs) || intervalMs < 1_000) {
-          throw new RangeError("Scheduled task interval must be a finite number of at least 1000ms");
+        if (!Number.isFinite(intervalMs) || intervalMs < 100 || intervalMs > maxSchedulerSafeTimeoutMs) {
+          throw new RangeError("Scheduled task interval must be a finite number between 100ms and 2147483647ms");
         }
         cancelScheduledTask(entry, name);
         const controller = new AbortController();

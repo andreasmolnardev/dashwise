@@ -237,7 +237,9 @@ The managed HTTP helper combines caller cancellation with instance lifecycle
 cancellation and applies a 15 second request timeout. The managed WebSocket
 helper bounds connection setup to 10 seconds and closes the socket when the
 instance stops. Scheduler tasks also receive an `AbortSignal` and are cancelled
-on stop.
+on stop. Repeating tasks run at most once at a time; a tick is skipped while the
+previous run is still active. Their interval must be a finite number between
+100ms and 2147483647ms.
 
 The runtime also exposes a scheduler for polling, an event bus for messages
 between runtime code, and an MCP capability that calls tools registered by the
