@@ -35,6 +35,7 @@ activityRoute.get("/api/v1/activity",  upgradeWebSocket((c) => {
   let unregisterSessionConnection: (() => void) | undefined;
   let lifecycle: SessionConnection | undefined;
   let sendPageWidgets: ((pageId: string) => Promise<void>) | undefined;
+  const pageWidgetRefreshes = new Map<string, Promise<void>>();
   let closed = false;
   const cleanup = () => {
     closed = true;
@@ -125,51 +126,59 @@ activityRoute.get("/api/v1/activity",  upgradeWebSocket((c) => {
           }));
         };
 
-        sendPageWidgets = async (pageId: string) => {
-          if (pageId !== activePageId || !await lifecycle?.ensureValid() || !lifecycle?.isActive()) return;
-          const items = await getSharedPageWidgetSnapshot(userId, pageId, async () => {
-            const pageName = normalizePageName(pageId);
-            const pageConfig = (await getPageConfigJSON(userId, pageName)) ?? {};
-            const consumers = collectPageConsumers(pageConfig);
-            const sharedRuntimeCache = new Map<string, any>();
-            return Promise.all(consumers.map(async (consumer) => {
-            let item: Record<string, unknown>;
-            try {
-              const payload = await resolveConsumerDataForRequest({
-                userId,
-                pb,
-                type: consumer.consumer,
-                key: consumer.key,
-                properties: consumer.properties,
-                isPreview: false,
-                sharedRuntimeCache,
-              });
-              item = {
-                consumer: consumer.consumer,
-                key: consumer.key,
-                properties: consumer.properties,
-                integrationId: payload.integrationId ?? null,
-                consumerKey: consumer.consumerKey,
-                success: true,
-                data: payload.data,
-                blueprint: payload.blueprint,
-              };
-            } catch (error) {
-              item = {
-                consumer: consumer.consumer,
-                key: consumer.key,
-                properties: consumer.properties,
-                integrationId: null,
-                consumerKey: consumer.consumerKey,
-                success: false,
-                error: error instanceof Error ? error.message : String(error),
-              };
-            }
-            return item;
-            }));
-          });
-          if (pageId !== activePageId || !await lifecycle?.ensureValid() || !lifecycle?.isActive()) return;
-          for (const item of items) ws.send(JSON.stringify({ type: "page-widget", pageId, item }));
+        sendPageWidgets = (pageId: string) => {
+          const pending = pageWidgetRefreshes.get(pageId);
+          if (pending) return pending;
+          const request = (async () => {
+            if (pageId !== activePageId || !await lifecycle?.ensureValid() || !lifecycle?.isActive()) return;
+            const items = await getSharedPageWidgetSnapshot(userId, pageId, async () => {
+              const pageName = normalizePageName(pageId);
+              const pageConfig = (await getPageConfigJSON(userId, pageName)) ?? {};
+              const consumers = collectPageConsumers(pageConfig);
+              const sharedRuntimeCache = new Map<string, any>();
+              return Promise.all(consumers.map(async (consumer) => {
+                try {
+                  const payload = await resolveConsumerDataForRequest({
+                    userId,
+                    pb,
+                    type: consumer.consumer,
+                    key: consumer.key,
+                    properties: consumer.properties,
+                    isPreview: false,
+                    sharedRuntimeCache,
+                  });
+                  return {
+                    consumer: consumer.consumer,
+                    key: consumer.key,
+                    properties: consumer.properties,
+                    integrationId: payload.integrationId ?? null,
+                    consumerKey: consumer.consumerKey,
+                    success: true,
+                    data: payload.data,
+                    blueprint: payload.blueprint,
+                  };
+                } catch (error) {
+                  return {
+                    consumer: consumer.consumer,
+                    key: consumer.key,
+                    properties: consumer.properties,
+                    integrationId: null,
+                    consumerKey: consumer.consumerKey,
+                    success: false,
+                    error: error instanceof Error ? error.message : String(error),
+                  };
+                }
+              }));
+            });
+            if (pageId !== activePageId || !await lifecycle?.ensureValid() || !lifecycle?.isActive()) return;
+            for (const item of items) ws.send(JSON.stringify({ type: "page-widget", pageId, item }));
+          })();
+          pageWidgetRefreshes.set(pageId, request);
+          void request.then(
+            () => { if (pageWidgetRefreshes.get(pageId) === request) pageWidgetRefreshes.delete(pageId); },
+            () => { if (pageWidgetRefreshes.get(pageId) === request) pageWidgetRefreshes.delete(pageId); },
+          );
+          return request;
         };
 
         unsubscribeActivity = subscribeActivity(userId, sendSnapshot);
