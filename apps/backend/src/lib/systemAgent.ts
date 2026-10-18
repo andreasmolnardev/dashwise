@@ -51,13 +51,16 @@ export class SystemAgentClient {
       const statsTimer = this.statsWriteTimers.get(hostId);
       if (statsTimer) clearTimeout(statsTimer);
       this.statsWriteTimers.delete(hostId);
+      const pending = this.pendingStats.get(hostId);
       this.pendingStats.delete(hostId);
+      if (pending) void this.writeStats(hostId, pending);
       this.metadataRefreshedAt.delete(hostId);
       return;
     }
     for (const id of this.sockets.keys()) this.stop(id);
     for (const timer of this.statsWriteTimers.values()) clearTimeout(timer);
     this.statsWriteTimers.clear();
+    for (const [id, pending] of this.pendingStats) void this.writeStats(id, pending);
     this.pendingStats.clear();
     this.metadataRefreshedAt.clear();
     if (this.pollTimer) clearInterval(this.pollTimer);
