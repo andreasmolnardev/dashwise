@@ -14,6 +14,8 @@ type LiveSubscriber = (entry: MonitoringEntry) => void;
 const logger = createLogger("SystemAgent");
 const reconnectDelayMs = 5_000;
 const pollIntervalMs = Number(Bun.env.SYSTEM_AGENT_POLL_INTERVAL_MS) || 15_000;
+const metadataRefreshIntervalMs = 5 * 60_000;
+const statsWriteIntervalMs = 2_000;
 
 function latestEntry(value: unknown): MonitoringEntry | null {
   if (Array.isArray(value)) return value.length ? latestEntry(value[value.length - 1]) : null;
@@ -26,6 +28,9 @@ export class SystemAgentClient {
   private reconnectTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private subscribers = new Map<string, Set<LiveSubscriber>>();
   private pollTimer: ReturnType<typeof setInterval> | null = null;
+  private metadataRefreshedAt = new Map<string, number>();
+  private statsWriteTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  private pendingStats = new Map<string, { current: MonitoringEntry; source: "http" | "websocket" }>();
 
   async start() {
     await this.refreshAll();
@@ -43,9 +48,18 @@ export class SystemAgentClient {
       const timer = this.reconnectTimers.get(hostId);
       if (timer) clearTimeout(timer);
       this.reconnectTimers.delete(hostId);
+      const statsTimer = this.statsWriteTimers.get(hostId);
+      if (statsTimer) clearTimeout(statsTimer);
+      this.statsWriteTimers.delete(hostId);
+      this.pendingStats.delete(hostId);
+      this.metadataRefreshedAt.delete(hostId);
       return;
     }
     for (const id of this.sockets.keys()) this.stop(id);
+    for (const timer of this.statsWriteTimers.values()) clearTimeout(timer);
+    this.statsWriteTimers.clear();
+    this.pendingStats.clear();
+    this.metadataRefreshedAt.clear();
     if (this.pollTimer) clearInterval(this.pollTimer);
     this.pollTimer = null;
   }
@@ -66,11 +80,19 @@ export class SystemAgentClient {
     }
 
     try {
+      const socket = this.sockets.get(host.id);
+      const liveHealthy = socket?.readyState === (globalThis.WebSocket as any)?.OPEN;
+      const needsMetadata = Date.now() - (this.metadataRefreshedAt.get(host.id) ?? 0) >= metadataRefreshIntervalMs;
       const [system, current] = await Promise.all([
-        this.request(host, "/api/v1/system"),
-        this.request(host, "/api/v1/metrics/latest"),
+        needsMetadata ? this.request(host, "/api/v1/system") : Promise.resolve(null),
+        liveHealthy ? Promise.resolve(null) : this.request(host, "/api/v1/metrics/latest"),
       ]);
-      await updateSystemAgentConnection(host.id, "online", { ...host.systemInfo, agent: system });
+      if (system !== null) {
+        await updateSystemAgentConnection(host.id, "online", { ...host.systemInfo, agent: system });
+        this.metadataRefreshedAt.set(host.id, Date.now());
+      } else if (current === null) {
+        await updateSystemAgentConnection(host.id, "online").catch(() => undefined);
+      }
       const entry = latestEntry(current);
       if (entry) await this.persist(host.id, entry, "http");
       this.connectLive(host);
@@ -150,10 +172,20 @@ export class SystemAgentClient {
   private async persist(hostId: string, entry: MonitoringEntry, source: "http" | "websocket") {
     const current = normalizeMetricEntry(entry);
     for (const subscriber of this.subscribers.get(hostId) ?? []) subscriber(current);
-    // Live dashboard updates must not wait for (or be blocked by) PocketBase.
-    // The stats record is only a cache for the non-live endpoint.
+    this.pendingStats.set(hostId, { current, source });
+    if (this.statsWriteTimers.has(hostId)) return;
+    const timer = setTimeout(() => {
+      this.statsWriteTimers.delete(hostId);
+      const pending = this.pendingStats.get(hostId);
+      this.pendingStats.delete(hostId);
+      if (pending) void this.writeStats(hostId, pending);
+    }, statsWriteIntervalMs);
+    this.statsWriteTimers.set(hostId, timer);
+  }
+
+  private async writeStats(hostId: string, pending: { current: MonitoringEntry; source: "http" | "websocket" }) {
     try {
-      await saveSystemAgentStats(hostId, { current, source, receivedAt: new Date().toISOString() });
+      await saveSystemAgentStats(hostId, { ...pending, receivedAt: new Date().toISOString() });
     } catch (error) {
       logger.warn(
         `Unable to persist System Agent ${hostId} metrics`,
