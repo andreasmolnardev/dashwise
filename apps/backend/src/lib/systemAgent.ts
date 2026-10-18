@@ -29,8 +29,11 @@ export class SystemAgentClient {
   private subscribers = new Map<string, Set<LiveSubscriber>>();
   private pollTimer: ReturnType<typeof setInterval> | null = null;
   private metadataRefreshedAt = new Map<string, number>();
+  private lastLiveSampleAt = new Map<string, number>();
+  private connectionStatus = new Map<string, "online" | "offline">();
   private statsWriteTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private pendingStats = new Map<string, { current: MonitoringEntry; source: "http" | "websocket" }>();
+  private statsWritesInFlight = new Set<string>();
 
   async start() {
     await this.refreshAll();
@@ -55,14 +58,18 @@ export class SystemAgentClient {
       this.pendingStats.delete(hostId);
       if (pending) void this.writeStats(hostId, pending);
       this.metadataRefreshedAt.delete(hostId);
+      this.lastLiveSampleAt.delete(hostId);
+      this.connectionStatus.delete(hostId);
       return;
     }
-    for (const id of this.sockets.keys()) this.stop(id);
+    for (const id of new Set([...this.sockets.keys(), ...this.reconnectTimers.keys(), ...this.statsWriteTimers.keys()])) this.stop(id);
     for (const timer of this.statsWriteTimers.values()) clearTimeout(timer);
     this.statsWriteTimers.clear();
     for (const [id, pending] of this.pendingStats) void this.writeStats(id, pending);
     this.pendingStats.clear();
     this.metadataRefreshedAt.clear();
+    this.lastLiveSampleAt.clear();
+    this.connectionStatus.clear();
     if (this.pollTimer) clearInterval(this.pollTimer);
     this.pollTimer = null;
   }
@@ -78,29 +85,30 @@ export class SystemAgentClient {
   async refresh(host: SystemAgentHostRecord) {
     const token = getSystemAgentToken(host);
     if (!token) {
-      await updateSystemAgentConnection(host.id, "offline").catch(() => undefined);
+      await this.setConnectionStatus(host.id, "offline");
       return;
     }
 
     try {
       const socket = this.sockets.get(host.id);
-      const liveHealthy = socket?.readyState === (globalThis.WebSocket as any)?.OPEN;
+      const liveHealthy = socket?.readyState === (globalThis.WebSocket as any)?.OPEN &&
+        Date.now() - (this.lastLiveSampleAt.get(host.id) ?? 0) < Math.max(45_000, pollIntervalMs * 3);
       const needsMetadata = Date.now() - (this.metadataRefreshedAt.get(host.id) ?? 0) >= metadataRefreshIntervalMs;
       const [system, current] = await Promise.all([
         needsMetadata ? this.request(host, "/api/v1/system") : Promise.resolve(null),
         liveHealthy ? Promise.resolve(null) : this.request(host, "/api/v1/metrics/latest"),
       ]);
       if (system !== null) {
-        await updateSystemAgentConnection(host.id, "online", { ...host.systemInfo, agent: system });
+        await this.setConnectionStatus(host.id, "online", { ...host.systemInfo, agent: system });
         this.metadataRefreshedAt.set(host.id, Date.now());
-      } else if (current === null) {
-        await updateSystemAgentConnection(host.id, "online").catch(() => undefined);
+      } else {
+        await this.setConnectionStatus(host.id, "online");
       }
       const entry = latestEntry(current);
       if (entry) await this.persist(host.id, entry, "http");
       this.connectLive(host);
     } catch (error) {
-      await updateSystemAgentConnection(host.id, "offline").catch(() => undefined);
+      await this.setConnectionStatus(host.id, "offline");
       logger.warn(`System Agent ${host.id} unavailable`, error instanceof Error ? error.message : String(error));
     }
   }
@@ -151,7 +159,11 @@ export class SystemAgentClient {
     socket.onmessage = (event: MessageEvent) => {
       try {
         const entry = latestEntry(JSON.parse(String(event.data)));
-        if (entry) void this.persist(host.id, entry, "websocket");
+        if (entry) {
+          this.lastLiveSampleAt.set(host.id, Date.now());
+          this.setConnectionStatus(host.id, "online");
+          void this.persist(host.id, entry, "websocket");
+        }
       } catch {
         logger.warn(`System Agent ${host.id} sent invalid live data`);
       }
@@ -187,6 +199,11 @@ export class SystemAgentClient {
   }
 
   private async writeStats(hostId: string, pending: { current: MonitoringEntry; source: "http" | "websocket" }) {
+    if (this.statsWritesInFlight.has(hostId)) {
+      this.pendingStats.set(hostId, pending);
+      return;
+    }
+    this.statsWritesInFlight.add(hostId);
     try {
       await saveSystemAgentStats(hostId, { ...pending, receivedAt: new Date().toISOString() });
     } catch (error) {
@@ -194,6 +211,23 @@ export class SystemAgentClient {
         `Unable to persist System Agent ${hostId} metrics`,
         error instanceof Error ? error.message : String(error),
       );
+    } finally {
+      this.statsWritesInFlight.delete(hostId);
+      const latest = this.pendingStats.get(hostId);
+      if (latest && !this.statsWriteTimers.has(hostId)) {
+        this.pendingStats.delete(hostId);
+        void this.writeStats(hostId, latest);
+      }
+    }
+  }
+
+  private async setConnectionStatus(hostId: string, status: "online" | "offline", systemInfo?: Record<string, unknown>) {
+    if (this.connectionStatus.get(hostId) === status && !systemInfo) return;
+    try {
+      await updateSystemAgentConnection(hostId, status, systemInfo);
+      this.connectionStatus.set(hostId, status);
+    } catch {
+      // Retry on the next poll if persistence fails.
     }
   }
 }
