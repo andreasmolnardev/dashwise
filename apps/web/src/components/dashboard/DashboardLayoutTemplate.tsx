@@ -64,6 +64,7 @@ const WIDGET_SIZE_CLASSNAME: Record<WidgetSize, string> = {
 
 const PRIVACY_RANDOM_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789";
 const PRIVACY_TEXT_ATTRIBUTES = ["alt", "aria-label", "placeholder", "title", "value"];
+const PRIVACY_CLONE_THROTTLE_MS = 250;
 
 function randomPrivacyString(length: number) {
     const safeLength = Math.max(1, length);
@@ -168,6 +169,7 @@ function WidgetPrivacyOverlay({
         if (!source || !cloneHost) return;
 
         let frameId: number | null = null;
+        let throttleTimer: ReturnType<typeof setTimeout> | null = null;
 
         const renderPrivacyClone = () => {
             cloneHost.replaceChildren();
@@ -182,17 +184,21 @@ function WidgetPrivacyOverlay({
         };
 
         const schedulePrivacyClone = () => {
-            if (frameId !== null) cancelAnimationFrame(frameId);
-            frameId = requestAnimationFrame(() => {
-                frameId = null;
-                renderPrivacyClone();
-            });
+            if (throttleTimer !== null) return;
+            throttleTimer = setTimeout(() => {
+                throttleTimer = null;
+                frameId = requestAnimationFrame(() => {
+                    frameId = null;
+                    renderPrivacyClone();
+                });
+            }, PRIVACY_CLONE_THROTTLE_MS);
         };
 
         renderPrivacyClone();
         const observer = new MutationObserver(schedulePrivacyClone);
         observer.observe(source, {
             attributes: true,
+            attributeFilter: ["alt", "aria-label", "placeholder", "title", "value", "class", "style"],
             childList: true,
             characterData: true,
             subtree: true,
@@ -200,6 +206,7 @@ function WidgetPrivacyOverlay({
 
         return () => {
             observer.disconnect();
+            if (throttleTimer !== null) clearTimeout(throttleTimer);
             if (frameId !== null) cancelAnimationFrame(frameId);
             cloneHost.replaceChildren();
         };
