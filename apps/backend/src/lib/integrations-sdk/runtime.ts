@@ -595,9 +595,20 @@ function createRuntimeEntry(
     },
     scheduler: {
       every(name, intervalMs, task) {
+        if (!Number.isFinite(intervalMs) || intervalMs < 1_000) {
+          throw new RangeError("Scheduled task interval must be a finite number of at least 1000ms");
+        }
         cancelScheduledTask(entry, name);
         const controller = new AbortController();
-        const timer = setInterval(() => void Promise.resolve(task(controller.signal)).catch((error) => api.logger.error(`Scheduled task ${name} failed`, { error: safeErrorMessage(entry, error) })), Math.max(1, intervalMs));
+        let running = false;
+        const timer = setInterval(() => {
+          if (running || controller.signal.aborted || !entry.running) return;
+          running = true;
+          void Promise.resolve()
+            .then(() => task(controller.signal))
+            .catch((error) => api.logger.error(`Scheduled task ${name} failed`, { error: safeErrorMessage(entry, error) }))
+            .finally(() => { running = false; });
+        }, intervalMs);
         entry.scheduler.set(name, { timer, controller });
       },
       timeout(name, delayMs, task) {
