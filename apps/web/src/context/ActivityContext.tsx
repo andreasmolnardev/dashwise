@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, type ReactNode, useCallback, useContext, useEffect, useRef, useState } from "react";
+import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import useAuth from "@/context/useAuth";
 import { backendUrl } from "@/lib/apiClient";
 import { useQueryClient } from "@tanstack/react-query";
@@ -44,6 +44,15 @@ type ActivityContextValue = {
 
 const ActivityContext = createContext<ActivityContextValue | null>(null);
 
+function sameJsonValue(left: unknown, right: unknown) {
+  if (Object.is(left, right)) return true;
+  try {
+    return JSON.stringify(left) === JSON.stringify(right);
+  } catch {
+    return false;
+  }
+}
+
 function socketUrl(token: string, sessionId: string | null) {
   const url = new URL(backendUrl("api/v1/activity"));
   url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
@@ -60,13 +69,16 @@ export function ActivityProvider({ children }: { children: ReactNode }) {
   const reconnectTimer = useRef<number | null>(null);
   const sdkResourceSubscriptions = useRef(new SdkResourceSubscriptions());
   const pageWidgetSubscriptions = useRef(new Map<string, Set<(item: Record<string, unknown>) => void>>());
+  const lastActivitiesSnapshot = useRef<unknown>(undefined);
   const [notifications, setNotifications] = useState<ActivityNotification[]>([]);
   const [calendarEvents, setCalendarEvents] = useState<ActivityCalendarEvent[]>([]);
 
   useEffect(() => {
+    lastActivitiesSnapshot.current = undefined;
     if (!token) {
       setNotifications([]);
       setCalendarEvents([]);
+      lastActivitiesSnapshot.current = undefined;
       sdkResourceSubscriptions.current.clear();
       queryClient.removeQueries({ queryKey: ["api", token, ...queryKeys.notifications.items(null)] });
       return;
@@ -130,11 +142,18 @@ export function ActivityProvider({ children }: { children: ReactNode }) {
             return;
           }
           if (message.type !== "activity:snapshot") return;
-          void queryClient.invalidateQueries({ queryKey: ["api", token, ...queryKeys.activities.root] });
-           const nextNotifications = Array.isArray(message.notifications) ? message.notifications : [];
-           setNotifications(nextNotifications);
-           queryClient.setQueryData(["api", token, ...queryKeys.notifications.items(token)], nextNotifications);
-           setCalendarEvents(Array.isArray(message.calendarEvents) ? message.calendarEvents : []);
+          if (Array.isArray(message.activities) && !sameJsonValue(lastActivitiesSnapshot.current, message.activities)) {
+            lastActivitiesSnapshot.current = message.activities;
+            void queryClient.invalidateQueries({ queryKey: ["api", token, ...queryKeys.activities.root] });
+          }
+          const nextNotifications = Array.isArray(message.notifications) ? message.notifications as ActivityNotification[] : [];
+          setNotifications((current) => sameJsonValue(current, nextNotifications) ? current : nextNotifications);
+          queryClient.setQueryData<ActivityNotification[]>(
+            ["api", token, ...queryKeys.notifications.items(token)],
+            (current) => current === undefined ? nextNotifications : sameJsonValue(current, nextNotifications) ? current : nextNotifications,
+          );
+          const nextCalendarEvents = Array.isArray(message.calendarEvents) ? message.calendarEvents as ActivityCalendarEvent[] : [];
+          setCalendarEvents((current) => sameJsonValue(current, nextCalendarEvents) ? current : nextCalendarEvents);
         } catch {
           // Ignore malformed activity messages and retain last known state.
         }
@@ -170,11 +189,11 @@ export function ActivityProvider({ children }: { children: ReactNode }) {
     };
   }, [queryClient, sessionId, token]);
 
-  const refresh = () => {
+  const refresh = useCallback(() => {
     if (socket.current?.readyState === WebSocket.OPEN) {
       socket.current.send(JSON.stringify({ type: "activity:refresh" }));
     }
-  };
+  }, []);
 
   const subscribeSdkResources = useCallback((
     resources: readonly SdkResourceIdentity[],
@@ -211,7 +230,7 @@ export function ActivityProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const markNotificationsAsRead = (ids: string[]) => {
+  const markNotificationsAsRead = useCallback((ids: string[]) => {
     const markAsRead = (currentNotifications: ActivityNotification[]) =>
       currentNotifications.map((notification) =>
         ids.length === 0 || ids.includes(notification.id)
@@ -223,10 +242,13 @@ export function ActivityProvider({ children }: { children: ReactNode }) {
       ["api", token, ...queryKeys.notifications.items(token)],
       (currentNotifications = []) => markAsRead(currentNotifications),
     );
-  };
+  }, [queryClient, token]);
 
-  const unreadCount = notifications.filter((notification) => notification.status !== "read").length;
-  return <ActivityContext.Provider value={{ notifications, unreadCount, calendarEvents, refresh, markNotificationsAsRead, subscribeSdkResources, subscribePageWidgets }}>{children}</ActivityContext.Provider>;
+  const unreadCount = useMemo(() => notifications.filter((notification) => notification.status !== "read").length, [notifications]);
+  const value = useMemo(() => ({ notifications, unreadCount, calendarEvents, refresh, markNotificationsAsRead, subscribeSdkResources, subscribePageWidgets }), [
+    notifications, unreadCount, calendarEvents, refresh, markNotificationsAsRead, subscribeSdkResources, subscribePageWidgets,
+  ]);
+  return <ActivityContext.Provider value={value}>{children}</ActivityContext.Provider>;
 }
 
 export function useActivity() {

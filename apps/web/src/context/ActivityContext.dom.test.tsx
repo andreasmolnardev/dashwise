@@ -155,6 +155,63 @@ afterAll(() => {
 });
 
 describe("ActivityProvider SDK resource WebSocket transport", () => {
+  it("keeps identical snapshots stable and pauses page subscriptions while hidden", async () => {
+    sockets.length = 0;
+    let renders = 0;
+    function Consumer() {
+      const { notifications, subscribePageWidgets } = useActivity();
+      renders += 1;
+      useEffect(() => subscribePageWidgets("home", () => {}), [subscribePageWidgets]);
+      return React.createElement("output", null, notifications.length);
+    }
+    const container = dom.document.createElement("div");
+    dom.document.body.append(container);
+    let root: ReturnType<typeof createRoot>;
+    const queryClient = new QueryClient();
+    let activityInvalidations = 0;
+    queryClient.invalidateQueries = ((filters: { queryKey?: readonly unknown[] }) => {
+      if (filters.queryKey?.includes("activities")) activityInvalidations += 1;
+      return Promise.resolve();
+    }) as typeof queryClient.invalidateQueries;
+    const visibilityDescriptor = Object.getOwnPropertyDescriptor(dom.document, "visibilityState");
+    try {
+      await act(async () => {
+        root = createRoot(container as unknown as Parameters<typeof createRoot>[0]);
+        root.render(React.createElement(QueryClientProvider, { client: queryClient },
+          React.createElement(ActivityProvider, null, React.createElement(Consumer)),
+        ));
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+      const socket = sockets[0]!;
+      await act(async () => socket.open());
+      const snapshot = {
+        type: "activity:snapshot",
+        notifications: [{ id: "notice-1", content: "hello", status: "unread", created: "2026-01-01", topicId: null, topicName: null }],
+        calendarEvents: [],
+        activities: [{ id: "activity-1", title: "hello" }],
+      };
+      await act(async () => socket.receive(snapshot));
+      const rendersAfterFirstSnapshot = renders;
+      expect(activityInvalidations).toBe(1);
+      expect(queryClient.getQueryData(["api", activeSessionToken, "notifications", activeSessionToken, "items", false])).toEqual(snapshot.notifications);
+      await act(async () => socket.receive({ ...snapshot, notifications: [...snapshot.notifications], calendarEvents: [], activities: [...snapshot.activities] }));
+      expect(renders).toBe(rendersAfterFirstSnapshot);
+      expect(activityInvalidations).toBe(1);
+
+      Object.defineProperty(dom.document, "visibilityState", { configurable: true, value: "hidden" });
+      dom.document.dispatchEvent(new dom.Event("visibilitychange"));
+      expect(JSON.parse(socket.sent.at(-1) ?? "{}")).toEqual({ type: "page-goodbye", pageId: "home" });
+      Object.defineProperty(dom.document, "visibilityState", { configurable: true, value: "visible" });
+      dom.document.dispatchEvent(new dom.Event("visibilitychange"));
+      expect(JSON.parse(socket.sent.at(-1) ?? "{}")).toEqual({ type: "page-hello", pageId: "home" });
+    } finally {
+      if (root!) await act(async () => root.unmount());
+      if (visibilityDescriptor) Object.defineProperty(dom.document, "visibilityState", visibilityDescriptor);
+      else Reflect.deleteProperty(dom.document, "visibilityState");
+      container.remove();
+    }
+  });
+
   it("subscribes on connect, dispatches scoped revisions, and unsubscribes when the consumer unmounts", async () => {
     sockets.length = 0;
     const resource = {
