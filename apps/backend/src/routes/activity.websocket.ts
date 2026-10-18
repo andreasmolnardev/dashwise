@@ -21,6 +21,7 @@ import { getPageConfigJSON } from "../lib/data/pageConfig";
 import { normalizePageName } from "./shared";
 import { collectPageConsumers } from "./pageConfig.route";
 import { resolveConsumerDataForRequest } from "./integrations.route";
+import { getSharedPageWidgetSnapshot } from "../lib/pageWidgetSnapshots";
 
 const activityRoute = new Hono();
 export const activityWebSocketServerOptions = websocket;
@@ -126,11 +127,12 @@ activityRoute.get("/api/v1/activity",  upgradeWebSocket((c) => {
 
         sendPageWidgets = async (pageId: string) => {
           if (pageId !== activePageId || !await lifecycle?.ensureValid() || !lifecycle?.isActive()) return;
-          const pageName = normalizePageName(pageId);
-          const pageConfig = (await getPageConfigJSON(userId, pageName)) ?? {};
-          const consumers = collectPageConsumers(pageConfig);
-          const sharedRuntimeCache = new Map<string, any>();
-          await Promise.all(consumers.map(async (consumer) => {
+          const items = await getSharedPageWidgetSnapshot(userId, pageId, async () => {
+            const pageName = normalizePageName(pageId);
+            const pageConfig = (await getPageConfigJSON(userId, pageName)) ?? {};
+            const consumers = collectPageConsumers(pageConfig);
+            const sharedRuntimeCache = new Map<string, any>();
+            return Promise.all(consumers.map(async (consumer) => {
             let item: Record<string, unknown>;
             try {
               const payload = await resolveConsumerDataForRequest({
@@ -163,9 +165,11 @@ activityRoute.get("/api/v1/activity",  upgradeWebSocket((c) => {
                 error: error instanceof Error ? error.message : String(error),
               };
             }
-            if (pageId !== activePageId || !await lifecycle?.ensureValid() || !lifecycle?.isActive()) return;
-            ws.send(JSON.stringify({ type: "page-widget", pageId, item }));
-          }));
+            return item;
+            }));
+          });
+          if (pageId !== activePageId || !await lifecycle?.ensureValid() || !lifecycle?.isActive()) return;
+          for (const item of items) ws.send(JSON.stringify({ type: "page-widget", pageId, item }));
         };
 
         unsubscribeActivity = subscribeActivity(userId, sendSnapshot);

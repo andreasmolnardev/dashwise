@@ -86,8 +86,10 @@ export function ActivityProvider({ children }: { children: ReactNode }) {
         if (resources.length > 0) {
           nextSocket.send(JSON.stringify({ type: "sdk:resources:subscribe", resources }));
         }
-        for (const pageId of pageWidgetSubscriptions.current.keys()) {
-          nextSocket.send(JSON.stringify({ type: "page-hello", pageId }));
+        if (document.visibilityState !== "hidden") {
+          for (const pageId of pageWidgetSubscriptions.current.keys()) {
+            nextSocket.send(JSON.stringify({ type: "page-hello", pageId }));
+          }
         }
       };
       nextSocket.onmessage = (event) => {
@@ -143,7 +145,16 @@ export function ActivityProvider({ children }: { children: ReactNode }) {
     };
 
     connect();
+    const handleVisibilityChange = () => {
+      if (socket.current?.readyState !== WebSocket.OPEN) return;
+      const hidden = document.visibilityState === "hidden";
+      for (const pageId of pageWidgetSubscriptions.current.keys()) {
+        socket.current.send(JSON.stringify({ type: hidden ? "page-goodbye" : "page-hello", pageId }));
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
       closed = true;
       if (reconnectTimer.current !== null) window.clearTimeout(reconnectTimer.current);
       const currentSocket = socket.current;
@@ -186,7 +197,7 @@ export function ActivityProvider({ children }: { children: ReactNode }) {
     const listeners = pageWidgetSubscriptions.current.get(pageId) ?? new Set();
     listeners.add(listener);
     pageWidgetSubscriptions.current.set(pageId, listeners);
-    if (socket.current?.readyState === WebSocket.OPEN) {
+    if (socket.current?.readyState === WebSocket.OPEN && document.visibilityState !== "hidden") {
       socket.current.send(JSON.stringify({ type: "page-hello", pageId }));
     }
     return () => {
