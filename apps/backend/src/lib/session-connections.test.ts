@@ -30,6 +30,55 @@ describe("authenticated socket lifetime", () => {
     }
   });
 
+  test("simultaneous connections for one session share an in-flight validation", async () => {
+    let reads = 0;
+    const makeConnection = () => trackSessionConnection({
+      userId: "shared", sessionId: "one", validate: async () => { reads++; return true; },
+      close: () => {}, intervalMs: 1000,
+    });
+    const first = makeConnection();
+    const second = makeConnection();
+    expect(await Promise.all([first.ensureValid(), second.ensureValid()])).toEqual([true, true]);
+    expect(reads).toBe(1);
+    expect(await second.ensureValid()).toBe(true);
+    expect(reads).toBe(2);
+    first.dispose();
+    second.dispose();
+  });
+
+  test("idle connections use one periodic session check", async () => {
+    let reads = 0;
+    const makeConnection = () => trackSessionConnection({
+      userId: "shared-timer", sessionId: "one", validate: async () => { reads++; return true; },
+      close: () => {}, intervalMs: 15,
+    });
+    const first = makeConnection();
+    const second = makeConnection();
+    await new Promise(resolve => setTimeout(resolve, 38));
+    expect(reads).toBeGreaterThanOrEqual(1);
+    expect(reads).toBeLessThanOrEqual(3);
+    first.dispose();
+    second.dispose();
+  });
+
+  test("a shared expired-session result revokes every connection", async () => {
+    let valid = true;
+    let reads = 0;
+    const makeConnection = () => trackSessionConnection({
+      userId: "shared-expiry", sessionId: "one",
+      validate: async () => { reads++; return valid; }, close: () => {}, intervalMs: 40,
+    });
+    const first = makeConnection();
+    const second = makeConnection();
+    expect(await first.ensureValid()).toBe(true);
+    valid = false;
+    await new Promise(resolve => setTimeout(resolve, 50));
+    expect(await second.ensureValid()).toBe(false);
+    expect(first.isActive()).toBe(false);
+    expect(second.isActive()).toBe(false);
+    expect(reads).toBe(2);
+  });
+
   test("revocation during pending open validation cannot reactivate the socket", async () => {
     let finish!: (valid: boolean) => void;
     const socket = trackSessionConnection({
