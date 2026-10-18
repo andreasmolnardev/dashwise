@@ -184,7 +184,7 @@ function WidgetPrivacyOverlay({
         };
 
         const schedulePrivacyClone = () => {
-            if (throttleTimer !== null) return;
+            if (throttleTimer !== null || frameId !== null) return;
             throttleTimer = setTimeout(() => {
                 throttleTimer = null;
                 frameId = requestAnimationFrame(() => {
@@ -198,7 +198,6 @@ function WidgetPrivacyOverlay({
         const observer = new MutationObserver(schedulePrivacyClone);
         observer.observe(source, {
             attributes: true,
-            attributeFilter: ["alt", "aria-label", "placeholder", "title", "value", "class", "style"],
             childList: true,
             characterData: true,
             subtree: true,
