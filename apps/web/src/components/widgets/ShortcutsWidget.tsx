@@ -10,7 +10,7 @@ import { getRoutedLinkUrl } from "@/lib/linkRouting";
 type Shortcut = { id: string; name: string; icon?: string; sourceId?: string; action: string | { type: string; url?: string } };
 
 export default function ShortcutsWidget({ shortcutIds = [], className = "" }: { shortcutIds?: string[]; className?: string }) {
-  const { withAuth, toggleTheme, toggleLinkTileLayout } = useAuth();
+  const { user, withAuth, toggleTheme, toggleLinkTileLayout } = useAuth();
   const [shortcuts, setShortcuts] = useState<Shortcut[]>([]);
   const [homeLinks, setHomeLinks] = useState<Array<{ id: string; url: string; secondaryUrls?: Array<{ url: string; routingRule: string }> }>>([]);
 
@@ -54,7 +54,11 @@ export default function ShortcutsWidget({ shortcutIds = [], className = "" }: { 
       window.location.href = value.startsWith("command://") ? value : value.replace("command:", "client://");
       return;
     }
-    window.open(value.startsWith("url:") ? value.slice(4) : value, "_self");
+    window.open(
+      value.startsWith("url:") ? value.slice(4) : value,
+      user?.searchPreferences?.linkOpenBehaviour === "newtab" ? "_blank" : "_self",
+      user?.searchPreferences?.linkOpenBehaviour === "newtab" ? "noopener,noreferrer" : undefined,
+    );
     void withAuth((auth) => logShortcutUsageAction(auth, shortcut.id, new Date().toISOString()));
   };
 
