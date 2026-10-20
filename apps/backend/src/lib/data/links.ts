@@ -858,8 +858,39 @@ export async function reorderLinks(
 ): Promise<void> {
     const pb = await getSuperuserPB();
 
+    const records = await Promise.all(items.map(async (item) => {
+        if (
+            !item ||
+            (item.type !== "link" && item.type !== "folder") ||
+            typeof item.id !== "string" ||
+            !item.id.trim() ||
+            !Number.isInteger(item.position)
+        ) {
+            throw new ApiActionError("Invalid reorder item", 400, { error: "Invalid reorder item" });
+        }
+
+        const record = item.type === "link"
+            ? await pb.collection("linkItems").getOne(item.id)
+            : await pb.collection("linksFolders").getOne(item.id);
+
+        return {
+            item,
+            listId: item.type === "link" ? String(record.collection || "") : String(record.list || ""),
+        };
+    }));
+
+    const listIds = Array.from(new Set(records.map((record) => record.listId).filter(Boolean)));
+    const lists = await Promise.all(listIds.map((listId) => pb.collection("linksLists").getOne(listId)));
+    const ownedListIds = new Set(
+        lists.filter((list: any) => list.user === userId).map((list: any) => String(list.id)),
+    );
+
+    if (records.some((record) => !ownedListIds.has(record.listId))) {
+        throw new ApiActionError("Not found", 404, { error: "Not found" });
+    }
+
     await Promise.all(
-        items.map(async (item) => {
+        records.map(async ({ item }) => {
             if (item.type === "link") {
                 await pb.collection("linkItems").update(item.id, { position: item.position });
             } else {
