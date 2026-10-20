@@ -951,7 +951,7 @@ export default function CommandBar(
       <DialogTitle className="hidden">Search Bar</DialogTitle>
       <DialogContent
         showCloseButton={false}
-        className="fixed w-[min(800px,calc(100vw-2rem))] max-w-none sm:max-w-none h-[min(80vh,calc(100dvh-1rem))] max-h-[calc(100dvh-1rem)] mx-auto frosted backdrop-blur-md grid grid-rows-[auto_minmax(0,1fr)] gap-0 overflow-hidden rounded-[4rem] p-0 text-foreground shadow-2xl data-[state=open]:slide-in-from-bottom-2 data-[state=closed]:slide-out-to-bottom-2"
+        className="fixed w-[min(800px,calc(100vw-2rem))] max-w-none sm:max-w-none h-[min(80vh,calc(100dvh-1rem))] max-h-[calc(100dvh-1rem)] mx-auto frosted backdrop-blur-md grid grid-rows-[auto_minmax(0,1fr)] gap-0 overflow-hidden rounded-3xl p-0 text-foreground shadow-2xl data-[state=open]:slide-in-from-bottom-2 data-[state=closed]:slide-out-to-bottom-2"
       >
         <div className="flex h-14 min-w-0 items-center px-3">
           <div className="relative flex h-10 min-w-0 flex-1 items-center gap-3 rounded-full frosted px-3">
