@@ -10,6 +10,7 @@ import {
 } from "../lib/data/auth";
 import type { UserPropertyValue } from "../lib/data/auth";
 import { ensureBuiltinIntegrations } from "../lib/data/integrations";
+import { setHomeLinks } from "../lib/data/links";
 import { getSuperuserPB } from "../lib/pb/pocketbase";
 
 import {
@@ -79,6 +80,7 @@ authRoute.get(
         },
       });
 
+      await setHomeLinks(result.user.id, JSON.stringify(links));
       await ensureBuiltinIntegrations(result.user.id, await getSuperuserPB());
 
       return result;
