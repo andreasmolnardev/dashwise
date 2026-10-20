@@ -1,4 +1,4 @@
-import { ClientResponseError, getServerPB } from "../pb/pocketbase";
+import { ClientResponseError, getServerPB, getSuperuserPB } from "../pb/pocketbase";
 import { defaultHomeConfig } from "@dashwise/assets";
 import type { UsersResponse } from "@dashwise/types";
 
@@ -276,7 +276,7 @@ export async function signupUser(payload: {
       search?: Record<string, unknown>;
     };
     homeConfig?: Record<string, unknown>;
-    linksConfig?: Record<string, unknown>;
+    linksConfig?: Array<Record<string, unknown>>;
   };
 }) {
   if (config.DISABLE_USER_SIGNUP) {
@@ -320,9 +320,10 @@ export async function signupUser(payload: {
     searchPreferences: userConfig?.preferences?.search || {},
   });
 
-  await pb.collection("pageConfig").create({
+  const admin = await getSuperuserPB();
+  await admin.collection("pageConfig").create({
     associatedUserId: user.id,
-    config: defaultHomeConfig,
+    config: userConfig?.homeConfig ?? defaultHomeConfig,
     pageName: "home",
   });
 
