@@ -15,12 +15,14 @@
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-unused-imports": "^4.2.0",
     "globals": "^16.4.0",
+    "typescript": "^5.9.3",
     "typescript-eslint": "^8.44.1"
   },
   "scripts": {
     "dev": "trap 'kill 0' SIGINT; bun run dev:backend & bun run dev:web & wait",
     "dev-docker": "docker compose -f docker-compose.dev.yaml up --build",
     "dev:testenv": "./scripts/dev-testenv.sh",
+    "integrations": "bun scripts/integrations-cli.ts",
     "dev:backend": "bun --cwd apps/backend --hot src/index.ts",
     "dev:web": "cd apps/web && bunx dotenv-cli -e ../../.env -- bunx vite --host 0.0.0.0 --port 5173",
     "generate": "bun run generate:openapi-document && bun run generate:api-types && bun run generate:api-sdk && bun run mark-generated",
