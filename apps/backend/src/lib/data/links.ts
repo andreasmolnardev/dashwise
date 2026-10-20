@@ -415,10 +415,7 @@ async function getHomeListId(userId: string) {
     const cachedHomeListId = homeListIdByUser.get(userId);
     if (cachedHomeListId) return cachedHomeListId;
 
-    const list = await pb.collection("linksLists").getFirstListItem(
-        `user = "${userId}" && type = "home"`,
-        { fields: "id", skipTotal: true },
-    );
+    const list = await getOrCreateHomeCollection(pb, userId);
     homeListIdByUser.set(userId, list.id);
     return list.id;
 }
@@ -501,12 +498,19 @@ async function getOrCreateHomeCollection(pb: any, userId: string) {
         .catch(() => null);
 
     if (!homeCollection) {
-        homeCollection = await pb.collection("linksLists").create({
-            user: userId,
-            type: "home",
-            name: "Home",
-            description: "",
-        });
+        const namedHomeCollection = await pb
+            .collection("linksLists")
+            .getFirstListItem(`user = "${userId}" && name = "Home"`)
+            .catch(() => null);
+
+        homeCollection = namedHomeCollection
+            ? await pb.collection("linksLists").update(namedHomeCollection.id, { type: "home" })
+            : await pb.collection("linksLists").create({
+                user: userId,
+                type: "home",
+                name: "Home",
+                description: "",
+            });
     }
 
     return homeCollection;
