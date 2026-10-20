@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import CreateLinksFolderDialog from "@/components/links/CreateLinksFolderDialog";
 import QRCode from "qrcode";
 import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
+import { useAuth } from "@/context/useAuth";
 import { Badge } from "../ui/badge";
 
 export type LinkTagRecord = {
@@ -286,12 +287,13 @@ function LinkRow({
     onEdit?: (item: LinkItemRecord) => void;
     onEditTags?: (item: LinkItemRecord) => void;
 }) {
+    const { user } = useAuth();
     const linkUrl = String(item.url ?? "").trim();
     const titleElement = linkUrl ? (
         <a
             href={linkUrl}
-            target="_blank"
-            rel="noreferrer"
+            target={user?.searchPreferences?.linkOpenBehaviour === "newtab" ? "_blank" : "_self"}
+            rel={user?.searchPreferences?.linkOpenBehaviour === "newtab" ? "noopener noreferrer" : undefined}
             className="wrap-break-word text-base font-medium text-white transition-colors hover:text-primary"
         >
             {item.title || linkUrl}
