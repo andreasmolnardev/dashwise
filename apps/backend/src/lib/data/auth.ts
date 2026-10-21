@@ -110,6 +110,10 @@ const AUTH_CACHE_TTL_MS = 5000;
 const AUTH_REFRESH_LEEWAY_MS = 30_000;
 const tokenAuthCache = new Map<string, { userId: string; expiresAt: number }>();
 
+function isInvalidAuthResponse(error: unknown) {
+  return error instanceof ClientResponseError && (error.status === 401 || error.status === 404);
+}
+
 function decodeJwtPayload(token: string): Record<string, unknown> | null {
   const parts = token.split(".");
   if (parts.length < 2) {
@@ -181,19 +185,6 @@ export async function requireUserAuth(auth?: ActionAuth) {
     return { pb, userId: cachedUserId, authModel: null };
   }
 
-  const now = Date.now();
-  const { userId: claimedUserId, expMs } = readTokenClaims(token);
-  const shouldRefresh =
-    !pb.authStore.isValid ||
-    !claimedUserId ||
-    !expMs ||
-    expMs - now <= AUTH_REFRESH_LEEWAY_MS;
-
-  if (!shouldRefresh) {
-    cacheTokenUserId(token, claimedUserId, expMs);
-    return { pb, userId: claimedUserId, authModel: null };
-  }
-
   try {
     const authModel = await pb.collection("users").authRefresh();
     const userId = authModel?.record?.id;
@@ -202,7 +193,9 @@ export async function requireUserAuth(auth?: ActionAuth) {
       throw new ApiActionError("Unauthorized", 401, { error: "Unauthorized" });
     }
 
-    cacheTokenUserId(pb.authStore.token || token, userId, readTokenClaims(pb.authStore.token || token).expMs);
+    const refreshedToken = pb.authStore.token || token;
+    cacheTokenUserId(token, userId, readTokenClaims(token).expMs);
+    cacheTokenUserId(refreshedToken, userId, readTokenClaims(refreshedToken).expMs);
 
     return { pb, userId, authModel };
   } catch (error) {
@@ -210,7 +203,7 @@ export async function requireUserAuth(auth?: ActionAuth) {
       throw error;
     }
 
-    if (error instanceof ClientResponseError && error.status === 401) {
+    if (isInvalidAuthResponse(error)) {
       throw new ApiActionError("Unauthorized", 401, { error: "Unauthorized" });
     }
 
@@ -337,18 +330,30 @@ export async function validateAuthToken(token: string) {
 
   const pb = getServerPB();
   pb.authStore.save(token, null);
-  const authModel = await pb.collection("users").authRefresh();
-  const userId = authModel?.record?.id ?? null;
+  try {
+    const authModel = await pb.collection("users").authRefresh();
+    const userId = authModel?.record?.id ?? null;
 
-  if (!userId) {
-    throw new ApiActionError("Unauthorized", 401, { error: "Unauthorized" });
+    if (!userId) {
+      throw new ApiActionError("Unauthorized", 401, { error: "Unauthorized" });
+    }
+
+    return {
+      success: true,
+      token: pb.authStore.token ?? token,
+      user: authModel.record,
+    };
+  } catch (error) {
+    if (error instanceof ApiActionError) {
+      throw error;
+    }
+
+    if (isInvalidAuthResponse(error)) {
+      throw new ApiActionError("Unauthorized", 401, { error: "Unauthorized" });
+    }
+
+    throw error;
   }
-
-  return {
-    success: true,
-    token: pb.authStore.token ?? token,
-    user: authModel.record,
-  };
 }
 
 export type ChangePasswordRequest = {
