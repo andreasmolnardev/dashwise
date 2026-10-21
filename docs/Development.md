@@ -101,46 +101,19 @@ docker compose -f docker-compose.dev.yaml up --build
 The fastest way to launch a disposable production-like test environment is:
 
 ```sh
-bun run dev:testenv
+bun run testenv
 ```
 
-This runs `scripts/dev-testenv.sh`. The script:
+(`bun run dev:testenv` remains as an alias.) This runs `scripts/dev-testenv.sh`. The script:
 
 - Reads `docker-compose.test.yaml`.
 - Writes a generated `docker-compose.test.testenv.yaml` with free local ports for the app and PocketBase.
-- Starts Docker Compose with `up --build`.
+- Starts Docker Compose with `up --build` and an isolated PocketBase volume.
 - Waits for `GET /api/v1/appConfig` to become available.
-- Creates or reuses a default test user.
-- Opens the app with a login token.
+- Creates a `Guest` account with the app's packaged default home, links, preferences, and integrations.
+- Generates a fresh auth token and prints a login URL containing it.
 
-Default test credentials:
-
-```text
-Email: testenv@dashwise.local
-Password: DashwiseTestenv123
-```
-
-If `tmux` is installed, the script starts Compose in a `dashwise-testenv` tmux session. Attach to it with:
-
-```sh
-tmux attach -t dashwise-testenv
-```
-
-Stop the scripted test environment by pressing `Ctrl+C` in the terminal that launched `bun run dev:testenv`. The script traps exit and runs Compose down for the generated file.
-
-If cleanup is needed manually:
-
-```sh
-docker compose -f docker-compose.test.testenv.yaml down --remove-orphans
-```
-
-Rebuild and restart the test environment:
-
-```sh
-bun run dev:testenv
-```
-
-The script always starts Compose with `up --build`, so code and Docker image changes are rebuilt when it launches.
+The printed login URL is a credential: anyone who has it can use the local Guest account while the environment is running. The account is recreated from defaults each run. Press `Ctrl+C` to stop the containers and remove the isolated database. The image is rebuilt each time the script launches.
 
 ## Manual Production-Like Compose Test
 
