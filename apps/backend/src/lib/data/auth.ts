@@ -390,15 +390,12 @@ export async function changePassword(
     );
   }
 
+  const validatedAuth = await validateAuthToken(token);
   const pb = getServerPB();
-  pb.authStore.save(token, null);
+  pb.authStore.save(validatedAuth.token, null);
+  const authUser = validatedAuth.user;
 
-  const authModel = await pb.collection("users").authRefresh();
-  if (!authModel?.record) {
-    throw new ApiActionError("Unauthorized", 401, { error: "Unauthorized" });
-  }
-
-  const email = bodyEmail ?? authModel.record.email;
+  const email = bodyEmail ?? authUser.email;
   if (!email) {
     throw new ApiActionError(
       "Email is required or you must be authenticated",
@@ -409,7 +406,7 @@ export async function changePassword(
     );
   }
 
-  const userId = authModel.record.id;
+  const userId = authUser.id;
   await pb.collection("users").update(userId, {
     oldPassword,
     password: newPassword,
