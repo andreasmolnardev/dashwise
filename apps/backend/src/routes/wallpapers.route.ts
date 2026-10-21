@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 
+import { ApiActionError } from "../lib/data/auth";
 import { uploadWallpaper, getWallpaperByFileName } from "../lib/data/wallpapers";
 
 const wallpapersRoute = new Hono()
@@ -24,6 +25,9 @@ const wallpapersRoute = new Hono()
         },
       });
     } catch (error) {
+      if (error instanceof ApiActionError) {
+        return c.json(error.body ?? { error: error.message }, error.status as any);
+      }
       console.error("Error fetching wallpaper:", error);
       return c.json({ error: "Failed to fetch wallpaper" }, 500);
     }
@@ -70,7 +74,15 @@ const wallpapersRoute = new Hono()
 
     const token = String(formData.get("token") ?? c.req.query("token") ?? "");
 
-    return c.json(await uploadWallpaper(token, formData));
+    try {
+      return c.json(await uploadWallpaper(token, formData));
+    } catch (error) {
+      if (error instanceof ApiActionError) {
+        return c.json(error.body ?? { error: error.message }, error.status as any);
+      }
+      console.error("Error uploading wallpaper:", error);
+      return c.json({ error: "Failed to upload wallpaper" }, 500);
+    }
   });
 
 

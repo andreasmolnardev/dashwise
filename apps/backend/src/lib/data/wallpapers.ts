@@ -1,16 +1,12 @@
 import sharp from "sharp";
-import { getServerPB } from "../pb/pocketbase";
+import { requireUserAuth } from "./auth";
 import type { WallpaperStoreResponse } from "@dashwise/types";
 
 const MAX_WIDTH = 3840;
 const MAX_HEIGHT = 2160;
 
 export async function uploadWallpaper(userToken: string, formData: FormData) {
-  const pb = getServerPB();
-  pb.authStore.save(userToken, null);
-
-  const authModel = await pb.collection("users").authRefresh();
-  const userId = authModel.record.id;
+  const { pb, userId } = await requireUserAuth({ token: userToken });
 
   const incomingFile = formData.get("image") as File | null;
   const convertToWebpField = formData.get("convertToWebp");
@@ -62,8 +58,7 @@ export async function uploadWallpaper(userToken: string, formData: FormData) {
 }
 
 export async function getWallpaperByFileName(userToken: string, fileName: string) {
-  const pb = getServerPB();
-  pb.authStore.save(userToken, null);
+  const { pb } = await requireUserAuth({ token: userToken });
 
   let record: WallpaperStoreResponse | null = null;
   try {
