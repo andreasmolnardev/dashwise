@@ -75,6 +75,7 @@ export default function NewsDashboardComponent() {
     const [currentPage, setCurrentPage] = useState(1);
     const [addOpen, setAddOpen] = useState(false);
     const [editingFeed, setEditingFeed] = useState<NewsFeedDraft | null>(null);
+    const [subscriptionSeed, setSubscriptionSeed] = useState<NewsFeedDraft | undefined>();
     const [editFeedOpen, setEditFeedOpen] = useState(false);
     const [editingNewsFeed, setEditingNewsFeed] = useState<NewsFeedRecord | null>(null);
     const [createFeedOpen, setCreateFeedOpen] = useState(false);
@@ -293,6 +294,11 @@ export default function NewsDashboardComponent() {
 
         if (sidebarAction === "subscribe") {
             setEditingFeed(null);
+            const feedUrl = searchParams.get("feedUrl")?.trim();
+            const feedName = searchParams.get("feedName")?.trim();
+            setSubscriptionSeed(feedUrl
+                ? { feedUrl, name: feedName || feedUrl }
+                : undefined);
             setAddOpen(true);
             navigate(
                 `/apps/news/${activeFeedId === "all" ? "" : activeFeedId}`
@@ -348,6 +354,7 @@ export default function NewsDashboardComponent() {
     }, [
         sidebarAction,
         editSubscriptionRef,
+        searchParams,
         subscriptions,
         activeFeedId,
         navigate,
@@ -463,6 +470,7 @@ export default function NewsDashboardComponent() {
 
     const openNewSubscription = () => {
         setEditingFeed(null);
+        setSubscriptionSeed(undefined);
         setAddOpen(true);
     };
 
@@ -519,6 +527,7 @@ export default function NewsDashboardComponent() {
 
         setAddOpen(false);
         setEditingFeed(null);
+        setSubscriptionSeed(undefined);
 
         void (async () => {
             try {
@@ -559,8 +568,8 @@ export default function NewsDashboardComponent() {
         null;
 
     const newSubscriptionDefaults = activeFeedId === "all"
-        ? undefined
-        : ({ feedIds: [activeFeedId] } as NewsFeedDraft);
+        ? subscriptionSeed
+        : ({ ...subscriptionSeed, feedIds: [activeFeedId] } as NewsFeedDraft);
 
     const activeSavedListName = activeSavedList
         ? savedArticlesData?.lists?.find((list) => list.id === activeSavedList || list.name === activeSavedList)?.name || activeSavedList
@@ -868,7 +877,10 @@ export default function NewsDashboardComponent() {
                 open={addOpen}
                 onOpenChange={(v) => {
                     setAddOpen(v);
-                    if (!v) setEditingFeed(null);
+                    if (!v) {
+                        setEditingFeed(null);
+                        setSubscriptionSeed(undefined);
+                    }
                 }}
             >
                 <DialogContent className="frosted text-foreground max-h-[90vh] overflow-hidden">
@@ -882,6 +894,7 @@ export default function NewsDashboardComponent() {
 
                     <div className="max-h-[calc(90vh-6rem)] overflow-y-auto pr-2">
                         <SubscriptionDetailsForm
+                            key={editingFeed?.id || subscriptionSeed?.feedUrl || `new:${activeFeedId}`}
                             feed={editingFeed
                                 ? {
                                     id: editingFeed.id,
@@ -905,6 +918,7 @@ export default function NewsDashboardComponent() {
                             onClose={() => {
                                 setAddOpen(false);
                                 setEditingFeed(null);
+                                setSubscriptionSeed(undefined);
                             }}
                             onSave={async (feed: any) => {
                                 submitSubscription(feed);
