@@ -9,6 +9,7 @@ import pageConfigRoute from "./pageConfig.route";
 import wallpapersRoute from "./wallpapers.route";
 import widgetsRoute from "./widgets.route";
 import shortcutsRoute from "./shortcuts.route";
+import activitiesRoute from "./activities.route";
 
 const dataRoute = new Hono();
 
@@ -21,5 +22,6 @@ dataRoute.route("/", notificationsRoute);
 dataRoute.route("/", monitoringRoute);
 dataRoute.route("/", wallpapersRoute);
 dataRoute.route("/", shortcutsRoute);
+dataRoute.route("/", activitiesRoute);
 
 export default dataRoute;

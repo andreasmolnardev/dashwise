@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Icon } from "@iconify-icon/react";
 import LinksHtmlTransfer from "@/components/settings/LinksHtmlTransfer";
+import LinkRssFeedsSettings from "@/components/settings/LinkRssFeedsSettings";
 import useAuth from "@/context/useAuth";
 import { getNewsFeedsAction, subscribeNewsFeedAction } from "@/lib/apiClient";
 import { Button } from "@/components/ui/button";
@@ -327,6 +328,7 @@ export default function AppsSettingsPage() {
           </span>
           Links
         </h2>
+        <LinkRssFeedsSettings />
         <LinksHtmlTransfer />
       </section>
     </main>

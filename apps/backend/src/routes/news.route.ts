@@ -23,13 +23,13 @@ async function ensureDevNewsFeed(userId: string, feedId: string) {
   await jobsApi.runNewsFeedBuilderJob("dev local cache", feedId, userId);
 }
 
-async function refreshNewsFeed(userId: string, options: { feedIds: string[] }) {
+async function refreshNewsFeed(userId: string, options: { feedIds: string[]; forceRefresh?: boolean }) {
   const { feedIds } = options;
   if (!feedIds.length) {
     return { status: "success", message: "No feed IDs specified" };
   }
 
-  await jobsApi.runNewsFeedBuilderJob("api", undefined, userId, feedIds);
+  await jobsApi.runNewsFeedBuilderJob("api", undefined, userId, feedIds, { forceRefresh: options.forceRefresh });
 
   return { status: "success" };
 }
@@ -45,6 +45,16 @@ function readRequestedFeedIds(c: Context) {
     .flatMap((entry) => String(entry || "").split(","))
     .map((feedId) => feedId.trim())
     .filter(Boolean);
+}
+
+type NewsFeedViewRequest = { feedId?: string; limit?: number; offset?: number };
+
+async function getRequestedNewsFeedView(userId: string, request?: NewsFeedViewRequest) {
+  if (!request || typeof request !== "object") return undefined;
+  const feedId = String(request.feedId || "all").trim() || "all";
+  const limit = Number.isFinite(Number(request.limit)) ? Math.max(1, Math.min(100, Math.floor(Number(request.limit)))) : 15;
+  const offset = Number.isFinite(Number(request.offset)) ? Math.max(0, Math.floor(Number(request.offset))) : 0;
+  return getNewsFeed(userId, feedId, { limit, offset });
 }
 
 async function normalizeNewsFeedUrl(feedUrl: string) {
@@ -283,7 +293,7 @@ newsRoute
     });
   }))
   .post("/api/v1/news/feed-subscribe", withJson(async (c) => {
-    const body = await readJsonBody<{ sub?: NewsSubscribeInput }>(c);
+    const body = await readJsonBody<{ sub?: NewsSubscribeInput; view?: NewsFeedViewRequest }>(c);
     const { userId } = await requireAuth({ token: readAuthToken(c) });
     const sub: NewsSubscribeInput = body?.sub ?? { feedUrl: "" };
 
@@ -297,8 +307,8 @@ newsRoute
       fallbackThumbnailUrl: sub.fallbackThumbnailUrl,
       thumbnailOverwriteUrl: sub.thumbnailOverwriteUrl,
     });
-
-    return result;
+    await refreshNewsFeed(userId, { feedIds: [result.subscriptionId], forceRefresh: true });
+    return { ...result, feedView: await getRequestedNewsFeedView(userId, body?.view) };
   }))
   .post("/api/v1/news/feed-unsubscribe", withJson(async (c) => {
     const body = await readJsonBody<{ feedUrl?: string }>(c);
@@ -306,10 +316,13 @@ newsRoute
     return unsubscribeNewsFeed(userId, String(body?.feedUrl ?? ""));
   }))
   .post("/api/v1/news/feed-update", withJson(async (c) => {
-    const body = await readJsonBody<{ payload?: NewsUpdateInput }>(c);
+    const body = await readJsonBody<{ payload?: NewsUpdateInput; view?: NewsFeedViewRequest }>(c);
     const { userId } = await requireAuth({ token: readAuthToken(c) });
     const payload: NewsUpdateInput = body?.payload ?? { feedUrl: "" };
-    return updateNewsFeed(userId, payload);
+    const result = await updateNewsFeed(userId, payload);
+    if (!("subscriptionId" in result)) return result;
+    await refreshNewsFeed(userId, { feedIds: [result.subscriptionId], forceRefresh: true });
+    return { ...result, feedView: await getRequestedNewsFeedView(userId, body?.view) };
   }))
   .post("/api/v1/news/feed-records/:id", withJson(async (c) => {
     const body = await readJsonBody<Partial<NewsFeedRecordUpdateInput>>(c);

@@ -1,65 +1,15 @@
 import { Hono } from "hono";
-import type { Context } from "hono";
 
 import { ApiActionError } from "../lib/data/auth";
 import { createForwarder, deleteForwarder, getForwarders, testForwarder, testForwarderTarget, updateForwarder } from "../lib/data/notifications/forwarders";
 import { createNotificationTopic, deleteNotificationTopic, getNotificationTopics, getNotifications, markNotificationsAsRead, sendTestNotification } from "../lib/data/notifications/items";
 import { createNotificationByTopicId, createNotificationWithTopicToken } from "../lib/data/notifications/publish";
 import { createTopicToken, deleteTopicToken, listTopicTokens, updateTopicToken } from "../lib/data/notifications/topicTokens";
-import { getServerPB, getSuperuserPB } from "../lib/pb/pocketbase";
+import { getSuperuserPB } from "../lib/pb/pocketbase";
 
 import { readAuthToken, readJsonBody, readBool, requireAuth, withJson } from "./shared";
 
 const notificationsRoute = new Hono();
-
-function readBasicAuthCredentials(authorizationHeader: string | undefined) {
-  if (!authorizationHeader?.toLowerCase().startsWith("basic ")) {
-    return null;
-  }
-
-  const encoded = authorizationHeader.slice(6).trim();
-  if (!encoded) {
-    return null;
-  }
-
-  try {
-    const decoded = Buffer.from(encoded, "base64").toString("utf-8");
-    const [email, password] = decoded.split(":", 2);
-    if (!email || !password) {
-      return null;
-    }
-
-    return { email, password };
-  } catch {
-    return null;
-  }
-}
-
-async function resolveUserIdFromRequest(c: Context) {
-  const authToken = readAuthToken(c);
-  if (authToken) {
-    return (await requireAuth({ token: authToken })).userId;
-  }
-
-  const basicAuth = readBasicAuthCredentials(c.req.header("authorization") ?? c.req.header("Authorization"));
-  if (!basicAuth) {
-    return null;
-  }
-
-  const pb = getServerPB();
-  try {
-    await pb.collection("users").authWithPassword(basicAuth.email, basicAuth.password);
-  } catch {
-    throw new ApiActionError("Unauthorized", 401, { error: "Unauthorized" });
-  }
-
-  const userId = pb.authStore.model?.id;
-  if (!userId) {
-    throw new ApiActionError("Unauthorized", 401, { error: "Unauthorized" });
-  }
-
-  return userId;
-}
 
 async function verifyTopicOwnership(topicId: string, userId: string) {
   const pb = await getSuperuserPB();
@@ -83,7 +33,10 @@ notificationsRoute
     const { userId } = await requireAuth({ token: readAuthToken(c) });
     return getNotifications(userId, readBool(c.req.query("unread") ?? undefined), readBool(c.req.query("count") ?? undefined));
   }))
-  .post("/api/v1/notifications", withJson(async () => ({ ok: true })))
+  .post("/api/v1/notifications", withJson(async (c) => {
+    await requireAuth({ token: readAuthToken(c) });
+    return { ok: true };
+  }))
   .get("/api/v1/notifications/topics", withJson(async (c) => {
     const { userId } = await requireAuth({ token: readAuthToken(c) });
     return getNotificationTopics(userId);
@@ -164,10 +117,7 @@ notificationsRoute
       return { ok: true, ...topicTokenResult };
     }
 
-    const userId = await resolveUserIdFromRequest(c);
-    if (!userId) {
-      throw new ApiActionError("Unauthorized", 401, { error: "Unauthorized" });
-    }
+    const { userId } = await requireAuth({ token: readAuthToken(c) });
 
     await verifyTopicOwnership(topic, userId);
     return { ok: true, ...(await createNotificationByTopicId(topic, content, source)) };

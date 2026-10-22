@@ -20,6 +20,10 @@ const normalizedNewsSubscriptionRetention = Number(env.NEWS_SUBSCRIPTION_RETENTI
 const resolvedNewsSubscriptionRetention = Number.isInteger(normalizedNewsSubscriptionRetention) && normalizedNewsSubscriptionRetention > 0
   ? normalizedNewsSubscriptionRetention
   : 50;
+const normalizedActivityRetentionDays = Number(env.ACTIVITY_RETENTION_DAYS);
+const resolvedActivityRetentionDays = Number.isInteger(normalizedActivityRetentionDays) && normalizedActivityRetentionDays > 0
+  ? Math.min(normalizedActivityRetentionDays, 3_650)
+  : 90;
 const resolvedDeviceCodePending = Number.isInteger(Number(env.AUTH_DEVICE_CODE_MAX_PENDING)) && Number(env.AUTH_DEVICE_CODE_MAX_PENDING) > 0
   ? Number(env.AUTH_DEVICE_CODE_MAX_PENDING) : 100;
 const resolvedDeviceCodeSockets = Number.isInteger(Number(env.AUTH_DEVICE_CODE_MAX_SOCKETS)) && Number(env.AUTH_DEVICE_CODE_MAX_SOCKETS) > 0
@@ -74,6 +78,7 @@ export const config = {
   UPDATE_CHECK_SCHEDULE: env.UPDATE_CHECK_SCHEDULE || "0 2 * * *",
   FEED_BUILDING_SCHEDULE: env.FEED_BUILDING_SCHEDULE || "*/30 * * * *",
   NEWS_SUBSCRIPTION_RETENTION: resolvedNewsSubscriptionRetention,
+  ACTIVITY_RETENTION_DAYS: resolvedActivityRetentionDays,
   AUTH_DEVICE_CODE_MAX_PENDING: resolvedDeviceCodePending,
   AUTH_DEVICE_CODE_MAX_SOCKETS: resolvedDeviceCodeSockets,
   AUTH_DEVICE_CODE_TTL_MS: resolvedDeviceCodeTtl,

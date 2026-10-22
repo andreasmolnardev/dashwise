@@ -55,6 +55,7 @@ export default function SubscriptionDetailsForm({
   const [thumbnailOverwriteUrl, setThumbnailOverwriteUrl] = useState<string>(() => feed?.thumbnailOverwriteUrl || "");
   const [similarityGroupingWordsBlacklist, setSimilarityGroupingWordsBlacklist] = useState<string>(() => feed?.similarityGroupingWordsBlacklist || "");
   const [enableTopicGrouping, setEnableTopicGrouping] = useState<boolean>(() => feed?.enableTopicGrouping !== false);
+  const [ignoreDescriptionForTopicGrouping, setIgnoreDescriptionForTopicGrouping] = useState<boolean>(() => feed?.ignoreDescriptionForTopicGrouping === true);
   const [activeOptionsTab, setActiveOptionsTab] = useState<"link" | "thumbnail" | "grouping">("link");
   const initialReplaceRuleKey = feed?.linkReplaceRule ? Object.keys(feed.linkReplaceRule)[0] || "" : "";
   const [replaceSearch, setReplaceSearch] = useState<string>(initialReplaceRuleKey);
@@ -317,6 +318,7 @@ export default function SubscriptionDetailsForm({
         thumbnailOverwriteUrl: thumbnailOverwriteUrl.trim() || undefined,
         similarityGroupingWordsBlacklist: similarityGroupingWordsBlacklist.trim(),
         enableTopicGrouping,
+        ignoreDescriptionForTopicGrouping,
         linkReplaceRule,
       };
 
@@ -628,6 +630,19 @@ export default function SubscriptionDetailsForm({
                 checked={enableTopicGrouping}
                 onCheckedChange={setEnableTopicGrouping}
                 disabled={loading}
+              />
+            </div>
+
+            <div className="flex items-center justify-between gap-3 rounded-lg bg-white/5 px-3 py-2">
+              <div>
+                <Label htmlFor="ignore-description-topic-grouping" className="text-sm">Ignore descriptions for topic grouping</Label>
+                <p className="text-xs text-white/50">Match related stories using titles, summaries, and tags without article descriptions.</p>
+              </div>
+              <Switch
+                id="ignore-description-topic-grouping"
+                checked={ignoreDescriptionForTopicGrouping}
+                onCheckedChange={setIgnoreDescriptionForTopicGrouping}
+                disabled={loading || !enableTopicGrouping}
               />
             </div>
 

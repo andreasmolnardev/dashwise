@@ -106,7 +106,7 @@ export function readAuthToken(c: Context) {
     }
   }
 
-  return c.req.query("token") ?? c.req.query("authToken") ?? null;
+  return null;
 }
 
 export function readAuth(c: Context) {

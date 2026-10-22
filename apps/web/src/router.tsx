@@ -67,7 +67,7 @@ export const appRouter = createBrowserRouter([
         element: <AuthenticatedLayout />,
         children: [
            { path: "home", element: <DynamicPage /> },
-            { path: "news", element: <Navigate to="/apps/news" replace /> },
+           { path: "news", element: <Navigate to="/apps/news" replace /> },
             {
               path: "apps/news",
               element: (

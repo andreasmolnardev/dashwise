@@ -5,6 +5,57 @@ export type ClientOptions = {
     baseUrl: `${string}://${string}/api/v1` | (string & {});
 };
 
+export type Activity = {
+    id: string;
+    ownerId: string;
+    source: string;
+    sourceId?: string;
+    eventId?: string;
+    type: string;
+    title: string;
+    description?: string;
+    severity: 'info' | 'success' | 'warning' | 'error';
+    occurredAt: string;
+    createdAt: string;
+    metadata?: {
+        [key: string]: unknown;
+    };
+    action?: {
+        label: string;
+        /**
+         * Safe internal application path only.
+         */
+        target: string;
+    };
+};
+
+export type ActivityPage = {
+    page: number;
+    perPage: number;
+    totalItems: number;
+    totalPages: number;
+    items: Array<Activity>;
+};
+
+export type PublishActivityResult = {
+    activity: Activity;
+    duplicate: boolean;
+};
+
+export type PublicSession = {
+    id: string;
+    user: string;
+    sessionId: string;
+    displayName: string;
+    clientType?: string;
+    platform?: string;
+    lastSeenAt: string;
+    expiresAt?: string;
+    revokedAt?: string;
+    created?: string;
+    updated?: string;
+};
+
 export type GenericObject = {
     [key: string]: unknown;
 };
@@ -54,6 +105,103 @@ export type GetAppInfoResponses = {
 };
 
 export type GetAppInfoResponse = GetAppInfoResponses[keyof GetAppInfoResponses];
+
+export type GetActivitiesData = {
+    body?: never;
+    path?: never;
+    query?: {
+        page?: number;
+        perPage?: number;
+        source?: string;
+        type?: string;
+        severity?: 'info' | 'success' | 'warning' | 'error';
+        from?: string;
+        to?: string;
+    };
+    url: '/activities';
+};
+
+export type GetActivitiesErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Error;
+};
+
+export type GetActivitiesError = GetActivitiesErrors[keyof GetActivitiesErrors];
+
+export type GetActivitiesResponses = {
+    /**
+     * Activity page
+     */
+    200: ActivityPage;
+};
+
+export type GetActivitiesResponse = GetActivitiesResponses[keyof GetActivitiesResponses];
+
+export type DeleteActivitiesByIdData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/activities/{id}';
+};
+
+export type DeleteActivitiesByIdErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Error;
+    /**
+     * Not Found
+     */
+    404: Error;
+};
+
+export type DeleteActivitiesByIdError = DeleteActivitiesByIdErrors[keyof DeleteActivitiesByIdErrors];
+
+export type DeleteActivitiesByIdResponses = {
+    /**
+     * OK
+     */
+    200: GenericObject;
+};
+
+export type DeleteActivitiesByIdResponse = DeleteActivitiesByIdResponses[keyof DeleteActivitiesByIdResponses];
+
+export type GetActivitiesByIdData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/activities/{id}';
+};
+
+export type GetActivitiesByIdErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Error;
+    /**
+     * Not Found
+     */
+    404: Error;
+};
+
+export type GetActivitiesByIdError = GetActivitiesByIdErrors[keyof GetActivitiesByIdErrors];
+
+export type GetActivitiesByIdResponses = {
+    /**
+     * Activity
+     */
+    200: {
+        activity: Activity;
+    };
+};
+
+export type GetActivitiesByIdResponse = GetActivitiesByIdResponses[keyof GetActivitiesByIdResponses];
 
 export type GetAuthCallbackData = {
     body?: never;
@@ -262,6 +410,62 @@ export type PatchAuthUpdateUserPropertyResponses = {
 
 export type PatchAuthUpdateUserPropertyResponse = PatchAuthUpdateUserPropertyResponses[keyof PatchAuthUpdateUserPropertyResponses];
 
+export type GetSessionsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/sessions';
+};
+
+export type GetSessionsErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Error;
+};
+
+export type GetSessionsError = GetSessionsErrors[keyof GetSessionsErrors];
+
+export type GetSessionsResponses = {
+    /**
+     * Public session metadata
+     */
+    200: Array<PublicSession>;
+};
+
+export type GetSessionsResponse = GetSessionsResponses[keyof GetSessionsResponses];
+
+export type DeleteSessionsBySessionIdData = {
+    body?: never;
+    path: {
+        sessionId: string;
+    };
+    query?: never;
+    url: '/sessions/{sessionId}';
+};
+
+export type DeleteSessionsBySessionIdErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Error;
+    /**
+     * Not Found
+     */
+    404: Error;
+};
+
+export type DeleteSessionsBySessionIdError = DeleteSessionsBySessionIdErrors[keyof DeleteSessionsBySessionIdErrors];
+
+export type DeleteSessionsBySessionIdResponses = {
+    /**
+     * OK
+     */
+    200: GenericObject;
+};
+
+export type DeleteSessionsBySessionIdResponse = DeleteSessionsBySessionIdResponses[keyof DeleteSessionsBySessionIdResponses];
+
 export type GetSessionsCurrentData = {
     body?: never;
     path?: never;
@@ -282,7 +486,7 @@ export type GetSessionsCurrentResponses = {
     /**
      * OK
      */
-    200: GenericObject;
+    200: PublicSession;
 };
 
 export type GetSessionsCurrentResponse = GetSessionsCurrentResponses[keyof GetSessionsCurrentResponses];
@@ -311,7 +515,7 @@ export type PatchSessionsCurrentResponses = {
     /**
      * OK
      */
-    200: GenericObject;
+    200: PublicSession;
 };
 
 export type PatchSessionsCurrentResponse = PatchSessionsCurrentResponses[keyof PatchSessionsCurrentResponses];
@@ -350,6 +554,63 @@ export type PostIntegrationsResponses = {
 };
 
 export type PostIntegrationsResponse = PostIntegrationsResponses[keyof PostIntegrationsResponses];
+
+export type PostIntegrationsByIntegrationIdActivitiesData = {
+    body: {
+        type: string;
+        title: string;
+        description?: string;
+        severity?: 'info' | 'success' | 'warning' | 'error';
+        eventId?: string;
+        idempotencyKey?: string;
+        occurredAt?: string;
+        metadata?: {
+            [key: string]: unknown;
+        };
+        action?: {
+            label: string;
+            /**
+             * Safe internal application path only.
+             */
+            target: string;
+        };
+    };
+    path: {
+        integrationId: string;
+    };
+    query?: never;
+    url: '/integrations/{integrationId}/activities';
+};
+
+export type PostIntegrationsByIntegrationIdActivitiesErrors = {
+    /**
+     * Bad Request
+     */
+    400: Error;
+    /**
+     * Unauthorized
+     */
+    401: Error;
+    /**
+     * Not Found
+     */
+    404: Error;
+};
+
+export type PostIntegrationsByIntegrationIdActivitiesError = PostIntegrationsByIntegrationIdActivitiesErrors[keyof PostIntegrationsByIntegrationIdActivitiesErrors];
+
+export type PostIntegrationsByIntegrationIdActivitiesResponses = {
+    /**
+     * Duplicate idempotent submission
+     */
+    200: PublishActivityResult;
+    /**
+     * Activity published
+     */
+    201: PublishActivityResult;
+};
+
+export type PostIntegrationsByIntegrationIdActivitiesResponse = PostIntegrationsByIntegrationIdActivitiesResponses[keyof PostIntegrationsByIntegrationIdActivitiesResponses];
 
 export type PostIntegrationsTestEndpointData = {
     body?: JsonBody;
@@ -439,6 +700,22 @@ export type GetLinksMetadataResponses = {
 
 export type GetLinksMetadataResponse = GetLinksMetadataResponses[keyof GetLinksMetadataResponses];
 
+export type PostLinksHomeGroupsCleanupData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/links/home/groups/cleanup';
+};
+
+export type PostLinksHomeGroupsCleanupResponses = {
+    /**
+     * OK
+     */
+    200: GenericObject;
+};
+
+export type PostLinksHomeGroupsCleanupResponse = PostLinksHomeGroupsCleanupResponses[keyof PostLinksHomeGroupsCleanupResponses];
+
 export type GetLinksHomeGroupsData = {
     body?: never;
     path?: never;
@@ -470,6 +747,40 @@ export type PostLinksHomeGroupsResponses = {
 };
 
 export type PostLinksHomeGroupsResponse = PostLinksHomeGroupsResponses[keyof PostLinksHomeGroupsResponses];
+
+export type PutLinksHomeGroupsData = {
+    body?: JsonBody;
+    path?: never;
+    query?: never;
+    url: '/links/home/groups';
+};
+
+export type PutLinksHomeGroupsResponses = {
+    /**
+     * OK
+     */
+    200: GenericObject;
+};
+
+export type PutLinksHomeGroupsResponse = PutLinksHomeGroupsResponses[keyof PutLinksHomeGroupsResponses];
+
+export type DeleteLinksHomeGroupsByGroupNameData = {
+    body?: never;
+    path: {
+        groupName: string;
+    };
+    query?: never;
+    url: '/links/home/groups/{groupName}';
+};
+
+export type DeleteLinksHomeGroupsByGroupNameResponses = {
+    /**
+     * OK
+     */
+    200: GenericObject;
+};
+
+export type DeleteLinksHomeGroupsByGroupNameResponse = DeleteLinksHomeGroupsByGroupNameResponses[keyof DeleteLinksHomeGroupsByGroupNameResponses];
 
 export type GetLinksHomeData = {
     body?: never;
@@ -1414,6 +1725,15 @@ export type GetTestBookmarksData = {
     url: '/test/bookmarks';
 };
 
+export type GetTestBookmarksErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Error;
+};
+
+export type GetTestBookmarksError = GetTestBookmarksErrors[keyof GetTestBookmarksErrors];
+
 export type GetTestBookmarksResponses = {
     /**
      * OK
@@ -1429,6 +1749,15 @@ export type GetWallpapersData = {
     query?: never;
     url: '/wallpapers';
 };
+
+export type GetWallpapersErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Error;
+};
+
+export type GetWallpapersError = GetWallpapersErrors[keyof GetWallpapersErrors];
 
 export type GetWallpapersResponses = {
     /**
@@ -1453,6 +1782,15 @@ export type PostWallpapersData = {
     query?: never;
     url: '/wallpapers';
 };
+
+export type PostWallpapersErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Error;
+};
+
+export type PostWallpapersError = PostWallpapersErrors[keyof PostWallpapersErrors];
 
 export type PostWallpapersResponses = {
     /**
@@ -1517,6 +1855,15 @@ export type GetWeatherData = {
     query?: never;
     url: '/weather';
 };
+
+export type GetWeatherErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Error;
+};
+
+export type GetWeatherError = GetWeatherErrors[keyof GetWeatherErrors];
 
 export type GetWeatherResponses = {
     /**

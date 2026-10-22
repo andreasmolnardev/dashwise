@@ -63,6 +63,11 @@ export const queryKeys = {
     tokens: (token: string | null) => ["notifications", token, "tokens"] as const,
     forwarders: (token: string | null) => ["notifications", token, "forwarders"] as const,
   },
+  activities: {
+    root: ["activities"] as const,
+    list: (query: Record<string, unknown> = {}) => ["activities", "list", query] as const,
+    detail: (activityId: string) => ["activities", "detail", activityId] as const,
+  },
   settings: {
     widgets: (token: string | null) => ["settings", token, "widgets"] as const,
     glanceables: (token: string | null) => ["settings", token, "glanceables"] as const,

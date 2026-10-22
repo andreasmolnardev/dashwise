@@ -6,6 +6,7 @@ info:
 servers:
   - url: /api/v1
 tags:
+  - name: activities
   - name: app
   - name: auth
   - name: config
@@ -64,6 +65,83 @@ paths:
                   - userSignupDisabled
                 additionalProperties: false
   # END GENERATED SYSTEM CONTRACTS
+  /activities:
+    get:
+      tags:
+        - activities
+      summary: List the authenticated user's activities
+      parameters:
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 1 }
+        - name: perPage
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100 }
+        - name: source
+          in: query
+          schema: { type: string, maxLength: 120 }
+        - name: type
+          in: query
+          schema: { type: string, maxLength: 120 }
+        - name: severity
+          in: query
+          schema: { type: string, enum: [info, success, warning, error] }
+        - name: from
+          in: query
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          schema: { type: string, format: date-time }
+      responses:
+        "200":
+          description: Activity page
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActivityPage"
+        "401":
+          $ref: "#/components/responses/JsonUnauthorized"
+  /activities/{id}:
+    get:
+      tags:
+        - activities
+      summary: Get an activity owned by the authenticated user
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Activity
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [activity]
+                properties:
+                  activity:
+                    $ref: "#/components/schemas/Activity"
+        "401":
+          $ref: "#/components/responses/JsonUnauthorized"
+        "404":
+          $ref: "#/components/responses/JsonNotFound"
+    delete:
+      tags:
+        - activities
+      summary: Delete an activity owned by the authenticated user
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+        "401":
+          $ref: "#/components/responses/JsonUnauthorized"
+        "404":
+          $ref: "#/components/responses/JsonNotFound"
   /auth/callback:
     get:
       tags:
@@ -91,6 +169,9 @@ paths:
       tags:
         - auth
       summary: Delete account
+      description: Requires an active device session plus password/TOTP confirmation for the same user.
+      security:
+        - bearerAuth: []
       requestBody:
         $ref: "#/components/requestBodies/JsonBody"
       responses:
@@ -168,25 +249,74 @@ paths:
           $ref: "#/components/responses/JsonOk"
         "401":
           $ref: "#/components/responses/JsonUnauthorized"
+  /sessions:
+    get:
+      tags: [sessions]
+      summary: List device sessions
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Public session metadata
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PublicSession"
+        "401":
+          $ref: "#/components/responses/JsonUnauthorized"
+  /sessions/{sessionId}:
+    delete:
+      tags: [sessions]
+      summary: Revoke a device session and close its active connections
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+        "401":
+          $ref: "#/components/responses/JsonUnauthorized"
+        "404":
+          $ref: "#/components/responses/JsonNotFound"
   /sessions/current:
     get:
       tags:
         - sessions
       summary: Get the current client session
+      description: Returns public session metadata only; internal authentication credentials are never returned.
+      security:
+        - bearerAuth: []
       responses:
         "200":
-          $ref: "#/components/responses/JsonOk"
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicSession"
         "401":
           $ref: "#/components/responses/JsonUnauthorized"
     patch:
       tags:
         - sessions
       summary: Rename the current client session
+      description: Updates the authenticated session display name and returns public metadata only.
+      security:
+        - bearerAuth: []
       requestBody:
         $ref: "#/components/requestBodies/JsonBody"
       responses:
         "200":
-          $ref: "#/components/responses/JsonOk"
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicSession"
         "400":
           $ref: "#/components/responses/JsonBadRequest"
         "401":
@@ -219,6 +349,57 @@ paths:
       responses:
         "200":
           $ref: "#/components/responses/JsonOk"
+  /integrations/{integrationId}/activities:
+    post:
+      tags:
+        - activities
+      summary: Publish an activity for an integration owned by the authenticated user
+      parameters:
+        - name: integrationId
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [type, title]
+              properties:
+                type: { type: string, maxLength: 120 }
+                title: { type: string, maxLength: 200 }
+                description: { type: string, maxLength: 2000 }
+                severity: { type: string, enum: [info, success, warning, error] }
+                eventId: { type: string, maxLength: 200 }
+                idempotencyKey: { type: string, maxLength: 256 }
+                occurredAt: { type: string, format: date-time }
+                metadata: { type: object, maxProperties: 128, additionalProperties: true }
+                action:
+                  type: object
+                  required: [label, target]
+                  properties:
+                    label: { type: string, maxLength: 80 }
+                    target: { type: string, maxLength: 2048, description: Safe internal application path only. }
+      responses:
+        "201":
+          description: Activity published
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublishActivityResult"
+        "200":
+          description: Duplicate idempotent submission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublishActivityResult"
+        "400":
+          $ref: "#/components/responses/JsonBadRequest"
+        "401":
+          $ref: "#/components/responses/JsonUnauthorized"
+        "404":
+          $ref: "#/components/responses/JsonNotFound"
   /integrations/test-endpoint:
     post:
       tags:
@@ -290,6 +471,14 @@ paths:
                   - description
                   - iconUrl
                 additionalProperties: false
+  /links/home/groups/cleanup:
+    post:
+      tags:
+        - links
+      summary: Delete unused home link groups
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
   /links/home/groups:
     get:
       tags:
@@ -304,6 +493,29 @@ paths:
       summary: Create home link group
       requestBody:
         $ref: "#/components/requestBodies/JsonBody"
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+    put:
+      tags:
+        - links
+      summary: Rename home link group
+      requestBody:
+        $ref: "#/components/requestBodies/JsonBody"
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+  /links/home/groups/{groupName}:
+    delete:
+      tags:
+        - links
+      summary: Delete home link group and its contents
+      parameters:
+        - name: groupName
+          in: path
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           $ref: "#/components/responses/JsonOk"
@@ -782,6 +994,7 @@ paths:
       tags:
         - notifications
       summary: Send notification to topic
+      description: Accepts a scoped topic token in the path, or a topic ID with a Dashwise device-session bearer token. User/password Basic authentication is not supported.
       parameters:
         - name: topic
           in: path
@@ -898,14 +1111,22 @@ paths:
       tags:
         - test
       summary: Test bookmarks
+      description: Authenticated placeholder endpoint.
+      security:
+        - bearerAuth: []
       responses:
         "200":
           $ref: "#/components/responses/JsonOk"
+        "401":
+          $ref: "#/components/responses/JsonUnauthorized"
   /wallpapers:
     post:
       tags:
         - wallpapers
       summary: Upload or update wallpaper
+      description: Accepts a Dashwise device-session token. Authorization headers take precedence over legacy body/query transports.
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -946,13 +1167,20 @@ paths:
       responses:
         "200":
           $ref: "#/components/responses/JsonOk"
+        "401":
+          $ref: "#/components/responses/JsonUnauthorized"
     get:
       tags:
         - wallpapers
       summary: Get wallpaper
+      description: Requires an active device session and returns only its user's wallpaper with private, no-store caching.
+      security:
+        - bearerAuth: []
       responses:
         "200":
           $ref: "#/components/responses/JsonOk"
+        "401":
+          $ref: "#/components/responses/JsonUnauthorized"
   /widgets:
     get:
       tags:
@@ -982,9 +1210,14 @@ paths:
       tags:
         - weather
       summary: Get weather
+      description: Authenticated placeholder endpoint.
+      security:
+        - bearerAuth: []
       responses:
         "200":
           $ref: "#/components/responses/JsonOk"
+        "401":
+          $ref: "#/components/responses/JsonUnauthorized"
   /pageConfig/home:
     post:
       tags:
@@ -1465,6 +1698,63 @@ components:
       schema:
         type: string
   schemas:
+    Activity:
+      type: object
+      required: [id, ownerId, source, type, title, severity, occurredAt, createdAt]
+      properties:
+        id: { type: string }
+        ownerId: { type: string }
+        source: { type: string, maxLength: 120 }
+        sourceId: { type: string, maxLength: 200 }
+        eventId: { type: string, maxLength: 200 }
+        type: { type: string, maxLength: 120 }
+        title: { type: string, maxLength: 200 }
+        description: { type: string, maxLength: 2000 }
+        severity: { type: string, enum: [info, success, warning, error] }
+        occurredAt: { type: string, format: date-time }
+        createdAt: { type: string, format: date-time }
+        metadata: { type: object, additionalProperties: true }
+        action:
+          type: object
+          required: [label, target]
+          properties:
+            label: { type: string, maxLength: 80 }
+            target: { type: string, maxLength: 2048, description: Safe internal application path only. }
+    ActivityPage:
+      type: object
+      required: [page, perPage, totalItems, totalPages, items]
+      properties:
+        page: { type: integer }
+        perPage: { type: integer }
+        totalItems: { type: integer }
+        totalPages: { type: integer }
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Activity"
+    PublishActivityResult:
+      type: object
+      required: [activity, duplicate]
+      properties:
+        activity:
+          $ref: "#/components/schemas/Activity"
+        duplicate: { type: boolean }
+    PublicSession:
+      type: object
+      additionalProperties: false
+      required: [id, user, sessionId, displayName, lastSeenAt]
+      properties:
+        id: { type: string }
+        user: { type: string }
+        sessionId: { type: string }
+        displayName: { type: string }
+        clientType: { type: string }
+        platform: { type: string }
+        lastSeenAt: { type: string }
+        expiresAt: { type: string }
+        revokedAt: { type: string }
+        created: { type: string }
+        updated: { type: string }
     GenericObject:
       type: object
       additionalProperties: true
@@ -1513,3 +1803,4 @@ components:
     bearerAuth:
       type: http
       scheme: bearer
+      description: Dashwise opaque device-session token with the dws_ prefix.

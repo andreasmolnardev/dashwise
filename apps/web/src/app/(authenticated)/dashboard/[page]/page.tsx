@@ -12,21 +12,21 @@ export default function DashboardPageFromConfig() {
     const { withAuth } = useAuth();
     const pageName = (params?.page as string) || "home";
 
-    const [config, setConfig] = useState<PageConfig | null>(null);
-    const [loading, setLoading] = useState(true);
+    const [pageState, setPageState] = useState<{
+        pageName: string;
+        config: PageConfig | null;
+        loading: boolean;
+    }>({ pageName, config: null, loading: true });
 
     useEffect(() => {
         let mounted = true;
-        setLoading(true);
-        setConfig(null);
+        setPageState({ pageName, config: null, loading: true });
         (async () => {
             try {
                 const cfg = await withAuth(async (auth) => getPageConfigAction(auth, pageName || undefined));
-                if (mounted) setConfig(cfg ?? null);
+                if (mounted) setPageState({ pageName, config: cfg ?? null, loading: false });
             } catch (err) {
-                if (mounted) setConfig(null);
-            } finally {
-                if (mounted) setLoading(false);
+                if (mounted) setPageState({ pageName, config: null, loading: false });
             }
         })();
         return () => {
@@ -34,7 +34,11 @@ export default function DashboardPageFromConfig() {
         };
     }, [pageName, withAuth]);
 
-    if (!loading && !config) return <PageNotFound pageName={pageName} />;
+    const pageStateIsCurrent = pageState.pageName === pageName;
+    const isLoading = !pageStateIsCurrent || pageState.loading;
+    const config = pageStateIsCurrent ? pageState.config : null;
 
-    return <DashboardLayoutTemplate config={config} pageName={pageName} isLoading={loading} />;
+    if (!isLoading && !config) return <PageNotFound pageName={pageName} />;
+
+    return <DashboardLayoutTemplate config={config} pageName={pageName} isLoading={isLoading} />;
 }
