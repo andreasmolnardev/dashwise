@@ -11,7 +11,6 @@ const AuthenticatedLayout = lazy(() => import("./app/(authenticated)/layout"));
 const OnboardingPage = lazy(() => import("./app/(authenticated)/onboarding/page"));
 const DynamicPage = lazy(() => import("./app/(authenticated)/dashboard/[page]/page"));
 const NewsPage = lazy(() => import("./app/(authenticated)/apps/news/page"));
-const NewsSubscriptionPage = lazy(() => import("./components/news/NewsSubscriptionPage"));
 const NewsLayout = lazy(() => import("./components/news/NewsLayout"));
 const NotificationsPage = lazy(() => import("./app/(authenticated)/apps/monitoring/notifications/page"));
 const NotificationsInboxPage = lazy(() => import("./app/(authenticated)/apps/notifications/inbox/page"));
@@ -69,10 +68,6 @@ export const appRouter = createBrowserRouter([
         children: [
            { path: "home", element: <DynamicPage /> },
             { path: "news", element: <Navigate to="/apps/news" replace /> },
-            {
-              path: "apps/news/subscribe",
-              element: <NewsSubscriptionPage />,
-            },
             {
               path: "apps/news",
               element: (
