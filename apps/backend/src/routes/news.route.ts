@@ -10,6 +10,7 @@ import { createLogger } from "../lib/logger";
 import { jobsApi } from "../jobs/index";
 import { suggestCommonBlacklistWords } from "../lib/news/topic-suggestions";
 import { config } from "../lib/config";
+import { getFaviconFromDOM } from "../lib/api/tools/faviconFromDom";
 
 const logger = createLogger("API");
 
@@ -119,7 +120,7 @@ async function getFeedMetadata(feedUrl: string): Promise<NewsFeedMetadata> {
     const title = String(feed?.title || "").trim();
     const image = feed?.image && typeof feed.image === "object" ? (feed.image as Record<string, unknown>) : null;
     const icon = String(image?.url || feed?.icon || "").trim() ||
-      `${new URL(feed?.link || normalizedFeedUrl).origin}/favicon.ico`;
+      (await getFaviconFromDOM(String(feed?.link || normalizedFeedUrl), true)) || "";
 
     return {
       feedUrl: normalizedFeedUrl,
@@ -130,17 +131,12 @@ async function getFeedMetadata(feedUrl: string): Promise<NewsFeedMetadata> {
   } catch (error) {
     logger.error(`Error fetching feed metadata for ${normalizedFeedUrl}`, error);
 
-    try {
-      const parsed = new URL(normalizedFeedUrl);
-      return {
-        feedUrl: normalizedFeedUrl,
-        title: "",
-        icon: `${parsed.origin}/favicon.ico`,
-        suggestedBlacklistWords: [],
-      };
-    } catch {
-      return { feedUrl: normalizedFeedUrl, title: "", icon: "", suggestedBlacklistWords: [] };
-    }
+    return {
+      feedUrl: normalizedFeedUrl,
+      title: "",
+      icon: (await getFaviconFromDOM(normalizedFeedUrl, true)) || "",
+      suggestedBlacklistWords: [],
+    };
   }
 }
 

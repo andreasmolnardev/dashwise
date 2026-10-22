@@ -1,3 +1,5 @@
+import { getFaviconFromHTML } from "./faviconFromDom";
+
 export type LinkMetadata = {
   title: string;
   description: string;
@@ -42,23 +44,6 @@ function getTitle(html: string) {
   return decodeHtmlEntities(title).replace(/\s+/g, " ").trim();
 }
 
-function getIconUrl(html: string, baseUrl: string) {
-  const linkTags = html.match(/<link\b[^>]*>/gi) ?? [];
-  for (const tag of linkTags) {
-    const rel = getAttribute(tag, "rel").toLowerCase();
-    const href = getAttribute(tag, "href");
-    if (!href || !/(^|\s)(shortcut\s+icon|icon|apple-touch-icon)(\s|$)/i.test(rel)) continue;
-
-    try {
-      return new URL(href, baseUrl).href;
-    } catch {
-      // Try the next icon declaration.
-    }
-  }
-
-  return new URL("/favicon.ico", baseUrl).href;
-}
-
 export async function getLinkMetadata(url: string): Promise<LinkMetadata> {
   let parsedUrl: URL;
   try {
@@ -71,7 +56,10 @@ export async function getLinkMetadata(url: string): Promise<LinkMetadata> {
     throw new Error("Only HTTP and HTTPS URLs are supported");
   }
 
-  const response = await fetch(parsedUrl, { headers: LINK_METADATA_HEADERS });
+  const response = await fetch(parsedUrl, {
+    headers: LINK_METADATA_HEADERS,
+    signal: AbortSignal.timeout(8000),
+  });
   if (!response.ok) {
     throw new Error(`Unable to fetch URL (${response.status})`);
   }
@@ -85,6 +73,6 @@ export async function getLinkMetadata(url: string): Promise<LinkMetadata> {
   return {
     title: title || new URL(finalUrl).hostname,
     description,
-    iconUrl: getIconUrl(html, finalUrl),
+    iconUrl: getFaviconFromHTML(html, finalUrl) ?? "",
   };
 }
