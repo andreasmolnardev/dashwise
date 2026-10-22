@@ -158,25 +158,27 @@ export async function sendTestNotification(userId: string, topicId: string) {
 
 export async function markNotificationsAsRead(userId: string, ids: string[]) {
   const pb = await getSuperuserPB();
-  let targetIds = ids;
+  const topics = (await pb.collection("notificationTopics").getFullList({
+    filter: `userId="${userId}"`,
+  })) as Array<NotificationTopicsResponse>;
+  const topicIds = topics.map((topic) => topic.id);
+
+  if (topicIds.length === 0) {
+    return null;
+  }
+
+  // Scope records to the user's topics before considering caller-supplied IDs.
+  // The superuser client bypasses PocketBase rules, so IDs alone are not an
+  // authorization check.
+  const topicFilter = topicIds.map((id) => `topicId="${id}"`).join(" || ");
+  const items = (await pb.collection("notificationItems").getFullList({ filter: topicFilter })) as Array<NotificationItemsResponse>;
+  const requestedIds = new Set(ids);
+  const targetIds = items
+    .filter((item) => ids.length === 0 ? item.status !== "read" : requestedIds.has(item.id))
+    .map((item) => item.id);
 
   if (targetIds.length === 0) {
-    const topics = (await pb.collection("notificationTopics").getFullList({
-      filter: `userId="${userId}"`,
-      })) as Array<NotificationTopicsResponse>;
-    const topicIds = topics.map((topic) => topic.id);
-
-    if (topicIds.length === 0) {
-      return null;
-    }
-
-    const filter = topicIds.map((id) => `topicId="${id}"`).join(" || ");
-    const items = (await pb.collection("notificationItems").getFullList({ filter, sort: "-created" })) as Array<NotificationItemsResponse>;
-    targetIds = items.filter((item) => item.status !== "read").map((item) => item.id);
-
-    if (targetIds.length === 0) {
-      return null;
-    }
+    return null;
   }
 
   await Promise.allSettled(
