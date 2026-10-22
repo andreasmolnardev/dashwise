@@ -14,7 +14,7 @@ sessionsRoute.post("/api/v1/sessions/:sessionId/links", withJson(async (c) => {
   const target = c.req.param("sessionId");
   const sessions = await listSessions(auth.userId);
   const session = sessions.find((item) => item.sessionId === target && !item.revokedAt);
-  if (!session) throw new ApiActionError("Device not found", 404, { error: "Device not found" });
+  if (!target || !session) throw new ApiActionError("Device not found", 404, { error: "Device not found" });
   const body = await readJsonBody<{ url?: unknown; title?: unknown }>(c);
   let url: URL;
   try {
