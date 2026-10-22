@@ -301,8 +301,7 @@ export default function NewsDashboardComponent() {
                 : undefined);
             setAddOpen(true);
             navigate(
-                `/apps/news/${activeFeedId === "all" ? "" : activeFeedId}`
-                    .replace(/\/$/, ""),
+                `/apps/news/${activeFeedId === "all" ? "all" : activeFeedId}`,
                 { replace: true },
             );
             return;
@@ -315,8 +314,7 @@ export default function NewsDashboardComponent() {
             setCreateFeedIconPickerOpen(false);
             setCreateFeedError(null);
             navigate(
-                `/apps/news/${activeFeedId === "all" ? "" : activeFeedId}`
-                    .replace(/\/$/, ""),
+                `/apps/news/${activeFeedId === "all" ? "all" : activeFeedId}`,
                 { replace: true },
             );
             return;
@@ -346,8 +344,7 @@ export default function NewsDashboardComponent() {
                     });
             }
             navigate(
-                `/apps/news/${activeFeedId === "all" ? "" : activeFeedId}`
-                    .replace(/\/$/, ""),
+                `/apps/news/${activeFeedId === "all" ? "all" : activeFeedId}`,
                 { replace: true },
             );
         }

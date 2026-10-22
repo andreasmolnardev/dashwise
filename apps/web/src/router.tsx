@@ -68,16 +68,11 @@ export const appRouter = createBrowserRouter([
         children: [
            { path: "home", element: <DynamicPage /> },
            { path: "news", element: <Navigate to="/apps/news" replace /> },
+            // Single route with an optional param so /apps/news and /apps/news/:feedId
+            // share one component instance and don't remount (which would drop
+            // transient UI state like the ?action=subscribe modal).
             {
-              path: "apps/news",
-              element: (
-                <NewsLayout>
-                  <NewsPage />
-                </NewsLayout>
-              ),
-            },
-            {
-              path: "apps/news/:feedId",
+              path: "apps/news/:feedId?",
               element: (
                 <NewsLayout>
                   <NewsPage />
