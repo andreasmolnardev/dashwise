@@ -76,7 +76,7 @@ interface HomeLinkInput {
 }
 
 export async function getLinksCollections(userId: string) {
-    const pb = getServerPB();
+    const pb = await getSuperuserPB();
     const records = await pb.collection("linksLists").getFullList({
         filter: `user = "${userId}"`,
         sort: "-created",
@@ -93,7 +93,7 @@ export async function getLinksCollections(userId: string) {
     }));
 }
 
-async function requireUserList(pb: ReturnType<typeof getServerPB>, userId: string, listId: string) {
+async function requireUserList(pb: any, userId: string, listId: string) {
     const list = await pb.collection("linksLists").getOne(listId);
     if (list.user !== userId) {
         throw new ApiActionError("Unauthorized", 401, { error: "Unauthorized" });
@@ -103,7 +103,7 @@ async function requireUserList(pb: ReturnType<typeof getServerPB>, userId: strin
 }
 
 export async function getLinksFolders(userId: string, listId: string) {
-    const pb = getServerPB();
+    const pb = await getSuperuserPB();
     await requireUserList(pb, userId, listId);
 
     const records = await pb.collection("linksFolders").getFullList({
@@ -128,7 +128,7 @@ export async function createLinksFolder(
     userId: string,
     data: { list: string; name: string; parentFolder?: string; icon?: string },
 ) {
-    const pb = getServerPB();
+    const pb = await getSuperuserPB();
     await requireUserList(pb, userId, data.list);
 
     const normalizedName = String(data.name || "").trim();
@@ -174,7 +174,7 @@ export async function createLinksFolder(
 }
 
 export async function getLinksItems(userId: string, listId: string, folderId?: string) {
-    const pb = getServerPB();
+    const pb = await getSuperuserPB();
     await requireUserList(pb, userId, listId);
 
     let filter = `collection = "${listId}"`;
@@ -225,7 +225,7 @@ export async function createLinkTag(
     userId: string,
     data: { name: string; color?: string },
 ): Promise<{ id: string; name: string; color: string }> {
-    const pb = getServerPB();
+    const pb = await getSuperuserPB();
     const normalizedName = String(data.name || "").trim();
 
     if (!normalizedName) {
@@ -250,7 +250,7 @@ export async function updateCollection(
     listId: string,
     data: { name?: string; description?: string },
 ): Promise<{ id: string; name: string; description: string; type: string }> {
-    const pb = getServerPB();
+    const pb = await getSuperuserPB();
 
     const list = await pb.collection("linksLists").getOne(listId);
     if (list.user !== userId) throw new ApiActionError("Unauthorized", 401, { error: "Unauthorized" });
@@ -411,22 +411,19 @@ async function syncHomeLinkMonitor(
 const homeListIdByUser = new Map<string, string>();
 
 async function getHomeListId(userId: string) {
-    const pb = getServerPB();
+    const pb = await getSuperuserPB();
 
     const cachedHomeListId = homeListIdByUser.get(userId);
     if (cachedHomeListId) return cachedHomeListId;
 
-    const list = await pb.collection("linksLists").getFirstListItem(
-        `user = "${userId}" && type = "home"`,
-        { fields: "id", skipTotal: true },
-    );
+    const list = await getOrCreateHomeCollection(pb, userId);
     homeListIdByUser.set(userId, list.id);
     return list.id;
 }
 
 export async function getHomeLinks(userId: string) {
 
-    const pb = getServerPB();
+    const pb = await getSuperuserPB();
     const userHomeListId = await getHomeListId(userId);
     const monitorByLinkId = new Map<string, any>();
 
@@ -451,7 +448,7 @@ export async function getHomeLinks(userId: string) {
             filter: `list = "${userHomeListId}"`,
             sort: "name",
         }),
-    ]).catch(() => [[], []]);
+    ]);
 
     if (!records.length) return [];
 
@@ -502,12 +499,19 @@ async function getOrCreateHomeCollection(pb: any, userId: string) {
         .catch(() => null);
 
     if (!homeCollection) {
-        homeCollection = await pb.collection("linksLists").create({
-            user: userId,
-            type: "home",
-            name: "Home",
-            description: "",
-        });
+        const namedHomeCollection = await pb
+            .collection("linksLists")
+            .getFirstListItem(`user = "${userId}" && name = "Home"`)
+            .catch(() => null);
+
+        homeCollection = namedHomeCollection
+            ? await pb.collection("linksLists").update(namedHomeCollection.id, { type: "home" })
+            : await pb.collection("linksLists").create({
+                user: userId,
+                type: "home",
+                name: "Home",
+                description: "",
+            });
     }
 
     return homeCollection;
@@ -591,7 +595,7 @@ export async function deleteUnusedHomeLinkGroups(userId: string) {
 }
 
 export async function getHomeLinkGroups(userId: string): Promise<string[]> {
-    const pb = getServerPB();
+    const pb = await getSuperuserPB();
     const homeCollection = await pb
         .collection("linksLists")
         .getFirstListItem(`user = "${userId}" && type = "home"`)
@@ -701,7 +705,7 @@ export async function createHomeLinkGroup(
     userId: string,
     name: string,
 ): Promise<{ id: string; name: string }> {
-    const pb = getServerPB();
+    const pb = await getSuperuserPB();
     const normalizedName = String(name || "").trim();
 
     if (!normalizedName) {
@@ -726,7 +730,7 @@ export async function updateHomeLinkFolderIcon(
     folderId: string,
     data: { icon?: string },
 ): Promise<{ id: string; name: string; icon: string }> {
-    const pb = getServerPB();
+    const pb = await getSuperuserPB();
     const folder = await pb.collection("linksFolders").getOne(folderId);
     const list = await pb.collection("linksLists").getOne(folder.list);
 
@@ -769,7 +773,7 @@ export async function createHomeLinkItem(
         folder?: string;
     }
 > {
-    const pb = getServerPB();
+    const pb = await getSuperuserPB();
     const homeCollection = await getOrCreateHomeCollection(pb, userId);
 
     const existingLinks = await pb.collection("linkItems").getFullList({
@@ -835,7 +839,7 @@ export async function setHomeLinks(
     userId: string,
     json: string,
 ): Promise<void> {
-    const pb = getServerPB();
+    const pb = await getSuperuserPB();
     const inputs: HomeLinkInput[] = JSON.parse(json);
 
     let homeCollection = await pb
@@ -922,7 +926,7 @@ export async function updateHomeLinkItem(
         secondaryUrls?: SecondaryUrl[];
     },
 ): Promise<void> {
-    const pb = getServerPB();
+    const pb = await getSuperuserPB();
 
     const item = await pb.collection("linkItems").getOne(linkId);
     const list = await pb.collection("linksLists").getOne(item.collection);
@@ -981,10 +985,41 @@ export async function reorderLinks(
     userId: string,
     items: { id: string; type: "link" | "folder"; position: number }[],
 ): Promise<void> {
-    const pb = getServerPB();
+    const pb = await getSuperuserPB();
+
+    const records = await Promise.all(items.map(async (item) => {
+        if (
+            !item ||
+            (item.type !== "link" && item.type !== "folder") ||
+            typeof item.id !== "string" ||
+            !item.id.trim() ||
+            !Number.isInteger(item.position)
+        ) {
+            throw new ApiActionError("Invalid reorder item", 400, { error: "Invalid reorder item" });
+        }
+
+        const record = item.type === "link"
+            ? await pb.collection("linkItems").getOne(item.id)
+            : await pb.collection("linksFolders").getOne(item.id);
+
+        return {
+            item,
+            listId: item.type === "link" ? String(record.collection || "") : String(record.list || ""),
+        };
+    }));
+
+    const listIds = Array.from(new Set(records.map((record) => record.listId).filter(Boolean)));
+    const lists = await Promise.all(listIds.map((listId) => pb.collection("linksLists").getOne(listId)));
+    const ownedListIds = new Set(
+        lists.filter((list: any) => list.user === userId).map((list: any) => String(list.id)),
+    );
+
+    if (records.some((record) => !ownedListIds.has(record.listId))) {
+        throw new ApiActionError("Not found", 404, { error: "Not found" });
+    }
 
     await Promise.all(
-        items.map(async (item) => {
+        records.map(async ({ item }) => {
             if (item.type === "link") {
                 await pb.collection("linkItems").update(item.id, { position: item.position });
             } else {
@@ -998,7 +1033,7 @@ export async function createCollection(
     userId: string,
     data: { name: string; description?: string; icon?: string },
 ): Promise<{ id: string; name: string; description: string; icon: string; type: string }> {
-    const pb = getServerPB();
+    const pb = await getSuperuserPB();
 
     const record = await pb.collection("linksLists").create({
         user: userId,
@@ -1021,7 +1056,7 @@ export async function deleteCollection(
     userId: string,
     listId: string,
 ): Promise<void> {
-    const pb = getServerPB();
+    const pb = await getSuperuserPB();
 
     const list = await pb.collection("linksLists").getOne(listId);
     if (list.user !== userId) throw new ApiActionError("Unauthorized", 401, { error: "Unauthorized" });
@@ -1061,7 +1096,7 @@ export async function deleteCollection(
 export async function wipeUserLinks(
     userId: string,
 ): Promise<{ deletedCollections: number; deletedFolders: number; deletedItems: number }> {
-    const pb = getServerPB();
+    const pb = await getSuperuserPB();
     const lists = await pb.collection("linksLists").getFullList({
         filter: `user = "${userId}"`,
     });
@@ -1132,7 +1167,7 @@ export async function createLinkItem(data: {
     created: string;
     updated: string;
 }> {
-    const pb = getServerPB();
+    const pb = await getSuperuserPB();
 
     const record = await pb.collection("linkItems").create({
         url: data.url,
@@ -1182,7 +1217,7 @@ export async function createCollectionLinkItem(
     created: string;
     updated: string;
 }> {
-    const pb = getServerPB();
+    const pb = await getSuperuserPB();
     const list = await pb.collection("linksLists").getOne(data.collection);
 
     if (list.user !== userId) {
@@ -1212,7 +1247,7 @@ export async function updateLinkItem(
         folder?: string;
     }
 > {
-    const pb = getServerPB();
+    const pb = await getSuperuserPB();
 
     const record = await pb.collection("linkItems").update(itemId, {
         ...(data.url !== undefined && { url: data.url }),
@@ -1238,7 +1273,7 @@ export async function deleteLinkItem(
     userId: string,
     linkId: string,
 ): Promise<void> {
-    const pb = getServerPB();
+    const pb = await getSuperuserPB();
 
     const item = await pb.collection("linkItems").getOne(linkId);
     const list = await pb.collection("linksLists").getOne(item.collection);

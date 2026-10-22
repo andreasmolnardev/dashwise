@@ -1009,6 +1009,7 @@ function LinkTile({
   isDragging,
 }: LinkTileProps) {
   const { user } = useAuth();
+  const linkOpenInNewTab = user?.searchPreferences?.linkOpenBehaviour === "newtab";
   if (style === "compact") {
     return (
       <CompactLinkTile
@@ -1035,8 +1036,8 @@ function LinkTile({
     <a
       key={link.id || link.url || itemIdx}
       href={routedUrl}
-      target={user?.global?.linkOpenBehaviour === "newtab" ? "_blank" : "_self"}
-      rel={user?.global?.linkOpenBehaviour === "newtab"
+      target={linkOpenInNewTab ? "_blank" : "_self"}
+      rel={linkOpenInNewTab
         ? "noopener noreferrer"
         : undefined}
       className={`group relative flex flex-col items-center justify-between gap-1 frosted rounded-2xl p-2 hover:text-(primary) transition-colors min-h-18 w-full ${isDragging ? "opacity-40 ring-1 ring-white/20" : ""}`}
@@ -1119,6 +1120,7 @@ function CompactLinkTile({
   isDragging,
 }: LinkTileProps) {
   const { user } = useAuth();
+  const linkOpenInNewTab = user?.searchPreferences?.linkOpenBehaviour === "newtab";
   const serverEntry = link.id && monitoringDetails
     ? monitoringDetails[link.id]
     : undefined;
@@ -1132,8 +1134,8 @@ function CompactLinkTile({
     <a
       key={link.id || link.url || itemIdx}
       href={routedUrl}
-      target={user?.global?.linkOpenBehaviour === "newtab" ? "_blank" : "_self"}
-      rel={user?.global?.linkOpenBehaviour === "newtab"
+      target={linkOpenInNewTab ? "_blank" : "_self"}
+      rel={linkOpenInNewTab
         ? "noopener noreferrer"
         : undefined}
       className={`group relative flex w-16 flex-col items-center justify-start gap-1 p-0 transition-colors ${isDragging ? "opacity-40 ring-1 ring-white/20" : ""}`}
@@ -1312,8 +1314,8 @@ function LinkFolderPopover({
                       child.url &&
                       window.open(
                         child.url,
-                        "_blank",
-                        "noopener,noreferrer",
+                        user?.searchPreferences?.linkOpenBehaviour === "newtab" ? "_blank" : "_self",
+                        user?.searchPreferences?.linkOpenBehaviour === "newtab" ? "noopener,noreferrer" : undefined,
                       )
                     }
                   >

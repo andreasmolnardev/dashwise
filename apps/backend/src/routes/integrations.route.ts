@@ -388,17 +388,13 @@ integrationsRoute
       ) => pb.collection("integrations").update(id, { localData });
 
       if (integrationId) {
-        const integration = await getIntegration(userId, integrationId);
-        if (!integration) {
+        const result = await getIntegration(userId, integrationId);
+        if (!result?.integration) {
           throw new ApiActionError("Integration not found", 404, {
             error: "Not found",
           });
         }
-        const events = await getUpcomingEvents(
-          (integration as any).environment,
-          (integration as any).localData,
-          (ld) => updateLocalData(integrationId, ld).then(() => undefined),
-        );
+        const events = await getCalDavEventsForIntegration(result, integrationId, pb);
         return { events };
       }
 
@@ -424,6 +420,28 @@ integrationsRoute
   );
 
 export default integrationsRoute;
+
+export async function getCalDavEventsForIntegration(
+  result: {
+    integration: {
+      environment: Record<string, string>;
+      localData?: Record<string, unknown>;
+    };
+  },
+  integrationId: string,
+  pb: any,
+  getEvents: typeof getUpcomingEvents = getUpcomingEvents,
+) {
+  const integration = result.integration;
+  return getEvents(
+    integration.environment,
+    integration.localData,
+    (localData) =>
+      pb.collection("integrations")
+        .update(integrationId, { localData })
+        .then(() => undefined),
+  );
+}
 
 // --- Types ---
 

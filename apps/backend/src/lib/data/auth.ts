@@ -224,7 +224,7 @@ export async function signupUser(payload: {
       search?: Record<string, unknown>;
     };
     homeConfig?: Record<string, unknown>;
-    linksConfig?: Record<string, unknown>;
+    linksConfig?: Array<Record<string, unknown>>;
   };
 }) {
   if (config.DISABLE_USER_SIGNUP) {
@@ -270,7 +270,7 @@ export async function signupUser(payload: {
 
   await (await getSuperuserPB()).collection("pageConfig").create({
     associatedUserId: user.id,
-    config: defaultHomeConfig,
+    config: userConfig?.homeConfig ?? defaultHomeConfig,
     pageName: "home",
   });
 
