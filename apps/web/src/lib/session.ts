@@ -29,6 +29,10 @@ export function getClientSessionId() {
   }
 }
 
+export function setClientSessionId(sessionId: string) {
+  if (typeof window !== "undefined" && sessionId) window.localStorage.setItem(SESSION_ID_STORAGE_KEY, sessionId);
+}
+
 export function getClientSessionHeaders(preferredSessionId?: string | null) {
   const sessionId = preferredSessionId?.trim() || getClientSessionId();
   if (!sessionId) return {};

@@ -29,6 +29,7 @@ import IconPickerComponent from "@/components/settings/IconPicker";
 import NewsFeedEditModal from "./NewsFeedEditModal";
 import SubscriptionDetailsForm from "./SubscriptionDetailsForm";
 import { useNewsSidebarData } from "./NewsLayout";
+import { useNotification } from "@/context/NotificationContext";
 import {
     createNewsFeedRecordAction,
     deleteNewsSavedArticleAction,
@@ -70,6 +71,7 @@ export default function NewsDashboardComponent() {
     const editFeedRef = searchParams.get("feed");
 
     const { subscriptions, feeds, reloadSidebar } = useNewsSidebarData();
+    const { notify, dismiss } = useNotification();
     const [currentPage, setCurrentPage] = useState(1);
     const [addOpen, setAddOpen] = useState(false);
     const [editingFeed, setEditingFeed] = useState<NewsFeedDraft | null>(null);
@@ -172,7 +174,7 @@ export default function NewsDashboardComponent() {
     });
 
     const subscribeFeedMutation = useMutation({
-        mutationFn: (feed: NewsFeedDraft) =>
+        mutationFn: ({ feed, view }: { feed: NewsFeedDraft; view?: { feedId: string; limit: number; offset: number } }) =>
             withAuth((auth) => subscribeNewsFeedAction(auth, {
                 feedUrl: String(feed.feedUrl ?? feed.url ?? ""),
                 name: String(feed.name ?? feed.title ?? ""),
@@ -184,30 +186,23 @@ export default function NewsDashboardComponent() {
                 thumbnailOverwriteUrl: feed.thumbnailOverwriteUrl,
                 similarityGroupingWordsBlacklist: feed.similarityGroupingWordsBlacklist,
                 enableTopicGrouping: feed.enableTopicGrouping !== false,
-            })),
-        onSuccess: async (_, feed) => {
+                ignoreDescriptionForTopicGrouping: feed.ignoreDescriptionForTopicGrouping === true,
+            }, view)),
+        onSuccess: () => {
             reloadSidebar();
-            await refreshFeeds(
-                String(feed.name ?? feed.title ?? feed.feedUrl ?? feed.url ?? "new feed"),
-                feed.feedIds ?? [],
-            );
         },
     });
 
     const unsubscribeFeedMutation = useMutation({
         mutationFn: (subscription: NewsFeedDraft) =>
             withAuth((auth) => unsubscribeNewsFeedAction(auth, String(subscription.id ?? subscription.url ?? ""))),
-        onSuccess: async (_, subscription) => {
+        onSuccess: () => {
             reloadSidebar();
-            await refreshFeeds(
-                subscription.title || subscription.name || subscription.url || subscription.feedUrl || "feed",
-                subscription.feedIds || [],
-            );
         },
     });
 
     const updateFeedMutation = useMutation({
-        mutationFn: ({ subscriptionId, feed }: { subscriptionId: string; feed: NewsFeedDraft }) =>
+        mutationFn: ({ subscriptionId, feed, view }: { subscriptionId: string; feed: NewsFeedDraft; view?: { feedId: string; limit: number; offset: number } }) =>
             withAuth((auth) => updateNewsFeedAction(auth, {
                 subscriptionId,
                 feedUrl: String(feed.feedUrl ?? feed.url ?? ""),
@@ -219,13 +214,10 @@ export default function NewsDashboardComponent() {
                 thumbnailOverwriteUrl: feed.thumbnailOverwriteUrl,
                 similarityGroupingWordsBlacklist: feed.similarityGroupingWordsBlacklist,
                 enableTopicGrouping: feed.enableTopicGrouping !== false,
-            })),
-        onSuccess: async (_, { feed }) => {
+                ignoreDescriptionForTopicGrouping: feed.ignoreDescriptionForTopicGrouping === true,
+            }, view)),
+        onSuccess: () => {
             reloadSidebar();
-            await refreshFeeds(
-                String(feed.name ?? feed.title ?? feed.feedUrl ?? feed.url ?? "feed"),
-                feed.feedIds ?? [],
-            );
         },
     });
 
@@ -518,12 +510,49 @@ export default function NewsDashboardComponent() {
         }
     };
 
-    const subscribeFeed = (feed: NewsFeedDraft) => subscribeFeedMutation.mutateAsync(feed);
+    const subscribeFeed = (feed: NewsFeedDraft, view?: { feedId: string; limit: number; offset: number }) =>
+        subscribeFeedMutation.mutateAsync({ feed, view });
 
     const unsubscribeFeed = (subscription: NewsFeedDraft) => unsubscribeFeedMutation.mutateAsync(subscription);
 
-    const updateFeed = (subscriptionId: string, feed: NewsFeedDraft) =>
-        updateFeedMutation.mutateAsync({ subscriptionId, feed });
+    const updateFeed = (subscriptionId: string, feed: NewsFeedDraft, view?: { feedId: string; limit: number; offset: number }) =>
+        updateFeedMutation.mutateAsync({ subscriptionId, feed, view });
+
+    const submitSubscription = (feed: NewsFeedDraft) => {
+        const isUpdate = Boolean(editingFeed);
+        const notificationId = notify({ title: "Refreshing feed...", duration: 0 });
+        const view = activeSavedList
+            ? undefined
+            : { feedId: activeFeedId, limit: itemsPerPage, offset: (currentPage - 1) * itemsPerPage };
+
+        setAddOpen(false);
+        setEditingFeed(null);
+        setSubscriptionSeed(undefined);
+
+        void (async () => {
+            try {
+                const result = isUpdate
+                    ? await updateFeed(String(editingFeed?.id ?? editingFeed?.url ?? ""), feed, view)
+                    : await subscribeFeed(feed, view);
+                const feedView = (result as { feedView?: NewsFeedPageResponse } | undefined)?.feedView;
+                if (token && view && feedView) {
+                    queryClient.setQueryData(
+                        ["api", token, ...queryKeys.news.feed(token, view.feedId, currentPage)],
+                        feedView,
+                    );
+                }
+                dismiss(notificationId);
+                notify({ title: "Feed refreshed", description: "The latest articles are ready." });
+            } catch (err) {
+                dismiss(notificationId);
+                notify({
+                    title: isUpdate ? "Could not update feed" : "Could not subscribe to feed",
+                    description: err instanceof Error ? err.message : String(err),
+                    variant: "error",
+                });
+            }
+        })();
+    };
 
     // --- Scroll to top on page change ---
     useEffect(() => {
@@ -878,6 +907,7 @@ export default function NewsDashboardComponent() {
                                     thumbnailOverwriteUrl: editingFeed.thumbnailOverwriteUrl,
                                     similarityGroupingWordsBlacklist: editingFeed.similarityGroupingWordsBlacklist,
                                     enableTopicGrouping: editingFeed.enableTopicGrouping,
+                                    ignoreDescriptionForTopicGrouping: editingFeed.ignoreDescriptionForTopicGrouping,
                                     json: editingFeed.json,
                                 }
                                 : newSubscriptionDefaults}
@@ -891,21 +921,7 @@ export default function NewsDashboardComponent() {
                                 setSubscriptionSeed(undefined);
                             }}
                             onSave={async (feed: any) => {
-                                try {
-                                    if (editingFeed) {
-                                        await updateFeed(
-                                            String(editingFeed.id ?? editingFeed.url ?? ""),
-                                            feed,
-                                        );
-                                    } else {
-                                        await subscribeFeed(feed);
-                                    }
-                                    setAddOpen(false);
-                                    setEditingFeed(null);
-                                    setSubscriptionSeed(undefined);
-                                } catch (err) {
-                                    console.error("Failed to save feed:", err);
-                                }
+                                submitSubscription(feed);
                             }}
                             onDelete={async (feedId) => {
                                 try {

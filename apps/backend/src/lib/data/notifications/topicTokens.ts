@@ -142,7 +142,7 @@ export async function updateTopicToken(userId: string, body: any) {
 export async function resolveTopicToken(token: string) {
   const pb = await getSuperuserPB();
   const records = (await pb.collection("notificationTopicTokens").getFullList({
-    filter: `token="${token}"`,
+    filter: pb.filter("token = {:token}", { token }),
   })) as Array<NotificationTopicTokensResponse>;
 
   const tokenRecord = records[0];

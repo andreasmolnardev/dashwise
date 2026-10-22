@@ -353,19 +353,15 @@ export default function DashboardLayoutTemplate({
         };
     }, [refreshPageIntegrationData, token]);
 
-    // Scroll to center panel on mobile first render
-    useEffect(() => {
+    // Start each dashboard page on its center panel on mobile.
+    useLayoutEffect(() => {
         const el = containerRef.current;
         if (!el) return;
         if (window.innerWidth >= 768) return;
-        requestAnimationFrame(() => {
-            try {
-                const width = el.clientWidth || window.innerWidth;
-                el.scrollTo({ left: width * 1, behavior: "auto" });
-                setActivePanel(1);
-            } catch {}
-        });
-    }, []);
+        const width = el.clientWidth || window.innerWidth;
+        el.scrollTo({ left: width, behavior: "auto" });
+        setActivePanel(1);
+    }, [pageName]);
 
     // Track active panel on scroll
     useEffect(() => {

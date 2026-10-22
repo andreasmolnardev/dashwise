@@ -23,6 +23,7 @@ import {
 } from "../../lib/cache/feed-items";
 import { config } from "../../lib/config";
 import { createLogger } from "../../lib/logger";
+import { publishActivity } from "../../lib/data/activities";
 import { getFeedItems } from "./helper";
 import type { NewsFeedItem } from "@dashwise/types/sdk";
 
@@ -39,9 +40,35 @@ export type NewsFeedRecord = {
   [key: string]: unknown;
 };
 
-type BuilderOptions = { userId?: string; feedIds?: string[] };
+type BuilderOptions = { userId?: string; feedIds?: string[]; forceRefresh?: boolean };
 
 const logger = createLogger("NewsFeedBuilder");
+
+async function publishNewsFeedTransitionActivity(
+  subscription: NewsSubscription,
+  transition: "unavailable" | "recovered",
+) {
+  const ownerId = String(subscription.userId || "").trim();
+  const subscriptionId = String(subscription.id || "").trim();
+  if (!ownerId || !subscriptionId) return;
+
+  const occurredAt = new Date().toISOString();
+  const recovered = transition === "recovered";
+  try {
+    await publishActivity(ownerId, "news", {
+      type: recovered ? "news.feed_recovered" : "news.feed_unavailable",
+      title: recovered ? "A news feed recovered" : "A news feed is unavailable",
+      description: recovered ? "A news feed is updating again." : "A news feed could not be updated.",
+      severity: recovered ? "success" : "warning",
+      occurredAt,
+      eventId: `${subscriptionId}:${transition}:${occurredAt}`,
+      metadata: { subscriptionId },
+    }, subscriptionId);
+  } catch {
+    // Activity persistence is best-effort and must not interrupt feed updates.
+    logger.warn("Could not publish news feed activity", { subscriptionId });
+  }
+}
 
 function itemTime(item: Record<string, unknown>) {
   const value = item.pubDate;
@@ -94,6 +121,7 @@ async function fetchAndCacheSubscription(subscription: NewsSubscription, result:
   const id = String(subscription.id || "");
   const feedUrl = String(subscription.url || subscription.feedUrl || "");
   if (!id || !feedUrl) return false;
+  const wasFailing = Boolean(String(subscription.fetchErrors || "").trim());
 
   try {
     const raw = await getFeedItems({
@@ -106,13 +134,15 @@ async function fetchAndCacheSubscription(subscription: NewsSubscription, result:
     });
     const articles = deduplicateSubscriptionArticles(raw as unknown as Record<string, unknown>[], subscription);
     await writeSubscriptionArticles(id, articles);
-    await updateNewsSubscription(id, { fetchErrors: "" });
+    const updated = await updateNewsSubscription(id, { fetchErrors: "" });
+    if (updated && wasFailing) await publishNewsFeedTransitionActivity(subscription, "recovered");
     return true;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     result.errors++;
     result.details.push({ subscriptionId: id, action: "feed_fetch_error", error: message });
-    await updateNewsSubscription(id, { fetchErrors: message }).catch(() => undefined);
+    const updated = await updateNewsSubscription(id, { fetchErrors: message }).catch(() => null);
+    if (updated && !wasFailing) await publishNewsFeedTransitionActivity(subscription, "unavailable");
     logger.error(`Error fetching feed "${subscription.title || feedUrl}": ${message}`);
     // A failed fetch deliberately leaves the previous sorted-set cache intact.
     return false;
@@ -275,7 +305,7 @@ export async function newsFeedBuilder(feedId?: string, options: BuilderOptions =
   logger.info("Running news feed builder");
 
   const rawSubscriptions = await getAllNewsSubscriptions(2000, {
-    fields: "id,url,icon,title,linkReplaceRule,fallbackThumbnailUrl,thumbnailOverwriteUrl,userId,similarityGroupingWordsBlacklist,enableTopicGrouping,fetchErrors",
+    fields: "id,url,icon,title,linkReplaceRule,fallbackThumbnailUrl,thumbnailOverwriteUrl,userId,similarityGroupingWordsBlacklist,enableTopicGrouping,ignoreDescriptionForTopicGrouping,fetchErrors",
   });
   if (!Array.isArray(rawSubscriptions)) {
     result.errors++;
@@ -336,7 +366,7 @@ export async function newsFeedBuilder(feedId?: string, options: BuilderOptions =
     .filter((subscription) => targetSubscriptionIds.has(String(subscription.id)))
     .map((subscription) => {
       const subscriptionId = String(subscription.id || "");
-      if (config.DEV_DISABLE_NEWS_INDEXING && hasSubscriptionArticles(subscriptionId)) return Promise.resolve(false);
+      if (!options.forceRefresh && config.DEV_DISABLE_NEWS_INDEXING && hasSubscriptionArticles(subscriptionId)) return Promise.resolve(false);
       return fetchAndCacheSubscription(subscription, result);
     }));
   result.processed = fetchResults.length;

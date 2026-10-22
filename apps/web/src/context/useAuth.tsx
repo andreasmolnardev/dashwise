@@ -1,6 +1,6 @@
 "use client"
 
-import { updateUserPropertyAction } from '@/lib/apiClient';
+import { authHeaders, backendUrl, updateUserPropertyAction } from '@/lib/apiClient';
 import { getClientSessionId } from "@/lib/session";
 import type { ActionAuth, AuthUserRecord, UserPropertyValue } from "@dashwise/types/sdk";
 import { useCallback, useEffect, useState } from "react";
@@ -121,6 +121,12 @@ export function useAuth() {
   }, []);
 
   const logout = useCallback(() => {
+    if (token) {
+      void fetch(backendUrl("/api/v1/auth/logout"), {
+        method: "POST",
+        headers: authHeaders({ token, sessionId: getClientSessionId() }),
+      }).catch(() => undefined);
+    }
     try {
       setAuth(null, null);
 

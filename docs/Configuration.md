@@ -7,7 +7,7 @@ You can use the following environment variables for the all-in-one container; th
 | Name | Required | Default Value | Description |
 | --- | --- | --- | --- |
 | INSTANCE_NAME / NEXT_PUBLIC_INSTANCE_NAME | No | Dashwise | The dashboard's display name |
-| PB_URL / NEXT_PUBLIC_PB_URL | No (if start pocketbase is true) | `http://127.0.0.1:8090` | PocketBase URL. The backend accepts either name (`PB_URL` takes precedence); the frontend uses `NEXT_PUBLIC_PB_URL`. |
+| PB_URL / NEXT_PUBLIC_PB_URL | No (if start pocketbase is true) | `http://127.0.0.1:8090` | Internal PocketBase URL. The backend accepts either name (`PB_URL` takes precedence). User requests go through the Dashwise API. |
 | START_POCKETBASE | No | `true` | Start the bundled PocketBase process; set to `false` to use an external instance |
 | PB_BINARY_PATH | No | - | Path to an existing, executable PocketBase binary. Required when `START_POCKETBASE=true`; the application has no fallback path. The Docker image supplies `/usr/local/bin/pocketbase`. |
 | PORT | No | `3000` | HTTP port for the backend server |
@@ -76,3 +76,5 @@ You can use the following environment variables for the all-in-one container; th
 | MONITORING_OUTLIER_THRESHOLD_VALUE | No | `50` (`500` when type is `absolute`) | Threshold value for monitoring outliers. Must be a positive number; invalid or missing values use `50` for `relative` and `500` for `absolute`. |
 
 `DEFAULT_BG_URL` is deprecated/no-op on the backend. Use `NEXT_PUBLIC_DEFAULT_BG_URL` for the frontend background setting.
+
+The bundled PocketBase server listens on port `8090`, which Compose publishes on the host. Its admin UI is available at `http://<host>:8090/_/` for setup such as SSO. The legacy migration stack publishes its PocketBase admin UI at `http://<host>:8092/_/`.

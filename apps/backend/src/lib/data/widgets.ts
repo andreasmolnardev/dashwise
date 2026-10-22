@@ -278,6 +278,14 @@ async function getDefaultGlanceables(): Promise<GlanceableCatalogItem[]> {
         builtinGlanceables,
         weatherGlanceables,
         [{
+            type: "activity-stream",
+            displayName: "Activity Stream",
+            description: "Recent activity from your integrations and Dashwise.",
+            exampleProps: { limit: 10 },
+            integrationName: "Builtin",
+            integrationDisplayName: "Builtin",
+            appName: "Builtin",
+        }, {
             type: "latest-activities",
             displayName: "Latest Activities",
             exampleProps: {},

@@ -15,12 +15,13 @@ import type {
   NewsUpdateInput,
 } from "@dashwise/types/sdk";
 import type { PageConfig } from "@dashwise/types/sdk";
+import type { ActivityPage, ActivityQuery, ActivityRecord } from "@dashwise/types";
 import config from "@/lib/config";
 import { getClientSessionHeaders } from "@/lib/session";
 import { client } from "./api/client.gen";
 import * as sdk from "./api/sdk.gen";
 
-const { getAppConfig, getAppInfo, postAuthLogin, postAuthChangePassword, postAuthSignup, postAuthValidateAuth, deleteAuthDeleteAccount, patchAuthUpdateUserProperty, getLinksCollections, getLinksMetadata, postLinksCollections, putLinksCollectionsByCollectionId, postLinksTags, putLinksTagsByTagId, getLinksHomeGroups, postLinksHomeGroups, putLinksFoldersByFolderIdIcon, getLinksHome, getLinksFolders, postLinksFolders, getLinksItems, getLinksTags, postLinksItems, putLinksItemsByLinkId, deleteLinksItemsByLinkId, postLinksReorder, getIntegrations, postIntegrations, putIntegrationsById, deleteIntegrationsById, postIntegrationsTestEndpoint, getIntegrationsWidgetProperties, getWidgetsByIntegration, postIntegrationsConsumerData, getIntegrationsCaldavEvents, postIntegrationsProxyAction, getWidgets, getGlanceables, getGlanceablesByIntegration, getMonitoringStatus, postMonitoringStatus, getMonitoringSshHosts, postMonitoringSshHosts, putMonitoringSshHostsById, getMonitoringHosts, postMonitoringHosts, getMonitoringHostsByIdHistory, getMonitors, getMonitorsById, putMonitorsById, postMonitors, deleteMonitorsById, getNewsFeedRecordsById, postNewsFeedRecords, getNewsSubscriptions, getNewsFeeds, getNewsFeedMetadata, postNewsFeedRefresh, postNewsFeedSubscribe, postNewsFeedUnsubscribe, postNewsFeedUpdate, postNewsFeedRecordsById, postNewsFixMissingTitles, getPageConfig, getPageConfigUserPages, putPageConfig, postPageConfigHome, postPageConfigMigrateLegacy, postPageConfigIntegrationData, getShortcuts, getShortcutsFrequentlyUsed, postShortcutsUsageStats, getLocations, getJobsPullIcons, getNotifications, getNotificationsTopics, postNotificationsTopics, deleteNotificationsTopics, postNotificationsMarkAsRead, postNotificationsTest, getNotificationsTopicTokens, postNotificationsTopicTokens, deleteNotificationsTopicTokens, putNotificationsTopicTokens, getNotificationsForwarders, postNotificationsForwarders, putNotificationsForwarders, deleteNotificationsForwarders, postNotificationsForwardersTest } = sdk;
+const { getAppConfig, getAppInfo, postAuthLogin, postAuthChangePassword, postAuthSignup, postAuthValidateAuth, deleteAuthDeleteAccount, patchAuthUpdateUserProperty, getLinksCollections, getLinksMetadata, postLinksCollections, putLinksCollectionsByCollectionId, postLinksTags, putLinksTagsByTagId, getLinksHomeGroups, postLinksHomeGroups, putLinksHomeGroups, deleteLinksHomeGroupsByGroupName, postLinksHomeGroupsCleanup, putLinksFoldersByFolderIdIcon, getLinksHome, getLinksFolders, postLinksFolders, getLinksItems, getLinksTags, postLinksItems, putLinksItemsByLinkId, deleteLinksItemsByLinkId, postLinksReorder, getIntegrations, postIntegrations, putIntegrationsById, deleteIntegrationsById, postIntegrationsTestEndpoint, getIntegrationsWidgetProperties, getWidgetsByIntegration, postIntegrationsConsumerData, getIntegrationsCaldavEvents, postIntegrationsProxyAction, getWidgets, getGlanceables, getGlanceablesByIntegration, getMonitoringStatus, postMonitoringStatus, getMonitoringSshHosts, postMonitoringSshHosts, putMonitoringSshHostsById, getMonitoringHosts, postMonitoringHosts, getMonitoringHostsByIdHistory, getMonitors, getMonitorsById, putMonitorsById, postMonitors, deleteMonitorsById, getNewsFeedRecordsById, postNewsFeedRecords, getNewsSubscriptions, getNewsFeeds, getNewsFeedMetadata, postNewsFeedRefresh, postNewsFeedSubscribe, postNewsFeedUnsubscribe, postNewsFeedUpdate, postNewsFeedRecordsById, postNewsFixMissingTitles, getPageConfig, getPageConfigUserPages, putPageConfig, postPageConfigHome, postPageConfigMigrateLegacy, postPageConfigIntegrationData, getShortcuts, getShortcutsFrequentlyUsed, postShortcutsUsageStats, getLocations, getJobsPullIcons, getNotifications, getNotificationsTopics, postNotificationsTopics, deleteNotificationsTopics, postNotificationsMarkAsRead, postNotificationsTest, getNotificationsTopicTokens, postNotificationsTopicTokens, deleteNotificationsTopicTokens, putNotificationsTopicTokens, getNotificationsForwarders, postNotificationsForwarders, putNotificationsForwarders, deleteNotificationsForwarders, postNotificationsForwardersTest } = sdk;
 export * from "./api/sdk.gen";
 export type { GenericObject, Error } from "./api/types.gen";
 
@@ -73,6 +74,31 @@ export function authHeaders(auth?: ActionAuth | null): Record<string, string> | 
     Authorization: `Bearer ${auth.token}`,
     ...getClientSessionHeaders(auth.sessionId),
   };
+}
+
+async function activityRequest<T>(auth: ActionAuth, path: string, query?: Record<string, string | number | undefined>): Promise<T> {
+  const url = new URL(backendUrl(path));
+  for (const [key, value] of Object.entries(query ?? {})) {
+    if (value !== undefined && value !== "") url.searchParams.set(key, String(value));
+  }
+  const response = await fetch(url, { headers: authHeaders(auth) });
+  handleUnauthorizedResponse(response);
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const error = new Error(typeof body?.error === "string" ? body.error : "Activity request failed") as Error & { status?: number };
+    error.status = response.status;
+    throw error;
+  }
+  return body as T;
+}
+
+export async function getActivityPageAction(auth: ActionAuth, query: ActivityQuery = {}): Promise<ActivityPage> {
+  return activityRequest<ActivityPage>(auth, "/api/v1/activities", query as Record<string, string | number | undefined>);
+}
+
+export async function getActivityAction(auth: ActionAuth, activityId: string): Promise<ActivityRecord> {
+  const result = await activityRequest<{ activity: ActivityRecord }>(auth, `/api/v1/activities/${encodeURIComponent(activityId)}`);
+  return result.activity;
 }
 
 export type MonitoringSshHostRecord = {
@@ -239,6 +265,26 @@ export async function loginUserAction(payload: { email: string; password: string
   return extractData(await postAuthLogin({ body: payload }));
 }
 
+export type DeviceCodeRequest = { code: string; createdAt: string; expiresAt: string; ip: string; userAgent: string };
+
+async function deviceCodeRequest(path: string, auth: ActionAuth, body: Record<string, unknown>) {
+  const response = await fetch(backendUrl(`/api/v1/auth/device-code/${path}`), {
+    method: "POST", headers: { "Content-Type": "application/json", ...(authHeaders(auth) ?? {}) }, body: JSON.stringify(body),
+  });
+  const data = await response.json();
+  if (!response.ok) { const error = new Error(data?.error ?? "Request failed") as Error & { body?: unknown }; error.body = data; throw error; }
+  return data;
+}
+
+export function deviceCodeSocketUrl() {
+  const url = new URL(backendUrl("/api/v1/auth/device-code"));
+  url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+  return url.toString();
+}
+export const lookupDeviceCodeAction = (auth: ActionAuth, code: string) => deviceCodeRequest("lookup", auth, { code }) as Promise<DeviceCodeRequest>;
+export const approveDeviceCodeAction = (auth: ActionAuth, code: string) => deviceCodeRequest("approve", auth, { code });
+export const cancelDeviceCodeAction = (auth: ActionAuth, code: string) => deviceCodeRequest("cancel", auth, { code });
+
 export async function signupUserAction(payload: { _name?: string; email: string; password: string; passwordConfirm: string }) {
   return extractData(await postAuthSignup({ body: payload }));
 }
@@ -256,6 +302,14 @@ export async function updateUserPropertyAction(auth: ActionAuth, propertyName: s
 }
 
 // --- Session actions ---
+
+export async function listSessionsAction(auth: ActionAuth): Promise<SessionRecord[]> {
+  return extractData(await client.get({ url: "/sessions", headers: authHeaders(auth) })) as Promise<SessionRecord[]>;
+}
+
+export async function revokeSessionAction(auth: ActionAuth, sessionId: string) {
+  return extractData(await client.delete({ url: "/sessions/{sessionId}", path: { sessionId }, headers: authHeaders(auth) }));
+}
 
 export async function getCurrentSessionAction(auth: ActionAuth): Promise<SessionRecord> {
   return extractData(await client.get({
@@ -312,6 +366,18 @@ export async function createHomeLinkGroupAction(auth: ActionAuth, name: string) 
   return extractData(await postLinksHomeGroups({ body: { auth, name }, headers: authHeaders(auth) }));
 }
 
+export async function renameHomeLinkGroupAction(auth: ActionAuth, currentName: string, name: string): Promise<{ oldName: string; name: string }> {
+  return extractData(await putLinksHomeGroups({ body: { auth, currentName, name }, headers: authHeaders(auth) })) as Promise<{ oldName: string; name: string }>;
+}
+
+export async function deleteHomeLinkGroupAction(auth: ActionAuth, groupName: string): Promise<{ deletedGroup: string; deletedLinks: number }> {
+  return extractData(await deleteLinksHomeGroupsByGroupName({ path: { groupName }, headers: authHeaders(auth) })) as Promise<{ deletedGroup: string; deletedLinks: number }>;
+}
+
+export async function deleteUnusedHomeLinkGroupsAction(auth: ActionAuth): Promise<{ deletedGroups: string[] }> {
+  return extractData(await postLinksHomeGroupsCleanup({ headers: authHeaders(auth) })) as Promise<{ deletedGroups: string[] }>;
+}
+
 export async function updateHomeLinkFolderIconAction(auth: ActionAuth, folderId: string, data: { icon?: string }) {
   return extractData(await putLinksFoldersByFolderIdIcon({ path: { folderId }, body: { auth, data }, headers: authHeaders(auth) }));
 }
@@ -334,6 +400,48 @@ export async function getLinksItemsAction(auth: ActionAuth, listId: string, fold
 
 export async function getLinksTagsAction(auth: ActionAuth) {
   return extractData(await getLinksTags({ headers: authHeaders(auth) }));
+}
+
+export type LinkRssFeedRecord = {
+  id: string;
+  user: string;
+  name: string;
+  listId: string;
+  tagIds: string[];
+  linkIds: string[];
+  requiresAuth: boolean;
+};
+
+export type LinkRssFeedInput = Omit<LinkRssFeedRecord, "id" | "user">;
+
+async function linkRssRequest<T>(auth: ActionAuth, path: string, method = "GET", body?: unknown): Promise<T> {
+  const response = await fetch(backendUrl(`/api/v1/links/rss${path}`), {
+    method,
+    headers: { ...authHeaders(auth), ...(body === undefined ? {} : { "content-type": "application/json" }) },
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  });
+  handleUnauthorizedResponse(response);
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(typeof result?.error === "string" ? result.error : "RSS feed request failed");
+  }
+  return result as T;
+}
+
+export function getLinkRssFeedsAction(auth: ActionAuth) {
+  return linkRssRequest<LinkRssFeedRecord[]>(auth, "");
+}
+
+export function createLinkRssFeedAction(auth: ActionAuth, input: LinkRssFeedInput) {
+  return linkRssRequest<LinkRssFeedRecord>(auth, "", "POST", input);
+}
+
+export function updateLinkRssFeedAction(auth: ActionAuth, feedId: string, input: LinkRssFeedInput) {
+  return linkRssRequest<LinkRssFeedRecord>(auth, `/${encodeURIComponent(feedId)}`, "PUT", input);
+}
+
+export function deleteLinkRssFeedAction(auth: ActionAuth, feedId: string) {
+  return linkRssRequest<{ id: string }>(auth, `/${encodeURIComponent(feedId)}`, "DELETE");
 }
 
 export async function createLinkItemAction(auth: ActionAuth, data: { url: string; title: string; iconUrl?: string; description?: string; linkGroup?: string; folder?: string; collection?: string; tags?: string[]; secondaryUrls?: { name: string; url: string; routingRule: string }[] }) {
@@ -611,16 +719,24 @@ export async function refreshNewsFeedAction(auth: ActionAuth, feedIds?: string[]
   return extractData(await postNewsFeedRefresh({ body: { auth, feedIds }, headers: authHeaders(auth) }));
 }
 
-export async function subscribeNewsFeedAction(auth: ActionAuth, sub: NewsSubscribeInput | NewsFeedDraft) {
-  return extractData(await postNewsFeedSubscribe({ body: { auth, sub }, headers: authHeaders(auth) }));
+export async function subscribeNewsFeedAction(
+  auth: ActionAuth,
+  sub: NewsSubscribeInput | NewsFeedDraft,
+  view?: { feedId: string; limit: number; offset: number },
+) {
+  return extractData(await postNewsFeedSubscribe({ body: { auth, sub, view }, headers: authHeaders(auth) }));
 }
 
 export async function unsubscribeNewsFeedAction(auth: ActionAuth, feedUrl: string) {
   return extractData(await postNewsFeedUnsubscribe({ body: { auth, feedUrl }, headers: authHeaders(auth) }));
 }
 
-export async function updateNewsFeedAction(auth: ActionAuth, payload: NewsUpdateInput | NewsFeedDraft) {
-  return extractData(await postNewsFeedUpdate({ body: { auth, payload }, headers: authHeaders(auth) }));
+export async function updateNewsFeedAction(
+  auth: ActionAuth,
+  payload: NewsUpdateInput | NewsFeedDraft,
+  view?: { feedId: string; limit: number; offset: number },
+) {
+  return extractData(await postNewsFeedUpdate({ body: { auth, payload, view }, headers: authHeaders(auth) }));
 }
 
 export async function updateNewsFeedRecordAction(auth: ActionAuth, payload: NewsFeedRecordUpdateInput) {

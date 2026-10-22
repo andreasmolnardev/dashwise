@@ -94,6 +94,7 @@ export interface CalendarUpcomingItem {
   end?: string;
   isAllDay?: boolean;
   location?: string;
+  calendarName?: string;
 }
 
 export interface CalendarUpcomingWidgetProps extends WidgetItemProps {
@@ -125,7 +126,11 @@ export function CalendarUpcomingWidget({ items = [], maxItems = 5, className = "
   };
 
   const formatEventTime = (item: CalendarUpcomingItem) => {
-    if (!item.isAllDay) return formatTime(item.start);
+    if (!item.isAllDay) {
+      return item.end
+        ? `${formatTime(item.start)} – ${formatTime(item.end)}`
+        : formatTime(item.start);
+    }
     if (!item.end) return "All day";
 
     const start = new Date(item.start);
@@ -145,7 +150,7 @@ export function CalendarUpcomingWidget({ items = [], maxItems = 5, className = "
     list: upcoming.map((item) => ({
       title: item.title,
       subtitle: [
-        formatEventTime(item),
+        [formatEventTime(item), item.calendarName].filter(Boolean).join(" • "),
         item.location,
       ].filter(Boolean) as string[],
       group: formatDate(item.start),

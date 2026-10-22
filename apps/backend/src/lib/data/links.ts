@@ -1,6 +1,6 @@
 import { ApiActionError } from "./auth";
 import { config } from "../config";
-import { getSuperuserPB } from "../pb/pocketbase";
+import { getServerPB, getSuperuserPB } from "../pb/pocketbase";
 
 export interface LinkList {
     collectionId: string;
@@ -207,9 +207,10 @@ export async function getLinksItems(userId: string, listId: string, folderId?: s
     }));
 }
 
-export async function getLinksTags() {
-    const pb = await getSuperuserPB();
+export async function getLinksTags(userId: string) {
+    const pb = getServerPB();
     const records = await pb.collection("linksTags").getFullList({
+        filter: `user = "${userId}"`,
         sort: "name",
     });
 
@@ -231,11 +232,10 @@ export async function createLinkTag(
         throw new Error("Tag name is required");
     }
 
-    void userId;
-
     const record = await pb.collection("linksTags").create({
         name: normalizedName,
         color: data.color ?? "",
+        user: userId,
     });
 
     return {
@@ -273,8 +273,9 @@ export async function updateLinkTag(
     tagId: string,
     data: { name?: string; color?: string },
 ): Promise<{ id: string; name: string; color: string }> {
-    const pb = await getSuperuserPB();
-    void userId;
+    const pb = getServerPB();
+    const tag = await pb.collection("linksTags").getOne(tagId);
+    if (tag.user !== userId) throw new ApiActionError("Unauthorized", 401, { error: "Unauthorized" });
 
     const record = await pb.collection("linksTags").update(tagId, {
         ...(data.name !== undefined && { name: String(data.name).trim() }),
@@ -550,6 +551,49 @@ async function getOrCreateFolderInList(
     return created.id as string;
 }
 
+export async function deleteUnusedHomeLinkGroups(userId: string) {
+    const pb = getServerPB();
+    const homeCollection = await pb
+        .collection("linksLists")
+        .getFirstListItem(`user = "${userId}" && type = "home"`)
+        .catch(() => null);
+
+    if (!homeCollection) return { deletedGroups: [] as string[] };
+
+    const [folders, links] = await Promise.all([
+        pb.collection("linksFolders").getFullList({ filter: `list = "${homeCollection.id}"` }),
+        pb.collection("linkItems").getFullList({ filter: `collection = "${homeCollection.id}"` }),
+    ]);
+    const childrenByParent = new Map<string, any[]>();
+    for (const folder of folders) {
+        const parentId = String(folder.parentFolder || "");
+        const children = childrenByParent.get(parentId) ?? [];
+        children.push(folder);
+        childrenByParent.set(parentId, children);
+    }
+
+    const deletedGroups: string[] = [];
+    for (const group of childrenByParent.get("") ?? []) {
+        const subtreeIds = new Set<string>();
+        const subtree = [group];
+        while (subtree.length) {
+            const folder = subtree.pop()!;
+            subtreeIds.add(String(folder.id));
+            subtree.push(...(childrenByParent.get(String(folder.id)) ?? []));
+        }
+
+        if (links.some((link: any) => subtreeIds.has(String(link.folder || "")))) continue;
+
+        const descendants = [...subtreeIds].reverse();
+        for (const folderId of descendants) {
+            await pb.collection("linksFolders").delete(folderId);
+        }
+        deletedGroups.push(String(group.name || ""));
+    }
+
+    return { deletedGroups };
+}
+
 export async function getHomeLinkGroups(userId: string): Promise<string[]> {
     const pb = await getSuperuserPB();
     const homeCollection = await pb
@@ -570,6 +614,91 @@ export async function getHomeLinkGroups(userId: string): Promise<string[]> {
         .filter(Boolean);
 
     return Array.from(new Set(groups));
+}
+
+export async function renameHomeLinkGroup(
+    userId: string,
+    currentName: string,
+    nextName: string,
+): Promise<{ oldName: string; name: string }> {
+    const pb = getServerPB();
+    const normalizedCurrentName = String(currentName || "").trim();
+    const normalizedNextName = String(nextName || "").trim();
+    if (!normalizedCurrentName) throw new ApiActionError("Link group name is required", 400);
+    if (!normalizedNextName || normalizedNextName.length > 100) {
+        throw new ApiActionError("Link group name must be between 1 and 100 characters", 400);
+    }
+
+    const homeCollection = await pb.collection("linksLists").getFirstListItem(
+        `user = "${userId}" && type = "home"`,
+    ).catch(() => null);
+    if (!homeCollection) throw new ApiActionError("Home links not found", 404);
+
+    const rootFolders = await pb.collection("linksFolders").getFullList({
+        filter: `list = "${homeCollection.id}"`,
+    });
+    const group = rootFolders.find((folder: any) =>
+        !folder.parentFolder && String(folder.name || "").trim().toLowerCase() === normalizedCurrentName.toLowerCase()
+    );
+    if (!group) throw new ApiActionError("Link group not found", 404);
+
+    const duplicate = rootFolders.find((folder: any) =>
+        !folder.parentFolder && folder.id !== group.id && String(folder.name || "").trim().toLowerCase() === normalizedNextName.toLowerCase()
+    );
+    if (duplicate) throw new ApiActionError("A link group with that name already exists", 409);
+
+    const updated = await pb.collection("linksFolders").update(group.id, { name: normalizedNextName });
+    return { oldName: String(group.name || normalizedCurrentName), name: updated.name };
+}
+
+export async function deleteHomeLinkGroup(
+    userId: string,
+    groupName: string,
+): Promise<{ deletedGroup: string; deletedLinks: number }> {
+    const pb = getServerPB();
+    const normalizedGroupName = String(groupName || "").trim();
+    if (!normalizedGroupName) throw new ApiActionError("Link group name is required", 400);
+
+    const homeCollection = await pb.collection("linksLists").getFirstListItem(
+        `user = "${userId}" && type = "home"`,
+    ).catch(() => null);
+    if (!homeCollection) throw new ApiActionError("Home links not found", 404);
+
+    const [folders, links] = await Promise.all([
+        pb.collection("linksFolders").getFullList({ filter: `list = "${homeCollection.id}"` }),
+        pb.collection("linkItems").getFullList({ filter: `collection = "${homeCollection.id}"` }),
+    ]);
+    const group = folders.find((folder: any) =>
+        !folder.parentFolder && String(folder.name || "").trim().toLowerCase() === normalizedGroupName.toLowerCase()
+    );
+    if (!group) throw new ApiActionError("Link group not found", 404);
+
+    const childrenByParent = new Map<string, any[]>();
+    for (const folder of folders) {
+        const parentId = String((folder as any).parentFolder || "");
+        const children = childrenByParent.get(parentId) ?? [];
+        children.push(folder);
+        childrenByParent.set(parentId, children);
+    }
+
+    const subtree: any[] = [];
+    const stack = [group];
+    while (stack.length) {
+        const folder = stack.pop()!;
+        subtree.push(folder);
+        stack.push(...(childrenByParent.get(String(folder.id)) ?? []));
+    }
+    const subtreeIds = new Set(subtree.map((folder) => String(folder.id)));
+    const groupLinks = links.filter((link: any) => subtreeIds.has(String(link.folder || "")));
+
+    for (const link of groupLinks as any[]) {
+        await deleteLinkItem(userId, String(link.id));
+    }
+    for (const folder of subtree.reverse()) {
+        await pb.collection("linksFolders").delete(String(folder.id));
+    }
+
+    return { deletedGroup: String(group.name || normalizedGroupName), deletedLinks: groupLinks.length };
 }
 
 export async function createHomeLinkGroup(

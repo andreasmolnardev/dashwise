@@ -19,6 +19,7 @@ import { processQueuedNotifications } from "./notifications/forwarder";
 import { createLogger } from "../lib/logger";
 import { migrateLegacyPageConfig } from "../lib/data/config";
 import { getSuperuserPB } from "../lib/pb/pocketbase";
+import { deleteExpiredActivities } from "../lib/data/activities";
 
 const execFileAsync = promisify(execFile);
 const logger = createLogger("Jobs");
@@ -95,8 +96,8 @@ const runDefaultIntegrationsJob = (source: string) =>
     errorMessage: "Default integrations bootstrap failed",
   });
 
-const runNewsFeedBuilderJob = (source: string, feedId?: string, userId?: string, feedIds?: string[]) =>
-  runJob("newsFeedBuilder", () => newsFeedBuilder(feedId, { userId, feedIds }), {
+const runNewsFeedBuilderJob = (source: string, feedId?: string, userId?: string, feedIds?: string[], options?: { forceRefresh?: boolean }) =>
+  runJob("newsFeedBuilder", () => newsFeedBuilder(feedId, { userId, feedIds, ...options }), {
     startMessage: `Triggered by ${source}${
       feedId ? ` for feed ${feedId}` : ""
     }`,
@@ -109,6 +110,13 @@ const runNotificationForwarderJob = (source: string) =>
     startMessage: `Triggered by ${source}`,
     successMessage: "Notification forwarder completed",
     errorMessage: "Notification forwarder failed",
+  });
+
+const runActivityRetentionJob = (source: string) =>
+  runJob("activityRetention", () => deleteExpiredActivities(config.ACTIVITY_RETENTION_DAYS), {
+    startMessage: `Triggered by ${source}`,
+    successMessage: "Activity retention cleanup completed",
+    errorMessage: "Activity retention cleanup failed",
   });
 
 const runLegacyUserConfigsMigration = async () => {
@@ -198,6 +206,11 @@ export function registerJobsCron() {
   Bun.cron(config.NOTIFICATION_FORWARDER_SCHEDULE, async () => {
     await runNotificationForwarderJob("cron schedule");
   });
+
+  void runActivityRetentionJob("server start");
+  Bun.cron("0 5 * * *", async () => {
+    await runActivityRetentionJob("cron schedule");
+  });
 }
 
 export const jobsApi = {
@@ -210,5 +223,6 @@ export const jobsApi = {
   runDefaultIntegrationsJob,
   runNewsFeedBuilderJob,
   runNotificationForwarderJob,
+  runActivityRetentionJob,
   runLegacyUserConfigsMigrationJob,
 };

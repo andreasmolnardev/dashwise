@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import LocationSelectFormComponent from "@/components/settings/LocationSelectForm";
 import useAuth from "@/context/useAuth";
-import { runPullIconsAction, wipeUserLinksAction } from '@/lib/apiClient';
+import { deleteUnusedHomeLinkGroupsAction, runPullIconsAction, wipeUserLinksAction } from '@/lib/apiClient';
 import { useLocalization } from "@/context/LocalizationContext";
 
 type TimeFormatValue = "24-hour" | "12-hour";
@@ -50,6 +50,8 @@ export default function GeneralSettingsPage() {
   const [isRefreshingIcons, setIsRefreshingIcons] = useState(false);
   const [isWipingUserLinks, setIsWipingUserLinks] = useState(false);
   const [wipeResult, setWipeResult] = useState<string | null>(null);
+  const [isDeletingUnusedGroups, setIsDeletingUnusedGroups] = useState(false);
+  const [unusedGroupsResult, setUnusedGroupsResult] = useState<string | null>(null);
   const { token, withAuth } = useAuth();
 
   async function handleRefreshIcons() {
@@ -62,6 +64,23 @@ export default function GeneralSettingsPage() {
       console.error("Failed to refresh icons", error);
     } finally {
       setIsRefreshingIcons(false);
+    }
+  }
+
+  async function handleDeleteUnusedGroups() {
+    if (isDeletingUnusedGroups) return;
+
+    try {
+      setIsDeletingUnusedGroups(true);
+      setUnusedGroupsResult(null);
+      const result = await withAuth((auth) => deleteUnusedHomeLinkGroupsAction(auth));
+      const count = result.deletedGroups.length;
+      setUnusedGroupsResult(count ? `Deleted ${count} unused link group${count === 1 ? "" : "s"}.` : "No unused link groups found.");
+    } catch (error) {
+      console.error("Failed to delete unused link groups", error);
+      setUnusedGroupsResult(error instanceof Error ? error.message : "Failed to delete unused link groups.");
+    } finally {
+      setIsDeletingUnusedGroups(false);
     }
   }
 
@@ -148,6 +167,34 @@ export default function GeneralSettingsPage() {
           <LinkOpeningBehaviourSelect />
         </div>
       </div>
+      <AlertDialog>
+        <AlertDialogTrigger className="grid w-full grid-cols-[auto_1fr_auto] border border-transparent hover-frosted items-center p-1.5 rounded-md gap-2 text-left">
+          <Icon icon="fa6-solid:trash" />
+          <div>
+            <p className="font-medium">Delete unused link groups</p>
+            {unusedGroupsResult && <p className="text-sm font-normal text-white/70">{unusedGroupsResult}</p>}
+          </div>
+          <Icon icon="fa6-solid:caret-right" />
+        </AlertDialogTrigger>
+        <AlertDialogContent className="frosted text-foreground">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete unused link groups?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This permanently deletes empty link groups and their empty nested folders. Groups containing links will be kept.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeletingUnusedGroups}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => void handleDeleteUnusedGroups()}
+              disabled={isDeletingUnusedGroups}
+            >
+              {isDeletingUnusedGroups ? "Deleting groups..." : "Delete unused groups"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <h3 className="text-lg font-medium">Weather</h3>
       <div
         className={

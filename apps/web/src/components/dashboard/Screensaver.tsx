@@ -20,7 +20,6 @@ export default function Screensaver(
   const [isHovering, setIsHovering] = useState(false);
   const [activeFrameIndex, setActiveFrameIndex] = useState(0);
   const [frameBackgrounds, setFrameBackgrounds] = useState<Record<string, string>>({});
-  const [scrollLeft, setScrollLeft] = useState(0);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const controlsHideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -209,7 +208,6 @@ export default function Screensaver(
     if (index !== activeFrameIndex) {
       setActiveFrameIndex(index);
     }
-    setScrollLeft(target.scrollLeft);
   };
 
   const scrollToFrame = (index: number) => {
@@ -252,21 +250,31 @@ export default function Screensaver(
     >
       <div
         ref={scrollRef}
-        className="flex-1 flex overflow-x-auto snap-x snap-mandatory hide-scrollbar"
-        style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+        className="min-h-0 min-w-0 flex-1 flex overflow-x-auto overflow-y-hidden overscroll-x-contain snap-x snap-mandatory hide-scrollbar"
+        style={{ scrollbarWidth: "none", msOverflowStyle: "none", touchAction: "pan-x" }}
         onScroll={handleScroll}
       >
         <style
           dangerouslySetInnerHTML={{
-            __html: ".hide-scrollbar::-webkit-scrollbar { display: none; }",
+            __html: `
+              .hide-scrollbar::-webkit-scrollbar { display: none; }
+              @media (max-width: 1279px) {
+                .screensaver-frame-grid--compact {
+                  width: min(90vw, 48rem) !important;
+                  height: auto !important;
+                  max-height: 90vh;
+                  grid-auto-rows: max-content;
+                  gap: 1rem !important;
+                  overflow-y: auto;
+                }
+                .screensaver-frame-grid--compact > .screensaver-frame-cell {
+                  min-height: 10rem;
+                }
+              }
+            `,
           }}
         />
-        {frames.map((frame: any, idx: number) => {
-          const containerWidth = scrollRef.current?.clientWidth ?? 1;
-          const distance = Math.abs(scrollLeft - idx * containerWidth) / containerWidth;
-          const clamped = Math.min(1, Math.max(0, distance));
-          const scale = 1 - 0.1 * clamped;
-          const showRadius = clamped > 0.001;
+        {frames.map((frame: any) => {
           const filters = frame.params?.backgroundFilters as Record<string, any> | undefined;
           const fallbackFilters = user?.appearancePreferences?.wallpaperFilters;
           const blurValue = typeof filters?.blur === "number"
@@ -284,10 +292,7 @@ export default function Screensaver(
           return (
             <div
               key={frame.id}
-              className={`min-w-full h-full flex items-center justify-center snap-center relative overflow-hidden transition-transform duration-200 ease-out ${
-                showRadius ? "rounded-3xl" : "rounded-none"
-              }`}
-              style={{ transform: `scale(${scale})` }}
+              className="h-full w-full flex-none snap-start relative flex items-center justify-center overflow-hidden"
             >
               {backgroundUrl && (
                 <div
@@ -302,11 +307,11 @@ export default function Screensaver(
               )}
               {Array.isArray(frame.params?.sections) && frame.params?.layout ? (
                 <div
-                  className="relative z-10 grid h-[70vh] w-[70vw] gap-6"
+                  className={`screensaver-frame-grid relative z-10 grid h-[70vh] w-[70vw] gap-6 ${frame.params.sections.length > 1 ? "screensaver-frame-grid--compact" : ""}`}
                   style={{ gridTemplateColumns: `repeat(${frame.params.layout.cols ?? 1}, minmax(0, 1fr))` }}
                 >
                   {frame.params.sections.map((section: any) => (
-                    <div key={section.id} className="flex min-h-0 min-w-0 items-center justify-center overflow-hidden rounded-3xl">
+                    <div key={section.id} className="screensaver-frame-cell flex min-h-0 min-w-0 items-center justify-center overflow-hidden rounded-3xl">
                       {renderWidget({
                         type: section.widgetType || frame.type,
                         consumerKey: section.consumerKey,
@@ -331,7 +336,7 @@ export default function Screensaver(
       </div>
 
       <div
-        className={`absolute bottom-0 left-0 right-0 p-8 flex justify-center items-center pointer-events-none transition-opacity duration-300 ${
+        className={`absolute bottom-0 left-0 right-0 z-20 p-8 flex justify-center items-center pointer-events-none transition-opacity duration-300 ${
           isHovering ? "opacity-100" : "opacity-0"
         }`}
       >
@@ -353,7 +358,7 @@ export default function Screensaver(
       </div>
 
       <div
-        className={`absolute bottom-8 right-8 transition-opacity duration-300 group ${
+        className={`absolute bottom-8 right-8 z-20 transition-opacity duration-300 group ${
           isHovering ? "opacity-100" : "opacity-0"
         }`}
         onClick={onExit}

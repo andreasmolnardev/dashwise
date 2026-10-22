@@ -78,7 +78,7 @@ export default function ClockWidget({
     const updateTime = () => {
       const now = new Date();
       const resolvedFormat = format || (timeFormat === "12-hour" ? "12h" : "24h");
-      setTime(formatTime(now, { hour12: resolvedFormat === "12h" }));
+      setTime(formatTime(now, { hourCycle: resolvedFormat === "12h" ? "h12" : "h23" }));
     };
 
     updateTime();

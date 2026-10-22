@@ -11,11 +11,15 @@ import {
 import type { UserPropertyValue } from "../lib/data/auth";
 import { ensureBuiltinIntegrations } from "../lib/data/integrations";
 import { setHomeLinks } from "../lib/data/links";
+import { revokeSession } from "../lib/data/sessions";
 import { getSuperuserPB } from "../lib/pb/pocketbase";
+import { approveDeviceRequest, cancelDeviceRequest, findDeviceRequest } from "../lib/device-code";
 
 import {
   loadSignupDefaults,
   readAuthToken,
+  readAuth,
+  requireAuth,
   readJsonBody,
   routeRedirectTarget,
   withJson,
@@ -52,6 +56,32 @@ authRoute.get(
         password: typeof body.password === "string" ? body.password : "",
         totp: typeof body.totp === "string" ? body.totp : undefined,
       });
+    }),
+  )
+  .post("/api/v1/auth/logout", withJson(async (c) => {
+    const auth = await requireAuth(readAuth(c));
+    return revokeSession(auth.userId, auth.sessionId);
+  }))
+  .post(
+    "/api/v1/auth/device-code/lookup",
+    withJson(async (c) => {
+      await requireAuth(readAuth(c));
+      return findDeviceRequest((await readJsonBody<{ code?: string }>(c)).code, c.req.header("x-forwarded-for")?.split(",")[0] ?? "unknown");
+    }),
+  )
+  .post(
+    "/api/v1/auth/device-code/approve",
+    withJson(async (c) => {
+      const requestAuth = readAuth(c);
+      const auth = await requireAuth(requestAuth);
+      return approveDeviceRequest((await readJsonBody<{ code?: string }>(c)).code, auth, c.req.header("x-forwarded-for")?.split(",")[0] ?? "unknown");
+    }),
+  )
+  .post(
+    "/api/v1/auth/device-code/cancel",
+    withJson(async (c) => {
+      await requireAuth(readAuth(c));
+      return cancelDeviceRequest((await readJsonBody<{ code?: string }>(c)).code, c.req.header("x-forwarded-for")?.split(",")[0] ?? "unknown");
     }),
   )
   .post(
@@ -109,9 +139,10 @@ authRoute.get(
     "/api/v1/auth/delete-account",
     withJson(async (c) => {
       const body = await readJsonBody<
-        { payload?: { email?: string; password?: string; totp?: string } }
+        { auth?: { token?: string | null; sessionId?: string | null }; payload?: { email?: string; password?: string; totp?: string } }
       >(c);
-      return deleteAccount({
+      const headerAuth = readAuth(c);
+      return deleteAccount(headerAuth.token ? headerAuth : body.auth ?? {}, {
         email: String(body?.payload?.email ?? ""),
         password: String(body?.payload?.password ?? ""),
         totp: typeof body?.payload?.totp === "string"

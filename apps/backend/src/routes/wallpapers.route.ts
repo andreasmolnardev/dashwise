@@ -2,10 +2,12 @@ import { Hono } from "hono";
 
 import { uploadWallpaper, getWallpaperByFileName } from "../lib/data/wallpapers";
 
+import { jsonErrorBody, readAuthToken } from "./shared";
+
 const wallpapersRoute = new Hono()
   wallpapersRoute.get("/api/v1/wallpapers", async (c) => {
     const fileName = c.req.query("fileName");
-    const token = c.req.header("Authorization")?.replace("Bearer ", "") || c.req.query("token") || "";
+    const token = readAuthToken(c) || c.req.query("token") || "";
 
     if (!fileName) {
       return c.json({ error: "Missing fileName query parameter" }, 400);
@@ -20,12 +22,12 @@ const wallpapersRoute = new Hono()
       return new Response(result.buffer, {
         headers: {
           "Content-Type": result.contentType,
-          "Cache-Control": "public, max-age=31536000, immutable",
+          "Cache-Control": "private, no-store",
         },
       });
     } catch (error) {
-      console.error("Error fetching wallpaper:", error);
-      return c.json({ error: "Failed to fetch wallpaper" }, 500);
+      const response = jsonErrorBody(error);
+      return c.json(response.body, response.status as any);
     }
   });
 
@@ -68,9 +70,14 @@ const wallpapersRoute = new Hono()
       return c.json({ error: "Missing image file" }, 400);
     }
 
-    const token = String(formData.get("token") ?? c.req.query("token") ?? "");
+    const token = readAuthToken(c) || String(formData.get("token") ?? c.req.query("token") ?? "");
 
-    return c.json(await uploadWallpaper(token, formData));
+    try {
+      return c.json(await uploadWallpaper(token, formData));
+    } catch (error) {
+      const response = jsonErrorBody(error);
+      return c.json(response.body, response.status as any);
+    }
   });
 
 
