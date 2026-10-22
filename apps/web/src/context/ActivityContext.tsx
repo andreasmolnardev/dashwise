@@ -1,5 +1,6 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
 import { createContext, type ReactNode, useContext, useEffect, useRef, useState } from "react";
 import useAuth from "@/context/useAuth";
 import { backendUrl } from "@/lib/apiClient";
@@ -51,11 +52,13 @@ export function ActivityProvider({ children }: { children: ReactNode }) {
   const socket = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<number | null>(null);
   const [notifications, setNotifications] = useState<ActivityNotification[]>([]);
+  const [receivedLinks, setReceivedLinks] = useState<Array<{ requestId: string; url: string; title: string }>>([]);
   const [calendarEvents, setCalendarEvents] = useState<ActivityCalendarEvent[]>([]);
 
   useEffect(() => {
     if (!token) {
       setNotifications([]);
+      setReceivedLinks([]);
       setCalendarEvents([]);
       queryClient.removeQueries({ queryKey: ["api", token, ...queryKeys.notifications.items(null)] });
       return;
@@ -69,6 +72,15 @@ export function ActivityProvider({ children }: { children: ReactNode }) {
       nextSocket.onmessage = (event) => {
         try {
           const message = JSON.parse(String(event.data));
+          if (message.type === "link:received" && typeof message.requestId === "string" && typeof message.url === "string") {
+            const url = new URL(message.url);
+            if (!["http:", "https:"].includes(url.protocol)) return;
+            setReceivedLinks(current => current.some(link => link.requestId === message.requestId) ? current : [...current, {
+              requestId: message.requestId, url: url.href,
+              title: typeof message.title === "string" ? message.title : url.hostname,
+            }].slice(-5));
+            return;
+          }
           if (message.type === "shortcut:execute" && typeof message.requestId === "string" && typeof message.shortcutId === "string") {
             void executeRegisteredActivityShortcut(message.shortcutId).then((result) => {
               if (nextSocket.readyState !== WebSocket.OPEN) return;
@@ -130,7 +142,18 @@ export function ActivityProvider({ children }: { children: ReactNode }) {
   };
 
   const unreadCount = notifications.filter((notification) => notification.status !== "read").length;
-  return <ActivityContext.Provider value={{ notifications, unreadCount, calendarEvents, refresh, markNotificationsAsRead }}>{children}</ActivityContext.Provider>;
+  return <ActivityContext.Provider value={{ notifications, unreadCount, calendarEvents, refresh, markNotificationsAsRead }}>{children}
+    {receivedLinks.length > 0 && <aside aria-label="Links from your devices" className="fixed bottom-4 right-4 z-[100] flex max-w-sm flex-col gap-2">
+      {receivedLinks.map(link => <div key={link.requestId} className="frosted rounded-xl border p-4 shadow-lg text-(--text-on-frosted)" role="status">
+        <p className="text-sm font-medium">Link from another device</p>
+        <p className="my-2 break-all text-sm">{link.title}</p>
+        <div className="flex gap-3 text-sm">
+          <Button asChild size="sm"><a href={link.url} target="_blank" rel="noopener noreferrer" className="underline" onClick={() => setReceivedLinks(current => current.filter(item => item.requestId !== link.requestId))}>Open link</a></Button>
+          <Button type="button" size="sm" variant="ghost" onClick={() => setReceivedLinks(current => current.filter(item => item.requestId !== link.requestId))}>Dismiss</Button>
+        </div>
+      </div>)}
+    </aside>}
+  </ActivityContext.Provider>;
 }
 
 export function useActivity() {
