@@ -517,6 +517,23 @@ async function getOrCreateHomeCollection(pb: any, userId: string) {
     return homeCollection;
 }
 
+async function findHomeCollection(pb: any, userId: string) {
+    const homeCollection = await pb
+        .collection("linksLists")
+        .getFirstListItem(`user = "${userId}" && type = "home"`)
+        .catch(() => null);
+    if (homeCollection) return homeCollection;
+
+    // Older accounts may still have the home list by name without its type migrated.
+    const legacyHomeCollection = await pb
+        .collection("linksLists")
+        .getFirstListItem(`user = "${userId}" && name = "Home"`)
+        .catch(() => null);
+    if (!legacyHomeCollection) return null;
+
+    return pb.collection("linksLists").update(legacyHomeCollection.id, { type: "home" });
+}
+
 async function getOrCreateFolderInList(
     pb: any,
     listId: string,
@@ -596,10 +613,7 @@ export async function deleteUnusedHomeLinkGroups(userId: string) {
 
 export async function getHomeLinkGroups(userId: string): Promise<string[]> {
     const pb = await getSuperuserPB();
-    const homeCollection = await pb
-        .collection("linksLists")
-        .getFirstListItem(`user = "${userId}" && type = "home"`)
-        .catch(() => null);
+    const homeCollection = await findHomeCollection(pb, userId);
 
     if (!homeCollection) return [];
 
@@ -629,9 +643,7 @@ export async function renameHomeLinkGroup(
         throw new ApiActionError("Link group name must be between 1 and 100 characters", 400);
     }
 
-    const homeCollection = await pb.collection("linksLists").getFirstListItem(
-        `user = "${userId}" && type = "home"`,
-    ).catch(() => null);
+    const homeCollection = await findHomeCollection(pb, userId);
     if (!homeCollection) throw new ApiActionError("Home links not found", 404);
 
     const rootFolders = await pb.collection("linksFolders").getFullList({
@@ -659,9 +671,7 @@ export async function deleteHomeLinkGroup(
     const normalizedGroupName = String(groupName || "").trim();
     if (!normalizedGroupName) throw new ApiActionError("Link group name is required", 400);
 
-    const homeCollection = await pb.collection("linksLists").getFirstListItem(
-        `user = "${userId}" && type = "home"`,
-    ).catch(() => null);
+    const homeCollection = await findHomeCollection(pb, userId);
     if (!homeCollection) throw new ApiActionError("Home links not found", 404);
 
     const [folders, links] = await Promise.all([
