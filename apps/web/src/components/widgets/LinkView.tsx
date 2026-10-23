@@ -692,40 +692,50 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
       {collections.length > 0 && (
         <div className="flex items-center justify-between gap-2">
           <div className="flex gap-1.5 flex-wrap">
-            {collections.map((col) => (
-              <div key={col} className="group inline-flex items-center rounded-xl frosted transition-colors hover:text-primary">
-                <button
-                  type="button"
-                  aria-pressed={activeCollection === col}
-                  onClick={() => setActiveCollection(col)}
-                  className={`pl-3.5 pr-1 py-2 rounded-l-xl font-medium text-sm transition-colors ${
-                    activeCollection === col
-                      ? " text-white outline-1 outline-primary"
-                      : " text-white/70 hover:text-white"
+            {collections.map((col) => {
+              const hasGroupMenu = col.trim().toLowerCase() !== DEFAULT_LINK_GROUP.toLowerCase();
+              const isActive = activeCollection === col;
+
+              return (
+                <div
+                  key={col}
+                  className={`group relative inline-flex items-center rounded-xl border frosted transition-colors hover:border-primary/70 focus-within:ring-2 focus-within:ring-primary/70 ${
+                    isActive ? "border-primary" : "border-white/10"
                   }`}
                 >
-                  {col}
-                </button>
-                {col.trim().toLowerCase() !== DEFAULT_LINK_GROUP.toLowerCase() && (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <button
-                        type="button"
-                        aria-label={`Manage ${col} link group`}
-                        title={`Manage ${col}`}
-                        className="mr-2 inline-flex size-5 items-center justify-center rounded text-white/65 opacity-0 transition-opacity hover:text-white focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary group-hover:opacity-100"
-                      >
-                        <MoreHorizontal className="size-4" />
-                      </button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="frosted text-foreground">
-                      <DropdownMenuItem onSelect={() => openGroupAction("rename", col)}>Rename</DropdownMenuItem>
-                      <DropdownMenuItem variant="destructive" onSelect={() => openGroupAction("delete", col)}>Delete</DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                )}
-              </div>
-            ))}
+                  <button
+                    type="button"
+                    aria-pressed={isActive}
+                    onClick={() => setActiveCollection(col)}
+                    className={`rounded-xl py-2 text-center font-medium text-sm transition-colors ${
+                      hasGroupMenu ? "px-8" : "px-3.5"
+                    } ${
+                      isActive ? "text-white" : "text-white/70 hover:text-white"
+                    }`}
+                  >
+                    {col}
+                  </button>
+                  {hasGroupMenu && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button
+                          type="button"
+                          aria-label={`Manage ${col} link group`}
+                          title={`Manage ${col}`}
+                          className="absolute right-1 top-1/2 inline-flex size-5 -translate-y-1/2 items-center justify-center rounded text-white/65 opacity-0 transition-opacity hover:text-white focus-visible:opacity-100 focus-visible:outline-none"
+                        >
+                          <MoreHorizontal className="size-4" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="frosted text-foreground">
+                        <DropdownMenuItem onSelect={() => openGroupAction("rename", col)}>Rename</DropdownMenuItem>
+                        <DropdownMenuItem variant="destructive" onSelect={() => openGroupAction("delete", col)}>Delete</DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
+                </div>
+              );
+            })}
           </div>
 
           <Button
