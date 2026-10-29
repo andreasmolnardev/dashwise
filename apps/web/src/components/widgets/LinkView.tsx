@@ -699,7 +699,7 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
               return (
                 <div
                   key={col}
-                  className={`group relative inline-flex items-center rounded-xl border frosted transition-colors hover:border-primary/70 focus-within:ring-2 focus-within:ring-primary/70 ${
+                  className={`home-link-group-chip group relative inline-flex items-center rounded-xl border frosted transition-colors hover:border-primary/70 focus-within:ring-2 focus-within:ring-primary/70 ${
                     isActive ? "border-primary" : "border-white/10"
                   }`}
                 >
@@ -707,13 +707,11 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
                     type="button"
                     aria-pressed={isActive}
                     onClick={() => setActiveCollection(col)}
-                    className={`rounded-xl py-2 text-center font-medium text-sm transition-colors ${
-                      hasGroupMenu ? "px-8" : "px-3.5"
-                    } ${
+                    className={`rounded-xl px-3.5 py-2 text-center font-medium text-sm transition-colors ${
                       isActive ? "text-white" : "text-white/70 hover:text-white"
                     }`}
                   >
-                    {col}
+                    <span className={hasGroupMenu ? "home-link-group-title" : undefined}>{col}</span>
                   </button>
                   {hasGroupMenu && (
                     <DropdownMenu>
@@ -722,7 +720,7 @@ export default function LinkView({ links = [] }: { links?: LinkType[] }) {
                           type="button"
                           aria-label={`Manage ${col} link group`}
                           title={`Manage ${col}`}
-                          className="absolute right-1 top-1/2 inline-flex size-5 -translate-y-1/2 items-center justify-center rounded text-white/65 opacity-0 transition-opacity hover:text-white focus-visible:opacity-100 focus-visible:outline-none"
+                          className="absolute right-1 top-1/2 inline-flex size-5 -translate-y-1/2 items-center justify-center rounded text-white/65 opacity-0 transition-opacity group-hover:opacity-100 data-[state=open]:opacity-100 hover:text-white focus-visible:opacity-100 focus-visible:outline-none"
                         >
                           <MoreHorizontal className="size-4" />
                         </button>
