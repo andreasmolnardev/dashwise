@@ -5,7 +5,6 @@ import { createPublicFileServer } from "./lib/public-files";
 import { Hono } from "hono";
 import { upgradeWebSocket, websocket } from "hono/bun";
 import { cors } from "hono/cors";
-import { Client as SshClient } from "ssh2";
 
 import { isSessionActive } from "./lib/data/sessions";
 import { trackSessionConnection, type SessionConnection } from "./lib/session-connections";
@@ -16,7 +15,7 @@ import { authenticateDeviceSocket, closeDeviceRequest, createDeviceRequest } fro
 import { jobsApi, registerJobsCron } from "./jobs/index";
 import { startPocketbase } from "./pocketbase";
 import { createLogger } from "./lib/logger";
-import { getMonitoringSshHostById, getMonitoringSshHostCredentials, getSystemAgentHostById } from "./lib/data/monitoring";
+import { getSystemAgentHostById } from "./lib/data/monitoring";
 import "./lib/integrations-sdk/builtins";
 import { startSdkIntegrationRuntime, stopSdkIntegrationRuntime } from "./lib/integrations-sdk/runtime";
 import { systemAgentClient } from "./lib/systemAgent";
@@ -38,10 +37,6 @@ const assetRoots = {
 
 const { process: pbProcess } = await startPocketbase();
 const logger = createLogger("API");
-
-type SshCredentials =
-  | { method: "password"; password: string }
-  | { method: "key"; privateKey: string; publicKey?: string; passphrase?: string };
 
 
 const shutdown = async () => {
@@ -116,127 +111,6 @@ app.get("/api/v1/auth/device-code", upgradeWebSocket((c) => {
 }));
 
 app.route("/", activityWebSocketRoute);
-
-app.get("/api/v1/monitoring/ssh-hosts/:id/console", upgradeWebSocket((c) => {
-  let lifecycle: SessionConnection | undefined;
-  let closed = false;
-  let ssh: SshClient | null = null;
-  let stream: import("ssh2").ClientChannel | null = null;
-
-  const sendJson = async (ws: { send: (data: string) => void }, payload: Record<string, unknown>) => {
-    if (!await lifecycle?.ensureValid() || !lifecycle?.isActive()) return;
-    try {
-      ws.send(JSON.stringify(payload));
-    } catch {
-      // Socket is already closed.
-    }
-  };
-
-  const cleanup = () => {
-    closed = true;
-    lifecycle?.dispose();
-    stream?.end();
-    stream = null;
-    ssh?.end();
-    ssh = null;
-  };
-
-  return {
-    async onOpen(_event, ws) {
-      const token = c.req.query("token") || c.req.header("Authorization")?.replace(/^Bearer\s+/i, "") || "";
-      const sessionId = c.req.query("sessionId") || c.req.header("x-session-id") || null;
-      const hostId = c.req.param("id") || "";
-
-      try {
-        const { userId, sessionId: resolvedSessionId } = await requireAuth({ token, sessionId });
-        if (closed) return;
-        lifecycle = trackSessionConnection({ userId, sessionId: resolvedSessionId,
-          validate: () => isSessionActive(userId, resolvedSessionId),
-          close: () => { cleanup(); ws.close(1008, "Session ended"); },
-        });
-        if (!await lifecycle.ensureValid() || !lifecycle?.isActive()) return;
-        const host = await getMonitoringSshHostById(userId, hostId);
-        if (!host) {
-          ws.send(JSON.stringify({ type: "error", message: "SSH host not found" }));
-          ws.close(1008, "SSH host not found");
-          return;
-        }
-        const credentials = getMonitoringSshHostCredentials<SshCredentials>(host);
-        if (!credentials) {
-          sendJson(ws, { type: "error", message: "No SSH credentials are stored for this host." });
-          ws.close(1008, "Missing SSH credentials");
-          return;
-        }
-
-        if (!await lifecycle.ensureValid() || !lifecycle?.isActive()) return;
-        ssh = new SshClient();
-        ssh
-          .on("ready", async () => {
-            if (!await lifecycle?.ensureValid() || !lifecycle?.isActive()) return;
-            sendJson(ws, { type: "status", status: "connected", message: `Connected to ${host.username}@${host.hostname}:${host.port}` });
-            ssh?.shell({ term: "xterm-256color", cols: 120, rows: 32 }, (error, channel) => {
-              if (error) {
-                sendJson(ws, { type: "error", message: error.message });
-                ws.close(1011, "SSH shell failed");
-                return;
-              }
-
-              if (!lifecycle?.isActive()) { channel.end(); return; }
-              stream = channel;
-              channel.on("data", (data: Buffer) => {
-                sendJson(ws, { type: "stdout", data: data.toString("utf8") });
-              });
-              channel.stderr.on("data", (data: Buffer) => {
-                sendJson(ws, { type: "stderr", data: data.toString("utf8") });
-              });
-              channel.on("close", () => {
-                sendJson(ws, { type: "status", status: "closed", message: "SSH shell closed." });
-                ws.close(1000, "SSH shell closed");
-              });
-            });
-          })
-          .on("error", (error) => {
-            sendJson(ws, { type: "error", message: error.message });
-            ws.close(1011, "SSH connection failed");
-          })
-          .on("close", () => {
-            sendJson(ws, { type: "status", status: "closed", message: "SSH connection closed." });
-          });
-
-        ssh.connect({
-          host: host.hostname,
-          port: Number(host.port || 22),
-          username: host.username,
-          password: credentials.method === "password" ? credentials.password : undefined,
-          privateKey: credentials.method === "key" ? credentials.privateKey : undefined,
-          passphrase: credentials.method === "key" && typeof credentials.passphrase === "string" ? credentials.passphrase : undefined,
-          readyTimeout: 15_000,
-        });
-      } catch (error) {
-        ws.send(JSON.stringify({ type: "error", message: error instanceof Error ? error.message : "Unauthorized" }));
-        ws.close(1008, "Unauthorized");
-      }
-    },
-    async onMessage(event) {
-      if (!await lifecycle?.ensureValid() || !lifecycle?.isActive() || !stream) return;
-      try {
-        const message = JSON.parse(String(event.data)) as { type?: string; cols?: number; rows?: number; data?: string };
-
-        if (message?.type === "resize" && Number.isFinite(Number(message.cols)) && Number.isFinite(Number(message.rows))) {
-          (stream as any).setWindow?.(Number(message.rows), Number(message.cols), 0, 0);
-          return;
-        }
-      } catch {
-        // Not JSON, fall through to raw terminal input.
-      }
-
-      stream.write(String(event.data));
-    },
-    onClose() {
-      cleanup();
-    },
-  };
-}));
 
 app.get("/api/v1/monitoring/hosts/:id/stats/live", upgradeWebSocket((c) => {
   let unsubscribe: (() => void) | undefined;
