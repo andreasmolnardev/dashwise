@@ -29,6 +29,7 @@ export default function LoginCard() {
   const { notify } = useNotification();
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
+  const [totp, setTotp] = useState("")
   const [deviceCode, setDeviceCode] = useState<string | null>(null)
   const deviceSocket = useRef<WebSocket | null>(null)
   const appConfigQuery = useQuery({ queryKey: queryKeys.appConfig, queryFn: getAppConfigAction });
@@ -103,7 +104,7 @@ export default function LoginCard() {
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
     try {
-      const { token: newToken, sessionId, user } = await loginMutation.mutateAsync({ email, password }) as { token: string; sessionId: string; user: import("@dashwise/types/sdk").AuthUserRecord };
+      const { token: newToken, sessionId, user } = await loginMutation.mutateAsync({ email, password, ...(totp.trim() ? { totp: totp.trim() } : {}) }) as { token: string; sessionId: string; user: import("@dashwise/types/sdk").AuthUserRecord };
       setClientSessionId(sessionId);
       setAuth(user, newToken);
 
@@ -111,6 +112,7 @@ export default function LoginCard() {
       setTimeout(() => {
         setEmail("");
         setPassword("");
+        setTotp("");
         navigate("/home");
       }, 2000);
     } catch (err: any) {
@@ -180,6 +182,19 @@ export default function LoginCard() {
               className="frosted"
               required
             />
+            <div className="grid gap-2">
+              <Label htmlFor="totp">Authenticator code (if enabled)</Label>
+              <Input
+                id="totp"
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                placeholder="123456"
+                value={totp}
+                onChange={(e) => setTotp(e.target.value)}
+                className="frosted"
+              />
+            </div>
             <p className="text-sm text-muted-foreground">Or login using Device Code <strong>{deviceCode ?? "connecting..."}</strong></p>
           </div>
 
