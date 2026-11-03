@@ -2,6 +2,8 @@ package jsruntime
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"strconv"
 	"strings"
@@ -48,6 +50,18 @@ func (i *Instance) installGlobals() {
 		i.removeCallbackTimer(id)
 		return goja.Undefined()
 	})
+	crypto := rt.NewObject()
+	_ = crypto.Set("randomUUID", func(goja.FunctionCall) goja.Value {
+		var raw [16]byte
+		if _, err := rand.Read(raw[:]); err != nil {
+			panic(rt.NewGoError(err))
+		}
+		raw[6] = raw[6]&0x0f | 0x40
+		raw[8] = raw[8]&0x3f | 0x80
+		hexValue := hex.EncodeToString(raw[:])
+		return rt.ToValue(hexValue[:8] + "-" + hexValue[8:12] + "-" + hexValue[12:16] + "-" + hexValue[16:20] + "-" + hexValue[20:])
+	})
+	_ = rt.Set("crypto", crypto)
 	console := rt.NewObject()
 	levels := map[string]string{"log": "info", "debug": "debug", "info": "info", "warn": "warn", "error": "error"}
 	for name, level := range levels {
