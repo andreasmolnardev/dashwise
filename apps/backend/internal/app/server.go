@@ -1,0 +1,196 @@
+package app
+
+import (
+	"context"
+	"database/sql"
+	"encoding/json"
+	"fmt"
+	"log/slog"
+	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
+
+	"github.com/andreasmolnardev/dashwise/apps/backend/internal/config"
+	"github.com/andreasmolnardev/dashwise/packages/foundation"
+)
+
+type App struct {
+	server *http.Server
+	db     *foundation.DB
+}
+
+func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, error) {
+	db, err := foundation.OpenSQLite(ctx, foundation.SQLiteOptions{Path: cfg.DatabasePath})
+	if err != nil {
+		return nil, fmt.Errorf("open application database: %w", err)
+	}
+	if err := db.ApplyMigrations(ctx, initialMigrations()); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("apply application migrations: %w", err)
+	}
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	})
+	mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusNotImplemented, map[string]string{
+			"error": "Dashwise API migration is in progress",
+			"path":  r.URL.Path,
+		})
+	})
+	mux.Handle("/", frontend(cfg.WebDist))
+
+	return &App{db: db, server: &http.Server{
+		Addr:              cfg.Address,
+		Handler:           requestLog(cors(mux), logger),
+		ReadHeaderTimeout: 10 * time.Second,
+		IdleTimeout:       60 * time.Second,
+	}}, nil
+}
+
+func (app *App) ListenAndServe() error {
+	return app.server.ListenAndServe()
+}
+
+func (app *App) Shutdown(ctx context.Context) error {
+	if err := app.server.Shutdown(ctx); err != nil {
+		return err
+	}
+	return app.db.Close()
+}
+
+func initialMigrations() []foundation.Migration {
+	return []foundation.Migration{{
+		ID:   "0001_core_tables",
+		Name: "create initial data platform tables",
+		Up: func(ctx context.Context, tx *sql.Tx) error {
+			_, err := tx.ExecContext(ctx, `
+				CREATE TABLE resource_types (
+					type TEXT PRIMARY KEY NOT NULL,
+					version INTEGER NOT NULL,
+					definition_json TEXT NOT NULL,
+					updated_at TEXT NOT NULL
+				);
+
+				CREATE TABLE resources (
+					id TEXT PRIMARY KEY NOT NULL,
+					type TEXT NOT NULL,
+					provider TEXT NOT NULL,
+					provider_instance_id TEXT NOT NULL DEFAULT '',
+					provider_resource_id TEXT NOT NULL,
+					owner_id TEXT NOT NULL DEFAULT '',
+					data_json TEXT NOT NULL,
+					capabilities_json TEXT NOT NULL DEFAULT '[]',
+					state TEXT NOT NULL DEFAULT 'current',
+					created_at TEXT NOT NULL,
+					updated_at TEXT NOT NULL,
+					UNIQUE(type, provider_instance_id, provider_resource_id)
+				);
+				CREATE INDEX resources_by_owner_type ON resources(owner_id, type, updated_at DESC);
+				CREATE INDEX resources_by_provider ON resources(provider, provider_instance_id, type);
+
+				CREATE TABLE saved_views (
+					id TEXT PRIMARY KEY NOT NULL,
+					owner_id TEXT NOT NULL,
+					name TEXT NOT NULL,
+					definition_json TEXT NOT NULL,
+					created_at TEXT NOT NULL,
+					updated_at TEXT NOT NULL
+				);
+				CREATE INDEX saved_views_by_owner ON saved_views(owner_id, name);
+
+				CREATE TABLE activity_events (
+					id TEXT PRIMARY KEY NOT NULL,
+					owner_id TEXT NOT NULL,
+					event_type TEXT NOT NULL,
+					occurred_at TEXT NOT NULL,
+					data_json TEXT NOT NULL
+				);
+				CREATE INDEX activity_events_by_owner_time ON activity_events(owner_id, occurred_at DESC);
+
+				CREATE TABLE notification_items (
+					id TEXT PRIMARY KEY NOT NULL,
+					owner_id TEXT NOT NULL,
+					topic TEXT NOT NULL DEFAULT '',
+					created_at TEXT NOT NULL,
+					expires_at TEXT,
+					read_at TEXT,
+					dismissed_at TEXT,
+					data_json TEXT NOT NULL
+				);
+				CREATE INDEX notification_items_by_owner ON notification_items(owner_id, created_at DESC);
+				CREATE INDEX notification_items_by_expiry ON notification_items(expires_at);
+
+				CREATE TABLE change_events (
+					sequence INTEGER PRIMARY KEY AUTOINCREMENT,
+					resource_id TEXT NOT NULL,
+					operation TEXT NOT NULL,
+					created_at TEXT NOT NULL
+				);
+			`)
+			return err
+		},
+		Down: func(ctx context.Context, tx *sql.Tx) error {
+			_, err := tx.ExecContext(ctx, `
+				DROP TABLE IF EXISTS change_events;
+				DROP TABLE IF EXISTS notification_items;
+				DROP TABLE IF EXISTS activity_events;
+				DROP TABLE IF EXISTS saved_views;
+				DROP TABLE IF EXISTS resources;
+				DROP TABLE IF EXISTS resource_types;
+			`)
+			return err
+		},
+	}}
+}
+
+func frontend(root string) http.Handler {
+	fileServer := http.FileServer(http.Dir(root))
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/api/") {
+			http.NotFound(w, r)
+			return
+		}
+
+		path := filepath.Join(root, filepath.Clean("/"+r.URL.Path))
+		if info, err := os.Stat(path); err == nil && !info.IsDir() {
+			fileServer.ServeHTTP(w, r)
+			return
+		}
+		if _, err := os.Stat(filepath.Join(root, "index.html")); err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		http.ServeFile(w, r, filepath.Join(root, "index.html"))
+	})
+}
+
+func cors(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Session-Id")
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func requestLog(next http.Handler, logger *slog.Logger) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		started := time.Now()
+		next.ServeHTTP(w, r)
+		logger.Info("http request", "method", r.Method, "path", r.URL.Path, "duration", time.Since(started))
+	})
+}
+
+func writeJSON(w http.ResponseWriter, status int, body any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(body)
+}
