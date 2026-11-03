@@ -138,6 +138,44 @@ func New(db *foundation.DB) (*Store, error) {
 	return &Store{db: db.SQL(), foundation: db}, nil
 }
 
+// DeleteDevelopmentUserLinks removes only owner-created link collections and
+// their contents. The home and system collections are preserved.
+func (s *Store) DeleteDevelopmentUserLinks(ctx context.Context, ownerID string) (map[string]int64, error) {
+	if strings.TrimSpace(ownerID) == "" {
+		return nil, ErrInvalid
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+	counts := map[string]int64{}
+	queries := map[string]string{
+		"deletedCollections": `SELECT COUNT(*) FROM links_collections WHERE owner_id=? AND type='user-defined'`,
+		"deletedFolders":     `SELECT COUNT(*) FROM links_folders f JOIN links_collections c ON c.id=f.list_id WHERE f.owner_id=? AND c.owner_id=? AND c.type='user-defined'`,
+		"deletedItems":       `SELECT COUNT(*) FROM link_items i JOIN links_collections c ON c.id=i.list_id WHERE i.owner_id=? AND c.owner_id=? AND c.type='user-defined'`,
+	}
+	for key, query := range queries {
+		var count int64
+		if strings.Count(query, "?") == 1 {
+			err = tx.QueryRowContext(ctx, query, ownerID).Scan(&count)
+		} else {
+			err = tx.QueryRowContext(ctx, query, ownerID, ownerID).Scan(&count)
+		}
+		if err != nil {
+			return nil, fmt.Errorf("count development user links: %w", err)
+		}
+		counts[key] = count
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM links_collections WHERE owner_id=? AND type='user-defined'`, ownerID); err != nil {
+		return nil, fmt.Errorf("delete development user links: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return counts, nil
+}
+
 // Initialize installs the Links-owned schema and can safely be called on every startup.
 func (s *Store) Initialize(ctx context.Context) error {
 	return s.foundation.ApplyMigrations(ctx, []foundation.Migration{{

@@ -31,6 +31,7 @@ func New(store *links.Store, authenticate resourceapi.Authenticate) (http.Handle
 	h.mux.HandleFunc("POST /api/v1/links/collections", h.createCollection)
 	h.mux.HandleFunc("PUT /api/v1/links/collections/{collectionId}", h.updateCollection)
 	h.mux.HandleFunc("DELETE /api/v1/links/collections/{collectionId}", h.deleteCollection)
+	h.mux.HandleFunc("DELETE /api/v1/links/dev/user-links", h.deleteDevelopmentUserLinks)
 	h.mux.HandleFunc("GET /api/v1/links/home", h.homeLinks)
 	h.mux.HandleFunc("POST /api/v1/links/home/groups/cleanup", h.cleanupGroups)
 	h.mux.HandleFunc("GET /api/v1/links/home/groups", h.listGroups)
@@ -55,6 +56,19 @@ func New(store *links.Store, authenticate resourceapi.Authenticate) (http.Handle
 	h.mux.HandleFunc("GET /api/v1/links/rss/{feedId}", h.publicRSS)
 	h.mux.HandleFunc("GET /api/v1/links/metadata", h.linkMetadata)
 	return h.mux, nil
+}
+
+func (h *Handler) deleteDevelopmentUserLinks(w http.ResponseWriter, r *http.Request) {
+	owner, ok := h.owner(w, r)
+	if !ok {
+		return
+	}
+	counts, err := h.store.DeleteDevelopmentUserLinks(r.Context(), owner)
+	if err != nil {
+		h.fail(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, counts)
 }
 
 func (h *Handler) listCollections(w http.ResponseWriter, r *http.Request) {
