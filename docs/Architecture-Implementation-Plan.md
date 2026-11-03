@@ -1,467 +1,344 @@
 
-# Dashwise Resource and View Architecture — Revised Migration Plan
+# Dashwise — Revised Architecture and Migration Plan
 
-## 1. Goal
+## 1. Vision and Goals
 
-Migrate Dashwise to a Go backend and a unified resource-driven application architecture.
+Dashwise remains a self-hosted homelab dashboard and central hub for self-hosted services.
 
-Applications and integrations expose typed resources. Views provide reusable ways to query and present these resources across Dashboard, Pages, Search, News, Monitoring, Frames, and other application surfaces.
+Its primary purpose is to provide a unified, customizable interface for accessing, monitoring, organizing, and interacting with the services and information in a user's homelab.
 
-The migration should:
+The migration must preserve this identity.
 
-- Preserve all existing functionality unless explicitly retired.
-- Replace the current Hono/PocketBase backend with Go and SQLite.
-- Establish a unified resource, query, action, and view architecture.
-- Support both YAML and TypeScript SDK integrations.
-- Reuse existing React frontend components wherever practical.
-- Extract a small reusable Go foundation without building an unnecessarily broad application framework.
-- Maintain simple single-node deployment as the primary target.
-- Support safe migration of existing production data and accounts.
-- Allow the architecture to evolve without requiring a rewrite of unrelated applications.
+Dashwise should not become a generic data management application or no-code platform. Instead, its existing applications, dashboard widgets, search, integrations, and other features should be powered by a coherent resource-centric architecture.
 
-The goal is a resource-driven Dashwise application built on reusable infrastructure, not a general-purpose application platform that happens to contain Dashwise.
+### Core architectural concept
 
-The migration target remains full feature parity. Early implementation milestones are architectural validation steps, not reductions to the eventual product scope.
+Dashwise manages structured resources.
+
+Resources originate from native Dashwise functionality, users, and external integrations.
+
+These resources can be:
+
+- Queried and filtered
+- Displayed through reusable views
+- Used by specialized applications
+- Exposed through external APIs and feeds
+- Acted upon through registered actions
+- Subscribed to for live updates
+- Processed by domain services and background jobs
+
+Integrations extend both sides of the system:
+
+1. They can provide resources, resource types, and actions.
+2. They can provide consumers, exporters, and compatible presentation capabilities.
+
+The architectural model is:
+
+    Inputs / Providers
+            |
+            v
+    Resource Management Layer
+            |
+            v
+    Resource Queries & Actions
+            |
+            +----------------------+
+            |                      |
+            v                      v
+      Visual Consumers       Data Consumers
+            |                      |
+      Dashboard Widgets         RSS Feeds
+      Dashwise Apps             JSON APIs
+      Search                    MCP
+      Frames                    Webhooks
+      Glanceables               Other exports
+
+This is an architectural abstraction, not a requirement that every resource be physically copied into the same database.
+
+### Product goals
+
+- Preserve Dashwise as a homelab dashboard.
+- Preserve existing applications and their distinct user experiences.
+- Replace Hono/PocketBase with a Go backend using SQLite.
+- Introduce a shared resource architecture.
+- Make data reusable across applications and presentation surfaces.
+- Support both input and output integration capabilities.
+- Retain YAML and TypeScript SDK integrations.
+- Preserve the existing React frontend wherever practical.
+- Support safe production migration and rollback.
+- Avoid unnecessary infrastructure and overly generic frameworks.
+- Keep deployment simple and self-hosting friendly.
+
+### Migration completion target
+
+Full feature parity for retained functionality.
+
+Architectural milestones may implement only individual vertical slices, but the migration is not complete until retained features have been migrated or explicitly replaced.
+
+The following functionality is intentionally retired:
+
+- Built-in SSH client and SSH host management
+- Built-in Media Player
+
+Other related capabilities must not be removed implicitly.
 
 ---
 
 ## 2. Architectural Principles
 
-### 2.1 Separation of responsibilities
+### 2.1 Dashwise is the product
 
-The architecture distinguishes four primary concepts.
+The resource architecture exists to support Dashwise, not replace its user-facing identity.
 
-#### Resources
+Users should continue to experience:
 
-Resources are typed entities exposed by Dashwise domains or integrations.
+- A customizable home dashboard
+- Widgets
+- App navigation
+- Quick access to self-hosted services
+- Global Search
+- News
+- Monitoring
+- Links
+- Frames
+- Notifications
+- Activity information
+- Integration configuration
 
-A resource definition declares:
+The new resource model should simplify the implementation of these features without requiring users to think in terms of schemas, queries, or resource definitions.
 
-- Stable identity
+Resource management is primarily an internal architectural concept.
+
+### 2.2 Resources are central
+
+Resources are the canonical entities managed or exposed by Dashwise.
+
+A resource definition describes:
+
+- Identity
 - Schema
+- Provider
 - Ownership
-- Access policy
+- Permissions
 - Capabilities
-- Persistence mode
-- Freshness requirements
-- Retention behavior
-- Supported query operations
+- Persistence
+- State
+- Freshness
+- Retention
+- Lifecycle
 
-Resources provide the common discovery and data-access abstraction.
+Resource types can be registered by native domains or integrations.
 
-They do not require every resource type to use the same persistence model.
+### 2.3 Providers and consumers are independent
 
-#### Views
+Providers make data available.
 
-Views describe how resources are queried, transformed, and presented.
+Consumers use or expose that data.
 
-A view combines:
+A single resource type may have multiple providers.
 
-- Resource source
-- Query parameters
-- Presentation type
-- Presentation configuration
-- Optional actions
-- Display-specific preferences
+A resource query may serve multiple consumers.
 
-Views can be embedded within multiple application surfaces.
+Integrations can extend either side independently.
 
-Examples:
+### 2.4 Resource queries are presentation-independent
 
-- A News article list on the News app page
-- A compact article list on the Dashboard
-- A monitoring chart inside a Frame
-- A link collection inside Search
+The central reusable query contract must not contain React-specific or widget-specific concepts.
 
-Views must not become a universal application framework.
+Resource queries define which data should be retrieved.
 
-Application navigation, complex workflows, settings, and domain-specific editing interfaces remain frontend application responsibilities.
+Views define how that data is displayed.
 
-#### Actions
+Exporters define how that data is serialized and published.
 
-Actions represent explicit operations against resources or domain services.
+Actions define how that data can be interacted with.
+
+### 2.5 Domain behavior remains specialized
+
+Not everything should become generic resource CRUD.
 
 Examples:
 
-- Open a shortcut
-- Mark an article as read
-- Save an article
-- Trigger an integration operation
-- Acknowledge an alert
-- Refresh a resource
+- Feed ingestion
+- Article deduplication
+- Monitoring history
+- Notifications
+- Activity tracking
+- Integration lifecycle
+- Device authentication
+- Dashboard layout editing
 
-Actions have:
+These remain domain-specific services and workflows.
 
-- Stable names
-- Typed arguments
-- Authorization requirements
-- Execution handlers
-- Typed results
-- Error semantics
+### 2.6 Simple deployment first
 
-Actions execute on the backend or through an authorized integration provider.
+Initial production topology:
 
-#### Services and Jobs
+- Go backend
+- Bun integration host
+- React frontend
+- SQLite
+- Filesystem blob storage
 
-Domain services handle workflows and lifecycle operations that should not be represented as views or generic resources.
-
-Examples:
-
-- RSS subscription management
-- Feed fetching and deduplication
-- Monitoring metric collection
-- Notification delivery
-- Activity recording
-- Integration lifecycle management
-- Background cleanup
-
-Services may produce or update resources but retain their own domain logic.
-
-### 2.2 Resources unify access, not storage
-
-The resource model must not become an unrestricted JSON document store.
-
-Domain-specific storage remains appropriate.
-
-Examples:
-
-- Links: relational records
-- News articles: materialized cached records
-- Monitoring metrics: specialized time-series tables
-- Activities: append-only event records
-- Notifications: durable records with delivery and read state
-- Weather: potentially on-demand resources
-
-All resource types participate in the same registry and capability system where appropriate.
-
-### 2.3 Single-node architecture first
-
-The initial deployment should consist of:
-
-- One Go backend
-- One Bun integration host
-- One SQLite database
-- Filesystem-backed blob storage
-- React frontend assets
-
-Additional infrastructure must be justified by a demonstrated requirement.
-
-Do not introduce Redis, a message broker, distributed workers, or multiple database engines as initial dependencies.
-
-### 2.4 Contract-driven implementation
-
-Stable contracts should exist between:
-
-- Frontend and backend
-- Resource providers and Dashwise
-- Bun integration host and Go backend
-- Saved views and renderers
-- Dashwise and the reusable Go foundation
-
-Use OpenAPI and JSON Schema for portable contracts.
-
-Generate TypeScript clients and Go types or validators where practical.
-
-Avoid manually maintaining duplicate API models.
+No required Redis, message broker, distributed workers, or external database.
 
 ---
 
 ## 3. Target Architecture
 
-### 3.1 Frontend — React
+### 3.1 Frontend
 
-The React frontend retains the existing product structure:
+React remains the frontend framework.
 
-- Dashboard
-- Pages
-- Search
-- News
-- Links
-- Monitoring
-- Notifications
-- Activities
-- Frames
-- Settings
-- Administration
+The frontend retains Dashwise's existing app-based organization.
 
-Frontend responsibilities:
+    Dashboard
+    Pages
+    Search
+    Links
+    News
+    Monitoring
+    Frames
+    Notifications
+    Activities
+    Integrations
+    Settings
+    Administration
 
-- Navigation and application shells
-- View composition
-- View rendering
-- User interactions
-- Forms and dialogs
-- Domain-specific workflows
-- Optimistic updates where appropriate
-- Subscription lifecycle management
+Applications use shared resource and query infrastructure but preserve their own navigation, forms, interactions, and specialized presentation.
 
-Existing frontend components should be reused where practical.
+### 3.2 Go Application Backend
 
-The migration should primarily replace data-access mechanisms rather than unnecessarily redesigning the UI.
+The Go backend consists of the following major systems:
 
-### 3.2 Dashwise application backend — Go
+    Dashwise Backend
+      |
+      +-- Resource Management
+      |    +-- Resource Registry
+      |    +-- Provider Registry
+      |    +-- Resource Store
+      |    +-- Resource Query Engine
+      |    +-- Resource Actions
+      |    +-- Change Notifications
+      |
+      +-- Consumer Management
+      |    +-- Consumer Registry
+      |    +-- View Definitions
+      |    +-- Export Definitions
+      |    +-- Output Endpoints
+      |
+      +-- Domain Services
+      |    +-- Links
+      |    +-- News
+      |    +-- Monitoring
+      |    +-- Activities
+      |    +-- Notifications
+      |
+      +-- Application Services
+      |    +-- Dashboard and Pages
+      |    +-- Search
+      |    +-- Frames
+      |    +-- Integrations
+      |    +-- Authentication
+      |    +-- Settings
+      |    +-- Administration
+      |
+      +-- Jobs and Operations
+      |
+      +-- API / WebSocket
+      |
+      +-- Shared Go Foundation
 
-The Go backend owns Dashwise-specific concepts.
-
-#### Resource Registry
-
-Responsible for:
-
-- Resource type registration
-- Provider registration
-- Capability discovery
-- Schema lookup
-- Resource identity
-- Provider ownership
-- Resource access policy
-- Provider-specific query routing
-
-#### Query Service
-
-Responsible for:
-
-- Validating declarative queries
-- Resolving resource sources
-- Applying authorization
-- Filtering and sorting
-- Field projection
-- Pagination
-- Query execution
-- Coordinating on-demand and persisted resources
-- Returning standardized query results
-
-Queries must be constrained and typed.
-
-Browser clients must not submit arbitrary SQL or executable code.
-
-Complex queries can be implemented through registered Go query handlers.
-
-Do not implement a general-purpose SQL-like query language initially.
-
-#### View Service
-
-Responsible for:
-
-- Saved view definitions
-- View configuration validation
-- View ownership and sharing
-- Query resolution
-- Renderer metadata
-- View-specific parameters
-
-The backend handles data and authorization.
-
-The frontend handles presentation.
-
-#### Action Service
-
-Responsible for:
-
-- Action registration
-- Input validation
-- Permission checks
-- Dispatch to native or integration providers
-- Result handling
-- Error reporting
-
-#### Domain Services
-
-Retain explicit domain implementations for:
-
-- Links
-- News
-- Monitoring
-- Activities
-- Notifications
-- Other retained product capabilities
-
-Domain services may expose resource types and actions without being reduced to generic resource CRUD.
-
-#### Integration Manager
-
-Responsible for:
-
-- Integration installation and registration
-- Integration instances
-- Configuration
-- Secret management
-- Instance lifecycle
-- Health reporting
-- Provider registration
-- Integration-host communication
-
-#### Search
-
-Search remains a Dashwise application capability.
-
-It should use generic resource indexing interfaces where appropriate.
-
-Responsibilities:
-
-- Resource participation
-- Permission-aware result filtering
-- Full-text search
-- Ranking
-- Shortcut discovery
-- Search-specific actions
-- Navigation targets
-
-SQLite FTS is the initial indexing implementation.
-
-#### Jobs
-
-Manage:
-
-- Scheduled ingestion
-- Resource synchronization
-- Cache expiration
-- Cleanup
-- Index rebuilding
-- Notification processing
-- Background maintenance
-
-Jobs should use explicit lifecycle and cancellation mechanisms.
+Resource management and consumer management should be distinct but closely integrated.
 
 ---
 
-## 4. Reusable Go Foundation
+## 4. Resource Architecture
 
-Create a small reusable Go module that provides application infrastructure.
+### 4.1 Resource definitions
 
-Do not include Dashwise product concepts in this module.
+A ResourceDefinition describes a type of resource.
 
-### 4.1 Initial responsibilities
+Conceptual example:
 
-The foundation provides:
+    ResourceDefinition
+      type
+      schema
+      capabilities
+      persistence
+      accessPolicy
+      freshnessPolicy
+      retentionPolicy
 
-- SQLite connection and transaction management
-- Declarative schema registration
-- Versioned migrations
-- Typed persistence primitives
-- Basic identity and session primitives
-- Authorization hooks
-- Storage interfaces
-- Durable change recording where required
-- Event delivery primitives
-- Backup-safe database lifecycle
+Examples of resource types:
 
-The foundation should remain useful to another small Go application without importing Dashwise packages.
+- link
+- news.article
+- monitoring.server
+- monitoring.service
+- calendar.event
+- weather.forecast
+- homelab.device
 
-### 4.2 Explicit exclusions
+The exact naming convention should be standardized during contract design.
 
-The first version should not implement:
+Resource schemas should be versioned.
 
-- Dashwise Resource Registry
-- ViewSpec execution
-- Dashwise presentation definitions
-- Integration capability models
-- Generic workflow automation
-- Arbitrary user-defined functions
-- General-purpose expression execution
-- Complex cross-collection joins
-- Distributed query execution
-- Multiple database drivers
-- Redis infrastructure
-- A complete replacement for every PocketBase feature
+### 4.2 Resource identity
 
-### 4.3 Reuse existing primitives
+Every resource has a stable identity.
 
-Before implementing the foundation, investigate whether existing Slopstack or PocketBase-based components already provide appropriate persistence, migration, authentication, or authorization primitives.
-
-Avoid maintaining two independently developed libraries with nearly identical responsibilities.
-
-Do not assume existing packages satisfy Dashwise requirements without verifying their APIs and capabilities.
-
-Choose between:
-
-1. Reusing existing foundation components.
-2. Extracting shared primitives into a small common package.
-3. Implementing only missing Dashwise requirements.
-
-The first vertical slice should inform this decision.
-
-Do not block the prototype on publishing or stabilizing the foundation.
-
----
-
-## 5. Resource Model
-
-### 5.1 Resource identity
-
-Every resource must have a stable, unambiguous identity.
-
-Identity consists conceptually of:
+Identity consists of:
 
 - Resource type
-- Provider instance
+- Provider instance identifier
 - Provider-local identifier
 
-This prevents collisions between multiple instances of the same integration.
+Resources should also expose stable, opaque Dashwise identifiers where appropriate.
 
-Resource identifiers must remain stable across synchronization cycles.
+Provider-local IDs must not collide across separate integration instances.
 
-Provider ownership must be enforced during updates and deletion.
+### 4.3 Persistence modes
 
-### 5.2 Resource persistence modes
-
-Support three resource acquisition modes.
+Support three modes.
 
 #### Stored
 
-Resources primarily owned and persisted by Dashwise.
+Dashwise owns the durable record.
 
 Examples:
 
 - User-created links
-- User-managed shortcut definitions
-
-Support standard read/write operations subject to access policy.
+- Manually configured shortcuts
 
 #### Materialized
 
-Resources synchronized from external providers into local storage.
+External data is synchronized into local storage.
 
 Examples:
 
-- RSS articles
-- Beszel server records
-- Integration-discovered devices
-
-Support:
-
-- Incremental synchronization
-- Batch upserts
-- Deletions or tombstones
-- Freshness tracking
-- Provider ownership
-- Retention policies
-- Stale-data handling
-
-Provider synchronization must not overwrite unrelated user-owned state.
+- News articles
+- Discovered servers
+- Integration-provided shortcuts
 
 #### On-demand
 
-Resources retrieved when requested.
+Data is retrieved from a provider when queried.
 
 Examples:
 
-- Current weather
-- Remote service state
-- Other lightweight external queries
+- Weather conditions
+- Remote service status
 
-Support:
+On-demand resources may optionally use caching.
 
-- Fetch timeout
-- Cancellation
-- Optional caching
-- Freshness metadata
-- Provider failure reporting
+Consumers should not need to know the underlying persistence implementation.
 
-On-demand resources do not require a persisted copy unless explicitly configured.
+They may receive freshness and availability metadata when relevant.
 
-### 5.3 Resource capabilities
+### 4.4 Resource capabilities
 
-Define an extensible capability system.
+Use a capability-based model.
 
 Initial capabilities:
 
@@ -473,146 +350,306 @@ Initial capabilities:
 - subscribe
 - history
 
-Capabilities describe resource behavior, not UI components.
+Capabilities describe supported operations, not specific frontend components.
 
-A resource may expose multiple capabilities.
+A resource may support only a subset.
 
-Examples:
+### 4.5 Resource ownership
 
-A link resource:
+Distinguish:
 
-- list
-- detail
-- search
-- launch
-- actions
+- Provider-owned data
+- User-owned data
+- Shared/global data
+- User-specific metadata
 
-A monitoring server resource:
+For example:
 
-- list
-- detail
-- subscribe
-- history
-- actions
+A News article has provider-owned title and content, while its saved/read state belongs to a user.
 
-A weather resource:
+A server has integration-owned status and metrics, while a custom display name may belong to the user.
 
-- detail
-- subscribe, if supported
+Provider synchronization must not overwrite unrelated user-owned state.
 
-The frontend uses capability discovery to determine available interactions.
+### 4.6 Synchronization
 
-### 5.4 Ownership and synchronization
+Providers must support explicitly declared synchronization semantics.
 
-Specify ownership at both resource and field level where necessary.
+Depending on their capabilities:
 
-Examples:
-
-- Integration owns server CPU usage.
-- User owns the server's custom display name.
-- News provider owns article content.
-- User owns saved/read article state.
-
-Provider synchronization must not overwrite user-owned fields.
-
-The resource synchronization contract must distinguish:
-
-- Full snapshots
+- Full snapshot
 - Incremental updates
-- Explicit deletes
-- Missing resources
-- Provider failure
-- Stale provider data
-- Provider removal
+- Batch upserts
+- Explicit deletion
+- Tombstones
+- Freshness reporting
+- Stale-state reporting
 
-A failed synchronization must not automatically delete previously known resources.
+Provider failures must not silently delete existing materialized resources.
+
+The backend owns persistent resource state.
+
+Integration runtimes do not receive unrestricted database access.
+
+### 4.7 Specialized storage
+
+Do not force every resource into one generic JSON table.
+
+Use appropriate storage for each domain.
+
+Examples:
+
+- Links: relational records
+- News: materialized article cache
+- Monitoring: specialized metric history
+- Activities: append-only records
+- Notifications: durable stateful records
+
+The resource architecture provides a common interface while preserving suitable internal storage models.
 
 ---
 
-## 6. Query Architecture
+## 5. Resource Query Architecture
 
-### 6.1 Declarative queries
+### 5.1 Shared ResourceQuery contract
 
-Expose a constrained query specification supporting:
+ResourceQuery is the central data retrieval interface.
 
-- Registered resource source/type
-- Typed filters
-- Sort order
+It is independent of the frontend, views, exports, and integrations.
+
+A query can specify:
+
+- Resource source/type
+- Filters
+- Sorting
 - Field selection
-- Bounded pagination
-- Limited aggregates
-- Optional query parameters
+- Pagination
+- Bounded aggregates
+- Provider-specific typed parameters where necessary
 
-Use backend schema validation.
+Conceptual example:
 
-Enforce per-query limits.
+    {
+      "source": "links",
+      "filter": {
+        "tags": ["homelab"]
+      },
+      "sort": [
+        {
+          "field": "createdAt",
+          "direction": "desc"
+        }
+      ],
+      "limit": 50
+    }
 
-### 6.2 Registered queries
+This query may be consumed by a Dashboard widget, Links page, RSS exporter, JSON endpoint, or another authorized consumer.
 
-Support registered Go query handlers for domain-specific requirements that cannot be represented cleanly with declarative filters.
+### 5.2 Query execution
+
+The backend:
+
+1. Validates the query.
+2. Resolves the resource provider.
+3. Verifies authorization.
+4. Checks supported query capabilities.
+5. Executes the query.
+6. Returns typed results and metadata.
+
+Browser clients must not execute arbitrary SQL.
+
+### 5.3 Registered queries
+
+Some domains require specialized queries.
 
 Examples:
 
-- Monitoring history aggregation
-- Specialized News queries
-- Complex search ranking
+- Monitoring time-series aggregations
+- News topic grouping
+- Search ranking
 
-Registered queries must:
+Support registered backend query handlers with typed arguments.
 
-- Declare typed arguments
-- Apply authorization
-- Return typed results
-- Support cancellation
-- Respect execution limits
+Do not implement a universal expression language or unrestricted cross-resource SQL engine.
 
-### 6.3 Provider query capabilities
+### 5.4 Reusable query definitions
 
-Providers may not support every query operation.
+Allow resource queries to be saved and referenced.
 
-The resource registry must declare supported operations.
+A saved query can be shared by several consumers.
 
-The backend should not pretend that all resource providers support identical filtering, sorting, or aggregation behavior.
+For example:
 
-Unsupported operations should produce explicit errors or use a documented bounded fallback.
+    Saved Query: recent-homelab-links
+      |
+      +-- Dashboard widget
+      +-- RSS feed
+      +-- JSON endpoint
 
-Avoid unrestricted in-memory scanning of external resources.
+Saved queries are optional.
 
-### 6.4 Query result contract
+Consumers may define inline query configurations.
 
-Standardize:
+### 5.5 Query authorization
 
-- Records
-- Schema or type reference
-- Pagination cursor
-- Freshness information
-- Revision or invalidation identifier
-- Provider error/stale status where relevant
+Authorization must be applied whenever a query executes.
 
-Do not require every query to expose identical freshness or revision semantics when the provider cannot support them.
+A saved query does not grant access to its underlying resources.
+
+Export endpoints must also enforce appropriate access policies.
+
+Publicly accessible exports require explicit sharing configuration.
+
+---
+
+## 6. Consumer Architecture
+
+### 6.1 Purpose
+
+Consumers turn resource data into usable outputs.
+
+A consumer may:
+
+- Display resources
+- Export resources
+- Publish resources
+- Deliver resource changes
+- Feed another system
+
+Consumers are not necessarily visual.
+
+### 6.2 Consumer registry
+
+Introduce a consumer registration mechanism.
+
+A consumer definition describes:
+
+- Consumer type
+- Supported resource/query input
+- Configuration schema
+- Output format or behavior
+- Execution mechanism
+- Access requirements
+
+The registry supports native consumers and compatible integration-provided consumers.
+
+### 6.3 Visual consumers
+
+Visual consumers render resource query results.
+
+Examples:
+
+- Dashboard widgets
+- News article lists
+- Monitoring charts
+- Search result presentations
+- Frames
+- Glanceables
+
+Visual consumers use ViewDefinitions.
+
+### 6.4 Export consumers
+
+Export consumers transform resource query results into external representations.
+
+Examples:
+
+- RSS
+- Atom
+- JSON
+- CSV
+- Webhooks
+
+Only implement output formats when a concrete feature requires them.
+
+Do not build a general-purpose transformation language initially.
+
+### 6.5 Export definitions
+
+An ExportDefinition contains:
+
+- Identifier
+- Resource query or saved query reference
+- Exporter type
+- Format-specific configuration
+- Access policy
+- Output endpoint configuration
+- Cache/freshness policy where relevant
+
+Exports should be managed through backend APIs.
+
+### 6.6 RSS example
+
+Links supports RSS feeds for selected lists or tags.
+
+Example:
+
+    Links Provider
+          |
+          v
+      Link Resources
+          |
+          v
+      ResourceQuery
+          |
+          +-- Links App View
+          |
+          +-- Dashboard Widget
+          |
+          +-- RSS Exporter
+                  |
+                  v
+             /feeds/links/...
+
+The RSS exporter maps compatible link resources to feed entries.
+
+The exporter owns RSS-specific serialization.
+
+The Links domain owns link creation and change semantics.
+
+A suitable feed configuration should define whether newly added links, updates, or both produce entries.
+
+Public and private feeds must have explicit access policies.
+
+RSS clients may need bearer-free access via a scoped secret feed URL or another compatible authentication mechanism.
+
+Such URLs must be revocable.
+
+### 6.7 Consumer execution boundaries
+
+Consumers should not all run through the same execution mechanism.
+
+Visual consumers execute primarily in React.
+
+Server-side exporters execute in Go or through the integration host.
+
+Webhook delivery uses backend jobs.
+
+MCP adapters expose authorized query and action APIs.
+
+Share query contracts, not necessarily execution runtimes.
 
 ---
 
 ## 7. View Architecture
 
-### 7.1 View definition
+### 7.1 ViewDefinition
 
-A saved view contains:
+A ViewDefinition describes a visual representation of resource data.
 
-- Stable identifier
-- Resource/query source
-- Query configuration
-- Presentation type
-- Presentation options
+It contains:
+
+- Query or saved query reference
+- Renderer type
+- Renderer configuration
 - Optional action bindings
-- Owner and access policy
+- View ownership and permissions
 
-Query definitions and presentation definitions remain conceptually separate.
+Views must be versioned and serializable.
 
-A view definition should be serializable and versioned.
+### 7.2 Initial renderers
 
-### 7.2 Initial presentation types
-
-Start with:
+Support a small set of reusable renderers:
 
 - List
 - Table
@@ -621,425 +658,610 @@ Start with:
 - Metric
 - Chart
 - Article list
-- Domain-specific renderers where justified
+- Specialized domain renderers
 
-Avoid a universal declarative UI framework.
+Do not build a universal declarative UI language.
 
-### 7.3 View reuse
+### 7.3 Dashboard widgets
 
-A saved view may be rendered in:
+Widgets remain a primary Dashwise feature.
 
-- Dashboard
-- Pages
-- Apps
-- Frames
-- Other embedded surfaces
+A widget uses:
 
-Widgets are compact view configurations.
+- View definition
+- Resource query
+- Widget configuration
+- Layout configuration
 
-Different containers may provide presentation overrides without changing the underlying data source.
+A dashboard page is a composition of widgets and other supported layout elements.
 
-### 7.4 App-specific interfaces
+The dashboard editor continues to manage:
 
-Do not require complete applications to be expressed as view specifications.
+- Widget addition/removal
+- Positioning
+- Resizing
+- Configuration
+- Page organization
+
+The resource architecture must not remove the existing homelab-dashboard experience.
+
+### 7.4 Application views
+
+Applications may use common view renderers without becoming generic view-only interfaces.
 
 Examples:
 
 News retains:
 
 - Sidebar
+- Subscriptions
 - Feed navigation
-- Subscription management
-- Saved/read workflows
+- Article actions
 
 Monitoring retains:
 
-- Specialized metric visualizations
-- Alert workflows
-- Historical exploration
+- Host overview
+- Metric history
+- Alerts
+- Specialized charts
+
+Links retains:
+
+- Lists
+- Tags
+- Editing
+- Sharing
+- RSS feed configuration
 
 Search retains:
 
 - Keyboard navigation
 - Ranking
-- Suggestions
-- Command execution
-
-Frames retain:
-
-- Kiosk layout
-- Display configuration
-- Device pairing and access
-
-These application shells consume the shared query/view infrastructure.
-
-### 7.5 Renderer safety
-
-Renderers are frontend-owned, registered implementations.
-
-Integrations may select declared presentation types and provide validated configuration.
-
-Do not execute arbitrary frontend code supplied through resource data or remote view definitions.
-
-The initial renderer registry should use a small, versioned contract.
-
----
-
-## 8. Integration Architecture
-
-### 8.1 Authoring models
-
-Retain two first-class integration authoring approaches.
-
-#### YAML integrations
-
-Best suited to:
-
-- Simple REST APIs
-- Polling
-- Field mapping
-- Basic resource contributions
-- Straightforward transformations
-
-YAML remains a supported authoring format, not a temporary compatibility layer.
-
-#### TypeScript SDK integrations
-
-Best suited to:
-
-- Stateful protocol clients
-- Persistent connections
-- WebSocket integrations
-- Complex transformations
-- Lifecycle management
-- Non-trivial actions
-- Rich provider behavior
-
-Both authoring approaches produce resources through the same provider contract.
-
-### 8.2 Integration execution
-
-Use a separate Bun integration-host process.
-
-The Go backend must not embed a JavaScript runtime as a core dependency.
-
-Initial topology:
-
-- One Go backend process
-- One Bun host process
-- Local communication
-- Multiple integration instances inside the host
-
-Use a versioned local protocol.
-
-A Unix domain socket is preferred on supported deployments; localhost TCP is an acceptable alternative.
-
-### 8.3 Integration-host protocol
-
-The protocol should support:
-
-- Handshake and protocol version negotiation
-- Integration registration
-- Instance initialization
-- Start/stop/restart
-- Configuration updates
-- Resource-type registration
-- Resource synchronization
-- Resource queries where supported
-- Action invocation
-- Integration events
-- Health and error reporting
-- Cancellation
-- Graceful shutdown
-
-Every request must have explicit correlation and timeout semantics.
-
-Include bounded message sizes and backpressure.
-
-Prefer batched synchronization to excessive per-resource messages.
-
-### 8.4 Persistence ownership
-
-The Go backend owns:
-
-- Persistent resource state
-- Integration configurations
-- Integration secrets
-- Permissions
-- Resource indexing
-- View definitions
-
-The Bun host owns:
-
-- Protocol clients
-- Integration execution
-- Polling implementations
-- Transformation logic
-- Persistent external connections
-
-The host must not receive unrestricted SQLite access.
-
-Provider operations must be authorized according to instance identity and declared capabilities.
-
-### 8.5 Secrets
-
-The integration host should request access to necessary secrets through a scoped mechanism.
-
-Avoid including secrets in resource data, logs, events, exports, or frontend API responses.
-
-Define secret rotation and removal behavior.
-
-### 8.6 Failure behavior
-
-Handle:
-
-- Bun host crashes
-- Integration instance crashes
-- External API failures
-- Rate limiting
-- Timeouts
-- Invalid provider data
-- Partial synchronization
-- Backend restarts
-
-A host restart should recover integration instances from backend-owned configuration.
-
-Do not introduce remote execution or distributed integration scheduling in the initial architecture.
-
----
-
-## 9. Domain Migration
-
-### 9.1 Links and Shortcuts
-
-Use Links as the first native domain slice.
-
-Implement:
-
-- User-managed links
-- Provider-owned shortcuts
-- Stable identity
-- Launch capabilities
-- Search participation
-- CRUD and domain actions
-- List/detail views
-- Dashboard embedding
-
-Shortcuts are resources with declared launch capabilities.
-
-Avoid maintaining an unnecessary parallel shortcut data model.
-
-### 9.2 News
-
-News serves as the first complex data lifecycle test.
-
-Implement:
-
-- Subscription management
-- Feed ingestion
-- Deduplication
-- Materialized article resources
-- Expiring article cache
-- Stale cache behavior
-- Saved/read article state
-- Feed filtering
-- Article list views
-- Search participation where appropriate
-
-Keep user-owned read/saved state separate from provider-owned article content.
-
-The News app is an application shell consuming article views.
-
-### 9.3 Monitoring
-
-Monitoring tests integration resources, live data, and specialized historical storage.
-
-Implement:
-
-- Monitoring resource capabilities
-- Beszel provider mapping
-- Server discovery
-- Current status
-- Historical metrics
-- Specialized aggregations
-- Live updates
-- Alerts and related actions
-- Monitoring app views
-- Dashboard widgets
-
-Do not store high-frequency metric history as generic resource snapshots unless performance and retention testing justify it.
-
-Retire Dashwise's built-in SSH client/host-management capability.
-
-Do not retire the Monitoring app itself.
-
-### 9.4 Activities
-
-Maintain a separate append-only activity model.
-
-Activities represent meaningful system/user events.
-
-Do not confuse activity history with internal resource-change notifications.
-
-Implement:
-
-- Event ownership
-- Structured payloads
-- Retention
-- Querying
-- Activity views
-
-### 9.5 Notifications
-
-Maintain a specialized notification lifecycle.
-
-Implement:
-
-- Notification generation
-- Delivery
-- Read/unread state
-- Expiration
-- Dismissal
-- Delivery failures
-- Notification views
-- Existing notification channels
-
-Notifications should not be reduced to generic resource updates.
-
-### 9.6 Remaining application surfaces
-
-Complete the retained functionality in:
-
-- Dashboard
-- Pages
-- Search
-- Frames
-- Frame Companion
-- Settings
-- Administration
-- Onboarding
-- Integration management
-
-Retire the Media Player as an explicit product decision.
-
-Inventory other media-related functionality independently before removing anything else.
-
----
-
-## 10. Search Architecture
-
-Search is a cross-resource Dashwise capability.
-
-### 10.1 Indexing
-
-Use SQLite FTS initially.
-
-Index only resource types that explicitly opt into search.
-
-The indexing process should support:
-
-- Full index rebuilding
-- Incremental updates
-- Resource deletion
-- Provider removal
-- Searchable field declarations
-
-### 10.2 Authorization
-
-Search results must respect resource permissions.
-
-Do not rely exclusively on the frontend to filter private results.
-
-Protect both result metadata and record contents.
-
-### 10.3 Search experience
-
-Retain specialized frontend behavior:
-
-- Keyboard-first navigation
-- Resource results
 - Shortcuts
-- Search result ranking
-- Navigation and launch actions
-- Relevant application routes
+- Actions
 
-Search may internally use shared resource queries but does not need to be represented entirely as a generic saved view.
+### 7.5 Frames
 
----
+Frames render configured views in kiosk/big-screen layouts.
 
-## 11. Live Updates and Subscriptions
+They retain:
 
-### 11.1 Initial approach
-
-Use a shared live-update channel over WebSocket.
-
-Prefer versioned resource/query invalidation notifications and refetching over implementing a universal durable event replay engine.
-
-Clients should support:
-
-- Connection recovery
-- Resubscription
-- Query invalidation
-- Snapshot refresh
-- Authorization changes
-- Removal events
-
-### 11.2 Delivery guarantees
-
-Different events require different guarantees.
-
-Resource invalidations:
-
-- May be best effort
-- Must support recovery through refetching
-
-Durable domain events:
-
-- Use transactional persistence where required
-- May use an outbox for reliable delivery
-
-Activities:
-
-- Remain domain-level records
-- Are not automatically identical to storage change events
-
-### 11.3 Subscription security
-
-Subscriptions must be scoped to authenticated principals.
-
-Revalidate authorization when permissions change.
-
-Avoid exposing unauthorized resource identifiers or metadata through subscription channels.
-
----
-
-## 12. Frames
-
-Frames are specialized frontend display surfaces over saved views.
-
-Implement:
-
-- View composition
-- Layout management
-- Device access
-- Display configuration
+- Layout configuration
+- Device management
+- Authentication
 - Frame Companion compatibility
 - Live updates
-- Device authentication
 
-The backend persists Frame configuration and enforces access.
+Frames should reuse resource queries and view renderers rather than introducing a separate data model.
 
-Frames do not require a separate generic data platform.
+### 7.6 Renderer security
 
-Non-interactive display tokens must be scoped, revocable, and limited to the resources/views required by the display.
+Integrations may declare compatible renderer types and supply configuration.
 
-Do not expose unrestricted user sessions to kiosk devices.
+Do not execute arbitrary frontend code received from resource records.
+
+Third-party executable renderers, if supported later, require a separate trust and isolation model.
 
 ---
 
-## 13. Repository Structure
+## 8. Actions and Operations
 
-Target:
+### 8.1 Actions
+
+Actions provide typed operations on resources or domains.
+
+Examples:
+
+- Open link
+- Toggle Home Assistant light
+- Refresh integration
+- Save article
+- Acknowledge monitoring alert
+
+Each action defines:
+
+- Name
+- Arguments
+- Authorization
+- Execution handler
+- Result schema
+
+Actions may be provided by native domains or integrations.
+
+### 8.2 Resource state
+
+Resources may expose state suitable for interactive consumers.
+
+Examples:
+
+- On/off
+- Online/offline
+- Active/inactive
+- Current value
+- Progress
+
+State should be maintained through provider synchronization or resource mutations.
+
+Search may display state and offer actions when supported.
+
+### 8.3 Long-running operations
+
+Introduce an operations service for tasks such as:
+
+- Integration installation
+- Data import
+- Remote commands
+- Background synchronization
+- Future CLI companion operations
+
+Operations have:
+
+- Stable identity
+- Owner
+- Status
+- Progress
+- Optional logs
+- Cancellation
+- Completion result
+
+Activities and Notifications may consume operation lifecycle events.
+
+The operations service must not be confused with the resource store or generic query executor.
+
+---
+
+## 9. Integration Architecture
+
+### 9.1 Integration extension points
+
+Integrations may register:
+
+- Resource types
+- Resource providers
+- Actions
+- Consumers/exporters
+- Compatible presentation definitions
+- Background jobs
+
+An integration does not need to implement every extension point.
+
+### 9.2 YAML integrations
+
+YAML remains a first-class integration authoring format.
+
+Use it for:
+
+- REST fetching
+- Polling
+- Simple field mappings
+- Basic resource contribution
+- Lightweight configuration
+
+YAML definitions should declare resource output using the shared provider contract.
+
+Avoid requiring TypeScript for straightforward integrations.
+
+### 9.3 TypeScript SDK integrations
+
+TypeScript SDK integrations support:
+
+- Complex protocol clients
+- Persistent connections
+- WebSockets
+- Stateful integrations
+- Complex transformations
+- Actions
+- Provider lifecycle
+- Specialized export behavior
+
+They run in a Bun integration host.
+
+### 9.4 Integration host
+
+Initial design:
+
+- One Bun process
+- Multiple integration instances
+- Versioned local protocol
+- Go backend owns persistent configuration and data
+
+Communication may use a Unix domain socket or localhost TCP.
+
+The host supports:
+
+- Handshake
+- Version negotiation
+- Instance lifecycle
+- Provider registration
+- Resource queries
+- Resource synchronization
+- Action invocation
+- Export invocation where applicable
+- Events
+- Cancellation
+- Health reporting
+
+### 9.5 Integration permissions
+
+The Go backend must enforce integration permissions.
+
+Integrations should only access:
+
+- Their permitted configuration
+- Their permitted secrets
+- Their owned resources
+- Explicitly authorized cross-resource queries
+- Approved actions and consumer operations
+
+Do not expose the database directly to integration code.
+
+### 9.6 Failure handling
+
+Support:
+
+- Host restarts
+- Instance failures
+- Timeouts
+- Rate limits
+- Invalid data
+- Partial synchronization
+- Stale resource state
+- Backend restarts
+
+Integration errors must not corrupt persistent resource state.
+
+---
+
+## 10. Authentication and Authorization
+
+### 10.1 Auth model
+
+Use a session-based authentication model with optional external identity providers.
+
+The initial architecture must support future multi-user administration.
+
+Define:
+
+- Users
+- Sessions
+- Roles
+- Resource ownership
+- Resource grants
+- View permissions
+- Export permissions
+- Action permissions
+- Device credentials
+
+### 10.2 Multi-user support
+
+Plan for:
+
+- User-specific dashboards
+- Shared resources
+- Shared views
+- Admin-managed dashboards
+- Read-only users
+- Customizable user dashboards
+- Restricted application access
+
+Not all administration UI must be implemented during the earliest migration phase.
+
+However, resource ownership and authorization must be designed accordingly.
+
+### 10.3 Device-code authentication
+
+Support device-code authentication for companion devices and additional sessions.
+
+Requirements:
+
+- Short-lived codes
+- Explicit approval
+- Expiration
+- Attempt limits
+- Connection limits
+- Scoped device credentials
+- Revocation
+
+Device-code authentication must not bypass normal authorization.
+
+### 10.4 External access
+
+MCP servers, CLI companions, browser extensions, and desktop companions should eventually use the same authenticated query/action API.
+
+Provide scoped permissions rather than unrestricted administrator access.
+
+---
+
+## 11. Search
+
+Search remains a central Dashwise feature.
+
+It discovers resource types that opt into search.
+
+Search provides:
+
+- Global resource discovery
+- Shortcuts
+- State display
+- Registered actions
+- Keyboard navigation
+- Ranking
+- Navigation targets
+
+### Search implementation
+
+- Frontend owns search interaction and presentation.
+- Backend owns search routes and ranking logic.
+- Resource layer provides searchable data.
+- SQLite FTS provides the initial index.
+
+Search results must be permission-filtered.
+
+Favorites, hidden shortcuts, and other user preferences should be supported without duplicating resource records.
+
+---
+
+## 12. Domain Applications
+
+### 12.1 Links
+
+Links are native resources.
+
+Retain:
+
+- Lists
+- Tags
+- Groups
+- Editing
+- Search participation
+- Shortcuts
+- Favorites
+- Icons
+- Organization
+
+Add RSS export support through the consumer architecture.
+
+Relevant issues:
+
+- #309 Shortcuts options popover
+- #310 Add shortcuts in Home Links
+- #358 Shared shortcut icons
+- #375 RSS feeds for link lists/tags
+
+### 12.2 News
+
+News manages feeds and articles.
+
+Resources:
+
+- Feed subscriptions where appropriate
+- News articles
+- Relevant provider metadata
+
+Domain behavior:
+
+- Feed ingestion
+- Deduplication
+- Topic grouping
+- Proxy-feed support
+- Read/saved state
+- Cache retention
+
+News remains a dedicated app.
+
+Relevant issues:
+
+- #370 Subscribe modal behavior
+- #373 Proxy feeds
+- #366 Topic grouping
+
+### 12.3 Monitoring
+
+Monitoring consumes resources exposing monitoring capabilities.
+
+Examples:
+
+- Beszel servers
+- Proxmox hosts
+- Host monitoring agents
+- Services
+- Docker containers
+
+Retain:
+
+- Current status
+- History
+- Charts
+- Alerts
+- Live updates
+- Monitoring dashboard
+
+Use specialized metric storage where appropriate.
+
+Relevant issues:
+
+- #229 Host and Docker monitoring
+- #161 Proxmox widget
+- #81 Monitoring notifications
+
+Retire only the built-in SSH client/host-management feature.
+
+### 12.4 Activities
+
+Activities represent meaningful events.
+
+Support:
+
+- User activities
+- Integration activities
+- Operation progress
+- Activity history
+- Custom CLI companion activities
+
+Activities must remain distinct from internal resource-change notifications.
+
+Relevant issue:
+
+- #352 Custom activities
+
+### 12.5 Notifications
+
+Notifications have a separate lifecycle.
+
+Support:
+
+- Creation
+- Delivery
+- Read state
+- Dismissal
+- Expiration
+- Delivery errors
+- Existing notification channels
+
+Notifications may react to resource changes, monitoring events, and operation completion.
+
+### 12.6 Weather
+
+Weather integrations expose weather resources.
+
+Dashboard widgets and relevant views consume those resources.
+
+Support existing weather functionality.
+
+Relevant issues:
+
+- #340 Multiple default locations
+- #348 Precipitation summary
+
+### 12.7 Other existing features
+
+Inventory and migrate all retained features.
+
+Do not silently remove features simply because they do not fit a generic resource CRUD model.
+
+---
+
+## 13. Live Updates
+
+### 13.1 Shared event transport
+
+Use a shared WebSocket transport for relevant application events.
+
+Support:
+
+- Resource invalidation
+- Resource changes where appropriate
+- Operation progress
+- Activity events
+- Notifications
+- Integration status
+- Device/session events
+
+These events should have explicit types.
+
+### 13.2 Query subscriptions
+
+Consumers may subscribe to query or resource changes.
+
+Prefer invalidation and refetch as the default mechanism.
+
+Support:
+
+- Reconnection
+- Resubscription
+- Snapshot refresh
+- Authorization changes
+- Resource deletion
+- Provider failure
+
+### 13.3 Durable delivery
+
+Only require durable event delivery where needed.
+
+Examples:
+
+- Notification delivery
+- Important operation completion
+- Other explicitly durable workflows
+
+Do not implement a universal replayable event system unless a concrete requirement justifies it.
+
+### 13.4 Device-specific communication
+
+File transfer, snippet sharing, and cross-device media control require separate protocols or services.
+
+Do not treat binary file transport as ordinary resource synchronization.
+
+Relevant issues:
+
+- #334 File sharing
+- #367 Snippet sharing
+- #295 Media protocol
+
+These are deferred unless explicitly included in the migration scope.
+
+---
+
+## 14. Reusable Go Foundation
+
+### 14.1 Scope
+
+Build a small reusable Go foundation.
+
+Include:
+
+- SQLite storage
+- Transactions
+- Schema registration
+- Migrations
+- Persistence primitives
+- Identity/session primitives
+- Authorization hooks
+- Resource identity and generic registry interfaces where justified
+- Change recording and event delivery
+- Storage lifecycle and backups
+
+### 14.2 Resource infrastructure extraction
+
+Resource identity, schema contracts, provider interfaces, and query contracts may be reusable beyond Dashwise.
+
+However, do not make a standalone platform release a prerequisite.
+
+Prove the resource architecture in Dashwise first.
+
+Extract stable generic components after validation.
+
+### 14.3 Slopstack evaluation
+
+Investigate reuse of existing Slopstack/PocketBase-related primitives.
+
+Avoid duplicate infrastructure for:
+
+- Auth
+- Persistence
+- Migrations
+- Generic collection operations
+
+Reuse should not introduce unwanted dependencies or compromise the target architecture.
+
+### 14.4 Exclusions
+
+Do not initially build:
+
+- Universal application framework
+- Generic form builder
+- Arbitrary user-defined functions
+- General-purpose workflow engine
+- Multiple SQL database drivers
+- Distributed resource execution
+- Advanced query expression language
+- Publicly stable platform API
+
+---
+
+## 15. Repository Structure
+
+Target layout:
 
     apps/
       backend/
@@ -1049,9 +1271,15 @@ Target:
           api/
           auth/
           resources/
-          views/
-          actions/
-          integrations/
+            registry/
+            providers/
+            queries/
+            actions/
+            sync/
+          consumers/
+            registry/
+            views/
+            exports/
           domains/
             links/
             news/
@@ -1059,7 +1287,11 @@ Target:
             activities/
             notifications/
           search/
+          dashboards/
+          frames/
+          integrations/
           jobs/
+          operations/
 
       web/
         src/
@@ -1087,179 +1319,180 @@ Target:
       importers/
       validation/
 
-Use one Go module for the application backend.
+Avoid excessive Go module fragmentation.
 
-Use a separate Go module for the foundation only if genuine independent reuse justifies it.
-
-Do not create separate Go modules for individual domains.
-
-The repository structure can be reached incrementally.
+Use one Go application module and an independently reusable foundation module only where justified.
 
 ---
 
-## 14. Migration Phases
+## 16. Migration Implementation Phases
 
-### Phase 0 — Inventory and Preparation
+### Phase 0 — Inventory and Architecture Decisions
 
-Objectives:
+Inventory:
 
-- Understand existing functionality.
-- Establish migration constraints.
-- Preserve current development work.
+- Existing PocketBase collections
+- Hono routes
+- Authentication
+- Sessions
+- Integrations
+- Widgets
+- Dashboard layouts
+- Application routes
+- Jobs
+- Events
+- Frames
+- Notifications
+- Settings
+- Deployment behavior
+- Backups
+- Open GitHub issues
 
-Tasks:
+Classify all existing capabilities.
 
-1. Inventory PocketBase collections and relationships.
-2. Inventory existing Hono routes.
-3. Inventory authentication/session behavior.
-4. Inventory scheduled jobs.
-5. Inventory websocket events.
-6. Inventory integrations and their lifecycle.
-7. Inventory current React application surfaces.
-8. Inventory configuration, settings, and secrets.
-9. Inventory Frames and companion/device flows.
-10. Inventory deployment and backup mechanisms.
-11. Record data ownership and retention requirements.
-12. Identify existing modules that can be reused.
+For each issue, record:
 
-Create a feature-parity matrix.
+- Target domain
+- Architectural dependencies
+- Migration phase
+- Preserve / implement / defer / supersede / retire
 
-Every existing capability must be classified as:
+Preserve existing development work.
 
-- Retained and migrated
-- Retained with redesign
-- Replaced by equivalent functionality
-- Explicitly retired
+Create `go-migration` from a committed or safely isolated `sdk-integrations` baseline.
 
-Branching:
+Use separate worktrees for parallel implementation.
 
-- Preserve the existing `sdk-integrations` working tree.
-- Commit or otherwise safely isolate relevant uncommitted work.
-- Create `go-migration` from a known baseline.
-- Use isolated worktrees for parallel workstreams.
+Exit:
 
-Exit criteria:
+- Feature-parity matrix
+- Issue disposition matrix
+- Data ownership map
+- Confirmed initial architecture
 
-- Feature-parity inventory exists.
-- Data ownership map exists.
-- Compatibility constraints are documented.
-- Migration baseline is preserved.
+### Phase 1 — Resource and Consumer Vertical Slice
 
-### Phase 1 — Contracts and Vertical Prototype
+Build the smallest end-to-end proof of the architecture.
 
-Build a minimal end-to-end implementation.
+Use Links as the initial domain.
 
-Required functionality:
+Implement:
 
-1. Minimal Go API server.
+1. Minimal Go backend.
 2. SQLite persistence.
-3. Resource registry.
-4. One native resource type.
-5. One TypeScript integration provider.
-6. Bun host communication.
-7. Resource synchronization.
-8. Basic query execution.
-9. One saved view.
-10. One React view renderer.
-11. One authorized action.
-12. Basic live invalidation.
+3. Link resource definition.
+4. Native Links provider.
+5. Resource registry.
+6. ResourceQuery v1.
+7. Authorized resource actions.
+8. React list view.
+9. Dashboard widget consuming the same resources.
+10. RSS exporter consuming the same query.
+11. Export endpoint.
+12. Basic update invalidation.
 
-Prefer Links plus a simple integration-provided resource.
+Also add one simple TypeScript integration provider to validate the integration boundary.
 
-Do not build the full generic foundation first.
+The demonstration must prove:
 
-Use the prototype to validate:
+    One resource model
+          |
+          +-- Links app
+          +-- Dashboard widget
+          +-- RSS feed
+          +-- Integration access
 
-- Resource identity
-- Provider ownership
-- Serialization
-- Query contracts
-- Integration protocol
-- View configuration
+Exit:
+
+The same link data can be created, queried, displayed in multiple places, and exported without duplicating the domain data model.
+
+### Phase 2 — Foundation and Contract Stabilization
+
+After the vertical slice:
+
+- Evaluate reusable primitives.
+- Extract the minimal Go foundation.
+- Stabilize ResourceDefinition.
+- Stabilize ResourceQuery.
+- Stabilize action contracts.
+- Stabilize ViewDefinition.
+- Stabilize ExportDefinition.
+- Stabilize provider protocol.
+- Generate API clients.
+- Add contract tests.
+- Define authentication and permission hooks.
+
+Do not expand implementation broadly before contracts are stable.
+
+Exit:
+
+Core contracts are versioned and validated by end-to-end tests.
+
+### Phase 3 — Integration Host and SDK
+
+Implement:
+
+- Bun runtime host
+- Local protocol
+- Instance lifecycle
+- Provider registration
+- Resource synchronization
 - Action execution
-- Frontend data flow
+- Consumer/export registration
+- YAML compatibility
+- TypeScript SDK compatibility
+- Error recovery
+- Secret handling
 
-Exit criteria:
+Port one simple and one complex integration.
 
-A resource can be exposed by an integration, synchronized or queried through Go, displayed by React, updated, and invalidated without a domain-specific frontend data path.
+Exit:
 
-The architecture is reviewed before expansion.
+Both YAML and TypeScript integrations can provide resources through the same architecture.
 
-### Phase 2 — Extract Foundation and Stabilize Contracts
+Integration-provided output capabilities work through explicit consumer contracts.
 
-Tasks:
+### Phase 4 — News Migration
 
-1. Identify reusable infrastructure from the prototype.
-2. Evaluate Slopstack/PocketBase primitive reuse.
-3. Extract the minimal Go foundation.
-4. Implement migrations and schema management.
-5. Establish session/auth interfaces.
-6. Stabilize resource and provider contracts.
-7. Stabilize ViewSpec v1.
-8. Add generated API clients.
-9. Add contract tests.
-10. Add basic backup/restore mechanisms.
-
-Avoid broad parallel implementation until foundational contracts stabilize.
-
-Exit criteria:
-
-- The Go foundation has no Dashwise domain imports.
-- Contracts are versioned.
-- Another minimal Go application can use the foundation.
-- The vertical prototype continues to pass its tests.
-
-### Phase 3 — Links and News
-
-Implement complete vertical slices.
-
-Links:
-
-- CRUD
-- Shortcut capabilities
-- Search
-- Actions
-- Dashboard views
-
-News:
+Implement:
 
 - Feed subscriptions
-- Scheduled ingestion
-- Article resources
+- Feed ingestion
+- Materialized article resources
 - Deduplication
-- Cache retention
-- Saved/read state
-- Filtering
-- Article presentation
+- Read/saved state
+- Retention
+- Topic grouping
+- News views
+- Search participation
+- Existing News workflows
 
-Validate both native and integration-managed resource lifecycles.
+Exit:
 
-Exit criteria:
+News reaches functional parity with the existing implementation.
 
-Links and News work end-to-end with the Go backend, including persistence, frontend behavior, access control, and relevant background jobs.
+### Phase 5 — Monitoring and Live Data
 
-### Phase 4 — Monitoring and Real-Time Infrastructure
+Implement:
 
-Tasks:
+- Monitoring resource definitions
+- Beszel provider migration
+- Current status
+- Historical metrics
+- Time-series queries
+- Monitoring charts
+- Alerts
+- Live subscriptions
+- Monitoring Dashboard widgets
+- Additional monitoring providers as required
 
-1. Implement monitoring resource capabilities.
-2. Port Beszel integration.
-3. Implement current-state queries.
-4. Implement metric history queries.
-5. Support historical aggregation.
-6. Implement live invalidation/subscriptions.
-7. Migrate monitoring frontend.
-8. Preserve alert functionality.
-9. Validate provider disconnection behavior.
-10. Test resource freshness and stale-state handling.
+Exit:
 
-Exit criteria:
+Monitoring reaches functional parity without sacrificing historical query performance.
 
-Monitoring has functional parity, including historical and live data, without forcing metric history into an unsuitable generic schema.
+### Phase 6 — Application and Dashboard Integration
 
-### Phase 5 — Remaining Application Migration
-
-Migrate:
+Complete:
 
 - Dashboard
 - Pages
@@ -1269,341 +1502,304 @@ Migrate:
 - Activities
 - Notifications
 - Settings
-- Onboarding
 - Administration
+- Onboarding
+- Remaining widgets
 - Remaining integrations
 
-Migrate existing frontend data access to generated API clients and shared view/query hooks.
+Preserve Dashwise's existing visual design and app-centric navigation.
 
-Reuse existing UI components.
+Replace legacy data paths incrementally.
 
-Preserve routes or provide redirects where practical.
+Implement relevant outstanding issues where they naturally belong.
 
-Complete the feature-parity matrix.
+Exit:
 
-Exit criteria:
+All retained frontend functionality uses the new Go backend.
 
-Every retained product capability works through the Go backend.
+### Phase 7 — External APIs and Advanced Consumers
 
-All intentionally retired functionality is documented.
+Implement or finalize supported external consumption paths.
 
-### Phase 6 — Production Data Migration
+Priorities:
 
-Production data transfer should occur only after the target model is stable.
+1. JSON API over registered resource queries.
+2. RSS export capabilities.
+3. Scoped API credentials.
+4. MCP adapter where required.
+5. External client compatibility.
 
-Develop two separate deliverables:
+Potential later features:
 
-- Exporter in the current `dashwise-fat` application.
-- Importer in `godashwise`.
+- Webhooks
+- Browser extension
+- Desktop companion
+- CLI integrations
+- Additional feed/export formats
 
-The transfer must support:
+Do not require all future exporters to be implemented before migration completion.
 
-- Versioned export bundles
-- Schema-version conversion
-- Reference mapping
-- ID remapping where necessary
-- Validation
-- Dry-run reporting
-- Conflict handling
-- Media/blob transfer
-- User preferences
-- Integration configurations
-- Saved views and layouts
+Exit:
 
-Sensitive data requires a separate policy.
+The consumer architecture supports both visual presentation and at least one production-ready external export format.
 
-Handle:
+### Phase 8 — Production Migration
 
-- Password hashes
-- OIDC identities
-- TOTP
-- Integration secrets
-- API tokens
-- Device credentials
+Implement:
 
-Do not import active sessions by default.
+- Versioned export from existing Dashwise
+- Versioned import into Go Dashwise
+- Dry-run validation
+- Data transformation
+- Reference remapping
+- Secret handling
+- Account migration
+- Dashboard layout migration
+- Integration configuration migration
+- Backup/restore
+- Rollback
 
-Prefer reauthentication after cutover.
+Cutover:
 
-Secret export must be encrypted or require credential re-entry.
+1. Back up old deployment.
+2. Validate export.
+3. Enter read-only mode.
+4. Perform final export.
+5. Import into new backend.
+6. Validate data and accounts.
+7. Verify integrations and device flows.
+8. Switch deployment.
+9. Keep old installation available for rollback.
 
-Do not place plaintext credentials in ordinary export bundles.
+Avoid indefinite dual-write.
 
-Cutover procedure:
+Exit:
 
-1. Back up the current installation.
-2. Validate export completeness.
-3. Run importer dry-run.
-4. Resolve conflicts.
-5. Put the old installation into read-only mode.
-6. Perform final export.
-7. Import into the new backend.
-8. Validate record counts and references.
-9. Verify sign-in and integrations.
-10. Switch traffic to the new installation.
-11. Retain the old installation for rollback.
+Production data is safely migrated and PocketBase is no longer a source of truth.
 
-Avoid indefinite dual-write synchronization.
+### Phase 9 — Optional Platform Improvements
 
-Rollback must be tested before production migration.
+After migration:
 
-Exit criteria:
+- Publish the reusable foundation independently.
+- Add additional database adapters if needed.
+- Add Redis if required by scale.
+- Add remote integration execution.
+- Extend export formats.
+- Add richer consumer types.
+- Improve integration isolation.
+- Add advanced cross-resource queries where justified.
 
-- Production data is validated in Go/SQLite.
-- Users can authenticate.
-- Integrations function.
-- Frame/device flows are verified.
-- Backup and restore are tested.
-- PocketBase is no longer a source of truth.
-
-### Phase 7 — Optional Platform Hardening
-
-Only implement based on concrete requirements.
-
-Candidates:
-
-- Independent public foundation releases
-- Additional database drivers
-- Redis-backed cache/fan-out
-- Remote integration execution
-- Advanced resource queries
-- Additional renderer capabilities
-- Stronger integration isolation
-- More general application framework primitives
-
-These are not prerequisites for completing Dashwise.
+These are optional future capabilities.
 
 ---
 
-## 15. Testing and Acceptance Requirements
+## 17. Testing
 
-### 15.1 Contract tests
+### Contract tests
 
-Test:
+Cover:
 
-- Resource identity
-- Schema validation
-- Query compatibility
-- Action arguments/results
-- Provider protocol versions
-- ViewSpec versioning
-- Generated client compatibility
+- Resource schemas
+- Query validation
+- Provider registration
+- Consumer registration
+- Actions
+- View definitions
+- Export definitions
+- API versioning
 
-### 15.2 Authorization tests
+### Security tests
 
-Test:
+Cover:
 
-- Cross-user resource access
-- Provider ownership enforcement
-- Saved view sharing
-- Search result filtering
+- Resource access
+- Shared view permissions
+- Export permissions
+- Public feed access
+- Scoped API credentials
+- Provider ownership
+- Integration secret access
 - Subscription authorization
-- Action permissions
-- Frame token restrictions
 
-### 15.3 Integration tests
+### Integration tests
 
-Test:
+Cover:
 
-- Host startup/restart
-- Instance lifecycle
+- Integration startup
+- Host restart
 - Provider synchronization
-- Partial updates
-- Deletion handling
-- Provider failures
+- Batch upserts
+- Deletion
+- Provider errors
 - Timeouts
-- Rate limits
-- Secret access
-- Invalid resource data
-- Recovery after crashes
+- Action execution
+- Export invocation
+- Invalid data
 
-### 15.4 Data integrity tests
+### End-to-end tests
 
-Test:
+Cover:
 
-- Schema migrations
-- Transaction rollback
-- Concurrent updates
-- Backup/restore
-- Export/import round trips
-- Reference preservation
-- Retention cleanup
-- Cache rebuilding
-
-### 15.5 End-to-end tests
-
-Cover complete user flows for:
-
-- Links
-- News
-- Monitoring
+- Dashboard widget rendering
+- Links editing
+- RSS publishing
+- News workflows
+- Monitoring history
 - Search
-- Dashboard editing
 - Frames
 - Notifications
-- Settings
-- Integration installation
-- User authentication
+- Authentication
+- Integration configuration
+- Production import/export
 
-### 15.6 Performance validation
+### Performance tests
 
-Test representative workloads for:
+Measure:
 
+- SQLite concurrency
 - Resource query latency
-- Integration synchronization
+- Provider synchronization
+- News collection size
+- Monitoring history performance
 - Search indexing
-- Monitoring history queries
-- Large News collections
-- Live update fan-out
-- Startup and shutdown
-- SQLite write contention
-
-Establish performance baselines before replacing the existing implementation.
-
-Avoid speculative performance infrastructure before measuring actual bottlenecks.
+- Subscription overhead
+- Export generation
+- Startup and recovery
 
 ---
 
-## 16. Parallel Agent Implementation Strategy
+## 18. Parallel Agent Strategy
 
-Keep one integration owner responsible for overall architecture and final wiring.
-
-Do not delegate every package simultaneously.
-
-### Initial sequential work
+### Sequential foundation work
 
 Complete:
 
 1. Inventory
-2. Contracts
-3. Vertical prototype
+2. Architecture contracts
+3. Links resource/view/export slice
 4. Contract review
 5. Foundation extraction
 
-This reduces conflicting assumptions.
+Then begin broad parallel development.
 
-### Parallel work after contract stabilization
+### Parallel workstreams
 
-Independent workstreams:
+Backend/resource agent:
 
-**Backend/domain agent**
-
-- Domain migrations
-- Query handlers
+- Resource registry
+- Queries
 - Actions
-- Jobs
+- Synchronization
 
-**Frontend agent**
+Consumer/frontend agent:
 
 - View renderers
-- Shared hooks
-- Application migration
-- Frame integration
+- Dashboard integration
+- View configuration
+- Export management UI
 
-**Integration agent**
+Integration agent:
 
 - Bun host
-- SDK adaptations
-- YAML support
-- Provider protocol
+- YAML
+- TypeScript SDK
+- Protocol
 
-**Infrastructure agent**
+Domain agents:
 
-- Migrations
-- Authentication primitives
-- Backup/restore
-- Operations
+- Links
+- News
+- Monitoring
+- Activities and Notifications
+
+Infrastructure agent:
+
+- Auth
+- Database
+- Migration
+- Backups
+- Deployment
 - Testing
 
-Assign explicit package/file ownership.
+Each workstream uses an isolated worktree.
 
-Each workstream must:
+Assign explicit package ownership.
 
-- Use an isolated worktree
-- Follow published contracts
-- Add relevant tests
-- Avoid unauthorized API changes
-- Document compatibility implications
+Keep one integration owner responsible for compatibility, merging, and overall architectural consistency.
 
-Merge incrementally into `go-migration`.
-
-Do not defer all integration work until the end.
+Do not allow agents to independently invent incompatible resource or consumer contracts.
 
 ---
 
-## 17. Decisions to Lock Before Broad Implementation
+## 19. Architectural Decisions to Finalize
 
-The following decisions should be made and recorded as architecture decision records.
+Before broad implementation, record the following decisions:
 
-1. **Resource identity:** composite type/provider-instance/local ID model.
-2. **Persistence:** stored, materialized, and on-demand modes.
-3. **Ownership:** provider-owned versus user-owned fields.
-4. **Queries:** constrained declarative queries plus registered Go handlers.
-5. **Views:** reusable data presentations, not complete application definitions.
-6. **Actions:** explicit typed command contract.
-7. **Integration runtime:** one Bun host using a versioned local protocol.
-8. **Storage:** SQLite and filesystem as initial sources of truth.
-9. **Search:** permission-aware SQLite FTS.
-10. **Subscriptions:** invalidation/refetch by default, durable delivery only where required.
-11. **Foundation:** minimal reusable infrastructure; defer unrelated platform features.
-12. **Frontend:** incremental reuse rather than wholesale redesign.
-13. **Migration:** export/import with read-only cutover, not indefinite dual-write.
-14. **Release scope:** vertical prototype, complete migration, optional platform expansion.
-
-Production credential-transfer details can be finalized later, before implementing the exporter/importer, but the security requirements must be established early.
-
----
-
-## 18. Non-Goals
-
-The migration must not expand into:
-
-- A universal no-code application builder
-- A general-purpose serverless execution platform
-- A distributed integration orchestration system
-- A database-agnostic abstraction framework
-- A universal declarative frontend language
-- A general workflow automation engine
-- A replacement for all PocketBase functionality
-- A complete frontend redesign
-- A publicly stabilized framework API before internal validation
-
-These can be explored as separate future projects.
+1. Resources are the core managed entities.
+2. Dashwise remains a homelab dashboard.
+3. Providers supply and maintain resources.
+4. Consumers present or export resources.
+5. ResourceQuery is presentation-independent.
+6. ViewDefinition is a visual consumer configuration.
+7. ExportDefinition is a data-output consumer configuration.
+8. Actions are explicit typed operations.
+9. Domains retain specialized workflows.
+10. Resource storage may be stored, materialized, or on-demand.
+11. Go owns persistent state and authorization.
+12. Bun runs TypeScript integration logic.
+13. YAML integrations remain supported.
+14. SQLite is the initial durable backend.
+15. Live resource invalidation uses shared WebSocket infrastructure.
+16. Public exports require explicit access configuration.
+17. Multi-user authorization is considered in foundational contracts.
+18. Existing dashboard UX is preserved.
+19. Reusable foundation components are extracted after validation.
+20. Full retained feature parity is required for final cutover.
 
 ---
 
-## 19. Definition of Done
+## 20. Definition of Done
 
 The migration is complete when:
 
-1. Dashwise runs on its Go backend.
-2. SQLite is the durable primary store.
-3. The retained product functionality has parity.
-4. Resources have stable identity and explicit ownership.
-5. Applications and integrations expose data through the common resource/query model where appropriate.
-6. Views can be reused across application surfaces.
-7. Domain-specific workflows remain functional.
-8. YAML and TypeScript SDK integrations work.
-9. Search is permission-aware and resource-driven.
-10. Monitoring retains live and historical capabilities.
-11. Frames and companion devices function correctly.
-12. Existing production data can be imported safely.
-13. Authentication and credential migration are handled securely.
-14. Backup and restore are verified.
-15. Legacy PocketBase and Hono runtime dependencies are retired.
-16. The shared Go foundation remains independent of Dashwise-specific models.
-17. No retained capability has been silently removed.
-
-Independent publication of the foundation is not required to complete the migration.
+- Dashwise runs on Go and SQLite.
+- The existing homelab dashboard experience is preserved.
+- Retained apps and widgets function correctly.
+- Resources have stable identities, schemas, and ownership.
+- Native domains and integrations can provide resources.
+- Resources can be queried through common contracts.
+- Views can consume and display resources.
+- Exporters can consume and publish resources.
+- Links support RSS publishing.
+- Actions work consistently across apps and integrations.
+- Search is backed by resource discovery.
+- News retains its ingestion and management workflows.
+- Monitoring retains current and historical data.
+- Frames continue to function.
+- YAML and TypeScript integrations remain supported.
+- Authentication and authorization are secure.
+- Production data can be migrated and restored.
+- Old PocketBase/Hono dependencies are retired.
+- No retained capability has been silently removed.
+- The architecture remains understandable and maintainable.
 
 ---
 
-## 20. Guiding Principle
+## 21. Final Architectural Principle
 
-Dashwise should become a coherent resource-driven application with reusable views, shared query capabilities, and flexible integrations.
+Dashwise remains a self-hosted homelab dashboard and application hub.
 
-The architecture should make it easy to introduce a new resource provider and expose its data across multiple existing application surfaces without writing parallel data-access implementations.
+Its underlying architecture revolves around structured resources.
 
-At the same time, it must preserve room for domain-specific behavior and avoid imposing unnecessary abstractions.
+Providers bring resources into Dashwise.
 
-**Build and validate the Dashwise architecture first. Extract reusable platform infrastructure where it genuinely reduces duplication. Do not turn the migration into a general-purpose application framework project.**
+The resource layer manages identity, state, queries, permissions, and lifecycle.
+
+Consumers use those resources through views, widgets, applications, feeds, APIs, or other supported output formats.
+
+Actions allow users and integrations to interact with resources.
+
+Integrations extend the system by contributing providers, actions, and consumers.
+
+**The resource architecture powers Dashwise; it does not replace Dashwise's product identity.**
