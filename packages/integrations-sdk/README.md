@@ -48,6 +48,17 @@ sync must not clear the prior snapshot. Full resource identity includes the
 integration instance, collection, and resource IDs. Persisted snapshots restore
 as stale until an upstream synchronization succeeds. Only JSON data is stored.
 
+Resources may declare generic `capabilities` such as `"monitoring"` so shared
+Dashwise surfaces can discover them without depending on the integration source.
+For example, a Beszel system resource can use `capabilities: ["monitoring"]`;
+its current system state remains a resource, while any active warning can be
+published separately through the Activities lifecycle API.
+
+Weather warning resources can opt into the built-in warning aggregate with
+`capabilities: ["weather-warning"]`. Keep the resource active while the source
+warning is active and remove it or set `attributes.active` to `false` when the
+warning resolves; the aggregate then clears on the next reconciliation.
+
 ## Actions and contributions
 
 Actions have a stable ID, optional JSON Schema input, and a typed `execute`
@@ -321,6 +332,47 @@ without reinstalling the instance. Exercise authenticated ownership checks,
 secret redaction, invalid Action input, unauthorized subscriptions, and
 instance deletion while a client is connected.
 
+## Current-condition Activities
+
+Activities describe conditions that matter now. Use `publish()` for a one-off
+producer update, and `upsert()` plus `clear()` for a condition that stays visible
+until it resolves. The key must be stable for that condition and
+unique within the integration instance. Repeated upserts update the same
+Activity instead of creating a history row; clearing an unknown key is safe.
+
+```ts
+const key = `entity:${entity.id}:unavailable`;
+if (!entity.available) {
+  await integrations.activities.upsert(key, {
+    type: "entity.unavailable",
+    title: `${entity.name} is unavailable`,
+    severity: "warning",
+    metadata: { entityId: entity.id },
+    action: { label: "Open entities", target: "/apps/home-assistant" },
+  });
+} else {
+  await integrations.activities.clear(key);
+}
+```
+
+Declare Activities on the integration definition to make them visible in
+Settings even when inactive. The optional config schema is exposed as
+user-editable settings for that definition. Read the current user choice with
+`integrations.activities.getSettings(id)`; it returns `enabled` and `config` so
+the producer can apply the same settings to its condition evaluation.
+
+```ts
+activities: [{
+  id: "unavailable-entities",
+  title: "Unavailable entities",
+  description: "Show entities while Home Assistant reports them unavailable.",
+  severity: "warning",
+  configSchema: {
+    includeUnavailable: { type: "boolean", default: true },
+  },
+}],
+```
+
 ## Home Assistant reference integration
 
 [`packages/integrations/homeassistant`](../integrations/homeassistant) is the
@@ -338,8 +390,9 @@ failure retains the last valid entity snapshot. Resource synchronization powers
 the existing Search Apps and any Widget or Glanceable bound to the selected
 entity. The Actions call the appropriate Home Assistant service and rely on the
 subsequent state event to confirm a change. Connection loss/recovery and
-Home Assistant start/stop lifecycle events publish durable Activities through
-`integrations.activities.publish()`.
+Home Assistant connection and server-stopping conditions use stable-key
+`upsert()`/`clear()` lifecycle calls, so a recovered connection removes the
+active condition instead of adding a recovery history item.
 
 The integration package tests mapping, snapshot validation, WebSocket client
 behavior, Actions, contribution definitions, and lifecycle behavior with a

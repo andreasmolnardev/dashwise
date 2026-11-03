@@ -20,6 +20,15 @@ export type PublishActivityInput = {
   action?: ActivityAction;
 };
 
+/** Stable-key lifecycle operations used by long-lived condition producers. */
+export type ActivityLifecycleRequest =
+  | { operation: "upsert"; key: string; activity: PublishActivityInput }
+  | { operation: "clear"; key: string };
+
+export type ActivityLifecycleResult =
+  | { operation: "upsert"; activity: ActivityRecord; duplicate: boolean }
+  | { operation: "clear"; cleared: boolean };
+
 export type ActivityRecord = {
   id: string;
   ownerId: string;

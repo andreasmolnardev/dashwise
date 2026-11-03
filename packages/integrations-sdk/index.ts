@@ -49,6 +49,8 @@ export type ResourceRecord = {
   icon?: string;
   type?: string;
   tags?: readonly string[];
+  /** Generic Dashwise capabilities used to discover resources in shared app surfaces. */
+  capabilities?: readonly string[];
   state?: JsonValue;
   attributes?: Readonly<Record<string, JsonValue>>;
   available?: boolean;
@@ -321,8 +323,21 @@ export type IntegrationActivity = {
   title: string;
   description?: string;
   severity?: "info" | "success" | "warning" | "error";
+  eventId?: string;
   idempotencyKey?: string;
   metadata?: Record<string, JsonValue>;
+  action?: { label: string; target: string };
+};
+
+/** A setting-visible activity condition owned and evaluated by an integration. */
+export type IntegrationActivityDefinition = {
+  /** Stable ID within this integration definition. */
+  id: string;
+  title: string;
+  description?: string;
+  severity?: "info" | "success" | "warning" | "error";
+  /** Optional per-definition settings schema exposed on the Activities settings page. */
+  configSchema?: ConfigSchema;
 };
 export type IntegrationStorage = {
   get<Value extends JsonValue = JsonValue>(key: string): Promise<Value | undefined>;
@@ -362,7 +377,16 @@ export type IntegrationsRuntime<
   readonly actions: {
     execute<Input extends JsonValue = JsonValue>(actionId: string, resource: ResourceIdentity, input: Input): Promise<ActionResult>;
   };
-  readonly activities: { publish(activity: IntegrationActivity): Promise<{ id: string; duplicate: boolean }> };
+  readonly activities: {
+    /** Backward-compatible idempotent event/activity publication. */
+    publish(activity: IntegrationActivity): Promise<{ id: string; duplicate: boolean }>;
+    /** Create or update a currently relevant condition under a stable producer key. */
+    upsert(key: string, activity: IntegrationActivity): Promise<{ id: string; duplicate: boolean }>;
+    /** Clear a currently relevant condition after it resolves. */
+    clear(key: string): Promise<{ cleared: boolean }>;
+    /** Read this instance's user-configured setting for a declared activity. */
+    getSettings(activityId: string): Promise<{ enabled: boolean; config: Readonly<Record<string, JsonValue>> }>;
+  };
   readonly events: {
     publish(event: IntegrationEvent): void;
     subscribe(name: string, handler: (event: IntegrationEvent) => void | Promise<void>): () => void;
@@ -389,6 +413,8 @@ export type IntegrationDefinition<
   resources: Resources;
   actions?: Readonly<Record<string, IntegrationAction<any, any, any, any>>>;
   apps?: readonly AppContribution[];
+  /** Activity definitions shown in Settings even while the condition is inactive. */
+  activities?: readonly IntegrationActivityDefinition[];
   widgets?: Widgets;
   glanceables?: Glanceables;
   playback?: IntegrationPlayback<IntegrationsRuntime<ConfigValues<Config>, SecretConfigKey<Config>, Resources>>;

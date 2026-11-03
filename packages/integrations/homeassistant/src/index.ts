@@ -197,12 +197,6 @@ function activityError(error: unknown): string {
   return error instanceof Error ? error.message : "Unknown Home Assistant integration error";
 }
 
-function eventContextId(event: unknown): string | undefined {
-  if (typeof event !== "object" || event === null) return undefined;
-  const context = (event as { context?: { id?: unknown } }).context;
-  return typeof context?.id === "string" ? context.id : undefined;
-}
-
 export function createHomeAssistantIntegration(
   createClient: (
     url: string,
@@ -223,6 +217,10 @@ export function createHomeAssistantIntegration(
   resources: { entities: entityCollection, status: statusCollection },
   actions: actionDefinitions,
   apps: buildAppContributions(),
+  activities: [
+    { id: "connection", title: "Home Assistant connection", description: "Show when the configured Home Assistant server is unreachable or reconnecting." },
+    { id: "server-stopping", title: "Home Assistant restarting", description: "Show while Home Assistant has announced shutdown and has not announced startup." },
+  ],
   widgets: [entityListWidget, sensorOverviewWidget],
   glanceables: [
     connectionStatusGlanceable,
@@ -263,49 +261,33 @@ export function createHomeAssistantIntegration(
       connectionStatus = state;
       await publishStatuses();
     });
-    let connectionLossCount = 0;
-    let reportedOffline = false;
     const stopConnectionListener = client.onConnectionChange((connectionState) => {
       if (connectionState === "disconnected") {
         connectionStatus = "disconnected";
         void publishStatuses().catch((error) => integrations.logger.error("Could not update Home Assistant status resources", { error: activityError(error) }));
-        connectionLossCount += 1;
-        const thisLoss = connectionLossCount;
         integrations.scheduler.timeout("connection-lost-activity", 30_000, async (signal) => {
           if (signal.aborted) return;
-          reportedOffline = true;
-          await integrations.activities.publish({
-            type: "homeassistant.connection.lost",
+          await integrations.activities.upsert("connection", {
+            type: "connection",
             title: "Home Assistant is unreachable",
             description: "Dashwise has not received a Home Assistant connection for 30 seconds.",
             severity: "warning",
-            idempotencyKey: `${integrations.instanceId}:connection-lost:${thisLoss}`,
           });
         });
       } else if (connectionState === "ready") {
         connectionStatus = "connected";
         void publishStatuses().catch((error) => integrations.logger.error("Could not update Home Assistant status resources", { error: activityError(error) }));
         integrations.scheduler.cancel("connection-lost-activity");
-        if (reportedOffline) {
-          reportedOffline = false;
-          void integrations.activities.publish({
-            type: "homeassistant.connection.recovered",
-            title: "Home Assistant connection recovered",
-            description: "Dashwise reconnected to Home Assistant and resumed synchronization.",
-            severity: "success",
-            idempotencyKey: `${integrations.instanceId}:connection-recovered:${connectionLossCount}`,
-          }).catch((error) => integrations.logger.error("Could not publish Home Assistant recovery activity", { error: activityError(error) }));
-        }
+        void integrations.activities.clear("connection").catch((error) => integrations.logger.error("Could not clear Home Assistant connection activity", { error: activityError(error) }));
       } else {
         connectionStatus = "reconnect_error";
         void publishStatuses().catch((error) => integrations.logger.error("Could not update Home Assistant status resources", { error: activityError(error) }));
         integrations.scheduler.cancel("connection-lost-activity");
-        void integrations.activities.publish({
-          type: "homeassistant.connection.reconnect_failed",
+        void integrations.activities.upsert("connection", {
+          type: "connection",
           title: "Home Assistant could not reconnect",
           description: "Check that Home Assistant is reachable and the configured access token is valid.",
           severity: "warning",
-          idempotencyKey: `${integrations.instanceId}:reconnect-error:${connectionLossCount}`,
         }).catch((error) => integrations.logger.error("Could not publish Home Assistant connection activity", { error: activityError(error) }));
       }
     });
@@ -355,25 +337,16 @@ export function createHomeAssistantIntegration(
           });
         });
       }
-      await client.subscribeEvent("homeassistant_stop", async (event) => {
-        const eventId = eventContextId(event);
-        await integrations.activities.publish({
-          type: "homeassistant.server.stopping",
+      await client.subscribeEvent("homeassistant_stop", async () => {
+        await integrations.activities.upsert("server", {
+          type: "server-stopping",
           title: "Home Assistant is restarting or shutting down",
           description: "Home Assistant announced that it is stopping.",
           severity: "warning",
-          idempotencyKey: eventId ?? `${integrations.instanceId}:server-stopping:${Date.now()}`,
         });
       });
-      await client.subscribeEvent("homeassistant_start", async (event) => {
-        const eventId = eventContextId(event);
-        await integrations.activities.publish({
-          type: "homeassistant.server.started",
-          title: "Home Assistant started",
-          description: "Home Assistant announced that it has started.",
-          severity: "success",
-          idempotencyKey: eventId ?? `${integrations.instanceId}:server-started:${Date.now()}`,
-        });
+      await client.subscribeEvent("homeassistant_start", async () => {
+        await integrations.activities.clear("server");
       });
     } catch (error) {
       integrations.logger.warn("Home Assistant lifecycle events could not be subscribed", {

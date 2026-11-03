@@ -21,6 +21,13 @@ export type PublishActivityResult = {
   duplicate: boolean;
 };
 
+export type ActivityLifecycleResult = {
+  operation: "upsert" | "clear";
+  activity?: ActivityRecord;
+  duplicate?: boolean;
+  cleared?: boolean;
+};
+
 export type ActivityPublisherOptions = {
   /** Dashwise backend origin, with or without a trailing `/api/v1`. */
   baseUrl: string;
@@ -61,40 +68,71 @@ export function createActivityPublisher(options: ActivityPublisherOptions) {
   return {
     async publish(input: PublishActivityInput): Promise<PublishActivityResult> {
       const validated = validatePublishActivityInput(input);
-      const token = (typeof options.token === "function" ? await options.token() : options.token).trim();
-      if (!token) throw new ActivityPublishError("A Dashwise session token is required");
-
-      const url = `${baseUrl}/api/v1/integrations/${encodeURIComponent(integrationId)}/activities`;
-      let response: Response;
-      try {
-        response = await fetchImpl(url, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-            Accept: "application/json",
-          },
-          body: JSON.stringify(validated),
-        });
-      } catch (cause) {
-        throw new ActivityPublishError("Unable to reach the Dashwise activity API", { cause });
-      }
-
-      const body = await readResponseBody(response);
-      if (!response.ok) {
-        const message = getErrorMessage(body) ?? `Activity publishing failed with status ${response.status}`;
-        throw new ActivityPublishError(message, { status: response.status, responseBody: body });
-      }
+      const body = await postActivity({ baseUrl, integrationId, token: options.token, fetchImpl }, validated);
 
       if (!isPublishActivityResult(body)) {
         throw new ActivityPublishError("The Dashwise activity API returned an invalid response", {
-          status: response.status,
           responseBody: body,
         });
       }
       return body;
     },
+    /** Create or update a currently relevant activity with a producer-owned stable key. */
+    async upsert(key: string, input: PublishActivityInput): Promise<PublishActivityResult> {
+      const stableKey = requiredString(key, "key", 256);
+      const activity = validatePublishActivityInput(input);
+      const body = await postActivity({ baseUrl, integrationId, token: options.token, fetchImpl }, {
+        operation: "upsert",
+        key: stableKey,
+        activity,
+      });
+      if (!isPublishActivityResult(body)) {
+        throw new ActivityPublishError("The Dashwise activity API returned an invalid response", { responseBody: body });
+      }
+      return body;
+    },
+    /** Clear the stable-key activity once its underlying condition is resolved. */
+    async clear(key: string): Promise<{ cleared: boolean }> {
+      const stableKey = requiredString(key, "key", 256);
+      const body = await postActivity({ baseUrl, integrationId, token: options.token, fetchImpl }, {
+        operation: "clear",
+        key: stableKey,
+      });
+      if (!isPlainObject(body) || typeof body.cleared !== "boolean") {
+        throw new ActivityPublishError("The Dashwise activity API returned an invalid response", { responseBody: body });
+      }
+      return { cleared: body.cleared };
+    },
   };
+}
+
+async function postActivity(
+  options: { baseUrl: string; integrationId: string; token: ActivityPublisherOptions["token"]; fetchImpl: typeof fetch },
+  payload: unknown,
+) {
+  const token = (typeof options.token === "function" ? await options.token() : options.token).trim();
+  if (!token) throw new ActivityPublishError("A Dashwise session token is required");
+  const url = `${options.baseUrl}/api/v1/integrations/${encodeURIComponent(options.integrationId)}/activities`;
+  let response: Response;
+  try {
+    response = await options.fetchImpl(url, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+  } catch (cause) {
+    throw new ActivityPublishError("Unable to reach the Dashwise activity API", { cause });
+  }
+  const body = await readResponseBody(response);
+  if (!response.ok) {
+    const message = getErrorMessage(body) ?? `Activity publishing failed with status ${response.status}`;
+    throw new ActivityPublishError(message, { status: response.status, responseBody: body });
+  }
+  return body;
 }
 
 /** Validate activity payloads locally using the same limits as the backend. */
