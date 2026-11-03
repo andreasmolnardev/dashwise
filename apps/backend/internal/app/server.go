@@ -232,7 +232,7 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, err
 		_ = db.Close()
 		return nil, fmt.Errorf("initialize News API: %w", err)
 	}
-	authHandler, err := authapi.New(authStore)
+	authHandler, err := authapi.New(authStore, authapi.Options{Environment: cfg.Environment, DashwiseURL: cfg.DashwiseURL})
 	if err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("initialize authentication API: %w", err)

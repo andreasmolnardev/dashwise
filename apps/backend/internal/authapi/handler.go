@@ -14,15 +14,28 @@ import (
 const maxBodyBytes = 1 << 20
 
 type Handler struct {
-	store *auth.Store
-	mux   *http.ServeMux
+	store       *auth.Store
+	environment string
+	dashwiseURL string
+	mux         *http.ServeMux
 }
 
-func New(store *auth.Store) (http.Handler, error) {
+type Options struct {
+	Environment string
+	DashwiseURL string
+}
+
+func New(store *auth.Store, options ...Options) (http.Handler, error) {
 	if store == nil {
 		return nil, errors.New("authentication API requires a store")
 	}
-	h := &Handler{store: store, mux: http.NewServeMux()}
+	optionsValue := Options{}
+	if len(options) > 0 {
+		optionsValue = options[0]
+	}
+	h := &Handler{store: store, environment: strings.TrimSpace(optionsValue.Environment), dashwiseURL: strings.TrimSpace(optionsValue.DashwiseURL), mux: http.NewServeMux()}
+	h.mux.HandleFunc("GET /api/v1/auth/sso", h.redirectToDashboard)
+	h.mux.HandleFunc("GET /api/v1/auth/callback", h.redirectToDashboard)
 	h.mux.HandleFunc("POST /api/v1/auth/signup", h.signup)
 	h.mux.HandleFunc("POST /api/v1/auth/login", h.login)
 	h.mux.HandleFunc("POST /api/v1/auth/validate-auth", h.validate)
@@ -36,6 +49,19 @@ func New(store *auth.Store) (http.Handler, error) {
 	h.mux.HandleFunc("GET /api/v1/sessions/current", h.currentSession)
 	h.mux.HandleFunc("PATCH /api/v1/sessions/current", h.renameCurrentSession)
 	return h.mux, nil
+}
+
+func (h *Handler) redirectToDashboard(w http.ResponseWriter, r *http.Request) {
+	target := strings.TrimSpace(r.URL.Query().Get("redirectTo"))
+	if target != "" && strings.HasPrefix(target, "/") && !strings.HasPrefix(target, "//") && !strings.ContainsAny(target, "\\\r\n") {
+		http.Redirect(w, r, target, http.StatusFound)
+		return
+	}
+	if strings.EqualFold(h.environment, "production") || h.dashwiseURL == "" {
+		http.Redirect(w, r, "/", http.StatusFound)
+		return
+	}
+	http.Redirect(w, r, h.dashwiseURL, http.StatusFound)
 }
 
 func (h *Handler) signup(w http.ResponseWriter, r *http.Request) {

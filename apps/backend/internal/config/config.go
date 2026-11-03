@@ -18,6 +18,7 @@ type Config struct {
 	InstanceName  string
 	Version       string
 	Environment   string
+	DashwiseURL   string
 }
 
 func Load() Config {
@@ -35,6 +36,7 @@ func Load() Config {
 		InstanceName:  env("INSTANCE_NAME", "Dashwise"),
 		Version:       env("DASHWISE_VERSION", "go-migration"),
 		Environment:   env("ENVIRONMENT", "development"),
+		DashwiseURL:   env("DASHWISE_URL", "http://localhost:3000"),
 	}
 }
 
