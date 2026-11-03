@@ -81,7 +81,7 @@ func (h *Handler) publicRSS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if feed.RequiresAuth {
-		owner, ok := h.owner(w, r)
+		owner, ok := h.rssOwner(w, r)
 		if !ok {
 			return
 		}
@@ -119,6 +119,18 @@ func (h *Handler) publicRSS(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(200)
 	_, _ = w.Write(buffer.Bytes())
+}
+
+func (h *Handler) rssOwner(w http.ResponseWriter, r *http.Request) (string, bool) {
+	if r.Header.Get("Authorization") == "" {
+		if token := strings.TrimSpace(r.URL.Query().Get("token")); token != "" {
+			copy := r.Clone(r.Context())
+			copy.Header = r.Header.Clone()
+			copy.Header.Set("Authorization", "Bearer "+token)
+			r = copy
+		}
+	}
+	return h.owner(w, r)
 }
 func writeXMLTag(buffer *bytes.Buffer, name, value string) { writeXMLTagAttr(buffer, name, value, "") }
 func writeXMLTagAttr(buffer *bytes.Buffer, name, value, attributes string) {
