@@ -475,6 +475,25 @@ func (s *Store) UserByID(ctx context.Context, id string) (User, error) {
 	return s.loadProperties(ctx, user)
 }
 
+// ListUserIDs returns the account IDs needed by internal maintenance workers.
+// It deliberately does not expose email, credentials, or profile properties.
+func (s *Store) ListUserIDs(ctx context.Context) ([]string, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT id FROM auth_users ORDER BY id`)
+	if err != nil {
+		return nil, fmt.Errorf("list account IDs: %w", err)
+	}
+	defer rows.Close()
+	ids := make([]string, 0)
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
 func (s *Store) UpdateUserProperty(ctx context.Context, userID, propertyName string, value any) (User, error) {
 	switch propertyName {
 	case "appearancePreferences", "localizationPreferences", "screensaverPreferences", "searchPreferences", "global":

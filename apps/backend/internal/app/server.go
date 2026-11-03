@@ -17,6 +17,7 @@ import (
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/activitiesapi"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/auth"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/authapi"
+	"github.com/andreasmolnardev/dashwise/apps/backend/internal/calendarapi"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/config"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/consumersapi"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/deviceauth"
@@ -38,6 +39,7 @@ import (
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/realtimeapi"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/resourceapi"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/resources"
+	"github.com/andreasmolnardev/dashwise/apps/backend/internal/resourcesync"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/secrets"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/shortcuts"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/shortcutsapi"
@@ -277,6 +279,11 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, err
 		_ = db.Close()
 		return nil, fmt.Errorf("initialize Integrations API: %w", err)
 	}
+	calendarHandler, err := calendarapi.New(integrationsStore, authenticateOwner(authStore))
+	if err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("initialize Calendar API: %w", err)
+	}
 	systemHandler, err := systemapi.New(authenticateOwner(authStore))
 	if err != nil {
 		_ = db.Close()
@@ -347,6 +354,7 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, err
 	mux.Handle("/api/v1/activity", activityRealtimeHandler)
 	mux.Handle("/api/v1/integrations/{integrationId}/activities", activitiesHandler)
 	mux.Handle("/api/v1/wallpapers", wallpapersHandler)
+	mux.Handle("/api/v1/integrations/caldav/", calendarHandler)
 	mux.Handle("/api/v1/migration/", transferHandler)
 	mux.Handle("/api/v1/integrations", integrationsHandler)
 	mux.Handle("/api/v1/integrations/", integrationsHandler)
@@ -388,7 +396,48 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, err
 			logger.Error("System Agent poller stopped", "error", err)
 		}
 	}()
+	app.workers.Add(1)
+	go func() {
+		defer app.workers.Done()
+		if err := runResourceSync(workerCtx, authStore, linksStore, newsStore, monitoringStore, resourceStore, logger); err != nil && workerCtx.Err() == nil {
+			logger.Error("native resource sync stopped", "error", err)
+		}
+	}()
 	return app, nil
+}
+
+func runResourceSync(ctx context.Context, authStore *auth.Store, linksStore *links.Store, newsStore *news.Store, monitoringStore *monitoring.Store, resourceStore *resources.Store, logger *slog.Logger) error {
+	ticker := time.NewTicker(time.Minute)
+	defer ticker.Stop()
+	for {
+		owners, err := authStore.ListUserIDs(ctx)
+		if err != nil {
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
+			logger.Error("list accounts for resource sync", "error", err)
+		} else {
+			for _, owner := range owners {
+				if err := resourcesync.SyncOwner(ctx, owner, linksStore, monitoringStore, resourceStore); err != nil {
+					if ctx.Err() != nil {
+						return ctx.Err()
+					}
+					logger.Error("sync native resources", "owner_id", owner, "error", err)
+				}
+				if err := materializeNewsResources(ctx, owner, newsStore, resourceStore); err != nil {
+					if ctx.Err() != nil {
+						return ctx.Err()
+					}
+					logger.Error("sync News resources", "owner_id", owner, "error", err)
+				}
+			}
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+		}
+	}
 }
 
 func materializeNewsResources(ctx context.Context, owner string, source *news.Store, target *resources.Store) error {
