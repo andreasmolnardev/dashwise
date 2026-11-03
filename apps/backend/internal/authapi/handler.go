@@ -88,11 +88,12 @@ func (h *Handler) login(w http.ResponseWriter, r *http.Request) {
 	var input struct {
 		Email    string `json:"email"`
 		Password string `json:"password"`
+		TOTP     string `json:"totp"`
 	}
 	if !decode(w, r, &input) {
 		return
 	}
-	result, err := h.store.Login(r.Context(), input.Email, input.Password)
+	result, err := h.store.Login(r.Context(), input.Email, input.Password, input.TOTP)
 	if err != nil {
 		writeAuthError(w, err)
 		return
@@ -214,11 +215,7 @@ func (h *Handler) deleteAccount(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnauthorized, "authentication required")
 		return
 	}
-	if strings.TrimSpace(input.Payload.TOTP) != "" {
-		writeError(w, http.StatusBadRequest, "TOTP is not configured for this account")
-		return
-	}
-	if err := h.store.DeleteAccount(r.Context(), user.ID, input.Payload.Email, input.Payload.Password); err != nil {
+	if err := h.store.DeleteAccount(r.Context(), user.ID, input.Payload.Email, input.Payload.Password, input.Payload.TOTP); err != nil {
 		writeAuthError(w, err)
 		return
 	}
@@ -362,6 +359,10 @@ func writeAuthError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, auth.ErrUnauthorized), errors.Is(err, auth.ErrInvalidCredentials):
 		writeError(w, http.StatusUnauthorized, "invalid credentials")
+	case errors.Is(err, auth.ErrTOTPRequired):
+		writeError(w, http.StatusUnauthorized, err.Error())
+	case errors.Is(err, auth.ErrInvalidTOTP):
+		writeError(w, http.StatusUnauthorized, err.Error())
 	case errors.Is(err, auth.ErrSignupDisabled):
 		writeError(w, http.StatusForbidden, "sign up is disabled")
 	case errors.Is(err, auth.ErrEmailExists):

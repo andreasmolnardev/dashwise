@@ -4,9 +4,12 @@ package auth
 
 import (
 	"context"
+	"crypto/hmac"
 	"crypto/rand"
+	"crypto/sha1"
 	"crypto/sha256"
 	"database/sql"
+	"encoding/base32"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -18,6 +21,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/andreasmolnardev/dashwise/apps/backend/internal/secrets"
 	"github.com/andreasmolnardev/dashwise/packages/foundation"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -28,6 +32,8 @@ var (
 	ErrEmailExists        = errors.New("email is already registered")
 	ErrInvalidInput       = errors.New("invalid authentication input")
 	ErrUnauthorized       = errors.New("unauthorized")
+	ErrTOTPRequired       = errors.New("TOTP code required because two-factor authentication is enabled")
+	ErrInvalidTOTP        = errors.New("invalid TOTP code")
 )
 
 const (
@@ -40,6 +46,13 @@ type Options struct {
 	SessionTTL    time.Duration
 	PasswordCost  int
 	Clock         func() time.Time
+	TOTPProtector SecretProtector
+}
+
+// SecretProtector encrypts sensitive authentication data before it reaches SQLite.
+type SecretProtector interface {
+	Protect([]byte) ([]byte, error)
+	Reveal([]byte) ([]byte, error)
 }
 
 type User struct {
@@ -98,6 +111,7 @@ type Store struct {
 	sessionTTL    time.Duration
 	passwordCost  int
 	clock         func() time.Time
+	totpProtector SecretProtector
 }
 
 func NewStore(db *foundation.DB, options Options) (*Store, error) {
@@ -116,9 +130,20 @@ func NewStore(db *foundation.DB, options Options) (*Store, error) {
 	if options.Clock == nil {
 		options.Clock = time.Now
 	}
+	if options.TOTPProtector == nil {
+		dataDir := os.Getenv("DATA_DIR")
+		if dataDir == "" {
+			dataDir = "./data"
+		}
+		protector, err := secrets.OpenFileProtector(filepath.Join(dataDir, "secret.key"))
+		if err != nil {
+			return nil, fmt.Errorf("initialize TOTP secret encryption: %w", err)
+		}
+		options.TOTPProtector = protector
+	}
 	return &Store{
 		db: db.SQL(), foundation: db, disableSignup: options.DisableSignup,
-		sessionTTL: options.SessionTTL, passwordCost: options.PasswordCost,
+		sessionTTL: options.SessionTTL, passwordCost: options.PasswordCost, totpProtector: options.TOTPProtector,
 		clock: options.Clock,
 	}, nil
 }
@@ -137,7 +162,8 @@ func (s *Store) Initialize(ctx context.Context) error {
 			name TEXT NOT NULL,
 			password_hash TEXT NOT NULL,
 			created_at TEXT NOT NULL,
-			updated_at TEXT NOT NULL
+			updated_at TEXT NOT NULL,
+			totp_secret_cipher BLOB
 		);`,
 				`
 		CREATE TABLE IF NOT EXISTS auth_sessions (
@@ -176,11 +202,20 @@ func (s *Store) Initialize(ctx context.Context) error {
 					return fmt.Errorf("migrate authentication session column %q: %w", column.name, err)
 				}
 			}
+			if err := ensureColumn(ctx, tx, "auth_users", "totp_secret_cipher", "BLOB"); err != nil {
+				return fmt.Errorf("migrate TOTP secret column: %w", err)
+			}
 			return nil
 		},
 		Down: func(ctx context.Context, tx *sql.Tx) error {
 			_, err := tx.ExecContext(ctx, `DROP TABLE IF EXISTS auth_user_properties; DROP TABLE IF EXISTS auth_sessions; DROP TABLE IF EXISTS auth_users;`)
 			return err
+		},
+	}, {
+		ID:   "0003_auth_totp_secret",
+		Name: "encrypted TOTP secret storage",
+		Up: func(ctx context.Context, tx *sql.Tx) error {
+			return ensureColumn(ctx, tx, "auth_users", "totp_secret_cipher", "BLOB")
 		},
 	}})
 }
@@ -232,15 +267,16 @@ func (s *Store) Signup(ctx context.Context, input SignupInput) (AuthResult, erro
 	return AuthResult{User: user}, nil
 }
 
-func (s *Store) Login(ctx context.Context, email, password string) (AuthResult, error) {
+func (s *Store) Login(ctx context.Context, email, password string, totp ...string) (AuthResult, error) {
 	normalized, err := normalizeEmail(email)
 	if err != nil || password == "" {
 		return AuthResult{}, ErrInvalidCredentials
 	}
 	var user User
 	var hash, createdAt, updatedAt string
-	err = s.db.QueryRowContext(ctx, `SELECT id,email,name,password_hash,created_at,updated_at FROM auth_users WHERE email = ? COLLATE NOCASE`, normalized).
-		Scan(&user.ID, &user.Email, &user.Name, &hash, &createdAt, &updatedAt)
+	var totpSecretCipher []byte
+	err = s.db.QueryRowContext(ctx, `SELECT id,email,name,password_hash,created_at,updated_at,totp_secret_cipher FROM auth_users WHERE email = ? COLLATE NOCASE`, normalized).
+		Scan(&user.ID, &user.Email, &user.Name, &hash, &createdAt, &updatedAt, &totpSecretCipher)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return AuthResult{}, ErrInvalidCredentials
@@ -249,6 +285,15 @@ func (s *Store) Login(ctx context.Context, email, password string) (AuthResult, 
 	}
 	if bcrypt.CompareHashAndPassword([]byte(hash), []byte(password)) != nil {
 		return AuthResult{}, ErrInvalidCredentials
+	}
+	if len(totpSecretCipher) > 0 {
+		code := ""
+		if len(totp) > 0 {
+			code = totp[0]
+		}
+		if err := s.verifyTOTP(totpSecretCipher, code); err != nil {
+			return AuthResult{}, err
+		}
 	}
 	user.CreatedAt, err = parseTime(createdAt)
 	if err != nil {
@@ -263,6 +308,97 @@ func (s *Store) Login(ctx context.Context, email, password string) (AuthResult, 
 		return AuthResult{}, err
 	}
 	return s.createSession(ctx, user)
+}
+
+// SetTOTPSecret stores an account's base32 TOTP secret using the configured
+// authenticated-encryption key. Passing an empty value disables TOTP.
+func (s *Store) SetTOTPSecret(ctx context.Context, userID, secret string) error {
+	if strings.TrimSpace(userID) == "" {
+		return ErrUnauthorized
+	}
+	var encrypted any
+	if strings.TrimSpace(secret) != "" {
+		normalized, _, err := decodeTOTPSecret(secret)
+		if err != nil {
+			return fmt.Errorf("%w: TOTP secret is invalid", ErrInvalidInput)
+		}
+		ciphertext, err := s.totpProtector.Protect([]byte(normalized))
+		if err != nil {
+			return fmt.Errorf("encrypt TOTP secret: %w", err)
+		}
+		encrypted = ciphertext
+	}
+	result, err := s.db.ExecContext(ctx, `UPDATE auth_users SET totp_secret_cipher=?,updated_at=? WHERE id=?`, encrypted, s.now().Format(time.RFC3339Nano), userID)
+	if err != nil {
+		return fmt.Errorf("save TOTP secret: %w", err)
+	}
+	count, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if count == 0 {
+		return ErrUnauthorized
+	}
+	return nil
+}
+
+func (s *Store) verifyTOTP(ciphertext []byte, code string) error {
+	if strings.TrimSpace(code) == "" {
+		return ErrTOTPRequired
+	}
+	if len(code) != 6 {
+		return ErrInvalidTOTP
+	}
+	for _, digit := range code {
+		if digit < '0' || digit > '9' {
+			return ErrInvalidTOTP
+		}
+	}
+	secret, err := s.totpProtector.Reveal(ciphertext)
+	if err != nil {
+		return fmt.Errorf("decrypt TOTP secret: %w", err)
+	}
+	_, decoded, err := decodeTOTPSecret(string(secret))
+	if err != nil {
+		return fmt.Errorf("stored TOTP secret is invalid: %w", err)
+	}
+	current := s.now().Unix() / 30
+	for step := current - 1; step <= current+1; step++ {
+		candidate := totpCode(decoded, step)
+		if hmac.Equal([]byte(candidate), []byte(code)) {
+			return nil
+		}
+	}
+	return ErrInvalidTOTP
+}
+
+func decodeTOTPSecret(secret string) (string, []byte, error) {
+	normalized := strings.ToUpper(strings.ReplaceAll(strings.TrimSpace(secret), " ", ""))
+	if normalized == "" || len(normalized) > 256 {
+		return "", nil, errors.New("invalid secret length")
+	}
+	decoded, err := base32.StdEncoding.WithPadding(base32.NoPadding).DecodeString(strings.TrimRight(normalized, "="))
+	if err != nil || len(decoded) < 10 {
+		return "", nil, errors.New("invalid base32 secret")
+	}
+	return strings.TrimRight(normalized, "="), decoded, nil
+}
+
+func totpCode(secret []byte, step int64) string {
+	var counter [8]byte
+	for i := len(counter) - 1; i >= 0; i-- {
+		counter[i] = byte(step)
+		step >>= 8
+	}
+	hash := hmac.New(sha1.New, secret)
+	_, _ = hash.Write(counter[:])
+	digest := hash.Sum(nil)
+	offset := digest[len(digest)-1] & 0x0f
+	value := (uint32(digest[offset])&0x7f)<<24 |
+		(uint32(digest[offset+1])&0xff)<<16 |
+		(uint32(digest[offset+2])&0xff)<<8 |
+		(uint32(digest[offset+3]) & 0xff)
+	return fmt.Sprintf("%06d", value%1_000_000)
 }
 
 // Validate checks token validity, refreshes last-seen time, and returns only
@@ -500,12 +636,13 @@ func (s *Store) ListUserIDs(ctx context.Context) ([]string, error) {
 // owner_id column in one SQLite transaction, and deletes the account row. Local
 // wallpaper files are removed after commit; only generated wallpaper files in
 // a wallpapers directory are eligible for removal.
-func (s *Store) DeleteAccount(ctx context.Context, userID, email, password string) error {
+func (s *Store) DeleteAccount(ctx context.Context, userID, email, password, totp string) error {
 	if strings.TrimSpace(userID) == "" || strings.TrimSpace(email) == "" || password == "" {
 		return fmt.Errorf("%w: email and password are required", ErrInvalidInput)
 	}
 	var storedEmail, passwordHash string
-	if err := s.db.QueryRowContext(ctx, `SELECT email,password_hash FROM auth_users WHERE id=?`, userID).Scan(&storedEmail, &passwordHash); err != nil {
+	var totpSecretCipher []byte
+	if err := s.db.QueryRowContext(ctx, `SELECT email,password_hash,totp_secret_cipher FROM auth_users WHERE id=?`, userID).Scan(&storedEmail, &passwordHash, &totpSecretCipher); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return ErrUnauthorized
 		}
@@ -513,6 +650,11 @@ func (s *Store) DeleteAccount(ctx context.Context, userID, email, password strin
 	}
 	if !strings.EqualFold(strings.TrimSpace(email), storedEmail) || bcrypt.CompareHashAndPassword([]byte(passwordHash), []byte(password)) != nil {
 		return ErrInvalidCredentials
+	}
+	if len(totpSecretCipher) > 0 {
+		if err := s.verifyTOTP(totpSecretCipher, totp); err != nil {
+			return err
+		}
 	}
 
 	tx, err := s.db.BeginTx(ctx, nil)
@@ -650,12 +792,24 @@ func isGeneratedWallpaperPath(path string) bool {
 
 func (s *Store) UpdateUserProperty(ctx context.Context, userID, propertyName string, value any) (User, error) {
 	switch propertyName {
-	case "appearancePreferences", "localizationPreferences", "screensaverPreferences", "searchPreferences", "global":
+	case "appearancePreferences", "localizationPreferences", "screensaverPreferences", "searchPreferences", "newsPreferences", "global":
 	default:
 		return User{}, fmt.Errorf("%w: property %q cannot be changed", ErrInvalidInput, propertyName)
 	}
 	if userID == "" {
 		return User{}, ErrUnauthorized
+	}
+	if propertyName == "newsPreferences" && value != nil {
+		preferences, ok := value.(map[string]any)
+		if !ok {
+			return User{}, fmt.Errorf("%w: newsPreferences must be an object or null", ErrInvalidInput)
+		}
+		if destination, ok := preferences["defaultNewsPage"]; ok {
+			path, ok := destination.(string)
+			if !ok || len(path) > 512 || !strings.HasPrefix(path, "/apps/news/") || strings.ContainsAny(path, "?#\\") {
+				return User{}, fmt.Errorf("%w: defaultNewsPage is invalid", ErrInvalidInput)
+			}
+		}
 	}
 	encoded, err := json.Marshal(value)
 	if err != nil || len(encoded) > 1<<20 {
@@ -800,5 +954,40 @@ func ensureSessionColumn(ctx context.Context, tx *sql.Tx, name, definition strin
 		return nil
 	}
 	_, err = tx.ExecContext(ctx, `ALTER TABLE auth_sessions ADD COLUMN `+name+` `+definition)
+	return err
+}
+
+func ensureColumn(ctx context.Context, tx *sql.Tx, table, name, definition string) error {
+	quotedTable := strings.ReplaceAll(table, `"`, `""`)
+	rows, err := tx.QueryContext(ctx, `PRAGMA table_info("`+quotedTable+`")`)
+	if err != nil {
+		return err
+	}
+	found := false
+	for rows.Next() {
+		var cid int
+		var columnName, columnType string
+		var notNull, primaryKey int
+		var defaultValue any
+		if err := rows.Scan(&cid, &columnName, &columnType, &notNull, &defaultValue, &primaryKey); err != nil {
+			_ = rows.Close()
+			return err
+		}
+		if columnName == name {
+			found = true
+		}
+	}
+	if err := rows.Err(); err != nil {
+		_ = rows.Close()
+		return err
+	}
+	if err := rows.Close(); err != nil {
+		return err
+	}
+	if found {
+		return nil
+	}
+	quotedName := strings.ReplaceAll(name, `"`, `""`)
+	_, err = tx.ExecContext(ctx, `ALTER TABLE "`+quotedTable+`" ADD COLUMN "`+quotedName+`" `+definition)
 	return err
 }
