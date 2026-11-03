@@ -3,13 +3,14 @@ import { Link, useLocation } from "react-router-dom";
 import { usePageConfig } from "@/hooks/usePageConfig";
 import { useEffect, useRef } from "react";
 import { Label } from "@/components/ui/label";
-import { faBrush, faChartLine, faCircleUser, faCircleXmark, faDisplay, faGridHorizontal, faGripLines, faMagnifyingGlass, faPaperclip, faPuzzlePiece, faSliders } from "@fortawesome/free-solid-svg-icons";
+import { faBell, faBrush, faChartLine, faCircleUser, faCircleXmark, faDisplay, faGridHorizontal, faGripLines, faMagnifyingGlass, faPaperclip, faPuzzlePiece, faSliders } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 
 const navItems = [
   { href: "/settings/account", label: "Account", icon: faCircleUser },
   { href: "/settings/appearance", label: "Appearance", icon: faBrush },
   { href: "/settings/pages", label: "Pages", icon: faGripLines },
+  { href: "/settings/activities", label: "Activities", icon: faBell },
   { href: "/settings/screensaver", label: "Frame", icon: faDisplay },
   { href: "/settings/search", label: "Search", icon: faMagnifyingGlass },
   { href: "/settings/integrations", label: "Integrations", icon: faPuzzlePiece },

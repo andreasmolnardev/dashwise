@@ -6,7 +6,6 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Icon } from "@iconify-icon/react";
 import { Edit3, EyeOff, Maximize2, MoreHorizontal, RefreshCw } from "lucide-react";
 import PagesTabs from "../PagesTabs";
-import DashboardMediaPlayerButton from "./DashboardMediaPlayerButton";
 import UpdateDetailsDialogComponent from "./UpdateDetailsDialog";
 import QuickLaunchPopover from "./QuickLaunchPopover";
 import useAuth from "@/context/useAuth";
@@ -1068,9 +1067,6 @@ function BottomNavbar({
                         </Link>
                     </li>
                 )}
-                <li className="hidden md:block">
-                    <DashboardMediaPlayerButton />
-                </li>
                 <li className="relative">
                     <Link
                         to="/apps/monitoring/notifications"

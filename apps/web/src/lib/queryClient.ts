@@ -46,7 +46,7 @@ export const queryKeys = {
   monitoring: {
     monitors: ["monitoring", "monitors"] as const,
     hosts: ["monitoring", "hosts"] as const,
-    sshHosts: ["monitoring", "ssh-hosts"] as const,
+    sdkResources: ["monitoring", "sdk-resources"] as const,
     monitor: (monitorId: string) => ["monitoring", "monitor", monitorId] as const,
     host: (hostId: string) => ["monitoring", "host", hostId] as const,
     history: (monitorId: string, range?: string) => ["monitoring", "history", monitorId, range ?? null] as const,

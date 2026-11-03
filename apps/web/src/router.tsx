@@ -24,8 +24,8 @@ const LinksTagDetailPage = lazy(() => import("./app/(authenticated)/apps/links/t
 const MonitoringLayout = lazy(() => import("./app/(authenticated)/apps/monitoring/layout"));
 const MonitoringPage = lazy(() => import("./app/(authenticated)/apps/monitoring/page"));
 const MonitoringDetailPage = lazy(() => import("./app/(authenticated)/apps/monitoring/[monitorId]/page"));
-const MonitoringSshPage = lazy(() => import("./app/(authenticated)/apps/monitoring/ssh/page"));
 const MonitoringHostPage = lazy(() => import("./app/(authenticated)/apps/monitoring/hosts/page"));
+const SdkMonitoringResourcePage = lazy(() => import("./app/(authenticated)/apps/monitoring/sdk/[instanceId]/[collectionId]/[resourceId]/page"));
 const ViewsLayout = lazy(() => import("./app/(authenticated)/apps/views/layout"));
 const ViewsPage = lazy(() => import("./app/(authenticated)/apps/views/page"));
 const SettingsLayout = lazy(() => import("./app/(authenticated)/settings/layout"));
@@ -38,6 +38,7 @@ const SettingsIntegrationsPage = lazy(() => import("./app/(authenticated)/settin
 const SettingsSearchPage = lazy(() => import("./app/(authenticated)/settings/search/page"));
 const SettingsScreensaverPage = lazy(() => import("./app/(authenticated)/settings/screensaver/page"));
 const SettingsAppsPage = lazy(() => import("./app/(authenticated)/settings/apps/page"));
+const SettingsActivitiesPage = lazy(() => import("./app/(authenticated)/settings/activities/page"));
 const FramePage = lazy(() => import("./app/(authenticated)/frame/page"));
 const MigratePage = lazy(() => import("./app/(authenticated)/migrate/page"));
 
@@ -102,9 +103,8 @@ export const appRouter = createBrowserRouter([
              children: [
                 { index: true, element: <MonitoringPage /> },
                 { path: "notifications", element: <NotificationsPage /> },
-                { path: "ssh", element: <MonitoringSshPage /> },
-                { path: "ssh/:hostId", element: <MonitoringSshPage /> },
                 { path: "hosts/:hostId", element: <MonitoringHostPage /> },
+                { path: "sdk/:instanceId/:collectionId/:resourceId", element: <SdkMonitoringResourcePage /> },
                 { path: ":monitorId", element: <MonitoringDetailPage /> },
              ],
            },
@@ -124,6 +124,7 @@ export const appRouter = createBrowserRouter([
               { path: "account", element: <SettingsAccountPage /> },
               { path: "appearance", element: <SettingsAppearancePage /> },
               { path: "pages", element: <SettingsPagesPage /> },
+              { path: "activities", element: <SettingsActivitiesPage /> },
               { path: "integrations", element: <SettingsIntegrationsPage /> },
               { path: "search", element: <SettingsSearchPage /> },
               { path: "screensaver", element: <SettingsScreensaverPage /> },

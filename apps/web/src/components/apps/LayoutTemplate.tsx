@@ -64,6 +64,7 @@ interface BottomTabProps {
     icon: string;
     title: string;
     isRoot?: boolean;
+    badge?: number | string;
 }
 
 interface ActionProps {
@@ -325,7 +326,7 @@ export function Tab({ dst, icon, title, group, isRoot, fallbackIcon, badge, hasE
 
 // ─── BottomTab ────────────────────────────────────────────────────────────────
 
-export function BottomTab({ dst, icon, title, isRoot }: BottomTabProps) {
+export function BottomTab({ dst, icon, title, isRoot, badge }: BottomTabProps) {
     const { pathname, search, closeMobileSidebar } = useContext(SidebarContext);
     const destination = new URL(dst, "http://dashwise.local");
     const isActive = destination.search
@@ -353,6 +354,11 @@ export function BottomTab({ dst, icon, title, isRoot }: BottomTabProps) {
             >
                 {title}
             </span>
+            {badge !== undefined && (
+                <span className="ml-auto rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-bold leading-none">
+                    {badge}
+                </span>
+            )}
         </Link>
     );
 }
