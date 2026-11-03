@@ -68,6 +68,11 @@ func (s *Store) Upsert(ctx context.Context, resource Resource) (Resource, error)
 	if resource.Data == nil {
 		resource.Data = map[string]any{}
 	}
+	for _, capability := range resource.Capabilities {
+		if !identifierPattern.MatchString(capability) {
+			return Resource{}, fmt.Errorf("invalid resource capability %q", capability)
+		}
+	}
 	for _, field := range definition.Fields {
 		if _, exists := resource.Data[field.Name]; !exists {
 			continue
@@ -95,8 +100,8 @@ func (s *Store) Upsert(ctx context.Context, resource Resource) (Resource, error)
 	var existingID, createdAt string
 	err = s.db.QueryRowContext(ctx, `
 		SELECT id, created_at FROM resources
-		WHERE type = ? AND provider_instance_id = ? AND provider_resource_id = ?
-	`, resource.Type, resource.ProviderInstanceID, resource.ProviderResourceID).Scan(&existingID, &createdAt)
+		WHERE owner_id = ? AND type = ? AND provider_instance_id = ? AND provider_resource_id = ?
+	`, resource.OwnerID, resource.Type, resource.ProviderInstanceID, resource.ProviderResourceID).Scan(&existingID, &createdAt)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return Resource{}, fmt.Errorf("look up resource identity: %w", err)
 	}
@@ -120,7 +125,7 @@ func (s *Store) Upsert(ctx context.Context, resource Resource) (Resource, error)
 			id, type, provider, provider_instance_id, provider_resource_id,
 			owner_id, data_json, capabilities_json, state, created_at, updated_at
 		) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT(type, provider_instance_id, provider_resource_id) DO UPDATE SET
+		ON CONFLICT(owner_id, type, provider_instance_id, provider_resource_id) DO UPDATE SET
 			provider = excluded.provider,
 			owner_id = excluded.owner_id,
 			data_json = excluded.data_json,

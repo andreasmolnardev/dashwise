@@ -1,0 +1,218 @@
+// Package authapi adapts the SQLite authentication store to the Dashwise HTTP API.
+package authapi
+
+import (
+	"encoding/json"
+	"errors"
+	"io"
+	"net/http"
+	"strings"
+
+	"github.com/andreasmolnardev/dashwise/apps/backend/internal/auth"
+)
+
+const maxBodyBytes = 1 << 20
+
+type Handler struct {
+	store *auth.Store
+	mux   *http.ServeMux
+}
+
+func New(store *auth.Store) (http.Handler, error) {
+	if store == nil {
+		return nil, errors.New("authentication API requires a store")
+	}
+	h := &Handler{store: store, mux: http.NewServeMux()}
+	h.mux.HandleFunc("POST /api/v1/auth/signup", h.signup)
+	h.mux.HandleFunc("POST /api/v1/auth/login", h.login)
+	h.mux.HandleFunc("POST /api/v1/auth/validate-auth", h.validate)
+	h.mux.HandleFunc("POST /api/v1/auth/logout", h.logout)
+	h.mux.HandleFunc("POST /api/v1/auth/change-password", h.changePassword)
+	h.mux.HandleFunc("GET /api/v1/auth/me", h.me)
+	return h.mux, nil
+}
+
+func (h *Handler) signup(w http.ResponseWriter, r *http.Request) {
+	var input struct {
+		Name            string `json:"_name"`
+		Email           string `json:"email"`
+		Password        string `json:"password"`
+		PasswordConfirm string `json:"passwordConfirm"`
+	}
+	if !decode(w, r, &input) {
+		return
+	}
+	result, err := h.store.Signup(r.Context(), auth.SignupInput{
+		Name: input.Name, Email: input.Email, Password: input.Password, PasswordConfirm: input.PasswordConfirm,
+	})
+	if err != nil {
+		writeAuthError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
+}
+
+func (h *Handler) login(w http.ResponseWriter, r *http.Request) {
+	var input struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
+	if !decode(w, r, &input) {
+		return
+	}
+	result, err := h.store.Login(r.Context(), input.Email, input.Password)
+	if err != nil {
+		writeAuthError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
+}
+
+func (h *Handler) validate(w http.ResponseWriter, r *http.Request) {
+	var input struct {
+		Token string `json:"token"`
+		Auth  *struct {
+			Token     string `json:"token"`
+			SessionID string `json:"sessionId"`
+		} `json:"auth"`
+	}
+	if !decode(w, r, &input) {
+		return
+	}
+	token := bearer(r)
+	if token == "" {
+		token = input.Token
+	}
+	if token == "" && input.Auth != nil {
+		token = input.Auth.Token
+	}
+	providedSessionID := strings.TrimSpace(r.Header.Get("X-Session-Id"))
+	if providedSessionID == "" && input.Auth != nil {
+		providedSessionID = input.Auth.SessionID
+	}
+	user, session, err := h.store.Validate(r.Context(), token)
+	if err != nil {
+		writeAuthError(w, err)
+		return
+	}
+	if providedSessionID != "" && providedSessionID != session.ID {
+		writeError(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"success": true, "token": token, "user": user, "sessionId": session.ID})
+}
+
+func (h *Handler) logout(w http.ResponseWriter, r *http.Request) {
+	user, session, ok := h.authenticate(w, r)
+	if !ok {
+		return
+	}
+	if err := h.store.Logout(r.Context(), user.ID, session.ID); err != nil {
+		writeAuthError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *Handler) changePassword(w http.ResponseWriter, r *http.Request) {
+	user, _, ok := h.authenticate(w, r)
+	if !ok {
+		return
+	}
+	var input struct {
+		Email           string `json:"email"`
+		OldPassword     string `json:"oldPassword"`
+		NewPassword     string `json:"newPassword"`
+		PasswordConfirm string `json:"confirmPassword"`
+	}
+	if !decode(w, r, &input) {
+		return
+	}
+	if input.Email == "" {
+		input.Email = user.Email
+	}
+	err := h.store.ChangePassword(r.Context(), user.ID, auth.PasswordChangeInput{
+		Email: input.Email, OldPassword: input.OldPassword,
+		NewPassword: input.NewPassword, PasswordConfirm: input.PasswordConfirm,
+	})
+	if err != nil {
+		writeAuthError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"success": true})
+}
+
+func (h *Handler) me(w http.ResponseWriter, r *http.Request) {
+	user, _, ok := h.authenticate(w, r)
+	if !ok {
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"user": user})
+}
+
+func (h *Handler) authenticate(w http.ResponseWriter, r *http.Request) (auth.User, auth.Session, bool) {
+	token := bearer(r)
+	if token == "" {
+		writeError(w, http.StatusUnauthorized, "authentication required")
+		return auth.User{}, auth.Session{}, false
+	}
+	user, session, err := h.store.Validate(r.Context(), token)
+	if err != nil {
+		writeError(w, http.StatusUnauthorized, "authentication required")
+		return auth.User{}, auth.Session{}, false
+	}
+	if providedSession := strings.TrimSpace(r.Header.Get("X-Session-Id")); providedSession != "" && providedSession != session.ID {
+		writeError(w, http.StatusUnauthorized, "authentication required")
+		return auth.User{}, auth.Session{}, false
+	}
+	return user, session, true
+}
+
+func bearer(r *http.Request) string {
+	value := strings.TrimSpace(r.Header.Get("Authorization"))
+	if len(value) < 7 || !strings.EqualFold(value[:7], "Bearer ") {
+		return ""
+	}
+	return strings.TrimSpace(value[7:])
+}
+
+func decode(w http.ResponseWriter, r *http.Request, destination any) bool {
+	r.Body = http.MaxBytesReader(w, r.Body, maxBodyBytes)
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(destination); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid JSON request body")
+		return false
+	}
+	var trailing any
+	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
+		writeError(w, http.StatusBadRequest, "request body must contain a single JSON value")
+		return false
+	}
+	return true
+}
+
+func writeAuthError(w http.ResponseWriter, err error) {
+	switch {
+	case errors.Is(err, auth.ErrUnauthorized), errors.Is(err, auth.ErrInvalidCredentials):
+		writeError(w, http.StatusUnauthorized, "invalid credentials")
+	case errors.Is(err, auth.ErrSignupDisabled):
+		writeError(w, http.StatusForbidden, "sign up is disabled")
+	case errors.Is(err, auth.ErrEmailExists):
+		writeError(w, http.StatusConflict, "email is already registered")
+	case errors.Is(err, auth.ErrInvalidInput):
+		writeError(w, http.StatusBadRequest, err.Error())
+	default:
+		writeError(w, http.StatusInternalServerError, "authentication request failed")
+	}
+}
+
+func writeError(w http.ResponseWriter, status int, message string) {
+	writeJSON(w, status, map[string]string{"error": message})
+}
+
+func writeJSON(w http.ResponseWriter, status int, value any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(value)
+}
