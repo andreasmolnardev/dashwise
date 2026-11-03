@@ -24,6 +24,7 @@
     "dev:testenv": "./scripts/dev-testenv.sh",
     "integrations": "bun scripts/integrations-cli.ts",
     "dev:backend": "cd apps/backend && go run ./cmd/dashwise",
+    "build:go-sdk-bundles": "sh scripts/build-go-sdk-bundles.sh",
     "dev:web": "cd apps/web && bunx dotenv-cli -e ../../.env -- bunx vite --host 0.0.0.0 --port 5173",
     "generate": "bun run generate:openapi-document && bun run generate:api-types && bun run generate:api-sdk && bun run mark-generated",
     "generate:openapi-document": "bun scripts/generate-openapi-contracts.ts && bun scripts/generate-openapi-json.ts",

@@ -40,6 +40,9 @@ import (
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/resourceapi"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/resources"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/resourcesync"
+	"github.com/andreasmolnardev/dashwise/apps/backend/internal/sdkintegrationsapi"
+	"github.com/andreasmolnardev/dashwise/apps/backend/internal/sdkmanager"
+	"github.com/andreasmolnardev/dashwise/apps/backend/internal/sdkproviders"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/secrets"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/shortcuts"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/shortcutsapi"
@@ -55,6 +58,7 @@ import (
 type App struct {
 	server       *http.Server
 	db           *foundation.DB
+	sdkManager   *sdkmanager.Manager
 	registry     *resources.Registry
 	resources    *resources.Store
 	views        *views.Store
@@ -183,6 +187,12 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, err
 		_ = db.Close()
 		return nil, fmt.Errorf("initialize Integrations schema: %w", err)
 	}
+	shortcutsStore, err := shortcuts.New(db, resourceStore)
+	if err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("initialize Shortcuts store: %w", err)
+	}
+	yamlRuntime := yamlruntime.New()
 	pagesStore, err := pages.New(db)
 	if err != nil {
 		_ = db.Close()
@@ -249,7 +259,7 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, err
 	}
 	monitoringHandler, err := monitoringapi.New(monitoringStore, authenticateOwner(authStore), func(r *http.Request, host monitoring.Host) error {
 		return monitoringStore.RefreshHost(r.Context(), host.OwnerID, host.ID)
-	})
+	}, monitoringapi.SDKResourceDependencies{Resources: resourceStore, Registry: registry, Integrations: integrationsStore})
 	if err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("initialize Monitoring API: %w", err)
@@ -274,10 +284,28 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, err
 		_ = db.Close()
 		return nil, fmt.Errorf("initialize Wallpapers API: %w", err)
 	}
-	integrationsHandler, err := integrationsapi.New(integrationsStore, authenticateOwner(authStore))
+	integrationsHandler, err := integrationsapi.NewWithShortcuts(integrationsStore, authenticateOwner(authStore), shortcutsStore, yamlRuntime)
 	if err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("initialize Integrations API: %w", err)
+	}
+	sdkBundles, sdkManifests, err := sdkproviders.Load(ctx)
+	if err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("load trusted SDK providers: %w", err)
+	}
+	sdkManager, err := sdkmanager.New(sdkmanager.Options{
+		Database: db, Integrations: integrationsStore, Registry: registry, Resources: resourceStore,
+		Bundles: sdkBundles,
+	})
+	if err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("initialize SDK integration manager: %w", err)
+	}
+	sdkIntegrationsHandler, err := sdkintegrationsapi.New(integrationsStore, sdkManager, authenticateOwner(authStore), sdkManifests)
+	if err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("initialize SDK integrations API: %w", err)
 	}
 	calendarHandler, err := calendarapi.New(integrationsStore, authenticateOwner(authStore), resourceStore)
 	if err != nil {
@@ -289,7 +317,6 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, err
 		_ = db.Close()
 		return nil, fmt.Errorf("initialize system API: %w", err)
 	}
-	yamlRuntime := yamlruntime.New()
 	pagesHandler, err := pagesapi.New(pagesStore, authenticateOwner(authStore), func(ctx context.Context, owner string, pageConfig map[string]any) []map[string]any {
 		return consumersapi.ResolvePageData(ctx, owner, pageConfig, integrationsStore, yamlRuntime)
 	})
@@ -301,11 +328,6 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, err
 	if err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("initialize Widgets and Glanceables API: %w", err)
-	}
-	shortcutsStore, err := shortcuts.New(db, resourceStore)
-	if err != nil {
-		_ = db.Close()
-		return nil, fmt.Errorf("initialize Shortcuts store: %w", err)
 	}
 	shortcutsHandler, err := shortcutsapi.New(shortcutsStore, authenticateOwner(authStore))
 	if err != nil {
@@ -338,6 +360,8 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, err
 	mux.Handle("/api/v1/auth/device-code", deviceAuthHandler)
 	mux.Handle("/api/v1/auth/device-code/", deviceAuthHandler)
 	mux.Handle("/api/v1/auth/", authHandler)
+	mux.Handle("/api/v1/sessions", authHandler)
+	mux.Handle("/api/v1/sessions/", authHandler)
 	mux.Handle("/api/v1/resources", resourceHandler)
 	mux.Handle("/api/v1/resources/", resourceHandler)
 	mux.Handle("/api/v1/resource-types", resourceHandler)
@@ -361,6 +385,7 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, err
 	mux.Handle("/api/v1/migration/", transferHandler)
 	mux.Handle("/api/v1/integrations", integrationsHandler)
 	mux.Handle("/api/v1/integrations/", integrationsHandler)
+	mux.Handle("/api/v1/sdk-integrations/", sdkIntegrationsHandler)
 	mux.Handle("/api/v1/locations", systemHandler)
 	mux.Handle("/api/v1/weather", systemHandler)
 	mux.Handle("/api/v1/test/bookmarks", systemHandler)
@@ -377,7 +402,7 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, err
 	mux.Handle("/api/", http.NotFoundHandler())
 	mux.Handle("/", frontend(cfg.WebDist))
 
-	app := &App{db: db, registry: registry, resources: resourceStore, views: viewStore, links: linksStore, news: newsStore, auth: authStore, server: &http.Server{
+	app := &App{db: db, sdkManager: sdkManager, registry: registry, resources: resourceStore, views: viewStore, links: linksStore, news: newsStore, auth: authStore, server: &http.Server{
 		Addr:              cfg.Address,
 		Handler:           requestLog(cors(mux), logger),
 		ReadHeaderTimeout: 10 * time.Second,
@@ -385,6 +410,24 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, err
 	}}
 	workerCtx, workerCancel := context.WithCancel(context.Background())
 	app.workerCancel = workerCancel
+	// Restore enabled provider instances after restart. Provider errors are
+	// isolated per account and are reflected through the SDK status endpoint.
+	app.workers.Add(1)
+	go func() {
+		defer app.workers.Done()
+		owners, err := authStore.ListUserIDs(workerCtx)
+		if err != nil {
+			if workerCtx.Err() == nil {
+				logger.Error("list accounts for SDK integration startup", "error", err)
+			}
+			return
+		}
+		for _, owner := range owners {
+			if err := sdkManager.StartOwner(workerCtx, owner); err != nil && workerCtx.Err() == nil {
+				logger.Error("start SDK integrations", "owner_id", owner, "error", err)
+			}
+		}
+	}()
 	app.workers.Add(1)
 	go func() {
 		defer app.workers.Done()
@@ -553,6 +596,12 @@ func (app *App) Shutdown(ctx context.Context) error {
 		app.workerCancel()
 	}
 	app.workers.Wait()
+	// Stop JavaScript provider hooks before closing the database they use.
+	if app.sdkManager != nil {
+		if err := app.sdkManager.StopAll(ctx); err != nil && serverErr == nil {
+			serverErr = err
+		}
+	}
 	closeErr := app.db.Close()
 	if serverErr != nil {
 		return serverErr

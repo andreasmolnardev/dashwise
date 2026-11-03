@@ -100,6 +100,20 @@ func (s *Store) Patch(ctx context.Context, owner, id string, patch map[string]an
 	_, err = s.resources.Upsert(ctx, item)
 	return err
 }
+
+// Action returns the configured action only after resolving the shortcut in
+// the requesting owner's resource scope.
+func (s *Store) Action(ctx context.Context, owner, id string) (any, error) {
+	item, err := s.find(ctx, owner, id)
+	if err != nil {
+		return nil, err
+	}
+	if item.Data["kind"] == "app" {
+		return nil, ErrNotFound
+	}
+	return item.Data["action"], nil
+}
+
 func (s *Store) RecordUsage(ctx context.Context, owner, id, timestamp string) error {
 	item, err := s.find(ctx, owner, id)
 	if err != nil {

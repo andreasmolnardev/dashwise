@@ -11,8 +11,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/andreasmolnardev/dashwise/apps/backend/internal/integrations"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/monitoring"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/resourceapi"
+	"github.com/andreasmolnardev/dashwise/apps/backend/internal/resources"
 	"github.com/gorilla/websocket"
 )
 
@@ -24,18 +26,33 @@ const maxBodyBytes = 1 << 20
 type RefreshFunc func(*http.Request, monitoring.Host) error
 
 type Handler struct {
-	store    *monitoring.Store
-	auth     resourceapi.Authenticate
-	refresh  RefreshFunc
-	mux      *http.ServeMux
-	upgrader websocket.Upgrader
+	store        *monitoring.Store
+	auth         resourceapi.Authenticate
+	refresh      RefreshFunc
+	sdkResources *resources.Store
+	registry     *resources.Registry
+	integrations *integrations.Store
+	mux          *http.ServeMux
+	upgrader     websocket.Upgrader
 }
 
-func New(store *monitoring.Store, authenticate resourceapi.Authenticate, refresh RefreshFunc) (http.Handler, error) {
+type SDKResourceDependencies struct {
+	Resources    *resources.Store
+	Registry     *resources.Registry
+	Integrations *integrations.Store
+}
+
+func New(store *monitoring.Store, authenticate resourceapi.Authenticate, refresh RefreshFunc, sdkDependencies ...SDKResourceDependencies) (http.Handler, error) {
 	if store == nil || authenticate == nil {
 		return nil, errors.New("monitoring API requires a store and authenticator")
 	}
 	h := &Handler{store: store, auth: authenticate, refresh: refresh, mux: http.NewServeMux(), upgrader: websocket.Upgrader{ReadBufferSize: 2048, WriteBufferSize: 4096, CheckOrigin: sameOrigin}}
+	if len(sdkDependencies) > 0 {
+		h.sdkResources = sdkDependencies[0].Resources
+		h.registry = sdkDependencies[0].Registry
+		h.integrations = sdkDependencies[0].Integrations
+	}
+	h.mux.HandleFunc("GET /api/v1/monitoring/sdk-resources", h.sdkMonitoringResources)
 	h.mux.HandleFunc("GET /api/v1/monitors", h.listMonitors)
 	h.mux.HandleFunc("POST /api/v1/monitors", h.createMonitor)
 	h.mux.HandleFunc("GET /api/v1/monitors/{id}", h.getMonitor)

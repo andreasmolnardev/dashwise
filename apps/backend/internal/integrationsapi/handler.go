@@ -11,19 +11,34 @@ import (
 
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/integrations"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/resourceapi"
+	"github.com/andreasmolnardev/dashwise/apps/backend/internal/shortcuts"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/yamlruntime"
 )
 
 const maxBody = 1 << 20
 
 type Handler struct {
-	store   *integrations.Store
-	auth    resourceapi.Authenticate
-	runtime *yamlruntime.Runtime
-	mux     *http.ServeMux
+	store     *integrations.Store
+	auth      resourceapi.Authenticate
+	runtime   *yamlruntime.Runtime
+	shortcuts *shortcuts.Store
+	mux       *http.ServeMux
 }
 
 func New(store *integrations.Store, authenticate resourceapi.Authenticate, runtimes ...*yamlruntime.Runtime) (http.Handler, error) {
+	return newHandler(store, authenticate, nil, runtimes...)
+}
+
+// NewWithShortcuts constructs the integrations API with owner-scoped shortcut
+// action lookup enabled for the legacy proxyAction endpoint.
+func NewWithShortcuts(store *integrations.Store, authenticate resourceapi.Authenticate, shortcutStore *shortcuts.Store, runtimes ...*yamlruntime.Runtime) (http.Handler, error) {
+	if shortcutStore == nil {
+		return nil, errors.New("integrations API requires a shortcuts store for proxy actions")
+	}
+	return newHandler(store, authenticate, shortcutStore, runtimes...)
+}
+
+func newHandler(store *integrations.Store, authenticate resourceapi.Authenticate, shortcutStore *shortcuts.Store, runtimes ...*yamlruntime.Runtime) (http.Handler, error) {
 	if store == nil || authenticate == nil {
 		return nil, errors.New("integrations API requires a store and authenticator")
 	}
@@ -31,13 +46,14 @@ func New(store *integrations.Store, authenticate resourceapi.Authenticate, runti
 	if len(runtimes) > 0 && runtimes[0] != nil {
 		runtime = runtimes[0]
 	}
-	h := &Handler{store: store, auth: authenticate, runtime: runtime, mux: http.NewServeMux()}
+	h := &Handler{store: store, auth: authenticate, runtime: runtime, shortcuts: shortcutStore, mux: http.NewServeMux()}
 	h.mux.HandleFunc("GET /api/v1/integrations", h.listOrGet)
 	h.mux.HandleFunc("POST /api/v1/integrations", h.create)
 	h.mux.HandleFunc("PUT /api/v1/integrations/{id}", h.update)
 	h.mux.HandleFunc("DELETE /api/v1/integrations/{id}", h.delete)
 	h.mux.HandleFunc("POST /api/v1/integrations/preview-json", h.previewJSON)
 	h.mux.HandleFunc("POST /api/v1/integrations/test-endpoint", h.testEndpoint)
+	h.mux.HandleFunc("POST /api/v1/integrations/proxyAction", h.proxyAction)
 	return h.mux, nil
 }
 
