@@ -14,6 +14,9 @@ type Config struct {
 	WebDist       string
 	LogLevel      slog.Level
 	DisableSignup bool
+	EnableSSO     bool
+	InstanceName  string
+	Version       string
 }
 
 func Load() Config {
@@ -27,6 +30,9 @@ func Load() Config {
 		WebDist:       env("WEB_DIST", "../../web/dist"),
 		LogLevel:      parseLogLevel(env("LOG_LEVEL", "info")),
 		DisableSignup: parseBool(env("DISABLE_USER_SIGNUP", "false")),
+		EnableSSO:     parseBool(env("ENABLE_SSO", "false")),
+		InstanceName:  env("INSTANCE_NAME", "Dashwise"),
+		Version:       env("DASHWISE_VERSION", "go-migration"),
 	}
 }
 

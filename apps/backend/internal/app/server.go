@@ -75,6 +75,19 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, err
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	})
+	mux.HandleFunc("GET /api/v1/appConfig", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, http.StatusOK, map[string]any{
+			"enableSSO":     cfg.EnableSSO,
+			"instance_name": cfg.InstanceName,
+		})
+	})
+	mux.HandleFunc("GET /api/v1/appInfo", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, http.StatusOK, map[string]any{
+			"updateAvailable":    false,
+			"currentAppVersion":  cfg.Version,
+			"userSignupDisabled": cfg.DisableSignup,
+		})
+	})
 	mux.Handle("/api/v1/auth/", authHandler)
 	mux.Handle("/api/v1/resources", resourceHandler)
 	mux.Handle("/api/v1/resources/", resourceHandler)
