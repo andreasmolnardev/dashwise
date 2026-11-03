@@ -1,6 +1,6 @@
 # Integration testing CLI
 
-The standalone Bun CLI exercises integrations without starting the Dashwise web app, backend server, or PocketBase. YAML definitions use the same `@dashwise/integrationskit` resolver as Dashwise. SDK definitions run locally against an in-memory host for resources, storage, activities, events, and scheduled jobs.
+The standalone Bun CLI exercises integration authoring packages and SDK bundles without starting the Dashwise app. Its YAML preview uses the TypeScript `@dashwise/integrationskit` resolver; the Go service executes production YAML through `apps/backend/internal/yamlruntime`, so use the authenticated integration preview endpoint when checking server behavior. SDK bundles run locally against an in-memory host for resources, storage, activities, events, and scheduled jobs; the Go runtime remains authoritative for deployed behavior.
 
 Run commands from the repository root:
 

@@ -1,22 +1,15 @@
+# Backing up Dashwise
 
-# Backing up PocketBase
+The Go server stores account data in the SQLite database configured by
+`DATABASE_PATH` (default `/data/dashwise.sqlite`). Wallpaper files live under
+`DATA_DIR/wallpapers` (default `/data/wallpapers`). Back up both locations.
 
-It is recommended to back your pocketbase up to be able to recover it (in case of data loss)
+For a consistent filesystem backup, stop Dashwise before copying the database
+and wallpaper directory. If Dashwise must stay online, use SQLite's backup API
+or `sqlite3`'s `.backup` command instead of copying only the main database file;
+SQLite may also have active WAL files.
 
-## How to Create a Backup
-
-To back your database up, follow these steps:
-
-
-1. **Open the PocketBase Admin Dashboard**  
-   Visit `http://<server-ip>:8092/_` and sign in using the credentials you configured through the `PB_ADMIN_EMAIL` and `PB_ADMIN_PASSWORD` environment variables.
-
-2. **Navigate to the Backup Section**  
-   In the left sidebar, click the **Tools** icon (to go to settings), then select **Backups**.
-
-3. **Initialize a New Backup**  
-   Click **Initialize new backup**.  
-   You may enter a custom name, or leave it blank to let PocketBase auto-generate one.
-
-4. **Optional, but recommended: Download the Backup File**  
-   After the backup appears in the list, hover over it and click **Download** to save it locally.
+The Migrate page creates an account export archive for moving data from the
+older PocketBase-based Dashwise installation. That archive is a migration aid,
+not a full instance backup: it does not include runtime configuration, other
+users' data, or the wallpaper directory.

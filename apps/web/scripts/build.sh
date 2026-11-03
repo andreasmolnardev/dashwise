@@ -9,7 +9,7 @@ fi
 
 # === Parse CLI arguments ===
 DOCKER_USERNAME="andreasmolnardev"
-GITHUB_REPO="https://github.com/andreasmolnardev/dashwise-next.git"
+GITHUB_REPO="https://github.com/andreasmolnardev/dashwise.git"
 BRANCH="preview"
 VERSION=""
 CONTAINERS="all"
@@ -29,7 +29,7 @@ done
 
 if [[ -z "$VERSION" ]]; then
   echo "Usage:"
-  echo "  sudo ./build.sh --version=\"1.0.0\" --build-type=preview|dev|stable [--containers=all|jobs|pocketbase|app]"
+  echo "  sudo ./build.sh --version=\"1.0.0\" --build-type=preview|dev|stable [--containers=all|app]"
   exit 1
 fi
 
@@ -65,31 +65,21 @@ else
 fi
 
 # === Tag setup based on build type ===
-declare -a TAGS_APP TAGS_PB TAGS_JOBS
+declare -a TAGS_APP
 
 case "$BUILD_TYPE" in
   dev)
     TAGS_APP=(":dev${TAG_SUFFIX}" ":develop${TAG_SUFFIX}" ":latest${TAG_SUFFIX}")
-    TAGS_PB=(":dev${TAG_SUFFIX}" ":develop${TAG_SUFFIX}" ":latest${TAG_SUFFIX}")
-    TAGS_JOBS=(":dev${TAG_SUFFIX}" ":develop${TAG_SUFFIX}" ":latest${TAG_SUFFIX}")
     ;;
   preview)
     TAGS_APP=(":${VERSION}-pre${TAG_SUFFIX}" ":preview${TAG_SUFFIX}")
-    TAGS_PB=(":${VERSION}-pre${TAG_SUFFIX}" ":preview${TAG_SUFFIX}")
-    TAGS_JOBS=(":${VERSION}-pre${TAG_SUFFIX}" ":preview${TAG_SUFFIX}")
     ;;
   stable)
     TAGS_APP=(":${VERSION}${TAG_SUFFIX}" ":stable${TAG_SUFFIX}")
-    TAGS_PB=(":${VERSION}${TAG_SUFFIX}" ":stable${TAG_SUFFIX}")
-    TAGS_JOBS=(":${VERSION}${TAG_SUFFIX}" ":stable${TAG_SUFFIX}")
     ;;
 esac
 
 # === Helper functions ===
-should_build() {
-  [[ "$CONTAINERS" == "all" ]] || [[ "$CONTAINERS" == *"$1"* ]]
-}
-
 # Attempt a manual docker push with a few retries/backoff
 manual_push_with_retries() {
   local full_tag=$1
@@ -147,12 +137,11 @@ build_and_push() {
 # === Build targets ===
 echo "🚀 Building type: ${BUILD_TYPE} | Containers: ${CONTAINERS}"
 
-if should_build "app"; then
-  build_and_push "." "./Dockerfile" "dashwise" "${TAGS_APP[@]}"
+if [[ "$CONTAINERS" != "all" && "$CONTAINERS" != "app" ]]; then
+  echo "❌ Invalid container selection: $CONTAINERS (must be all or app)"
+  exit 1
 fi
 
-if should_build "jobs"; then
-  build_and_push "." "./jobs/Dockerfile" "dashwise-jobs" "${TAGS_JOBS[@]}"
-fi
+build_and_push "." "./Dockerfile" "dashwise" "${TAGS_APP[@]}"
 
 echo "✅ All builds completed successfully!"

@@ -154,9 +154,9 @@ An integration definition is code; an integration instance is one user's
 configured connection to that code. Each instance has its own configuration,
 secret values, storage, resource namespace, and lifecycle. The settings page
 installs a trusted catalog entry, validates its configuration, and creates or
-updates an instance. The backend supervisor starts enabled instances after
-PocketBase is ready and stops them when they are disabled, removed, or the
-backend shuts down.
+updates an instance. The Go SDK manager starts enabled instances after SQLite
+and provider registration are ready, and stops them when they are disabled,
+removed, or the backend shuts down.
 
 Use `setup` to reject unusable configuration before connecting, `start` to
 establish clients and synchronize initial state, `stop` to stop accepting work,

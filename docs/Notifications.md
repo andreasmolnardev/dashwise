@@ -35,4 +35,4 @@ curl -X POST "${URL}/api/v1/notifications/${topicToken}" \
   -d '{"summary":"Backing up TV shows","details":"Backup completed"}'
 ```
 
-Every request that reaches `/api/v1/notifications/{topicToken}` with a valid topic token becomes a PocketBase `notificationItems` record for the linked topic. Dashwise’s frontend consumes the items via `/api/v1/notifications` for the current user, marks the items as `received`, and lets the UI display unread counts or badge states.
+Every request that reaches `/api/v1/notifications/{topicToken}` with a valid topic token creates an owner-scoped notification in the Go SQLite store for the linked topic. Dashwise’s frontend consumes items via `/api/v1/notifications` for the current user, marks them as received, and displays unread counts and badges.
