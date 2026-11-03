@@ -3987,7 +3987,7 @@ export interface paths {
                     /** @description JSON-encoded array of ResourceFilter values */
                     filters?: string;
                     search?: string;
-                    orderBy?: string;
+                    orderBy?: "updatedAt" | "createdAt" | "type" | "publishedAt";
                     limit?: number;
                     offset?: number;
                 };
@@ -4369,7 +4369,7 @@ export interface components {
         ResourceFilter: {
             field: string;
             /** @enum {string} */
-            operator: "eq" | "neq" | "gt" | "gte" | "lt" | "lte" | "contains" | "exists";
+            operator: "eq" | "neq" | "gt" | "gte" | "lt" | "lte" | "contains" | "containsAny" | "exists";
             value?: unknown;
         };
         ResourceQuery: {
@@ -4379,7 +4379,8 @@ export interface components {
             capabilities?: string[];
             filters?: components["schemas"]["ResourceFilter"][];
             search?: string;
-            orderBy?: string;
+            /** @enum {string} */
+            orderBy?: "updatedAt" | "createdAt" | "type" | "publishedAt";
             limit?: number;
             offset?: number;
         };

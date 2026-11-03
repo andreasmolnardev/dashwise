@@ -2061,7 +2061,7 @@ paths:
         - { name: capability, in: query, schema: { type: array, items: { type: string } }, style: form, explode: true }
         - { name: filters, in: query, description: JSON-encoded array of ResourceFilter values, schema: { type: string } }
         - { name: search, in: query, schema: { type: string, maxLength: 256 } }
-        - { name: orderBy, in: query, schema: { type: string } }
+        - { name: orderBy, in: query, schema: { type: string, enum: [updatedAt, createdAt, type, publishedAt] } }
         - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 200 } }
         - { name: offset, in: query, schema: { type: integer, minimum: 0 } }
       responses:
@@ -2326,7 +2326,7 @@ components:
       required: [field, operator]
       properties:
         field: { type: string }
-        operator: { type: string, enum: [eq, neq, gt, gte, lt, lte, contains, exists] }
+        operator: { type: string, enum: [eq, neq, gt, gte, lt, lte, contains, containsAny, exists] }
         value: {}
     ResourceQuery:
       type: object
@@ -2338,7 +2338,7 @@ components:
         capabilities: { type: array, items: { type: string } }
         filters: { type: array, items: { $ref: "#/components/schemas/ResourceFilter" } }
         search: { type: string, maxLength: 256 }
-        orderBy: { type: string }
+        orderBy: { type: string, enum: [updatedAt, createdAt, type, publishedAt] }
         limit: { type: integer, minimum: 0, maximum: 200 }
         offset: { type: integer, minimum: 0 }
     SavedViewDefinition:

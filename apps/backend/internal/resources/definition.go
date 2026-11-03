@@ -54,8 +54,8 @@ func (d Definition) Validate() error {
 		default:
 			return fmt.Errorf("field %q has unsupported type %q", field.Name, field.Type)
 		}
-		if (field.Filterable || field.Searchable) && field.Type != "string" && field.Type != "text" && field.Type != "url" && field.Type != "datetime" && field.Type != "date" && field.Type != "number" && field.Type != "integer" && field.Type != "boolean" {
-			return fmt.Errorf("field %q must be a scalar type to be filterable or searchable", field.Name)
+		if field.Searchable && field.Type != "string" && field.Type != "text" && field.Type != "url" && field.Type != "datetime" && field.Type != "date" && field.Type != "number" && field.Type != "integer" && field.Type != "boolean" {
+			return fmt.Errorf("field %q must be a scalar type to be searchable", field.Name)
 		}
 		switch field.Type {
 		case "string", "text", "url", "datetime", "date", "number", "integer", "boolean", "object", "array":

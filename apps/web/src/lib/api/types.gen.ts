@@ -51,7 +51,7 @@ export type ResourceType = {
 
 export type ResourceFilter = {
     field: string;
-    operator: 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'contains' | 'exists';
+    operator: 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'contains' | 'containsAny' | 'exists';
     value?: unknown;
 };
 
@@ -62,7 +62,7 @@ export type ResourceQuery = {
     capabilities?: Array<string>;
     filters?: Array<ResourceFilter>;
     search?: string;
-    orderBy?: string;
+    orderBy?: 'updatedAt' | 'createdAt' | 'type' | 'publishedAt';
     limit?: number;
     offset?: number;
 };
@@ -3356,7 +3356,7 @@ export type GetResourcesData = {
          */
         filters?: string;
         search?: string;
-        orderBy?: string;
+        orderBy?: 'updatedAt' | 'createdAt' | 'type' | 'publishedAt';
         limit?: number;
         offset?: number;
     };

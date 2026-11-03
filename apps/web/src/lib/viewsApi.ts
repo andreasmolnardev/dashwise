@@ -13,6 +13,7 @@ export type ViewFilterOperator =
   | "lt"
   | "lte"
   | "contains"
+  | "containsAny"
   | "exists";
 
 export type ViewFilter = {
@@ -28,7 +29,7 @@ export type ViewResourceQuery = {
   capabilities: string[];
   filters: ViewFilter[];
   search: string;
-  orderBy: "updatedAt" | "createdAt" | "type";
+  orderBy: "updatedAt" | "createdAt" | "type" | "publishedAt";
   limit: number;
   offset: number;
 };

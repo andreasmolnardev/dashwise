@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import useAuth from "@/context/useAuth";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
@@ -28,12 +28,11 @@ import { Label } from "@/components/ui/label";
 import IconPickerComponent from "@/components/settings/IconPicker";
 import NewsFeedEditModal from "./NewsFeedEditModal";
 import SubscriptionDetailsForm from "./SubscriptionDetailsForm";
-import { useNewsSidebarData } from "./NewsLayout";
+import { useNewsSidebarData, type FeedRecord } from "./NewsLayout";
 import { useNotification } from "@/context/NotificationContext";
 import {
     createNewsFeedRecordAction,
     deleteNewsSavedArticleAction,
-    getNewsFeedAction,
     getNewsFeedRecordAction,
     getNewsFeedMetadataAction,
     getNewsSubscriptionJsonAction,
@@ -45,7 +44,6 @@ import {
     updateNewsFeedAction,
     updateNewsFeedRecordAction,
     updateNewsSavedArticleReadStateAction,
-    type NewsFeedPageResponse,
 } from '@/lib/apiClient';
 import type {
     NewsFeedDraft,
@@ -55,6 +53,8 @@ import type {
     NewsSavedArticlesResponse,
 } from "@dashwise/types/sdk";
 import { useApiQuery } from "@/hooks/useApiQuery";
+import { useResourceView } from "@/hooks/useResourceView";
+import type { ViewResourceQuery } from "@/lib/viewsApi";
 import { queryKeys } from "@/lib/queryClient";
 
 export default function NewsDashboardComponent() {
@@ -94,13 +94,32 @@ export default function NewsDashboardComponent() {
     const itemsPerPage = 15;
     const { token, withAuth } = useAuth();
     const queryClient = useQueryClient();
-    const feedQuery = useApiQuery<NewsFeedPageResponse | NewsSavedArticlesResponse>(
-        activeSavedList
-            ? queryKeys.news.savedArticles(token, activeSavedList)
-            : queryKeys.news.feed(token, activeFeedId, currentPage),
-        async (auth) => activeSavedList
-            ? getNewsSavedArticlesAction(auth, activeSavedList)
-            : getNewsFeedAction(auth, activeFeedId, itemsPerPage, (currentPage - 1) * itemsPerPage),
+    const resourceFeedIds = useMemo(
+        () => resolveNewsFeedSubscriptionIds(activeFeedId, subscriptions, feeds),
+        [activeFeedId, feeds, subscriptions],
+    );
+    const resourceQuery = useMemo<ViewResourceQuery>(() => ({
+        types: ["news.article"],
+        provider: "dashwise",
+        providerInstanceId: "news",
+        capabilities: [],
+        filters: activeFeedId === "all"
+            ? []
+            : [{
+                field: "feedIds",
+                operator: "containsAny",
+                value: resourceFeedIds.length ? resourceFeedIds : ["__no_matching_news_feed__"],
+            }],
+        search: "",
+        orderBy: "publishedAt",
+        limit: itemsPerPage,
+        offset: (currentPage - 1) * itemsPerPage,
+    }), [activeFeedId, currentPage, resourceFeedIds]);
+    const resourceFeedQuery = useResourceView(resourceQuery, !activeSavedList);
+    const savedListQuery = useApiQuery<NewsSavedArticlesResponse>(
+        queryKeys.news.savedArticles(token, activeSavedList),
+        (auth) => getNewsSavedArticlesAction(auth, activeSavedList),
+        { enabled: Boolean(activeSavedList) },
     );
     const allSavedArticlesQuery = useApiQuery<NewsSavedArticlesResponse>(
         queryKeys.news.savedArticles(token, null),
@@ -108,11 +127,14 @@ export default function NewsDashboardComponent() {
         { enabled: !activeSavedList },
     );
 
-    const feedData = !activeSavedList && feedQuery.data && "items" in feedQuery.data
-        ? feedQuery.data
+    const feedData = !activeSavedList && resourceFeedQuery.data
+        ? {
+            items: resourceFeedQuery.data.items.map(newsResourceToFeedItem),
+            total: resourceFeedQuery.data.total,
+        }
         : undefined;
-    const savedArticlesData = activeSavedList && feedQuery.data && "articles" in feedQuery.data
-        ? feedQuery.data
+    const savedArticlesData = activeSavedList && savedListQuery.data
+        ? savedListQuery.data
         : !activeSavedList
             ? allSavedArticlesQuery.data
             : undefined;
@@ -187,16 +209,18 @@ export default function NewsDashboardComponent() {
                 enableTopicGrouping: feed.enableTopicGrouping !== false,
                 ignoreDescriptionForTopicGrouping: feed.ignoreDescriptionForTopicGrouping === true,
             }, view)),
-        onSuccess: () => {
+        onSuccess: async () => {
             reloadSidebar();
+            await queryClient.invalidateQueries({ queryKey: ["api", token, "resources", "query"] });
         },
     });
 
     const unsubscribeFeedMutation = useMutation({
         mutationFn: (subscription: NewsFeedDraft) =>
             withAuth((auth) => unsubscribeNewsFeedAction(auth, String(subscription.id ?? subscription.url ?? ""))),
-        onSuccess: () => {
+        onSuccess: async () => {
             reloadSidebar();
+            await queryClient.invalidateQueries({ queryKey: ["api", token, "resources", "query"] });
         },
     });
 
@@ -215,8 +239,9 @@ export default function NewsDashboardComponent() {
                 enableTopicGrouping: feed.enableTopicGrouping !== false,
                 ignoreDescriptionForTopicGrouping: feed.ignoreDescriptionForTopicGrouping === true,
             }, view)),
-        onSuccess: () => {
+        onSuccess: async () => {
             reloadSidebar();
+            await queryClient.invalidateQueries({ queryKey: ["api", token, "resources", "query"] });
         },
     });
 
@@ -228,6 +253,9 @@ export default function NewsDashboardComponent() {
 
             await queryClient.invalidateQueries({
                 queryKey: ["api", token, ...queryKeys.news.feedRoot(token)],
+            });
+            await queryClient.invalidateQueries({
+                queryKey: ["api", token, "resources", "query"],
             });
         },
     });
@@ -243,38 +271,6 @@ export default function NewsDashboardComponent() {
             withAuth((auth) => updateNewsFeedRecordAction(auth, payload)),
         onSuccess: reloadSidebar,
     });
-
-    useEffect(() => {
-        if (activeSavedList || !token || !feedData) return;
-
-        const totalPages = Math.ceil(feedData.total / itemsPerPage);
-        const nextPage = currentPage + 1;
-        if (nextPage > totalPages) return;
-
-        void queryClient.prefetchQuery({
-            queryKey: [
-                "api",
-                token,
-                ...queryKeys.news.feed(token, activeFeedId, nextPage),
-            ],
-            queryFn: () => withAuth((auth) =>
-                getNewsFeedAction(
-                    auth,
-                    activeFeedId,
-                    itemsPerPage,
-                    (nextPage - 1) * itemsPerPage,
-                )
-            ),
-        });
-    }, [
-        activeFeedId,
-        activeSavedList,
-        currentPage,
-        feedData,
-        queryClient,
-        token,
-        withAuth,
-    ]);
 
     // --- Auth redirect ---
     useEffect(() => {
@@ -493,7 +489,7 @@ export default function NewsDashboardComponent() {
         try {
             await refreshFeedMutation.mutateAsync(targetFeedIds);
             setRefreshStatus("Fetching latest articles…");
-            await feedQuery.refetch();
+            await resourceFeedQuery.refetch();
         } catch (err) {
             console.error("Refresh failed:", err);
         } finally {
@@ -525,12 +521,8 @@ export default function NewsDashboardComponent() {
                 const result = isUpdate
                     ? await updateFeed(String(editingFeed?.id ?? editingFeed?.url ?? ""), feed, view)
                     : await subscribeFeed(feed, view);
-                const feedView = (result as { feedView?: NewsFeedPageResponse } | undefined)?.feedView;
-                if (token && view && feedView) {
-                    queryClient.setQueryData(
-                        ["api", token, ...queryKeys.news.feed(token, view.feedId, currentPage)],
-                        feedView,
-                    );
+                if (token && result) {
+                    await queryClient.invalidateQueries({ queryKey: ["api", token, "resources", "query"] });
                 }
                 dismiss(notificationId);
                 notify({ title: "Feed refreshed", description: "The latest articles are ready." });
@@ -653,7 +645,9 @@ export default function NewsDashboardComponent() {
         }
     };
 
-    const isPageLoading = feedQuery.isPending || !feedQuery.data;
+    const isPageLoading = activeSavedList
+        ? savedListQuery.isPending || !savedListQuery.data
+        : resourceFeedQuery.isPending || !resourceFeedQuery.data;
     const visibleTotalPages = Math.ceil(feedTotal / itemsPerPage);
 
     const allArticles = [...feed].sort((a, b) =>
@@ -1245,6 +1239,60 @@ function NewsArticle({ item, iconUrl, isSaved, isUnread, onSave, onSaveOptions, 
             </div>
         </div>
     );
+}
+
+function resolveNewsFeedSubscriptionIds(
+    activeFeedId: string,
+    subscriptions: Array<{ id?: string; url: string }>,
+    feeds: FeedRecord[],
+) {
+    if (activeFeedId === "all") return [];
+    const subscriptionIds = new Set(subscriptions.map((subscription) => String(subscription.id || "")).filter(Boolean));
+    const direct = subscriptions.find((subscription) => subscription.id === activeFeedId || subscription.url === activeFeedId);
+    if (direct?.id) return [direct.id];
+
+    const feedsById = new Map(feeds.map((feed) => [feed.id, feed]));
+    const memo = new Map<string, Set<string>>();
+    const visiting = new Set<string>();
+    const visit = (feedId: string): Set<string> => {
+        const cached = memo.get(feedId);
+        if (cached) return new Set(cached);
+        if (visiting.has(feedId)) return new Set();
+        visiting.add(feedId);
+        const feed = feedsById.get(feedId);
+        const selected = new Set((feed?.subscriptionRefs ?? []).filter((id) => subscriptionIds.has(id)));
+        for (const childId of feed?.includedFeedRefs ?? []) {
+            for (const id of visit(childId)) selected.add(id);
+        }
+        for (const id of feed?.excludedSubscriptionRefs ?? []) selected.delete(id);
+        visiting.delete(feedId);
+        memo.set(feedId, new Set(selected));
+        return selected;
+    };
+    return [...visit(activeFeedId)];
+}
+
+function newsResourceToFeedItem(resource: { providerResourceId: string; data: Record<string, unknown> }): NewsFeedItem {
+    const sourceIds = stringValues(resource.data.feedIds);
+    return {
+        ...resource.data,
+        title: stringValue(resource.data.title),
+        link: stringValue(resource.data.url),
+        pubDate: stringValue(resource.data.publishedAt),
+        subscription_id: sourceIds[0] ?? stringValue(resource.data.feedId),
+        subscription_name: stringValue(resource.data.source),
+        description: stringValue(resource.data.summary),
+        dedupeKey: resource.providerResourceId,
+        isRead: resource.data.isRead === true,
+    };
+}
+
+function stringValue(value: unknown) {
+    return typeof value === "string" ? value : "";
+}
+
+function stringValues(value: unknown) {
+    return Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === "string") : [];
 }
 
 export function formatRelativeTime(isoDate: string): string {

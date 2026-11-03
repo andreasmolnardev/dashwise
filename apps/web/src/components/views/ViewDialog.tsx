@@ -31,7 +31,7 @@ import type {
 } from "@/lib/viewsApi";
 
 const FILTER_OPERATORS: ViewFilterOperator[] = [
-  "eq", "neq", "gt", "gte", "lt", "lte", "contains", "exists",
+  "eq", "neq", "gt", "gte", "lt", "lte", "contains", "containsAny", "exists",
 ];
 
 type FilterDraft = { field: string; operator: ViewFilterOperator; value: string };
@@ -43,7 +43,7 @@ type ViewForm = {
   providerInstanceId: string;
   capabilitiesCsv: string;
   search: string;
-  orderBy: "updatedAt" | "createdAt" | "type";
+  orderBy: "updatedAt" | "createdAt" | "type" | "publishedAt";
   limit: string;
   offset: string;
   filters: FilterDraft[];
@@ -126,7 +126,9 @@ function formToDefinition(form: ViewForm): ViewResourceQuery | { error: string }
     filters.push({
       field: draft.field.trim(),
       operator: draft.operator,
-      value: draft.operator === "eq" || draft.operator === "neq"
+      value: draft.operator === "containsAny"
+        ? csvToList(raw)
+        : draft.operator === "eq" || draft.operator === "neq"
         ? (Number.isFinite(numeric) ? numeric : raw)
         : raw,
     });
@@ -295,6 +297,7 @@ export default function ViewDialog({
                   <SelectItem value="updatedAt">updatedAt</SelectItem>
                   <SelectItem value="createdAt">createdAt</SelectItem>
                   <SelectItem value="type">type</SelectItem>
+                  <SelectItem value="publishedAt">publishedAt</SelectItem>
                 </SelectContent>
               </Select>
             </div>

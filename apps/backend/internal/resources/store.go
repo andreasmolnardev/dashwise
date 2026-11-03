@@ -265,9 +265,14 @@ func (s *Store) Query(ctx context.Context, query Query) (Page, error) {
 		orderBy = "created_at DESC, id ASC"
 	case "type":
 		orderBy = "type ASC, id ASC"
+	case "publishedAt":
+		if len(query.Types) != 1 || query.Types[0] != "news.article" {
+			return Page{}, errors.New("orderBy publishedAt is supported only for news.article")
+		}
+		orderBy = "json_extract(data_json, '$.publishedAt') DESC, id ASC"
 	case "updatedAt", "":
 	default:
-		return Page{}, errors.New("orderBy must be updatedAt, createdAt, or type")
+		return Page{}, errors.New("orderBy must be updatedAt, createdAt, type, or publishedAt for news.article")
 	}
 	querySQL := resourceSelect + compiled + ` ORDER BY ` + orderBy + ` LIMIT ? OFFSET ?`
 	queryArgs := append(append([]any{}, args...), limit, offset)

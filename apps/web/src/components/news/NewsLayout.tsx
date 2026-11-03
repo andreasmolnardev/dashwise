@@ -28,7 +28,9 @@ export interface FeedRecord {
     id: string;
     title?: string;
     icon?: string;
+    subscriptionRefs?: string[];
     includedFeedRefs?: string[];
+    excludedSubscriptionRefs?: string[];
 }
 
 interface SavedListRecord {

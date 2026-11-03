@@ -38,7 +38,7 @@ func BuiltinDefinitions() []Definition {
 				{Name: "url", Type: "url", Searchable: true},
 				{Name: "source", Type: "string", Filterable: true, Searchable: true},
 				{Name: "feedId", Type: "string", Filterable: true},
-				{Name: "feedIds", Type: "array"},
+				{Name: "feedIds", Type: "array", Filterable: true},
 				{Name: "isRead", Type: "boolean", Filterable: true},
 				{Name: "publishedAt", Type: "datetime", Filterable: true},
 			},

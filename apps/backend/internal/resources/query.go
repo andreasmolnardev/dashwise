@@ -7,7 +7,8 @@ import (
 )
 
 // Filter is a constrained predicate over a declared, filterable top-level
-// resource field. Operators are eq, neq, gt, gte, lt, lte, contains, exists.
+// resource field. Operators include scalar comparisons, contains, containsAny,
+// and exists.
 type Filter struct {
 	Field    string `json:"field"`
 	Operator string `json:"operator"`
@@ -152,6 +153,26 @@ func (s *Store) compileQuery(ctx context.Context, query Query) (string, []any, e
 func compileFilter(fieldDefinition FieldDefinition, filter Filter) (string, []any, error) {
 	path := "$." + fieldDefinition.Name // Definition validation restricts this to a safe identifier.
 	field := "json_extract(data_json, ?)"
+	if filter.Operator == "containsAny" {
+		if fieldDefinition.Type != "array" {
+			return "", nil, errors.New("containsAny operator requires an array field")
+		}
+		values, ok := filter.Value.([]any)
+		if !ok || len(values) == 0 || len(values) > 100 {
+			return "", nil, errors.New("containsAny filter value must be a non-empty array of at most 100 values")
+		}
+		placeholders := make([]string, len(values))
+		args := []any{path}
+		for index, value := range values {
+			text, ok := value.(string)
+			if !ok || text == "" || len(text) > 256 {
+				return "", nil, errors.New("containsAny filter values must be non-empty strings up to 256 bytes")
+			}
+			placeholders[index] = "?"
+			args = append(args, text)
+		}
+		return "EXISTS (SELECT 1 FROM json_each(COALESCE(" + field + ", '[]')) matching_value WHERE matching_value.value IN (" + join(placeholders, ",") + "))", args, nil
+	}
 	if filter.Operator == "exists" {
 		if filter.Value == nil {
 			return "json_type(data_json, ?) IS NOT NULL", []any{path}, nil
