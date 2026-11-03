@@ -17,7 +17,6 @@ mock.module("../lib/apiClient", () => ({
 }));
 mock.module("../context/LocalizationContext", () => ({ LocalizationProvider: passthrough }));
 mock.module("../context/NotificationContext", () => ({ NotificationProvider: passthrough }));
-mock.module("../context/MediaPlayerContext", () => ({ MediaPlayerProvider: passthrough }));
 mock.module("../context/ActivityContext", () => ({ ActivityProvider: passthrough }));
 mock.module("./widgets/SearchBar", () => ({ default: () => null }));
 mock.module("./auth/SessionNamePrompt", () => ({ default: () => null }));
