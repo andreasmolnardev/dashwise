@@ -51,6 +51,9 @@
 			"name": "pageConfig"
 		},
 		{
+			"name": "resources"
+		},
+		{
 			"name": "shortcuts"
 		},
 		{
@@ -58,6 +61,9 @@
 		},
 		{
 			"name": "test"
+		},
+		{
+			"name": "views"
 		},
 		{
 			"name": "wallpapers"
@@ -106,7 +112,17 @@
 									"type": "object",
 									"properties": {
 										"updateAvailable": {
-											"type": "boolean"
+											"oneOf": [
+												{
+													"type": "string"
+												},
+												{
+													"type": "boolean",
+													"enum": [
+														false
+													]
+												}
+											]
 										},
 										"currentAppVersion": {
 											"type": "string"
@@ -3482,6 +3498,516 @@
 					}
 				}
 			}
+		},
+		"/resource-types": {
+			"get": {
+				"tags": [
+					"resources"
+				],
+				"summary": "List resource type definitions available to the authenticated user",
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Resource type definitions",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"required": [
+										"types"
+									],
+									"properties": {
+										"types": {
+											"type": "array",
+											"items": {
+												"$ref": "#/components/schemas/ResourceType"
+											}
+										}
+									}
+								}
+							}
+						}
+					},
+					"401": {
+						"$ref": "#/components/responses/JsonUnauthorized"
+					}
+				}
+			}
+		},
+		"/resources": {
+			"get": {
+				"tags": [
+					"resources"
+				],
+				"summary": "Query owner-scoped resources",
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "type",
+						"in": "query",
+						"schema": {
+							"type": "array",
+							"items": {
+								"type": "string"
+							}
+						},
+						"style": "form",
+						"explode": true
+					},
+					{
+						"name": "provider",
+						"in": "query",
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "providerInstanceId",
+						"in": "query",
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "capability",
+						"in": "query",
+						"schema": {
+							"type": "array",
+							"items": {
+								"type": "string"
+							}
+						},
+						"style": "form",
+						"explode": true
+					},
+					{
+						"name": "filters",
+						"in": "query",
+						"description": "JSON-encoded array of ResourceFilter values",
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "search",
+						"in": "query",
+						"schema": {
+							"type": "string",
+							"maxLength": 256
+						}
+					},
+					{
+						"name": "orderBy",
+						"in": "query",
+						"schema": {
+							"type": "string",
+							"enum": [
+								"updatedAt",
+								"createdAt",
+								"type",
+								"publishedAt"
+							]
+						}
+					},
+					{
+						"name": "limit",
+						"in": "query",
+						"schema": {
+							"type": "integer",
+							"minimum": 1,
+							"maximum": 200
+						}
+					},
+					{
+						"name": "offset",
+						"in": "query",
+						"schema": {
+							"type": "integer",
+							"minimum": 0
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Matching resources",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ResourcePage"
+								}
+							}
+						}
+					},
+					"400": {
+						"$ref": "#/components/responses/JsonBadRequest"
+					},
+					"401": {
+						"$ref": "#/components/responses/JsonUnauthorized"
+					}
+				}
+			},
+			"post": {
+				"tags": [
+					"resources"
+				],
+				"summary": "Upsert a resource supplied by an authenticated integration or internal producer",
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/ResourceWrite"
+							}
+						}
+					}
+				},
+				"responses": {
+					"201": {
+						"description": "Saved resource",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"required": [
+										"resource"
+									],
+									"properties": {
+										"resource": {
+											"$ref": "#/components/schemas/Resource"
+										}
+									}
+								}
+							}
+						}
+					},
+					"400": {
+						"$ref": "#/components/responses/JsonBadRequest"
+					},
+					"401": {
+						"$ref": "#/components/responses/JsonUnauthorized"
+					}
+				}
+			}
+		},
+		"/resources/{id}": {
+			"parameters": [
+				{
+					"$ref": "#/components/parameters/Id"
+				}
+			],
+			"get": {
+				"tags": [
+					"resources"
+				],
+				"summary": "Get an owner-scoped resource",
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Resource",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"required": [
+										"resource"
+									],
+									"properties": {
+										"resource": {
+											"$ref": "#/components/schemas/Resource"
+										}
+									}
+								}
+							}
+						}
+					},
+					"401": {
+						"$ref": "#/components/responses/JsonUnauthorized"
+					},
+					"404": {
+						"$ref": "#/components/responses/JsonNotFound"
+					}
+				}
+			},
+			"delete": {
+				"tags": [
+					"resources"
+				],
+				"summary": "Delete an owner-scoped resource",
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"responses": {
+					"204": {
+						"description": "Resource deleted"
+					},
+					"401": {
+						"$ref": "#/components/responses/JsonUnauthorized"
+					},
+					"404": {
+						"$ref": "#/components/responses/JsonNotFound"
+					}
+				}
+			}
+		},
+		"/views": {
+			"get": {
+				"tags": [
+					"views"
+				],
+				"summary": "List the authenticated user's saved views",
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Saved views",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"required": [
+										"views"
+									],
+									"properties": {
+										"views": {
+											"type": "array",
+											"items": {
+												"$ref": "#/components/schemas/SavedView"
+											}
+										}
+									}
+								}
+							}
+						}
+					},
+					"401": {
+						"$ref": "#/components/responses/JsonUnauthorized"
+					}
+				}
+			},
+			"post": {
+				"tags": [
+					"views"
+				],
+				"summary": "Create a saved resource view",
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/SavedViewWrite"
+							}
+						}
+					}
+				},
+				"responses": {
+					"201": {
+						"description": "Created saved view",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"required": [
+										"view"
+									],
+									"properties": {
+										"view": {
+											"$ref": "#/components/schemas/SavedView"
+										}
+									}
+								}
+							}
+						}
+					},
+					"400": {
+						"$ref": "#/components/responses/JsonBadRequest"
+					},
+					"401": {
+						"$ref": "#/components/responses/JsonUnauthorized"
+					}
+				}
+			}
+		},
+		"/views/{id}": {
+			"parameters": [
+				{
+					"$ref": "#/components/parameters/Id"
+				}
+			],
+			"get": {
+				"tags": [
+					"views"
+				],
+				"summary": "Get a saved view",
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Saved view",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"required": [
+										"view"
+									],
+									"properties": {
+										"view": {
+											"$ref": "#/components/schemas/SavedView"
+										}
+									}
+								}
+							}
+						}
+					},
+					"401": {
+						"$ref": "#/components/responses/JsonUnauthorized"
+					},
+					"404": {
+						"$ref": "#/components/responses/JsonNotFound"
+					}
+				}
+			},
+			"put": {
+				"tags": [
+					"views"
+				],
+				"summary": "Replace a saved view",
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/SavedViewWrite"
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "Updated saved view",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"required": [
+										"view"
+									],
+									"properties": {
+										"view": {
+											"$ref": "#/components/schemas/SavedView"
+										}
+									}
+								}
+							}
+						}
+					},
+					"400": {
+						"$ref": "#/components/responses/JsonBadRequest"
+					},
+					"401": {
+						"$ref": "#/components/responses/JsonUnauthorized"
+					},
+					"404": {
+						"$ref": "#/components/responses/JsonNotFound"
+					}
+				}
+			},
+			"delete": {
+				"tags": [
+					"views"
+				],
+				"summary": "Delete a saved view",
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"responses": {
+					"204": {
+						"description": "Saved view deleted"
+					},
+					"401": {
+						"$ref": "#/components/responses/JsonUnauthorized"
+					},
+					"404": {
+						"$ref": "#/components/responses/JsonNotFound"
+					}
+				}
+			}
+		},
+		"/views/{id}/resources": {
+			"parameters": [
+				{
+					"$ref": "#/components/parameters/Id"
+				}
+			],
+			"get": {
+				"tags": [
+					"views"
+				],
+				"summary": "Evaluate a saved view and return its resource page",
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Evaluated resource page",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ResourcePage"
+								}
+							}
+						}
+					},
+					"400": {
+						"$ref": "#/components/responses/JsonBadRequest"
+					},
+					"401": {
+						"$ref": "#/components/responses/JsonUnauthorized"
+					},
+					"404": {
+						"$ref": "#/components/responses/JsonNotFound"
+					}
+				}
+			}
 		}
 	},
 	"components": {
@@ -3496,6 +4022,308 @@
 			}
 		},
 		"schemas": {
+			"Resource": {
+				"type": "object",
+				"required": [
+					"id",
+					"type",
+					"provider",
+					"providerResourceId",
+					"ownerId",
+					"data",
+					"capabilities",
+					"state",
+					"createdAt",
+					"updatedAt"
+				],
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"type": {
+						"type": "string"
+					},
+					"provider": {
+						"type": "string"
+					},
+					"providerInstanceId": {
+						"type": "string"
+					},
+					"providerResourceId": {
+						"type": "string"
+					},
+					"ownerId": {
+						"type": "string"
+					},
+					"data": {
+						"type": "object",
+						"additionalProperties": true
+					},
+					"capabilities": {
+						"type": "array",
+						"items": {
+							"type": "string"
+						}
+					},
+					"state": {
+						"type": "string"
+					},
+					"createdAt": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"updatedAt": {
+						"type": "string",
+						"format": "date-time"
+					}
+				}
+			},
+			"ResourceWrite": {
+				"type": "object",
+				"additionalProperties": false,
+				"required": [
+					"type",
+					"provider",
+					"providerInstanceId",
+					"providerResourceId",
+					"data"
+				],
+				"properties": {
+					"type": {
+						"type": "string"
+					},
+					"provider": {
+						"type": "string"
+					},
+					"providerInstanceId": {
+						"type": "string"
+					},
+					"providerResourceId": {
+						"type": "string"
+					},
+					"data": {
+						"type": "object",
+						"additionalProperties": true
+					},
+					"capabilities": {
+						"type": "array",
+						"items": {
+							"type": "string"
+						}
+					},
+					"state": {
+						"type": "string"
+					}
+				}
+			},
+			"ResourcePage": {
+				"type": "object",
+				"required": [
+					"items",
+					"total",
+					"limit",
+					"offset"
+				],
+				"properties": {
+					"items": {
+						"type": "array",
+						"items": {
+							"$ref": "#/components/schemas/Resource"
+						}
+					},
+					"total": {
+						"type": "integer",
+						"minimum": 0
+					},
+					"limit": {
+						"type": "integer",
+						"minimum": 0
+					},
+					"offset": {
+						"type": "integer",
+						"minimum": 0
+					}
+				}
+			},
+			"ResourceType": {
+				"type": "object",
+				"required": [
+					"type",
+					"version",
+					"title",
+					"fields",
+					"capabilities"
+				],
+				"properties": {
+					"type": {
+						"type": "string"
+					},
+					"version": {
+						"type": "integer"
+					},
+					"title": {
+						"type": "string"
+					},
+					"fields": {
+						"type": "array",
+						"items": {
+							"type": "object",
+							"additionalProperties": true
+						}
+					},
+					"capabilities": {
+						"type": "array",
+						"items": {
+							"type": "string"
+						}
+					}
+				}
+			},
+			"ResourceFilter": {
+				"type": "object",
+				"additionalProperties": false,
+				"required": [
+					"field",
+					"operator"
+				],
+				"properties": {
+					"field": {
+						"type": "string"
+					},
+					"operator": {
+						"type": "string",
+						"enum": [
+							"eq",
+							"neq",
+							"gt",
+							"gte",
+							"lt",
+							"lte",
+							"contains",
+							"containsAny",
+							"exists"
+						]
+					},
+					"value": {}
+				}
+			},
+			"ResourceQuery": {
+				"type": "object",
+				"additionalProperties": false,
+				"properties": {
+					"types": {
+						"type": "array",
+						"items": {
+							"type": "string"
+						}
+					},
+					"provider": {
+						"type": "string"
+					},
+					"providerInstanceId": {
+						"type": "string"
+					},
+					"capabilities": {
+						"type": "array",
+						"items": {
+							"type": "string"
+						}
+					},
+					"filters": {
+						"type": "array",
+						"items": {
+							"$ref": "#/components/schemas/ResourceFilter"
+						}
+					},
+					"search": {
+						"type": "string",
+						"maxLength": 256
+					},
+					"orderBy": {
+						"type": "string",
+						"enum": [
+							"updatedAt",
+							"createdAt",
+							"type",
+							"publishedAt"
+						]
+					},
+					"limit": {
+						"type": "integer",
+						"minimum": 0,
+						"maximum": 200
+					},
+					"offset": {
+						"type": "integer",
+						"minimum": 0
+					}
+				}
+			},
+			"SavedViewDefinition": {
+				"type": "object",
+				"additionalProperties": false,
+				"required": [
+					"query"
+				],
+				"properties": {
+					"query": {
+						"$ref": "#/components/schemas/ResourceQuery"
+					},
+					"presentation": {
+						"type": "object",
+						"additionalProperties": true
+					}
+				}
+			},
+			"SavedViewWrite": {
+				"type": "object",
+				"additionalProperties": false,
+				"required": [
+					"name",
+					"definition"
+				],
+				"properties": {
+					"name": {
+						"type": "string",
+						"maxLength": 120
+					},
+					"definition": {
+						"$ref": "#/components/schemas/SavedViewDefinition"
+					}
+				}
+			},
+			"SavedView": {
+				"allOf": [
+					{
+						"$ref": "#/components/schemas/SavedViewWrite"
+					},
+					{
+						"type": "object",
+						"required": [
+							"id",
+							"ownerId",
+							"createdAt",
+							"updatedAt"
+						],
+						"properties": {
+							"id": {
+								"type": "string"
+							},
+							"ownerId": {
+								"type": "string"
+							},
+							"createdAt": {
+								"type": "string",
+								"format": "date-time"
+							},
+							"updatedAt": {
+								"type": "string",
+								"format": "date-time"
+							}
+						}
+					}
+				]
+			},
 			"SdkIntegrationInstanceCreate": {
 				"type": "object",
 				"additionalProperties": false,

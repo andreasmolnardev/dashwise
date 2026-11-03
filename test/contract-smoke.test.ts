@@ -13,7 +13,7 @@ test("the checked-in OpenAPI contract has its required document fields", async (
   expect(Object.keys(specification.paths).length).toBeGreaterThan(0);
   expect(specification.paths["/appInfo"].get.responses["200"].content["application/json"].schema.properties)
     .toEqual({
-      updateAvailable: { type: "boolean" },
+      updateAvailable: { oneOf: [{ type: "string" }, { type: "boolean", enum: [false] }] },
       currentAppVersion: { type: "string" },
       userSignupDisabled: { type: "boolean" },
     });
