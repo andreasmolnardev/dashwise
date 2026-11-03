@@ -57,7 +57,11 @@ paths:
                 type: object
                 properties:
                   updateAvailable:
-                    type: boolean
+                    oneOf:
+                      - type: string
+                      - type: boolean
+                        enum:
+                          - false
                   currentAppVersion:
                     type: string
                   userSignupDisabled:

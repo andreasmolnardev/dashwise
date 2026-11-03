@@ -18,6 +18,13 @@ function zodToOpenApiSchema(schema: any): Record<string, unknown> {
       return { type: "string" };
     case "ZodBoolean":
       return { type: "boolean" };
+    case "ZodLiteral": {
+      const value = schema._def.value;
+      const type = typeof value === "string" ? "string" : typeof value === "boolean" ? "boolean" : typeof value === "number" ? "number" : undefined;
+      return type ? { type, enum: [value] } : {};
+    }
+    case "ZodUnion":
+      return { oneOf: schema._def.options.map(zodToOpenApiSchema) };
     case "ZodNumber":
       return { type: "number" };
     case "ZodUnknown":
