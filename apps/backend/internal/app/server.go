@@ -259,7 +259,7 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, err
 		_ = db.Close()
 		return nil, fmt.Errorf("initialize Notifications API: %w", err)
 	}
-	activitiesHandler, err := activitiesapi.New(activitiesStore, authenticateOwner(authStore), integrationsStore)
+	activitiesHandler, err := activitiesapi.NewWithDefinitions(activitiesStore, authenticateOwner(authStore), integrationsStore, notificationsStore, resourceStore, registry)
 	if err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("initialize Activities API: %w", err)
@@ -406,7 +406,53 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, err
 			logger.Error("native resource sync stopped", "error", err)
 		}
 	}()
+	app.workers.Add(1)
+	go func() {
+		defer app.workers.Done()
+		if err := runActivityConditionReconciliation(workerCtx, authStore, activitiesStore, notificationsStore, resourceStore, registry, logger); err != nil && workerCtx.Err() == nil {
+			logger.Error("resource activity condition reconciliation stopped", "error", err)
+		}
+	}()
 	return app, nil
+}
+
+func runActivityConditionReconciliation(ctx context.Context, authStore *auth.Store, activityStore *activities.Store, notificationStore *notifications.Store, resourceStore *resources.Store, registry *resources.Registry, logger *slog.Logger) error {
+	reconcile := func() {
+		owners, err := authStore.ListUserIDs(ctx)
+		if err != nil {
+			if ctx.Err() == nil {
+				logger.Error("list accounts for activity condition reconciliation", "error", err)
+			}
+			return
+		}
+		for _, owner := range owners {
+			settings, err := activityStore.DefinitionSettings(ctx, owner)
+			if err != nil {
+				if ctx.Err() == nil {
+					logger.Error("load activity conditions", "owner_id", owner, "error", err)
+				}
+				continue
+			}
+			for _, condition := range settings.Conditions {
+				if err := activities.ReconcileResourceConditionSnapshot(ctx, activityStore, notificationStore, owner, condition, resourceStore, registry); err != nil {
+					if ctx.Err() == nil {
+						logger.Error("reconcile resource activity condition", "owner_id", owner, "condition_id", condition.ID, "error", err)
+					}
+				}
+			}
+		}
+	}
+	reconcile()
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+			reconcile()
+		}
+	}
 }
 
 func runResourceSync(ctx context.Context, authStore *auth.Store, linksStore *links.Store, newsStore *news.Store, monitoringStore *monitoring.Store, resourceStore *resources.Store, logger *slog.Logger) error {

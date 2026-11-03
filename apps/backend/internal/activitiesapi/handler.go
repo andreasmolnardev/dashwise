@@ -2,6 +2,7 @@
 package activitiesapi
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -13,18 +14,23 @@ import (
 
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/activities"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/integrations"
+	"github.com/andreasmolnardev/dashwise/apps/backend/internal/notifications"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/resourceapi"
+	"github.com/andreasmolnardev/dashwise/apps/backend/internal/resources"
 )
 
 const maxBodyBytes = 100 * 1024
 
 type Handler struct {
-	store        *activities.Store
-	integrations *integrations.Store
-	auth         resourceapi.Authenticate
-	mux          *http.ServeMux
-	mu           sync.Mutex
-	limits       map[string]rateWindow
+	store         *activities.Store
+	integrations  *integrations.Store
+	notifications *notifications.Store
+	resources     *resources.Store
+	registry      *resources.Registry
+	auth          resourceapi.Authenticate
+	mux           *http.ServeMux
+	mu            sync.Mutex
+	limits        map[string]rateWindow
 }
 type rateWindow struct {
 	started time.Time
@@ -32,13 +38,22 @@ type rateWindow struct {
 }
 
 func New(store *activities.Store, authenticate resourceapi.Authenticate, integrationStores ...*integrations.Store) (http.Handler, error) {
+	var integrationStore *integrations.Store
+	if len(integrationStores) > 0 {
+		integrationStore = integrationStores[0]
+	}
+	return NewWithDefinitions(store, authenticate, integrationStore, nil, nil, nil)
+}
+
+func NewWithDefinitions(store *activities.Store, authenticate resourceapi.Authenticate, integrationStore *integrations.Store, notificationStore *notifications.Store, resourceStore *resources.Store, registry *resources.Registry) (http.Handler, error) {
 	if store == nil || authenticate == nil {
 		return nil, errors.New("activities API requires a store and authenticator")
 	}
-	h := &Handler{store: store, auth: authenticate, mux: http.NewServeMux(), limits: map[string]rateWindow{}}
-	if len(integrationStores) > 0 {
-		h.integrations = integrationStores[0]
-	}
+	h := &Handler{store: store, integrations: integrationStore, notifications: notificationStore, resources: resourceStore, registry: registry, auth: authenticate, mux: http.NewServeMux(), limits: map[string]rateWindow{}}
+	h.mux.HandleFunc("GET /api/v1/activities/definitions", h.definitions)
+	h.mux.HandleFunc("PATCH /api/v1/activities/definitions/{id}", h.patchDefinition)
+	h.mux.HandleFunc("POST /api/v1/activities/definitions/resource-conditions", h.createResourceCondition)
+	h.mux.HandleFunc("DELETE /api/v1/activities/definitions/resource-conditions/{conditionId}", h.deleteResourceCondition)
 	h.mux.HandleFunc("GET /api/v1/activities", h.list)
 	h.mux.HandleFunc("POST /api/v1/activities", h.publish)
 	h.mux.HandleFunc("GET /api/v1/activities/{id}", h.get)
@@ -53,6 +68,190 @@ func (h *Handler) owner(w http.ResponseWriter, r *http.Request) (string, bool) {
 		return "", false
 	}
 	return owner, true
+}
+
+func (h *Handler) definitions(w http.ResponseWriter, r *http.Request) {
+	owner, ok := h.owner(w, r)
+	if !ok {
+		return
+	}
+	settings, err := h.store.DefinitionSettings(r.Context(), owner)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not load activity definitions")
+		return
+	}
+	if h.resources != nil && h.registry != nil {
+		for _, condition := range settings.Conditions {
+			if err := activities.ReconcileResourceConditionSnapshot(r.Context(), h.store, h.notifications, owner, condition, h.resources, h.registry); err != nil {
+				writeError(w, http.StatusInternalServerError, "could not reconcile resource activity conditions")
+				return
+			}
+		}
+	}
+	definitions, err := activities.ListDefinitionViews(r.Context(), h.store, owner, h.notifications)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not load activity definitions")
+		return
+	}
+	catalog, err := h.resourceCatalog(r.Context(), owner)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not load the resource catalog")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"definitions": definitions, "resourceCatalog": catalog})
+}
+
+func (h *Handler) patchDefinition(w http.ResponseWriter, r *http.Request) {
+	owner, ok := h.owner(w, r)
+	if !ok {
+		return
+	}
+	var body struct {
+		Enabled *bool          `json:"enabled"`
+		Config  map[string]any `json:"config"`
+	}
+	if !decode(w, r, &body) {
+		return
+	}
+	definition, err := activities.SaveDefinitionPreference(r.Context(), h.store, h.notifications, owner, r.PathValue("id"), body.Enabled, body.Config)
+	if err != nil {
+		h.writeDefinitionError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"definition": definition})
+}
+
+func (h *Handler) createResourceCondition(w http.ResponseWriter, r *http.Request) {
+	owner, ok := h.owner(w, r)
+	if !ok {
+		return
+	}
+	if h.integrations == nil || h.resources == nil || h.registry == nil {
+		writeError(w, http.StatusServiceUnavailable, "resource activity conditions are unavailable")
+		return
+	}
+	var input map[string]any
+	if !decode(w, r, &input) {
+		return
+	}
+	instanceID, _ := input["instanceId"].(string)
+	instance, err := h.integrations.Get(r.Context(), owner, strings.TrimSpace(instanceID))
+	if errors.Is(err, integrations.ErrNotFound) || err == nil && instance.Type != "sdk" {
+		writeError(w, http.StatusNotFound, "SDK integration instance not found")
+		return
+	}
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not load SDK integration instance")
+		return
+	}
+	definition, err := activities.CreateResourceCondition(r.Context(), h.store, h.notifications, h.resources, h.registry, owner, instance.Source, input)
+	if err != nil {
+		h.writeDefinitionError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]any{"definition": definition})
+}
+
+func (h *Handler) deleteResourceCondition(w http.ResponseWriter, r *http.Request) {
+	owner, ok := h.owner(w, r)
+	if !ok {
+		return
+	}
+	deleted, err := activities.DeleteResourceCondition(r.Context(), h.store, owner, r.PathValue("conditionId"))
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not delete activity condition")
+		return
+	}
+	if !deleted {
+		writeError(w, http.StatusNotFound, "activity definition not found")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+func (h *Handler) resourceCatalog(ctx context.Context, owner string) ([]activities.ActivityResourceCatalogEntry, error) {
+	if h.resources == nil || h.registry == nil || h.integrations == nil {
+		return []activities.ActivityResourceCatalogEntry{}, nil
+	}
+	types, err := h.registry.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	catalog := make([]activities.ActivityResourceCatalogEntry, 0)
+	for _, definition := range types {
+		if !strings.HasPrefix(definition.Type, "sdk.") {
+			continue
+		}
+		for offset := 0; ; offset += 200 {
+			page, err := h.resources.Query(ctx, resources.Query{OwnerID: owner, Types: []string{definition.Type}, Limit: 200, Offset: offset})
+			if err != nil {
+				return nil, err
+			}
+			for _, item := range page.Items {
+				if item.ProviderInstanceID == "" {
+					continue
+				}
+				instance, err := h.integrations.Get(ctx, owner, item.ProviderInstanceID)
+				if err != nil || instance.Type != "sdk" {
+					continue
+				}
+				name := apiTextValue(item.Data["name"])
+				if name == "" {
+					name = apiTextValue(item.Data["title"])
+				}
+				if name == "" {
+					name = item.ProviderResourceID
+				}
+				collectionID, ok := sdkCollectionID(definition.Type, instance.Source)
+				if !ok {
+					continue
+				}
+				catalog = append(catalog, activities.ActivityResourceCatalogEntry{InstanceID: instance.ID, InstanceName: apiFirstText(instance.Name, instance.Source), CollectionID: collectionID, ResourceID: item.ProviderResourceID, Name: name, Fields: activities.ResourceFieldPaths(item.Data)})
+			}
+			if len(page.Items) < 200 {
+				break
+			}
+		}
+	}
+	return catalog, nil
+}
+
+func sdkCollectionID(resourceType, source string) (string, bool) {
+	prefix := "sdk." + strings.ToLower(strings.TrimSpace(source)) + "."
+	if !strings.HasPrefix(strings.ToLower(resourceType), prefix) {
+		return "", false
+	}
+	collection := resourceType[len(prefix):]
+	return collection, collection != ""
+}
+
+func apiTextValue(value any) string {
+	text, _ := value.(string)
+	return strings.TrimSpace(text)
+}
+
+func apiFirstText(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
+}
+
+func (h *Handler) writeDefinitionError(w http.ResponseWriter, err error) {
+	switch {
+	case errors.Is(err, activities.ErrNotFound):
+		writeError(w, http.StatusNotFound, "activity definition not found")
+	case errors.Is(err, activities.ErrInvalid):
+		writeError(w, http.StatusBadRequest, "invalid activity definition")
+	default:
+		status := http.StatusBadRequest
+		if strings.Contains(err.Error(), "not found") {
+			status = http.StatusNotFound
+		}
+		writeError(w, status, err.Error())
+	}
 }
 func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
 	owner, ok := h.owner(w, r)

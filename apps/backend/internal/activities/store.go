@@ -98,6 +98,12 @@ func (s *Store) Initialize(ctx context.Context) error {
 	}, Down: func(ctx context.Context, tx *sql.Tx) error {
 		_, err := tx.ExecContext(ctx, `DROP TABLE IF EXISTS activities`)
 		return err
+	}}, {ID: "0018_activity_definition_settings", Name: "store Activity definition settings and resource conditions", Up: func(ctx context.Context, tx *sql.Tx) error {
+		_, err := tx.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS activity_definition_settings(owner_id TEXT PRIMARY KEY NOT NULL,settings_json TEXT NOT NULL DEFAULT '{}',updated_at TEXT NOT NULL)`)
+		return err
+	}, Down: func(ctx context.Context, tx *sql.Tx) error {
+		_, err := tx.ExecContext(ctx, `DROP TABLE IF EXISTS activity_definition_settings`)
+		return err
 	}}})
 }
 
