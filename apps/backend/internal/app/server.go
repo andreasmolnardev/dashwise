@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/activities"
@@ -41,14 +42,16 @@ import (
 )
 
 type App struct {
-	server    *http.Server
-	db        *foundation.DB
-	registry  *resources.Registry
-	resources *resources.Store
-	views     *views.Store
-	links     *links.Store
-	news      *news.Store
-	auth      *auth.Store
+	server       *http.Server
+	db           *foundation.DB
+	registry     *resources.Registry
+	resources    *resources.Store
+	views        *views.Store
+	links        *links.Store
+	news         *news.Store
+	auth         *auth.Store
+	workerCancel context.CancelFunc
+	workers      sync.WaitGroup
 }
 
 func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, error) {
@@ -289,12 +292,22 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, err
 	mux.Handle("/api/", http.NotFoundHandler())
 	mux.Handle("/", frontend(cfg.WebDist))
 
-	return &App{db: db, registry: registry, resources: resourceStore, views: viewStore, links: linksStore, news: newsStore, auth: authStore, server: &http.Server{
+	app := &App{db: db, registry: registry, resources: resourceStore, views: viewStore, links: linksStore, news: newsStore, auth: authStore, server: &http.Server{
 		Addr:              cfg.Address,
 		Handler:           requestLog(cors(mux), logger),
 		ReadHeaderTimeout: 10 * time.Second,
 		IdleTimeout:       60 * time.Second,
-	}}, nil
+	}}
+	workerCtx, workerCancel := context.WithCancel(context.Background())
+	app.workerCancel = workerCancel
+	app.workers.Add(1)
+	go func() {
+		defer app.workers.Done()
+		if err := notificationsStore.RunDeliveryWorker(workerCtx, 10*time.Second, notifications.SendViaShoutrrr); err != nil && workerCtx.Err() == nil {
+			logger.Error("notification delivery worker stopped", "error", err)
+		}
+	}()
+	return app, nil
 }
 
 func authenticateOwner(store *auth.Store) resourceapi.Authenticate {
@@ -319,10 +332,16 @@ func (app *App) ListenAndServe() error {
 }
 
 func (app *App) Shutdown(ctx context.Context) error {
-	if err := app.server.Shutdown(ctx); err != nil {
-		return err
+	serverErr := app.server.Shutdown(ctx)
+	if app.workerCancel != nil {
+		app.workerCancel()
 	}
-	return app.db.Close()
+	app.workers.Wait()
+	closeErr := app.db.Close()
+	if serverErr != nil {
+		return serverErr
+	}
+	return closeErr
 }
 
 func initialMigrations() []foundation.Migration {

@@ -2,14 +2,10 @@
 package notificationsapi
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"net/http"
-	"os"
-	"os/exec"
 	"strings"
 	"time"
 
@@ -431,20 +427,7 @@ func (h *Handler) testForwarder(w http.ResponseWriter, r *http.Request) {
 }
 
 func sendViaShoutrrr(r *http.Request, target, message string) error {
-	if strings.TrimSpace(target) == "" || len(target) > 4096 {
-		return notifications.ErrInvalid
-	}
-	binary := strings.TrimSpace(os.Getenv("SHOUTRRR_BINARY_PATH"))
-	if binary == "" {
-		binary = "shoutrrr"
-	}
-	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
-	defer cancel()
-	output, err := exec.CommandContext(ctx, binary, "send", "--url", target, "--message", message).CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("Shoutrrr delivery failed: %w: %s", err, strings.TrimSpace(string(output)))
-	}
-	return nil
+	return notifications.SendViaShoutrrr(r.Context(), target, message)
 }
 func (h *Handler) fail(w http.ResponseWriter, e error) {
 	if errors.Is(e, notifications.ErrNotFound) {
