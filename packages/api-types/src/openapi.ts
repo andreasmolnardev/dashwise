@@ -3930,10 +3930,477 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/resource-types": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List resource type definitions available to the authenticated user */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Resource type definitions */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            types: components["schemas"]["ResourceType"][];
+                        };
+                    };
+                };
+                401: components["responses"]["JsonUnauthorized"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/resources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Query owner-scoped resources */
+        get: {
+            parameters: {
+                query?: {
+                    type?: string[];
+                    provider?: string;
+                    providerInstanceId?: string;
+                    capability?: string[];
+                    /** @description JSON-encoded array of ResourceFilter values */
+                    filters?: string;
+                    search?: string;
+                    orderBy?: string;
+                    limit?: number;
+                    offset?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Matching resources */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ResourcePage"];
+                    };
+                };
+                400: components["responses"]["JsonBadRequest"];
+                401: components["responses"]["JsonUnauthorized"];
+            };
+        };
+        put?: never;
+        /** Upsert a resource supplied by an authenticated integration or internal producer */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ResourceWrite"];
+                };
+            };
+            responses: {
+                /** @description Saved resource */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            resource: components["schemas"]["Resource"];
+                        };
+                    };
+                };
+                400: components["responses"]["JsonBadRequest"];
+                401: components["responses"]["JsonUnauthorized"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/resources/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        /** Get an owner-scoped resource */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Resource */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            resource: components["schemas"]["Resource"];
+                        };
+                    };
+                };
+                401: components["responses"]["JsonUnauthorized"];
+                404: components["responses"]["JsonNotFound"];
+            };
+        };
+        put?: never;
+        post?: never;
+        /** Delete an owner-scoped resource */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Resource deleted */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                401: components["responses"]["JsonUnauthorized"];
+                404: components["responses"]["JsonNotFound"];
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/views": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the authenticated user's saved views */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Saved views */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            views: components["schemas"]["SavedView"][];
+                        };
+                    };
+                };
+                401: components["responses"]["JsonUnauthorized"];
+            };
+        };
+        put?: never;
+        /** Create a saved resource view */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SavedViewWrite"];
+                };
+            };
+            responses: {
+                /** @description Created saved view */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            view: components["schemas"]["SavedView"];
+                        };
+                    };
+                };
+                400: components["responses"]["JsonBadRequest"];
+                401: components["responses"]["JsonUnauthorized"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/views/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        /** Get a saved view */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Saved view */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            view: components["schemas"]["SavedView"];
+                        };
+                    };
+                };
+                401: components["responses"]["JsonUnauthorized"];
+                404: components["responses"]["JsonNotFound"];
+            };
+        };
+        /** Replace a saved view */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SavedViewWrite"];
+                };
+            };
+            responses: {
+                /** @description Updated saved view */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            view: components["schemas"]["SavedView"];
+                        };
+                    };
+                };
+                400: components["responses"]["JsonBadRequest"];
+                401: components["responses"]["JsonUnauthorized"];
+                404: components["responses"]["JsonNotFound"];
+            };
+        };
+        post?: never;
+        /** Delete a saved view */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Saved view deleted */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                401: components["responses"]["JsonUnauthorized"];
+                404: components["responses"]["JsonNotFound"];
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/views/{id}/resources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        /** Evaluate a saved view and return its resource page */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Evaluated resource page */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ResourcePage"];
+                    };
+                };
+                400: components["responses"]["JsonBadRequest"];
+                401: components["responses"]["JsonUnauthorized"];
+                404: components["responses"]["JsonNotFound"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        Resource: {
+            id: string;
+            type: string;
+            provider: string;
+            providerInstanceId?: string;
+            providerResourceId: string;
+            ownerId: string;
+            data: {
+                [key: string]: unknown;
+            };
+            capabilities: string[];
+            state: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        ResourceWrite: {
+            type: string;
+            provider: string;
+            providerInstanceId: string;
+            providerResourceId: string;
+            data: {
+                [key: string]: unknown;
+            };
+            capabilities?: string[];
+            state?: string;
+        };
+        ResourcePage: {
+            items: components["schemas"]["Resource"][];
+            total: number;
+            limit: number;
+            offset: number;
+        };
+        ResourceType: {
+            type: string;
+            version: number;
+            title: string;
+            fields: {
+                [key: string]: unknown;
+            }[];
+            capabilities: string[];
+        };
+        ResourceFilter: {
+            field: string;
+            /** @enum {string} */
+            operator: "eq" | "neq" | "gt" | "gte" | "lt" | "lte" | "contains" | "exists";
+            value?: unknown;
+        };
+        ResourceQuery: {
+            types?: string[];
+            provider?: string;
+            providerInstanceId?: string;
+            capabilities?: string[];
+            filters?: components["schemas"]["ResourceFilter"][];
+            search?: string;
+            orderBy?: string;
+            limit?: number;
+            offset?: number;
+        };
+        SavedViewDefinition: {
+            query: components["schemas"]["ResourceQuery"];
+            presentation?: {
+                [key: string]: unknown;
+            };
+        };
+        SavedViewWrite: {
+            name: string;
+            definition: components["schemas"]["SavedViewDefinition"];
+        };
+        SavedView: components["schemas"]["SavedViewWrite"] & {
+            id: string;
+            ownerId: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
         SdkIntegrationInstanceCreate: {
             /** @description Stable ID from the trusted SDK catalog. */
             source: string;

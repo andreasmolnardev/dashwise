@@ -4,6 +4,88 @@ export type ClientOptions = {
     baseUrl: `${string}://${string}/api/v1` | (string & {});
 };
 
+export type Resource = {
+    id: string;
+    type: string;
+    provider: string;
+    providerInstanceId?: string;
+    providerResourceId: string;
+    ownerId: string;
+    data: {
+        [key: string]: unknown;
+    };
+    capabilities: Array<string>;
+    state: string;
+    createdAt: string;
+    updatedAt: string;
+};
+
+export type ResourceWrite = {
+    type: string;
+    provider: string;
+    providerInstanceId: string;
+    providerResourceId: string;
+    data: {
+        [key: string]: unknown;
+    };
+    capabilities?: Array<string>;
+    state?: string;
+};
+
+export type ResourcePage = {
+    items: Array<Resource>;
+    total: number;
+    limit: number;
+    offset: number;
+};
+
+export type ResourceType = {
+    type: string;
+    version: number;
+    title: string;
+    fields: Array<{
+        [key: string]: unknown;
+    }>;
+    capabilities: Array<string>;
+};
+
+export type ResourceFilter = {
+    field: string;
+    operator: 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'contains' | 'exists';
+    value?: unknown;
+};
+
+export type ResourceQuery = {
+    types?: Array<string>;
+    provider?: string;
+    providerInstanceId?: string;
+    capabilities?: Array<string>;
+    filters?: Array<ResourceFilter>;
+    search?: string;
+    orderBy?: string;
+    limit?: number;
+    offset?: number;
+};
+
+export type SavedViewDefinition = {
+    query: ResourceQuery;
+    presentation?: {
+        [key: string]: unknown;
+    };
+};
+
+export type SavedViewWrite = {
+    name: string;
+    definition: SavedViewDefinition;
+};
+
+export type SavedView = SavedViewWrite & {
+    id: string;
+    ownerId: string;
+    createdAt: string;
+    updatedAt: string;
+};
+
 export type SdkIntegrationInstanceCreate = {
     /**
      * Stable ID from the trusted SDK catalog.
@@ -3233,3 +3315,361 @@ export type PostShortcutsUsageStatsResponses = {
 };
 
 export type PostShortcutsUsageStatsResponse = PostShortcutsUsageStatsResponses[keyof PostShortcutsUsageStatsResponses];
+
+export type GetResourceTypesData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/resource-types';
+};
+
+export type GetResourceTypesErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Error;
+};
+
+export type GetResourceTypesError = GetResourceTypesErrors[keyof GetResourceTypesErrors];
+
+export type GetResourceTypesResponses = {
+    /**
+     * Resource type definitions
+     */
+    200: {
+        types: Array<ResourceType>;
+    };
+};
+
+export type GetResourceTypesResponse = GetResourceTypesResponses[keyof GetResourceTypesResponses];
+
+export type GetResourcesData = {
+    body?: never;
+    path?: never;
+    query?: {
+        type?: Array<string>;
+        provider?: string;
+        providerInstanceId?: string;
+        capability?: Array<string>;
+        /**
+         * JSON-encoded array of ResourceFilter values
+         */
+        filters?: string;
+        search?: string;
+        orderBy?: string;
+        limit?: number;
+        offset?: number;
+    };
+    url: '/resources';
+};
+
+export type GetResourcesErrors = {
+    /**
+     * Bad Request
+     */
+    400: Error;
+    /**
+     * Unauthorized
+     */
+    401: Error;
+};
+
+export type GetResourcesError = GetResourcesErrors[keyof GetResourcesErrors];
+
+export type GetResourcesResponses = {
+    /**
+     * Matching resources
+     */
+    200: ResourcePage;
+};
+
+export type GetResourcesResponse = GetResourcesResponses[keyof GetResourcesResponses];
+
+export type PostResourcesData = {
+    body: ResourceWrite;
+    path?: never;
+    query?: never;
+    url: '/resources';
+};
+
+export type PostResourcesErrors = {
+    /**
+     * Bad Request
+     */
+    400: Error;
+    /**
+     * Unauthorized
+     */
+    401: Error;
+};
+
+export type PostResourcesError = PostResourcesErrors[keyof PostResourcesErrors];
+
+export type PostResourcesResponses = {
+    /**
+     * Saved resource
+     */
+    201: {
+        resource: Resource;
+    };
+};
+
+export type PostResourcesResponse = PostResourcesResponses[keyof PostResourcesResponses];
+
+export type DeleteResourcesByIdData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/resources/{id}';
+};
+
+export type DeleteResourcesByIdErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Error;
+    /**
+     * Not Found
+     */
+    404: Error;
+};
+
+export type DeleteResourcesByIdError = DeleteResourcesByIdErrors[keyof DeleteResourcesByIdErrors];
+
+export type DeleteResourcesByIdResponses = {
+    /**
+     * Resource deleted
+     */
+    204: void;
+};
+
+export type DeleteResourcesByIdResponse = DeleteResourcesByIdResponses[keyof DeleteResourcesByIdResponses];
+
+export type GetResourcesByIdData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/resources/{id}';
+};
+
+export type GetResourcesByIdErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Error;
+    /**
+     * Not Found
+     */
+    404: Error;
+};
+
+export type GetResourcesByIdError = GetResourcesByIdErrors[keyof GetResourcesByIdErrors];
+
+export type GetResourcesByIdResponses = {
+    /**
+     * Resource
+     */
+    200: {
+        resource: Resource;
+    };
+};
+
+export type GetResourcesByIdResponse = GetResourcesByIdResponses[keyof GetResourcesByIdResponses];
+
+export type GetViewsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/views';
+};
+
+export type GetViewsErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Error;
+};
+
+export type GetViewsError = GetViewsErrors[keyof GetViewsErrors];
+
+export type GetViewsResponses = {
+    /**
+     * Saved views
+     */
+    200: {
+        views: Array<SavedView>;
+    };
+};
+
+export type GetViewsResponse = GetViewsResponses[keyof GetViewsResponses];
+
+export type PostViewsData = {
+    body: SavedViewWrite;
+    path?: never;
+    query?: never;
+    url: '/views';
+};
+
+export type PostViewsErrors = {
+    /**
+     * Bad Request
+     */
+    400: Error;
+    /**
+     * Unauthorized
+     */
+    401: Error;
+};
+
+export type PostViewsError = PostViewsErrors[keyof PostViewsErrors];
+
+export type PostViewsResponses = {
+    /**
+     * Created saved view
+     */
+    201: {
+        view: SavedView;
+    };
+};
+
+export type PostViewsResponse = PostViewsResponses[keyof PostViewsResponses];
+
+export type DeleteViewsByIdData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/views/{id}';
+};
+
+export type DeleteViewsByIdErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Error;
+    /**
+     * Not Found
+     */
+    404: Error;
+};
+
+export type DeleteViewsByIdError = DeleteViewsByIdErrors[keyof DeleteViewsByIdErrors];
+
+export type DeleteViewsByIdResponses = {
+    /**
+     * Saved view deleted
+     */
+    204: void;
+};
+
+export type DeleteViewsByIdResponse = DeleteViewsByIdResponses[keyof DeleteViewsByIdResponses];
+
+export type GetViewsByIdData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/views/{id}';
+};
+
+export type GetViewsByIdErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Error;
+    /**
+     * Not Found
+     */
+    404: Error;
+};
+
+export type GetViewsByIdError = GetViewsByIdErrors[keyof GetViewsByIdErrors];
+
+export type GetViewsByIdResponses = {
+    /**
+     * Saved view
+     */
+    200: {
+        view: SavedView;
+    };
+};
+
+export type GetViewsByIdResponse = GetViewsByIdResponses[keyof GetViewsByIdResponses];
+
+export type PutViewsByIdData = {
+    body: SavedViewWrite;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/views/{id}';
+};
+
+export type PutViewsByIdErrors = {
+    /**
+     * Bad Request
+     */
+    400: Error;
+    /**
+     * Unauthorized
+     */
+    401: Error;
+    /**
+     * Not Found
+     */
+    404: Error;
+};
+
+export type PutViewsByIdError = PutViewsByIdErrors[keyof PutViewsByIdErrors];
+
+export type PutViewsByIdResponses = {
+    /**
+     * Updated saved view
+     */
+    200: {
+        view: SavedView;
+    };
+};
+
+export type PutViewsByIdResponse = PutViewsByIdResponses[keyof PutViewsByIdResponses];
+
+export type GetViewsByIdResourcesData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/views/{id}/resources';
+};
+
+export type GetViewsByIdResourcesErrors = {
+    /**
+     * Bad Request
+     */
+    400: Error;
+    /**
+     * Unauthorized
+     */
+    401: Error;
+    /**
+     * Not Found
+     */
+    404: Error;
+};
+
+export type GetViewsByIdResourcesError = GetViewsByIdResourcesErrors[keyof GetViewsByIdResourcesErrors];
+
+export type GetViewsByIdResourcesResponses = {
+    /**
+     * Evaluated resource page
+     */
+    200: ResourcePage;
+};
+
+export type GetViewsByIdResourcesResponse = GetViewsByIdResourcesResponses[keyof GetViewsByIdResourcesResponses];
