@@ -2,7 +2,10 @@ module github.com/andreasmolnardev/dashwise/apps/backend
 
 go 1.26.0
 
-require github.com/andreasmolnardev/dashwise/packages/foundation v0.0.0
+require (
+	github.com/andreasmolnardev/dashwise/packages/foundation v0.0.0
+	golang.org/x/crypto v0.58.0
+)
 
 require (
 	github.com/dustin/go-humanize v1.1.0 // indirect
