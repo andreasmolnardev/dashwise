@@ -30,7 +30,7 @@ export default function SignupCard() {
   //on load: check for existing auth, validate using /api/v1/auth/validate-auth endpoint if returned success to /home
   useEffect(() => {
     const validateAuth = async () => {
-      const token = localStorage.getItem('pb_token');
+      const token = localStorage.getItem('dashwise_token');
       if (!token) return;
 
       try {

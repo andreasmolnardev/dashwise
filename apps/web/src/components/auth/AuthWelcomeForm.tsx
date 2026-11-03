@@ -17,13 +17,13 @@ export default function AuthWelcomeFormComponent() {
     useEffect(() => {
         const validateAuth = async () => {
             const loginToken = new URLSearchParams(window.location.search).get("loginToken");
-            const token = loginToken || localStorage.getItem('pb_token');
+            const token = loginToken || localStorage.getItem('dashwise_token');
             if (!token) return;
 
                 try {
                     const result = await validateAuthTokenAction({ token });
-                    localStorage.setItem("pb_token", result.token || token);
-                    localStorage.setItem("pb_user", JSON.stringify(result.user));
+                    localStorage.setItem("dashwise_token", result.token || token);
+                    localStorage.setItem("dashwise_user", JSON.stringify(result.user));
                     navigate("/home", { replace: true });
                 } catch (err) {
                     // ignore

@@ -440,7 +440,7 @@ export default function IntegrationsModularSettingsPage() {
     setError(null);
 
     if (!token) {
-      setError("Sign in with PocketBase to manage integrations.");
+      setError("Sign in to Dashwise to manage integrations.");
       setLoading(false);
       return;
     }

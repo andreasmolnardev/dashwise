@@ -9,10 +9,10 @@ export default function Page() {
   if (!loginToken && typeof window !== "undefined") {
     try {
       hasStoredToken = Boolean(
-        localStorage.getItem("pb_token") ||
+        localStorage.getItem("dashwise_token") ||
         document.cookie
           .split("; ")
-          .find((cookie) => cookie.startsWith("pb_token="))
+          .find((cookie) => cookie.startsWith("dashwise_token="))
           ?.split("=")[1],
       );
     } catch {

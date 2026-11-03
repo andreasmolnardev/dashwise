@@ -165,7 +165,7 @@ export default function LoginCard() {
                       <div>
                         <h3 className="font-semibold">If you're an admin...</h3>
                         <p className="text-(--text-on-frosted)">
-                          Go into pocketbase dashboard (authenticate using the env vars set for pocketbase container) and change login details for your user there.
+                          Ask your Dashwise administrator to reset your account password.
                         </p>
                       </div>
                   </DialogHeader>

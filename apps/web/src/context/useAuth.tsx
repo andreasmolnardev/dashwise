@@ -25,7 +25,7 @@ export function useAuth() {
   const queryClient = useQueryClient();
   const [user, setUser] = useState<AuthUser>(() => {
     try {
-      const raw = typeof window !== "undefined" ? localStorage.getItem("pb_user") : null;
+      const raw = typeof window !== "undefined" ? localStorage.getItem("dashwise_user") : null;
       return raw ? (JSON.parse(raw) as AuthUser) : EMPTY_AUTH_USER;
     } catch (e) {
       return EMPTY_AUTH_USER;
@@ -36,16 +36,16 @@ export function useAuth() {
     try {
       if (typeof window === "undefined") return null;
 
-      const localToken = localStorage.getItem("pb_token");
+      const localToken = localStorage.getItem("dashwise_token");
       if (localToken) return localToken;
 
       const cookieToken = document.cookie
         .split('; ')
-        .find(row => row.startsWith('pb_token='))
+        .find(row => row.startsWith('dashwise_token='))
         ?.split('=')[1];
 
       if (cookieToken) {
-        localStorage.setItem("pb_token", cookieToken);
+        localStorage.setItem("dashwise_token", cookieToken);
         return cookieToken;
       }
 
@@ -58,7 +58,7 @@ export function useAuth() {
   useEffect(() => {
     const syncStoredUser = () => {
       try {
-        const raw = localStorage.getItem("pb_user");
+        const raw = localStorage.getItem("dashwise_user");
         setUser(raw ? (JSON.parse(raw) as AuthUser) : EMPTY_AUTH_USER);
       } catch {
         setUser(EMPTY_AUTH_USER);
@@ -66,10 +66,10 @@ export function useAuth() {
     };
 
     const onStorage = (e: StorageEvent) => {
-      if (e.key === "pb_user") {
+      if (e.key === "dashwise_user") {
         syncStoredUser();
       }
-      if (e.key === "pb_token") {
+      if (e.key === "dashwise_token") {
         setToken(e.newValue);
       }
     };
@@ -85,18 +85,18 @@ export function useAuth() {
   const setAuth = useCallback((u: AuthUser | null, t?: string | null) => {
     try {
       if (u === null) {
-        localStorage.removeItem("pb_user");
+        localStorage.removeItem("dashwise_user");
         setUser(EMPTY_AUTH_USER);
       } else {
-        localStorage.setItem("pb_user", JSON.stringify(u));
+        localStorage.setItem("dashwise_user", JSON.stringify(u));
         setUser(u);
       }
 
       if (t === undefined || t === null) {
-        localStorage.removeItem("pb_token");
+        localStorage.removeItem("dashwise_token");
         setToken(null);
       } else {
-        localStorage.setItem("pb_token", t);
+        localStorage.setItem("dashwise_token", t);
         setToken(t);
       }
 
@@ -109,10 +109,10 @@ export function useAuth() {
   const setTokenOnly = useCallback((t?: string | null) => {
     try {
       if (t === undefined || t === null) {
-        localStorage.removeItem("pb_token");
+        localStorage.removeItem("dashwise_token");
         setToken(null);
       } else {
-        localStorage.setItem("pb_token", t);
+        localStorage.setItem("dashwise_token", t);
         setToken(t);
       }
     } catch (err) {
@@ -131,8 +131,8 @@ export function useAuth() {
       setAuth(null, null);
 
       if (typeof document !== "undefined") {
-        document.cookie = "pb_token=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax; Secure";
-        document.cookie = "pb_user=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax; Secure";
+        document.cookie = "dashwise_token=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax; Secure";
+        document.cookie = "dashwise_user=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax; Secure";
       }
       // The token is part of authenticated keys, but removing these entries as
       // well prevents stale data accumulating across repeated account changes.
