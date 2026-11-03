@@ -19,6 +19,8 @@ import (
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/authapi"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/config"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/consumersapi"
+	"github.com/andreasmolnardev/dashwise/apps/backend/internal/deviceauth"
+	"github.com/andreasmolnardev/dashwise/apps/backend/internal/deviceauthapi"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/integrations"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/integrationsapi"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/links"
@@ -75,6 +77,15 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, err
 	if err := authStore.Initialize(ctx); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("initialize authentication schema: %w", err)
+	}
+	deviceAuthStore, err := deviceauth.New(db, authStore, 5*time.Minute)
+	if err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("initialize device authorization store: %w", err)
+	}
+	if err := deviceAuthStore.Initialize(ctx); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("initialize device authorization schema: %w", err)
 	}
 	registry, err := resources.NewRegistry(db)
 	if err != nil {
@@ -184,7 +195,10 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, err
 		},
 		Refresh: func(ctx context.Context, owner string, ids []string) error {
 			_, err := newsStore.Refresh(ctx, owner, ids, newsFetcher)
-			return err
+			if err != nil {
+				return err
+			}
+			return materializeNewsResources(ctx, owner, newsStore, resourceStore)
 		},
 		ReadItems: func(ctx context.Context, owner, id string) (any, error) {
 			return newsStore.ReadSubscriptionItems(ctx, owner, id, 1000)
@@ -198,6 +212,11 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, err
 	if err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("initialize authentication API: %w", err)
+	}
+	deviceAuthHandler, err := deviceauthapi.New(deviceAuthStore, authStore, deviceauthapi.Options{RequireTLS: strings.EqualFold(cfg.Environment, "production")})
+	if err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("initialize device authorization API: %w", err)
 	}
 	resourceHandler, err := resourceapi.New(resourceStore, registry, authenticateOwner(authStore))
 	if err != nil {
@@ -284,6 +303,8 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, err
 			"userSignupDisabled": cfg.DisableSignup,
 		})
 	})
+	mux.Handle("/api/v1/auth/device-code", deviceAuthHandler)
+	mux.Handle("/api/v1/auth/device-code/", deviceAuthHandler)
 	mux.Handle("/api/v1/auth/", authHandler)
 	mux.Handle("/api/v1/resources", resourceHandler)
 	mux.Handle("/api/v1/resources/", resourceHandler)
@@ -344,6 +365,43 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, err
 		}
 	}()
 	return app, nil
+}
+
+func materializeNewsResources(ctx context.Context, owner string, source *news.Store, target *resources.Store) error {
+	for offset := 0; ; offset += 100 {
+		page, err := source.QueryArticles(ctx, owner, "all", offset, 100)
+		if err != nil {
+			return err
+		}
+		for _, article := range page.Items {
+			url, _ := article.Data["link"].(string)
+			if url == "" {
+				url = article.CanonicalURL
+			}
+			summary, _ := article.Data["description"].(string)
+			sourceName, _ := article.Data["subscription_name"].(string)
+			data := map[string]any{
+				"title": article.Title, "summary": summary, "url": url,
+				"source": sourceName,
+			}
+			if article.PublishedAt != nil {
+				data["publishedAt"] = article.PublishedAt.UTC().Format(time.RFC3339Nano)
+			}
+			if len(article.SourceIDs) > 0 {
+				data["feedId"] = article.SourceIDs[0]
+			}
+			if _, err := target.Upsert(ctx, resources.Resource{
+				Type: "news.article", Provider: "dashwise", ProviderInstanceID: "news",
+				ProviderResourceID: article.ID, OwnerID: owner, Data: data,
+				Capabilities: []string{"list", "detail", "search", "save", "mark_read"}, State: "current",
+			}); err != nil {
+				return fmt.Errorf("materialize News article: %w", err)
+			}
+		}
+		if len(page.Items) < 100 || offset+len(page.Items) >= page.Total {
+			return nil
+		}
+	}
 }
 
 func authenticateOwner(store *auth.Store) resourceapi.Authenticate {

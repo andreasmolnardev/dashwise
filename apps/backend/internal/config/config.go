@@ -17,6 +17,7 @@ type Config struct {
 	EnableSSO     bool
 	InstanceName  string
 	Version       string
+	Environment   string
 }
 
 func Load() Config {
@@ -33,6 +34,7 @@ func Load() Config {
 		EnableSSO:     parseBool(env("ENABLE_SSO", "false")),
 		InstanceName:  env("INSTANCE_NAME", "Dashwise"),
 		Version:       env("DASHWISE_VERSION", "go-migration"),
+		Environment:   env("ENVIRONMENT", "development"),
 	}
 }
 
