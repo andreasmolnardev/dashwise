@@ -2,6 +2,7 @@
 package pagesapi
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -15,16 +16,22 @@ import (
 const maxBody = 1 << 20
 
 type Handler struct {
-	store *pages.Store
-	auth  resourceapi.Authenticate
-	mux   *http.ServeMux
+	store                  *pages.Store
+	auth                   resourceapi.Authenticate
+	resolveIntegrationData func(context.Context, string, map[string]any) []map[string]any
+	mux                    *http.ServeMux
 }
 
-func New(store *pages.Store, authenticate resourceapi.Authenticate) (http.Handler, error) {
+type IntegrationDataResolver func(context.Context, string, map[string]any) []map[string]any
+
+func New(store *pages.Store, authenticate resourceapi.Authenticate, resolvers ...IntegrationDataResolver) (http.Handler, error) {
 	if store == nil || authenticate == nil {
 		return nil, errors.New("pages API requires a store and authenticator")
 	}
 	h := &Handler{store: store, auth: authenticate, mux: http.NewServeMux()}
+	if len(resolvers) > 0 {
+		h.resolveIntegrationData = resolvers[0]
+	}
 	h.mux.HandleFunc("GET /api/v1/pageConfig", h.get)
 	h.mux.HandleFunc("PUT /api/v1/pageConfig", h.put)
 	h.mux.HandleFunc("GET /api/v1/pageConfig/user-pages", h.list)
@@ -125,7 +132,7 @@ func (h *Handler) migrateLegacy(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, map[string]any{"success": true, "result": map[string]any{"migrated": 0}})
 }
 func (h *Handler) integrationData(w http.ResponseWriter, r *http.Request) {
-	_, ok := h.owner(w, r)
+	owner, ok := h.owner(w, r)
 	if !ok {
 		return
 	}
@@ -133,7 +140,16 @@ func (h *Handler) integrationData(w http.ResponseWriter, r *http.Request) {
 	if page == "" {
 		page = "home"
 	}
-	writeJSON(w, 200, map[string]any{"success": true, "pageName": page, "items": []any{}})
+	record, err := h.store.Get(r.Context(), owner, page)
+	if err != nil {
+		writeJSON(w, 500, map[string]string{"error": "could not load page configuration"})
+		return
+	}
+	items := []map[string]any{}
+	if h.resolveIntegrationData != nil && record.Config != nil {
+		items = h.resolveIntegrationData(r.Context(), owner, record.Config)
+	}
+	writeJSON(w, 200, map[string]any{"success": true, "pageName": page, "items": items})
 }
 func decode(w http.ResponseWriter, r *http.Request, dst any) bool {
 	r.Body = http.MaxBytesReader(w, r.Body, maxBody)

@@ -289,12 +289,15 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, err
 		_ = db.Close()
 		return nil, fmt.Errorf("initialize system API: %w", err)
 	}
-	pagesHandler, err := pagesapi.New(pagesStore, authenticateOwner(authStore))
+	yamlRuntime := yamlruntime.New()
+	pagesHandler, err := pagesapi.New(pagesStore, authenticateOwner(authStore), func(ctx context.Context, owner string, pageConfig map[string]any) []map[string]any {
+		return consumersapi.ResolvePageData(ctx, owner, pageConfig, integrationsStore, yamlRuntime)
+	})
 	if err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("initialize Pages API: %w", err)
 	}
-	consumersHandler, err := consumersapi.New(integrationsStore, authenticateOwner(authStore), yamlruntime.New())
+	consumersHandler, err := consumersapi.New(integrationsStore, authenticateOwner(authStore), yamlRuntime)
 	if err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("initialize Widgets and Glanceables API: %w", err)
