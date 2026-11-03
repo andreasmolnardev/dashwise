@@ -22,7 +22,6 @@ export type GroovewiseItem = {
 export type GroovewiseResource = ResourceRecord & {
   upstreamId: string;
   type: "track" | "podcast";
-  playback: true;
   attributes: { artist?: string; album?: string; durationSeconds?: number; upstreamType: "music" | "podcast"; podcastId?: string; episodeId?: string };
 };
 
@@ -43,7 +42,6 @@ export function mapGroovewiseItem(value: unknown, parentPodcastId?: string): Gro
     name: item.title ?? item.name ?? item.id,
     type: podcast ? "podcast" : "track",
     icon: "mdi:music-note",
-    playback: true,
     apps: [podcast ? "podcasts" : "library"],
     actions: [],
     attributes: {

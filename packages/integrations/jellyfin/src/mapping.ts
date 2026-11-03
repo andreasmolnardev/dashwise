@@ -4,17 +4,16 @@ export type JellyfinItem = {
   Id: string; Name?: string; Type?: string; AlbumArtist?: string; Artists?: string[]; RunTimeTicks?: number;
   ImageTags?: { Primary?: string }; MediaSources?: Array<{ Id?: string; Container?: string; SupportsDirectPlay?: boolean; SupportsDirectStream?: boolean }>;
 };
-export type JellyfinResource = ResourceRecord & { upstreamId: string; type: string; playback?: true; attributes: { artist?: string; durationSeconds?: number; itemType: string } };
+export type JellyfinResource = ResourceRecord & { upstreamId: string; type: string; attributes: { artist?: string; durationSeconds?: number; itemType: string } };
 
 export function mapJellyfinItem(value: unknown): JellyfinResource | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const item = value as JellyfinItem;
   if (typeof item.Id !== "string" || !item.Id || typeof item.Type !== "string") return null;
   if (!["Audio", "Movie", "Episode"].includes(item.Type)) return null;
-  const playable = item.Type === "Audio";
   return {
     id: item.Id, upstreamId: item.Id, name: item.Name ?? item.Id, type: item.Type.toLowerCase(),
-    icon: item.Type === "Audio" ? "mdi:music-note" : "mdi:movie-open", ...(playable ? { playback: true as const, actions: [] } : { actions: [] }),
+    icon: item.Type === "Audio" ? "mdi:music-note" : "mdi:movie-open", actions: [],
     attributes: {
       itemType: item.Type,
       ...(item.AlbumArtist ?? item.Artists?.[0] ? { artist: item.AlbumArtist ?? item.Artists?.[0] } : {}),

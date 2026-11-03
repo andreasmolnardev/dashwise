@@ -84,14 +84,9 @@ const SDK_ACTION_ICONS: Record<string, string> = {
   execute: "fa6-solid:play",
   activate: "fa6-solid:bolt",
 };
-const SDK_PLAYBACK_ACTION_ID = "__dashwise_playback";
-
 function getEnterActionLabel(item?: LinkItem) {
   if (!item) return "Select an item";
   if (item.url === "__sdk_resource__") {
-    if (item.sdkActions?.some((action) => action.id === SDK_PLAYBACK_ACTION_ID)) {
-      return `Play ${item.name}`;
-    }
     const toggleAction = item.sdkActions?.find((action) => action.id === "toggle");
     return toggleAction ? `${toggleAction.name} ${item.name}` : `More actions for ${item.name}`;
   }
@@ -730,11 +725,9 @@ export default function CommandBar(
     } else if (a.url === "__qr_action__") {
       return;
     } else if (a.url === "__sdk_resource__") {
-      const playbackAction = a.sdkActions?.find((action) => action.id === SDK_PLAYBACK_ACTION_ID);
       const toggleAction = a.sdkActions?.find((action) => action.id === "toggle");
-      const defaultSdkAction = playbackAction ?? toggleAction;
-      if (defaultSdkAction && a.sdkResource) {
-        setPendingSdkAction({ resource: a.sdkResource, action: defaultSdkAction });
+      if (toggleAction && a.sdkResource) {
+        setPendingSdkAction({ resource: a.sdkResource, action: toggleAction });
       } else {
         setActionsMenuOpen(true);
       }

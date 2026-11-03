@@ -4781,10 +4781,6 @@
 					"available": {
 						"type": "boolean"
 					},
-					"playback": {
-						"type": "boolean",
-						"description": "Can be resolved by the integration playback provider"
-					},
 					"actions": {
 						"type": "array",
 						"items": {

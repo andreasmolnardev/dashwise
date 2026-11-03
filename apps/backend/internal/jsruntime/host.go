@@ -792,7 +792,6 @@ func sdkResourceDefinition(resourceType, integrationName, collection string, raw
 	add("apps", "array", false, false)
 	add("updatedAt", "datetime", false, true)
 	add("upstreamId", "string", true, true)
-	add("playback", "boolean", false, true)
 	spec, _ := raw.(map[string]any)
 	schema, _ := spec["schema"].(map[string]any)
 	properties, _ := schema["properties"].(map[string]any)
@@ -829,7 +828,7 @@ func sdkRecordFields(raw any) map[string]bool {
 	fields := map[string]bool{
 		"id": true, "name": true, "icon": true, "type": true, "tags": true,
 		"capabilities": true, "attributes": true, "available": true, "actions": true,
-		"apps": true, "updatedAt": true, "upstreamId": true, "playback": true, "state": true,
+		"apps": true, "updatedAt": true, "upstreamId": true, "state": true,
 	}
 	spec, _ := raw.(map[string]any)
 	schema, _ := spec["schema"].(map[string]any)

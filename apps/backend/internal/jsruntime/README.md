@@ -3,8 +3,7 @@
 `jsruntime` loads installed integration bundles compiled to CommonJS JavaScript
 from `@dashwise/integrations-sdk`. It evaluates a definition exported through
 `module.exports` or `module.exports.default`, exposes its JSON-safe manifest,
-and supports setup/start/stop/dispose, named provider calls, SDK actions, and
-playback resolution/listener hooks.
+and supports setup/start/stop/dispose, named provider calls, and SDK actions.
 
 The runtime does not expose `process`, `require` for host modules, filesystem,
 or global `fetch`. `require` is restricted to the SDK identity helpers

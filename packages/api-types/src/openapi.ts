@@ -4545,8 +4545,6 @@ export interface components {
                 [key: string]: unknown;
             };
             available?: boolean;
-            /** @description Can be resolved by the integration playback provider */
-            playback?: boolean;
             actions?: string[];
             apps?: string[];
             /** Format: date-time */

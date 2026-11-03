@@ -254,8 +254,8 @@ func (i *Instance) Start(ctx context.Context) error {
 	return nil
 }
 
-// Invoke calls an exported provider function by name, mainly for action and
-// playback adapters. The caller supplies already-validated JSON-safe values.
+// Invoke calls an exported provider function by name, mainly for action adapters.
+// The caller supplies already-validated JSON-safe values.
 func (i *Instance) Invoke(ctx context.Context, name string, args ...any) (any, error) {
 	i.mu.Lock()
 	defer i.mu.Unlock()
@@ -314,59 +314,6 @@ func (i *Instance) ExecuteAction(ctx context.Context, actionID string, resource,
 		return nil, err
 	}
 	return i.settle(ctx, value)
-}
-
-// ResolvePlayback invokes the provider's optional server-side playback resolver.
-func (i *Instance) ResolvePlayback(ctx context.Context, resource, identity any) (any, error) {
-	i.mu.Lock()
-	defer i.mu.Unlock()
-	if i.stopped {
-		return nil, ErrStopped
-	}
-	playback, ok := i.definition.Get("playback").(*goja.Object)
-	if !ok {
-		return nil, errors.New("integration does not declare playback")
-	}
-	resolve, ok := goja.AssertFunction(playback.Get("resolve"))
-	if !ok {
-		return nil, errors.New("integration playback resolver is invalid")
-	}
-	value, err := i.call(ctx, func() (goja.Value, error) {
-		return resolve(playback, i.api, i.rt.ToValue(resource), i.rt.ToValue(identity))
-	})
-	if err != nil {
-		return nil, err
-	}
-	return i.settle(ctx, value)
-}
-
-// DispatchPlaybackEvent invokes an optional listener for an active player.
-func (i *Instance) DispatchPlaybackEvent(ctx context.Context, eventType string, playbackContext, event any) error {
-	i.mu.Lock()
-	defer i.mu.Unlock()
-	if i.stopped {
-		return ErrStopped
-	}
-	playback, ok := i.definition.Get("playback").(*goja.Object)
-	if !ok {
-		return nil
-	}
-	listeners, ok := playback.Get("listeners").(*goja.Object)
-	if !ok {
-		return nil
-	}
-	listener, ok := goja.AssertFunction(listeners.Get(eventType))
-	if !ok {
-		return nil
-	}
-	value, err := i.call(ctx, func() (goja.Value, error) {
-		return listener(playback, i.api, i.rt.ToValue(playbackContext), i.rt.ToValue(event))
-	})
-	if err != nil {
-		return err
-	}
-	_, err = i.settle(ctx, value)
-	return err
 }
 
 // Stop is idempotent and invokes provider cleanup before dropping the VM.

@@ -49,8 +49,6 @@ export type ResourceRecord = {
   icon?: string;
   type?: string;
   tags?: readonly string[];
-  /** Generic Dashwise capabilities used to discover resources in shared app surfaces. */
-  capabilities?: readonly string[];
   state?: JsonValue;
   attributes?: Readonly<Record<string, JsonValue>>;
   available?: boolean;
@@ -59,45 +57,6 @@ export type ResourceRecord = {
   apps?: readonly string[];
   updatedAt?: string;
   upstreamId?: string;
-  /** Indicates that this resource can be resolved to playable media. */
-  playback?: boolean;
-};
-export type PlaybackSource = {
-  url: string;
-  auth?: { headers: Readonly<Record<string, string>> };
-  metadata?: { title?: string; artist?: string; artworkUrl?: string; durationSeconds?: number };
-  kind?: "audio" | "video";
-  mimeType?: string;
-};
-export type PlaybackEvent = {
-  sequence: number;
-  type: "started" | "paused" | "resumed" | "progress" | "ended" | "stopped" | "error";
-  positionSeconds?: number;
-  reason?: string;
-};
-export type PlaybackResolveContext = {
-  userId: string;
-  integrationInstanceId: string;
-  sessionId: string;
-  collectionId: string;
-  resourceId: string;
-};
-export type PlaybackListenerContext = PlaybackResolveContext & {
-  resource: ResourceRecord;
-  source: PlaybackSource;
-  context?: JsonValue;
-};
-export type PlaybackListener<Runtime extends IntegrationsRuntime<any, any, any> = IntegrationsRuntime> = {
-  invoke(integrations: Runtime, context: PlaybackListenerContext, event: PlaybackEvent): void | Promise<void>;
-}["invoke"];
-export type IntegrationPlayback<Runtime extends IntegrationsRuntime<any, any, any> = IntegrationsRuntime> = {
-  resolve(
-    integrations: Runtime,
-    resource: ResourceRecord,
-    context: PlaybackResolveContext,
-  ): Promise<{ source: PlaybackSource; context?: JsonValue }> | { source: PlaybackSource; context?: JsonValue };
-  listeners?: Partial<Record<PlaybackEvent["type"], PlaybackListener<Runtime>>>;
-  dispose?(integrations: Runtime, context: PlaybackListenerContext): void | Promise<void>;
 };
 export type ResourceCollectionDefinition<Resource extends ResourceRecord = ResourceRecord> = {
   persistent?: boolean;
@@ -323,21 +282,8 @@ export type IntegrationActivity = {
   title: string;
   description?: string;
   severity?: "info" | "success" | "warning" | "error";
-  eventId?: string;
   idempotencyKey?: string;
   metadata?: Record<string, JsonValue>;
-  action?: { label: string; target: string };
-};
-
-/** A setting-visible activity condition owned and evaluated by an integration. */
-export type IntegrationActivityDefinition = {
-  /** Stable ID within this integration definition. */
-  id: string;
-  title: string;
-  description?: string;
-  severity?: "info" | "success" | "warning" | "error";
-  /** Optional per-definition settings schema exposed on the Activities settings page. */
-  configSchema?: ConfigSchema;
 };
 export type IntegrationStorage = {
   get<Value extends JsonValue = JsonValue>(key: string): Promise<Value | undefined>;
@@ -377,16 +323,7 @@ export type IntegrationsRuntime<
   readonly actions: {
     execute<Input extends JsonValue = JsonValue>(actionId: string, resource: ResourceIdentity, input: Input): Promise<ActionResult>;
   };
-  readonly activities: {
-    /** Backward-compatible idempotent event/activity publication. */
-    publish(activity: IntegrationActivity): Promise<{ id: string; duplicate: boolean }>;
-    /** Create or update a currently relevant condition under a stable producer key. */
-    upsert(key: string, activity: IntegrationActivity): Promise<{ id: string; duplicate: boolean }>;
-    /** Clear a currently relevant condition after it resolves. */
-    clear(key: string): Promise<{ cleared: boolean }>;
-    /** Read this instance's user-configured setting for a declared activity. */
-    getSettings(activityId: string): Promise<{ enabled: boolean; config: Readonly<Record<string, JsonValue>> }>;
-  };
+  readonly activities: { publish(activity: IntegrationActivity): Promise<{ id: string; duplicate: boolean }> };
   readonly events: {
     publish(event: IntegrationEvent): void;
     subscribe(name: string, handler: (event: IntegrationEvent) => void | Promise<void>): () => void;
@@ -413,11 +350,8 @@ export type IntegrationDefinition<
   resources: Resources;
   actions?: Readonly<Record<string, IntegrationAction<any, any, any, any>>>;
   apps?: readonly AppContribution[];
-  /** Activity definitions shown in Settings even while the condition is inactive. */
-  activities?: readonly IntegrationActivityDefinition[];
   widgets?: Widgets;
   glanceables?: Glanceables;
-  playback?: IntegrationPlayback<IntegrationsRuntime<ConfigValues<Config>, SecretConfigKey<Config>, Resources>>;
   setup?(integrations: IntegrationsRuntime<ConfigValues<Config>, SecretConfigKey<Config>, Resources>): void | Promise<void>;
   start?(integrations: IntegrationsRuntime<ConfigValues<Config>, SecretConfigKey<Config>, Resources>): void | Promise<void>;
   stop?(integrations: IntegrationsRuntime<ConfigValues<Config>, SecretConfigKey<Config>, Resources>): void | Promise<void>;

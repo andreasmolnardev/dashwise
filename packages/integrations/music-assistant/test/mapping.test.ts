@@ -9,7 +9,7 @@ describe("Music Assistant mapping", () => {
   test("maps API URIs without claiming native playback support", () => {
     const item = mapRecentItems([{ uri: "library://track/42", name: "Track", media_type: "track" }])[0];
     expect(item).toMatchObject({ upstreamId: "library://track/42", type: "track", actions: ["playOnPlayer"] });
-    expect(item?.playback).toBeUndefined();
+    expect(item).not.toHaveProperty("playback");
     expect(() => mapRecentItems({ items: [] })).toThrow("invalid recently played list");
     expect(mapRecentItems([{ item_id: "42", name: "No URI" }])).toEqual([]);
   });

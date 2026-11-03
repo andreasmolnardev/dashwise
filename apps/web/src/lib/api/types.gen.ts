@@ -242,10 +242,6 @@ export type SdkResourceRecord = {
         [key: string]: unknown;
     };
     available?: boolean;
-    /**
-     * Can be resolved by the integration playback provider
-     */
-    playback?: boolean;
     actions?: Array<string>;
     apps?: Array<string>;
     updatedAt?: string;
