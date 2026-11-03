@@ -319,7 +319,7 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, err
 		_ = db.Close()
 		return nil, fmt.Errorf("initialize SDK integration manager: %w", err)
 	}
-	sdkIntegrationsHandler, err := sdkintegrationsapi.New(integrationsStore, sdkManager, authenticateOwner(authStore), sdkManifests)
+	sdkIntegrationsHandler, err := sdkintegrationsapi.New(integrationsStore, sdkManager, authenticateOwner(authStore), sdkManifests, resourceStore)
 	if err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("initialize SDK integrations API: %w", err)

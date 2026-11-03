@@ -23,18 +23,22 @@ import (
 const maxBodyBytes = 1 << 20
 
 type Handler struct {
-	store   *integrations.Store
-	manager *sdkmanager.Manager
-	auth    resourceapi.Authenticate
-	catalog map[string]jsruntime.Manifest
-	mux     *http.ServeMux
+	store         *integrations.Store
+	manager       *sdkmanager.Manager
+	auth          resourceapi.Authenticate
+	catalog       map[string]jsruntime.Manifest
+	resourceStore *resources.Store
+	mux           *http.ServeMux
 }
 
-func New(store *integrations.Store, manager *sdkmanager.Manager, authenticate resourceapi.Authenticate, manifests []jsruntime.Manifest) (http.Handler, error) {
+func New(store *integrations.Store, manager *sdkmanager.Manager, authenticate resourceapi.Authenticate, manifests []jsruntime.Manifest, resourceStore *resources.Store) (http.Handler, error) {
 	if store == nil || authenticate == nil {
 		return nil, errors.New("SDK integrations API requires a store and authenticator")
 	}
-	h := &Handler{store: store, manager: manager, auth: authenticate, catalog: make(map[string]jsruntime.Manifest), mux: http.NewServeMux()}
+	if resourceStore == nil {
+		return nil, errors.New("SDK integrations API requires a resource store")
+	}
+	h := &Handler{store: store, manager: manager, auth: authenticate, catalog: make(map[string]jsruntime.Manifest), resourceStore: resourceStore, mux: http.NewServeMux()}
 	for _, manifest := range manifests {
 		if manifest.ID != "" {
 			h.catalog[manifest.ID] = manifest
@@ -400,8 +404,29 @@ func (h *Handler) resolveContribution(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	// Revisions seed the client's stale-event gate with the owner-scoped
+	// change-event sequence baseline for every resource this resolution
+	// returned, matching the identities the realtime websocket subscribes to.
+	revisions := make([]map[string]any, 0)
+	revisionsSeen := map[string]bool{}
+	// registerRevision records one resolved resource at most once per
+	// identity; absent or ambiguous selections stay out so the client never
+	// subscribes to resources the returned data does not reference.
+	registerRevision := func(row *resources.Resource) error {
+		key := row.Type + "\x00" + row.ProviderResourceID
+		if revisionsSeen[key] {
+			return nil
+		}
+		entry, err := h.resourceRevision(r.Context(), owner, item.ID, manifest, row)
+		if err != nil {
+			return err
+		}
+		revisionsSeen[key] = true
+		revisions = append(revisions, entry)
+		return nil
+	}
 	if h.manager != nil {
-		resources, err := h.manager.Resources(r.Context(), owner, item.ID)
+		rows, err := h.manager.Resources(r.Context(), owner, item.ID)
 		if err != nil {
 			writeError(w, 503, "SDK resources are unavailable")
 			return
@@ -418,14 +443,22 @@ func (h *Handler) resolveContribution(w http.ResponseWriter, r *http.Request) {
 				ids := stringArray(selected)
 				found := make([]map[string]any, 0)
 				for _, id := range ids {
-					if resource, ok := resolveResource(resources, manifest, id, collectionIDs, appIDs); ok {
+					if resource, row, ok := resolveResource(rows, manifest, id, collectionIDs, appIDs); ok {
 						found = append(found, resource)
+						if err := registerRevision(row); err != nil {
+							writeError(w, 503, "SDK resource revisions are unavailable")
+							return
+						}
 					}
 				}
 				data[output] = found
 			} else if selectedID, ok := selected.(string); ok && selectedID != "" {
-				if resource, found := resolveResource(resources, manifest, selectedID, collectionIDs, appIDs); found {
+				if resource, row, found := resolveResource(rows, manifest, selectedID, collectionIDs, appIDs); found {
 					data[output] = resource
+					if err := registerRevision(row); err != nil {
+						writeError(w, 503, "SDK resource revisions are unavailable")
+						return
+					}
 				} else {
 					data[output] = nil
 				}
@@ -434,7 +467,16 @@ func (h *Handler) resolveContribution(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	writeJSON(w, 200, map[string]any{"data": data, "revisions": []any{}})
+	// Bindings resolve from a Go map; order the seeded revisions so repeated
+	// resolutions with the same selections yield a stable payload.
+	sort.Slice(revisions, func(i, j int) bool {
+		left, right := revisions[i], revisions[j]
+		if left["collectionId"] != right["collectionId"] {
+			return left["collectionId"].(string) < right["collectionId"].(string)
+		}
+		return left["resourceId"].(string) < right["resourceId"].(string)
+	})
+	writeJSON(w, 200, map[string]any{"data": data, "revisions": revisions})
 }
 
 func (h *Handler) action(w http.ResponseWriter, r *http.Request) {
@@ -620,7 +662,7 @@ func findContribution(m jsruntime.Manifest, kind, id string) map[string]any {
 	return nil
 }
 
-func resolveResource(rows []resources.Resource, manifest jsruntime.Manifest, id string, collections, apps []string) (map[string]any, bool) {
+func resolveResource(rows []resources.Resource, manifest jsruntime.Manifest, id string, collections, apps []string) (map[string]any, *resources.Resource, bool) {
 	var found *resources.Resource
 	for i := range rows {
 		row := &rows[i]
@@ -633,16 +675,34 @@ func resolveResource(rows []resources.Resource, manifest jsruntime.Manifest, id 
 			continue
 		}
 		if found != nil {
-			return nil, false
+			return nil, nil, false
 		}
 		found = row
 	}
 	if found == nil {
-		return nil, false
+		return nil, nil, false
 	}
 	value := copyMap(found.Data)
 	value["id"] = found.ProviderResourceID
-	return value, true
+	return value, found, true
+}
+
+// resourceRevision builds the revision-baseline entry for one owner-scoped
+// resource row. The revision is the highest change-event sequence already
+// recorded for the identity, exactly the counter the realtime websocket emits
+// in sdk:resource-revision messages.
+func (h *Handler) resourceRevision(ctx context.Context, owner, instanceID string, manifest jsruntime.Manifest, row *resources.Resource) (map[string]any, error) {
+	revision, err := h.resourceStore.LatestRevision(ctx, owner, row.Type, instanceID, row.ProviderResourceID)
+	if err != nil {
+		return nil, err
+	}
+	collection := strings.TrimPrefix(row.Type, "sdk."+manifest.ID+".")
+	return map[string]any{
+		"instanceId":   instanceID,
+		"collectionId": collection,
+		"resourceId":   row.ProviderResourceID,
+		"revision":     revision,
+	}, nil
 }
 
 func readBody(w http.ResponseWriter, r *http.Request) (map[string]any, bool) {
