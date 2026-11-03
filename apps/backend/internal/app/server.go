@@ -484,7 +484,7 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, err
 	app.workers.Add(1)
 	go func() {
 		defer app.workers.Done()
-		if err := runResourceSync(workerCtx, authStore, linksStore, newsStore, monitoringStore, resourceStore, logger); err != nil && workerCtx.Err() == nil {
+		if err := runResourceSync(workerCtx, authStore, linksStore, newsStore, monitoringStore, integrationsStore, yamlRuntime, registry, resourceStore, logger); err != nil && workerCtx.Err() == nil {
 			logger.Error("native resource sync stopped", "error", err)
 		}
 	}()
@@ -544,7 +544,7 @@ func runActivityConditionReconciliation(ctx context.Context, authStore *auth.Sto
 	}
 }
 
-func runResourceSync(ctx context.Context, authStore *auth.Store, linksStore *links.Store, newsStore *news.Store, monitoringStore *monitoring.Store, resourceStore *resources.Store, logger *slog.Logger) error {
+func runResourceSync(ctx context.Context, authStore *auth.Store, linksStore *links.Store, newsStore *news.Store, monitoringStore *monitoring.Store, integrationsStore *integrations.Store, yamlRuntime *yamlruntime.Runtime, registry *resources.Registry, resourceStore *resources.Store, logger *slog.Logger) error {
 	ticker := time.NewTicker(time.Minute)
 	defer ticker.Stop()
 	for {
@@ -561,6 +561,12 @@ func runResourceSync(ctx context.Context, authStore *auth.Store, linksStore *lin
 						return ctx.Err()
 					}
 					logger.Error("sync native resources", "owner_id", owner, "error", err)
+				}
+				if err := resourcesync.SyncYAMLResources(ctx, owner, integrationsStore, yamlRuntime, registry, resourceStore); err != nil {
+					if ctx.Err() != nil {
+						return ctx.Err()
+					}
+					logger.Error("sync YAML integration resources", "owner_id", owner, "error", err)
 				}
 				if err := materializeNewsResources(ctx, owner, newsStore, resourceStore); err != nil {
 					if ctx.Err() != nil {

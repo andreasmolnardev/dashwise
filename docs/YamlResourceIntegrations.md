@@ -1,0 +1,44 @@
+# YAML resource collections
+
+YAML integrations can materialize REST endpoint results into Dashwise's shared
+resource store. Put collection declarations under `configuration.resources`.
+Each collection names an endpoint, an identity path, and the fields that views
+may filter or search.
+
+```yaml
+details:
+  name: Example Status
+  slug: example-status
+configuration:
+  endpoints:
+    services:
+      url: https://status.example.test/api/services
+      response:
+        type: json
+  resources:
+    services:
+      endpoint: services
+      id_path: id
+      name_path: name
+      capabilities: [list, detail, search]
+      fields:
+        - name: status
+          type: string
+          source: status
+          filterable: true
+        - name: description
+          type: text
+          source: description
+          searchable: true
+```
+
+The endpoint's mapped response must be an array of objects. `id_path`,
+`name_path`, and field `source` values are dot-separated paths, and may start
+with `$.`; numeric segments address array elements. Supported field types are
+`string`, `text`, `url`, `datetime`, `date`, `number`, `integer`, `boolean`,
+`object`, and `array`. Resource types are namespaced as
+`integration.<integration-slug>.<collection-slug>`.
+
+The Go resource sync refreshes these collections once per minute. Failed
+endpoint runs keep their last successful snapshot. Removed collection items and
+deleted YAML integration instances are reconciled from the resource store.
