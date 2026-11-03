@@ -48,6 +48,11 @@ func New(store *links.Store, authenticate resourceapi.Authenticate) (http.Handle
 	h.mux.HandleFunc("GET /api/v1/links/tags", h.listTags)
 	h.mux.HandleFunc("POST /api/v1/links/tags", h.createTag)
 	h.mux.HandleFunc("PUT /api/v1/links/tags/{tagId}", h.updateTag)
+	h.mux.HandleFunc("GET /api/v1/links/rss", h.listRSS)
+	h.mux.HandleFunc("POST /api/v1/links/rss", h.createRSS)
+	h.mux.HandleFunc("PUT /api/v1/links/rss/{feedId}", h.updateRSS)
+	h.mux.HandleFunc("DELETE /api/v1/links/rss/{feedId}", h.deleteRSS)
+	h.mux.HandleFunc("GET /api/v1/links/rss/{feedId}", h.publicRSS)
 	return h.mux, nil
 }
 

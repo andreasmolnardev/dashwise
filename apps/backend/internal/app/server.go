@@ -97,6 +97,10 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, err
 		_ = db.Close()
 		return nil, fmt.Errorf("initialize Links schema: %w", err)
 	}
+	if err := linksStore.InitializeRSS(ctx); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("initialize Links RSS schema: %w", err)
+	}
 	newsStore, err := news.NewStore(db)
 	if err != nil {
 		_ = db.Close()
