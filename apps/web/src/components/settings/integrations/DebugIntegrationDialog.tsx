@@ -1,4 +1,4 @@
-import { Loader2 } from "lucide-react";
+import { CalendarDays, Loader2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { EnvDefinition } from "@/lib/integrations/types";
-import { getIntegrationsAction } from '@/lib/apiClient';
+import { getIntegrationCalendarsAction, getIntegrationsAction, type IntegrationCalendar } from '@/lib/apiClient';
 import useAuth from "@/context/useAuth";
 
 const dateFormatter = new Intl.DateTimeFormat(undefined, {
@@ -52,6 +52,7 @@ export type ResolvedEndpoint = {
 type IntegrationRecord = {
   id: string;
   name: string | null;
+  type?: "plugin" | "caldav";
   source: string | null;
   config: Record<string, unknown>;
   environment: Record<string, string>;
@@ -88,6 +89,36 @@ export function DebugIntegrationDialog({
   >({});
   const [resolvingId, setResolvingId] = useState<string | null>(null);
   const [copiedMap, setCopiedMap] = useState<Record<string, boolean>>({});
+  const [calendars, setCalendars] = useState<IntegrationCalendar[]>([]);
+  const [calendarsLoading, setCalendarsLoading] = useState(false);
+  const [calendarsError, setCalendarsError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open || integration?.type !== "caldav") {
+      setCalendars([]);
+      setCalendarsError(null);
+      setCalendarsLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setCalendarsLoading(true);
+    setCalendarsError(null);
+    void withAuth((auth) => getIntegrationCalendarsAction(auth, integration.id))
+      .then((result) => {
+        if (!cancelled) setCalendars(Array.isArray(result.calendars) ? result.calendars : []);
+      })
+      .catch(() => {
+        if (!cancelled) setCalendarsError("Unable to load calendars. Check the connection and try again.");
+      })
+      .finally(() => {
+        if (!cancelled) setCalendarsLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [integration?.id, integration?.type, open, withAuth]);
 
   useEffect(() => {
     if (!open) {
@@ -258,6 +289,36 @@ export function DebugIntegrationDialog({
                 </DialogDescription>
               </DialogHeader>
 
+              {integration.type === "caldav" && (
+                <section aria-labelledby="configured-calendars-heading" className="space-y-3 rounded-xl frosted p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <h3 id="configured-calendars-heading" className="flex items-center gap-2 text-sm font-semibold">
+                      <CalendarDays className="size-4" aria-hidden="true" />
+                      Configured calendars
+                    </h3>
+                    {!calendarsLoading && !calendarsError && (
+                      <Badge variant="outline">{calendars.length}</Badge>
+                    )}
+                  </div>
+                  {calendarsLoading ? (
+                    <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="size-4 animate-spin" aria-hidden="true" />Loading calendars…</p>
+                  ) : calendarsError ? (
+                    <p role="alert" className="text-sm text-destructive-foreground">{calendarsError}</p>
+                  ) : calendars.length ? (
+                    <ul className="grid gap-2 sm:grid-cols-2">
+                      {calendars.map((calendar) => (
+                        <li key={calendar.id} className="min-w-0 rounded-lg bg-background/40 px-3 py-2">
+                          <p className="truncate text-sm font-medium">{calendar.name}</p>
+                          <p className="truncate font-mono text-xs text-muted-foreground" title={calendar.url}>{calendar.url}</p>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">No calendars were found for this account.</p>
+                  )}
+                </section>
+              )}
+
                 <div className="flex flex-wrap items-start gap-3">
                   {[
                     {
@@ -420,7 +481,7 @@ export function DebugIntegrationDialog({
                                             Headers: {JSON.stringify(endpoint.resolvedHeaders)}
                                           </div>
                                         )}
-                                        {endpoint.resolvedBody && (
+                                        {Boolean(endpoint.resolvedBody) && (
                                           <div className="mt-1 text-muted-foreground">
                                             Body: {typeof endpoint.resolvedBody === "string" ? endpoint.resolvedBody : JSON.stringify(endpoint.resolvedBody as Record<string, unknown>)}
                                           </div>
@@ -600,7 +661,7 @@ export function DebugIntegrationDialog({
                                           )}
                                         </div>
                                       )}
-                                      {endpoint.resolvedBody && (
+                                      {Boolean(endpoint.resolvedBody) && (
                                         <div className="mt-1 text-muted-foreground">
                                           Body:{" "}
                                           {typeof endpoint.resolvedBody ===
@@ -633,7 +694,7 @@ export function DebugIntegrationDialog({
                                           Headers: {JSON.stringify(endpoint.resolvedHeaders)}
                                         </div>
                                       )}
-                                      {endpoint.resolvedBody && (
+                                      {Boolean(endpoint.resolvedBody) && (
                                         <div className="mt-1 text-muted-foreground">
                                           Body: {typeof endpoint.resolvedBody === "string" ? endpoint.resolvedBody : JSON.stringify(endpoint.resolvedBody as object)}
                                         </div>
