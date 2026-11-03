@@ -3,11 +3,9 @@
 import { Outlet, useSearchParams } from "react-router-dom";
 import { useState } from "react";
 import AppTemplate, { BottomTab, Content, GroupLabel, Sidebar, Tab } from "@/components/apps/LayoutTemplate";
-import { getMonitorsAction } from '@/lib/apiClient';
-import { getMonitoringHostsAction, getSdkMonitoringResourcesAction } from '@/lib/apiClient';
-import type { MonitorRecord, MonitoringHostRecord } from '@/lib/apiClient';
+import { getSdkMonitoringResourcesAction } from '@/lib/apiClient';
+import type { ViewResourceQuery } from '@/lib/viewsApi';
 import { useActivity } from "@/context/ActivityContext";
-import config from "@/lib/config";
 import AddMonitoringResourceDialog from "@/components/monitoring/AddMonitoringResourceDialog";
 import SystemAgentHostDialog from "@/components/monitoring/SystemAgentHostDialog";
 import { useMonitoringLinkLookup } from "@/components/monitoring/useMonitoringLinkLookup";
@@ -15,6 +13,24 @@ import { useApiQuery } from "@/hooks/useApiQuery";
 import { queryKeys } from "@/lib/queryClient";
 import { useQueryClient } from "@tanstack/react-query";
 import useAuth from "@/context/useAuth";
+import { useResourceView } from "@/hooks/useResourceView";
+
+const monitoredServicesView: ViewResourceQuery = {
+    types: ["monitoring.service"],
+    provider: "dashwise",
+    providerInstanceId: "monitoring",
+    capabilities: ["monitoring"],
+    filters: [],
+    search: "",
+    orderBy: "updatedAt",
+    limit: 200,
+    offset: 0,
+};
+
+const monitoringHostsView: ViewResourceQuery = {
+    ...monitoredServicesView,
+    types: ["monitoring.host"],
+};
 
 export default function MonitoringRootLayout() {
     const queryClient = useQueryClient();
@@ -24,11 +40,11 @@ export default function MonitoringRootLayout() {
     const [searchParams, setSearchParams] = useSearchParams();
     const { entryById } = useMonitoringLinkLookup();
 
-    const monitorsQuery = useApiQuery(queryKeys.monitoring.monitors, getMonitorsAction);
-    const hostsQuery = useApiQuery(queryKeys.monitoring.hosts, getMonitoringHostsAction);
+    const monitorsQuery = useResourceView(monitoredServicesView);
+    const hostsQuery = useResourceView(monitoringHostsView);
     const sdkResourcesQuery = useApiQuery(queryKeys.monitoring.sdkResources, getSdkMonitoringResourcesAction);
-    const monitors = (monitorsQuery.data ?? []) as MonitorRecord[];
-    const hosts = (hostsQuery.data ?? []) as MonitoringHostRecord[];
+    const monitors = monitorsQuery.data?.items ?? [];
+    const hosts = hostsQuery.data?.items ?? [];
     const sdkResources = sdkResourcesQuery.data ?? [];
 
     const monitorDialogOpen = searchParams.get("newMonitor") === "true";
@@ -73,15 +89,15 @@ export default function MonitoringRootLayout() {
 
                 {monitors.map((monitor) => (
                     (() => {
-                        const entry = entryById.get(String(monitor.sourcelinkId || monitor.linkId || ""));
+                        const entry = entryById.get(String(monitor.data.linkId || ""));
                         return (
                     <Tab
-                        key={monitor.id}
-                        dst={`/apps/monitoring/${monitor.id}`}
+                        key={monitor.providerResourceId}
+                        dst={`/apps/monitoring/${monitor.providerResourceId}`}
                         icon="fa6-solid:server"
-                        title={monitor.expand?.sourcelinkId?.title || entry?.title || monitor.endpoint || monitor.sourcelinkId || monitor.source || monitor.id}
+                        title={entry?.title || String(monitor.data.name || monitor.data.url || monitor.providerResourceId)}
                         group="Monitors"
-                        badge={monitor.status ? monitor.status : undefined}
+                        badge={typeof monitor.data.status === "string" ? monitor.data.status : undefined}
                     />
                         );
                     })()
@@ -89,7 +105,7 @@ export default function MonitoringRootLayout() {
 
                 <GroupLabel group="Hosts" title="Hosts" collapsible collapsed actions={[{ icon: "fa6-solid:plus", title: "Connect System Agent", action: () => setSystemAgentDialogOpen(true) }]} />
                 {hosts.map((host) => (
-                    <Tab key={host.id} dst={`/apps/monitoring/hosts/${host.id}`} icon="fa6-solid:hard-drive" title={host.name || host.hostname || host.id} group="Hosts" badge={host.status || undefined} />
+                    <Tab key={host.providerResourceId} dst={`/apps/monitoring/hosts/${host.providerResourceId}`} icon="fa6-solid:hard-drive" title={String(host.data.name || host.data.hostname || host.providerResourceId)} group="Hosts" badge={typeof host.data.status === "string" ? host.data.status : undefined} />
                 ))}
 
                 {sdkResources.length > 0 && <GroupLabel group="Integrated systems" title="Integrated systems" collapsible collapsed />}
@@ -119,8 +135,8 @@ export default function MonitoringRootLayout() {
                         openMonitorDialog();
                     }
                 }}
-                onCreated={(monitor) => {
-                    queryClient.setQueryData<MonitorRecord[]>(["api", token, ...queryKeys.monitoring.monitors], (current = []) => [monitor, ...current.filter((existing) => existing.id !== monitor.id)]);
+                onCreated={() => {
+                    void queryClient.invalidateQueries({ queryKey: ["api", token, "resources"] });
                     closeMonitorDialog();
                 }}
                 onSystemAgentRequested={() => setSystemAgentDialogOpen(true)}
@@ -129,7 +145,7 @@ export default function MonitoringRootLayout() {
             <SystemAgentHostDialog
                 open={systemAgentDialogOpen}
                 onOpenChange={setSystemAgentDialogOpen}
-                onSaved={(host) => queryClient.setQueryData<MonitoringHostRecord[]>(["api", token, ...queryKeys.monitoring.hosts], (current = []) => [host, ...current.filter((existing) => existing.id !== host.id)])}
+                onSaved={() => { void queryClient.invalidateQueries({ queryKey: ["api", token, "resources"] }); }}
             />
 
         </AppTemplate>

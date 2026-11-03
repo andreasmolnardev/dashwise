@@ -59,6 +59,7 @@ func BuiltinDefinitions() []Definition {
 			Fields: []FieldDefinition{
 				{Name: "name", Type: "string", Filterable: true, Searchable: true},
 				{Name: "url", Type: "url", Searchable: true},
+				{Name: "linkId", Type: "string", Filterable: true},
 				{Name: "status", Type: "string", Filterable: true},
 				{Name: "checkedAt", Type: "datetime", Filterable: true},
 			},

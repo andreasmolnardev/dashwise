@@ -132,6 +132,9 @@ func syncMonitoring(ctx context.Context, owner string, source *monitoring.Store,
 			"url":    redactEndpoint(monitor.Endpoint),
 			"status": monitor.Status,
 		}
+		if monitor.LinkID != "" {
+			data["linkId"] = monitor.LinkID
+		}
 		if len(monitor.Pings) > 0 {
 			data["checkedAt"] = monitor.Pings[0].Created.UTC().Format("2006-01-02T15:04:05.999999999Z07:00")
 		}
