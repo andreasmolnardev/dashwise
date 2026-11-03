@@ -28,6 +28,7 @@ type Handler struct {
 	notifications *notifications.Store
 	resources     *resources.Store
 	registry      *resources.Registry
+	manifests     []activities.SDKManifest
 	auth          resourceapi.Authenticate
 	mux           *http.ServeMux
 	mu            sync.Mutex
@@ -46,11 +47,11 @@ func New(store *activities.Store, authenticate resourceapi.Authenticate, integra
 	return NewWithDefinitions(store, authenticate, integrationStore, nil, nil, nil)
 }
 
-func NewWithDefinitions(store *activities.Store, authenticate resourceapi.Authenticate, integrationStore *integrations.Store, notificationStore *notifications.Store, resourceStore *resources.Store, registry *resources.Registry) (http.Handler, error) {
+func NewWithDefinitions(store *activities.Store, authenticate resourceapi.Authenticate, integrationStore *integrations.Store, notificationStore *notifications.Store, resourceStore *resources.Store, registry *resources.Registry, manifests ...activities.SDKManifest) (http.Handler, error) {
 	if store == nil || authenticate == nil {
 		return nil, errors.New("activities API requires a store and authenticator")
 	}
-	h := &Handler{store: store, integrations: integrationStore, notifications: notificationStore, resources: resourceStore, registry: registry, auth: authenticate, mux: http.NewServeMux(), limits: map[string]rateWindow{}}
+	h := &Handler{store: store, integrations: integrationStore, notifications: notificationStore, resources: resourceStore, registry: registry, manifests: append([]activities.SDKManifest(nil), manifests...), auth: authenticate, mux: http.NewServeMux(), limits: map[string]rateWindow{}}
 	h.mux.HandleFunc("GET /api/v1/activities/definitions", h.definitions)
 	h.mux.HandleFunc("PATCH /api/v1/activities/definitions/{id}", h.patchDefinition)
 	h.mux.HandleFunc("POST /api/v1/activities/definitions/resource-conditions", h.createResourceCondition)
@@ -89,7 +90,7 @@ func (h *Handler) definitions(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	definitions, err := activities.ListDefinitionViews(r.Context(), h.store, owner, h.notifications)
+	definitions, err := activities.ListDefinitionViews(r.Context(), h.store, owner, h.notifications, h.integrations, h.manifests)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not load activity definitions")
 		return
@@ -114,7 +115,7 @@ func (h *Handler) patchDefinition(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &body) {
 		return
 	}
-	definition, err := activities.SaveDefinitionPreference(r.Context(), h.store, h.notifications, owner, r.PathValue("id"), body.Enabled, body.Config)
+	definition, err := activities.SaveDefinitionPreference(r.Context(), h.store, h.notifications, owner, r.PathValue("id"), body.Enabled, body.Config, h.integrations, h.manifests)
 	if err != nil {
 		h.writeDefinitionError(w, err)
 		return
@@ -145,7 +146,7 @@ func (h *Handler) createResourceCondition(w http.ResponseWriter, r *http.Request
 		writeError(w, http.StatusInternalServerError, "could not load SDK integration instance")
 		return
 	}
-	definition, err := activities.CreateResourceCondition(r.Context(), h.store, h.notifications, h.resources, h.registry, owner, instance.Source, input)
+	definition, err := activities.CreateResourceCondition(r.Context(), h.store, h.notifications, h.resources, h.registry, owner, instance.Source, input, h.integrations, h.manifests)
 	if err != nil {
 		h.writeDefinitionError(w, err)
 		return

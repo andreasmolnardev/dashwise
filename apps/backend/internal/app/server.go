@@ -276,7 +276,33 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, err
 		_ = db.Close()
 		return nil, fmt.Errorf("initialize Notifications API: %w", err)
 	}
-	activitiesHandler, err := activitiesapi.NewWithDefinitions(activitiesStore, authenticateOwner(authStore), integrationsStore, notificationsStore, resourceStore, registry)
+	sdkBundles, sdkManifests, err := sdkproviders.Load(ctx)
+	if err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("load trusted SDK providers: %w", err)
+	}
+	sdkManager, err := sdkmanager.New(sdkmanager.Options{
+		Database: db, Integrations: integrationsStore, Registry: registry, Resources: resourceStore,
+		Activities: activitiesStore, Notifications: notificationsStore, Bundles: sdkBundles, Logger: logger,
+	})
+	if err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("initialize SDK integration manager: %w", err)
+	}
+	sdkIntegrationsHandler, err := sdkintegrationsapi.New(integrationsStore, sdkManager, authenticateOwner(authStore), sdkManifests, resourceStore)
+	if err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("initialize SDK integrations API: %w", err)
+	}
+	// Retained manifests feed the Activities definitions surface the same way
+	// they feed the SDK catalog.
+	activityManifests := make([]activities.SDKManifest, 0, len(sdkManifests))
+	for _, manifest := range sdkManifests {
+		activityManifests = append(activityManifests, activities.SDKManifest{
+			ID: manifest.ID, Name: manifest.Name, Description: manifest.Description, Activities: manifest.Activities,
+		})
+	}
+	activitiesHandler, err := activitiesapi.NewWithDefinitions(activitiesStore, authenticateOwner(authStore), integrationsStore, notificationsStore, resourceStore, registry, activityManifests...)
 	if err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("initialize Activities API: %w", err)
@@ -305,24 +331,6 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, err
 	if err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("initialize Integrations API: %w", err)
-	}
-	sdkBundles, sdkManifests, err := sdkproviders.Load(ctx)
-	if err != nil {
-		_ = db.Close()
-		return nil, fmt.Errorf("load trusted SDK providers: %w", err)
-	}
-	sdkManager, err := sdkmanager.New(sdkmanager.Options{
-		Database: db, Integrations: integrationsStore, Registry: registry, Resources: resourceStore,
-		Activities: activitiesStore, Bundles: sdkBundles, Logger: logger,
-	})
-	if err != nil {
-		_ = db.Close()
-		return nil, fmt.Errorf("initialize SDK integration manager: %w", err)
-	}
-	sdkIntegrationsHandler, err := sdkintegrationsapi.New(integrationsStore, sdkManager, authenticateOwner(authStore), sdkManifests, resourceStore)
-	if err != nil {
-		_ = db.Close()
-		return nil, fmt.Errorf("initialize SDK integrations API: %w", err)
 	}
 	calendarHandler, err := calendarapi.New(integrationsStore, authenticateOwner(authStore), resourceStore)
 	if err != nil {

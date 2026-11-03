@@ -15,6 +15,7 @@ import (
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/activities"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/integrations"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/jsruntime"
+	"github.com/andreasmolnardev/dashwise/apps/backend/internal/notifications"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/resources"
 	"github.com/andreasmolnardev/dashwise/packages/foundation"
 )
@@ -55,8 +56,11 @@ type Options struct {
 	Registry     *resources.Registry
 	Resources    *resources.Store
 	Activities   *activities.Store
-	Bundles      TrustedBundleRegistry
-	HookTimeout  time.Duration
+	// Notifications is optional; without it SDK activities ignore
+	// notification-topic preference filtering.
+	Notifications *notifications.Store
+	Bundles       TrustedBundleRegistry
+	HookTimeout   time.Duration
 	// Logger receives provider runtime events; optional.
 	Logger *slog.Logger
 }
@@ -79,16 +83,17 @@ type managedInstance struct {
 }
 
 type Manager struct {
-	database     *foundation.DB
-	integrations *integrations.Store
-	registry     *resources.Registry
-	resources    *resources.Store
-	activities   *activities.Store
-	bundles      TrustedBundleRegistry
-	hookTimeout  time.Duration
-	logger       *slog.Logger
-	mu           sync.RWMutex
-	instances    map[string]*managedInstance
+	database      *foundation.DB
+	integrations  *integrations.Store
+	registry      *resources.Registry
+	resources     *resources.Store
+	activities    *activities.Store
+	notifications *notifications.Store
+	bundles       TrustedBundleRegistry
+	hookTimeout   time.Duration
+	logger        *slog.Logger
+	mu            sync.RWMutex
+	instances     map[string]*managedInstance
 }
 
 func New(options Options) (*Manager, error) {
@@ -100,7 +105,8 @@ func New(options Options) (*Manager, error) {
 	}
 	return &Manager{
 		database: options.Database, integrations: options.Integrations, registry: options.Registry,
-		resources: options.Resources, activities: options.Activities, bundles: options.Bundles, hookTimeout: options.HookTimeout,
+		resources: options.Resources, activities: options.Activities, notifications: options.Notifications,
+		bundles: options.Bundles, hookTimeout: options.HookTimeout,
 		logger: options.Logger, instances: make(map[string]*managedInstance),
 	}, nil
 }
@@ -171,7 +177,7 @@ func (m *Manager) Start(ctx context.Context, owner, instanceID string) error {
 			return jsruntime.NewStoreHost(ctx, jsruntime.HostOptions{
 				OwnerID: owner, InstanceID: item.ID, Manifest: manifest, Source: item.Source,
 				Database: m.database, Registry: m.registry, Resources: m.resources,
-				Activities: m.activities, Secrets: item.Environment,
+				Activities: m.activities, Notifications: m.notifications, Secrets: item.Environment,
 			})
 		},
 	})

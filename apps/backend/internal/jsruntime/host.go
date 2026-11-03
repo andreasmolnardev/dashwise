@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/activities"
+	"github.com/andreasmolnardev/dashwise/apps/backend/internal/notifications"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/resources"
 	"github.com/andreasmolnardev/dashwise/packages/foundation"
 )
@@ -38,12 +39,13 @@ type HostOptions struct {
 	Manifest   Manifest
 	// Source is the provider source recorded for the integration instance; it
 	// scopes integration activities the same way the TypeScript runtime does.
-	Source     string
-	Database   *foundation.DB
-	Registry   *resources.Registry
-	Resources  *resources.Store
-	Activities *activities.Store
-	Secrets    map[string]string
+	Source        string
+	Database      *foundation.DB
+	Registry      *resources.Registry
+	Resources     *resources.Store
+	Activities    *activities.Store
+	Notifications *notifications.Store
+	Secrets       map[string]string
 }
 
 // StoreHost implements resource collection CRUD/sync, persistent per
@@ -53,19 +55,21 @@ type HostOptions struct {
 // into the VM. Interactive actions, events, and MCP remain host adapters yet
 // to exist.
 type StoreHost struct {
-	ownerID      string
-	instanceID   string
-	manifestID   string
-	source       string
-	collections  map[string]string // collection name to registered resource type
-	fields       map[string]map[string]bool
-	configFields map[string]map[string]any
-	db           *sql.DB
-	foundation   *foundation.DB
-	resources    *resources.Store
-	activities   *activities.Store
-	secrets      map[string]string
-	closed       bool
+	ownerID          string
+	instanceID       string
+	manifestID       string
+	source           string
+	collections      map[string]string // collection name to registered resource type
+	fields           map[string]map[string]bool
+	configFields     map[string]map[string]any
+	activityDeclared map[string]bool // declared activity IDs from the retained manifest
+	db               *sql.DB
+	foundation       *foundation.DB
+	resources        *resources.Store
+	activities       *activities.Store
+	notifications    *notifications.Store
+	secrets          map[string]string
+	closed           bool
 }
 
 func NewStoreHost(ctx context.Context, options HostOptions) (*StoreHost, error) {
@@ -91,13 +95,21 @@ func NewStoreHost(ctx context.Context, options HostOptions) (*StoreHost, error) 
 	host := &StoreHost{
 		ownerID: options.OwnerID, instanceID: options.InstanceID, manifestID: options.Manifest.ID, source: source,
 		collections: make(map[string]string, len(options.Manifest.Resources)), fields: make(map[string]map[string]bool, len(options.Manifest.Resources)),
-		configFields: make(map[string]map[string]any, len(options.Manifest.Config)),
-		db:           options.Database.SQL(), foundation: options.Database, resources: options.Resources,
-		activities: options.Activities, secrets: cloneStrings(options.Secrets),
+		configFields: make(map[string]map[string]any, len(options.Manifest.Config)), activityDeclared: make(map[string]bool, len(options.Manifest.Activities)),
+		db: options.Database.SQL(), foundation: options.Database, resources: options.Resources,
+		activities: options.Activities, notifications: options.Notifications, secrets: cloneStrings(options.Secrets),
 	}
 	for key, raw := range options.Manifest.Config {
 		if value, ok := raw.(map[string]any); ok {
 			host.configFields[key] = value
+		}
+	}
+	// Retained manifests may declare named activities. Record the validated IDs
+	// so activities.upsert can resolve the owner's definition preferences later.
+	for _, spec := range options.Manifest.Activities {
+		id := strings.TrimSpace(stringArgValue(spec["id"]))
+		if activities.ValidSDKActivityID(id) {
+			host.activityDeclared[id] = true
 		}
 	}
 	for collection, raw := range options.Manifest.Resources {
@@ -244,11 +256,44 @@ func (h *StoreHost) activityUpsert(ctx context.Context, args []any) (any, error)
 	activity.Title = strings.TrimSpace(stringArgValue(payload["title"]))
 	activity.Description = strings.TrimSpace(stringArgValue(payload["description"]))
 	activity.Severity = strings.TrimSpace(stringArgValue(payload["severity"]))
+	// Declared activities honor the owner's definition preferences: when a
+	// configured notification-topic filter has no unread topics left, the
+	// current-state record for this key is cleared instead of (re)published so
+	// a stopped topic cannot keep an SDK condition visible.
+	if h.activityTopicsStale(ctx, activity.Type) {
+		removed, err := h.activities.Clear(ctx, h.ownerID, h.source, h.instanceID, key)
+		if err != nil {
+			return nil, err
+		}
+		return map[string]any{"id": "", "duplicate": false, "filtered": true, "cleared": removed}, nil
+	}
 	record, published, err := h.activities.Publish(ctx, h.ownerID, activity)
 	if err != nil {
 		return nil, err
 	}
 	return map[string]any{"id": record.ID, "duplicate": published}, nil
+}
+
+// activityTopicsStale reports whether a declared activity's owner-configured
+// notification-topic preference currently has no unread topics left, so the
+// upsert must clear instead of storing a current-state record.
+func (h *StoreHost) activityTopicsStale(ctx context.Context, activityType string) bool {
+	if !h.activityDeclared[activityType] {
+		return false
+	}
+	definitionID := activities.SDKActivityDefinitionID(h.instanceID, activityType)
+	if definitionID == "" {
+		return false
+	}
+	settings, err := h.activities.DefinitionSettings(ctx, h.ownerID)
+	if err != nil {
+		return false
+	}
+	topics := activities.DefinitionTopicPreference(settings, definitionID)
+	if len(topics) == 0 {
+		return false
+	}
+	return !activities.TopicsRelevant(ctx, h.ownerID, h.notifications, topics)
 }
 
 // activityClear implements integrations.activities.clear(key).

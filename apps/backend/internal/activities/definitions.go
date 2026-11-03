@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/andreasmolnardev/dashwise/apps/backend/internal/integrations"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/notifications"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/resources"
 )
@@ -101,7 +102,7 @@ var builtinDefinitions = []builtinDefinition{
 
 var conditionIdentifierPattern = regexp.MustCompile(`^[a-zA-Z0-9_.-]{1,240}$`)
 
-func ListDefinitionViews(ctx context.Context, store *Store, owner string, topicStore *notifications.Store) ([]ActivityDefinitionView, error) {
+func ListDefinitionViews(ctx context.Context, store *Store, owner string, topicStore *notifications.Store, integrationStore *integrations.Store, retained []SDKManifest) ([]ActivityDefinitionView, error) {
 	settings, err := store.DefinitionSettings(ctx, owner)
 	if err != nil {
 		return nil, err
@@ -126,10 +127,69 @@ func ListDefinitionViews(ctx context.Context, store *Store, owner string, topicS
 		config, _ := jsonObject(condition)
 		views = append(views, ActivityDefinitionView{ID: "condition:" + condition.ID, Title: condition.Title, Description: firstNonempty(condition.Description, "When "+condition.FieldPath+" "+condition.Operator), Source: "user", SourceID: condition.InstanceID, SourceName: condition.CollectionID, Enabled: settingEnabled(settings, "condition:"+condition.ID, true), Config: config, ConfigFields: withTopicOptions([]ActivityConfigField{notificationTopicsField}, topics)})
 	}
+	views, err = appendSDKActivityDefinitions(ctx, integrationStore, retained, owner, settings, views, topics)
+	if err != nil {
+		return nil, err
+	}
 	return views, nil
 }
 
-func SaveDefinitionPreference(ctx context.Context, store *Store, topicStore *notifications.Store, owner, definitionID string, enabled *bool, config map[string]any) (ActivityDefinitionView, error) {
+// appendSDKActivityDefinitions resolves each owned, enabled SDK integration
+// instance against its retained manifest and appends a definition view for
+// every declared activity so users can set owner-scoped preferences on the
+// same surface as the builtin definitions.
+func appendSDKActivityDefinitions(ctx context.Context, integrationStore *integrations.Store, retained []SDKManifest, owner string, settings DefinitionSettings, views []ActivityDefinitionView, topics []ActivityConfigOption) ([]ActivityDefinitionView, error) {
+	if integrationStore == nil || len(retained) == 0 {
+		return views, nil
+	}
+	instances, err := integrationStore.List(ctx, owner, true)
+	if err != nil {
+		return nil, err
+	}
+	for _, instance := range instances {
+		if instance.Type != "sdk" || !instance.SDKEnabled {
+			continue
+		}
+		manifest, found := retainedSDKManifest(retained, instance.Source)
+		if !found {
+			continue
+		}
+		for _, declaration := range ManifestActivityDeclarations(manifest) {
+			definitionID := SDKActivityDefinitionID(instance.ID, declaration.ID)
+			if definitionID == "" {
+				continue
+			}
+			config := map[string]any{"notificationTopics": []string{}}
+			if preferred := DefinitionTopicPreference(settings, definitionID); preferred != nil {
+				config["notificationTopics"] = preferred
+			}
+			views = append(views, ActivityDefinitionView{
+				ID:           definitionID,
+				Title:        firstNonempty(declaration.Title, firstNonempty(instance.Name, manifest.Name)+" "+declaration.ID),
+				Description:  declaration.Description,
+				Source:       "sdk",
+				SourceID:     instance.ID,
+				SourceName:   firstNonempty(instance.Name, manifest.Name, instance.Source),
+				Enabled:      settingEnabled(settings, definitionID, true),
+				Config:       config,
+				ConfigFields: withTopicOptions([]ActivityConfigField{notificationTopicsField}, topics),
+			})
+		}
+	}
+	return views, nil
+}
+
+func retainedSDKManifest(retained []SDKManifest, source string) (SDKManifest, bool) {
+	source = strings.ToLower(strings.TrimSpace(source))
+	for _, manifest := range retained {
+		if manifest.ID == source {
+			return manifest, true
+		}
+	}
+	return SDKManifest{}, false
+}
+
+func SaveDefinitionPreference(ctx context.Context, store *Store, topicStore *notifications.Store, owner, definitionID string, enabled *bool, config map[string]any, integrationStore *integrations.Store, retained []SDKManifest) (ActivityDefinitionView, error) {
 	settings, err := store.DefinitionSettings(ctx, owner)
 	if err != nil {
 		return ActivityDefinitionView{}, err
@@ -175,6 +235,25 @@ func SaveDefinitionPreference(ctx context.Context, store *Store, topicStore *not
 				condition.NotificationTopics = topics
 			}
 		}
+	} else if instanceID, activityID, isSDK := ParseSDKActivityDefinitionID(definitionID); isSDK {
+		if integrationStore == nil {
+			return ActivityDefinitionView{}, ErrNotFound
+		}
+		if _, err := resolveSDKActivityDeclaration(ctx, integrationStore, retained, owner, instanceID, activityID); err != nil {
+			return ActivityDefinitionView{}, err
+		}
+		fields = []ActivityConfigField{notificationTopicsField}
+		if config != nil {
+			if err := validateConfigPatch(ctx, owner, topicStore, fields, config); err != nil {
+				return ActivityDefinitionView{}, err
+			}
+			if settings.Config[definitionID] == nil {
+				settings.Config[definitionID] = map[string]any{}
+			}
+			for key, value := range config {
+				settings.Config[definitionID][key] = value
+			}
+		}
 	} else {
 		builtin, found := findBuiltin(definitionID)
 		if !found {
@@ -204,7 +283,7 @@ func SaveDefinitionPreference(ctx context.Context, store *Store, topicStore *not
 			return ActivityDefinitionView{}, err
 		}
 	}
-	views, err := ListDefinitionViews(ctx, store, owner, topicStore)
+	views, err := ListDefinitionViews(ctx, store, owner, topicStore, integrationStore, retained)
 	if err != nil {
 		return ActivityDefinitionView{}, err
 	}
@@ -216,7 +295,7 @@ func SaveDefinitionPreference(ctx context.Context, store *Store, topicStore *not
 	return ActivityDefinitionView{}, ErrNotFound
 }
 
-func CreateResourceCondition(ctx context.Context, store *Store, topicStore *notifications.Store, resourceStore *resources.Store, registry *resources.Registry, owner, integrationSource string, input map[string]any) (ActivityDefinitionView, error) {
+func CreateResourceCondition(ctx context.Context, store *Store, topicStore *notifications.Store, resourceStore *resources.Store, registry *resources.Registry, owner, integrationSource string, input map[string]any, integrationStore *integrations.Store, retained []SDKManifest) (ActivityDefinitionView, error) {
 	title := textValue(input["title"])
 	instanceID, collectionID, fieldPath, operator := textValue(input["instanceId"]), textValue(input["collectionId"]), textValue(input["fieldPath"]), textValue(input["operator"])
 	if title == "" || len(title) > 120 || instanceID == "" || collectionID == "" || fieldPath == "" || !validConditionOperator(operator) {
@@ -292,7 +371,7 @@ func CreateResourceCondition(ctx context.Context, store *Store, topicStore *noti
 	if err := ReconcileResourceConditionSnapshot(ctx, store, topicStore, owner, condition, resourceStore, registry); err != nil {
 		return ActivityDefinitionView{}, err
 	}
-	views, err := ListDefinitionViews(ctx, store, owner, topicStore)
+	views, err := ListDefinitionViews(ctx, store, owner, topicStore, integrationStore, retained)
 	if err != nil {
 		return ActivityDefinitionView{}, err
 	}
