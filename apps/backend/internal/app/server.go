@@ -17,6 +17,7 @@ import (
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/config"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/links"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/linksapi"
+	"github.com/andreasmolnardev/dashwise/apps/backend/internal/news"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/resourceapi"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/resources"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/viewapi"
@@ -31,6 +32,7 @@ type App struct {
 	resources *resources.Store
 	views     *views.Store
 	links     *links.Store
+	news      *news.Store
 	auth      *auth.Store
 }
 
@@ -80,6 +82,15 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, err
 		_ = db.Close()
 		return nil, fmt.Errorf("initialize Links schema: %w", err)
 	}
+	newsStore, err := news.NewStore(db)
+	if err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("initialize News store: %w", err)
+	}
+	if err := newsStore.Initialize(ctx); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("initialize News schema: %w", err)
+	}
 	authHandler, err := authapi.New(authStore)
 	if err != nil {
 		_ = db.Close()
@@ -128,7 +139,7 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, err
 	mux.Handle("/api/", http.NotFoundHandler())
 	mux.Handle("/", frontend(cfg.WebDist))
 
-	return &App{db: db, registry: registry, resources: resourceStore, views: viewStore, links: linksStore, auth: authStore, server: &http.Server{
+	return &App{db: db, registry: registry, resources: resourceStore, views: viewStore, links: linksStore, news: newsStore, auth: authStore, server: &http.Server{
 		Addr:              cfg.Address,
 		Handler:           requestLog(cors(mux), logger),
 		ReadHeaderTimeout: 10 * time.Second,
