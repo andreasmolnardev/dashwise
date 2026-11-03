@@ -110,6 +110,14 @@ function makeRuntime() {
         activities.push(activity);
         return { id: `activity-${activities.length}`, duplicate: false };
       },
+      async upsert(key: string, activity: Record<string, unknown>) {
+        activities.push({ operation: "upsert", key, ...activity });
+        return { id: `activity-${activities.length}`, duplicate: false };
+      },
+      async clear(key: string) {
+        activities.push({ operation: "clear", key });
+        return { cleared: true };
+      },
     },
     scheduler: {
       timeout(name: string, _delayMs: number, task: (signal: AbortSignal) => void | Promise<void>) { scheduled.set(name, task); },
@@ -176,9 +184,9 @@ describe("Home Assistant SDK lifecycle", () => {
 
     await client.emitEvent("homeassistant_stop", { context: { id: "ha-stop-context" } });
     await client.emitEvent("homeassistant_start", { context: { id: "ha-start-context" } });
-    expect(activities.map(({ type, idempotencyKey }) => [type, idempotencyKey])).toEqual([
-      ["homeassistant.server.stopping", "ha-stop-context"],
-      ["homeassistant.server.started", "ha-start-context"],
+    expect(activities.map(({ operation, key, type }) => [operation, key, type])).toEqual([
+      ["upsert", "server", "server-stopping"],
+      ["clear", "server", undefined],
     ]);
 
     await integration.stop?.(sdkRuntime);
@@ -212,12 +220,12 @@ describe("Home Assistant SDK lifecycle", () => {
     expect(lossActivity).toBeDefined();
     await lossActivity?.(new AbortController().signal);
     await flushAsyncUpdates();
-    expect(activities.map(({ type }) => type)).toContain("homeassistant.connection.lost");
+    expect(activities).toContainEqual(expect.objectContaining({ operation: "upsert", key: "connection", type: "connection" }));
 
     client.emitConnectionState("ready");
     await flushAsyncUpdates();
     expect(synced.status.find(({ id }) => id === "connection")?.state).toBe("connected");
-    expect(activities.map(({ type }) => type)).toContain("homeassistant.connection.recovered");
+    expect(activities).toContainEqual(expect.objectContaining({ operation: "clear", key: "connection" }));
 
     await integration.stop?.(sdkRuntime);
     await integration.dispose?.(sdkRuntime);
