@@ -1,271 +1,53 @@
 # Integrations
 
-This document explains how Dashwise integrations work, how page config resolves integration consumers, and how runtime data is produced and consumed.
-
-## Overview
-
-Integrations are reusable data adapters that expose widgets and glanceables through YAML-backed definitions.
-
-- Widgets and glanceables are defined by integration metadata stored in PocketBase.
-- Each consumer is identified by:
-  - integration type: `widget` or `glanceable`
-  - consumer key
-  - instance properties / input
-- Integration runtime data is computed from integration environment variables, endpoint calls, and computed fields.
-- The frontend receives a resolved blueprint for each consumer and uses that blueprint to render widget/glanceable UI.
-
-## Integration YAML syntax
-
-Dashwise integration YAML supports embedded template strings and fallback values inside most configuration fields.
-
-- `${VAR}` expressions are replaced with values from environment variables, runtime input, or computed fields.
-- `primary ??? fallback` attempts the primary expression first and uses the fallback only when the primary results in an empty string or still contains unresolved `${...}` tokens.
-- If the final interpolated string begins with `{` or `[`, it is parsed as JSON automatically.
-- Environment variable lookup is case-insensitive: exact name first, then uppercased, then lowercased.
-
-The template engine resolves values in:
-- `configuration.environment_variables`
-- `endpoints` definitions (`url`, `body`, `custom_headers`, `auth`)
-- `response_mapping` and `computed` fields
-- widget `properties` and `search_items`
-
-Common patterns:
-- `title: "${name} ??? Untitled"`
-- `icon: "${icon} ??? /icons/png/default.png"`
-- `action: "url:${URL}/item/${id}"`
-- `value: "${computed.metrics.cpu.avg_load}% ??? 0%"`
-
-References can use runtime paths such as:
-- `this.endpoints.<id>.mappedResponse.<path>`
-- `computed.<id>.<field>`
-- `lookup_tables.<table>.<key>`
-
-## Endpoints
-
-Endpoints define HTTP calls to fetch data from external services. Each endpoint includes configuration for the request and `response_mapping` to transform the response into structured data.
-
-### Image widgets
-
-The `image` template supports a direct image URL or an endpoint response. Use `endpoint` with an optional `image_url_property` path when the endpoint returns JSON:
-
-```yaml
-configuration:
-  endpoints:
-    camera:
-      method: GET
-      url: "${CAMERA_URL}/snapshot"
-      response:
-        type: json
-        invalidate:
-          every: "5 minutes"
-  widgets:
-    - name: Camera
-      key: camera-image
-      template: image
-      properties:
-        header:
-         title: Camera
-         title_url: "${CAMERA_URL}"
-         endpoint: camera
-        image_url_property: "img.url"
-        alt: Camera snapshot
-```
-
-If `image_url_property` is omitted, Dashwise searches response JSON for common image fields such as `image`, `img`, `thumbnail`, `src`, and `url`. A direct URL uses `url` instead. Supported image properties include `alt`, `min_height`, `max_height`, and `object_fit`. `click_action` links image itself; `title_url` links header title independently.
-
-Built-in image JSON previews are fetched through the authenticated backend proxy. Private or local targets are blocked by default; set `ALLOW_PRIVATE_PREVIEW_URLS=true` when intentionally using a homelab-local endpoint.
-
-Endpoint caching accepts a duration in `response.invalidate.after` or an aligned recurring boundary in `response.invalidate.every`:
-
-- `after: "6 hours"`, `after: "2 days"`
-- `every: "2 hours"`, `every: "day"`, `every: "week"`, `every: "month"`
-- Existing numeric `cache_ttl` values remain seconds.
-
-### Response mapping with `iterate`
-
-The `iterate` property in `response_mapping` specifies which array to iterate over when mapping endpoint responses:
-
-- **Nested array**: When the response is an object containing an array at a specific key, use `iterate: "<key>"`:
-  ```yaml
-  response:
-    type: json
-  response_mapping:
-    entries:
-      iterate: "items"  # Response is { "items": [...] }
-      mappingProperties:
-        id: "id"
-        name: "name"
-  ```
-
-- **Direct array response**: When the endpoint returns an array directly (not nested), use `iterate: "response"`:
-  ```yaml
-  response:
-    type: json
-  response_mapping:
-    entries:
-      iterate: "response"  # Response is [...] directly
-      mappingProperties:
-        id: "entryId"
-        name: "name"
-  ```
-
-**Example**: For a response like `[{ "entryId": 1, "name": "server" }, { "entryId": 5, "name": "backup" }]`, use `iterate: "response"` to iterate over the array directly.
-
-## Key files
-
-- `apps/backend/src/routes/pageConfig.route.ts`
-- `apps/backend/src/routes/integrations.route.ts`
-- `packages/integrationskit/data/resolveProperties.tsx`
-- `apps/web/src/components/widgets/Widget.tsx`
-- `apps/web/src/lib/pageIntegrationDataCache.ts`
-
-## Page config integration flow
-
-The route `POST /api/v1/pageConfig/integrationData` is responsible for resolving integration data for a user page.
-
-### Request input
-
-The endpoint accepts:
-
-- `pageConfig?: PageConfig` — optional config object from the frontend
-- `pageName?: string` — optional page name
-
-If `pageConfig` is not provided, the backend loads the saved page config for the user and page.
-
-### Consumer extraction
-
-The backend scans the page config using [`collectPageConsumers(...)`](apps/backend/src/routes/pageConfig.route.ts):
-
-- `columns` items are treated as widget consumers, except frontend-only widgets such as:
-  - `placeholder`
-  - `main-clock`
-  - `glanceable-clock`
-  - `search-bar`
-  - `link-view`
-- `main-clock` is special: its nested glanceables are extracted as glanceable consumers.
-- `glanceables` entries are treated as glanceable consumers.
-- Each consumer is deduplicated by `consumer:key:properties`.
-
-### Columns widget fields
-
-Columns support either:
-
-- `progress` with `type`, `value`, `thresholds`, and `zero_label`
-- `stats` with `primary` and `secondary`
-
-`stats.primary` and `stats.secondary` render like the legacy `primary` and `secondary` column fields.
-
-### Runtime reuse
-
-The endpoint builds a single `sharedRuntimeCache` for the request.
-
-- This cache is keyed by `integrationId` plus resolved input/env for the consumer.
-- If multiple consumers share the same integration and environment, runtime data is resolved once and reused.
-- This is the user/env-level reuse layer for page config integration resolution.
-
-## Consumer resolution
-
-The resolver flow is:
-
-1. [`resolveConsumerDataForRequest(...)`](apps/backend/src/routes/integrations.route.ts)
-2. [`resolveConsumerData(...)`](apps/backend/src/routes/integrations.route.ts)
-3. [`resolveWidgetConsumer(...)`](apps/backend/src/routes/integrations.route.ts) or [`resolveGlanceableConsumer(...)`](apps/backend/src/routes/integrations.route.ts)
-
-### Loading integration payload
-
-The backend loads the integration payload from PocketBase using functions in [`integrations.route.ts`](apps/backend/src/routes/integrations.route.ts):
-
-- `getIntegrationWithWidget(...)`
-- `getIntegrationWithGlanceable(...)`
-
-The payload includes:
-
-- integration metadata
-- environment definitions
-- local integration state
-- widget or glanceable YAML definition
-
-### Environment resolution
-
-The resolver builds the effective integration environment by:
-
-- converting integration environment variables into a map
-- resolving stateful hidden vars with [`resolveStatefulEnvironmentVariables(...)`](apps/backend/src/routes/integrations.route.ts)
-- injecting user-specific values into environment variables via [`resolveUserInjectedEnv(...)`](apps/backend/src/routes/integrations.route.ts)
-- applying the resolved environment into the integration definition using [`applyIntegrationEnv(...)`](apps/backend/src/routes/integrations.route.ts)
-
-### Input merging
-
-- Widget input is merged using [`mergeWidgetInput(...)`](apps/backend/src/routes/integrations.route.ts)
-- Glanceable input is merged using [`mergeGlanceableInput(...)`](apps/backend/src/routes/integrations.route.ts)
-- Glanceable config is merged via [`mergeGlanceableJSON(...)`](apps/backend/src/routes/integrations.route.ts)
-
-### Runtime data resolution
-
-The integration runtime data is computed by the integrations kit in [`resolveProperties.tsx`](packages/integrationskit/data/resolveProperties.tsx) using:
-
-- `resolveWidgetRuntimeData(...)`
-- `resolveGlanceableRuntimeData(...)`
-
-This performs:
-
-- endpoint resolution through the integration configuration
-- computed field evaluation
-- environment flattening
-
-### Request-level runtime cache
-
-The integration controller can reuse resolved runtime data across multiple consumers in a single request.
-
-- The cache namespace is built from `type`, `key`, and `stateKey` in [`integrations.route.ts`](apps/backend/src/routes/integrations.route.ts).
-- When a second consumer matches the same cache namespace, its runtime data is reused instead of resolving endpoints again.
-
-## Blueprints and frontend rendering
-
-Each resolved consumer returns a payload containing:
-
-- `consumer`
-- `key`
-- `input`
-- `env`
-- `data`
-- `blueprint`
-- `cache` metadata
-
-The blueprint includes:
-
-- for widgets:
-  - `template`
-  - `widgetJSON`
-  - `resolved` widget properties
-- for glanceables:
-  - `text`
-  - `icon`
-  - `glanceableJSON`
-
-The frontend loads page integration data and primes a client-side cache with [`primePageIntegrationConsumerCache(...)`](apps/web/src/lib/pageIntegrationDataCache.ts).
-
-Widgets read that cached payload with [`readPageIntegrationConsumer(...)`](apps/web/src/lib/pageIntegrationDataCache.ts) and render using `@dashwise/integrationskit/Widget`.
-
-## Cache behavior
-
-The backend tracks integration cache behavior using:
-
-- `cache.policy` (`strict` or `cache-first`)
-- `cache.retentionSeconds`
-- `cache.stateKey`
-- `cache.fromCache`
-- `cache.staleReturned`
-
-Runtime snapshots are persisted and may be served from cache when the integration configuration allows it.
-
-Built-in image JSON previews use Redis when `REDIS_URL` or `VALKEY_URL` is configured. The default connection is `redis://127.0.0.1:6379`. Redis keys are scoped by user and contain a hash of the URL and TTL; raw URLs are not used as key names. If Redis is unavailable, a bounded process-memory fallback is used.
-
-## Summary
-
-Integration resolution is a two-stage process:
-
-1. Resolve integration runtime data once per user/integration/env combination.
-2. Fill widget or glanceable configuration using the resolved runtime data and render blueprint.
-
-That separation keeps integration endpoint/computed data resolution distinct from widget/glanceable template rendering and page config orchestration.
+Dashwise runs its API and integration runtimes in the Go server. Integration
+instances, credentials, YAML execution, resource snapshots, and SDK lifecycle
+state are stored or resolved by the Go backend. The React frontend keeps the
+current integration settings and widget rendering experience.
+
+## Integration types
+
+- YAML integrations describe REST endpoints, response mappings, computed
+  values, and optional resource collections. The Go YAML runtime executes
+  them. Endpoint and computed results are materialized as `yaml` provider
+  resources; explicit collections become typed resources with searchable and
+  filterable fields.
+- TypeScript SDK integrations are bundled from `packages/integrations` and run
+  in the Go JavaScript runtime. The SDK exposes lifecycle hooks, resource
+  collections, actions, activities, and notifications through a scoped host
+  API.
+- Built-in Dashwise domains such as Links, News, Monitoring, and Calendar keep
+  their workflow-specific APIs while synchronizing queryable data into the
+  common resource store.
+
+## Data flow
+
+Resources are the shared data layer. Providers own their records; the resource
+store validates registered resource definitions, scopes queries by owner, and
+supports declared search and filter fields. Views are saved resource queries
+with presentation metadata. Dashboard widgets and app screens can also issue
+ephemeral resource queries through the same contract.
+
+The current widget UI still receives its established YAML widget blueprint and
+data payload. For regular page loads, the Go compatibility adapter reconstructs
+that payload from an owner-scoped query of materialized integration resources.
+Preview requests with unsaved environment overrides execute the YAML definition
+directly so the settings editor can preview pending changes.
+
+## Resource collections in YAML
+
+See [YAML resource collections](YamlResourceIntegrations.md) for the collection
+declaration format. A collection binds a REST endpoint response to a resource
+type, provider identity, schema, and capabilities. Use `searchable` and
+`filterable` only for fields that should participate in resource queries.
+
+## Code locations
+
+- API server and workers: [`apps/backend/internal/app`](../apps/backend/internal/app)
+- YAML integration API and storage: [`apps/backend/internal/integrationsapi`](../apps/backend/internal/integrationsapi), [`apps/backend/internal/integrations`](../apps/backend/internal/integrations)
+- YAML execution: [`apps/backend/internal/yamlruntime`](../apps/backend/internal/yamlruntime)
+- Resources and provider synchronization: [`apps/backend/internal/resources`](../apps/backend/internal/resources), [`apps/backend/internal/resourcesync`](../apps/backend/internal/resourcesync)
+- SDK runtime and manager: [`apps/backend/internal/jsruntime`](../apps/backend/internal/jsruntime), [`apps/backend/internal/sdkmanager`](../apps/backend/internal/sdkmanager)
+- SDK contracts and provider packages: [`packages/integrations-sdk`](../packages/integrations-sdk), [`packages/integrations`](../packages/integrations)
+- Retained frontend: [`apps/web/src/components/widgets`](../apps/web/src/components/widgets)
+- API contract and generated clients: [`apps/backend/openapi.yaml`](../apps/backend/openapi.yaml), [`apps/web/src/lib/api`](../apps/web/src/lib/api)

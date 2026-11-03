@@ -14,7 +14,7 @@ This is a Bun monorepo with a React/Vite frontend and a Go backend. The Go serve
 ## Working guidance
 
 - Use Bun for monorepo dependency and frontend workflows. Go work belongs in `apps/backend` and Go modules under `packages`.
-- Implement new API and persistence behavior in Go. Do not add new routes or features to the retired TypeScript/Hono backend under `apps/backend/src`.
+- Implement API and persistence behavior in the Go backend under `apps/backend/internal`.
 - Keep the current user-facing frontend in `apps/web`; use shared packages when a change serves both the app and integration authors.
 - Update `apps/backend/openapi.yaml` and generated client artifacts when API contracts change.
 - SDK integrations are TypeScript packages in `packages/integrations`; their trusted bundles run in the Go JavaScript runtime. YAML integrations use the Go YAML runtime.

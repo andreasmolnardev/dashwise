@@ -16,7 +16,8 @@ import (
 	"unicode"
 )
 
-// The metadata endpoint ports apps/backend/src/lib/api/tools/linkMetadata.ts
+// The metadata endpoint preserves the link preview behavior from the former
+// TypeScript server while using the Go service and shared HTTP safety rules.
 // and its GET /api/v1/links/metadata route. It fetches untrusted page markup,
 // so it applies the same bounded-fetch protections as the Go CalDAV and YAML
 // integration clients: HTTP(S) only, per-hop DNS revalidation, cloud metadata

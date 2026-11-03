@@ -1,37 +1,12 @@
 {
   "name": "@dashwise/backend",
-  "version": "1.0.0",
+  "version": "2.0.0",
+  "private": true,
   "description": "Go backend for Dashwise",
   "scripts": {
     "dev": "go run ./cmd/dashwise",
     "start": "go run ./cmd/dashwise",
     "build": "go build ./...",
     "typecheck": "go vet ./..."
-  },
-  "dependencies": {
-    "@dashwise/assets": "workspace:*",
-    "@dashwise/integration-homeassistant": "workspace:*",
-    "@dashwise/integration-groovewise": "workspace:*",
-    "@dashwise/integration-jellyfin": "workspace:*",
-    "@dashwise/integration-music-assistant": "workspace:*",
-    "@dashwise/integration-example-rest": "workspace:*",
-    "@dashwise/integrations-sdk": "workspace:*",
-    "@dashwise/integrationskit": "workspace:*",
-    "@dashwise/types": "workspace:*",
-    "@gonetone/get-youtube-id-by-url": "^2.0.0",
-    "hono": "^4.6.14",
-    "pocketbase": "^0.26.8",
-    "rss-parser": "^3.12.0",
-    "sharp": "^0.34.3",
-    "speakeasy": "^2.0.0",
-    "ssh2": "^1.17.0",
-    "ts-caldav": "^0.3.7",
-    "yaml": "^2.8.2",
-    "zod": "^3.24.1"
-  },
-  "devDependencies": {
-    "@types/bun": "latest",
-    "@types/ssh2": "^1.15.5",
-    "@types/speakeasy": "^2.0.10"
   }
 }

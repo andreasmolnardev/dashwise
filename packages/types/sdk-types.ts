@@ -84,7 +84,7 @@ export type NewsFeedRecord = {
   includedFeedRefs?: string[];
   excludedSubscriptionRefs: string[];
   maxFeedItems?: number;
-  /** Populated from Redis, not persisted in PocketBase. */
+  /** A transient, SQLite-backed feed result returned by the Go API. */
   feedCache?: NewsFeedItem[];
 };
 

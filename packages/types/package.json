@@ -17,8 +17,5 @@
       "default": "./links.ts"
     }
   },
-  "types": "index.ts",
-  "dependencies": {
-    "pocketbase": "^0.26.8"
-  }
+  "types": "index.ts"
 }
