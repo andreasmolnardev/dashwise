@@ -7,7 +7,7 @@ import { pathToFileURL } from "node:url";
 import YAML from "yaml";
 import { resolveWidgetProperties, resolveWidgetRuntimeData } from "../packages/integrationskit/data/resolveProperties";
 import Shortcuts from "../packages/integrationskit/Shortcuts";
-import { assertSafeIntegrationUrl, guardedIntegrationFetch } from "../apps/backend/src/lib/integrations-sdk/network-guard";
+import { assertSafeIntegrationUrl, guardedIntegrationFetch } from "./lib/integration-network-guard";
 
 type Args = { positional: string[]; options: Record<string, string[]>; flags: Set<string> };
 type JsonRecord = Record<string, any>;
