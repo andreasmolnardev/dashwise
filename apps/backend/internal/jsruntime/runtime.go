@@ -33,8 +33,12 @@ type Options struct {
 	InstanceID string
 	Config     map[string]any
 	Host       Host
-	MaxBytes   int
-	HookLimit  time.Duration
+	// HostFactory receives the provider manifest before lifecycle hooks run. It
+	// lets the application bind manifest-declared resources without evaluating
+	// user supplied code or loading the bundle twice.
+	HostFactory func(Manifest) (Host, error)
+	MaxBytes    int
+	HookLimit   time.Duration
 }
 
 // Manifest is the JSON-safe subset of an IntegrationDefinition that is safe
@@ -131,7 +135,14 @@ func Load(ctx context.Context, bundle []byte, options Options) (*Instance, error
 	if err != nil {
 		return nil, err
 	}
-	instance := &Instance{rt: rt, definition: definition, manifest: manifest, instanceID: options.InstanceID, host: options.Host, hookLimit: limit}
+	host := options.Host
+	if options.HostFactory != nil {
+		host, err = options.HostFactory(manifest)
+		if err != nil {
+			return nil, fmt.Errorf("initialize integration host: %w", err)
+		}
+	}
+	instance := &Instance{rt: rt, definition: definition, manifest: manifest, instanceID: options.InstanceID, host: host, hookLimit: limit}
 	api, err := instance.makeAPI(options.Config)
 	if err != nil {
 		return nil, err
