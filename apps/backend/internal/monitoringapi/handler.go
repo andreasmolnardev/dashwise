@@ -3,18 +3,22 @@
 package monitoringapi
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/integrations"
+	"github.com/andreasmolnardev/dashwise/apps/backend/internal/links"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/monitoring"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/resourceapi"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/resources"
+	"github.com/andreasmolnardev/dashwise/apps/backend/internal/resourcesync"
 	"github.com/gorilla/websocket"
 )
 
@@ -32,6 +36,7 @@ type Handler struct {
 	sdkResources *resources.Store
 	registry     *resources.Registry
 	integrations *integrations.Store
+	links        *links.Store
 	mux          *http.ServeMux
 	upgrader     websocket.Upgrader
 }
@@ -40,6 +45,7 @@ type SDKResourceDependencies struct {
 	Resources    *resources.Store
 	Registry     *resources.Registry
 	Integrations *integrations.Store
+	Links        *links.Store
 }
 
 func New(store *monitoring.Store, authenticate resourceapi.Authenticate, refresh RefreshFunc, sdkDependencies ...SDKResourceDependencies) (http.Handler, error) {
@@ -51,6 +57,7 @@ func New(store *monitoring.Store, authenticate resourceapi.Authenticate, refresh
 		h.sdkResources = sdkDependencies[0].Resources
 		h.registry = sdkDependencies[0].Registry
 		h.integrations = sdkDependencies[0].Integrations
+		h.links = sdkDependencies[0].Links
 	}
 	h.mux.HandleFunc("GET /api/v1/monitoring/sdk-resources", h.sdkMonitoringResources)
 	h.mux.HandleFunc("GET /api/v1/monitors", h.listMonitors)
@@ -105,6 +112,7 @@ func (h *Handler) createMonitor(w http.ResponseWriter, r *http.Request) {
 		h.fail(w, err)
 		return
 	}
+	h.syncOwnerResources(r.Context(), owner)
 	writeJSON(w, http.StatusCreated, item)
 }
 func (h *Handler) getMonitor(w http.ResponseWriter, r *http.Request) {
@@ -133,6 +141,7 @@ func (h *Handler) updateMonitor(w http.ResponseWriter, r *http.Request) {
 		h.fail(w, err)
 		return
 	}
+	h.syncOwnerResources(r.Context(), owner)
 	writeJSON(w, http.StatusOK, item)
 }
 func (h *Handler) deleteMonitor(w http.ResponseWriter, r *http.Request) {
@@ -144,6 +153,7 @@ func (h *Handler) deleteMonitor(w http.ResponseWriter, r *http.Request) {
 		h.fail(w, err)
 		return
 	}
+	h.syncOwnerResources(r.Context(), owner)
 	writeJSON(w, http.StatusOK, map[string]bool{"success": true})
 }
 func (h *Handler) status(w http.ResponseWriter, r *http.Request) {
@@ -195,6 +205,7 @@ func (h *Handler) runCheck(w http.ResponseWriter, r *http.Request) {
 		h.fail(w, err)
 		return
 	}
+	h.syncOwnerResources(r.Context(), owner)
 	writeJSON(w, http.StatusOK, result)
 }
 func (h *Handler) listHosts(w http.ResponseWriter, r *http.Request) {
@@ -223,6 +234,7 @@ func (h *Handler) createHost(w http.ResponseWriter, r *http.Request) {
 		h.fail(w, err)
 		return
 	}
+	h.syncOwnerResources(r.Context(), owner)
 	writeJSON(w, http.StatusCreated, host)
 }
 func (h *Handler) updateHost(w http.ResponseWriter, r *http.Request) {
@@ -239,6 +251,7 @@ func (h *Handler) updateHost(w http.ResponseWriter, r *http.Request) {
 		h.fail(w, err)
 		return
 	}
+	h.syncOwnerResources(r.Context(), owner)
 	writeJSON(w, http.StatusOK, host)
 }
 func (h *Handler) deleteHost(w http.ResponseWriter, r *http.Request) {
@@ -250,7 +263,17 @@ func (h *Handler) deleteHost(w http.ResponseWriter, r *http.Request) {
 		h.fail(w, err)
 		return
 	}
+	h.syncOwnerResources(r.Context(), owner)
 	writeJSON(w, http.StatusOK, map[string]bool{"success": true})
+}
+
+func (h *Handler) syncOwnerResources(ctx context.Context, owner string) {
+	if h.sdkResources == nil || h.links == nil {
+		return
+	}
+	if err := resourcesync.SyncOwner(ctx, owner, h.links, h.store, h.sdkResources); err != nil {
+		log.Printf("refresh monitoring resource views for owner %q: %v", owner, err)
+	}
 }
 func (h *Handler) hostStats(w http.ResponseWriter, r *http.Request) {
 	owner, ok := h.owner(w, r)
@@ -322,6 +345,7 @@ func (h *Handler) refreshHost(w http.ResponseWriter, r *http.Request) {
 		h.fail(w, err)
 		return
 	}
+	h.syncOwnerResources(r.Context(), owner)
 	writeJSON(w, http.StatusOK, map[string]any{"id": stats.HostID, "stats": stats.Stats, "updated": stats.UpdatedAt})
 }
 

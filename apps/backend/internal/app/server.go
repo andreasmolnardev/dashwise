@@ -266,7 +266,7 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, err
 	}
 	monitoringHandler, err := monitoringapi.New(monitoringStore, authenticateOwner(authStore), func(r *http.Request, host monitoring.Host) error {
 		return monitoringStore.RefreshHost(r.Context(), host.OwnerID, host.ID)
-	}, monitoringapi.SDKResourceDependencies{Resources: resourceStore, Registry: registry, Integrations: integrationsStore})
+	}, monitoringapi.SDKResourceDependencies{Resources: resourceStore, Registry: registry, Integrations: integrationsStore, Links: linksStore})
 	if err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("initialize Monitoring API: %w", err)
