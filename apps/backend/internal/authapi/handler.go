@@ -28,6 +28,7 @@ func New(store *auth.Store) (http.Handler, error) {
 	h.mux.HandleFunc("POST /api/v1/auth/validate-auth", h.validate)
 	h.mux.HandleFunc("POST /api/v1/auth/logout", h.logout)
 	h.mux.HandleFunc("POST /api/v1/auth/change-password", h.changePassword)
+	h.mux.HandleFunc("DELETE /api/v1/auth/delete-account", h.deleteAccount)
 	h.mux.HandleFunc("PATCH /api/v1/auth/update-user-property", h.updateUserProperty)
 	h.mux.HandleFunc("GET /api/v1/auth/me", h.me)
 	h.mux.HandleFunc("GET /api/v1/sessions", h.listSessions)
@@ -149,6 +150,53 @@ func (h *Handler) changePassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]bool{"success": true})
+}
+
+func (h *Handler) deleteAccount(w http.ResponseWriter, r *http.Request) {
+	var input struct {
+		Auth *struct {
+			Token     string `json:"token"`
+			SessionID string `json:"sessionId"`
+		} `json:"auth"`
+		Payload struct {
+			Email    string `json:"email"`
+			Password string `json:"password"`
+			TOTP     string `json:"totp"`
+		} `json:"payload"`
+	}
+	if !decode(w, r, &input) {
+		return
+	}
+	token := bearer(r)
+	if token == "" && input.Auth != nil {
+		token = strings.TrimSpace(input.Auth.Token)
+	}
+	if token == "" {
+		writeError(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+	user, session, err := h.store.Validate(r.Context(), token)
+	if err != nil {
+		writeAuthError(w, err)
+		return
+	}
+	providedSessionID := strings.TrimSpace(r.Header.Get("X-Session-Id"))
+	if providedSessionID == "" && input.Auth != nil {
+		providedSessionID = strings.TrimSpace(input.Auth.SessionID)
+	}
+	if providedSessionID != "" && providedSessionID != session.ID {
+		writeError(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+	if strings.TrimSpace(input.Payload.TOTP) != "" {
+		writeError(w, http.StatusBadRequest, "TOTP is not configured for this account")
+		return
+	}
+	if err := h.store.DeleteAccount(r.Context(), user.ID, input.Payload.Email, input.Payload.Password); err != nil {
+		writeAuthError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, nil)
 }
 
 func (h *Handler) updateUserProperty(w http.ResponseWriter, r *http.Request) {

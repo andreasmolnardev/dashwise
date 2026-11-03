@@ -13,6 +13,8 @@ import (
 	"errors"
 	"fmt"
 	"net/mail"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -492,6 +494,158 @@ func (s *Store) ListUserIDs(ctx context.Context) ([]string, error) {
 		ids = append(ids, id)
 	}
 	return ids, rows.Err()
+}
+
+// DeleteAccount reauthenticates the account, removes all rows that contain an
+// owner_id column in one SQLite transaction, and deletes the account row. Local
+// wallpaper files are removed after commit; only generated wallpaper files in
+// a wallpapers directory are eligible for removal.
+func (s *Store) DeleteAccount(ctx context.Context, userID, email, password string) error {
+	if strings.TrimSpace(userID) == "" || strings.TrimSpace(email) == "" || password == "" {
+		return fmt.Errorf("%w: email and password are required", ErrInvalidInput)
+	}
+	var storedEmail, passwordHash string
+	if err := s.db.QueryRowContext(ctx, `SELECT email,password_hash FROM auth_users WHERE id=?`, userID).Scan(&storedEmail, &passwordHash); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrUnauthorized
+		}
+		return fmt.Errorf("load account for deletion: %w", err)
+	}
+	if !strings.EqualFold(strings.TrimSpace(email), storedEmail) || bcrypt.CompareHashAndPassword([]byte(passwordHash), []byte(password)) != nil {
+		return ErrInvalidCredentials
+	}
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin account deletion: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	wallpaperPaths := []string{}
+	if tableExists(ctx, tx, "wallpapers") {
+		rows, err := tx.QueryContext(ctx, `SELECT path FROM wallpapers WHERE owner_id=?`, userID)
+		if err != nil {
+			return fmt.Errorf("read account wallpapers: %w", err)
+		}
+		for rows.Next() {
+			var path string
+			if err := rows.Scan(&path); err != nil {
+				_ = rows.Close()
+				return err
+			}
+			wallpaperPaths = append(wallpaperPaths, path)
+		}
+		if err := rows.Err(); err != nil {
+			_ = rows.Close()
+			return err
+		}
+		_ = rows.Close()
+	}
+
+	// Change events have no owner column; delete the index rows before removing
+	// their owner-scoped resource records.
+	if tableExists(ctx, tx, "change_events") && tableExists(ctx, tx, "resources") {
+		if _, err := tx.ExecContext(ctx, `DELETE FROM change_events WHERE resource_id IN (SELECT id FROM resources WHERE owner_id=?)`, userID); err != nil {
+			return fmt.Errorf("delete account resource change history: %w", err)
+		}
+	}
+	tables, err := ownerTables(ctx, tx)
+	if err != nil {
+		return err
+	}
+	for _, table := range tables {
+		query := `DELETE FROM "` + strings.ReplaceAll(table, `"`, `""`) + `" WHERE owner_id=?`
+		if _, err := tx.ExecContext(ctx, query, userID); err != nil {
+			return fmt.Errorf("delete account data from %s: %w", table, err)
+		}
+	}
+	if tableExists(ctx, tx, "device_auth_requests") {
+		if _, err := tx.ExecContext(ctx, `DELETE FROM device_auth_requests WHERE approved_user_id=?`, userID); err != nil {
+			return fmt.Errorf("delete account device authorization records: %w", err)
+		}
+	}
+	result, err := tx.ExecContext(ctx, `DELETE FROM auth_users WHERE id=?`, userID)
+	if err != nil {
+		return fmt.Errorf("delete account identity: %w", err)
+	}
+	count, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if count != 1 {
+		return ErrUnauthorized
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit account deletion: %w", err)
+	}
+	for _, path := range wallpaperPaths {
+		if !isGeneratedWallpaperPath(path) {
+			continue
+		}
+		if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("remove account wallpaper file: %w", err)
+		}
+	}
+	return nil
+}
+
+func ownerTables(ctx context.Context, tx *sql.Tx) ([]string, error) {
+	rows, err := tx.QueryContext(ctx, `SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name`)
+	if err != nil {
+		return nil, fmt.Errorf("list account data tables: %w", err)
+	}
+	names := []string{}
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			_ = rows.Close()
+			return nil, err
+		}
+		names = append(names, name)
+	}
+	if err := rows.Err(); err != nil {
+		_ = rows.Close()
+		return nil, err
+	}
+	_ = rows.Close()
+	out := []string{}
+	for _, name := range names {
+		columns, err := tx.QueryContext(ctx, `PRAGMA table_info("`+strings.ReplaceAll(name, `"`, `""`)+`")`)
+		if err != nil {
+			return nil, fmt.Errorf("inspect account data table %s: %w", name, err)
+		}
+		for columns.Next() {
+			var cid, notNull, primaryKey int
+			var column, columnType string
+			var defaultValue any
+			if err := columns.Scan(&cid, &column, &columnType, &notNull, &defaultValue, &primaryKey); err != nil {
+				_ = columns.Close()
+				return nil, err
+			}
+			if column == "owner_id" {
+				out = append(out, name)
+				break
+			}
+		}
+		if err := columns.Err(); err != nil {
+			_ = columns.Close()
+			return nil, err
+		}
+		_ = columns.Close()
+	}
+	return out, nil
+}
+
+func tableExists(ctx context.Context, tx *sql.Tx, name string) bool {
+	var found int
+	return tx.QueryRowContext(ctx, `SELECT 1 FROM sqlite_master WHERE type='table' AND name=?`, name).Scan(&found) == nil
+}
+
+func isGeneratedWallpaperPath(path string) bool {
+	if filepath.Base(filepath.Dir(path)) != "wallpapers" || !strings.HasPrefix(filepath.Base(path), "wallpaper-") {
+		return false
+	}
+	return filepath.IsAbs(path)
 }
 
 func (s *Store) UpdateUserProperty(ctx context.Context, userID, propertyName string, value any) (User, error) {
