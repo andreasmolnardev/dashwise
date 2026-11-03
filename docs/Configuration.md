@@ -13,6 +13,7 @@ You can use the following environment variables for the container; the default v
 | PORT | No | `3000` | HTTP port for the backend server |
 | ENVIRONMENT | No | `development` | Set to `production` for production behavior |
 | DASHWISE_VERSION | No | `go-migration` | Version string reported by the update check |
+| DASHWISE_GITHUB_REPO | No | `andreasmolnardev/dashwise` | GitHub repository used to check the latest release every six hours |
 | LOG_LEVEL | No | `info` | Backend log level (`debug`, `info`, `warn`, `error`) |
 
 ### URLs

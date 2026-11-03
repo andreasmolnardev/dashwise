@@ -18,14 +18,30 @@ import (
 )
 
 type Handler struct {
-	auth     resourceapi.Authenticate
-	client   *http.Client
-	mux      *http.ServeMux
-	iconsDir string
-	iconsMu  sync.Mutex
+	auth          resourceapi.Authenticate
+	client        *http.Client
+	mux           *http.ServeMux
+	iconsDir      string
+	iconsMu       sync.Mutex
+	versions      *VersionChecker
+	disableSignup bool
+}
+
+type Options struct {
+	Version       string
+	GitHubRepo    string
+	DisableSignup bool
 }
 
 func New(auth resourceapi.Authenticate) (http.Handler, error) {
+	handler, err := NewWithOptions(auth, Options{})
+	if err != nil {
+		return nil, err
+	}
+	return handler, nil
+}
+
+func NewWithOptions(auth resourceapi.Authenticate, options Options) (*Handler, error) {
 	if auth == nil {
 		return nil, errors.New("system API requires an authenticator")
 	}
@@ -33,13 +49,18 @@ func New(auth resourceapi.Authenticate) (http.Handler, error) {
 	if webDist == "" {
 		webDist = "../../web/dist"
 	}
-	h := &Handler{auth: auth, client: &http.Client{Timeout: 8 * time.Second}, mux: http.NewServeMux(), iconsDir: filepath.Join(webDist, "icons")}
+	h := &Handler{auth: auth, client: &http.Client{Timeout: 8 * time.Second}, mux: http.NewServeMux(), iconsDir: filepath.Join(webDist, "icons"), versions: NewVersionChecker(options.Version, options.GitHubRepo), disableSignup: options.DisableSignup}
+	h.mux.HandleFunc("GET /api/v1/appInfo", h.appInfo)
 	h.mux.HandleFunc("GET /api/v1/locations", h.locations)
 	h.mux.HandleFunc("GET /api/v1/weather", h.weather)
 	h.mux.HandleFunc("GET /api/v1/test/bookmarks", h.bookmarks)
 	h.mux.HandleFunc("GET /api/v1/jobs/pullIcons", h.pullIcons)
-	return h.mux, nil
+	return h, nil
 }
+
+func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) { h.mux.ServeHTTP(w, r) }
+
+func (h *Handler) RunVersionChecks(ctx context.Context) error { return h.versions.Run(ctx) }
 
 func (h *Handler) owner(w http.ResponseWriter, r *http.Request) bool {
 	if _, err := h.auth(r); err != nil {
@@ -94,6 +115,14 @@ func (h *Handler) weather(w http.ResponseWriter, r *http.Request) {
 	if h.owner(w, r) {
 		writeJSON(w, 200, map[string]any{})
 	}
+}
+
+func (h *Handler) appInfo(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]any{
+		"updateAvailable":    h.versions.UpdateAvailable(),
+		"currentAppVersion":  h.versions.version,
+		"userSignupDisabled": h.disableSignup,
+	})
 }
 
 func (h *Handler) bookmarks(w http.ResponseWriter, r *http.Request) {

@@ -18,6 +18,7 @@ type Config struct {
 	EnableSSO                 bool
 	InstanceName              string
 	Version                   string
+	GitHubRepo                string
 	Environment               string
 	DashwiseURL               string
 	NewsSubscriptionRetention int
@@ -43,6 +44,7 @@ func Load() Config {
 		EnableSSO:                 parseBool(env("ENABLE_SSO", "false")),
 		InstanceName:              env("INSTANCE_NAME", "Dashwise"),
 		Version:                   env("DASHWISE_VERSION", "go-migration"),
+		GitHubRepo:                env("DASHWISE_GITHUB_REPO", "andreasmolnardev/dashwise"),
 		Environment:               env("ENVIRONMENT", "development"),
 		DashwiseURL:               env("DASHWISE_URL", "http://localhost:3000"),
 		NewsSubscriptionRetention: parseBoundedInt(env("NEWS_SUBSCRIPTION_RETENTION", "50"), 50, 1, 10000),

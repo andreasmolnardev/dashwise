@@ -337,7 +337,9 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, err
 		_ = db.Close()
 		return nil, fmt.Errorf("initialize Calendar API: %w", err)
 	}
-	systemHandler, err := systemapi.New(authenticateOwner(authStore))
+	systemHandler, err := systemapi.NewWithOptions(authenticateOwner(authStore), systemapi.Options{
+		Version: cfg.Version, GitHubRepo: cfg.GitHubRepo, DisableSignup: cfg.DisableSignup,
+	})
 	if err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("initialize system API: %w", err)
@@ -385,13 +387,6 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, err
 			"instance_name": cfg.InstanceName,
 		})
 	})
-	mux.HandleFunc("GET /api/v1/appInfo", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, http.StatusOK, map[string]any{
-			"updateAvailable":    false,
-			"currentAppVersion":  cfg.Version,
-			"userSignupDisabled": cfg.DisableSignup,
-		})
-	})
 	mux.Handle("/api/v1/auth/device-code", deviceAuthHandler)
 	mux.Handle("/api/v1/auth/device-code/", deviceAuthHandler)
 	mux.Handle("/api/v1/auth/", authHandler)
@@ -416,6 +411,7 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, err
 	mux.Handle("/api/v1/activity", activityRealtimeHandler)
 	mux.Handle("/api/v1/integrations/{integrationId}/activities", activitiesHandler)
 	mux.Handle("/api/v1/wallpapers", wallpapersHandler)
+	mux.Handle("/api/v1/appInfo", systemHandler)
 	mux.Handle("/api/v1/integrations/caldav/", calendarHandler)
 	mux.Handle("/api/v1/migration/", transferHandler)
 	mux.Handle("/api/v1/integrations", integrationsHandler)
@@ -476,6 +472,13 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, err
 		defer app.workers.Done()
 		if err := monitoringStore.RunAgentPoller(workerCtx, 15*time.Second); err != nil && workerCtx.Err() == nil {
 			logger.Error("System Agent poller stopped", "error", err)
+		}
+	}()
+	app.workers.Add(1)
+	go func() {
+		defer app.workers.Done()
+		if err := systemHandler.RunVersionChecks(workerCtx); err != nil && workerCtx.Err() == nil {
+			logger.Error("app version checker stopped", "error", err)
 		}
 	}()
 	app.workers.Add(1)

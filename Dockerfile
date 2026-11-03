@@ -51,6 +51,7 @@ WORKDIR /src/apps/backend
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/dashwise ./cmd/dashwise
 
 FROM alpine:3.22
+ARG DASHWISE_VERSION=dev
 WORKDIR /app
 RUN apk add --no-cache ca-certificates tzdata && \
     mkdir -p /data /app/public
@@ -60,6 +61,7 @@ COPY --from=web-build /app/apps/web/dist /app/public
 COPY --from=shoutrrr /usr/local/bin/shoutrrr /usr/local/bin/shoutrrr
 
 ENV ENVIRONMENT=production \
+    DASHWISE_VERSION=${DASHWISE_VERSION} \
     PORT=3000 \
     DATA_DIR=/data \
     DATABASE_PATH=/data/dashwise.sqlite \
