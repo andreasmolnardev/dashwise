@@ -76,7 +76,7 @@ func New(db *foundation.DB, authStore *auth.Store, ttl time.Duration) (*Store, e
 }
 
 func (s *Store) Initialize(ctx context.Context) error {
-	return s.db.ApplyMigrations(ctx, []foundation.Migration{{ID: "0016_device_auth", Name: "short-lived device authorization requests", Up: func(ctx context.Context, tx *sql.Tx) error {
+	if err := s.db.ApplyMigrations(ctx, []foundation.Migration{{ID: "0016_device_auth", Name: "short-lived device authorization requests", Up: func(ctx context.Context, tx *sql.Tx) error {
 		for _, q := range []string{
 			`CREATE TABLE IF NOT EXISTS device_auth_requests(id TEXT PRIMARY KEY NOT NULL,code_hash TEXT NOT NULL UNIQUE,secret_hash BLOB NOT NULL,ip TEXT NOT NULL,user_agent TEXT NOT NULL,created_at TEXT NOT NULL,expires_at TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'pending',socket_authenticated INTEGER NOT NULL DEFAULT 0,approved_user_id TEXT NOT NULL DEFAULT '')`,
 			`CREATE INDEX IF NOT EXISTS device_auth_by_expiry ON device_auth_requests(expires_at,status)`,
@@ -88,7 +88,13 @@ func (s *Store) Initialize(ctx context.Context) error {
 			}
 		}
 		return nil
-	}}})
+	}}}); err != nil {
+		return err
+	}
+	// Pending sockets do not survive a process restart. Invalidate their codes
+	// so an approver cannot receive a misleading success for a disconnected device.
+	_, err := s.db.SQL().ExecContext(ctx, `UPDATE device_auth_requests SET status='cancelled' WHERE status='pending'`)
+	return err
 }
 
 func (s *Store) Create(ctx context.Context, socketCount int, ip, userAgent string) (CreatedRequest, error) {
@@ -288,6 +294,7 @@ func (s *Store) uniqueCode(ctx context.Context) (string, error) {
 func (s *Store) enforceRate(ctx context.Context, ip, operation string, maximum int, now time.Time) error {
 	ip = normalizeIP(ip)
 	threshold := now.Add(-time.Minute).Format(time.RFC3339Nano)
+	_, _ = s.db.SQL().ExecContext(ctx, `DELETE FROM device_auth_rate_events WHERE occurred_at<?`, now.Add(-time.Hour).Format(time.RFC3339Nano))
 	var count int
 	if err := s.db.SQL().QueryRowContext(ctx, `SELECT COUNT(*) FROM device_auth_rate_events WHERE ip=? AND operation=? AND occurred_at>?`, ip, operation, threshold).Scan(&count); err != nil {
 		return err
