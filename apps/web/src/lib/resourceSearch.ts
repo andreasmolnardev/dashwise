@@ -5,6 +5,7 @@ type ResourceResult = {
   id?: string;
   type?: string;
   providerResourceId?: string;
+  capabilities?: string[];
   data?: Record<string, unknown>;
 };
 
@@ -30,17 +31,19 @@ export async function searchDashwiseResources(auth: ActionAuth, query: string): 
   return (payload?.items ?? []).flatMap((resource) => {
     const data = resource.data ?? {};
     const type = resource.type ?? "";
-    if (!["dashwise.link", "dashwise.shortcut", "news.article"].includes(type)) return [];
     const name = text(data.title) || text(data.name);
     const target = text(data.url);
-    if (!name || !target) return [];
+    const knownType = ["dashwise.link", "dashwise.shortcut", "news.article"].includes(type);
+    // Search any integration resource that declares a navigable URL while
+    // retaining the specialized labels for Dashwise's own resource types.
+    if (!name || !target || (!knownType && !resource.capabilities?.includes("search"))) return [];
     return [{
       id: resource.id ?? `${type}:${resource.providerResourceId ?? name}`,
       name,
       url: target,
       icon: text(data.iconUrl) || text(data.icon) || undefined,
       secondaryInfo: text(data.collectionName) || text(data.source) || text(data.description) || undefined,
-      type: type === "news.article" ? "News" : type === "dashwise.shortcut" ? "Shortcut" : "Link",
+      type: type === "news.article" ? "News" : type === "dashwise.shortcut" ? "Shortcut" : type === "dashwise.link" ? "Link" : "Integration",
       tags: stringList(data.tags),
       isPinned: data.favorite === true || data.isPinned === true,
     }];
