@@ -13,6 +13,7 @@ import (
 
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/monitoring"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/resourceapi"
+	"github.com/gorilla/websocket"
 )
 
 const maxBodyBytes = 1 << 20
@@ -23,17 +24,18 @@ const maxBodyBytes = 1 << 20
 type RefreshFunc func(*http.Request, monitoring.Host) error
 
 type Handler struct {
-	store   *monitoring.Store
-	auth    resourceapi.Authenticate
-	refresh RefreshFunc
-	mux     *http.ServeMux
+	store    *monitoring.Store
+	auth     resourceapi.Authenticate
+	refresh  RefreshFunc
+	mux      *http.ServeMux
+	upgrader websocket.Upgrader
 }
 
 func New(store *monitoring.Store, authenticate resourceapi.Authenticate, refresh RefreshFunc) (http.Handler, error) {
 	if store == nil || authenticate == nil {
 		return nil, errors.New("monitoring API requires a store and authenticator")
 	}
-	h := &Handler{store: store, auth: authenticate, refresh: refresh, mux: http.NewServeMux()}
+	h := &Handler{store: store, auth: authenticate, refresh: refresh, mux: http.NewServeMux(), upgrader: websocket.Upgrader{ReadBufferSize: 2048, WriteBufferSize: 4096, CheckOrigin: sameOrigin}}
 	h.mux.HandleFunc("GET /api/v1/monitors", h.listMonitors)
 	h.mux.HandleFunc("POST /api/v1/monitors", h.createMonitor)
 	h.mux.HandleFunc("GET /api/v1/monitors/{id}", h.getMonitor)
@@ -48,6 +50,7 @@ func New(store *monitoring.Store, authenticate resourceapi.Authenticate, refresh
 	h.mux.HandleFunc("GET /api/v1/monitoring/hosts/{id}/stats", h.hostStats)
 	h.mux.HandleFunc("GET /api/v1/monitoring/hosts/{id}/history", h.hostHistory)
 	h.mux.HandleFunc("POST /api/v1/monitoring/hosts/{id}/refresh", h.refreshHost)
+	h.mux.HandleFunc("GET /api/v1/monitoring/hosts/{id}/stats/live", h.liveStats)
 	return h.mux, nil
 }
 
@@ -272,7 +275,12 @@ func (h *Handler) hostHistory(w http.ResponseWriter, r *http.Request) {
 		h.fail(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, items)
+	out := make([]map[string]any, 0, len(items))
+	for _, item := range items {
+		stamp := item.UpdatedAt.UTC().Format(time.RFC3339Nano)
+		out = append(out, map[string]any{"hostId": item.HostID, "stats": item.Stats, "timestamp": stamp, "created": stamp})
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 func (h *Handler) refreshHost(w http.ResponseWriter, r *http.Request) {
 	owner, ok := h.owner(w, r)
