@@ -8,26 +8,36 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/resourceapi"
 )
 
 type Handler struct {
-	auth   resourceapi.Authenticate
-	client *http.Client
-	mux    *http.ServeMux
+	auth     resourceapi.Authenticate
+	client   *http.Client
+	mux      *http.ServeMux
+	iconsDir string
+	iconsMu  sync.Mutex
 }
 
 func New(auth resourceapi.Authenticate) (http.Handler, error) {
 	if auth == nil {
 		return nil, errors.New("system API requires an authenticator")
 	}
-	h := &Handler{auth: auth, client: &http.Client{Timeout: 8 * time.Second}, mux: http.NewServeMux()}
+	webDist := strings.TrimSpace(os.Getenv("WEB_DIST"))
+	if webDist == "" {
+		webDist = "../../web/dist"
+	}
+	h := &Handler{auth: auth, client: &http.Client{Timeout: 8 * time.Second}, mux: http.NewServeMux(), iconsDir: filepath.Join(webDist, "icons")}
 	h.mux.HandleFunc("GET /api/v1/locations", h.locations)
 	h.mux.HandleFunc("GET /api/v1/weather", h.weather)
 	h.mux.HandleFunc("GET /api/v1/test/bookmarks", h.bookmarks)
+	h.mux.HandleFunc("GET /api/v1/jobs/pullIcons", h.pullIcons)
 	return h.mux, nil
 }
 
