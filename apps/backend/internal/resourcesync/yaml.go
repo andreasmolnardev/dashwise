@@ -31,7 +31,13 @@ func SyncYAMLResources(ctx context.Context, owner string, source *integrations.S
 			continue
 		}
 		activeInstances[item.ID] = true
-		collections := yamlResourceCollections(item.Config)
+		collections, err := yamlResourceCollections(item.Config)
+		if err != nil {
+			if firstErr == nil {
+				firstErr = fmt.Errorf("read YAML resource declarations for integration %q: %w", item.ID, err)
+			}
+			continue
+		}
 		if len(collections) == 0 {
 			if err := reconcileYAMLInstance(ctx, owner, target, item.ID, map[string]bool{}); err != nil && firstErr == nil {
 				firstErr = err
@@ -187,11 +193,15 @@ type yamlResourceCollection struct {
 	capabilities                   []string
 }
 
-func yamlResourceCollections(config map[string]any) []yamlResourceCollection {
+func yamlResourceCollections(config map[string]any) ([]yamlResourceCollection, error) {
 	configuration := object(config["configuration"])
-	rawCollections, ok := configuration["resources"].(map[string]any)
+	raw, exists := configuration["resources"]
+	if !exists || raw == nil {
+		return nil, nil
+	}
+	rawCollections, ok := raw.(map[string]any)
 	if !ok {
-		return nil
+		return nil, fmt.Errorf("configuration.resources must be a mapping")
 	}
 	out := make([]yamlResourceCollection, 0, len(rawCollections))
 	for id, raw := range rawCollections {
@@ -199,7 +209,7 @@ func yamlResourceCollections(config map[string]any) []yamlResourceCollection {
 		endpoint := strings.TrimSpace(stringValue(value["endpoint"]))
 		idPath := strings.TrimSpace(stringValue(value["id_path"]))
 		if endpoint == "" || idPath == "" {
-			continue
+			return nil, fmt.Errorf("resource collection %q requires endpoint and id_path", id)
 		}
 		collection := yamlResourceCollection{id: id, endpoint: endpoint, idPath: idPath, namePath: strings.TrimSpace(stringValue(value["name_path"]))}
 		for _, rawField := range asArray(value["fields"]) {
@@ -208,7 +218,7 @@ func yamlResourceCollections(config map[string]any) []yamlResourceCollection {
 			kind := strings.TrimSpace(stringValue(field["type"]))
 			source := strings.TrimSpace(stringValue(field["source"]))
 			if name == "" || kind == "" || source == "" {
-				continue
+				return nil, fmt.Errorf("resource collection %q fields require name, type, and source", id)
 			}
 			collection.fields = append(collection.fields, yamlResourceField{
 				name: name, kind: kind, source: source,
@@ -227,7 +237,7 @@ func yamlResourceCollections(config map[string]any) []yamlResourceCollection {
 		}
 		out = append(out, collection)
 	}
-	return out
+	return out, nil
 }
 
 func (c yamlResourceCollection) definition(item integrations.Integration) resources.Definition {
