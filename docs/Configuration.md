@@ -1,80 +1,52 @@
 # Configuration
 
-You can use the following environment variables for the all-in-one container; the default values also work.
+You can use the following environment variables for the container; the default values also work. The Go backend reads these directly and stores all data in its embedded SQLite database, so no external database service is required.
 
 ### Core Settings
 
 | Name | Required | Default Value | Description |
 | --- | --- | --- | --- |
-| INSTANCE_NAME / NEXT_PUBLIC_INSTANCE_NAME | No | Dashwise | The dashboard's display name |
-| PB_URL / NEXT_PUBLIC_PB_URL | No (if start pocketbase is true) | `http://127.0.0.1:8090` | Internal PocketBase URL. The backend accepts either name (`PB_URL` takes precedence). User requests go through the Dashwise API. |
-| START_POCKETBASE | No | `true` | Start the bundled PocketBase process; set to `false` to use an external instance |
-| PB_BINARY_PATH | No | - | Path to an existing, executable PocketBase binary. Required when `START_POCKETBASE=true`; the application has no fallback path. The Docker image supplies `/usr/local/bin/pocketbase`. |
+| INSTANCE_NAME | No | Dashwise | The dashboard's display name |
+| DATA_DIR | No | `./data` | Directory holding the SQLite database, secret key, and other data files |
+| DATABASE_PATH | No | `<DATA_DIR>/dashwise.sqlite` | Path to the embedded SQLite database |
+| WEB_DIST | No | `../../web/dist` | Directory with the built web app to serve; the Docker image sets `/app/public` |
 | PORT | No | `3000` | HTTP port for the backend server |
-| ENVIRONMENT | No | `production` | Set to `dev` for development-only behavior |
-
-### Development-only Settings
-
-| Name | Required | Default Value | Description |
-| --- | --- | --- | --- |
-| USE_LOCAL_FEED_CACHE | No | `false` | Use process-local feed variables instead of Redis. Only honored when `ENVIRONMENT=dev`; not recommended for production because cache is lost on restart and is not shared between processes. |
-| DEV_DISABLE_NEWS_INDEXING | No | `false` | Disable news feed indexing during development. Only honored when `ENVIRONMENT=dev`; this skips startup and scheduled indexing as well as any on-demand rebuilds. |
-
-### Authentication
-
-| Name | Required | Default Value | Description |
-| --- | --- | --- | --- |
-| PB_ADMIN_EMAIL | Yes | `default@dashwise.local` | Email of the PocketBase admin user |
-| PB_ADMIN_PASSWORD | Yes | `DashwiseIsAwesome` | Password of the PocketBase admin user |
+| ENVIRONMENT | No | `development` | Set to `production` for production behavior |
+| DASHWISE_VERSION | No | `go-migration` | Version string reported by the update check |
+| LOG_LEVEL | No | `info` | Backend log level (`debug`, `info`, `warn`, `error`) |
 
 ### URLs
 
 | Name | Required | Default Value | Description |
 | --- | --- | --- | --- |
-| NEXT_PUBLIC_APP_URL / APP_BASE_URL | No | `http://localhost:3000` | Public URL of the application |
-| NEXT_PUBLIC_BACKEND_URL | No | - | Backend URL for frontend API calls (fallback: window.location.origin in production) |
-| DASHWISE_URL | No | - | Internal Dashwise URL used for server-side callbacks |
+| DASHWISE_URL | No | `http://localhost:3000` | Internal Dashwise URL used for server-side callbacks |
 
-### Appearance & Features
+### Authentication & Features
 
 | Name | Required | Default Value | Description |
 | --- | --- | --- | --- |
-| NEXT_PUBLIC_DEFAULT_BG_URL | No | `/dashboard-wallpaper.png` | Default background URL for new users |
-| NEXT_PUBLIC_ENABLE_SSO / ENABLE_SSO | No | `false` | Enable Single Sign-On (SSO) via OIDC |
-| NEXT_PUBLIC_DISABLE_USER_SIGNUP / DISABLE_USER_SIGNUP | No | `false` | Disable user self-registration |
+| DISABLE_USER_SIGNUP | No | `false` | Disable user self-registration |
+| ENABLE_SSO | No | `false` | Expose the SSO entry point in the sign-in UI; the backend's SSO/callback routes currently redirect back to the dashboard, so full OIDC sign-in is not yet implemented |
+| ALLOW_PRIVATE_PREVIEW_URLS | No | `false` | Allow integration JSON preview to fetch private/internal URLs |
 
-### SSL/TLS
-
-| Name | Required | Default Value | Description |
-| --- | --- | --- | --- |
-| NEXT_PUBLIC_INTEGRATIONS_ENABLE_SSL / ALLOW_INSECURE_CERTS_FOR_INTEGRATION_URLS | No | `false` | Allow insecure SSL certificates for integration URLs |
-| ALLOW_SSL | No | `false` | Enable SSL for internal service communication |
-| LOG_LEVEL / BACKEND_LOG_LEVEL | No | - | Backend log level (debug, info, warn, error) |
-
-### Background Processing
+### Appearance
 
 | Name | Required | Default Value | Description |
 | --- | --- | --- | --- |
-| JOBS_MONITORING_RETRY_AFTER | No | `5000` | Time in milliseconds to wait before retrying a failed monitoring ping |
+| SHOUTRRR_BINARY_PATH | No | `shoutrrr` | Path to the shoutrrr binary used for outgoing notifications. The Docker image supplies `/usr/local/bin/shoutrrr`. |
 
-### Scheduled Jobs (Cron Expressions)
+### Data Retention & Scheduled Jobs
 
 | Name | Required | Default Value | Description |
 | --- | --- | --- | --- |
-| SHORTCUTS_SCHEDULE | No | `*/10 * * * *` | Interval for shortcut indexing job |
-| ENABLE_ICONS_REFRESH | No | `false` | Enable automatic icon refresh job. Only the literal value `true` enables it; `1` does not. |
-| PULL_ICONS_SCHEDULE | No | `0 */18 * * *` | How often the icons refresh job runs |
-| MONITORING_INDEXER_SCHEDULE | No | `*/10 * * * *` | How often the monitoring indexer runs |
-| MONITORING_RUNNER_SCHEDULE | No | `*/1 * * * *` | How often the monitoring runner executes |
-| UPDATE_CHECK_SCHEDULE | No | `0 2 * * *` | Schedule for update check job |
-| FEED_BUILDING_SCHEDULE | No | `*/30 * * * *` | Schedule for news feed building job |
-| NEWS_SUBSCRIPTION_RETENTION | No | `50` | Maximum number of latest articles retrieved and cached per news subscription |
-| NOTIFICATION_FORWARDER_SCHEDULE | No | `* * * * *` | Schedule for notification forwarder job |
-| DEFAULT_INTEGRATIONS_SCHEDULE | No | `0 4 * * *` | Schedule for default integrations sync |
-| PAGECONFIG_CLEANUP_SCHEDULE | No | - | Deprecated/no-op. Page-config cleanup runs immediately when an integration is deleted; this variable is read for compatibility but does not schedule work. |
-| MONITORING_OUTLIER_THRESHOLD_TYPE | No | `relative` | Threshold type for monitoring outliers (`absolute` or `relative`) |
-| MONITORING_OUTLIER_THRESHOLD_VALUE | No | `50` (`500` when type is `absolute`) | Threshold value for monitoring outliers. Must be a positive number; invalid or missing values use `50` for `relative` and `500` for `absolute`. |
+| NEWS_SUBSCRIPTION_RETENTION | No | `50` | Maximum number of latest articles retrieved and cached per news subscription (1–10000) |
+| ACTIVITY_RETENTION_DAYS | No | `90` | Days to keep activity records (1–3650) |
+| NEWS_REFRESH_INTERVAL_SECONDS | No | `1800` | Interval for the news refresh worker, in seconds (30 minutes) |
 
-`DEFAULT_BG_URL` is deprecated/no-op on the backend. Use `NEXT_PUBLIC_DEFAULT_BG_URL` for the frontend background setting.
+Secrets such as integration credentials and monitoring endpoint auth are encrypted at rest with a key file generated under `DATA_DIR/secret.key`.
 
-The bundled PocketBase server listens on port `8090`, which Compose publishes on the host. Its admin UI is available at `http://<host>:8090/_/` for setup such as SSO. The legacy migration stack publishes its PocketBase admin UI at `http://<host>:8092/_/`.
+### Frontend Build-time Variables
+
+The web app reads a few `NEXT_PUBLIC_*` variables at build time (via Vite's env handling) as fallbacks, for example `NEXT_PUBLIC_BACKEND_URL`, `NEXT_PUBLIC_ENABLE_SSO`, `NEXT_PUBLIC_DISABLE_USER_SIGNUP`, `NEXT_PUBLIC_INTEGRATIONS_ENABLE_SSL` (also answers to `ALLOW_INSECURE_CERTS_FOR_INTEGRATION_URLS`), and `NEXT_PUBLIC_DEFAULT_BG_URL`. The backend's `/api/v1/appConfig` and `/api/v1/appInfo` endpoints provide the runtime values (instance name, SSO flag, signup restriction), so these are rarely needed.
+
+There is no PocketBase process to configure or expose; data migration from a legacy PocketBase install uses the migration archive under `/api/v1/migration/` (see [Development](Development.md)).

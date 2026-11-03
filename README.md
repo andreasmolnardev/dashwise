@@ -14,7 +14,7 @@ This is my attempt to solving that.
 
 ## Features
 - **GUI Editing**: Configure dashwise using its UI. No need to touch config files.
-- **Secure by default**: Dashwise has Authentication (including SSO via OIDC) built in.
+- **Secure by default**: Authentication is built in. Email/password accounts, device logins, and session management all run inside the Dashwise backend — no external identity service required.
 - **Dashboards** show Glanceables and Widgets, for example Links (which can be grouped into Link groups and folders)
 - **Glanceables**: Customizable bits of one-line information next to the clock.
 - **Widgets**: Modular blocks on the dashboard that show key info or actions at a glance. They can be moved and customized individually.
@@ -24,7 +24,7 @@ This is my attempt to solving that.
 - **Integrations**: directly integrates with your favourite self hosted apps. Integrations are defined as YAML files for the widgets, glanceables and shortcuts an integration provides. Refer to [Integrations](https://github.com/dashwise-homelab/integrations) repo for more.
 
 ## Installation
-For production depolyments, use the docker-compose.yaml
+For production deployments, use the docker-compose.yaml. It runs a single Go container that serves both the API and the built web app, with data stored in an embedded SQLite database under `./dashwise-data`.
 
 For local development, install dependencies and start the workspace scripts:
 
@@ -33,18 +33,21 @@ bun install
 bun run dev
 ```
 
-The PocketBase backend can be either run using the aio container (default method) or connected to an external database (not recommended, migrations may fail)
+This starts the Go backend (`go run ./cmd/dashwise` from `apps/backend` — needs Go 1.26) and the Vite dev server for the web app.
+
+Upgrading from an older Dashwise (PocketBase-based) install? Export a migration archive from the old app and import it from the Migrate page (`/migrate`) in the new instance. See [Development](docs/Development.md) for details.
 
 ## Configuration
 See the [configuration reference](docs/Configuration.md) for all supported environment variables.
 
 ## Tech Stack
-Frontend: React SPA bundled with Bun
-API Layer: Bun with Hono
-Backend: Pocketbase
+Frontend: React SPA built with Vite
+API Layer: Go (single binary, serves API + static frontend)
+Backend: Embedded SQLite database with migrations built in
+Integrations: TypeScript SDK bundles executed in a Go-embedded JS runtime, plus a Go YAML integration runtime
 
 ## How it works
-Each user has page-based config records in `pageConfig` (for example `home`, `news`, `lab`) plus user-level preferences.
+Each user has page-based config records in the `page_configs` SQLite table (for example `home`, `news`, `lab`) plus user-level preferences.
 The frontend reads and refreshes page config through the `usePageConfig` hook.
 
 ## Open Source Projects that make dashwise possible
@@ -58,4 +61,4 @@ The frontend reads and refreshes page config through the `usePageConfig` hook.
 Feel free to contribute! I'll probably create a more detailed roadmap soon.
 
 ### Creating an integration
-Refer to docs/integrations.md for more
+Refer to [docs/Integrations.md](docs/Integrations.md) for more

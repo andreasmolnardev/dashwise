@@ -1,26 +1,25 @@
-Dashwise can make use of existing SSO Infrastructure by integrating with OIDC servers
+Dashwise authentication is built into the Go backend; accounts live in the embedded SQLite database and no external identity service is required. SSO via OpenID Connect is not implemented yet: the backend exposes `ENABLE_SSO` as a UI flag and `/api/v1/auth/sso` and `/api/v1/auth/callback` currently redirect back to the dashboard only.
 
-# Setup
+# Accounts, Sessions, and Devices
 
-1. Edit the users collection. <br>
-<img width="352" height="77" alt="image" src="https://github.com/user-attachments/assets/b1490635-d154-48c1-8b7e-715ff1bae827" /> <br>
+## Account basics
 
-2. In the "Options" tab, enable OAuth2 and add your provider. <br>
-<img width="685" height="614" alt="image" src="https://github.com/user-attachments/assets/f303e780-dafa-4ad8-81e5-5d20880d022d" /> <br>
+Users sign up with email and password (`POST /api/v1/auth/signup`). Passwords are hashed with bcrypt. Signup can be disabled globally with `DISABLE_USER_SIGNUP`. Account deletion requires confirming the password.
 
-For details on the exact URLs, follow the docs of your preferrered SSO provider.
+## Sessions
 
-## Internal architecture
+Successful signup, login, or device approval creates a session and returns an opaque `dws_` token. The client sends that token as a bearer credential for API requests.
 
-PocketBase verifies the user's password, and Dashwise verifies the TOTP code when enabled. Dashwise then creates a session and returns an opaque `dws_` token. The client sends that token as a bearer credential for API requests. The client does not receive a PocketBase auth token.
+Dashwise stores only a SHA-256 hash of each session token, never the token itself. On each request the backend hashes the supplied token, finds its session, and checks its expiry. Sessions expire 90 days after creation; activity is tracked with a last-seen timestamp.
 
-Dashwise stores a SHA-256 hash of each session token. For existing user-scoped data operations, the session record also holds the PocketBase token in a backend-only collection. On each request, the backend hashes the supplied token, finds its session, checks its expiry and activity, and refreshes the internal PocketBase token. Sessions expire after 30 days without activity or 90 days from creation.
+Logging out deletes the current session. Revoking a session from the sessions list deletes that session's record, so its token no longer authorizes requests. The sessions list/current/rename APIs return an explicit allowlist of public metadata (display name, client type, platform, created/expiry timestamps); they never return token material or hashes.
 
-Logging out deletes the current session. Revoking a session deletes that session's record, so its token no longer authorizes requests. Device-code approval creates a separate session and token for the requesting device.
+Live activity WebSockets validate the token's session before protected operations and periodically while idle, so a revoked session cannot keep a connection alive; revocation closes the connections and cleans up streams, timers, and subscriptions. Password changes require the current password and revoke every session for that user, including connections whose authentication was already in flight.
 
+## Device logins
 
-Session list/current/rename APIs return an explicit allowlist of public metadata. They never return the stored PocketBase token or session-token hash. Compose publishes PocketBase on port `8090` so its admin UI remains available for setup such as SSO. Keep external PocketBase deployments on a private backend network.
+Device code flows under `/api/v1/auth/device-code/` let external tools request access: the device generates a code, and the user approves it in the web app. Approval creates a separate session and token for the requesting device.
 
-Activity, SSH console, and live-statistics WebSockets validate their session before protected operations and periodically while idle. Revocation closes the session's connections and cleans up their streams, timers, and subscriptions. Password changes persist revocation of every user session, including sockets whose authentication was already in flight. Account deletion requires an active device session plus password/TOTP confirmation for that same user.
+## Notifications
 
-Notification publication accepts either a device-session bearer token for an owned topic ID or a scoped topic token in the URL path. User/password Basic authentication is not supported. Administrator Basic credentials remain a separate authentication mechanism for job endpoints. Login, signup, device-login initiation, and bootstrap metadata stay publicly accessible.
+Publishing to a notification topic requires authentication: callers can use either their own device/session bearer token for a topic they own or a scoped topic token in the URL path. User/password Basic authentication is not supported. Login, signup, and the public app-config/bootstrap metadata endpoints stay publicly accessible.
