@@ -21,6 +21,8 @@ import (
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/consumersapi"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/deviceauth"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/deviceauthapi"
+	"github.com/andreasmolnardev/dashwise/apps/backend/internal/importexport"
+	"github.com/andreasmolnardev/dashwise/apps/backend/internal/importexportapi"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/integrations"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/integrationsapi"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/links"
@@ -187,6 +189,15 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, err
 		_ = db.Close()
 		return nil, fmt.Errorf("initialize Pages schema: %w", err)
 	}
+	transferStore, err := importexport.New(db, secretProtector, filepath.Join(cfg.DataDir, "wallpapers"))
+	if err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("initialize migration archive store: %w", err)
+	}
+	if err := transferStore.Initialize(ctx); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("initialize migration archive schema: %w", err)
+	}
 	newsFetcher := news.NewFetcher()
 	newsHandler, err := newsapi.New(newsStore, authenticateOwner(authStore), newsapi.Options{
 		ResolveMetadata: func(ctx context.Context, feedURL string) (newsapi.Metadata, error) {
@@ -285,6 +296,11 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, err
 		_ = db.Close()
 		return nil, fmt.Errorf("initialize Shortcuts API: %w", err)
 	}
+	transferHandler, err := importexportapi.New(transferStore, authenticateOwner(authStore))
+	if err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("initialize migration archive API: %w", err)
+	}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) {
@@ -324,6 +340,7 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, err
 	mux.Handle("/api/v1/activities/", activitiesHandler)
 	mux.Handle("/api/v1/integrations/{integrationId}/activities", activitiesHandler)
 	mux.Handle("/api/v1/wallpapers", wallpapersHandler)
+	mux.Handle("/api/v1/migration/", transferHandler)
 	mux.Handle("/api/v1/integrations", integrationsHandler)
 	mux.Handle("/api/v1/integrations/", integrationsHandler)
 	mux.Handle("/api/v1/locations", systemHandler)
