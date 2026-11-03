@@ -54,7 +54,7 @@ func (h *Handler) signup(w http.ResponseWriter, r *http.Request) {
 		writeAuthError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, result)
+	writeJSON(w, http.StatusOK, map[string]any{"user": result.User})
 }
 
 func (h *Handler) login(w http.ResponseWriter, r *http.Request) {
@@ -75,8 +75,9 @@ func (h *Handler) login(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) validate(w http.ResponseWriter, r *http.Request) {
 	var input struct {
-		Token string `json:"token"`
-		Auth  *struct {
+		Token     string `json:"token"`
+		SessionID string `json:"sessionId"`
+		Auth      *struct {
 			Token     string `json:"token"`
 			SessionID string `json:"sessionId"`
 		} `json:"auth"`
@@ -92,6 +93,9 @@ func (h *Handler) validate(w http.ResponseWriter, r *http.Request) {
 		token = input.Auth.Token
 	}
 	providedSessionID := strings.TrimSpace(r.Header.Get("X-Session-Id"))
+	if providedSessionID == "" {
+		providedSessionID = strings.TrimSpace(input.SessionID)
+	}
 	if providedSessionID == "" && input.Auth != nil {
 		providedSessionID = input.Auth.SessionID
 	}
@@ -153,6 +157,10 @@ func (h *Handler) updateUserProperty(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var input struct {
+		Auth *struct {
+			Token     string `json:"token"`
+			SessionID string `json:"sessionId"`
+		} `json:"auth"`
 		PropertyName  string          `json:"propertyName"`
 		PropertyValue json.RawMessage `json:"propertyValue"`
 	}
