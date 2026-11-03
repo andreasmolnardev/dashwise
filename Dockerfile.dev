@@ -1,0 +1,7 @@
+FROM golang:1.26-alpine AS go-toolchain
+
+FROM oven/bun:1-alpine
+COPY --from=go-toolchain /usr/local/go /usr/local/go
+ENV PATH="/usr/local/go/bin:${PATH}"
+WORKDIR /app
+EXPOSE 3000 5173
