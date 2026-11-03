@@ -2,9 +2,8 @@
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type SetStateAction } from 'react';
 import useAuth, { COMMAND_BAR_OPEN_EVENT } from "@/context/useAuth";
 import { useActivity } from "@/context/ActivityContext";
-import { getShortcutsAction } from '@/lib/apiClient';
-import { useApiQuery } from "@/hooks/useApiQuery";
-import { queryKeys } from "@/lib/queryClient";
+import { useResourceView } from "@/hooks/useResourceView";
+import type { ViewResourceQuery } from "@/lib/viewsApi";
 import { getSdkShortcutResourceIdentities } from "@/lib/sdkShortcutResources";
 
 const CommandBar = lazy(() => import('./CommandBar'));
@@ -39,26 +38,6 @@ type Shortcut = {
   isDisabled?: boolean;
   tags?: string[];
 };
-
-function normalizeShortcuts(raw: unknown): Shortcut[] {
-  if (Array.isArray(raw)) {
-    return raw.filter((item): item is Shortcut => !!item && typeof item === "object");
-  }
-
-  if (typeof raw !== "string") {
-    return [];
-  }
-
-  try {
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed)
-      ? parsed.filter((item): item is Shortcut => !!item && typeof item === "object")
-      : [];
-  } catch {
-    return [];
-  }
-}
-
 
 export default function SearchBar({
   useRedirect,
@@ -111,8 +90,35 @@ function CommandBarHost() {
       return { open, hasOpened: previous.hasOpened || open };
     });
   }, []);
-  const shortcutsQuery = useApiQuery(queryKeys.links.search, getShortcutsAction, { enabled: open });
-  const shortcuts = useMemo(() => normalizeShortcuts(shortcutsQuery.data), [shortcutsQuery.data]);
+  const shortcutsViewQuery = useMemo<ViewResourceQuery>(() => ({
+    types: ["dashwise.shortcut"],
+    provider: "dashwise",
+    providerInstanceId: "shortcuts",
+    capabilities: [],
+    filters: [],
+    search: "",
+    orderBy: "updatedAt",
+    limit: 200,
+    offset: 0,
+  }), []);
+  const shortcutsQuery = useResourceView(shortcutsViewQuery, open);
+  const refetchShortcuts = shortcutsQuery.refetch;
+  const shortcuts = useMemo<Shortcut[]>(() => (shortcutsQuery.data?.items ?? []).map((resource) => {
+    const data = resource.data;
+    return {
+      id: resource.providerResourceId,
+      parentId: textValue(data.app) || undefined,
+      name: textValue(data.name) || textValue(data.title),
+      icon: textValue(data.icon),
+      secondaryInfo: textValue(data.secondary),
+      type: textValue(data.kind),
+      action: (data.action ?? "") as Shortcut["action"],
+      actions: objectValue(data.actions) as Record<string, string> | undefined,
+      secondaryActions: objectValue(data.secondaryActions) as Record<string, string> | undefined,
+      isDisabled: typeof data.isDisabled === "boolean" ? data.isDisabled : undefined,
+      tags: Array.isArray(data.tags) ? data.tags.filter((tag): tag is string => typeof tag === "string") : undefined,
+    };
+  }), [shortcutsQuery.data]);
   const sdkResources = useMemo(() => getSdkShortcutResourceIdentities(shortcuts), [shortcuts]);
   const sdkResourceSignature = JSON.stringify(sdkResources);
   const stableSdkResources = useRef({ signature: sdkResourceSignature, resources: sdkResources });
@@ -133,7 +139,7 @@ function CommandBarHost() {
       }
       pendingShortcutRefresh.current = window.setTimeout(() => {
         pendingShortcutRefresh.current = null;
-        void shortcutsQuery.refetch();
+        void refetchShortcuts();
       }, 100);
     });
     return () => {
@@ -143,7 +149,7 @@ function CommandBarHost() {
         pendingShortcutRefresh.current = null;
       }
     };
-  }, [open, subscribedSdkResources, shortcutsQuery.refetch, subscribeSdkResources]);
+  }, [open, refetchShortcuts, subscribedSdkResources, subscribeSdkResources]);
 
   useLayoutEffect(() => {
     const handleKey = (event: KeyboardEvent) => {
@@ -167,4 +173,14 @@ function CommandBarHost() {
       <CommandBar key={token} open={open} setOpen={setOpen} shortcuts={shortcuts} config={user?.searchPreferences ?? {}} />
     </Suspense>
   ) : null;
+}
+
+function textValue(value: unknown) {
+  return typeof value === "string" ? value : "";
+}
+
+function objectValue(value: unknown) {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : undefined;
 }
