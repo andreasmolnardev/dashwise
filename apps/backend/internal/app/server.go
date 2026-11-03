@@ -30,6 +30,7 @@ import (
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/resourceapi"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/resources"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/secrets"
+	"github.com/andreasmolnardev/dashwise/apps/backend/internal/systemapi"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/viewapi"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/views"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/wallpapers"
@@ -216,6 +217,11 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, err
 		_ = db.Close()
 		return nil, fmt.Errorf("initialize Integrations API: %w", err)
 	}
+	systemHandler, err := systemapi.New(authenticateOwner(authStore))
+	if err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("initialize system API: %w", err)
+	}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) {
@@ -255,6 +261,9 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, err
 	mux.Handle("/api/v1/wallpapers", wallpapersHandler)
 	mux.Handle("/api/v1/integrations", integrationsHandler)
 	mux.Handle("/api/v1/integrations/", integrationsHandler)
+	mux.Handle("/api/v1/locations", systemHandler)
+	mux.Handle("/api/v1/weather", systemHandler)
+	mux.Handle("/api/v1/test/bookmarks", systemHandler)
 	mux.Handle("/api/", http.NotFoundHandler())
 	mux.Handle("/", frontend(cfg.WebDist))
 
