@@ -8,10 +8,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"strings"
 	"time"
 
+	"github.com/andreasmolnardev/dashwise/packages/assets"
 	"github.com/andreasmolnardev/dashwise/packages/foundation"
+	"gopkg.in/yaml.v3"
 )
 
 var (
@@ -85,6 +88,9 @@ func (s *Store) List(ctx context.Context, owner string, includeSDK bool) ([]Inte
 	if strings.TrimSpace(owner) == "" {
 		return nil, ErrInvalid
 	}
+	if err := s.EnsureBuiltins(ctx, owner); err != nil {
+		return nil, fmt.Errorf("ensure bundled integrations: %w", err)
+	}
 	query := `SELECT id,type,name,source,owner_id,config_json,environment_cipher,local_data_json,sdk_enabled,created_at,updated_at FROM integrations WHERE owner_id=?`
 	if !includeSDK {
 		query += ` AND type!='sdk'`
@@ -104,6 +110,105 @@ func (s *Store) List(ctx context.Context, owner string, includeSDK bool) ([]Inte
 		out = append(out, item)
 	}
 	return out, rows.Err()
+}
+
+// EnsureBuiltins idempotently makes manifest-listed bundled YAML integrations
+// available to an account. Existing configured environment/local data is kept.
+func (s *Store) EnsureBuiltins(ctx context.Context, owner string) error {
+	if strings.TrimSpace(owner) == "" {
+		return ErrInvalid
+	}
+	manifestBytes, err := assets.Files.ReadFile("defaults/integrations.json")
+	if err != nil {
+		return fmt.Errorf("read bundled integration manifest: %w", err)
+	}
+	var manifest map[string]struct {
+		Source     string         `json:"source"`
+		DefaultEnv map[string]any `json:"defaultEnv"`
+	}
+	if err := json.Unmarshal(manifestBytes, &manifest); err != nil {
+		return fmt.Errorf("decode bundled integration manifest: %w", err)
+	}
+	for _, seed := range manifest {
+		source := strings.TrimSpace(seed.Source)
+		if source == "" {
+			continue
+		}
+		assetPath := strings.TrimPrefix(source, "/")
+		if !strings.HasPrefix(assetPath, "integrations/") || strings.Contains(assetPath, "..") {
+			continue
+		}
+		blueprintBytes, err := assets.Files.ReadFile(assetPath)
+		if errors.Is(err, fs.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			return fmt.Errorf("read bundled integration %q: %w", source, err)
+		}
+		var blueprint map[string]any
+		if err := yaml.Unmarshal(blueprintBytes, &blueprint); err != nil {
+			return fmt.Errorf("decode bundled integration %q: %w", source, err)
+		}
+		name := stringValue(object(blueprint["details"])["name"])
+		var currentID string
+		err = s.db.QueryRowContext(ctx, `SELECT id FROM integrations WHERE owner_id=? AND source=? AND type!='sdk' LIMIT 1`, owner, source).Scan(&currentID)
+		if err == nil {
+			current, getErr := s.Get(ctx, owner, currentID)
+			if getErr != nil {
+				return getErr
+			}
+			if hasConsumerConfig(current.Config) {
+				continue
+			}
+			if _, err := s.Update(ctx, owner, currentID, Input{Type: current.Type, Name: name, Source: source, Config: blueprint, Environment: current.Environment, LocalData: current.LocalData, SDKEnabled: &current.SDKEnabled}); err != nil {
+				return fmt.Errorf("hydrate bundled integration %q: %w", source, err)
+			}
+			continue
+		}
+		if !errors.Is(err, sql.ErrNoRows) {
+			return err
+		}
+		// Preserve legacy name collision behavior: an explicitly configured
+		// integration with the same display name wins over a second copy.
+		if name != "" {
+			var count int
+			if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM integrations WHERE owner_id=? AND name=? AND type!='sdk'`, owner, name).Scan(&count); err != nil {
+				return err
+			}
+			if count > 0 {
+				continue
+			}
+		}
+		environment := map[string]string{}
+		for key, value := range seed.DefaultEnv {
+			if value != nil {
+				environment[key] = fmt.Sprint(value)
+			}
+		}
+		if _, err := s.Create(ctx, owner, Input{Type: "plugin", Name: name, Source: source, Config: blueprint, Environment: environment, LocalData: map[string]any{}}); err != nil {
+			return fmt.Errorf("seed bundled integration %q: %w", source, err)
+		}
+	}
+	return nil
+}
+
+func hasConsumerConfig(config map[string]any) bool {
+	configuration := object(config["configuration"])
+	_, widgets := configuration["widgets"].([]any)
+	_, glanceables := configuration["glanceables"].([]any)
+	return widgets || glanceables
+}
+
+func object(value any) map[string]any {
+	if result, ok := value.(map[string]any); ok {
+		return result
+	}
+	return map[string]any{}
+}
+
+func stringValue(value any) string {
+	result, _ := value.(string)
+	return strings.TrimSpace(result)
 }
 
 func (s *Store) Get(ctx context.Context, owner, id string) (Integration, error) {
