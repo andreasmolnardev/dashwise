@@ -29,6 +29,7 @@ func New(store *integrations.Store, authenticate resourceapi.Authenticate) (http
 	h.mux.HandleFunc("POST /api/v1/integrations", h.create)
 	h.mux.HandleFunc("PUT /api/v1/integrations/{id}", h.update)
 	h.mux.HandleFunc("DELETE /api/v1/integrations/{id}", h.delete)
+	h.mux.HandleFunc("POST /api/v1/integrations/preview-json", h.previewJSON)
 	return h.mux, nil
 }
 
