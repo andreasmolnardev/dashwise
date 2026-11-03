@@ -225,7 +225,7 @@ func (s *Store) Signup(ctx context.Context, input SignupInput) (AuthResult, erro
 	if err != nil {
 		return AuthResult{}, err
 	}
-	return s.createSession(ctx, user)
+	return AuthResult{User: user}, nil
 }
 
 func (s *Store) Login(ctx context.Context, email, password string) (AuthResult, error) {
