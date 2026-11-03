@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/andreasmolnardev/dashwise/apps/backend/internal/activities"
+	"github.com/andreasmolnardev/dashwise/apps/backend/internal/activitiesapi"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/auth"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/authapi"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/config"
@@ -120,6 +122,15 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, err
 		_ = db.Close()
 		return nil, fmt.Errorf("initialize Notifications schema: %w", err)
 	}
+	activitiesStore, err := activities.New(db)
+	if err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("initialize Activities store: %w", err)
+	}
+	if err := activitiesStore.Initialize(ctx); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("initialize Activities schema: %w", err)
+	}
 	newsFetcher := news.NewFetcher()
 	newsHandler, err := newsapi.New(newsStore, authenticateOwner(authStore), newsapi.Options{
 		ResolveMetadata: func(ctx context.Context, feedURL string) (newsapi.Metadata, error) {
@@ -168,6 +179,11 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, err
 		_ = db.Close()
 		return nil, fmt.Errorf("initialize Notifications API: %w", err)
 	}
+	activitiesHandler, err := activitiesapi.New(activitiesStore, authenticateOwner(authStore))
+	if err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("initialize Activities API: %w", err)
+	}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) {
@@ -201,6 +217,9 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, err
 	mux.Handle("/api/v1/monitoring/", monitoringHandler)
 	mux.Handle("/api/v1/notifications", notificationsHandler)
 	mux.Handle("/api/v1/notifications/", notificationsHandler)
+	mux.Handle("/api/v1/activities", activitiesHandler)
+	mux.Handle("/api/v1/activities/", activitiesHandler)
+	mux.Handle("/api/v1/integrations/{integrationId}/activities", activitiesHandler)
 	mux.Handle("/api/", http.NotFoundHandler())
 	mux.Handle("/", frontend(cfg.WebDist))
 
