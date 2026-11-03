@@ -58,7 +58,6 @@ const FRAME_KIND_OPTIONS = [
   { value: "clock", label: "Clock" },
   { value: "widgets", label: "Widgets" },
   { value: "website", label: "Website" },
-  { value: "media-player", label: "Media Player" },
 ] as const;
 
 const FRAME_PREVIEW_SIZE = {
@@ -120,7 +119,7 @@ type FrameGlanceable = {
 
 type BackgroundMode = "global-frame" | "current" | "none" | "upload" | "url";
 type RulesScope = "global" | "device";
-type FrameKind = "clock" | "widgets" | "website" | "media-player";
+type FrameKind = "clock" | "widgets" | "website";
 
 function readDeviceRules() {
   if (typeof window === "undefined") return {};
@@ -1049,7 +1048,7 @@ export default function SmartFramesManager({
     setEditFrameId(frame.id);
     setDraftName(getFrameName(frame, frames.findIndex((item) => item.id === frame.id)));
     const savedKind = String(frame.params?.frameKind ?? "");
-    setDraftFrameKind(savedKind === "widgets" || savedKind === "website" || savedKind === "media-player" ? savedKind : (nextSections[0]?.widgetType === "glanceable-clock" || nextSections[0]?.widgetType === "main-clock" ? "clock" : "widgets"));
+    setDraftFrameKind(savedKind === "widgets" || savedKind === "website" ? savedKind : (nextSections[0]?.widgetType === "glanceable-clock" || nextSections[0]?.widgetType === "main-clock" ? "clock" : "widgets"));
     setDraftDisplayRules(
       getGlobalRules(user?.screensaverPreferences as Record<string, any> | undefined),
     );
@@ -1434,12 +1433,12 @@ export default function SmartFramesManager({
                           onClick={() => {
                             setDraftFrameKind(kind);
                             if (editFrameId) draftDirtyRef.current = true;
-                            const widgetType = kind === "clock" ? "glanceable-clock" : kind === "website" || kind === "media-player" ? "iframe" : undefined;
+                            const widgetType = kind === "clock" ? "glanceable-clock" : kind === "website" ? "iframe" : undefined;
                             if (kind !== "widgets") {
                               setLayoutPreset("1x1");
                               setCustomCols(1);
                               setCustomRows(1);
-                              if (widgetType) setSections(buildSections(1, 1, [{ id: "cell-0-0", label, widgetType, params: kind === "website" ? { url: "" } : kind === "media-player" ? { url: "", title: "Media player" } : {} }]));
+                              if (widgetType) setSections(buildSections(1, 1, [{ id: "cell-0-0", label, widgetType, params: kind === "website" ? { url: "" } : {} }]));
                             }
                           }}
                           className={`shrink-0 snap-start rounded-xl px-4 py-2 text-sm transition ${draftFrameKind === kind ? "text-white ring-1 ring-primary" : "text-white/70 hover:bg-white/10 hover:text-white"}`}
@@ -1518,7 +1517,7 @@ export default function SmartFramesManager({
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="font-medium">{resolveWidgetLabel(sections[0].widgetType)}</div>
-                    <div className="text-sm text-white/60">{draftFrameKind === "website" ? "Website" : draftFrameKind === "media-player" ? "Media player" : "Clock"}</div>
+                    <div className="text-sm text-white/60">{draftFrameKind === "website" ? "Website" : "Clock"}</div>
                   </div>
                   <Button type="button" variant="ghost" size="icon" aria-label={`Edit ${resolveWidgetLabel(sections[0].widgetType)}`} onClick={() => { setSelectedSectionId(sections[0].id); setEditingWidgetSectionId(sections[0].id); }}>
                     <Pencil className="h-4 w-4" />

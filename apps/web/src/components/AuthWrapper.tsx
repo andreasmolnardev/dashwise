@@ -10,7 +10,6 @@ import { cn } from "@/lib/utils";
 import { fetchWallpaperBlob } from "@/lib/apiClient";
 import { LocalizationProvider } from "@/context/LocalizationContext";
 import { ActivityProvider } from "@/context/ActivityContext";
-import { MediaPlayerProvider } from "@/context/MediaPlayerContext";
 import { normalizeWallpaperFilters } from "./settings/wallpaperFilterDefaults";
 import SearchBar from "./widgets/SearchBar";
 import SessionNamePrompt from "./auth/SessionNamePrompt";
@@ -160,17 +159,15 @@ export default function AuthWrapper({ children }: AuthWrapperProps) {
           WebkitBackdropFilter: `blur(${blur}px) brightness(${appliedBrightness}%)`,
         }}
     >
-        <MediaPlayerProvider>
-          <ActivityProvider>
-            <SearchBar
-              useRedirect={false}
-              showTrigger={false}
-              enableGlobalShortcut
-            />
-            <SessionNamePrompt />
-            {children}
-          </ActivityProvider>
-        </MediaPlayerProvider>
+        <ActivityProvider>
+          <SearchBar
+            useRedirect={false}
+            showTrigger={false}
+            enableGlobalShortcut
+          />
+          <SessionNamePrompt />
+          {children}
+        </ActivityProvider>
       </div>
     </LocalizationProvider>
   );
