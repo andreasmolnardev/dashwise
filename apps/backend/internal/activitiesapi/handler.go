@@ -12,28 +12,33 @@ import (
 	"time"
 
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/activities"
+	"github.com/andreasmolnardev/dashwise/apps/backend/internal/integrations"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/resourceapi"
 )
 
 const maxBodyBytes = 100 * 1024
 
 type Handler struct {
-	store  *activities.Store
-	auth   resourceapi.Authenticate
-	mux    *http.ServeMux
-	mu     sync.Mutex
-	limits map[string]rateWindow
+	store        *activities.Store
+	integrations *integrations.Store
+	auth         resourceapi.Authenticate
+	mux          *http.ServeMux
+	mu           sync.Mutex
+	limits       map[string]rateWindow
 }
 type rateWindow struct {
 	started time.Time
 	count   int
 }
 
-func New(store *activities.Store, authenticate resourceapi.Authenticate) (http.Handler, error) {
+func New(store *activities.Store, authenticate resourceapi.Authenticate, integrationStores ...*integrations.Store) (http.Handler, error) {
 	if store == nil || authenticate == nil {
 		return nil, errors.New("activities API requires a store and authenticator")
 	}
 	h := &Handler{store: store, auth: authenticate, mux: http.NewServeMux(), limits: map[string]rateWindow{}}
+	if len(integrationStores) > 0 {
+		h.integrations = integrationStores[0]
+	}
 	h.mux.HandleFunc("GET /api/v1/activities", h.list)
 	h.mux.HandleFunc("POST /api/v1/activities", h.publish)
 	h.mux.HandleFunc("GET /api/v1/activities/{id}", h.get)
@@ -166,6 +171,15 @@ func (h *Handler) integrationActivity(w http.ResponseWriter, r *http.Request) {
 	integrationID := strings.TrimSpace(r.PathValue("integrationId"))
 	if integrationID == "" || len(integrationID) > 200 {
 		writeError(w, 400, "invalid integration id")
+		return
+	}
+	if h.integrations == nil {
+		writeError(w, http.StatusNotFound, "integration not found")
+		return
+	}
+	if _, err := h.integrations.Get(r.Context(), owner, integrationID); err != nil {
+		// Keep absent and foreign-owned IDs indistinguishable to prevent probing.
+		writeError(w, http.StatusNotFound, "integration not found")
 		return
 	}
 	if body.Operation == "clear" {

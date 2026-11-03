@@ -35,6 +35,7 @@ import (
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/notificationsapi"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/pages"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/pagesapi"
+	"github.com/andreasmolnardev/dashwise/apps/backend/internal/realtimeapi"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/resourceapi"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/resources"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/secrets"
@@ -256,10 +257,15 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, err
 		_ = db.Close()
 		return nil, fmt.Errorf("initialize Notifications API: %w", err)
 	}
-	activitiesHandler, err := activitiesapi.New(activitiesStore, authenticateOwner(authStore))
+	activitiesHandler, err := activitiesapi.New(activitiesStore, authenticateOwner(authStore), integrationsStore)
 	if err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("initialize Activities API: %w", err)
+	}
+	activityRealtimeHandler, err := realtimeapi.NewActivityHandler(authStore, activitiesStore, notificationsStore)
+	if err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("initialize Activity realtime API: %w", err)
 	}
 	wallpapersHandler, err := wallpapersapi.New(wallpapersStore, authenticateOwner(authStore))
 	if err != nil {
@@ -338,6 +344,7 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, err
 	mux.Handle("/api/v1/notifications/", notificationsHandler)
 	mux.Handle("/api/v1/activities", activitiesHandler)
 	mux.Handle("/api/v1/activities/", activitiesHandler)
+	mux.Handle("/api/v1/activity", activityRealtimeHandler)
 	mux.Handle("/api/v1/integrations/{integrationId}/activities", activitiesHandler)
 	mux.Handle("/api/v1/wallpapers", wallpapersHandler)
 	mux.Handle("/api/v1/migration/", transferHandler)
