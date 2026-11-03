@@ -10,7 +10,9 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/andreasmolnardev/dashwise/apps/backend/internal/auth"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/integrations"
+	"github.com/andreasmolnardev/dashwise/apps/backend/internal/realtimebroker"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/resourceapi"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/shortcuts"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/yamlruntime"
@@ -23,23 +25,27 @@ type Handler struct {
 	auth      resourceapi.Authenticate
 	runtime   *yamlruntime.Runtime
 	shortcuts *shortcuts.Store
+	sessions  *auth.Store
+	broker    *realtimebroker.Broker
 	mux       *http.ServeMux
 }
 
 func New(store *integrations.Store, authenticate resourceapi.Authenticate, runtimes ...*yamlruntime.Runtime) (http.Handler, error) {
-	return newHandler(store, authenticate, nil, runtimes...)
+	return newHandler(store, authenticate, nil, nil, nil, runtimes...)
 }
 
 // NewWithShortcuts constructs the integrations API with owner-scoped shortcut
-// action lookup enabled for the legacy proxyAction endpoint.
-func NewWithShortcuts(store *integrations.Store, authenticate resourceapi.Authenticate, shortcutStore *shortcuts.Store, runtimes ...*yamlruntime.Runtime) (http.Handler, error) {
+// action lookup enabled for the legacy proxyAction endpoint. The realtime
+// session broker enables routed shortcut:<session>.<shortcut> actions; when
+// the broker or session store is missing, routed actions stay unavailable.
+func NewWithShortcuts(store *integrations.Store, authenticate resourceapi.Authenticate, shortcutStore *shortcuts.Store, sessionStore *auth.Store, broker *realtimebroker.Broker, runtimes ...*yamlruntime.Runtime) (http.Handler, error) {
 	if shortcutStore == nil {
 		return nil, errors.New("integrations API requires a shortcuts store for proxy actions")
 	}
-	return newHandler(store, authenticate, shortcutStore, runtimes...)
+	return newHandler(store, authenticate, shortcutStore, sessionStore, broker, runtimes...)
 }
 
-func newHandler(store *integrations.Store, authenticate resourceapi.Authenticate, shortcutStore *shortcuts.Store, runtimes ...*yamlruntime.Runtime) (http.Handler, error) {
+func newHandler(store *integrations.Store, authenticate resourceapi.Authenticate, shortcutStore *shortcuts.Store, sessionStore *auth.Store, broker *realtimebroker.Broker, runtimes ...*yamlruntime.Runtime) (http.Handler, error) {
 	if store == nil || authenticate == nil {
 		return nil, errors.New("integrations API requires a store and authenticator")
 	}
@@ -47,7 +53,7 @@ func newHandler(store *integrations.Store, authenticate resourceapi.Authenticate
 	if len(runtimes) > 0 && runtimes[0] != nil {
 		runtime = runtimes[0]
 	}
-	h := &Handler{store: store, auth: authenticate, runtime: runtime, shortcuts: shortcutStore, mux: http.NewServeMux()}
+	h := &Handler{store: store, auth: authenticate, runtime: runtime, shortcuts: shortcutStore, sessions: sessionStore, broker: broker, mux: http.NewServeMux()}
 	h.mux.HandleFunc("GET /api/v1/integrations", h.listOrGet)
 	h.mux.HandleFunc("POST /api/v1/integrations", h.create)
 	h.mux.HandleFunc("PUT /api/v1/integrations/{id}", h.update)

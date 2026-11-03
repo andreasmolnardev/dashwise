@@ -19,6 +19,7 @@ import (
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/integrations"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/notifications"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/pages"
+	"github.com/andreasmolnardev/dashwise/apps/backend/internal/realtimebroker"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/resources"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/resourcesync"
 	"github.com/gorilla/websocket"
@@ -41,6 +42,7 @@ type ActivityHandler struct {
 	integrations    *integrations.Store
 	resources       *resources.Store
 	pages           *pages.Store
+	broker          *realtimebroker.Broker
 	resolvePageData PageDataResolver
 	calendarMu      sync.Mutex
 	calendarCache   map[string]calendarSnapshot
@@ -140,7 +142,7 @@ func (s *subscriptionState) releaseRefresh(pageID string) {
 func NewActivityHandler(
 	authStore *auth.Store, activityStore *activities.Store, notificationStore *notifications.Store,
 	integrationStore *integrations.Store, resourceStore *resources.Store, pageStore *pages.Store,
-	pageResolver PageDataResolver,
+	pageResolver PageDataResolver, shortcutBroker *realtimebroker.Broker,
 ) (http.Handler, error) {
 	if authStore == nil || activityStore == nil || notificationStore == nil {
 		return nil, errors.New("activity websocket requires auth, activities, and notifications stores")
@@ -148,9 +150,12 @@ func NewActivityHandler(
 	if resourceStore == nil || pageStore == nil || pageResolver == nil {
 		return nil, errors.New("activity websocket requires resource, page stores, and a page data resolver")
 	}
+	if shortcutBroker == nil {
+		return nil, errors.New("activity websocket requires a realtime session broker")
+	}
 	h := &ActivityHandler{
 		auth: authStore, activities: activityStore, notifications: notificationStore,
-		resources: resourceStore, pages: pageStore, resolvePageData: pageResolver,
+		resources: resourceStore, pages: pageStore, broker: shortcutBroker, resolvePageData: pageResolver,
 		calendarCache: map[string]calendarSnapshot{},
 		upgrader:      websocket.Upgrader{HandshakeTimeout: 10 * time.Second},
 	}
@@ -188,8 +193,21 @@ func (h *ActivityHandler) serve(w http.ResponseWriter, r *http.Request) {
 		return conn.WriteJSON(value)
 	}
 	state := newSubscriptionState()
+	brokerConn := &realtimebroker.Connection{Send: func(message map[string]any) error {
+		return write(message)
+	}}
+	// Register the authenticated connection under owner and session so the
+	// integrations proxy can route shortcut executions to this session. The
+	// shared broker removes it again whenever the websocket handler returns.
+	brokerUnregister, registered := h.broker.Register(user.ID, session.ID, brokerConn)
+	if !registered {
+		sessClose(conn, &writeMu, websocket.ClosePolicyViolation, "Too many activity connections")
+		return
+	}
+	defer brokerUnregister()
 	sess := &connectionSession{
-		handler: h, conn: conn, token: token, owner: user.ID, write: write, state: state,
+		handler: h, conn: conn, token: token, owner: user.ID, sessionID: session.ID,
+		write: write, state: state, brokerConn: brokerConn,
 	}
 	lastSequence, err := h.resources.LatestChangeSequence(r.Context())
 	if err != nil {
@@ -275,9 +293,21 @@ type connectionSession struct {
 	conn         *websocket.Conn
 	token        string
 	owner        string
+	sessionID    string
 	write        func(any) error
 	state        *subscriptionState
+	brokerConn   *realtimebroker.Connection
 	lastSequence atomic.Int64
+}
+
+// sessClose closes a websocket whose full connectionSession is not set up
+// yet, using the single-writer mutex-protected control write.
+func sessClose(conn *websocket.Conn, writeMu *sync.Mutex, code int, reason string) {
+	writeMu.Lock()
+	defer writeMu.Unlock()
+	_ = conn.SetWriteDeadline(time.Now().Add(time.Second))
+	_ = conn.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(code, reason), time.Now().Add(time.Second))
+	_ = conn.Close()
 }
 
 func (s *connectionSession) close(code int, reason string) {
@@ -290,6 +320,9 @@ func (s *connectionSession) handleMessage(ctx context.Context, raw []byte, snaps
 		Type      string            `json:"type"`
 		Resources []json.RawMessage `json:"resources"`
 		PageID    string            `json:"pageId"`
+		RequestID string            `json:"requestId"`
+		Success   bool              `json:"success"`
+		Error     string            `json:"error"`
 	}
 	if json.Unmarshal(raw, &message) != nil {
 		return nil
@@ -323,6 +356,10 @@ func (s *connectionSession) handleMessage(ctx context.Context, raw []byte, snaps
 			}
 		}
 	case "shortcut:result":
+		// Correlate client shortcut results with pending routed executions.
+		// The broker ignores results from other owners, sessions, or
+		// connections that are no longer registered.
+		s.handler.broker.HandleResult(s.owner, s.sessionID, s.brokerConn, message.RequestID, message.Success, message.Error)
 	}
 	return nil
 }

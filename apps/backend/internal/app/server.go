@@ -38,6 +38,7 @@ import (
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/pages"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/pagesapi"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/realtimeapi"
+	"github.com/andreasmolnardev/dashwise/apps/backend/internal/realtimebroker"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/resourceapi"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/resources"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/resourcesync"
@@ -280,11 +281,16 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, err
 		_ = db.Close()
 		return nil, fmt.Errorf("initialize Activities API: %w", err)
 	}
+	// Shared realtime session broker: the activity websocket registers every
+	// authenticated connection under owner and session, and the integrations
+	// proxy routes shortcut actions to those sessions through this instance.
+	shortcutBroker := realtimebroker.New()
 	activityRealtimeHandler, err := realtimeapi.NewActivityHandler(
 		authStore, activitiesStore, notificationsStore, integrationsStore, resourceStore, pagesStore,
 		func(ctx context.Context, owner string, pageConfig map[string]any) []map[string]any {
 			return consumersapi.ResolvePageData(ctx, owner, pageConfig, integrationsStore, yamlRuntime)
 		},
+		shortcutBroker,
 	)
 	if err != nil {
 		_ = db.Close()
@@ -295,7 +301,7 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, err
 		_ = db.Close()
 		return nil, fmt.Errorf("initialize Wallpapers API: %w", err)
 	}
-	integrationsHandler, err := integrationsapi.NewWithShortcuts(integrationsStore, authenticateOwner(authStore), shortcutsStore, yamlRuntime)
+	integrationsHandler, err := integrationsapi.NewWithShortcuts(integrationsStore, authenticateOwner(authStore), shortcutsStore, authStore, shortcutBroker, yamlRuntime)
 	if err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("initialize Integrations API: %w", err)

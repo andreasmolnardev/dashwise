@@ -36,8 +36,9 @@ func (h *Handler) proxyAction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var input struct {
-		ShortcutID string `json:"shortcutId"`
-		ID         string `json:"id"`
+		ShortcutID string          `json:"shortcutId"`
+		ID         string          `json:"id"`
+		Auth       json.RawMessage `json:"auth"`
 	}
 	if !decode(w, r, &input) {
 		return
@@ -56,8 +57,8 @@ func (h *Handler) proxyAction(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "could not load shortcut"})
 		return
 	}
-	if action, isString := rawAction.(string); isString && strings.HasPrefix(strings.ToLower(strings.TrimSpace(action)), "shortcut:") {
-		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "Target session is unavailable"})
+	if action, isString := rawAction.(string); isString && hasRoutedShortcutPrefix(action) {
+		h.executeRoutedShortcut(w, r, owner, action)
 		return
 	}
 	action, valid := parseProxyAction(rawAction)

@@ -510,6 +510,24 @@ func (s *Store) ListSessions(ctx context.Context, userID string) ([]Session, err
 	return sessions, nil
 }
 
+// HasActiveSession reports whether the user currently holds a live
+// (non-revoked, unexpired) session with the given ID. Routed shortcut actions
+// use it to verify the target session before delivering work over its
+// websocket, matching the TypeScript getSessionById lookup.
+func (s *Store) HasActiveSession(ctx context.Context, userID, sessionID string) (bool, error) {
+	if userID == "" || sessionID == "" {
+		return false, nil
+	}
+	var count int
+	if err := s.db.QueryRowContext(ctx,
+		`SELECT COUNT(1) FROM auth_sessions WHERE user_id=? AND id=? AND revoked_at IS NULL AND expires_at>?`,
+		userID, sessionID, s.now().UTC().Format(time.RFC3339Nano),
+	).Scan(&count); err != nil {
+		return false, fmt.Errorf("check session: %w", err)
+	}
+	return count > 0, nil
+}
+
 func (s *Store) RenameSession(ctx context.Context, userID, sessionID, displayName string) (Session, error) {
 	displayName = strings.TrimSpace(displayName)
 	if len(displayName) < 1 || len(displayName) > 100 {
