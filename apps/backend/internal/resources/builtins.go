@@ -38,6 +38,8 @@ func BuiltinDefinitions() []Definition {
 				{Name: "url", Type: "url", Searchable: true},
 				{Name: "source", Type: "string", Filterable: true, Searchable: true},
 				{Name: "feedId", Type: "string", Filterable: true},
+				{Name: "feedIds", Type: "array"},
+				{Name: "isRead", Type: "boolean", Filterable: true},
 				{Name: "publishedAt", Type: "datetime", Filterable: true},
 			},
 			Capabilities: []string{"list", "detail", "search", "save", "mark_read"},

@@ -269,7 +269,10 @@ func (r *Runner) materializeNewsResources(ctx context.Context, owner string) err
 			}
 			summary, _ := article.Data["description"].(string)
 			sourceName, _ := article.Data["subscription_name"].(string)
-			data := map[string]any{"title": article.Title, "summary": summary, "url": url, "source": sourceName}
+			data := map[string]any{
+				"title": article.Title, "summary": summary, "url": url, "source": sourceName,
+				"feedIds": article.SourceIDs, "isRead": article.IsRead,
+			}
 			if article.PublishedAt != nil {
 				data["publishedAt"] = article.PublishedAt.UTC().Format(time.RFC3339Nano)
 			}
