@@ -7,10 +7,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/andreasmolnardev/dashwise/apps/backend/internal/activities"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/integrations"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/jsruntime"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/resources"
@@ -52,8 +54,11 @@ type Options struct {
 	Integrations *integrations.Store
 	Registry     *resources.Registry
 	Resources    *resources.Store
+	Activities   *activities.Store
 	Bundles      TrustedBundleRegistry
 	HookTimeout  time.Duration
+	// Logger receives provider runtime events; optional.
+	Logger *slog.Logger
 }
 
 type Status struct {
@@ -78,23 +83,25 @@ type Manager struct {
 	integrations *integrations.Store
 	registry     *resources.Registry
 	resources    *resources.Store
+	activities   *activities.Store
 	bundles      TrustedBundleRegistry
 	hookTimeout  time.Duration
+	logger       *slog.Logger
 	mu           sync.RWMutex
 	instances    map[string]*managedInstance
 }
 
 func New(options Options) (*Manager, error) {
-	if options.Database == nil || options.Database.SQL() == nil || options.Integrations == nil || options.Registry == nil || options.Resources == nil || options.Bundles == nil {
-		return nil, errors.New("SDK manager requires database, integration store, resource registry/store, and trusted bundles")
+	if options.Database == nil || options.Database.SQL() == nil || options.Integrations == nil || options.Registry == nil || options.Resources == nil || options.Activities == nil || options.Bundles == nil {
+		return nil, errors.New("SDK manager requires database, integration store, resource registry/store, activities store, and trusted bundles")
 	}
 	if options.HookTimeout <= 0 {
 		options.HookTimeout = 10 * time.Second
 	}
 	return &Manager{
 		database: options.Database, integrations: options.Integrations, registry: options.Registry,
-		resources: options.Resources, bundles: options.Bundles, hookTimeout: options.HookTimeout,
-		instances: make(map[string]*managedInstance),
+		resources: options.Resources, activities: options.Activities, bundles: options.Bundles, hookTimeout: options.HookTimeout,
+		logger: options.Logger, instances: make(map[string]*managedInstance),
 	}, nil
 }
 
@@ -159,10 +166,12 @@ func (m *Manager) Start(ctx context.Context, owner, instanceID string) error {
 		InstanceID: item.ID,
 		Config:     item.Config,
 		HookLimit:  m.hookTimeout,
+		Log:        m.runtimeLogger(item.ID),
 		HostFactory: func(manifest jsruntime.Manifest) (jsruntime.Host, error) {
 			return jsruntime.NewStoreHost(ctx, jsruntime.HostOptions{
-				OwnerID: owner, InstanceID: item.ID, Manifest: manifest,
-				Database: m.database, Registry: m.registry, Resources: m.resources, Secrets: item.Environment,
+				OwnerID: owner, InstanceID: item.ID, Manifest: manifest, Source: item.Source,
+				Database: m.database, Registry: m.registry, Resources: m.resources,
+				Activities: m.activities, Secrets: item.Environment,
 			})
 		},
 	})
@@ -172,6 +181,9 @@ func (m *Manager) Start(ctx context.Context, owner, instanceID string) error {
 	}
 	if err := runtime.Start(ctx); err != nil {
 		entry.failed("provider failed to start")
+		// Release the dormant runtime (disposal cleanup) so a retry does not
+		// leak the instance's dispatcher or reserved provider state.
+		_ = runtime.Stop(context.WithoutCancel(ctx))
 		return err
 	}
 	entry.runtime = runtime
@@ -333,4 +345,29 @@ func (entry *managedInstance) failed(message string) {
 	entry.status.State = "error"
 	entry.status.Message = message
 	entry.status.UpdatedAt = time.Now().UTC()
+}
+
+// runtimeLogger builds the sink that receives provider runtime events with an
+// instance-prefixed message. A nil manager logger drops events.
+func (m *Manager) runtimeLogger(instanceID string) func(level, message string, fields map[string]any) {
+	return func(level, message string, fields map[string]any) {
+		if m.logger == nil {
+			return
+		}
+		attrs := make([]any, 0, len(fields)+1)
+		attrs = append(attrs, "sdk_instance", instanceID)
+		for key, value := range fields {
+			attrs = append(attrs, key, value)
+		}
+		switch level {
+		case "debug":
+			m.logger.Debug("[sdk] "+message, attrs...)
+		case "warn":
+			m.logger.Warn("[sdk] "+message, attrs...)
+		case "error":
+			m.logger.Error("[sdk] "+message, attrs...)
+		default:
+			m.logger.Info("[sdk] "+message, attrs...)
+		}
+	}
 }

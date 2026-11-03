@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/dop251/goja"
@@ -40,6 +41,9 @@ type Options struct {
 	HostFactory func(Manifest) (Host, error)
 	MaxBytes    int
 	HookLimit   time.Duration
+	// Log receives structured runtime events from the provider bridge and the
+	// dispatch engine. A nil sink drops events.
+	Log func(level string, message string, fields map[string]any)
 }
 
 // Manifest is the JSON-safe subset of an IntegrationDefinition that is safe
@@ -71,6 +75,23 @@ type Instance struct {
 	stopped     bool
 	disposables []goja.Callable
 	activeCtx   context.Context
+
+	// Serialized dispatch state. i.mu guards all JavaScript execution;
+	// itemsMu guards only the queue bookkeeping so producer goroutines never
+	// wait behind a running hook.
+	itemsMu         sync.Mutex
+	pending         []*dispatchItem
+	wake            chan struct{}
+	done            chan struct{}
+	startOnce       sync.Once
+	disposed        atomic.Bool
+	callbackTimers  map[uint64]*dispatchItem
+	schedulerTimers map[string]*dispatchItem
+	nextTimerID     uint64
+	sockets         map[*jsSocket]struct{}
+	socketsMu       sync.Mutex
+	logSink         func(level string, message string, fields map[string]any)
+	defineProperty  goja.Callable
 }
 
 // Load evaluates a CommonJS JavaScript bundle emitted from the TypeScript
@@ -166,6 +187,15 @@ func Load(ctx context.Context, bundle []byte, options Options) (*Instance, error
 	if _, err := rt.RunString(`this.AbortSignal = { timeout: function(milliseconds) { return { timeoutMs: milliseconds }; } };`); err != nil {
 		return nil, err
 	}
+	instance := &Instance{
+		rt: rt, instanceID: options.InstanceID, hookLimit: limit, logSink: options.Log,
+		wake:            make(chan struct{}, 1),
+		done:            make(chan struct{}),
+		callbackTimers:  map[uint64]*dispatchItem{},
+		schedulerTimers: map[string]*dispatchItem{},
+		sockets:         map[*jsSocket]struct{}{},
+	}
+	instance.installGlobals()
 	if _, err := rt.RunString(string(bundle)); err != nil {
 		return nil, fmt.Errorf("evaluate integration bundle: %w", err)
 	}
@@ -188,7 +218,9 @@ func Load(ctx context.Context, bundle []byte, options Options) (*Instance, error
 			return nil, fmt.Errorf("initialize integration host: %w", err)
 		}
 	}
-	instance := &Instance{rt: rt, definition: definition, manifest: manifest, instanceID: options.InstanceID, host: host, hookLimit: limit}
+	instance.definition = definition
+	instance.manifest = manifest
+	instance.host = host
 	api, err := instance.makeAPI(options.Config)
 	if err != nil {
 		return nil, err
@@ -247,7 +279,7 @@ func (i *Instance) Invoke(ctx context.Context, name string, args ...any) (any, e
 	if err != nil {
 		return nil, err
 	}
-	return awaitValue(value)
+	return i.settle(ctx, value)
 }
 
 // ExecuteAction runs the SDK action whose declared id matches actionID.
@@ -281,7 +313,7 @@ func (i *Instance) ExecuteAction(ctx context.Context, actionID string, resource,
 	if err != nil {
 		return nil, err
 	}
-	return awaitValue(value)
+	return i.settle(ctx, value)
 }
 
 // ResolvePlayback invokes the provider's optional server-side playback resolver.
@@ -305,7 +337,7 @@ func (i *Instance) ResolvePlayback(ctx context.Context, resource, identity any) 
 	if err != nil {
 		return nil, err
 	}
-	return awaitValue(value)
+	return i.settle(ctx, value)
 }
 
 // DispatchPlaybackEvent invokes an optional listener for an active player.
@@ -333,11 +365,15 @@ func (i *Instance) DispatchPlaybackEvent(ctx context.Context, eventType string, 
 	if err != nil {
 		return err
 	}
-	_, err = awaitValue(value)
+	_, err = i.settle(ctx, value)
 	return err
 }
 
 // Stop is idempotent and invokes provider cleanup before dropping the VM.
+// Provider hooks run first while the dispatch queue is still live (the stop
+// path may unsubscribe commands and await their replies); transports, timers,
+// queued events, and host-scoped instance state (current-state activities) are
+// released once the hooks settle.
 func (i *Instance) Stop(ctx context.Context) error {
 	i.mu.Lock()
 	defer i.mu.Unlock()
@@ -360,12 +396,31 @@ func (i *Instance) Stop(ctx context.Context) error {
 			first = err
 		}
 	}
+	if stopper, ok := i.host.(StoppingHost); ok {
+		if err := stopper.Stop(ctx); err != nil && first == nil {
+			first = err
+		}
+	}
+	i.disposed.Store(true)
+	i.disposeQueue()
+	i.closeSockets()
+	close(i.done)
 	i.started = false
 	i.stopped = true
 	i.rt = nil
 	i.definition = nil
 	i.api = nil
 	return first
+}
+
+// closeSockets tears every provider websocket down without dispatching events.
+func (i *Instance) closeSockets() {
+	i.socketsMu.Lock()
+	defer i.socketsMu.Unlock()
+	for sock := range i.sockets {
+		sock.abort("instance stopped")
+	}
+	i.sockets = map[*jsSocket]struct{}{}
 }
 
 func (i *Instance) callHook(ctx context.Context, name string) error {
@@ -381,7 +436,7 @@ func (i *Instance) callHook(ctx context.Context, name string) error {
 	if err != nil {
 		return err
 	}
-	_, err = awaitValue(result)
+	_, err = i.settle(ctx, result)
 	return err
 }
 
@@ -500,6 +555,9 @@ func (i *Instance) makeAPI(config map[string]any) (*goja.Object, error) {
 	})
 	_ = i.rt.Set("__dashwiseCall", func(call goja.FunctionCall) goja.Value {
 		operation := call.Argument(0).String()
+		if value, handled := i.runtimeCall(operation, call.Argument(1)); handled {
+			return value
+		}
 		args, err := exportArray(call.Argument(1))
 		if err != nil {
 			panic(i.rt.NewGoError(err))
@@ -584,25 +642,6 @@ func readManifest(rt *goja.Runtime, definition *goja.Object) (Manifest, error) {
 		return out, errors.New("integration definition must declare resources")
 	}
 	return out, nil
-}
-
-func awaitValue(value goja.Value) (any, error) {
-	if value == nil {
-		return nil, nil
-	}
-	if object, ok := value.(*goja.Object); ok {
-		if promise, ok := object.Export().(*goja.Promise); ok {
-			switch promise.State() {
-			case goja.PromiseStateFulfilled:
-				return promise.Result().Export(), nil
-			case goja.PromiseStateRejected:
-				return nil, fmt.Errorf("provider promise rejected: %v", promise.Result().Export())
-			default:
-				return nil, errors.New("provider returned a pending Promise; host operations must settle synchronously")
-			}
-		}
-	}
-	return value.Export(), nil
 }
 
 func exportArray(value goja.Value) ([]any, error) {

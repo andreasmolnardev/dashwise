@@ -3,6 +3,7 @@
 package sdkintegrationsapi
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -116,7 +117,10 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if h.manager != nil {
-		_ = h.manager.Start(r.Context(), owner, item.ID)
+		// Provider startup awaits real network handshakes; run it detached so
+		// finishing this HTTP response does not cancel it midway. Status
+		// endpoints surface the eventual result.
+		go h.manager.Start(context.WithoutCancel(r.Context()), owner, item.ID)
 	}
 	writeJSON(w, 201, map[string]any{"instance": h.instanceResponse(item)})
 }

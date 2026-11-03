@@ -230,6 +230,14 @@ func (s *Store) Clear(ctx context.Context, owner, source, sourceID, key string) 
 	n, _ := res.RowsAffected()
 	return n > 0, nil
 }
+
+// ClearInstance removes every activity recorded for one integration instance.
+// Stopping an SDK provider releases its current-state conditions (such as an
+// "unreachable" warning) so none can outlive the runtime that owns them.
+func (s *Store) ClearInstance(ctx context.Context, owner, source, sourceID string) error {
+	_, err := s.db.ExecContext(ctx, `DELETE FROM activities WHERE owner_id=? AND source=? AND source_id=?`, owner, source, sourceID)
+	return err
+}
 func (s *Store) List(ctx context.Context, owner string, q Query) (Page, error) {
 	if owner == "" {
 		return Page{}, ErrInvalid

@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/andreasmolnardev/dashwise/apps/backend/internal/activities"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/resources"
 	"github.com/andreasmolnardev/dashwise/packages/foundation"
 )
@@ -35,31 +36,41 @@ type HostOptions struct {
 	OwnerID    string
 	InstanceID string
 	Manifest   Manifest
+	// Source is the provider source recorded for the integration instance; it
+	// scopes integration activities the same way the TypeScript runtime does.
+	Source     string
 	Database   *foundation.DB
 	Registry   *resources.Registry
 	Resources  *resources.Store
+	Activities *activities.Store
 	Secrets    map[string]string
 }
 
-// StoreHost implements resource collection CRUD/sync and persistent per
-// integration storage. It intentionally omits HTTP, actions, events, timers,
-// secrets and websocket capabilities until their dedicated host adapters exist.
+// StoreHost implements resource collection CRUD/sync, persistent per
+// integration storage, and owner-scoped integration activities. Network
+// capabilities (HTTP fetch, safe URL validation) are included; websocket and
+// scheduler scheduling live in the runtime layer because they dispatch back
+// into the VM. Interactive actions, events, and MCP remain host adapters yet
+// to exist.
 type StoreHost struct {
 	ownerID      string
 	instanceID   string
 	manifestID   string
+	source       string
 	collections  map[string]string // collection name to registered resource type
 	fields       map[string]map[string]bool
 	configFields map[string]map[string]any
 	db           *sql.DB
 	foundation   *foundation.DB
 	resources    *resources.Store
+	activities   *activities.Store
 	secrets      map[string]string
+	closed       bool
 }
 
 func NewStoreHost(ctx context.Context, options HostOptions) (*StoreHost, error) {
-	if options.Database == nil || options.Database.SQL() == nil || options.Registry == nil || options.Resources == nil {
-		return nil, errors.New("SDK host requires the open database, resource registry, and resource store")
+	if options.Database == nil || options.Database.SQL() == nil || options.Registry == nil || options.Resources == nil || options.Activities == nil {
+		return nil, errors.New("SDK host requires the open database, resource registry, resource store, and activities store")
 	}
 	if strings.TrimSpace(options.OwnerID) == "" || strings.TrimSpace(options.InstanceID) == "" || len(options.InstanceID) > 128 {
 		return nil, errors.New("SDK host requires owner and integration instance IDs")
@@ -70,12 +81,19 @@ func NewStoreHost(ctx context.Context, options HostOptions) (*StoreHost, error) 
 	if len(options.Manifest.Resources) == 0 || len(options.Manifest.Resources) > 100 {
 		return nil, errors.New("SDK manifest must declare between 1 and 100 resource collections")
 	}
+	source := strings.TrimSpace(options.Source)
+	if len(source) > 120 {
+		source = source[:120]
+	}
+	if source == "" {
+		source = "integration"
+	}
 	host := &StoreHost{
-		ownerID: options.OwnerID, instanceID: options.InstanceID, manifestID: options.Manifest.ID,
+		ownerID: options.OwnerID, instanceID: options.InstanceID, manifestID: options.Manifest.ID, source: source,
 		collections: make(map[string]string, len(options.Manifest.Resources)), fields: make(map[string]map[string]bool, len(options.Manifest.Resources)),
 		configFields: make(map[string]map[string]any, len(options.Manifest.Config)),
 		db:           options.Database.SQL(), foundation: options.Database, resources: options.Resources,
-		secrets: cloneStrings(options.Secrets),
+		activities: options.Activities, secrets: cloneStrings(options.Secrets),
 	}
 	for key, raw := range options.Manifest.Config {
 		if value, ok := raw.(map[string]any); ok {
@@ -150,6 +168,12 @@ func (h *StoreHost) Call(ctx context.Context, instanceID, operation string, args
 	if operation == "storage.get" || operation == "storage.set" || operation == "storage.delete" {
 		return h.storage(ctx, operation, args)
 	}
+	switch operation {
+	case "activities.upsert":
+		return h.activityUpsert(ctx, args)
+	case "activities.clear":
+		return h.activityClear(ctx, args)
+	}
 	parts := strings.Split(operation, ".")
 	if len(parts) != 3 || parts[0] != "resources" {
 		return nil, fmt.Errorf("SDK host operation %q is not supported", operation)
@@ -190,12 +214,80 @@ func (h *StoreHost) secretDefinition(key string) (map[string]any, bool) {
 	return definition, ok && stringArgValue(definition["type"]) == "secret"
 }
 
+// activityUpsert implements integrations.activities.upsert(key, activity).
+// Records are owner- and instance-scoped, stored as current-state entries
+// keyed by the provider-supplied idempotency key, mirroring the TypeScript
+// integration activity path.
+func (h *StoreHost) activityUpsert(ctx context.Context, args []any) (any, error) {
+	if len(args) != 2 {
+		return nil, errors.New("activities.upsert requires a key and an activity payload")
+	}
+	key, ok := args[0].(string)
+	if !ok {
+		return nil, errors.New("activity key must be a string")
+	}
+	key = strings.TrimSpace(key)
+	if key == "" || len(key) > 256 {
+		return nil, errors.New("activity key must contain 1 to 256 bytes")
+	}
+	payload, ok := args[1].(map[string]any)
+	if !ok || len(payload) > 24 {
+		return nil, errors.New("activity payload must be a small object")
+	}
+	activity := activities.Input{
+		Source:         h.source,
+		SourceID:       h.instanceID,
+		IdempotencyKey: key,
+		Current:        true,
+	}
+	activity.Type = strings.TrimSpace(stringArgValue(payload["type"]))
+	activity.Title = strings.TrimSpace(stringArgValue(payload["title"]))
+	activity.Description = strings.TrimSpace(stringArgValue(payload["description"]))
+	activity.Severity = strings.TrimSpace(stringArgValue(payload["severity"]))
+	record, published, err := h.activities.Publish(ctx, h.ownerID, activity)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{"id": record.ID, "duplicate": published}, nil
+}
+
+// activityClear implements integrations.activities.clear(key).
+func (h *StoreHost) activityClear(ctx context.Context, args []any) (any, error) {
+	if len(args) != 1 {
+		return nil, errors.New("activities.clear requires a key")
+	}
+	key, ok := args[0].(string)
+	if !ok {
+		return nil, errors.New("activity key must be a string")
+	}
+	key = strings.TrimSpace(key)
+	if key == "" || len(key) > 256 {
+		return nil, errors.New("activity key must contain 1 to 256 bytes")
+	}
+	removed, err := h.activities.Clear(ctx, h.ownerID, h.source, h.instanceID, key)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{"removed": removed}, nil
+}
+
+// Stop is invoked by the runtime after provider cleanup settles. It releases
+// the instance's current-state activities so a stopped provider cannot leave
+// stale "unreachable"/"restarting" conditions on the dashboard.
+func (h *StoreHost) Stop(ctx context.Context) error {
+	if h.closed {
+		return nil
+	}
+	h.closed = true
+	return h.activities.ClearInstance(ctx, h.ownerID, h.source, h.instanceID)
+}
+
 func (h *StoreHost) assertSafeURL(ctx context.Context, args []any) (string, error) {
 	value, err := stringArg(args, 0, "URL")
 	if err != nil {
 		return "", err
 	}
-	u, ips, err := safeURL(ctx, value)
+	u, ips, err := safeURL(ctx, value, []string{"http", "https"})
 	if err != nil {
 		return "", err
 	}
@@ -222,7 +314,7 @@ func (h *StoreHost) fetch(ctx context.Context, args []any) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	u, ips, err := safeURL(ctx, urlText)
+	u, ips, err := safeURL(ctx, urlText, []string{"http", "https"})
 	if err != nil {
 		return nil, err
 	}
@@ -293,10 +385,14 @@ func (h *StoreHost) fetch(ctx context.Context, args []any) (any, error) {
 
 const maxSDKHTTPBytes = 5 << 20
 
-func safeURL(ctx context.Context, raw string) (*url.URL, []net.IP, error) {
+func safeURL(ctx context.Context, raw string, allowedSchemes []string) (*url.URL, []net.IP, error) {
+	schemes := make(map[string]bool, 0)
+	for _, scheme := range allowedSchemes {
+		schemes[strings.TrimSuffix(strings.ToLower(scheme), ":")] = true
+	}
 	u, err := url.Parse(strings.TrimSpace(raw))
-	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Hostname() == "" || u.User != nil || u.Fragment != "" {
-		return nil, nil, errors.New("SDK URL must be absolute HTTP(S) without credentials or fragments")
+	if _, ok := schemes[u.Scheme]; err != nil || !ok || u.Hostname() == "" || u.User != nil || u.Fragment != "" {
+		return nil, nil, errors.New("SDK URL must be an absolute " + strings.Join(allowedSchemes, " or ") + " URL without credentials or fragments")
 	}
 	host := strings.TrimSuffix(strings.ToLower(u.Hostname()), ".")
 	if host == "localhost" || strings.HasSuffix(host, ".localhost") || host == "metadata.google.internal" || host == "metadata" {
