@@ -17,6 +17,8 @@ import (
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/auth"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/authapi"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/config"
+	"github.com/andreasmolnardev/dashwise/apps/backend/internal/integrations"
+	"github.com/andreasmolnardev/dashwise/apps/backend/internal/integrationsapi"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/links"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/linksapi"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/monitoring"
@@ -142,6 +144,15 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, err
 		_ = db.Close()
 		return nil, fmt.Errorf("initialize Wallpapers schema: %w", err)
 	}
+	integrationsStore, err := integrations.NewStore(db, secretProtector)
+	if err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("initialize Integrations store: %w", err)
+	}
+	if err := integrationsStore.Initialize(ctx); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("initialize Integrations schema: %w", err)
+	}
 	newsFetcher := news.NewFetcher()
 	newsHandler, err := newsapi.New(newsStore, authenticateOwner(authStore), newsapi.Options{
 		ResolveMetadata: func(ctx context.Context, feedURL string) (newsapi.Metadata, error) {
@@ -200,6 +211,11 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, err
 		_ = db.Close()
 		return nil, fmt.Errorf("initialize Wallpapers API: %w", err)
 	}
+	integrationsHandler, err := integrationsapi.New(integrationsStore, authenticateOwner(authStore))
+	if err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("initialize Integrations API: %w", err)
+	}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) {
@@ -237,6 +253,8 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, err
 	mux.Handle("/api/v1/activities/", activitiesHandler)
 	mux.Handle("/api/v1/integrations/{integrationId}/activities", activitiesHandler)
 	mux.Handle("/api/v1/wallpapers", wallpapersHandler)
+	mux.Handle("/api/v1/integrations", integrationsHandler)
+	mux.Handle("/api/v1/integrations/", integrationsHandler)
 	mux.Handle("/api/", http.NotFoundHandler())
 	mux.Handle("/", frontend(cfg.WebDist))
 
