@@ -13,6 +13,8 @@ import (
 
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/activities"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/auth"
+	"github.com/andreasmolnardev/dashwise/apps/backend/internal/caldav"
+	"github.com/andreasmolnardev/dashwise/apps/backend/internal/integrations"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/notifications"
 	"github.com/gorilla/websocket"
 )
@@ -23,14 +25,25 @@ type ActivityHandler struct {
 	auth          *auth.Store
 	activities    *activities.Store
 	notifications *notifications.Store
+	integrations  *integrations.Store
+	calendarMu    sync.Mutex
+	calendarCache map[string]calendarSnapshot
 	upgrader      websocket.Upgrader
 }
 
-func NewActivityHandler(authStore *auth.Store, activityStore *activities.Store, notificationStore *notifications.Store) (http.Handler, error) {
+type calendarSnapshot struct {
+	updatedAt time.Time
+	events    []caldav.Event
+}
+
+func NewActivityHandler(authStore *auth.Store, activityStore *activities.Store, notificationStore *notifications.Store, integrationStores ...*integrations.Store) (http.Handler, error) {
 	if authStore == nil || activityStore == nil || notificationStore == nil {
 		return nil, errors.New("activity websocket requires auth, activities, and notifications stores")
 	}
-	h := &ActivityHandler{auth: authStore, activities: activityStore, notifications: notificationStore, upgrader: websocket.Upgrader{HandshakeTimeout: 10 * time.Second}}
+	h := &ActivityHandler{auth: authStore, activities: activityStore, notifications: notificationStore, calendarCache: map[string]calendarSnapshot{}, upgrader: websocket.Upgrader{HandshakeTimeout: 10 * time.Second}}
+	if len(integrationStores) > 0 {
+		h.integrations = integrationStores[0]
+	}
 	return http.HandlerFunc(h.serve), nil
 }
 
@@ -75,7 +88,8 @@ func (h *ActivityHandler) serve(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return err
 		}
-		return write(map[string]any{"type": "activity:snapshot", "notifications": items, "calendarEvents": []any{}, "activities": page.Items})
+		calendarEvents := h.calendarEvents(ctx, user.ID)
+		return write(map[string]any{"type": "activity:snapshot", "notifications": items, "calendarEvents": calendarEvents, "activities": page.Items})
 	}
 	if err := snapshot(r.Context()); err != nil {
 		return
@@ -136,4 +150,43 @@ func (h *ActivityHandler) serve(w http.ResponseWriter, r *http.Request) {
 		case "sdk:resources:unsubscribe", "shortcut:result":
 		}
 	}
+}
+
+func (h *ActivityHandler) calendarEvents(ctx context.Context, owner string) []caldav.Event {
+	if h.integrations == nil {
+		return []caldav.Event{}
+	}
+	h.calendarMu.Lock()
+	cached, ok := h.calendarCache[owner]
+	if ok && time.Since(cached.updatedAt) < 5*time.Minute {
+		events := append([]caldav.Event(nil), cached.events...)
+		h.calendarMu.Unlock()
+		return events
+	}
+	h.calendarMu.Unlock()
+	items, err := h.integrations.List(ctx, owner, true)
+	if err != nil {
+		return append([]caldav.Event(nil), cached.events...)
+	}
+	events := make([]caldav.Event, 0)
+	for _, item := range items {
+		if item.Type != "caldav" {
+			continue
+		}
+		found, err := caldav.UpcomingEvents(ctx, item.Environment)
+		if err != nil {
+			continue
+		}
+		for i := range found {
+			found[i].ID = item.ID + ":" + found[i].ID
+		}
+		events = append(events, found...)
+	}
+	if len(events) > 0 || len(items) == 0 {
+		h.calendarMu.Lock()
+		h.calendarCache[owner] = calendarSnapshot{updatedAt: time.Now(), events: append([]caldav.Event(nil), events...)}
+		h.calendarMu.Unlock()
+		return events
+	}
+	return append([]caldav.Event(nil), cached.events...)
 }
