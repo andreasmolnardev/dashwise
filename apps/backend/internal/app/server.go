@@ -213,6 +213,7 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, err
 		return nil, fmt.Errorf("initialize migration archive schema: %w", err)
 	}
 	newsFetcher := news.NewFetcher()
+	newsFetcher.Retention = cfg.NewsSubscriptionRetention
 	newsHandler, err := newsapi.New(newsStore, authenticateOwner(authStore), newsapi.Options{
 		ResolveMetadata: func(ctx context.Context, feedURL string) (newsapi.Metadata, error) {
 			title, icon, err := newsFetcher.Metadata(ctx, feedURL)
@@ -342,7 +343,8 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, err
 	}
 	maintenanceRunner, err := backgroundjobs.New(backgroundjobs.Options{
 		Users: authStore, News: newsStore, NewsFetcher: newsFetcher, Resources: resourceStore,
-		Activities: activitiesStore, Logger: logger,
+		Activities: activitiesStore, Logger: logger, ActivityRetentionDays: cfg.ActivityRetentionDays,
+		NewsInterval: cfg.NewsRefreshInterval,
 	})
 	if err != nil {
 		_ = db.Close()
