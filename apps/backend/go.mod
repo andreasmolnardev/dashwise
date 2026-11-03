@@ -5,14 +5,19 @@ go 1.26.0
 require (
 	github.com/andreasmolnardev/dashwise/packages/assets v0.0.0
 	github.com/andreasmolnardev/dashwise/packages/foundation v0.0.0
+	github.com/coreos/go-oidc/v3 v3.21.0
 	github.com/gen2brain/webp v0.6.4
 	github.com/gorilla/websocket v1.5.3
 	golang.org/x/crypto v0.58.0
 	golang.org/x/image v0.47.0
+	golang.org/x/oauth2 v0.37.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
-require github.com/ebitengine/purego v0.10.1 // indirect
+require (
+	github.com/ebitengine/purego v0.10.1 // indirect
+	github.com/go-jose/go-jose/v4 v4.1.4 // indirect
+)
 
 require (
 	github.com/dlclark/regexp2/v2 v2.11.0 // indirect

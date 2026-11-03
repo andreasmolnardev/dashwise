@@ -17,6 +17,7 @@ export type AuthUserRecord = Partial<{
   screensaverPreferences: Record<string, unknown>;
   searchPreferences: Record<string, unknown>;
   verified: boolean;
+  externalOnly: boolean;
   created: string;
   updated: string;
 }> & {

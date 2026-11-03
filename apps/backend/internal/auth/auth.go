@@ -34,6 +34,8 @@ var (
 	ErrUnauthorized       = errors.New("unauthorized")
 	ErrTOTPRequired       = errors.New("TOTP code required because two-factor authentication is enabled")
 	ErrInvalidTOTP        = errors.New("invalid TOTP code")
+	ErrInvalidSSOState    = errors.New("invalid or expired SSO state")
+	ErrInvalidSSOTicket   = errors.New("invalid or expired SSO exchange ticket")
 )
 
 const (
@@ -56,18 +58,22 @@ type SecretProtector interface {
 }
 
 type User struct {
-	ID         string         `json:"id"`
-	Email      string         `json:"email"`
-	Name       string         `json:"name"`
-	CreatedAt  time.Time      `json:"createdAt"`
-	UpdatedAt  time.Time      `json:"updatedAt"`
-	Properties map[string]any `json:"-"`
+	ID           string         `json:"id"`
+	Email        string         `json:"email"`
+	Name         string         `json:"name"`
+	CreatedAt    time.Time      `json:"createdAt"`
+	UpdatedAt    time.Time      `json:"updatedAt"`
+	ExternalOnly bool           `json:"externalOnly,omitempty"`
+	Properties   map[string]any `json:"-"`
 }
 
 func (u User) MarshalJSON() ([]byte, error) {
 	record := map[string]any{"id": u.ID, "email": u.Email, "name": u.Name, "createdAt": u.CreatedAt, "updatedAt": u.UpdatedAt}
 	for name, value := range u.Properties {
 		record[name] = value
+	}
+	if u.ExternalOnly {
+		record["externalOnly"] = true
 	}
 	return json.Marshal(record)
 }
@@ -217,7 +223,206 @@ func (s *Store) Initialize(ctx context.Context) error {
 		Up: func(ctx context.Context, tx *sql.Tx) error {
 			return ensureColumn(ctx, tx, "auth_users", "totp_secret_cipher", "BLOB")
 		},
+	}, {
+		ID: "0004_auth_oidc", Name: "OIDC identities and one-time login state",
+		Up: func(ctx context.Context, tx *sql.Tx) error {
+			if err := ensureColumn(ctx, tx, "auth_users", "password_login_enabled", "INTEGER NOT NULL DEFAULT 1"); err != nil {
+				return fmt.Errorf("add password login flag: %w", err)
+			}
+			for _, statement := range []string{
+				`CREATE TABLE IF NOT EXISTS auth_external_identities (issuer TEXT NOT NULL, subject TEXT NOT NULL, user_id TEXT NOT NULL REFERENCES auth_users(id) ON DELETE CASCADE, email TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY(issuer,subject))`,
+				`CREATE INDEX IF NOT EXISTS auth_external_identities_by_user ON auth_external_identities(user_id)`,
+				`CREATE TABLE IF NOT EXISTS auth_oidc_states (state_hash TEXT PRIMARY KEY NOT NULL, nonce TEXT NOT NULL, verifier TEXT NOT NULL, expires_at TEXT NOT NULL)`,
+				`CREATE INDEX IF NOT EXISTS auth_oidc_states_by_expiry ON auth_oidc_states(expires_at)`,
+				`CREATE TABLE IF NOT EXISTS auth_sso_tickets (ticket_hash TEXT PRIMARY KEY NOT NULL, user_id TEXT NOT NULL REFERENCES auth_users(id) ON DELETE CASCADE, expires_at TEXT NOT NULL)`,
+				`CREATE INDEX IF NOT EXISTS auth_sso_tickets_by_expiry ON auth_sso_tickets(expires_at)`,
+			} {
+				if _, err := tx.ExecContext(ctx, statement); err != nil {
+					return fmt.Errorf("create OIDC authentication schema: %w", err)
+				}
+			}
+			return nil
+		},
 	}})
+}
+
+// StoreOIDCState persists short-lived, single-use OAuth state and PKCE data.
+func (s *Store) StoreOIDCState(ctx context.Context, state, nonce, verifier string) error {
+	if state == "" || nonce == "" || verifier == "" {
+		return ErrInvalidSSOState
+	}
+	now := s.now().UTC()
+	_, err := s.db.ExecContext(ctx, `INSERT INTO auth_oidc_states(state_hash,nonce,verifier,expires_at) VALUES(?,?,?,?)`, hashToken(state), nonce, verifier, now.Add(10*time.Minute).Format(time.RFC3339Nano))
+	if err != nil {
+		return fmt.Errorf("store OIDC state: %w", err)
+	}
+	_, _ = s.db.ExecContext(ctx, `DELETE FROM auth_oidc_states WHERE expires_at<=?`, now.Format(time.RFC3339Nano))
+	return nil
+}
+
+// ConsumeOIDCState removes and returns valid state data exactly once.
+func (s *Store) ConsumeOIDCState(ctx context.Context, state string) (nonce, verifier string, err error) {
+	if state == "" {
+		return "", "", ErrInvalidSSOState
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return "", "", err
+	}
+	defer tx.Rollback()
+	var expiresAt string
+	err = tx.QueryRowContext(ctx, `SELECT nonce,verifier,expires_at FROM auth_oidc_states WHERE state_hash=?`, hashToken(state)).Scan(&nonce, &verifier, &expiresAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", "", ErrInvalidSSOState
+	}
+	if err != nil {
+		return "", "", fmt.Errorf("read OIDC state: %w", err)
+	}
+	expires, err := parseTime(expiresAt)
+	if err != nil || !expires.After(s.now()) {
+		return "", "", ErrInvalidSSOState
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM auth_oidc_states WHERE state_hash=?`, hashToken(state)); err != nil {
+		return "", "", fmt.Errorf("consume OIDC state: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return "", "", fmt.Errorf("commit OIDC state: %w", err)
+	}
+	return nonce, verifier, nil
+}
+
+// LoginExternal links a verified external identity to an account. Existing
+// accounts are matched only by verified email addresses supplied by the
+// configured identity provider; the browser session is issued after ticket exchange.
+func (s *Store) LoginExternal(ctx context.Context, issuer, subject, email, name string) (User, error) {
+	issuer = strings.TrimSpace(issuer)
+	subject = strings.TrimSpace(subject)
+	normalizedEmail, err := normalizeEmail(email)
+	if issuer == "" || subject == "" || err != nil || len(issuer) > 2048 || len(subject) > 512 {
+		return User{}, ErrInvalidCredentials
+	}
+	name = strings.TrimSpace(name)
+	if len(name) > 200 {
+		name = name[:200]
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return User{}, fmt.Errorf("begin external login: %w", err)
+	}
+	defer tx.Rollback()
+	var user User
+	var createdAt, updatedAt string
+	err = tx.QueryRowContext(ctx, `SELECT u.id,u.email,u.name,u.created_at,u.updated_at FROM auth_external_identities e JOIN auth_users u ON u.id=e.user_id WHERE e.issuer=? AND e.subject=?`, issuer, subject).Scan(&user.ID, &user.Email, &user.Name, &createdAt, &updatedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		err = tx.QueryRowContext(ctx, `SELECT id,email,name,created_at,updated_at FROM auth_users WHERE email=? COLLATE NOCASE`, normalizedEmail).Scan(&user.ID, &user.Email, &user.Name, &createdAt, &updatedAt)
+		if errors.Is(err, sql.ErrNoRows) {
+			if s.disableSignup {
+				return User{}, ErrSignupDisabled
+			}
+			user.ID, err = randomID(16)
+			if err != nil {
+				return User{}, err
+			}
+			if name == "" {
+				name = defaultName(normalizedEmail)
+			}
+			// No password is issued to an external-only account. This random
+			// bcrypt value cannot be used as a credential and preserves the
+			// existing non-null schema invariant.
+			secret := make([]byte, 32)
+			if _, err := rand.Read(secret); err != nil {
+				return User{}, fmt.Errorf("generate external account secret: %w", err)
+			}
+			hash, err := bcrypt.GenerateFromPassword(secret, s.passwordCost)
+			if err != nil {
+				return User{}, fmt.Errorf("protect external account secret: %w", err)
+			}
+			now := s.now().UTC().Format(time.RFC3339Nano)
+			if _, err := tx.ExecContext(ctx, `INSERT INTO auth_users(id,email,name,password_hash,created_at,updated_at,password_login_enabled) VALUES(?,?,?,?,?,?,0)`, user.ID, normalizedEmail, name, string(hash), now, now); err != nil {
+				return User{}, fmt.Errorf("create external account: %w", err)
+			}
+			user.Email, user.Name, createdAt, updatedAt = normalizedEmail, name, now, now
+		} else if err != nil {
+			return User{}, fmt.Errorf("find external account: %w", err)
+		}
+		if _, err := tx.ExecContext(ctx, `INSERT INTO auth_external_identities(issuer,subject,user_id,email,created_at) VALUES(?,?,?,?,?)`, issuer, subject, user.ID, normalizedEmail, s.now().UTC().Format(time.RFC3339Nano)); err != nil {
+			return User{}, fmt.Errorf("link external identity: %w", err)
+		}
+	} else if err != nil {
+		return User{}, fmt.Errorf("find external identity: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return User{}, fmt.Errorf("commit external login: %w", err)
+	}
+	if user.CreatedAt, err = parseTime(createdAt); err != nil {
+		return User{}, err
+	}
+	if user.UpdatedAt, err = parseTime(updatedAt); err != nil {
+		return User{}, err
+	}
+	user, err = s.loadProperties(ctx, user)
+	if err != nil {
+		return User{}, err
+	}
+	return user, nil
+}
+
+// CreateSSOTicket creates a short-lived one-use browser handoff credential.
+func (s *Store) CreateSSOTicket(ctx context.Context, userID string) (string, error) {
+	ticket, err := randomID(32)
+	if err != nil {
+		return "", err
+	}
+	now := s.now().UTC()
+	_, err = s.db.ExecContext(ctx, `INSERT INTO auth_sso_tickets(ticket_hash,user_id,expires_at) VALUES(?,?,?)`, hashToken(ticket), userID, now.Add(2*time.Minute).Format(time.RFC3339Nano))
+	if err != nil {
+		return "", fmt.Errorf("create SSO exchange ticket: %w", err)
+	}
+	_, _ = s.db.ExecContext(ctx, `DELETE FROM auth_sso_tickets WHERE expires_at<=?`, now.Format(time.RFC3339Nano))
+	return ticket, nil
+}
+
+// ExchangeSSOTicket consumes a one-use browser ticket and issues a normal
+// Dashwise session token.
+func (s *Store) ExchangeSSOTicket(ctx context.Context, ticket string) (AuthResult, error) {
+	if ticket == "" {
+		return AuthResult{}, ErrInvalidSSOTicket
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return AuthResult{}, err
+	}
+	defer tx.Rollback()
+	var user User
+	var createdAt, updatedAt, expiresAt string
+	err = tx.QueryRowContext(ctx, `SELECT u.id,u.email,u.name,u.created_at,u.updated_at,t.expires_at FROM auth_sso_tickets t JOIN auth_users u ON u.id=t.user_id WHERE t.ticket_hash=?`, hashToken(ticket)).Scan(&user.ID, &user.Email, &user.Name, &createdAt, &updatedAt, &expiresAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return AuthResult{}, ErrInvalidSSOTicket
+	}
+	if err != nil {
+		return AuthResult{}, fmt.Errorf("read SSO ticket: %w", err)
+	}
+	expires, err := parseTime(expiresAt)
+	if err != nil || !expires.After(s.now()) {
+		return AuthResult{}, ErrInvalidSSOTicket
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM auth_sso_tickets WHERE ticket_hash=?`, hashToken(ticket)); err != nil {
+		return AuthResult{}, fmt.Errorf("consume SSO ticket: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return AuthResult{}, fmt.Errorf("commit SSO ticket: %w", err)
+	}
+	if user.CreatedAt, err = parseTime(createdAt); err != nil {
+		return AuthResult{}, err
+	}
+	if user.UpdatedAt, err = parseTime(updatedAt); err != nil {
+		return AuthResult{}, err
+	}
+	user, err = s.loadProperties(ctx, user)
+	if err != nil {
+		return AuthResult{}, err
+	}
+	return s.createSession(ctx, user)
 }
 
 func (s *Store) Signup(ctx context.Context, input SignupInput) (AuthResult, error) {
@@ -274,16 +479,17 @@ func (s *Store) Login(ctx context.Context, email, password string, totp ...strin
 	}
 	var user User
 	var hash, createdAt, updatedAt string
+	var passwordLoginEnabled int
 	var totpSecretCipher []byte
-	err = s.db.QueryRowContext(ctx, `SELECT id,email,name,password_hash,created_at,updated_at,totp_secret_cipher FROM auth_users WHERE email = ? COLLATE NOCASE`, normalized).
-		Scan(&user.ID, &user.Email, &user.Name, &hash, &createdAt, &updatedAt, &totpSecretCipher)
+	err = s.db.QueryRowContext(ctx, `SELECT id,email,name,password_hash,created_at,updated_at,totp_secret_cipher,password_login_enabled FROM auth_users WHERE email = ? COLLATE NOCASE`, normalized).
+		Scan(&user.ID, &user.Email, &user.Name, &hash, &createdAt, &updatedAt, &totpSecretCipher, &passwordLoginEnabled)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return AuthResult{}, ErrInvalidCredentials
 		}
 		return AuthResult{}, fmt.Errorf("find user: %w", err)
 	}
-	if bcrypt.CompareHashAndPassword([]byte(hash), []byte(password)) != nil {
+	if passwordLoginEnabled == 0 || bcrypt.CompareHashAndPassword([]byte(hash), []byte(password)) != nil {
 		return AuthResult{}, ErrInvalidCredentials
 	}
 	if len(totpSecretCipher) > 0 {
@@ -579,13 +785,14 @@ func (s *Store) ChangePassword(ctx context.Context, userID string, input Passwor
 		return err
 	}
 	var currentEmail, currentHash string
-	if err := s.db.QueryRowContext(ctx, `SELECT email,password_hash FROM auth_users WHERE id=?`, userID).Scan(&currentEmail, &currentHash); err != nil {
+	var passwordLoginEnabled int
+	if err := s.db.QueryRowContext(ctx, `SELECT email,password_hash,password_login_enabled FROM auth_users WHERE id=?`, userID).Scan(&currentEmail, &currentHash, &passwordLoginEnabled); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return ErrUnauthorized
 		}
 		return fmt.Errorf("load user password: %w", err)
 	}
-	if !strings.EqualFold(currentEmail, email) || bcrypt.CompareHashAndPassword([]byte(currentHash), []byte(input.OldPassword)) != nil {
+	if !strings.EqualFold(currentEmail, email) || (passwordLoginEnabled != 0 && bcrypt.CompareHashAndPassword([]byte(currentHash), []byte(input.OldPassword)) != nil) {
 		return ErrInvalidCredentials
 	}
 	newHash, err := bcrypt.GenerateFromPassword([]byte(input.NewPassword), s.passwordCost)
@@ -598,7 +805,7 @@ func (s *Store) ChangePassword(ctx context.Context, userID string, input Passwor
 		return err
 	}
 	defer func() { _ = tx.Rollback() }()
-	if _, err := tx.ExecContext(ctx, `UPDATE auth_users SET password_hash=?,updated_at=? WHERE id=?`, string(newHash), now, userID); err != nil {
+	if _, err := tx.ExecContext(ctx, `UPDATE auth_users SET password_hash=?,password_login_enabled=1,updated_at=? WHERE id=?`, string(newHash), now, userID); err != nil {
 		return fmt.Errorf("update password: %w", err)
 	}
 	if _, err := tx.ExecContext(ctx, `UPDATE auth_sessions SET revoked_at=? WHERE user_id=? AND revoked_at IS NULL`, now, userID); err != nil {
@@ -655,18 +862,19 @@ func (s *Store) ListUserIDs(ctx context.Context) ([]string, error) {
 // wallpaper files are removed after commit; only generated wallpaper files in
 // a wallpapers directory are eligible for removal.
 func (s *Store) DeleteAccount(ctx context.Context, userID, email, password, totp string) error {
-	if strings.TrimSpace(userID) == "" || strings.TrimSpace(email) == "" || password == "" {
-		return fmt.Errorf("%w: email and password are required", ErrInvalidInput)
+	if strings.TrimSpace(userID) == "" || strings.TrimSpace(email) == "" {
+		return fmt.Errorf("%w: email is required", ErrInvalidInput)
 	}
 	var storedEmail, passwordHash string
+	var passwordLoginEnabled int
 	var totpSecretCipher []byte
-	if err := s.db.QueryRowContext(ctx, `SELECT email,password_hash,totp_secret_cipher FROM auth_users WHERE id=?`, userID).Scan(&storedEmail, &passwordHash, &totpSecretCipher); err != nil {
+	if err := s.db.QueryRowContext(ctx, `SELECT email,password_hash,totp_secret_cipher,password_login_enabled FROM auth_users WHERE id=?`, userID).Scan(&storedEmail, &passwordHash, &totpSecretCipher, &passwordLoginEnabled); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return ErrUnauthorized
 		}
 		return fmt.Errorf("load account for deletion: %w", err)
 	}
-	if !strings.EqualFold(strings.TrimSpace(email), storedEmail) || bcrypt.CompareHashAndPassword([]byte(passwordHash), []byte(password)) != nil {
+	if !strings.EqualFold(strings.TrimSpace(email), storedEmail) || (passwordLoginEnabled != 0 && (password == "" || bcrypt.CompareHashAndPassword([]byte(passwordHash), []byte(password)) != nil)) {
 		return ErrInvalidCredentials
 	}
 	if len(totpSecretCipher) > 0 {
@@ -845,6 +1053,11 @@ func (s *Store) UpdateUserProperty(ctx context.Context, userID, propertyName str
 }
 
 func (s *Store) loadProperties(ctx context.Context, user User) (User, error) {
+	var passwordLoginEnabled int
+	if err := s.db.QueryRowContext(ctx, `SELECT password_login_enabled FROM auth_users WHERE id=?`, user.ID).Scan(&passwordLoginEnabled); err != nil {
+		return User{}, fmt.Errorf("load user authentication methods: %w", err)
+	}
+	user.ExternalOnly = passwordLoginEnabled == 0
 	rows, err := s.db.QueryContext(ctx, `SELECT property_name,property_json FROM auth_user_properties WHERE user_id=?`, user.ID)
 	if err != nil {
 		return User{}, fmt.Errorf("load user properties: %w", err)

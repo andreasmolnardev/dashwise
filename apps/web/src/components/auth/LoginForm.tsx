@@ -37,6 +37,13 @@ export default function LoginCard() {
   const loginMutation = useMutation({ mutationFn: loginUserAction });
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("sso") !== "failed") return;
+    notify({ title: "SSO sign-in failed", description: "The identity provider could not sign you in. Try again or contact your administrator.", variant: "error" });
+    window.history.replaceState(null, "", "/auth/login");
+  }, [notify]);
+
+  useEffect(() => {
     let socket: WebSocket | null = null;
     let disposed = false;
 

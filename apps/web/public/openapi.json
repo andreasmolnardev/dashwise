@@ -1088,6 +1088,22 @@
 				}
 			}
 		},
+		"/auth/sso/exchange": {
+			"post": {
+				"tags": [
+					"auth"
+				],
+				"summary": "Exchange the one-time OIDC browser ticket for a Dashwise session",
+				"responses": {
+					"200": {
+						"$ref": "#/components/responses/JsonOk"
+					},
+					"401": {
+						"$ref": "#/components/responses/JsonUnauthorized"
+					}
+				}
+			}
+		},
 		"/auth/validate-auth": {
 			"post": {
 				"tags": [

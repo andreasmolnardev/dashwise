@@ -1145,6 +1145,31 @@ export type GetAuthSsoResponses = {
 
 export type GetAuthSsoResponse = GetAuthSsoResponses[keyof GetAuthSsoResponses];
 
+export type PostAuthSsoExchangeData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/auth/sso/exchange';
+};
+
+export type PostAuthSsoExchangeErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Error;
+};
+
+export type PostAuthSsoExchangeError = PostAuthSsoExchangeErrors[keyof PostAuthSsoExchangeErrors];
+
+export type PostAuthSsoExchangeResponses = {
+    /**
+     * OK
+     */
+    200: GenericObject;
+};
+
+export type PostAuthSsoExchangeResponse = PostAuthSsoExchangeResponses[keyof PostAuthSsoExchangeResponses];
+
 export type PostAuthValidateAuthData = {
     body?: JsonBody;
     path?: never;

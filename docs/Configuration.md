@@ -20,14 +20,19 @@ You can use the following environment variables for the container; the default v
 
 | Name | Required | Default Value | Description |
 | --- | --- | --- | --- |
-| DASHWISE_URL | No | `http://localhost:3000` | Internal Dashwise URL used for server-side callbacks |
+| DASHWISE_URL | No | `http://localhost:3000` | Public Dashwise base URL used to derive the OIDC callback URL; set it to the external HTTPS address when enabling SSO behind a proxy |
 
 ### Authentication & Features
 
 | Name | Required | Default Value | Description |
 | --- | --- | --- | --- |
 | DISABLE_USER_SIGNUP | No | `false` | Disable user self-registration |
-| ENABLE_SSO | No | `false` | Expose the SSO entry point in the sign-in UI; the backend's SSO/callback routes currently redirect back to the dashboard, so full OIDC sign-in is not yet implemented |
+| ENABLE_SSO | No | `false` | Enable OpenID Connect sign-in and show the SSO button |
+| OIDC_ISSUER_URL | When SSO is enabled | — | OIDC issuer URL used for provider discovery |
+| OIDC_CLIENT_ID | When SSO is enabled | — | OAuth client ID registered with the identity provider |
+| OIDC_CLIENT_SECRET | When SSO is enabled | — | OAuth client secret registered with the identity provider |
+| OIDC_REDIRECT_URL | No | `${DASHWISE_URL}/api/v1/auth/callback` | Exact callback URL registered with the provider; public deployments must use HTTPS |
+| OIDC_SCOPES | No | `openid,email,profile` | Additional comma-separated OIDC scopes |
 | ALLOW_PRIVATE_PREVIEW_URLS | No | `false` | Allow integration JSON preview to fetch private/internal URLs |
 
 ### Appearance

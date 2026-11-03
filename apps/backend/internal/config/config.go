@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -16,6 +17,11 @@ type Config struct {
 	LogLevel                  slog.Level
 	DisableSignup             bool
 	EnableSSO                 bool
+	OIDCIssuerURL             string
+	OIDCClientID              string
+	OIDCClientSecret          string
+	OIDCRedirectURL           string
+	OIDCScopes                []string
 	InstanceName              string
 	Version                   string
 	GitHubRepo                string
@@ -34,6 +40,7 @@ func Load() Config {
 		newsRefreshInterval = time.Duration(seconds) * time.Second
 	}
 
+	dashwiseURL := env("DASHWISE_URL", "http://localhost:3000")
 	return Config{
 		Address:                   ":" + port,
 		DataDir:                   dataDir,
@@ -46,11 +53,27 @@ func Load() Config {
 		Version:                   env("DASHWISE_VERSION", "go-migration"),
 		GitHubRepo:                env("DASHWISE_GITHUB_REPO", "andreasmolnardev/dashwise"),
 		Environment:               env("ENVIRONMENT", "development"),
-		DashwiseURL:               env("DASHWISE_URL", "http://localhost:3000"),
+		DashwiseURL:               dashwiseURL,
+		OIDCIssuerURL:             env("OIDC_ISSUER_URL", ""),
+		OIDCClientID:              env("OIDC_CLIENT_ID", ""),
+		OIDCClientSecret:          env("OIDC_CLIENT_SECRET", ""),
+		OIDCRedirectURL:           env("OIDC_REDIRECT_URL", strings.TrimRight(dashwiseURL, "/")+"/api/v1/auth/callback"),
+		OIDCScopes:                splitList(env("OIDC_SCOPES", "")),
 		NewsSubscriptionRetention: parseBoundedInt(env("NEWS_SUBSCRIPTION_RETENTION", "50"), 50, 1, 10000),
 		ActivityRetentionDays:     parseBoundedInt(env("ACTIVITY_RETENTION_DAYS", "90"), 90, 1, 3650),
 		NewsRefreshInterval:       newsRefreshInterval,
 	}
+}
+
+func splitList(value string) []string {
+	parts := strings.Split(value, ",")
+	result := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if trimmed := strings.TrimSpace(part); trimmed != "" {
+			result = append(result, trimmed)
+		}
+	}
+	return result
 }
 
 func env(key, fallback string) string {

@@ -14,15 +14,12 @@ import (
 const maxBodyBytes = 1 << 20
 
 type Handler struct {
-	store       *auth.Store
-	environment string
-	dashwiseURL string
-	mux         *http.ServeMux
+	store *auth.Store
+	mux   *http.ServeMux
 }
 
 type Options struct {
-	Environment string
-	DashwiseURL string
+	OIDC OIDCOptions
 }
 
 func New(store *auth.Store, options ...Options) (http.Handler, error) {
@@ -33,9 +30,20 @@ func New(store *auth.Store, options ...Options) (http.Handler, error) {
 	if len(options) > 0 {
 		optionsValue = options[0]
 	}
-	h := &Handler{store: store, environment: strings.TrimSpace(optionsValue.Environment), dashwiseURL: strings.TrimSpace(optionsValue.DashwiseURL), mux: http.NewServeMux()}
-	h.mux.HandleFunc("GET /api/v1/auth/sso", h.redirectToDashboard)
-	h.mux.HandleFunc("GET /api/v1/auth/callback", h.redirectToDashboard)
+	oidcHandler, err := newOIDCLogin(store, optionsValue.OIDC)
+	if err != nil {
+		return nil, err
+	}
+	h := &Handler{store: store, mux: http.NewServeMux()}
+	if oidcHandler != nil {
+		h.mux.HandleFunc("GET /api/v1/auth/sso", oidcHandler.start)
+		h.mux.HandleFunc("GET /api/v1/auth/callback", oidcHandler.callback)
+		h.mux.HandleFunc("POST /api/v1/auth/sso/exchange", oidcHandler.exchange)
+	} else {
+		h.mux.HandleFunc("GET /api/v1/auth/sso", h.ssoDisabled)
+		h.mux.HandleFunc("GET /api/v1/auth/callback", h.ssoDisabled)
+		h.mux.HandleFunc("POST /api/v1/auth/sso/exchange", h.ssoDisabled)
+	}
 	h.mux.HandleFunc("POST /api/v1/auth/signup", h.signup)
 	h.mux.HandleFunc("POST /api/v1/auth/login", h.login)
 	h.mux.HandleFunc("POST /api/v1/auth/validate-auth", h.validate)
@@ -51,17 +59,8 @@ func New(store *auth.Store, options ...Options) (http.Handler, error) {
 	return h.mux, nil
 }
 
-func (h *Handler) redirectToDashboard(w http.ResponseWriter, r *http.Request) {
-	target := strings.TrimSpace(r.URL.Query().Get("redirectTo"))
-	if target != "" && strings.HasPrefix(target, "/") && !strings.HasPrefix(target, "//") && !strings.ContainsAny(target, "\\\r\n") {
-		http.Redirect(w, r, target, http.StatusFound)
-		return
-	}
-	if strings.EqualFold(h.environment, "production") || h.dashwiseURL == "" {
-		http.Redirect(w, r, "/", http.StatusFound)
-		return
-	}
-	http.Redirect(w, r, h.dashwiseURL, http.StatusFound)
+func (h *Handler) ssoDisabled(w http.ResponseWriter, _ *http.Request) {
+	writeError(w, http.StatusNotFound, "SSO is not configured")
 }
 
 func (h *Handler) signup(w http.ResponseWriter, r *http.Request) {

@@ -108,7 +108,7 @@ export default function AccountSettingsPage() {
     setError(null);
     setSuccess(null);
 
-    if (!oldPassword || !newPassword || !confirmPassword) {
+    if ((!user?.externalOnly && !oldPassword) || !newPassword || !confirmPassword) {
       setError("All fields are required");
       return;
     }
@@ -169,7 +169,7 @@ export default function AccountSettingsPage() {
       setDeleteError("Unable to determine your account details");
       return;
     }
-    if (!deletePassword) {
+    if (!user.externalOnly && !deletePassword) {
       setDeleteError("Password is required to delete your account");
       return;
     }
@@ -331,19 +331,23 @@ export default function AccountSettingsPage() {
                 </Alert>
               )}
 
-              <div className="grid gap-3">
-                <Label htmlFor="old-password">Old password</Label>
-                <Input
-                  id="old-password"
-                  name="oldPassword"
-                  type="password"
-                  placeholder="********"
-                  value={oldPassword}
-                  onChange={(e) => setOldPassword(e.target.value)}
-                  disabled={loading}
-                  autoComplete="current-password"
-                />
-              </div>
+              {user?.externalOnly ? (
+                <p className="text-sm text-muted-foreground">Your account uses SSO. Set a password here if you also want to sign in with an email and password.</p>
+              ) : (
+                <div className="grid gap-3">
+                  <Label htmlFor="old-password">Old password</Label>
+                  <Input
+                    id="old-password"
+                    name="oldPassword"
+                    type="password"
+                    placeholder="********"
+                    value={oldPassword}
+                    onChange={(e) => setOldPassword(e.target.value)}
+                    disabled={loading}
+                    autoComplete="current-password"
+                  />
+                </div>
+              )}
 
               <div className="grid gap-3">
                 <Label htmlFor="new-password">New password</Label>
@@ -458,19 +462,23 @@ export default function AccountSettingsPage() {
                 </Alert>
               )}
 
-              <div className="grid gap-3">
-                <Label htmlFor="delete-password">Password</Label>
-                <Input
-                  id="delete-password"
-                  name="deletePassword"
-                  type="password"
-                  placeholder="********"
-                  value={deletePassword}
-                  onChange={(e) => setDeletePassword(e.target.value)}
-                  disabled={deleteLoading}
-                  autoComplete="current-password"
-                />
-              </div>
+              {user?.externalOnly ? (
+                <p className="text-sm text-muted-foreground">Your account is SSO-only. Confirm your email and current sign-in session to delete it.</p>
+              ) : (
+                <div className="grid gap-3">
+                  <Label htmlFor="delete-password">Password</Label>
+                  <Input
+                    id="delete-password"
+                    name="deletePassword"
+                    type="password"
+                    placeholder="********"
+                    value={deletePassword}
+                    onChange={(e) => setDeletePassword(e.target.value)}
+                    disabled={deleteLoading}
+                    autoComplete="current-password"
+                  />
+                </div>
+              )}
 
               <div className="grid gap-3">
                 <Label htmlFor="delete-totp">TOTP code (if enabled)</Label>

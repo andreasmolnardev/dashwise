@@ -1,4 +1,8 @@
-Dashwise authentication is built into the Go backend; accounts live in the embedded SQLite database and no external identity service is required. SSO via OpenID Connect is not implemented yet: the backend exposes `ENABLE_SSO` as a UI flag and `/api/v1/auth/sso` and `/api/v1/auth/callback` currently redirect back to the dashboard only.
+Dashwise authentication is built into the Go backend; accounts live in the embedded SQLite database and no external identity service is required. Optional SSO uses OpenID Connect authorization code flow with PKCE. Enable it with `ENABLE_SSO=true` and configure `OIDC_ISSUER_URL`, `OIDC_CLIENT_ID`, and `OIDC_CLIENT_SECRET`. Register `${DASHWISE_URL}/api/v1/auth/callback` with the identity provider, or set an explicit `OIDC_REDIRECT_URL`. Public deployments must use HTTPS.
+
+Dashwise verifies the provider's signed ID token, issuer, audience, nonce, PKCE exchange, and verified email claim. External identities are linked by issuer and subject; a verified email can link the provider to an existing Dashwise account. New SSO accounts follow `DISABLE_USER_SIGNUP`. The callback places a short-lived, one-use ticket in an HttpOnly cookie and the SPA exchanges it for a regular Dashwise session, so the session token is not placed in the redirect URL.
+
+An SSO-created account can add a local password from Account settings while signed in. Until then, local password login is disabled for that account, and account deletion requires the active SSO session plus email confirmation (and TOTP if configured).
 
 # Accounts, Sessions, and Devices
 

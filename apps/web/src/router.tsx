@@ -7,6 +7,7 @@ const AuthLayout = lazy(() => import("./app/(auth)/auth/layout"));
 const AuthRootPage = lazy(() => import("./app/(auth)/auth/page"));
 const LoginPage = lazy(() => import("./app/(auth)/auth/login/page"));
 const SignupPage = lazy(() => import("./app/(auth)/auth/signup/page"));
+const SSOCallbackPage = lazy(() => import("./app/(auth)/auth/sso/callback/page"));
 const AuthenticatedLayout = lazy(() => import("./app/(authenticated)/layout"));
 const OnboardingPage = lazy(() => import("./app/(authenticated)/onboarding/page"));
 const DynamicPage = lazy(() => import("./app/(authenticated)/dashboard/[page]/page"));
@@ -64,6 +65,7 @@ export const appRouter = createBrowserRouter([
           { index: true, element: <AuthRootPage /> },
           { path: "login", element: <LoginPage /> },
           { path: "signup", element: <SignupPage /> },
+          { path: "sso/callback", element: <SSOCallbackPage /> },
         ],
       },
       {

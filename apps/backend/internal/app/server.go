@@ -250,7 +250,13 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, err
 		_ = db.Close()
 		return nil, fmt.Errorf("initialize News API: %w", err)
 	}
-	authHandler, err := authapi.New(authStore, authapi.Options{Environment: cfg.Environment, DashwiseURL: cfg.DashwiseURL})
+	authHandler, err := authapi.New(authStore, authapi.Options{
+		OIDC: authapi.OIDCOptions{
+			Enabled: cfg.EnableSSO, IssuerURL: cfg.OIDCIssuerURL, ClientID: cfg.OIDCClientID,
+			ClientSecret: cfg.OIDCClientSecret, RedirectURL: cfg.OIDCRedirectURL,
+			Scopes: cfg.OIDCScopes, SecureCookie: strings.EqualFold(cfg.Environment, "production"),
+		},
+	})
 	if err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("initialize authentication API: %w", err)

@@ -995,6 +995,35 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/sso/exchange": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Exchange the one-time OIDC browser ticket for a Dashwise session */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                200: components["responses"]["JsonOk"];
+                401: components["responses"]["JsonUnauthorized"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/validate-auth": {
         parameters: {
             query?: never;
