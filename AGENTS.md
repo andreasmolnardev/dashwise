@@ -1,50 +1,32 @@
 # Agent Guidance for dashwise-next
 
-This repository is a Bun-based monorepo for `dashwise`, a self-hosted homelab dashboard and workspace app.
+This is a Bun monorepo with a React/Vite frontend and a Go backend. The Go server is the source of truth for API behavior and persistence.
 
-## What this project is
+## Project layout
 
-- A self-hosted dashboard app for managing links, widgets, notifications, integrations, and workspace data.
-- Built as a monorepo with multiple packages, frontend and backend apps, and a PocketBase-backed data store.
-- The project is still under active development and uses modern Bun tooling rather than Node.js package managers.
+- `apps/web` — the retained React SPA and Vite build.
+- `apps/backend/cmd/dashwise` — Go server entry point.
+- `apps/backend/internal` — Go API, domain, runtime, storage, and background job packages.
+- `apps/backend/openapi.yaml` — API contract used to generate client types.
+- `packages` — shared frontend and integration SDK packages, Go assets, and shared types.
+- `pocketbase` — legacy migration material; do not add new PocketBase-backed behavior.
 
-## Key technologies
+## Working guidance
 
-- `bun` for package management, runtime, and task scripts.
-- `React` for the frontend UI in `apps/web`.
-- `Hono` for the backend API layer in `apps/backend`.
-- `PocketBase` for the backend database, auth, and persistence in `pocketbase/`.
-- `TypeScript` throughout the repo.
-- `Vite` for frontend bundling in the web app.
-
-## Repository layout
-
-- `apps/web` — React/Vite frontend app.
-- `apps/backend` — Bun/Hono backend API app.
-- `packages` — shared libraries and SDK code.
-- `pocketbase` — PocketBase schema, migrations, and initialization logic.
-
-## What agents should know
-
-- Use `bun` commands for install and dev flows: `bun install`, `bun run dev`, etc.
-- Treat this as a Bun monorepo, not a Node.js/npm project.
-- Keep API work in `apps/backend` and frontend work in `apps/web` unless a cross-cutting change is needed.
-- Avoid introducing new package managers or build systems.
-- Prefer modifying existing shared packages in `packages/` when changes affect both apps.
-- Preserve PocketBase migration structure in `pocketbase/migrations` when updating schema or collection configuration.
-- Use design.md standards for designing uis.
+- Use Bun for monorepo dependency and frontend workflows. Go work belongs in `apps/backend` and Go modules under `packages`.
+- Implement new API and persistence behavior in Go. Do not add new routes or features to the retired TypeScript/Hono backend under `apps/backend/src`.
+- Keep the current user-facing frontend in `apps/web`; use shared packages when a change serves both the app and integration authors.
+- Update `apps/backend/openapi.yaml` and generated client artifacts when API contracts change.
+- SDK integrations are TypeScript packages in `packages/integrations`; their trusted bundles run in the Go JavaScript runtime. YAML integrations use the Go YAML runtime.
+- Treat resources as the common data layer. Views, widgets, search, and app screens should query resources where that preserves the product behavior.
+- New persistent data uses the Go SQLite database and its migrations. Do not add PocketBase migrations for new features.
+- Follow `design.md` for frontend UI work.
+- When working with OpenClaw, also follow [.agents/openclaw/INSTRUCTIONS.md](.agents/openclaw/INSTRUCTIONS.md).
 
 ## Useful commands
 
 - `bun install`
 - `bun run dev`
-- `bun run build` (for app-specific build scripts)
-
-## Notes for automated tooling
-
-- The app is not Next.js; it is a Bun-powered React SPA with a separate Bun/Hono backend.
-- Backend routes and request handling are implemented with Hono.
-
-## OpenClaw instructions
-
-When working with OpenClaw in this repository, also follow [.agents/openclaw/INSTRUCTIONS.md](.agents/openclaw/INSTRUCTIONS.md).
+- `bun run build`
+- `go build ./...` from `apps/backend`
+- `go vet ./...` from `apps/backend`
