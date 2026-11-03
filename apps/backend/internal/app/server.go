@@ -214,7 +214,9 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, err
 		_ = db.Close()
 		return nil, fmt.Errorf("initialize Links API: %w", err)
 	}
-	monitoringHandler, err := monitoringapi.New(monitoringStore, authenticateOwner(authStore), nil)
+	monitoringHandler, err := monitoringapi.New(monitoringStore, authenticateOwner(authStore), func(r *http.Request, host monitoring.Host) error {
+		return monitoringStore.RefreshHost(r.Context(), host.OwnerID, host.ID)
+	})
 	if err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("initialize Monitoring API: %w", err)
@@ -332,6 +334,13 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, err
 		defer app.workers.Done()
 		if err := notificationsStore.RunDeliveryWorker(workerCtx, 10*time.Second, notifications.SendViaShoutrrr); err != nil && workerCtx.Err() == nil {
 			logger.Error("notification delivery worker stopped", "error", err)
+		}
+	}()
+	app.workers.Add(1)
+	go func() {
+		defer app.workers.Done()
+		if err := monitoringStore.RunAgentPoller(workerCtx, 15*time.Second); err != nil && workerCtx.Err() == nil {
+			logger.Error("System Agent poller stopped", "error", err)
 		}
 	}()
 	return app, nil
