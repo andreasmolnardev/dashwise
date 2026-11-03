@@ -18,7 +18,23 @@ host call settles before returning.
 
 ## Host contract
 
-Implement `jsruntime.Host` and dispatch operations such as:
+`NewStoreHost` implements the persistent resource and storage operations. It
+registers collection resource types from the manifest schema and scopes all
+reads, writes, sync deletion and storage keys to the authenticated owner and
+integration instance. Its constructor takes the open foundation database,
+resource registry/store, owner ID, instance ID, and manifest. A runtime can use
+it directly as `Options.Host`.
+
+The store host currently supports:
+
+- `resources.<collection>.get`, `.upsert`, `.update`, `.remove`, and `.sync`
+- `storage.get`, `.set`, and `.delete`
+
+Resource records are limited to 256 KB each, sync batches to 1,000 records
+and 4 MB total, and storage values to 256 KB. Only `complete` sync removes
+records missing from that sync; `partial` sync leaves them in place.
+
+Additional `jsruntime.Host` implementations can dispatch operations such as:
 
 - `resources.<collection>.get`, `.upsert`, `.update`, `.remove`, `.sync`
 - `storage.get`, `.set`, `.delete`
