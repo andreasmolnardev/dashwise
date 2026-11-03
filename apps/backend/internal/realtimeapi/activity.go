@@ -16,6 +16,8 @@ import (
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/caldav"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/integrations"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/notifications"
+	"github.com/andreasmolnardev/dashwise/apps/backend/internal/resources"
+	"github.com/andreasmolnardev/dashwise/apps/backend/internal/resourcesync"
 	"github.com/gorilla/websocket"
 )
 
@@ -26,6 +28,7 @@ type ActivityHandler struct {
 	activities    *activities.Store
 	notifications *notifications.Store
 	integrations  *integrations.Store
+	resources     *resources.Store
 	calendarMu    sync.Mutex
 	calendarCache map[string]calendarSnapshot
 	upgrader      websocket.Upgrader
@@ -36,14 +39,13 @@ type calendarSnapshot struct {
 	events    []caldav.Event
 }
 
-func NewActivityHandler(authStore *auth.Store, activityStore *activities.Store, notificationStore *notifications.Store, integrationStores ...*integrations.Store) (http.Handler, error) {
+func NewActivityHandler(authStore *auth.Store, activityStore *activities.Store, notificationStore *notifications.Store, integrationStore *integrations.Store, resourceStore *resources.Store) (http.Handler, error) {
 	if authStore == nil || activityStore == nil || notificationStore == nil {
 		return nil, errors.New("activity websocket requires auth, activities, and notifications stores")
 	}
 	h := &ActivityHandler{auth: authStore, activities: activityStore, notifications: notificationStore, calendarCache: map[string]calendarSnapshot{}, upgrader: websocket.Upgrader{HandshakeTimeout: 10 * time.Second}}
-	if len(integrationStores) > 0 {
-		h.integrations = integrationStores[0]
-	}
+	h.integrations = integrationStore
+	h.resources = resourceStore
 	return http.HandlerFunc(h.serve), nil
 }
 
@@ -176,6 +178,11 @@ func (h *ActivityHandler) calendarEvents(ctx context.Context, owner string) []ca
 		found, err := caldav.UpcomingEvents(ctx, item.Environment)
 		if err != nil {
 			continue
+		}
+		if h.resources != nil {
+			if err := resourcesync.SyncCalendar(ctx, owner, item.ID, found, h.resources); err != nil {
+				continue
+			}
 		}
 		for i := range found {
 			found[i].ID = item.ID + ":" + found[i].ID

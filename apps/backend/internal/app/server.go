@@ -264,7 +264,7 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, err
 		_ = db.Close()
 		return nil, fmt.Errorf("initialize Activities API: %w", err)
 	}
-	activityRealtimeHandler, err := realtimeapi.NewActivityHandler(authStore, activitiesStore, notificationsStore, integrationsStore)
+	activityRealtimeHandler, err := realtimeapi.NewActivityHandler(authStore, activitiesStore, notificationsStore, integrationsStore, resourceStore)
 	if err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("initialize Activity realtime API: %w", err)

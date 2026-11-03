@@ -12,6 +12,7 @@ import (
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/integrations"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/resourceapi"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/resources"
+	"github.com/andreasmolnardev/dashwise/apps/backend/internal/resourcesync"
 )
 
 type Handler struct {
@@ -95,66 +96,18 @@ func (h *Handler) events(w http.ResponseWriter, r *http.Request) {
 			}
 			continue
 		}
-		for i := range events {
-			events[i].ID = item.ID + ":" + events[i].ID
-		}
 		if h.resources != nil {
-			if err := h.syncResources(r, owner, item.ID, events); err != nil {
+			if err := resourcesync.SyncCalendar(r.Context(), owner, item.ID, events, h.resources); err != nil {
 				writeError(w, 500, "could not materialize calendar events")
 				return
 			}
 		}
+		for i := range events {
+			events[i].ID = item.ID + ":" + events[i].ID
+		}
 		allEvents = append(allEvents, events...)
 	}
 	writeJSON(w, 200, map[string]any{"events": allEvents})
-}
-
-func (h *Handler) syncResources(r *http.Request, owner, integrationID string, events []caldav.Event) error {
-	wanted := make(map[string]bool, len(events))
-	for _, event := range events {
-		id := strings.TrimPrefix(event.ID, integrationID+":")
-		wanted[id] = true
-		data := map[string]any{
-			"title":    event.Title,
-			"startAt":  event.Start.UTC().Format("2006-01-02T15:04:05.999999999Z07:00"),
-			"endAt":    event.End.UTC().Format("2006-01-02T15:04:05.999999999Z07:00"),
-			"isAllDay": event.IsAllDay,
-		}
-		if event.Description != "" {
-			data["description"] = event.Description
-		}
-		if event.Location != "" {
-			data["location"] = event.Location
-		}
-		if _, err := h.resources.Upsert(r.Context(), resources.Resource{
-			Type: "calendar.event", Provider: "caldav", ProviderInstanceID: integrationID,
-			ProviderResourceID: id, OwnerID: owner, Data: data,
-			Capabilities: []string{"list", "detail"}, State: "current",
-		}); err != nil {
-			return err
-		}
-	}
-	stale := []resources.Resource{}
-	for offset := 0; ; offset += 200 {
-		page, err := h.resources.Query(r.Context(), resources.Query{OwnerID: owner, Types: []string{"calendar.event"}, Provider: "caldav", InstanceID: integrationID, Limit: 200, Offset: offset})
-		if err != nil {
-			return err
-		}
-		for _, resource := range page.Items {
-			if !wanted[resource.ProviderResourceID] {
-				stale = append(stale, resource)
-			}
-		}
-		if len(page.Items) < page.Limit || offset+len(page.Items) >= page.Total {
-			break
-		}
-	}
-	for _, resource := range stale {
-		if err := h.resources.Delete(r.Context(), owner, resource.ID); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 func (h *Handler) owner(w http.ResponseWriter, r *http.Request) (string, bool) {
