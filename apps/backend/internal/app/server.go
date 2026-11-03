@@ -21,6 +21,8 @@ import (
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/monitoringapi"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/news"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/newsapi"
+	"github.com/andreasmolnardev/dashwise/apps/backend/internal/notifications"
+	"github.com/andreasmolnardev/dashwise/apps/backend/internal/notificationsapi"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/resourceapi"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/resources"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/secrets"
@@ -109,6 +111,15 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, err
 		_ = db.Close()
 		return nil, fmt.Errorf("initialize Monitoring schema: %w", err)
 	}
+	notificationsStore, err := notifications.NewStore(db)
+	if err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("initialize Notifications store: %w", err)
+	}
+	if err := notificationsStore.Initialize(ctx); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("initialize Notifications schema: %w", err)
+	}
 	newsFetcher := news.NewFetcher()
 	newsHandler, err := newsapi.New(newsStore, authenticateOwner(authStore), newsapi.Options{
 		ResolveMetadata: func(ctx context.Context, feedURL string) (newsapi.Metadata, error) {
@@ -152,6 +163,11 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, err
 		_ = db.Close()
 		return nil, fmt.Errorf("initialize Monitoring API: %w", err)
 	}
+	notificationsHandler, err := notificationsapi.New(notificationsStore, authenticateOwner(authStore))
+	if err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("initialize Notifications API: %w", err)
+	}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) {
@@ -183,6 +199,8 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, err
 	mux.Handle("/api/v1/monitors/", monitoringHandler)
 	mux.Handle("/api/v1/monitoringStatus", monitoringHandler)
 	mux.Handle("/api/v1/monitoring/", monitoringHandler)
+	mux.Handle("/api/v1/notifications", notificationsHandler)
+	mux.Handle("/api/v1/notifications/", notificationsHandler)
 	mux.Handle("/api/", http.NotFoundHandler())
 	mux.Handle("/", frontend(cfg.WebDist))
 
