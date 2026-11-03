@@ -1,20 +1,4 @@
-FROM alpine:latest AS pocketbase
-ARG PB_VERSION=0.30.4
-ARG TARGETARCH
-
-RUN apk add --no-cache wget unzip
-
-RUN case "${TARGETARCH}" in \
-      "arm64") ARCH="arm64" ;; \
-      "amd64") ARCH="amd64" ;; \
-      *) echo "Unsupported architecture: ${TARGETARCH}" && exit 1 ;; \
-    esac && \
-    wget -O /tmp/pocketbase.zip https://github.com/pocketbase/pocketbase/releases/download/v${PB_VERSION}/pocketbase_${PB_VERSION}_linux_${ARCH}.zip && \
-    unzip /tmp/pocketbase.zip -d /usr/local/bin && \
-    rm /tmp/pocketbase.zip && \
-    chmod +x /usr/local/bin/pocketbase
-
-FROM alpine:latest AS shoutrrr
+FROM alpine:3.22 AS shoutrrr
 ARG SHOUTRRR_VERSION=0.8.0
 ARG TARGETARCH
 
@@ -29,10 +13,9 @@ RUN case "${TARGETARCH}" in \
     rm /tmp/shoutrrr.tar.gz && \
     chmod +x /usr/local/bin/shoutrrr
 
-FROM oven/bun:1-alpine AS deps
+FROM oven/bun:1-alpine AS web-deps
 WORKDIR /app
 
-# Copy all package.json files for install layer caching
 COPY package.json bun.lock ./
 COPY apps/backend/package.json ./apps/backend/
 COPY apps/web/package.json ./apps/web/
@@ -49,56 +32,40 @@ COPY packages/integrations/jellyfin/package.json ./packages/integrations/jellyfi
 COPY packages/integrations/music-assistant/package.json ./packages/integrations/music-assistant/
 RUN bun install --frozen-lockfile
 
-FROM deps AS build
+FROM web-deps AS web-build
 WORKDIR /app
-
 COPY . .
-
-# Build package assets used by the backend at runtime
 RUN bun run --cwd packages/assets build
-
-# Build frontend, then copy output into backend's public dir
 RUN bun run --cwd apps/web build
 
-# Ensure the public dir exists and copy frontend dist into it
-RUN mkdir -p apps/backend/dist/public && \
-    cp -R apps/web/dist/. apps/backend/dist/public/
+FROM golang:1.26-alpine AS backend-build
+WORKDIR /src
+COPY apps/backend/go.mod apps/backend/go.sum ./apps/backend/
+COPY packages/foundation/go.mod ./packages/foundation/go.mod
+COPY packages/assets/go.mod ./packages/assets/go.mod
+WORKDIR /src/apps/backend
+RUN go mod download
+WORKDIR /src
+COPY . .
+WORKDIR /src/apps/backend
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/dashwise ./cmd/dashwise
 
-# Build backend
-RUN bun run --cwd apps/backend build
-
-FROM oven/bun:1-alpine
+FROM alpine:3.22
 WORKDIR /app
+RUN apk add --no-cache ca-certificates tzdata && \
+    mkdir -p /data /app/public
 
-RUN apk add --no-cache valkey
-
-COPY --from=pocketbase /usr/local/bin/pocketbase /usr/local/bin/pocketbase
+COPY --from=backend-build /out/dashwise /usr/local/bin/dashwise
+COPY --from=web-build /app/apps/web/dist /app/public
 COPY --from=shoutrrr /usr/local/bin/shoutrrr /usr/local/bin/shoutrrr
-COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
-ENV PB_BINARY_PATH=/usr/local/bin/pocketbase
-ENV SHOUTRRR_BINARY_PATH=/usr/local/bin/shoutrrr
-ENV NODE_PATH=/app/apps/backend:/app/packages
 
-RUN mkdir -p /app && touch /app/.root.ind
+ENV ENVIRONMENT=production \
+    PORT=3000 \
+    DATA_DIR=/data \
+    DATABASE_PATH=/data/dashwise.sqlite \
+    WEB_DIST=/app/public \
+    SHOUTRRR_BINARY_PATH=/usr/local/bin/shoutrrr
 
-COPY --from=build /app/apps/backend/dist     /app/apps/backend/dist
-COPY --from=build /app/apps/backend/src      /app/apps/backend/src
-COPY --from=build /app/apps/backend/openapi.yaml /app/apps/backend/openapi.yaml
-COPY --from=build /app/apps/backend/package.json /app/apps/backend/package.json
-COPY --from=build /app/package.json          /app/package.json
-COPY --from=build /app/bun.lock              /app/bun.lock
-COPY --from=build /app/apps/web/package.json /app/apps/web/package.json
-COPY --from=build /app/packages/integrationskit/package.json /app/packages/integrationskit/package.json
-COPY --from=build /app/packages/app-icon/package.json /app/packages/app-icon/package.json
-COPY --from=build /app/packages/assets/package.json /app/packages/assets/package.json
-COPY --from=build /app/packages/api-types/package.json /app/packages/api-types/package.json
-COPY --from=build /app/packages/types/package.json /app/packages/types/package.json
-COPY --from=build /app/pocketbase/migrations /app/pocketbase/migrations
-COPY --from=build /app/packages              /app/packages
-COPY --from=build /app/VERSION               /app/VERSION
-
-RUN bun install --production --frozen-lockfile
-
-EXPOSE 3000 8090
-ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
-CMD ["bun", "run", "--cwd", "apps/backend", "start"]
+EXPOSE 3000
+VOLUME ["/data"]
+ENTRYPOINT ["/usr/local/bin/dashwise"]
