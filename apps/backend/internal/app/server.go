@@ -17,6 +17,8 @@ import (
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/config"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/resourceapi"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/resources"
+	"github.com/andreasmolnardev/dashwise/apps/backend/internal/viewapi"
+	"github.com/andreasmolnardev/dashwise/apps/backend/internal/views"
 	"github.com/andreasmolnardev/dashwise/packages/foundation"
 )
 
@@ -25,6 +27,7 @@ type App struct {
 	db        *foundation.DB
 	registry  *resources.Registry
 	resources *resources.Store
+	views     *views.Store
 	auth      *auth.Store
 }
 
@@ -60,6 +63,11 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, err
 		_ = db.Close()
 		return nil, fmt.Errorf("initialize resource store: %w", err)
 	}
+	viewStore, err := views.NewStore(db)
+	if err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("initialize view store: %w", err)
+	}
 	authHandler, err := authapi.New(authStore)
 	if err != nil {
 		_ = db.Close()
@@ -69,6 +77,11 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, err
 	if err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("initialize resource API: %w", err)
+	}
+	viewHandler, err := viewapi.New(viewStore, resourceStore, authenticateOwner(authStore))
+	if err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("initialize view API: %w", err)
 	}
 
 	mux := http.NewServeMux()
@@ -92,10 +105,12 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, err
 	mux.Handle("/api/v1/resources", resourceHandler)
 	mux.Handle("/api/v1/resources/", resourceHandler)
 	mux.Handle("/api/v1/resource-types", resourceHandler)
+	mux.Handle("/api/v1/views", viewHandler)
+	mux.Handle("/api/v1/views/", viewHandler)
 	mux.Handle("/api/", http.NotFoundHandler())
 	mux.Handle("/", frontend(cfg.WebDist))
 
-	return &App{db: db, registry: registry, resources: resourceStore, auth: authStore, server: &http.Server{
+	return &App{db: db, registry: registry, resources: resourceStore, views: viewStore, auth: authStore, server: &http.Server{
 		Addr:              cfg.Address,
 		Handler:           requestLog(cors(mux), logger),
 		ReadHeaderTimeout: 10 * time.Second,
