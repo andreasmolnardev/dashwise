@@ -40,7 +40,7 @@ func SyncYAMLResources(ctx context.Context, owner string, source *integrations.S
 			}
 			continue
 		}
-		result, err := runtime.Execute(ctx, item.Config, yamlEnvironment(item))
+		result, err := runtime.ExecuteScoped(ctx, item.Config, yamlEnvironment(item), owner+"\x00"+item.ID)
 		if err != nil {
 			// Preserve the previous materialization on request or mapping errors.
 			if firstErr == nil {

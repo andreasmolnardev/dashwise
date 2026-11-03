@@ -18,6 +18,7 @@ import (
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/auth"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/authapi"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/backgroundjobs"
+	"github.com/andreasmolnardev/dashwise/apps/backend/internal/cache"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/calendarapi"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/config"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/consumersapi"
@@ -199,6 +200,16 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, err
 		return nil, fmt.Errorf("initialize Shortcuts store: %w", err)
 	}
 	yamlRuntime := yamlruntime.New()
+	endpointCache, err := cache.NewStore(db)
+	if err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("initialize YAML endpoint cache: %w", err)
+	}
+	if err := endpointCache.Initialize(ctx); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("initialize YAML endpoint cache schema: %w", err)
+	}
+	yamlRuntime.Cache = endpointCache
 	pagesStore, err := pages.New(db)
 	if err != nil {
 		_ = db.Close()

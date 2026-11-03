@@ -6,7 +6,9 @@ package yamlruntime
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"crypto/tls"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -23,6 +25,7 @@ import (
 const maxResponseBytes = 5 << 20
 
 var templatePattern = regexp.MustCompile(`\$\{([^}]+)\}`)
+var durationPartPattern = regexp.MustCompile(`(?i)([0-9]+(?:\.[0-9]+)?)\s*(seconds?|secs?|s|minutes?|mins?|m|hours?|hrs?|h|days?|d|weeks?|w|months?)`)
 
 type EndpointResult struct {
 	ID             string        `json:"id"`
@@ -41,7 +44,14 @@ type Result struct {
 
 type Runtime struct {
 	Client       *http.Client
+	Cache        ResultCache
 	MaxEndpoints int
+}
+
+// ResultCache stores successful endpoint results until their configured TTL.
+type ResultCache interface {
+	Get(ctx context.Context, namespace, key string) ([]byte, bool, error)
+	Set(ctx context.Context, namespace, key string, value []byte, ttl time.Duration) error
 }
 
 func New() *Runtime {
@@ -51,6 +61,12 @@ func New() *Runtime {
 // Execute fetches configured endpoints, resolving endpoint-produced values in
 // multiple passes so token endpoints can feed later requests.
 func (rt *Runtime) Execute(ctx context.Context, blueprint map[string]any, environment map[string]string) (Result, error) {
+	return rt.ExecuteScoped(ctx, blueprint, environment, "")
+}
+
+// ExecuteScoped evaluates a YAML integration and isolates cached endpoint
+// results to the supplied owner/integration namespace.
+func (rt *Runtime) ExecuteScoped(ctx context.Context, blueprint map[string]any, environment map[string]string, scope string) (Result, error) {
 	if rt == nil || rt.Client == nil {
 		return Result{}, errors.New("YAML integration runtime is not configured")
 	}
@@ -74,7 +90,7 @@ func (rt *Runtime) Execute(ctx context.Context, blueprint map[string]any, enviro
 		progress := false
 		next := make([]namedEndpoint, 0, len(remaining))
 		for _, item := range remaining {
-			endpoint, err := rt.fetch(ctx, item, env, result.Endpoints)
+			endpoint, err := rt.fetchCached(ctx, scope, item, env, result.Endpoints)
 			if errors.Is(err, errUnresolved) {
 				next = append(next, item)
 				continue
@@ -113,6 +129,34 @@ func (rt *Runtime) Execute(ctx context.Context, blueprint map[string]any, enviro
 			"lookup_tables":         normalizeValue(object(config["lookup_tables"])),
 		}
 		result.Computed = evaluateComputed(computed, root, env, result.Endpoints)
+	}
+	return result, nil
+}
+
+func (rt *Runtime) fetchCached(ctx context.Context, scope string, item namedEndpoint, env map[string]string, previous map[string]EndpointResult) (EndpointResult, error) {
+	ttl := parseCacheTTL(item.value)
+	if rt.Cache == nil || scope == "" || ttl <= 0 {
+		return rt.fetch(ctx, item, env, previous)
+	}
+	identity, err := json.Marshal(map[string]any{"endpoint": item.value, "environment": env, "previous": previous})
+	if err != nil {
+		return rt.fetch(ctx, item, env, previous)
+	}
+	digest := sha256.Sum256(append(append([]byte(scope+"\x00"+item.id+"\x00"), identity...), 0))
+	key := hex.EncodeToString(digest[:])
+	if encoded, ok, cacheErr := rt.Cache.Get(ctx, "yaml-endpoints", key); cacheErr == nil && ok {
+		var cached EndpointResult
+		if json.Unmarshal(encoded, &cached) == nil {
+			cached.CacheTTL = ttl
+			return cached, nil
+		}
+	}
+	result, err := rt.fetch(ctx, item, env, previous)
+	if err != nil {
+		return result, err
+	}
+	if encoded, marshalErr := json.Marshal(result); marshalErr == nil {
+		_ = rt.Cache.Set(ctx, "yaml-endpoints", key, encoded, ttl)
 	}
 	return result, nil
 }
@@ -244,7 +288,7 @@ func (rt *Runtime) fetch(ctx context.Context, item namedEndpoint, env map[string
 	} else if boolValue(ep["discard_unmapped"]) {
 		mapped = map[string]any{}
 	}
-	ttl := parseDuration(ep["cache_ttl"])
+	ttl := parseCacheTTL(ep)
 	result := EndpointResult{ID: item.id, Name: item.name, Status: resp.StatusCode, RawResponse: raw, MappedResponse: mapped, CacheTTL: ttl}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return result, fmt.Errorf("HTTP %d", resp.StatusCode)
@@ -577,6 +621,97 @@ func parseDuration(value any) time.Duration {
 		}
 	}
 	return 0
+}
+
+func parseCacheTTL(endpoint map[string]any) time.Duration {
+	if ttl := parseFlexibleDuration(endpoint["cache_ttl"]); ttl > 0 {
+		return ttl
+	}
+	invalidate := object(object(endpoint["response"])["invalidate"])
+	if ttl := parseFlexibleDuration(invalidate["after"]); ttl > 0 {
+		return ttl
+	}
+	return parseAlignedInterval(stringValue(invalidate["every"]))
+}
+
+func parseFlexibleDuration(value any) time.Duration {
+	if ttl := parseDuration(value); ttl > 0 {
+		return ttl
+	}
+	text, ok := value.(string)
+	if !ok {
+		return 0
+	}
+	parts := durationPartPattern.FindAllStringSubmatchIndex(text, -1)
+	if len(parts) == 0 {
+		return 0
+	}
+	var total time.Duration
+	position := 0
+	for _, part := range parts {
+		if strings.TrimSpace(text[position:part[0]]) != "" {
+			return 0
+		}
+		amount, err := strconv.ParseFloat(text[part[2]:part[3]], 64)
+		if err != nil || amount <= 0 {
+			return 0
+		}
+		unit := strings.ToLower(text[part[4]:part[5]])
+		var multiplier time.Duration
+		switch unit {
+		case "s", "sec", "secs", "second", "seconds":
+			multiplier = time.Second
+		case "m", "min", "mins", "minute", "minutes":
+			multiplier = time.Minute
+		case "h", "hr", "hrs", "hour", "hours":
+			multiplier = time.Hour
+		case "d", "day", "days":
+			multiplier = 24 * time.Hour
+		case "w", "week", "weeks":
+			multiplier = 7 * 24 * time.Hour
+		case "month", "months":
+			multiplier = 30 * 24 * time.Hour
+		default:
+			return 0
+		}
+		total += time.Duration(amount * float64(multiplier))
+		position = part[1]
+	}
+	if strings.TrimSpace(text[position:]) != "" {
+		return 0
+	}
+	return total
+}
+
+func parseAlignedInterval(value string) time.Duration {
+	value = strings.ToLower(strings.TrimSpace(value))
+	if value == "" {
+		return 0
+	}
+	now := time.Now().UTC()
+	switch value {
+	case "day", "daily":
+		return time.Until(time.Date(now.Year(), now.Month(), now.Day()+1, 0, 0, 0, 0, time.UTC))
+	case "week", "weekly":
+		daysUntilMonday := (int(time.Monday) - int(now.Weekday()) + 7) % 7
+		if daysUntilMonday == 0 {
+			daysUntilMonday = 7
+		}
+		midnight := time.Date(now.Year(), now.Month(), now.Day()+daysUntilMonday, 0, 0, 0, 0, time.UTC)
+		return time.Until(midnight)
+	case "month", "monthly":
+		firstNextMonth := time.Date(now.Year(), now.Month()+1, 1, 0, 0, 0, 0, time.UTC)
+		return time.Until(firstNextMonth)
+	}
+	interval := parseFlexibleDuration(value)
+	if interval <= 0 {
+		return 0
+	}
+	remaining := interval - time.Duration(now.UnixNano()%int64(interval))
+	if remaining <= 0 {
+		return interval
+	}
+	return remaining
 }
 func applySlice(items []any, value string) []any {
 	parts := strings.SplitN(value, ":", 2)
