@@ -10,10 +10,12 @@ or global `fetch`. `require` is restricted to the SDK identity helpers
 (`defineIntegration`, `defineAction`, and `resourceCollection`). Provider code
 uses the `IntegrationsRuntime` facade; calls cross the `Host.Call` capability
 boundary as a dot-separated operation and JSON-like arguments. The host must
-scope every call to the supplied integration instance and owning account. Host
-operations execute synchronously on the VM goroutine and are wrapped in
-resolved Promises, so ordinary async/await SDK lifecycle code works when each
-host call settles before returning.
+scope every call to the supplied integration instance and owning account.
+Synchronous host operations execute on the VM goroutine and are wrapped in
+resolved Promises. WebSocket connection setup is bounded and asynchronous;
+messages and close/error events are marshalled back to the VM through the
+instance dispatcher. Scheduler callbacks and `setTimeout` callbacks use the
+same serialized queue, so only the VM-owning goroutine executes JavaScript.
 
 ## Host contract
 
@@ -55,11 +57,10 @@ memory or privilege sandbox, so loading user-supplied arbitrary JavaScript is
 not supported. Keep the VM confined to the application process and validate
 all inputs/outputs in the host.
 
-The SDK's full long-running event loop is not implemented here yet. In
-particular, callback-based WebSocket/event subscriptions and scheduler tasks
-need lifecycle adapters that marshal callbacks back onto the VM goroutine.
-The current synchronous bridge cannot safely call a Goja VM from arbitrary
-goroutines. A production integration manager should own one serialized event
-loop per provider instance before enabling those capabilities. Bundles that
-leave a Promise pending because a host operation is truly asynchronous are
-rejected with a clear runtime error.
+Each provider instance owns a bounded serialized dispatch queue. The runtime
+services queued callbacks while idle and while waiting for a supported
+asynchronous lifecycle operation to settle. Queue overflow drops timer work
+and closes a WebSocket whose events cannot be queued; callback failures are
+logged without running Goja from transport goroutines. Lifecycle stop/dispose
+cancels timers and closes sockets. The runtime is process-local and intended
+for trusted installed bundles; it is not a hard memory or privilege sandbox.
