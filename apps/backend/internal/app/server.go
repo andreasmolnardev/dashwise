@@ -27,6 +27,8 @@ import (
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/newsapi"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/notifications"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/notificationsapi"
+	"github.com/andreasmolnardev/dashwise/apps/backend/internal/pages"
+	"github.com/andreasmolnardev/dashwise/apps/backend/internal/pagesapi"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/resourceapi"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/resources"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/secrets"
@@ -154,6 +156,15 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, err
 		_ = db.Close()
 		return nil, fmt.Errorf("initialize Integrations schema: %w", err)
 	}
+	pagesStore, err := pages.New(db)
+	if err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("initialize Pages store: %w", err)
+	}
+	if err := pagesStore.Initialize(ctx); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("initialize Pages schema: %w", err)
+	}
 	newsFetcher := news.NewFetcher()
 	newsHandler, err := newsapi.New(newsStore, authenticateOwner(authStore), newsapi.Options{
 		ResolveMetadata: func(ctx context.Context, feedURL string) (newsapi.Metadata, error) {
@@ -222,6 +233,11 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, err
 		_ = db.Close()
 		return nil, fmt.Errorf("initialize system API: %w", err)
 	}
+	pagesHandler, err := pagesapi.New(pagesStore, authenticateOwner(authStore))
+	if err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("initialize Pages API: %w", err)
+	}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) {
@@ -264,6 +280,8 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, err
 	mux.Handle("/api/v1/locations", systemHandler)
 	mux.Handle("/api/v1/weather", systemHandler)
 	mux.Handle("/api/v1/test/bookmarks", systemHandler)
+	mux.Handle("/api/v1/pageConfig", pagesHandler)
+	mux.Handle("/api/v1/pageConfig/", pagesHandler)
 	mux.Handle("/api/", http.NotFoundHandler())
 	mux.Handle("/", frontend(cfg.WebDist))
 
