@@ -7,6 +7,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -177,7 +178,39 @@ func (h *Handler) resourceCatalog(ctx context.Context, owner string) ([]activiti
 	if err != nil {
 		return nil, err
 	}
+	instances, err := h.integrations.List(ctx, owner, true)
+	if err != nil {
+		return nil, err
+	}
+	ownedSDKInstances := make(map[string]integrations.Integration)
+	sdkInstances := make([]integrations.Integration, 0)
+	for _, instance := range instances {
+		if instance.Type == "sdk" {
+			ownedSDKInstances[instance.ID] = instance
+			sdkInstances = append(sdkInstances, instance)
+		}
+	}
 	catalog := make([]activities.ActivityResourceCatalogEntry, 0)
+	// Include one collection-level entry per owned instance and declared SDK
+	// collection so users can define conditions before the first resource sync.
+	for _, instance := range sdkInstances {
+		for _, definition := range types {
+			collectionID, ok := sdkCollectionID(definition.Type, instance.Source)
+			if !ok {
+				continue
+			}
+			fields := make([]string, 0, len(definition.Fields))
+			for _, field := range definition.Fields {
+				fields = append(fields, field.Name)
+			}
+			sort.Strings(fields)
+			name := apiFirstText(definition.Title, collectionID)
+			catalog = append(catalog, activities.ActivityResourceCatalogEntry{
+				InstanceID: instance.ID, InstanceName: apiFirstText(instance.Name, instance.Source),
+				CollectionID: collectionID, Name: name, Fields: fields,
+			})
+		}
+	}
 	for _, definition := range types {
 		if !strings.HasPrefix(definition.Type, "sdk.") {
 			continue
@@ -188,11 +221,8 @@ func (h *Handler) resourceCatalog(ctx context.Context, owner string) ([]activiti
 				return nil, err
 			}
 			for _, item := range page.Items {
-				if item.ProviderInstanceID == "" {
-					continue
-				}
-				instance, err := h.integrations.Get(ctx, owner, item.ProviderInstanceID)
-				if err != nil || instance.Type != "sdk" {
+				instance, exists := ownedSDKInstances[item.ProviderInstanceID]
+				if !exists {
 					continue
 				}
 				name := apiTextValue(item.Data["name"])
@@ -213,6 +243,16 @@ func (h *Handler) resourceCatalog(ctx context.Context, owner string) ([]activiti
 			}
 		}
 	}
+	sort.SliceStable(catalog, func(i, j int) bool {
+		left, right := catalog[i], catalog[j]
+		if left.InstanceName != right.InstanceName {
+			return left.InstanceName < right.InstanceName
+		}
+		if left.CollectionID != right.CollectionID {
+			return left.CollectionID < right.CollectionID
+		}
+		return left.ResourceID < right.ResourceID
+	})
 	return catalog, nil
 }
 

@@ -10,7 +10,9 @@ import (
 	"time"
 
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/activities"
+	"github.com/andreasmolnardev/dashwise/apps/backend/internal/monitoring"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/news"
+	"github.com/andreasmolnardev/dashwise/apps/backend/internal/notifications"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/resources"
 )
 
@@ -24,7 +26,10 @@ type Options struct {
 	NewsFetcher           *news.Fetcher
 	Resources             *resources.Store
 	Activities            *activities.Store
+	Monitoring            *monitoring.Store
+	Notifications         *notifications.Store
 	NewsInterval          time.Duration
+	MonitorInterval       time.Duration
 	ActivityInterval      time.Duration
 	ActivityRetentionDays int
 	Logger                *slog.Logger
@@ -36,21 +41,27 @@ type Runner struct {
 	newsFetcher           *news.Fetcher
 	resources             *resources.Store
 	activities            *activities.Store
+	monitoring            *monitoring.Store
+	notifications         *notifications.Store
 	newsInterval          time.Duration
+	monitorInterval       time.Duration
 	activityInterval      time.Duration
 	activityRetentionDays int
 	logger                *slog.Logger
 }
 
 func New(options Options) (*Runner, error) {
-	if options.Users == nil || options.News == nil || options.NewsFetcher == nil || options.Resources == nil || options.Activities == nil {
-		return nil, fmt.Errorf("background jobs require user, News, resource, and Activities stores")
+	if options.Users == nil || options.News == nil || options.NewsFetcher == nil || options.Resources == nil || options.Activities == nil || options.Monitoring == nil || options.Notifications == nil {
+		return nil, fmt.Errorf("background jobs require user, News, resource, Activities, Monitoring, and Notifications stores")
 	}
 	if options.NewsInterval <= 0 {
 		options.NewsInterval = 30 * time.Minute
 	}
 	if options.ActivityInterval <= 0 {
 		options.ActivityInterval = 24 * time.Hour
+	}
+	if options.MonitorInterval <= 0 {
+		options.MonitorInterval = time.Minute
 	}
 	if options.ActivityRetentionDays < 1 || options.ActivityRetentionDays > 3650 {
 		options.ActivityRetentionDays = 90
@@ -61,7 +72,8 @@ func New(options Options) (*Runner, error) {
 	return &Runner{
 		users: options.Users, news: options.News, newsFetcher: options.NewsFetcher,
 		resources: options.Resources, activities: options.Activities,
-		newsInterval: options.NewsInterval, activityInterval: options.ActivityInterval,
+		monitoring: options.Monitoring, notifications: options.Notifications,
+		newsInterval: options.NewsInterval, monitorInterval: options.MonitorInterval, activityInterval: options.ActivityInterval,
 		activityRetentionDays: options.ActivityRetentionDays, logger: options.Logger,
 	}, nil
 }
@@ -70,7 +82,7 @@ func New(options Options) (*Runner, error) {
 // application shuts down. Errors are logged per cycle; transient feed/network
 // failures do not stop unrelated owners or future refreshes.
 func (r *Runner) Run(ctx context.Context) error {
-	workers := 2
+	workers := 3
 	done := make(chan struct{}, workers)
 	go func() {
 		defer func() { done <- struct{}{} }()
@@ -80,11 +92,119 @@ func (r *Runner) Run(ctx context.Context) error {
 		defer func() { done <- struct{}{} }()
 		r.runLoop(ctx, "activity retention", r.activityInterval, r.pruneActivities)
 	}()
+	go func() {
+		defer func() { done <- struct{}{} }()
+		r.runLoop(ctx, "HTTP monitor checks", r.monitorInterval, r.runMonitorChecks)
+	}()
 	<-ctx.Done()
 	for i := 0; i < workers; i++ {
 		<-done
 	}
 	return ctx.Err()
+}
+
+func (r *Runner) runMonitorChecks(ctx context.Context) error {
+	owners, err := r.users.ListUserIDs(ctx)
+	if err != nil {
+		return fmt.Errorf("list accounts for HTTP monitor checks: %w", err)
+	}
+	var firstErr error
+	for _, owner := range owners {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		monitors, err := r.monitoring.ListMonitors(ctx, owner)
+		if err != nil {
+			r.logger.Error("list HTTP monitors", "owner_id", owner, "error", err)
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
+		}
+		previous := make(map[string]string, len(monitors))
+		for _, monitor := range monitors {
+			previous[monitor.ID] = canonicalMonitorStatus(monitor.Status)
+		}
+		results, err := r.monitoring.RunAll(ctx, owner)
+		if err != nil {
+			r.logger.Error("run HTTP monitor checks", "owner_id", owner, "error", err)
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
+		}
+		byID := make(map[string]monitoring.Monitor, len(monitors))
+		for _, monitor := range monitors {
+			byID[monitor.ID] = monitor
+		}
+		for _, result := range results {
+			monitor, exists := byID[result.JobID]
+			if !exists {
+				continue
+			}
+			current := canonicalMonitorStatus(result.RawStatus)
+			if current == "" {
+				current = canonicalMonitorStatus(result.Status)
+			}
+			prior := previous[monitor.ID]
+			if current == "" || current == prior {
+				continue
+			}
+			r.publishMonitorTransition(ctx, owner, monitor, prior, current)
+		}
+	}
+	return firstErr
+}
+
+func (r *Runner) publishMonitorTransition(ctx context.Context, owner string, monitor monitoring.Monitor, previous, current string) {
+	const idempotencyKeySuffix = ":unavailable"
+	key := "monitor:" + monitor.ID + idempotencyKeySuffix
+	if current == "healthy" {
+		if _, err := r.activities.Clear(ctx, owner, "monitoring", monitor.ID, key); err != nil {
+			r.logger.Warn("could not clear monitor activity", "owner_id", owner, "monitor_id", monitor.ID, "error", err)
+		}
+	} else {
+		_, _, err := r.activities.Publish(ctx, owner, activities.Input{
+			Source: "monitoring", SourceID: monitor.ID, Type: "monitor.unavailable",
+			Title: "A monitored service is unavailable", Description: "A monitored service stopped responding.",
+			Severity: "warning", IdempotencyKey: key, Current: true,
+			Metadata: map[string]any{"monitorId": monitor.ID, "previousStatus": previous, "status": current},
+		})
+		if err != nil {
+			r.logger.Warn("could not publish monitor activity", "owner_id", owner, "monitor_id", monitor.ID, "error", err)
+		}
+	}
+	if !monitor.NotifyOnStatusChange || monitor.NotifyTopicID == "" {
+		return
+	}
+	if _, err := r.notifications.GetTopic(ctx, owner, monitor.NotifyTopicID); err != nil {
+		r.logger.Warn("monitor notification topic is not owned by monitor owner", "owner_id", owner, "monitor_id", monitor.ID)
+		return
+	}
+	title := monitor.Title
+	if title == "" {
+		title = monitor.Endpoint
+	}
+	if title == "" {
+		title = "Unnamed"
+	}
+	content := fmt.Sprintf("Monitor %q changed from %s to %s", title, previous, current)
+	if _, err := r.notifications.Publish(ctx, monitor.NotifyTopicID, content, "monitoring"); err != nil {
+		r.logger.Error("failed to notify monitor status change", "owner_id", owner, "monitor_id", monitor.ID, "error", err)
+	}
+}
+
+func canonicalMonitorStatus(status string) string {
+	switch status {
+	case "healthy", "up":
+		return "healthy"
+	case "unhealthy", "down":
+		return "unhealthy"
+	case "initiated", "", "disabled":
+		return status
+	default:
+		return status
+	}
 }
 
 func (r *Runner) runLoop(ctx context.Context, name string, interval time.Duration, run func(context.Context) error) {
