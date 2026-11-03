@@ -15,6 +15,8 @@ import (
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/auth"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/authapi"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/config"
+	"github.com/andreasmolnardev/dashwise/apps/backend/internal/links"
+	"github.com/andreasmolnardev/dashwise/apps/backend/internal/linksapi"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/resourceapi"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/resources"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/viewapi"
@@ -28,6 +30,7 @@ type App struct {
 	registry  *resources.Registry
 	resources *resources.Store
 	views     *views.Store
+	links     *links.Store
 	auth      *auth.Store
 }
 
@@ -68,6 +71,15 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, err
 		_ = db.Close()
 		return nil, fmt.Errorf("initialize view store: %w", err)
 	}
+	linksStore, err := links.New(db)
+	if err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("initialize Links store: %w", err)
+	}
+	if err := linksStore.Initialize(ctx); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("initialize Links schema: %w", err)
+	}
 	authHandler, err := authapi.New(authStore)
 	if err != nil {
 		_ = db.Close()
@@ -82,6 +94,11 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, err
 	if err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("initialize view API: %w", err)
+	}
+	linksHandler, err := linksapi.New(linksStore, authenticateOwner(authStore))
+	if err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("initialize Links API: %w", err)
 	}
 
 	mux := http.NewServeMux()
@@ -107,10 +124,11 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, err
 	mux.Handle("/api/v1/resource-types", resourceHandler)
 	mux.Handle("/api/v1/views", viewHandler)
 	mux.Handle("/api/v1/views/", viewHandler)
+	mux.Handle("/api/v1/links/", linksHandler)
 	mux.Handle("/api/", http.NotFoundHandler())
 	mux.Handle("/", frontend(cfg.WebDist))
 
-	return &App{db: db, registry: registry, resources: resourceStore, views: viewStore, auth: authStore, server: &http.Server{
+	return &App{db: db, registry: registry, resources: resourceStore, views: viewStore, links: linksStore, auth: authStore, server: &http.Server{
 		Addr:              cfg.Address,
 		Handler:           requestLog(cors(mux), logger),
 		ReadHeaderTimeout: 10 * time.Second,
