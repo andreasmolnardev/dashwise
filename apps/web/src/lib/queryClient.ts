@@ -36,6 +36,10 @@ export const queryKeys = {
     search: ["links", "search"] as const,
     tagDetail: (tagId: string) => ["links", "tag-detail", tagId] as const,
   },
+  views: {
+    root: (token: string | null) => ["views", token, "list"] as const,
+    run: (token: string | null, viewId: string) => ["views", token, "run", viewId] as const,
+  },
   monitoring: {
     monitors: ["monitoring", "monitors"] as const,
     hosts: ["monitoring", "hosts"] as const,

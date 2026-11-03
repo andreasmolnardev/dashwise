@@ -32,6 +32,11 @@ const quickLinks = [
     icon: "fa6-solid:chart-line",
   },
   {
+    href: "/apps/views",
+    label: "Views",
+    icon: "fa6-solid:table-list",
+  },
+  {
     href: "/frame",
     label: "Smart Frame",
     icon: "teenyicons:screen-solid",
