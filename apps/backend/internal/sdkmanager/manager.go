@@ -162,7 +162,7 @@ func (m *Manager) Start(ctx context.Context, owner, instanceID string) error {
 		HostFactory: func(manifest jsruntime.Manifest) (jsruntime.Host, error) {
 			return jsruntime.NewStoreHost(ctx, jsruntime.HostOptions{
 				OwnerID: owner, InstanceID: item.ID, Manifest: manifest,
-				Database: m.database, Registry: m.registry, Resources: m.resources,
+				Database: m.database, Registry: m.registry, Resources: m.resources, Secrets: item.Environment,
 			})
 		},
 	})

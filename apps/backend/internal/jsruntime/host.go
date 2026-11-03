@@ -2,10 +2,16 @@ package jsruntime
 
 import (
 	"context"
+	"crypto/tls"
 	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net"
+	"net/http"
+	"net/textproto"
+	"net/url"
 	"regexp"
 	"strings"
 	"time"
@@ -32,20 +38,23 @@ type HostOptions struct {
 	Database   *foundation.DB
 	Registry   *resources.Registry
 	Resources  *resources.Store
+	Secrets    map[string]string
 }
 
 // StoreHost implements resource collection CRUD/sync and persistent per
 // integration storage. It intentionally omits HTTP, actions, events, timers,
 // secrets and websocket capabilities until their dedicated host adapters exist.
 type StoreHost struct {
-	ownerID     string
-	instanceID  string
-	manifestID  string
-	collections map[string]string // collection name to registered resource type
-	fields      map[string]map[string]bool
-	db          *sql.DB
-	foundation  *foundation.DB
-	resources   *resources.Store
+	ownerID      string
+	instanceID   string
+	manifestID   string
+	collections  map[string]string // collection name to registered resource type
+	fields       map[string]map[string]bool
+	configFields map[string]map[string]any
+	db           *sql.DB
+	foundation   *foundation.DB
+	resources    *resources.Store
+	secrets      map[string]string
 }
 
 func NewStoreHost(ctx context.Context, options HostOptions) (*StoreHost, error) {
@@ -64,7 +73,14 @@ func NewStoreHost(ctx context.Context, options HostOptions) (*StoreHost, error) 
 	host := &StoreHost{
 		ownerID: options.OwnerID, instanceID: options.InstanceID, manifestID: options.Manifest.ID,
 		collections: make(map[string]string, len(options.Manifest.Resources)), fields: make(map[string]map[string]bool, len(options.Manifest.Resources)),
-		db: options.Database.SQL(), foundation: options.Database, resources: options.Resources,
+		configFields: make(map[string]map[string]any, len(options.Manifest.Config)),
+		db:           options.Database.SQL(), foundation: options.Database, resources: options.Resources,
+		secrets: cloneStrings(options.Secrets),
+	}
+	for key, raw := range options.Manifest.Config {
+		if value, ok := raw.(map[string]any); ok {
+			host.configFields[key] = value
+		}
 	}
 	for collection, raw := range options.Manifest.Resources {
 		if !collectionName.MatchString(collection) {
@@ -110,6 +126,27 @@ func (h *StoreHost) Call(ctx context.Context, instanceID, operation string, args
 	if len(args) > 4 {
 		return nil, errors.New("SDK host operation has too many arguments")
 	}
+	if operation == "secrets.get" {
+		key, err := stringArg(args, 0, "secret key")
+		if err != nil {
+			return nil, err
+		}
+		_, declared := h.secretDefinition(key)
+		if !declared {
+			return nil, errors.New("SDK requested an undeclared secret")
+		}
+		value := h.secrets[key]
+		if value == "" {
+			return nil, nil
+		}
+		return value, nil
+	}
+	if operation == "http.assertSafeUrl" {
+		return h.assertSafeURL(ctx, args)
+	}
+	if operation == "http.fetch" {
+		return h.fetch(ctx, args)
+	}
 	if operation == "storage.get" || operation == "storage.set" || operation == "storage.delete" {
 		return h.storage(ctx, operation, args)
 	}
@@ -146,6 +183,203 @@ func (h *StoreHost) Call(ctx context.Context, instanceID, operation string, args
 	default:
 		return nil, fmt.Errorf("SDK resource operation %q is not supported", parts[2])
 	}
+}
+
+func (h *StoreHost) secretDefinition(key string) (map[string]any, bool) {
+	definition, ok := h.configFields[key]
+	return definition, ok && stringArgValue(definition["type"]) == "secret"
+}
+
+func (h *StoreHost) assertSafeURL(ctx context.Context, args []any) (string, error) {
+	value, err := stringArg(args, 0, "URL")
+	if err != nil {
+		return "", err
+	}
+	u, ips, err := safeURL(ctx, value)
+	if err != nil {
+		return "", err
+	}
+	if len(args) > 1 {
+		allowed := stringSlice(args[1])
+		if len(allowed) > 0 {
+			ok := false
+			for _, scheme := range allowed {
+				if strings.TrimSuffix(strings.ToLower(scheme), ":") == u.Scheme {
+					ok = true
+				}
+			}
+			if !ok {
+				return "", errors.New("SDK URL protocol is not allowed")
+			}
+		}
+	}
+	_ = ips // Resolution is repeated and pinned when the request is made.
+	return u.String(), nil
+}
+
+func (h *StoreHost) fetch(ctx context.Context, args []any) (any, error) {
+	urlText, err := stringArg(args, 0, "URL")
+	if err != nil {
+		return nil, err
+	}
+	u, ips, err := safeURL(ctx, urlText)
+	if err != nil {
+		return nil, err
+	}
+	method := http.MethodGet
+	header := make(http.Header)
+	var body io.Reader
+	if len(args) > 1 {
+		init, _ := args[1].(map[string]any)
+		if value := strings.ToUpper(stringArgValue(init["method"])); value != "" {
+			method = value
+		}
+		for name, raw := range objectValue(init["headers"]) {
+			key := textproto.CanonicalMIMEHeaderKey(name)
+			value := fmt.Sprint(raw)
+			if key == "" || strings.ContainsAny(name+value, "\r\n") || len(key) > 128 || len(value) > 8192 {
+				return nil, errors.New("SDK HTTP header is invalid")
+			}
+			header.Add(key, value)
+		}
+		if raw, exists := init["body"]; exists && raw != nil {
+			text, ok := raw.(string)
+			if !ok || len(text) > maxSDKHTTPBytes {
+				return nil, errors.New("SDK HTTP request body must be a string under 5 MB")
+			}
+			body = strings.NewReader(text)
+		}
+	}
+	if !validHTTPMethod(method) {
+		return nil, errors.New("SDK HTTP method is invalid")
+	}
+	request, err := http.NewRequestWithContext(ctx, method, u.String(), body)
+	if err != nil {
+		return nil, err
+	}
+	request.Header = header
+	transport := &http.Transport{
+		Proxy:           nil,
+		TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS12},
+		DialContext:     pinnedDial(ips),
+	}
+	client := &http.Client{Transport: transport, Timeout: 30 * time.Second, CheckRedirect: func(req *http.Request, via []*http.Request) error {
+		if len(via) >= 5 || len(via) > 0 && !sameOrigin(via[len(via)-1].URL, req.URL) {
+			return errors.New("SDK HTTP request redirected outside the configured origin")
+		}
+		return nil
+	}}
+	defer transport.CloseIdleConnections()
+	response, err := client.Do(request)
+	if err != nil {
+		return nil, err
+	}
+	defer response.Body.Close()
+	contents, err := io.ReadAll(io.LimitReader(response.Body, maxSDKHTTPBytes+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(contents) > maxSDKHTTPBytes {
+		return nil, errors.New("SDK HTTP response exceeds 5 MB")
+	}
+	headers := map[string]string{}
+	for name, values := range response.Header {
+		if len(values) > 0 {
+			headers[name] = values[0]
+		}
+	}
+	return map[string]any{"status": response.StatusCode, "statusText": http.StatusText(response.StatusCode), "headers": headers, "body": string(contents)}, nil
+}
+
+const maxSDKHTTPBytes = 5 << 20
+
+func safeURL(ctx context.Context, raw string) (*url.URL, []net.IP, error) {
+	u, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Hostname() == "" || u.User != nil || u.Fragment != "" {
+		return nil, nil, errors.New("SDK URL must be absolute HTTP(S) without credentials or fragments")
+	}
+	host := strings.TrimSuffix(strings.ToLower(u.Hostname()), ".")
+	if host == "localhost" || strings.HasSuffix(host, ".localhost") || host == "metadata.google.internal" || host == "metadata" {
+		return nil, nil, errors.New("SDK URL targets a blocked host")
+	}
+	var ips []net.IP
+	if ip := net.ParseIP(host); ip != nil {
+		ips = []net.IP{ip}
+	} else {
+		ips, err = net.DefaultResolver.LookupIP(ctx, "ip", host)
+		if err != nil {
+			return nil, nil, fmt.Errorf("resolve SDK host: %w", err)
+		}
+	}
+	if len(ips) == 0 || len(ips) > 32 {
+		return nil, nil, errors.New("SDK URL has no safe address")
+	}
+	for _, ip := range ips {
+		if !safeIP(ip) {
+			return nil, nil, errors.New("SDK URL resolves to a blocked address")
+		}
+	}
+	return u, ips, nil
+}
+
+func safeIP(ip net.IP) bool {
+	if ip == nil || ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsMulticast() || ip.IsUnspecified() {
+		return false
+	}
+	return !ip.Equal(net.ParseIP("169.254.169.254")) && !ip.Equal(net.ParseIP("100.100.100.200"))
+}
+
+func pinnedDial(ips []net.IP) func(context.Context, string, string) (net.Conn, error) {
+	return func(ctx context.Context, network, address string) (net.Conn, error) {
+		_, port, err := net.SplitHostPort(address)
+		if err != nil {
+			return nil, err
+		}
+		dialer := &net.Dialer{Timeout: 10 * time.Second, KeepAlive: 30 * time.Second}
+		var last error
+		for _, ip := range ips {
+			connection, err := dialer.DialContext(ctx, network, net.JoinHostPort(ip.String(), port))
+			if err == nil {
+				return connection, nil
+			}
+			last = err
+		}
+		return nil, last
+	}
+}
+
+func sameOrigin(a, b *url.URL) bool {
+	return strings.EqualFold(a.Scheme, b.Scheme) && strings.EqualFold(a.Host, b.Host)
+}
+
+func validHTTPMethod(method string) bool {
+	if method == "" || len(method) > 16 {
+		return false
+	}
+	for _, char := range method {
+		if char < 'A' || char > 'Z' {
+			return false
+		}
+	}
+	return true
+}
+
+func objectValue(value any) map[string]any {
+	result, _ := value.(map[string]any)
+	return result
+}
+
+func stringArgValue(value any) string {
+	text, _ := value.(string)
+	return text
+}
+
+func cloneStrings(input map[string]string) map[string]string {
+	result := make(map[string]string, len(input))
+	for key, value := range input {
+		result[key] = value
+	}
+	return result
 }
 
 func (h *StoreHost) storage(ctx context.Context, operation string, args []any) (any, error) {
@@ -374,6 +608,11 @@ func stringArg(args []any, index int, name string) (string, error) {
 		return "", fmt.Errorf("%s is required", name)
 	}
 	value, ok := args[index].(string)
+	if !ok {
+		if object, objectOK := args[index].(map[string]any); objectOK {
+			value, ok = object["href"].(string)
+		}
+	}
 	if !ok || strings.TrimSpace(value) == "" || len(value) > 512 {
 		return "", fmt.Errorf("%s must be a non-empty string under 512 bytes", name)
 	}

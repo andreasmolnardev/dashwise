@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -105,6 +106,51 @@ func Load(ctx context.Context, bundle []byte, options Options) (*Instance, error
 	_ = rt.Set("defineIntegration", identity)
 	_ = rt.Set("resourceCollection", identity)
 	_ = rt.Set("defineAction", identity)
+	_ = rt.Set("URL", func(call goja.ConstructorCall) *goja.Object {
+		raw := call.Argument(0).String()
+		var parsed *url.URL
+		var err error
+		if call.Argument(1) != nil && !goja.IsUndefined(call.Argument(1)) && !goja.IsNull(call.Argument(1)) {
+			base, baseErr := url.Parse(call.Argument(1).String())
+			if baseErr != nil {
+				panic(rt.NewTypeError("invalid base URL"))
+			}
+			relative, parseErr := url.Parse(raw)
+			if parseErr != nil {
+				panic(rt.NewTypeError("invalid URL"))
+			}
+			parsed = base.ResolveReference(relative)
+		} else {
+			parsed, err = url.Parse(raw)
+		}
+		if err != nil || parsed.Scheme == "" || parsed.Hostname() == "" {
+			panic(rt.NewTypeError("invalid URL"))
+		}
+		object := call.This
+		_ = object.Set("href", parsed.String())
+		_ = object.Set("protocol", parsed.Scheme+":")
+		_ = object.Set("hostname", parsed.Hostname())
+		_ = object.Set("host", parsed.Host)
+		_ = object.Set("pathname", parsed.EscapedPath())
+		_ = object.Set("origin", parsed.Scheme+"://"+parsed.Host)
+		_ = object.Set("toString", func(goja.FunctionCall) goja.Value { return rt.ToValue(parsed.String()) })
+		params := rt.NewObject()
+		_ = params.Set("set", func(call goja.FunctionCall) goja.Value {
+			parsed.Query().Set(call.Argument(0).String(), call.Argument(1).String())
+			parsed.RawQuery = parsed.Query().Encode()
+			_ = object.Set("href", parsed.String())
+			return goja.Undefined()
+		})
+		_ = params.Set("get", func(call goja.FunctionCall) goja.Value {
+			value := parsed.Query().Get(call.Argument(0).String())
+			if value == "" {
+				return goja.Null()
+			}
+			return rt.ToValue(value)
+		})
+		_ = object.Set("searchParams", params)
+		return object
+	})
 	_ = rt.Set("require", func(call goja.FunctionCall) goja.Value {
 		if call.Argument(0).String() != "@dashwise/integrations-sdk" {
 			panic(rt.NewTypeError("integration bundles cannot import host modules"))
