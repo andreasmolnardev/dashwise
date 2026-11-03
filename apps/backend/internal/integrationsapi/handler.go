@@ -4,6 +4,7 @@ package integrationsapi
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"strconv"
@@ -224,6 +225,31 @@ func (h *Handler) listOrGet(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, 404, map[string]string{"error": "not found"})
 			return
 		}
+		if r.URL.Query().Get("resolveEndpoints") == "true" || r.URL.Query().Get("resolveEndpoints") == "1" {
+			resolved, executeErr := h.runtime.Execute(r.Context(), item.Config, item.Environment)
+			if executeErr != nil {
+				writeJSON(w, 502, map[string]string{"error": "could not resolve integration endpoints"})
+				return
+			}
+			if !sameEnvironment(item.Environment, resolved.Environment) {
+				updated, updateErr := h.store.Update(r.Context(), owner, item.ID, integrations.Input{
+					Type: item.Type, Name: item.Name, Source: item.Source,
+					Config: item.Config, Environment: resolved.Environment, LocalData: item.LocalData,
+					SDKEnabled: &item.SDKEnabled,
+				})
+				if updateErr != nil {
+					writeJSON(w, 500, map[string]string{"error": "could not save integration environment"})
+					return
+				}
+				item = updated
+			}
+			writeJSON(w, 200, map[string]any{
+				"integration":       item,
+				"resolvedEndpoints": resolvedEndpointDebugList(item.Config, item.Environment, resolved.Endpoints),
+				"resolvedComputed":  resolved.Computed,
+			})
+			return
+		}
 		writeJSON(w, 200, map[string]any{"integration": item})
 		return
 	}
@@ -233,6 +259,96 @@ func (h *Handler) listOrGet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, 200, map[string]any{"integrations": items})
+}
+
+// resolvedEndpointDebugList returns the resolved request preview and the
+// response data produced by the YAML runtime for the settings debug dialog.
+func resolvedEndpointDebugList(config map[string]any, environment map[string]string, results map[string]yamlruntime.EndpointResult) []map[string]any {
+	configuration, _ := config["configuration"].(map[string]any)
+	var endpoints []map[string]any
+	switch raw := configuration["endpoints"].(type) {
+	case map[string]any:
+		for id, value := range raw {
+			if endpoint, ok := value.(map[string]any); ok {
+				endpoints = append(endpoints, resolvedEndpointDebug(id, endpoint, environment, results))
+			}
+		}
+	case []any:
+		for index, value := range raw {
+			if endpoint, ok := value.(map[string]any); ok {
+				id := firstNonempty(stringValue(endpoint["id"]), stringValue(endpoint["key"]), stringValue(endpoint["name"]), fmt.Sprint(index))
+				endpoints = append(endpoints, resolvedEndpointDebug(id, endpoint, environment, results))
+			}
+		}
+	}
+	return endpoints
+}
+
+func resolvedEndpointDebug(id string, endpoint map[string]any, environment map[string]string, results map[string]yamlruntime.EndpointResult) map[string]any {
+	method := firstNonempty(stringValue(endpoint["method"]), "GET")
+	url := stringValue(endpoint["url"])
+	headers := map[string]any{}
+	for _, key := range []string{"headers", "custom_headers"} {
+		if values, ok := endpoint[key].(map[string]any); ok {
+			for name, value := range values {
+				headers[name] = resolveDebugValue(value, environment)
+			}
+		}
+	}
+	resolvedHeaders := map[string]string{}
+	for key, value := range headers {
+		resolvedHeaders[key] = fmt.Sprint(value)
+	}
+	resolvedURL := resolveDebugString(url, environment)
+	resolvedAuth := resolveDebugString(stringValue(endpoint["auth"]), environment)
+	if resolvedAuth == "" {
+		for key, value := range resolvedHeaders {
+			if strings.EqualFold(key, "authorization") {
+				resolvedAuth = value
+				break
+			}
+		}
+	}
+	response := any(nil)
+	if result, ok := results[id]; ok {
+		response = map[string]any{"id": id, "name": nullableString(stringValue(endpoint["name"])), "method": method, "url": url, "resolvedUrl": resolvedURL, "requestHeaders": resolvedHeaders, "requestBody": resolveDebugValue(endpoint["body"], environment), "rawResponse": result.RawResponse, "mappedResponse": result.MappedResponse}
+	}
+	return map[string]any{
+		"id": nullableString(firstNonempty(stringValue(endpoint["id"]), id)), "name": nullableString(stringValue(endpoint["name"])),
+		"description": nullableString(stringValue(endpoint["description"])), "method": method, "url": url,
+		"auth": stringValue(endpoint["auth"]), "allow_insecure_ssl": endpoint["allow_insecure_ssl"], "timeout": endpoint["timeout"],
+		"body": endpoint["body"], "custom_headers": endpoint["custom_headers"], "response_body_types": endpoint["response_body_types"],
+		"response_mappings": endpoint["response_mappings"], "resolvedUrl": resolvedURL, "resolvedAuth": resolvedAuth,
+		"resolvedHeaders": resolvedHeaders, "resolvedBody": resolveDebugValue(endpoint["body"], environment), "response": response,
+	}
+}
+
+func resolveDebugValue(value any, environment map[string]string) any {
+	switch current := value.(type) {
+	case string:
+		return resolveDebugString(current, environment)
+	case []any:
+		resolved := make([]any, len(current))
+		for index, child := range current {
+			resolved[index] = resolveDebugValue(child, environment)
+		}
+		return resolved
+	case map[string]any:
+		resolved := make(map[string]any, len(current))
+		for key, child := range current {
+			resolved[key] = resolveDebugValue(child, environment)
+		}
+		return resolved
+	default:
+		return value
+	}
+}
+
+func resolveDebugString(value string, environment map[string]string) string {
+	for key, replacement := range environment {
+		value = strings.ReplaceAll(value, "${"+key+"}", replacement)
+	}
+	return value
 }
 
 func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
