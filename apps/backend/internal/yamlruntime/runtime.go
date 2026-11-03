@@ -102,7 +102,17 @@ func (rt *Runtime) Execute(ctx context.Context, blueprint map[string]any, enviro
 	result.Environment = env
 	computed := object(config["computed"])
 	if len(computed) > 0 {
-		result.Computed = evaluateComputed(computed, result.Endpoints, env)
+		endpointsRoot := map[string]any{}
+		for id, endpoint := range result.Endpoints {
+			endpointsRoot[id] = map[string]any{"rawResponse": endpoint.RawResponse, "mappedResponse": endpoint.MappedResponse, "status": endpoint.Status}
+		}
+		root := map[string]any{
+			"endpoints":             endpointsRoot,
+			"computed":              map[string]any{},
+			"environment_variables": env,
+			"lookup_tables":         normalizeValue(object(config["lookup_tables"])),
+		}
+		result.Computed = evaluateComputed(computed, root, env, result.Endpoints)
 	}
 	return result, nil
 }
@@ -469,91 +479,6 @@ func lookupPath(root any, path string) any {
 		return values[0]
 	}
 	return values
-}
-
-func evaluateComputed(definitions map[string]any, endpoints map[string]EndpointResult, env map[string]string) map[string]any {
-	root := map[string]any{"endpoints": map[string]any{}, "computed": map[string]any{}, "environment_variables": env}
-	endpointRoot := object(root["endpoints"])
-	for id, ep := range endpoints {
-		endpointRoot[id] = map[string]any{"rawResponse": ep.RawResponse, "mappedResponse": ep.MappedResponse, "status": ep.Status}
-	}
-	computed := object(root["computed"])
-	result := map[string]any{}
-	for key, raw := range definitions {
-		def := object(raw)
-		iterate := stringValue(def["iterate_over"])
-		rows := listValue(lookupPath(root, strings.TrimPrefix(iterate, "this.")))
-		if iterate == "" {
-			rows = []any{map[string]any{}}
-		}
-		out := []any{}
-		for index, row := range rows {
-			item := object(row)
-			fields := object(def["fields"])
-			mapped := make(map[string]any, len(fields)+1)
-			for field, expression := range fields {
-				mapped[field] = computedValue(expression, root, item, index)
-			}
-			if keyTemplate := stringValue(def["key"]); keyTemplate != "" {
-				keyValue, _ := interpolate(keyTemplate, env, endpoints)
-				mapped["id"] = keyValue
-			}
-			out = append(out, mapped)
-		}
-		if iterate == "" && len(out) == 1 {
-			result[key] = out[0]
-		} else {
-			result[key] = out
-		}
-		computed[key] = result[key]
-	}
-	return result
-}
-
-func computedValue(value any, root map[string]any, item map[string]any, index int) any {
-	if text, ok := value.(string); ok {
-		if strings.HasPrefix(text, "this.") {
-			return lookupPath(root, strings.TrimPrefix(text, "this."))
-		}
-		if strings.Contains(text, "${") {
-			resolved := templatePattern.ReplaceAllStringFunc(text, func(token string) string {
-				return fmt.Sprint(lookupPath(item, token[2:len(token)-1]))
-			})
-			return strings.ReplaceAll(resolved, "${_index}", strconv.Itoa(index))
-		}
-		return lookupPath(item, text)
-	}
-	if def := object(value); len(def) > 0 {
-		if operation := stringValue(def["operation"]); operation != "" {
-			switch operation {
-			case "count":
-				return len(listValue(def["value"]))
-			case "compute_health", "compute_health_score":
-				input := object(def["inputs"])
-				value := numeric(lookupPath(item, stringValue(input["value"])))
-				threshold := numeric(input["threshold"])
-				if threshold <= 0 {
-					return 0
-				}
-				score := 100 * (1 - value/threshold)
-				if score < 0 {
-					score = 0
-				}
-				if score > 100 {
-					score = 100
-				}
-				return score
-			case "lookup", "lookup_table":
-				return nil
-			}
-		}
-		out := map[string]any{}
-		for key, child := range def {
-			out[key] = computedValue(child, root, item, index)
-		}
-		return out
-	}
-	return value
 }
 
 func newClient() *http.Client {
