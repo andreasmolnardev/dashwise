@@ -101,28 +101,50 @@ func (s *Store) compileQuery(ctx context.Context, query Query) (string, []any, e
 		args = append(args, capability)
 	}
 	if query.Search != "" {
-		if len(query.Types) != 1 {
-			return "", nil, errors.New("search requires exactly one resource type")
-		}
-		definition, err := s.registry.Get(ctx, query.Types[0])
-		if err != nil {
-			return "", nil, err
-		}
-		searchFields := make([]string, 0)
-		for _, field := range definition.Fields {
-			if field.Searchable {
-				searchFields = append(searchFields, field.Name)
+		definitions := make([]Definition, 0, len(query.Types))
+		if len(query.Types) > 0 {
+			for _, resourceType := range query.Types {
+				definition, err := s.registry.Get(ctx, resourceType)
+				if err != nil {
+					return "", nil, err
+				}
+				definitions = append(definitions, definition)
+			}
+		} else {
+			var err error
+			definitions, err = s.registry.List(ctx)
+			if err != nil {
+				return "", nil, fmt.Errorf("list searchable resource types: %w", err)
+			}
+			if len(definitions) > 100 {
+				return "", nil, errors.New("global search spans too many resource types")
 			}
 		}
-		if len(searchFields) == 0 {
-			return "", nil, errors.New("resource type has no searchable fields")
+		typeSearch := make([]string, 0, len(definitions))
+		for _, definition := range definitions {
+			fields := make([]string, 0, len(definition.Fields))
+			for _, field := range definition.Fields {
+				if field.Searchable {
+					fields = append(fields, field.Name)
+				}
+			}
+			if len(fields) == 0 {
+				continue
+			}
+			fieldSearch := make([]string, 0, len(fields))
+			for range fields {
+				fieldSearch = append(fieldSearch, "instr(lower(COALESCE(json_extract(data_json, ?), '')), lower(?)) > 0")
+			}
+			typeSearch = append(typeSearch, "(type = ? AND ("+join(fieldSearch, " OR ")+"))")
+			args = append(args, definition.Type)
+			for _, name := range fields {
+				args = append(args, "$."+name, query.Search)
+			}
 		}
-		searchConditions := make([]string, 0, len(searchFields))
-		for _, name := range searchFields {
-			searchConditions = append(searchConditions, "instr(lower(COALESCE(json_extract(data_json, ?), '')), lower(?)) > 0")
-			args = append(args, "$."+name, query.Search)
+		if len(typeSearch) == 0 {
+			return "", nil, errors.New("resource types have no searchable fields")
 		}
-		conditions = append(conditions, "("+join(searchConditions, " OR ")+")")
+		conditions = append(conditions, "("+join(typeSearch, " OR ")+")")
 	}
 	return " WHERE " + join(conditions, " AND "), args, nil
 }
