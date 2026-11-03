@@ -92,7 +92,20 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, err
 		_ = db.Close()
 		return nil, fmt.Errorf("initialize News schema: %w", err)
 	}
-	newsHandler, err := newsapi.New(newsStore, authenticateOwner(authStore), newsapi.Options{})
+	newsFetcher := news.NewFetcher()
+	newsHandler, err := newsapi.New(newsStore, authenticateOwner(authStore), newsapi.Options{
+		ResolveMetadata: func(ctx context.Context, feedURL string) (newsapi.Metadata, error) {
+			title, icon, err := newsFetcher.Metadata(ctx, feedURL)
+			return newsapi.Metadata{FeedURL: feedURL, Title: title, Icon: icon}, err
+		},
+		Refresh: func(ctx context.Context, owner string, ids []string) error {
+			_, err := newsStore.Refresh(ctx, owner, ids, newsFetcher)
+			return err
+		},
+		ReadItems: func(ctx context.Context, owner, id string) (any, error) {
+			return newsStore.ReadSubscriptionItems(ctx, owner, id, 1000)
+		},
+	})
 	if err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("initialize News API: %w", err)
