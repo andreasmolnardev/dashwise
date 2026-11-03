@@ -111,6 +111,10 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, err
 		_ = db.Close()
 		return nil, fmt.Errorf("initialize resource store: %w", err)
 	}
+	if err := resourceStore.Initialize(ctx); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("initialize resource store schema: %w", err)
+	}
 	viewStore, err := views.NewStore(db)
 	if err != nil {
 		_ = db.Close()
@@ -276,7 +280,12 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, err
 		_ = db.Close()
 		return nil, fmt.Errorf("initialize Activities API: %w", err)
 	}
-	activityRealtimeHandler, err := realtimeapi.NewActivityHandler(authStore, activitiesStore, notificationsStore, integrationsStore, resourceStore)
+	activityRealtimeHandler, err := realtimeapi.NewActivityHandler(
+		authStore, activitiesStore, notificationsStore, integrationsStore, resourceStore, pagesStore,
+		func(ctx context.Context, owner string, pageConfig map[string]any) []map[string]any {
+			return consumersapi.ResolvePageData(ctx, owner, pageConfig, integrationsStore, yamlRuntime)
+		},
+	)
 	if err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("initialize Activity realtime API: %w", err)
@@ -298,7 +307,7 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, err
 	}
 	sdkManager, err := sdkmanager.New(sdkmanager.Options{
 		Database: db, Integrations: integrationsStore, Registry: registry, Resources: resourceStore,
-		Bundles: sdkBundles,
+		Activities: activitiesStore, Bundles: sdkBundles, Logger: logger,
 	})
 	if err != nil {
 		_ = db.Close()

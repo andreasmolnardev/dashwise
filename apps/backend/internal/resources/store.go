@@ -32,8 +32,9 @@ type Resource struct {
 }
 
 type Store struct {
-	db       *sql.DB
-	registry *Registry
+	db         *sql.DB
+	foundation *foundation.DB
+	registry   *Registry
 }
 
 func NewStore(db *foundation.DB, registry *Registry) (*Store, error) {
@@ -43,7 +44,55 @@ func NewStore(db *foundation.DB, registry *Registry) (*Store, error) {
 	if registry == nil {
 		return nil, errors.New("resource store requires a resource registry")
 	}
-	return &Store{db: db.SQL(), registry: registry}, nil
+	return &Store{db: db.SQL(), foundation: db, registry: registry}, nil
+}
+
+// Initialize applies additive schema changes that are owned by the resource
+// domain. It is safe to call once during application startup.
+func (s *Store) Initialize(ctx context.Context) error {
+	return s.foundation.ApplyMigrations(ctx, []foundation.Migration{{
+		ID: "0019_change_events_owner_scope", Name: "owner-scoped change events",
+		Up: func(ctx context.Context, tx *sql.Tx) error {
+			for _, statement := range []string{
+				`ALTER TABLE change_events ADD COLUMN owner_id TEXT NOT NULL DEFAULT ''`,
+				`ALTER TABLE change_events ADD COLUMN resource_type TEXT NOT NULL DEFAULT ''`,
+				`ALTER TABLE change_events ADD COLUMN provider_instance_id TEXT NOT NULL DEFAULT ''`,
+				`ALTER TABLE change_events ADD COLUMN provider_resource_id TEXT NOT NULL DEFAULT ''`,
+				`UPDATE change_events SET
+					owner_id = (SELECT r.owner_id FROM resources r WHERE r.id = change_events.resource_id),
+					resource_type = (SELECT r.type FROM resources r WHERE r.id = change_events.resource_id),
+					provider_instance_id = (SELECT r.provider_instance_id FROM resources r WHERE r.id = change_events.resource_id),
+					provider_resource_id = (SELECT r.provider_resource_id FROM resources r WHERE r.id = change_events.resource_id)
+				WHERE EXISTS (SELECT 1 FROM resources r WHERE r.id = change_events.resource_id)`,
+				`CREATE INDEX change_events_by_owner ON change_events(owner_id, resource_type, provider_resource_id, sequence)`,
+			} {
+				if _, err := tx.ExecContext(ctx, statement); err != nil {
+					return err
+				}
+			}
+			return nil
+		},
+		Down: func(ctx context.Context, tx *sql.Tx) error {
+			if _, err := tx.ExecContext(ctx, `
+				CREATE TABLE change_events_unscoped (
+					sequence INTEGER PRIMARY KEY AUTOINCREMENT,
+					resource_id TEXT NOT NULL,
+					operation TEXT NOT NULL,
+					created_at TEXT NOT NULL
+				)
+			`); err != nil {
+				return err
+			}
+			if _, err := tx.ExecContext(ctx, `INSERT INTO change_events_unscoped(sequence, resource_id, operation, created_at) SELECT sequence, resource_id, operation, created_at FROM change_events`); err != nil {
+				return err
+			}
+			if _, err := tx.ExecContext(ctx, `DROP TABLE change_events`); err != nil {
+				return err
+			}
+			_, err := tx.ExecContext(ctx, `ALTER TABLE change_events_unscoped RENAME TO change_events`)
+			return err
+		},
+	}})
 }
 
 // Upsert replaces a provider's materialized resource payload while retaining
@@ -138,7 +187,7 @@ func (s *Store) Upsert(ctx context.Context, resource Resource) (Resource, error)
 	if err != nil {
 		return Resource{}, fmt.Errorf("upsert resource: %w", err)
 	}
-	if _, err := tx.ExecContext(ctx, `INSERT INTO change_events(resource_id, operation, created_at) VALUES(?, 'upsert', ?)`, resource.ID, nowText); err != nil {
+	if _, err := tx.ExecContext(ctx, `INSERT INTO change_events(resource_id, operation, created_at, owner_id, resource_type, provider_instance_id, provider_resource_id) VALUES(?, 'upsert', ?, ?, ?, ?, ?)`, resource.ID, nowText, resource.OwnerID, resource.Type, resource.ProviderInstanceID, resource.ProviderResourceID); err != nil {
 		return Resource{}, fmt.Errorf("record resource change: %w", err)
 	}
 	if err := tx.Commit(); err != nil {
@@ -166,6 +215,11 @@ func (s *Store) Delete(ctx context.Context, ownerID, id string) error {
 		return fmt.Errorf("begin resource deletion: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
+	var resourceType, providerInstanceID, providerResourceID string
+	if err := tx.QueryRowContext(ctx, `SELECT type, provider_instance_id, provider_resource_id FROM resources WHERE owner_id = ? AND id = ?`, ownerID, id).Scan(&resourceType, &providerInstanceID, &providerResourceID); err != nil &&
+		!errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("look up resource identity for deletion: %w", err)
+	}
 	result, err := tx.ExecContext(ctx, `DELETE FROM resources WHERE owner_id = ? AND id = ?`, ownerID, id)
 	if err != nil {
 		return fmt.Errorf("delete resource: %w", err)
@@ -177,7 +231,8 @@ func (s *Store) Delete(ctx context.Context, ownerID, id string) error {
 	if count == 0 {
 		return ErrNotFound
 	}
-	if _, err := tx.ExecContext(ctx, `INSERT INTO change_events(resource_id, operation, created_at) VALUES(?, 'delete', ?)`, id, time.Now().UTC().Format(time.RFC3339Nano)); err != nil {
+	if _, err := tx.ExecContext(ctx, `INSERT INTO change_events(resource_id, operation, created_at, owner_id, resource_type, provider_instance_id, provider_resource_id) VALUES(?, 'delete', ?, ?, ?, ?, ?)`,
+		id, time.Now().UTC().Format(time.RFC3339Nano), ownerID, resourceType, providerInstanceID, providerResourceID); err != nil {
 		return fmt.Errorf("record resource deletion: %w", err)
 	}
 	if err := tx.Commit(); err != nil {
@@ -318,4 +373,104 @@ func validateFieldValue(field FieldDefinition, value any) error {
 		return fmt.Errorf("field %q must have type %s", field.Name, field.Type)
 	}
 	return nil
+}
+
+// ChangeEvent is a persisted resource change with its owner-scoped resource
+// identity. Semantics intentionally retain the identity after deletions so a
+// watcher can report remove events without joining the resources table.
+type ChangeEvent struct {
+	Sequence           int64
+	ResourceID         string
+	OwnerID            string
+	ResourceType       string
+	ProviderInstanceID string
+	ProviderResourceID string
+	Operation          string
+	CreatedAt          string
+}
+
+// LatestChangeSequence returns the newest change event sequence, or zero when
+// no events exist.
+func (s *Store) LatestChangeSequence(ctx context.Context) (int64, error) {
+	var sequence int64
+	if err := s.db.QueryRowContext(ctx, `SELECT COALESCE(MAX(sequence), 0) FROM change_events`).Scan(&sequence); err != nil {
+		return 0, fmt.Errorf("read latest change event sequence: %w", err)
+	}
+	return sequence, nil
+}
+
+// ChangeEventsSince returns up to limit owner-scoped change events after the
+// given sequence in ascending order, together with the cursor the previous
+// caller saw in case limit truncates the batch.
+func (s *Store) ChangeEventsSince(ctx context.Context, ownerID string, after int64, limit int) ([]ChangeEvent, error) {
+	if ownerID == "" {
+		return nil, errors.New("owner scope is required")
+	}
+	if limit <= 0 || limit > 500 {
+		limit = 500
+	}
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT sequence, resource_id, owner_id, resource_type, provider_instance_id, provider_resource_id, operation, created_at
+		FROM change_events
+		WHERE owner_id = ? AND sequence > ?
+		ORDER BY sequence
+		LIMIT ?
+	`, ownerID, after, limit)
+	if err != nil {
+		return nil, fmt.Errorf("read change events: %w", err)
+	}
+	defer rows.Close()
+	events := make([]ChangeEvent, 0)
+	for rows.Next() {
+		var event ChangeEvent
+		if err := rows.Scan(&event.Sequence, &event.ResourceID, &event.OwnerID, &event.ResourceType,
+			&event.ProviderInstanceID, &event.ProviderResourceID, &event.Operation, &event.CreatedAt); err != nil {
+			return nil, fmt.Errorf("read change event: %w", err)
+		}
+		events = append(events, event)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate change events: %w", err)
+	}
+	return events, nil
+}
+
+// ProviderIdentityExists reports whether one owner-scoped resource identity
+// currently has a materialized row.
+func (s *Store) ProviderIdentityExists(ctx context.Context, ownerID, resourceType, providerInstanceID, providerResourceID string) (bool, error) {
+	if ownerID == "" || resourceType == "" || providerResourceID == "" {
+		return false, nil
+	}
+	var exists int
+	err := s.db.QueryRowContext(ctx, `
+		SELECT 1 FROM resources
+		WHERE owner_id = ? AND type = ? AND provider_resource_id = ?
+			AND (? = '' OR provider_instance_id = ?)
+		LIMIT 1
+	`, ownerID, resourceType, providerResourceID, providerInstanceID, providerInstanceID).Scan(&exists)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("look up resource identity: %w", err)
+	}
+	return true, nil
+}
+
+// LatestRevision returns the highest change event sequence for one owner-scoped
+// resource identity. This gives subscriptions a monotonically increasing
+// revision counter that starts at zero for never-changed resources.
+func (s *Store) LatestRevision(ctx context.Context, ownerID, resourceType, providerInstanceID, providerResourceID string) (int64, error) {
+	if ownerID == "" || resourceType == "" || providerResourceID == "" {
+		return 0, nil
+	}
+	var revision int64
+	if err := s.db.QueryRowContext(ctx, `
+		SELECT COALESCE(MAX(sequence), 0) FROM change_events
+		WHERE owner_id = ? AND resource_type = ? AND provider_resource_id = ?
+			AND (? = '' OR provider_instance_id = ?)
+	`, ownerID, resourceType, providerResourceID, providerInstanceID, providerInstanceID).Scan(&revision); err != nil {
+		return 0, fmt.Errorf("read resource revision: %w", err)
+	}
+	return revision, nil
 }
