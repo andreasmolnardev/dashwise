@@ -29,6 +29,10 @@ func New(store *auth.Store) (http.Handler, error) {
 	h.mux.HandleFunc("POST /api/v1/auth/logout", h.logout)
 	h.mux.HandleFunc("POST /api/v1/auth/change-password", h.changePassword)
 	h.mux.HandleFunc("GET /api/v1/auth/me", h.me)
+	h.mux.HandleFunc("GET /api/v1/sessions", h.listSessions)
+	h.mux.HandleFunc("DELETE /api/v1/sessions/{sessionId}", h.revokeSession)
+	h.mux.HandleFunc("GET /api/v1/sessions/current", h.currentSession)
+	h.mux.HandleFunc("PATCH /api/v1/sessions/current", h.renameCurrentSession)
 	return h.mux, nil
 }
 
@@ -148,6 +152,58 @@ func (h *Handler) me(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"user": user})
+}
+
+func (h *Handler) listSessions(w http.ResponseWriter, r *http.Request) {
+	user, _, ok := h.authenticate(w, r)
+	if !ok {
+		return
+	}
+	sessions, err := h.store.ListSessions(r.Context(), user.ID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not list sessions")
+		return
+	}
+	writeJSON(w, http.StatusOK, sessions)
+}
+
+func (h *Handler) revokeSession(w http.ResponseWriter, r *http.Request) {
+	user, _, ok := h.authenticate(w, r)
+	if !ok {
+		return
+	}
+	if err := h.store.Logout(r.Context(), user.ID, r.PathValue("sessionId")); err != nil {
+		writeAuthError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"success": true})
+}
+
+func (h *Handler) currentSession(w http.ResponseWriter, r *http.Request) {
+	_, session, ok := h.authenticate(w, r)
+	if !ok {
+		return
+	}
+	writeJSON(w, http.StatusOK, session)
+}
+
+func (h *Handler) renameCurrentSession(w http.ResponseWriter, r *http.Request) {
+	user, session, ok := h.authenticate(w, r)
+	if !ok {
+		return
+	}
+	var input struct {
+		DisplayName string `json:"displayName"`
+	}
+	if !decode(w, r, &input) {
+		return
+	}
+	updated, err := h.store.RenameSession(r.Context(), user.ID, session.ID, input.DisplayName)
+	if err != nil {
+		writeAuthError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, updated)
 }
 
 func (h *Handler) authenticate(w http.ResponseWriter, r *http.Request) (auth.User, auth.Session, bool) {

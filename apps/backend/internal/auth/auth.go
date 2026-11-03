@@ -48,11 +48,15 @@ type User struct {
 }
 
 type Session struct {
-	ID        string    `json:"id"`
-	UserID    string    `json:"userId"`
-	CreatedAt time.Time `json:"createdAt"`
-	ExpiresAt time.Time `json:"expiresAt"`
-	LastSeen  time.Time `json:"lastSeenAt"`
+	ID          string    `json:"id"`
+	SessionID   string    `json:"sessionId"`
+	UserID      string    `json:"user"`
+	DisplayName string    `json:"displayName"`
+	ClientType  string    `json:"clientType,omitempty"`
+	Platform    string    `json:"platform,omitempty"`
+	CreatedAt   time.Time `json:"created"`
+	ExpiresAt   time.Time `json:"expiresAt"`
+	LastSeen    time.Time `json:"lastSeenAt"`
 }
 
 type AuthResult struct {
@@ -124,6 +128,9 @@ func (s *Store) Initialize(ctx context.Context) error {
 			id TEXT PRIMARY KEY NOT NULL,
 			user_id TEXT NOT NULL REFERENCES auth_users(id) ON DELETE CASCADE,
 			token_hash TEXT NOT NULL UNIQUE,
+			display_name TEXT NOT NULL DEFAULT 'Web browser',
+			client_type TEXT NOT NULL DEFAULT 'browser',
+			platform TEXT NOT NULL DEFAULT '',
 			created_at TEXT NOT NULL,
 			expires_at TEXT NOT NULL,
 			last_seen_at TEXT NOT NULL,
@@ -140,6 +147,15 @@ func (s *Store) Initialize(ctx context.Context) error {
 	for _, statement := range statements {
 		if _, err := tx.ExecContext(ctx, statement); err != nil {
 			return fmt.Errorf("initialize authentication schema: %w", err)
+		}
+	}
+	for _, column := range []struct{ name, definition string }{
+		{name: "display_name", definition: "TEXT NOT NULL DEFAULT 'Web browser'"},
+		{name: "client_type", definition: "TEXT NOT NULL DEFAULT 'browser'"},
+		{name: "platform", definition: "TEXT NOT NULL DEFAULT ''"},
+	} {
+		if err := ensureSessionColumn(ctx, tx, column.name, column.definition); err != nil {
+			return fmt.Errorf("migrate authentication session column %q: %w", column.name, err)
 		}
 	}
 	if err := tx.Commit(); err != nil {
@@ -230,10 +246,10 @@ func (s *Store) Validate(ctx context.Context, token string) (User, Session, erro
 	var session Session
 	var createdAt, updatedAt, sessionCreated, expiresAt, lastSeen string
 	err := s.db.QueryRowContext(ctx, `
-		SELECT u.id,u.email,u.name,u.created_at,u.updated_at,s.id,s.created_at,s.expires_at,s.last_seen_at
+		SELECT u.id,u.email,u.name,u.created_at,u.updated_at,s.id,s.display_name,s.client_type,s.platform,s.created_at,s.expires_at,s.last_seen_at
 		FROM auth_sessions s JOIN auth_users u ON u.id=s.user_id
 		WHERE s.token_hash=? AND s.revoked_at IS NULL
-	`, hashToken(token)).Scan(&user.ID, &user.Email, &user.Name, &createdAt, &updatedAt, &session.ID, &sessionCreated, &expiresAt, &lastSeen)
+	`, hashToken(token)).Scan(&user.ID, &user.Email, &user.Name, &createdAt, &updatedAt, &session.ID, &session.DisplayName, &session.ClientType, &session.Platform, &sessionCreated, &expiresAt, &lastSeen)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return User{}, Session{}, ErrUnauthorized
@@ -268,6 +284,7 @@ func (s *Store) Validate(ctx context.Context, token string) (User, Session, erro
 		return User{}, Session{}, fmt.Errorf("refresh session: %w", err)
 	}
 	session.UserID = user.ID
+	session.SessionID = session.ID
 	session.LastSeen = s.now().UTC()
 	return user, session, nil
 }
@@ -288,6 +305,76 @@ func (s *Store) Logout(ctx context.Context, userID, sessionID string) error {
 		return ErrUnauthorized
 	}
 	return nil
+}
+
+func (s *Store) ListSessions(ctx context.Context, userID string) ([]Session, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT id,user_id,display_name,client_type,platform,created_at,expires_at,last_seen_at
+		FROM auth_sessions WHERE user_id=? AND revoked_at IS NULL AND expires_at>? AND last_seen_at>? ORDER BY last_seen_at DESC
+	`, userID, s.now().Format(time.RFC3339Nano), s.now().Add(-30*24*time.Hour).Format(time.RFC3339Nano))
+	if err != nil {
+		return nil, fmt.Errorf("list sessions: %w", err)
+	}
+	defer rows.Close()
+	sessions := make([]Session, 0)
+	for rows.Next() {
+		var session Session
+		var createdAt, expiresAt, lastSeen string
+		if err := rows.Scan(&session.ID, &session.UserID, &session.DisplayName, &session.ClientType, &session.Platform, &createdAt, &expiresAt, &lastSeen); err != nil {
+			return nil, fmt.Errorf("read session: %w", err)
+		}
+		session.SessionID = session.ID
+		if session.CreatedAt, err = parseTime(createdAt); err != nil {
+			return nil, err
+		}
+		if session.ExpiresAt, err = parseTime(expiresAt); err != nil {
+			return nil, err
+		}
+		if session.LastSeen, err = parseTime(lastSeen); err != nil {
+			return nil, err
+		}
+		sessions = append(sessions, session)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate sessions: %w", err)
+	}
+	return sessions, nil
+}
+
+func (s *Store) RenameSession(ctx context.Context, userID, sessionID, displayName string) (Session, error) {
+	displayName = strings.TrimSpace(displayName)
+	if len(displayName) < 1 || len(displayName) > 100 {
+		return Session{}, fmt.Errorf("%w: display name must be between 1 and 100 characters", ErrInvalidInput)
+	}
+	now := s.now().UTC().Format(time.RFC3339Nano)
+	result, err := s.db.ExecContext(ctx, `UPDATE auth_sessions SET display_name=?,last_seen_at=? WHERE user_id=? AND id=? AND revoked_at IS NULL`, displayName, now, userID, sessionID)
+	if err != nil {
+		return Session{}, fmt.Errorf("rename session: %w", err)
+	}
+	count, err := result.RowsAffected()
+	if err != nil {
+		return Session{}, err
+	}
+	if count == 0 {
+		return Session{}, ErrUnauthorized
+	}
+	var session Session
+	var createdAt, expiresAt, lastSeen string
+	err = s.db.QueryRowContext(ctx, `SELECT id,user_id,display_name,client_type,platform,created_at,expires_at,last_seen_at FROM auth_sessions WHERE user_id=? AND id=?`, userID, sessionID).Scan(&session.ID, &session.UserID, &session.DisplayName, &session.ClientType, &session.Platform, &createdAt, &expiresAt, &lastSeen)
+	if err != nil {
+		return Session{}, fmt.Errorf("load renamed session: %w", err)
+	}
+	session.SessionID = session.ID
+	if session.CreatedAt, err = parseTime(createdAt); err != nil {
+		return Session{}, err
+	}
+	if session.ExpiresAt, err = parseTime(expiresAt); err != nil {
+		return Session{}, err
+	}
+	if session.LastSeen, err = parseTime(lastSeen); err != nil {
+		return Session{}, err
+	}
+	return session, nil
 }
 
 func (s *Store) ChangePassword(ctx context.Context, userID string, input PasswordChangeInput) error {
@@ -366,7 +453,7 @@ func (s *Store) createSession(ctx context.Context, user User) (AuthResult, error
 	}
 	now := s.now().UTC()
 	expires := now.Add(s.sessionTTL)
-	_, err = s.db.ExecContext(ctx, `INSERT INTO auth_sessions(id,user_id,token_hash,created_at,expires_at,last_seen_at) VALUES(?,?,?,?,?,?)`, sessionID, user.ID, hashToken(token), now.Format(time.RFC3339Nano), expires.Format(time.RFC3339Nano), now.Format(time.RFC3339Nano))
+	_, err = s.db.ExecContext(ctx, `INSERT INTO auth_sessions(id,user_id,token_hash,display_name,client_type,created_at,expires_at,last_seen_at) VALUES(?,?,?,'Web browser','browser',?,?,?)`, sessionID, user.ID, hashToken(token), now.Format(time.RFC3339Nano), expires.Format(time.RFC3339Nano), now.Format(time.RFC3339Nano))
 	if err != nil {
 		return AuthResult{}, fmt.Errorf("create session: %w", err)
 	}
@@ -426,4 +513,37 @@ func (s *Store) now() time.Time { return s.clock().UTC() }
 
 func isUniqueConstraint(err error) bool {
 	return strings.Contains(strings.ToLower(err.Error()), "unique constraint")
+}
+
+func ensureSessionColumn(ctx context.Context, tx *sql.Tx, name, definition string) error {
+	rows, err := tx.QueryContext(ctx, `PRAGMA table_info(auth_sessions)`)
+	if err != nil {
+		return err
+	}
+	found := false
+	for rows.Next() {
+		var cid int
+		var columnName, columnType string
+		var notNull, primaryKey int
+		var defaultValue any
+		if err := rows.Scan(&cid, &columnName, &columnType, &notNull, &defaultValue, &primaryKey); err != nil {
+			_ = rows.Close()
+			return err
+		}
+		if columnName == name {
+			found = true
+		}
+	}
+	if err := rows.Err(); err != nil {
+		_ = rows.Close()
+		return err
+	}
+	if err := rows.Close(); err != nil {
+		return err
+	}
+	if found {
+		return nil
+	}
+	_, err = tx.ExecContext(ctx, `ALTER TABLE auth_sessions ADD COLUMN `+name+` `+definition)
+	return err
 }
