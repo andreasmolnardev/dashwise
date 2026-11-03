@@ -2,10 +2,14 @@
 package notificationsapi
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"os/exec"
 	"strings"
 	"time"
 
@@ -37,6 +41,11 @@ func New(store *notifications.Store, auth resourceapi.Authenticate) (http.Handle
 	h.mux.HandleFunc("POST /api/v1/notifications/topicTokens", h.createToken)
 	h.mux.HandleFunc("DELETE /api/v1/notifications/topicTokens", h.deleteToken)
 	h.mux.HandleFunc("PUT /api/v1/notifications/topicTokens", h.updateToken)
+	h.mux.HandleFunc("GET /api/v1/notifications/forwarders", h.listForwarders)
+	h.mux.HandleFunc("POST /api/v1/notifications/forwarders", h.createForwarder)
+	h.mux.HandleFunc("PUT /api/v1/notifications/forwarders", h.updateForwarder)
+	h.mux.HandleFunc("DELETE /api/v1/notifications/forwarders", h.deleteForwarder)
+	h.mux.HandleFunc("POST /api/v1/notifications/forwarders/test", h.testForwarder)
 	h.mux.HandleFunc("POST /api/v1/notifications/{topic}", h.publish)
 	return h.mux, nil
 }
@@ -314,6 +323,128 @@ func (h *Handler) updateToken(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	write(w, 200, map[string]any{"success": true})
+}
+
+func (h *Handler) listForwarders(w http.ResponseWriter, r *http.Request) {
+	owner, ok := h.owner(w, r)
+	if !ok {
+		return
+	}
+	items, err := h.store.ListForwarders(r.Context(), owner)
+	if err != nil {
+		h.fail(w, err)
+		return
+	}
+	write(w, 200, map[string]any{"items": items})
+}
+
+func (h *Handler) createForwarder(w http.ResponseWriter, r *http.Request) {
+	owner, ok := h.owner(w, r)
+	if !ok {
+		return
+	}
+	var in struct {
+		Topic    string `json:"topic"`
+		Target   string `json:"target"`
+		IsActive *bool  `json:"isActive"`
+	}
+	if !decode(w, r, &in) {
+		return
+	}
+	active := true
+	if in.IsActive != nil {
+		active = *in.IsActive
+	}
+	item, err := h.store.CreateForwarder(r.Context(), owner, in.Topic, in.Target, active)
+	if err != nil {
+		h.fail(w, err)
+		return
+	}
+	write(w, 200, map[string]any{"item": item})
+}
+
+func (h *Handler) updateForwarder(w http.ResponseWriter, r *http.Request) {
+	owner, ok := h.owner(w, r)
+	if !ok {
+		return
+	}
+	var in struct {
+		ForwarderID string  `json:"forwarderId"`
+		Target      *string `json:"target"`
+		IsActive    *bool   `json:"isActive"`
+	}
+	if !decode(w, r, &in) {
+		return
+	}
+	item, err := h.store.UpdateForwarder(r.Context(), owner, in.ForwarderID, in.Target, in.IsActive)
+	if err != nil {
+		h.fail(w, err)
+		return
+	}
+	write(w, 200, map[string]any{"item": item})
+}
+
+func (h *Handler) deleteForwarder(w http.ResponseWriter, r *http.Request) {
+	owner, ok := h.owner(w, r)
+	if !ok {
+		return
+	}
+	var in struct {
+		ForwarderID string `json:"forwarderId"`
+	}
+	if !decode(w, r, &in) {
+		return
+	}
+	if err := h.store.DeleteForwarder(r.Context(), owner, in.ForwarderID); err != nil {
+		h.fail(w, err)
+		return
+	}
+	write(w, 200, map[string]bool{"success": true})
+}
+
+func (h *Handler) testForwarder(w http.ResponseWriter, r *http.Request) {
+	owner, ok := h.owner(w, r)
+	if !ok {
+		return
+	}
+	var in struct {
+		ForwarderID string `json:"forwarderId"`
+		Target      string `json:"target"`
+	}
+	if !decode(w, r, &in) {
+		return
+	}
+	target := strings.TrimSpace(in.Target)
+	if in.ForwarderID != "" {
+		forwarder, err := h.store.GetForwarder(r.Context(), owner, in.ForwarderID)
+		if err != nil {
+			h.fail(w, err)
+			return
+		}
+		target = forwarder.Target
+	}
+	if err := sendViaShoutrrr(r, target, "This is a test notification from Dashwise."); err != nil {
+		write(w, 502, map[string]string{"error": "notification delivery failed"})
+		return
+	}
+	write(w, 200, map[string]bool{"ok": true})
+}
+
+func sendViaShoutrrr(r *http.Request, target, message string) error {
+	if strings.TrimSpace(target) == "" || len(target) > 4096 {
+		return notifications.ErrInvalid
+	}
+	binary := strings.TrimSpace(os.Getenv("SHOUTRRR_BINARY_PATH"))
+	if binary == "" {
+		binary = "shoutrrr"
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	defer cancel()
+	output, err := exec.CommandContext(ctx, binary, "send", "--url", target, "--message", message).CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("Shoutrrr delivery failed: %w: %s", err, strings.TrimSpace(string(output)))
+	}
+	return nil
 }
 func (h *Handler) fail(w http.ResponseWriter, e error) {
 	if errors.Is(e, notifications.ErrNotFound) {
