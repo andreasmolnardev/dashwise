@@ -18,6 +18,7 @@ import (
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/links"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/linksapi"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/news"
+	"github.com/andreasmolnardev/dashwise/apps/backend/internal/newsapi"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/resourceapi"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/resources"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/viewapi"
@@ -91,6 +92,11 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, err
 		_ = db.Close()
 		return nil, fmt.Errorf("initialize News schema: %w", err)
 	}
+	newsHandler, err := newsapi.New(newsStore, authenticateOwner(authStore), newsapi.Options{})
+	if err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("initialize News API: %w", err)
+	}
 	authHandler, err := authapi.New(authStore)
 	if err != nil {
 		_ = db.Close()
@@ -136,6 +142,8 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, err
 	mux.Handle("/api/v1/views", viewHandler)
 	mux.Handle("/api/v1/views/", viewHandler)
 	mux.Handle("/api/v1/links/", linksHandler)
+	mux.Handle("/api/v1/news", newsHandler)
+	mux.Handle("/api/v1/news/", newsHandler)
 	mux.Handle("/api/", http.NotFoundHandler())
 	mux.Handle("/", frontend(cfg.WebDist))
 
