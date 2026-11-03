@@ -13,6 +13,7 @@ import QRCode from "qrcode";
 import { getFrequentlyUsedShortcutsAction, getHomeLinksAction, logShortcutUsageAction } from '@/lib/apiClient';
 import { getRoutedLinkUrl } from "@/lib/linkRouting";
 import { proxyIntegrationAction, updateShortcutAction } from '@/lib/apiClient';
+import { searchDashwiseResources, type ResourceSearchShortcut } from "@/lib/resourceSearch";
 import SdkShortcutActionDialog, {
   type SdkShortcutActionDefinition,
   type SdkShortcutResource,
@@ -288,6 +289,7 @@ export default function CommandBar(
 
   const [clipboardText, setClipboardText] = React.useState("");
   const [query, setQuery] = React.useState("");
+  const [resourceResults, setResourceResults] = React.useState<ResourceSearchShortcut[]>([]);
   const [filtered, setFiltered] = React.useState<LinkItem[]>(links);
   const [currentAppId, setCurrentAppId] = React.useState<string | null>(null);
   const [highlightIndex, setHighlightIndex] = React.useState(0);
@@ -310,6 +312,24 @@ export default function CommandBar(
     action: SdkShortcutActionDefinition;
   } | null>(null);
   const inputRef = React.useRef<HTMLInputElement | null>(null);
+
+  React.useEffect(() => {
+    const value = query.trim();
+    if (!open || !value || currentAppId || !token) {
+      setResourceResults([]);
+      return;
+    }
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      void searchDashwiseResources({ token }, value)
+        .then((items) => { if (!cancelled) setResourceResults(items); })
+        .catch(() => { if (!cancelled) setResourceResults([]); });
+    }, 180);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [currentAppId, open, query, token]);
 
   // Ref for the scrollable list container
   const listRef = React.useRef<HTMLDivElement | null>(null);
@@ -342,9 +362,24 @@ export default function CommandBar(
   React.useEffect(() => {
     const belongsToApp = (item: LinkItem, appId: string) =>
       item.parentIds?.includes(appId) || item.parentId === appId;
+    const resourceLinks: LinkItem[] = resourceResults.map((item) => ({
+      id: item.id,
+      name: item.name,
+      icon: item.icon,
+      linkGroup: item.secondaryInfo,
+      type: item.type,
+      url: item.url,
+      tags: item.tags,
+      isPinned: item.isPinned,
+      // Resource-backed results use the same normal link navigation action.
+      sourceId: `resource:${item.id}`,
+    }));
+    const searchSource = query.trim() && !currentAppId
+      ? [...links, ...resourceLinks.filter((item) => !links.some((link) => link.id === item.id))]
+      : links;
     const visibleLinks = currentAppId
-      ? links.filter((item) => belongsToApp(item, currentAppId))
-      : links.filter((item) => item.isPinned || (!item.parentId && !item.parentIds?.length));
+      ? searchSource.filter((item) => belongsToApp(item, currentAppId))
+      : searchSource.filter((item) => item.isPinned || (!item.parentId && !item.parentIds?.length));
 
     const q = query.trim().toLowerCase();
     if (!q) {
@@ -417,7 +452,7 @@ export default function CommandBar(
     setFiltered(results);
     setHighlightIndex(0);
     setHasExplicitSelection(false);
-  }, [query, links, currentAppId, frequentlyUsedIds]);
+  }, [query, links, resourceResults, currentAppId, frequentlyUsedIds]);
 
   const normalizedUrl = React.useMemo(() => {
     const trimmedQuery = query.trim();
