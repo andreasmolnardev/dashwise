@@ -33,6 +33,8 @@ type dispatchItem struct {
 	kind   string
 	sock   *jsSocket
 	token  uint64
+	name   string
+	period time.Duration
 	invoke func(ctx context.Context, i *Instance) error
 }
 
@@ -130,6 +132,34 @@ func (i *Instance) runItem(ctx context.Context, item *dispatchItem) error {
 	bounded, cancel := context.WithTimeout(ctx, i.hookLimit)
 	defer cancel()
 	err := item.invoke(bounded, i)
+	// Remove one-shot timers after they fire. Periodic scheduler items stay
+	// registered and are queued again after the callback settles, so a slow
+	// callback cannot overlap with itself.
+	i.itemsMu.Lock()
+	periodicOverflow := false
+	switch item.kind {
+	case "timer":
+		if i.callbackTimers[item.token] == item {
+			delete(i.callbackTimers, item.token)
+		}
+	case "scheduler":
+		if i.schedulerTimers[item.name] == item {
+			if item.period > 0 && !i.stopped {
+				item.due = time.Now().Add(item.period)
+				if len(i.pending) < maxPendingItems {
+					i.pending = append(i.pending, item)
+				} else {
+					periodicOverflow = true
+				}
+			} else {
+				delete(i.schedulerTimers, item.name)
+			}
+		}
+	}
+	i.itemsMu.Unlock()
+	if periodicOverflow {
+		i.log("warn", "dropped periodic runtime callback because the instance pending queue exceeded its bound", map[string]any{"name": item.name})
+	}
 	if err != nil {
 		i.log("warn", "dispatched provider callback failed", map[string]any{"item": item.kind, "error": err.Error()})
 	}

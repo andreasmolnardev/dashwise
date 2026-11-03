@@ -13,8 +13,8 @@ import (
 )
 
 // runtime_bridge.go installs the provider-visible globals (console, timers)
-// and routes the bridge operations that are owned by the runtime instead of
-// the payload host: websocket.connect, logger.*, and scheduler.timeout/cancel.
+// and routes bridge operations owned by the runtime instead of the payload
+// host: websocket.connect, logger.*, and scheduler.every/timeout/cancel.
 // These operations all require event dispatch back into the VM-owning
 // goroutine, which the host bridge alone cannot perform.
 
@@ -101,12 +101,72 @@ func (i *Instance) runtimeCall(operation string, args goja.Value) (goja.Value, b
 		return i.connectWebSocket(args), true
 	case strings.HasPrefix(operation, "logger."):
 		return i.logBridge(operation, args), true
+	case operation == "scheduler.every":
+		return i.scheduleEvery(args), true
 	case operation == "scheduler.timeout":
 		return i.scheduleTimeout(args), true
 	case operation == "scheduler.cancel":
 		return i.cancelScheduled(args), true
 	}
 	return nil, false
+}
+
+// scheduleEvery implements integrations.scheduler.every(name, intervalMs,
+// task). Re-registering a name cancels its prior task. Each callback is
+// re-queued only after it settles, matching the SDK's no-overlap behavior.
+func (i *Instance) scheduleEvery(args goja.Value) goja.Value {
+	rt := i.rt
+	promise, resolve, reject := rt.NewPromise()
+	invalid := func(err error) {
+		_ = reject(rt.NewGoError(err))
+	}
+	argsObject, ok := args.(*goja.Object)
+	if !ok {
+		invalid(errors.New("scheduler.every requires (name, intervalMs, task)"))
+		return rt.ToValue(promise)
+	}
+	name := strings.TrimSpace(argsObject.Get("0").String())
+	if name == "" || len(name) > 256 {
+		invalid(errors.New("scheduler interval name must contain 1 to 256 bytes"))
+		return rt.ToValue(promise)
+	}
+	interval, err := timerDelayMs(argsObject.Get("1"))
+	if err != nil || interval < 100 {
+		invalid(errors.New("scheduled task interval must be a finite number between 100ms and 2147483647ms"))
+		return rt.ToValue(promise)
+	}
+	task, ok := goja.AssertFunction(argsObject.Get("2"))
+	if !ok {
+		invalid(errors.New("scheduler.every requires a task callback"))
+		return rt.ToValue(promise)
+	}
+	i.itemsMu.Lock()
+	if len(i.callbackTimers)+len(i.schedulerTimers) >= maxTimersPerInstance && i.schedulerTimers[name] == nil {
+		i.itemsMu.Unlock()
+		invalid(errors.New("instance has too many pending timers"))
+		return rt.ToValue(promise)
+	}
+	if pending := i.schedulerTimers[name]; pending != nil {
+		i.dropItemLocked(pending)
+		delete(i.schedulerTimers, name)
+	}
+	item := &dispatchItem{
+		due:    time.Now().Add(time.Duration(interval) * time.Millisecond),
+		kind:   "scheduler",
+		name:   name,
+		period: time.Duration(interval) * time.Millisecond,
+		invoke: func(ctx context.Context, instance *Instance) error {
+			signal := instance.rt.NewObject()
+			_ = signal.Set("aborted", instance.stopped)
+			_, err := instance.call(ctx, func() (goja.Value, error) { return task(signal) })
+			return err
+		},
+	}
+	i.schedulerTimers[name] = item
+	i.itemsMu.Unlock()
+	i.queueItem(item)
+	_ = resolve(goja.Undefined())
+	return rt.ToValue(promise)
 }
 
 // scheduleTimeout implements integrations.scheduler.timeout(name, delayMs,
@@ -151,6 +211,7 @@ func (i *Instance) scheduleTimeout(args goja.Value) goja.Value {
 	item := &dispatchItem{
 		due:  time.Now().Add(time.Duration(delay) * time.Millisecond),
 		kind: "scheduler",
+		name: name,
 		invoke: func(ctx context.Context, instance *Instance) error {
 			// The signal object mirrors the SDK AbortSignal shape; the timer
 			// is canceled wholesale once the instance stops.
