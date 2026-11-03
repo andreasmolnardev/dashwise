@@ -2,20 +2,35 @@
 package wallpapersapi
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"image"
+	"image/draw"
+	"image/gif"
+	"image/jpeg"
+	"image/png"
 	"io"
 	"mime"
 	"net/http"
+	"net/url"
 	"path/filepath"
 	"strings"
 
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/resourceapi"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/wallpapers"
+	"github.com/gen2brain/webp"
+	xdraw "golang.org/x/image/draw"
 )
 
 const maxImageBytes = 25 << 20
+
+const (
+	maxWallpaperWidth  = 3840
+	maxWallpaperHeight = 2160
+	maxWallpaperPixels = int64(120_000_000)
+)
 
 type Handler struct {
 	store *wallpapers.Store
@@ -80,6 +95,7 @@ func (h *Handler) upload(w http.ResponseWriter, r *http.Request) {
 	}
 	var filename, contentType string
 	var contents []byte
+	convertWebP := false
 	if strings.Contains(r.Header.Get("Content-Type"), "application/json") {
 		r.Body = http.MaxBytesReader(w, r.Body, ((maxImageBytes+2)/3)*4+1<<20)
 		var body struct {
@@ -99,10 +115,7 @@ func (h *Handler) upload(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, 400, map[string]string{"error": "Invalid contentBase64"})
 			return
 		}
-		if body.ConvertWebP {
-			writeJSON(w, 501, map[string]string{"error": "WebP conversion is not available in this build"})
-			return
-		}
+		convertWebP = body.ConvertWebP
 	} else {
 		r.Body = http.MaxBytesReader(w, r.Body, maxImageBytes+1<<20)
 		if err := r.ParseMultipartForm(maxImageBytes); err != nil {
@@ -125,6 +138,7 @@ func (h *Handler) upload(w http.ResponseWriter, r *http.Request) {
 			filename = header.Filename
 		}
 		contentType = header.Header.Get("Content-Type")
+		convertWebP = r.FormValue("convertToWebp") == "true" || r.FormValue("convertToWebp") == "1"
 	}
 	if len(contents) == 0 || len(contents) > maxImageBytes {
 		writeJSON(w, 413, map[string]string{"error": "Image must be between 1 byte and 25 MB"})
@@ -141,11 +155,96 @@ func (h *Handler) upload(w http.ResponseWriter, r *http.Request) {
 	if filename == "" {
 		filename = "wallpaper" + filepath.Ext("image."+strings.SplitN(mediaType, "/", 2)[1])
 	}
+	filename = filepath.Base(strings.ReplaceAll(filename, "\\", "/"))
+	if filename == "" || filename == "." || filename == "/" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Invalid filename"})
+		return
+	}
+	if convertWebP {
+		filename = strings.TrimSuffix(filename, filepath.Ext(filename)) + ".webp"
+	}
+	contents, contentType, err = prepareWallpaper(contents, contentType, convertWebP)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Could not process image"})
+		return
+	}
+	mediaType, _, err = mime.ParseMediaType(contentType)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Could not determine processed image type"})
+		return
+	}
+	if len(contents) == 0 || len(contents) > maxImageBytes {
+		writeJSON(w, http.StatusRequestEntityTooLarge, map[string]string{"error": "Processed image exceeds 25 MB"})
+		return
+	}
 	if _, err := h.store.Save(r.Context(), owner, filename, mediaType, contents); err != nil {
 		writeJSON(w, 400, map[string]string{"error": err.Error()})
 		return
 	}
-	writeJSON(w, 200, map[string]any{"success": true, "path": "/api/v1/wallpapers?fileName=" + filename})
+	writeJSON(w, 200, map[string]any{"success": true, "path": "/api/v1/wallpapers?fileName=" + url.QueryEscape(filename)})
+}
+
+func prepareWallpaper(contents []byte, contentType string, convertWebP bool) ([]byte, string, error) {
+	config, _, configErr := image.DecodeConfig(bytes.NewReader(contents))
+	if configErr != nil {
+		if convertWebP {
+			return nil, "", configErr
+		}
+		return contents, contentType, nil
+	}
+	if config.Width <= 0 || config.Height <= 0 || int64(config.Width)*int64(config.Height) > maxWallpaperPixels {
+		return nil, "", errors.New("image dimensions exceed processing limit")
+	}
+	needsResize := config.Width > maxWallpaperWidth || config.Height > maxWallpaperHeight
+	if !needsResize && !convertWebP {
+		return contents, contentType, nil
+	}
+	source, format, err := image.Decode(bytes.NewReader(contents))
+	if err != nil {
+		return nil, "", err
+	}
+	if needsResize {
+		size := fitWallpaper(config.Width, config.Height, maxWallpaperWidth, maxWallpaperHeight)
+		resized := image.NewRGBA(image.Rect(0, 0, size.X, size.Y))
+		xdraw.CatmullRom.Scale(resized, resized.Bounds(), source, source.Bounds(), draw.Src, nil)
+		source = resized
+	}
+	var encoded bytes.Buffer
+	if convertWebP {
+		if err := webp.Encode(&encoded, source, webp.Options{Quality: 80}); err != nil {
+			return nil, "", err
+		}
+		return encoded.Bytes(), "image/webp", nil
+	}
+	switch format {
+	case "jpeg":
+		err = jpeg.Encode(&encoded, source, &jpeg.Options{Quality: 80})
+	case "png":
+		err = png.Encode(&encoded, source)
+	case "gif":
+		err = gif.Encode(&encoded, source, nil)
+	case "webp":
+		err = webp.Encode(&encoded, source, webp.Options{Quality: 80})
+	default:
+		return nil, "", errors.New("unsupported image format for resizing")
+	}
+	if err != nil {
+		return nil, "", err
+	}
+	return encoded.Bytes(), contentType, nil
+}
+
+func fitWallpaper(width, height, maxWidth, maxHeight int) image.Point {
+	if width <= maxWidth && height <= maxHeight {
+		return image.Pt(width, height)
+	}
+	widthRatio := float64(maxWidth) / float64(width)
+	heightRatio := float64(maxHeight) / float64(height)
+	ratio := widthRatio
+	if heightRatio < ratio {
+		ratio = heightRatio
+	}
+	return image.Pt(max(1, int(float64(width)*ratio)), max(1, int(float64(height)*ratio)))
 }
 
 func writeJSON(w http.ResponseWriter, status int, value any) {
