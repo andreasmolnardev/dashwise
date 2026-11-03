@@ -76,15 +76,13 @@ if [[ ! -f "$BASE_COMPOSE" ]]; then
 fi
 
 APP_PORT="$(next_free_port 3000)"
-PB_PORT="$(next_free_port 8090)"
 
 sed \
   -e "s/\"[0-9][0-9]*:3000\"/\"${APP_PORT}:3000\"/g" \
-  -e "s/\"[0-9][0-9]*:8090\"/\"${PB_PORT}:8090\"/g" \
   -e "s|NEXT_PUBLIC_APP_URL: .*|NEXT_PUBLIC_APP_URL: http://localhost:${APP_PORT}|g" \
   "$BASE_COMPOSE" > "$TEST_COMPOSE"
 
-printf 'Using Dashwise app port %s and PocketBase port %s\n' "$APP_PORT" "$PB_PORT"
+printf 'Using Dashwise app port %s\n' "$APP_PORT"
 
 if command_exists tmux; then
   if tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
