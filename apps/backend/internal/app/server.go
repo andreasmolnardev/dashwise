@@ -279,7 +279,7 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, err
 		_ = db.Close()
 		return nil, fmt.Errorf("initialize Integrations API: %w", err)
 	}
-	calendarHandler, err := calendarapi.New(integrationsStore, authenticateOwner(authStore))
+	calendarHandler, err := calendarapi.New(integrationsStore, authenticateOwner(authStore), resourceStore)
 	if err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("initialize Calendar API: %w", err)

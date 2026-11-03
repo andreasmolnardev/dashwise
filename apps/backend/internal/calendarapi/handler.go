@@ -11,19 +11,24 @@ import (
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/caldav"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/integrations"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/resourceapi"
+	"github.com/andreasmolnardev/dashwise/apps/backend/internal/resources"
 )
 
 type Handler struct {
-	store *integrations.Store
-	auth  resourceapi.Authenticate
-	mux   *http.ServeMux
+	store     *integrations.Store
+	resources *resources.Store
+	auth      resourceapi.Authenticate
+	mux       *http.ServeMux
 }
 
-func New(store *integrations.Store, authenticate resourceapi.Authenticate) (http.Handler, error) {
+func New(store *integrations.Store, authenticate resourceapi.Authenticate, resourceStores ...*resources.Store) (http.Handler, error) {
 	if store == nil || authenticate == nil {
 		return nil, errors.New("calendar API requires integration storage and authentication")
 	}
 	h := &Handler{store: store, auth: authenticate, mux: http.NewServeMux()}
+	if len(resourceStores) > 0 {
+		h.resources = resourceStores[0]
+	}
 	h.mux.HandleFunc("GET /api/v1/integrations/caldav/calendars", h.calendars)
 	h.mux.HandleFunc("GET /api/v1/integrations/caldav/events", h.events)
 	return h.mux, nil
@@ -93,9 +98,63 @@ func (h *Handler) events(w http.ResponseWriter, r *http.Request) {
 		for i := range events {
 			events[i].ID = item.ID + ":" + events[i].ID
 		}
+		if h.resources != nil {
+			if err := h.syncResources(r, owner, item.ID, events); err != nil {
+				writeError(w, 500, "could not materialize calendar events")
+				return
+			}
+		}
 		allEvents = append(allEvents, events...)
 	}
 	writeJSON(w, 200, map[string]any{"events": allEvents})
+}
+
+func (h *Handler) syncResources(r *http.Request, owner, integrationID string, events []caldav.Event) error {
+	wanted := make(map[string]bool, len(events))
+	for _, event := range events {
+		id := strings.TrimPrefix(event.ID, integrationID+":")
+		wanted[id] = true
+		data := map[string]any{
+			"title":    event.Title,
+			"startAt":  event.Start.UTC().Format("2006-01-02T15:04:05.999999999Z07:00"),
+			"endAt":    event.End.UTC().Format("2006-01-02T15:04:05.999999999Z07:00"),
+			"isAllDay": event.IsAllDay,
+		}
+		if event.Description != "" {
+			data["description"] = event.Description
+		}
+		if event.Location != "" {
+			data["location"] = event.Location
+		}
+		if _, err := h.resources.Upsert(r.Context(), resources.Resource{
+			Type: "calendar.event", Provider: "caldav", ProviderInstanceID: integrationID,
+			ProviderResourceID: id, OwnerID: owner, Data: data,
+			Capabilities: []string{"list", "detail"}, State: "current",
+		}); err != nil {
+			return err
+		}
+	}
+	stale := []resources.Resource{}
+	for offset := 0; ; offset += 200 {
+		page, err := h.resources.Query(r.Context(), resources.Query{OwnerID: owner, Types: []string{"calendar.event"}, Provider: "caldav", InstanceID: integrationID, Limit: 200, Offset: offset})
+		if err != nil {
+			return err
+		}
+		for _, resource := range page.Items {
+			if !wanted[resource.ProviderResourceID] {
+				stale = append(stale, resource)
+			}
+		}
+		if len(page.Items) < page.Limit || offset+len(page.Items) >= page.Total {
+			break
+		}
+	}
+	for _, resource := range stale {
+		if err := h.resources.Delete(r.Context(), owner, resource.ID); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (h *Handler) owner(w http.ResponseWriter, r *http.Request) (string, bool) {
