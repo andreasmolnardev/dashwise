@@ -12,21 +12,24 @@ import (
 
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/links"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/resourceapi"
+	"github.com/andreasmolnardev/dashwise/apps/backend/internal/resources"
+	"github.com/andreasmolnardev/dashwise/apps/backend/internal/resourcesync"
 )
 
 const maxBodyBytes = 1 << 20
 
 type Handler struct {
-	store *links.Store
-	auth  resourceapi.Authenticate
-	mux   *http.ServeMux
+	store     *links.Store
+	auth      resourceapi.Authenticate
+	resources *resources.Store
+	mux       *http.ServeMux
 }
 
-func New(store *links.Store, authenticate resourceapi.Authenticate) (http.Handler, error) {
-	if store == nil || authenticate == nil {
-		return nil, errors.New("links API requires a store and authenticator")
+func New(store *links.Store, authenticate resourceapi.Authenticate, resourceStore *resources.Store) (http.Handler, error) {
+	if store == nil || authenticate == nil || resourceStore == nil {
+		return nil, errors.New("links API requires a store, resource store, and authenticator")
 	}
-	h := &Handler{store: store, auth: authenticate, mux: http.NewServeMux()}
+	h := &Handler{store: store, auth: authenticate, resources: resourceStore, mux: http.NewServeMux()}
 	h.mux.HandleFunc("GET /api/v1/links/collections", h.listCollections)
 	h.mux.HandleFunc("POST /api/v1/links/collections", h.createCollection)
 	h.mux.HandleFunc("PUT /api/v1/links/collections/{collectionId}", h.updateCollection)
@@ -68,6 +71,9 @@ func (h *Handler) deleteDevelopmentUserLinks(w http.ResponseWriter, r *http.Requ
 		h.fail(w, err)
 		return
 	}
+	if !h.syncResources(w, r, owner) {
+		return
+	}
 	writeJSON(w, http.StatusOK, counts)
 }
 
@@ -102,6 +108,9 @@ func (h *Handler) createCollection(w http.ResponseWriter, r *http.Request) {
 		h.fail(w, err)
 		return
 	}
+	if !h.syncResources(w, r, owner) {
+		return
+	}
 	writeJSON(w, http.StatusOK, item)
 }
 
@@ -126,6 +135,9 @@ func (h *Handler) updateCollection(w http.ResponseWriter, r *http.Request) {
 		h.fail(w, err)
 		return
 	}
+	if !h.syncResources(w, r, owner) {
+		return
+	}
 	writeJSON(w, http.StatusOK, map[string]any{"id": item.ID, "name": item.Name, "description": item.Description, "type": item.Type})
 }
 
@@ -136,6 +148,9 @@ func (h *Handler) deleteCollection(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := h.store.DeleteCollection(r.Context(), owner, r.PathValue("collectionId")); err != nil {
 		h.fail(w, err)
+		return
+	}
+	if !h.syncResources(w, r, owner) {
 		return
 	}
 	writeJSON(w, http.StatusOK, nil)
@@ -216,6 +231,9 @@ func (h *Handler) deleteGroup(w http.ResponseWriter, r *http.Request) {
 	result, err := h.deleteGroupTree(r.Context(), owner, name)
 	if err != nil {
 		h.fail(w, err)
+		return
+	}
+	if !h.syncResources(w, r, owner) {
 		return
 	}
 	writeJSON(w, http.StatusOK, result)
@@ -495,6 +513,9 @@ func (h *Handler) createItem(w http.ResponseWriter, r *http.Request) {
 		h.fail(w, err)
 		return
 	}
+	if !h.syncResources(w, r, owner) {
+		return
+	}
 	writeJSON(w, http.StatusOK, item)
 }
 
@@ -604,6 +625,9 @@ func (h *Handler) updateItem(w http.ResponseWriter, r *http.Request) {
 		h.fail(w, err)
 		return
 	}
+	if !h.syncResources(w, r, owner) {
+		return
+	}
 	writeJSON(w, http.StatusOK, nil)
 }
 
@@ -614,6 +638,9 @@ func (h *Handler) deleteItem(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := h.store.DeleteItem(r.Context(), owner, r.PathValue("linkId")); err != nil {
 		h.fail(w, err)
+		return
+	}
+	if !h.syncResources(w, r, owner) {
 		return
 	}
 	writeJSON(w, http.StatusOK, nil)
@@ -640,6 +667,9 @@ func (h *Handler) reorder(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := h.store.Reorder(r.Context(), owner, items); err != nil {
 		h.fail(w, err)
+		return
+	}
+	if !h.syncResources(w, r, owner) {
 		return
 	}
 	writeJSON(w, http.StatusOK, nil)
@@ -696,6 +726,9 @@ func (h *Handler) updateTag(w http.ResponseWriter, r *http.Request) {
 		h.fail(w, err)
 		return
 	}
+	if !h.syncResources(w, r, owner) {
+		return
+	}
 	writeJSON(w, http.StatusOK, item)
 }
 
@@ -707,6 +740,15 @@ func (h *Handler) owner(w http.ResponseWriter, r *http.Request) (string, bool) {
 	}
 	return owner, true
 }
+
+func (h *Handler) syncResources(w http.ResponseWriter, r *http.Request, owner string) bool {
+	if err := resourcesync.SyncLinksOwner(r.Context(), owner, h.store, h.resources); err != nil {
+		h.fail(w, err)
+		return false
+	}
+	return true
+}
+
 func (h *Handler) decode(w http.ResponseWriter, r *http.Request, dst any) bool {
 	r.Body = http.MaxBytesReader(w, r.Body, maxBodyBytes)
 	dec := json.NewDecoder(r.Body)

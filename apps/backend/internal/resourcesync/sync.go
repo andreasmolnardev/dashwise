@@ -38,6 +38,16 @@ func SyncOwner(ctx context.Context, owner string, linkStore *links.Store, monito
 	return nil
 }
 
+// SyncLinksOwner refreshes one owner's link resources immediately after a
+// Links domain mutation. The periodic owner sync remains as recovery for
+// mutations performed outside the HTTP API.
+func SyncLinksOwner(ctx context.Context, owner string, linkStore *links.Store, resourceStore *resources.Store) error {
+	if strings.TrimSpace(owner) == "" || linkStore == nil || resourceStore == nil {
+		return fmt.Errorf("link resource sync requires an owner, links store, and resource store")
+	}
+	return syncLinks(ctx, owner, linkStore, resourceStore)
+}
+
 // SyncMonitoringOwner refreshes only monitoring resources after a monitoring
 // domain mutation. The periodic owner sync remains responsible for all native
 // resource types.
@@ -69,6 +79,7 @@ func syncLinks(ctx context.Context, owner string, source *links.Store, target *r
 				"description":  item.Description,
 				"collectionId": item.Collection,
 				"favorite":     item.Favorite,
+				"position":     item.Position,
 				"createdAt":    item.Created.UTC().Format("2006-01-02T15:04:05.999999999Z07:00"),
 			}
 			if collectionNames[item.Collection] != "" {
