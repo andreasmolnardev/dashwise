@@ -21,7 +21,10 @@ var (
 	ErrInvalid  = errors.New("invalid link input")
 )
 
-type Store struct{ db *sql.DB }
+type Store struct {
+	db         *sql.DB
+	foundation *foundation.DB
+}
 
 type Collection struct {
 	ID          string    `json:"id"`
@@ -132,53 +135,57 @@ func New(db *foundation.DB) (*Store, error) {
 	if db == nil || db.SQL() == nil {
 		return nil, errors.New("links store requires an open database")
 	}
-	return &Store{db: db.SQL()}, nil
+	return &Store{db: db.SQL(), foundation: db}, nil
 }
 
 // Initialize installs the Links-owned schema and can safely be called on every startup.
 func (s *Store) Initialize(ctx context.Context) error {
-	statements := []string{
-		`CREATE TABLE IF NOT EXISTS links_collections (
+	return s.foundation.ApplyMigrations(ctx, []foundation.Migration{{
+		ID: "0010_links_domain", Name: "create owner-scoped Links tables",
+		Up: func(ctx context.Context, tx *sql.Tx) error {
+			statements := []string{
+				`CREATE TABLE IF NOT EXISTS links_collections (
 			id TEXT PRIMARY KEY NOT NULL, owner_id TEXT NOT NULL,
 			name TEXT NOT NULL, description TEXT NOT NULL DEFAULT '', icon TEXT NOT NULL DEFAULT '',
 			type TEXT NOT NULL CHECK(type IN ('home','user-defined','system')),
 			created_at TEXT NOT NULL, updated_at TEXT NOT NULL
 		)`,
-		`CREATE UNIQUE INDEX IF NOT EXISTS links_home_collection_per_owner ON links_collections(owner_id) WHERE type='home'`,
-		`CREATE INDEX IF NOT EXISTS links_collections_by_owner ON links_collections(owner_id,type,created_at DESC)`,
-		`CREATE TABLE IF NOT EXISTS links_folders (
+				`CREATE UNIQUE INDEX IF NOT EXISTS links_home_collection_per_owner ON links_collections(owner_id) WHERE type='home'`,
+				`CREATE INDEX IF NOT EXISTS links_collections_by_owner ON links_collections(owner_id,type,created_at DESC)`,
+				`CREATE TABLE IF NOT EXISTS links_folders (
 			id TEXT PRIMARY KEY NOT NULL, owner_id TEXT NOT NULL, list_id TEXT NOT NULL REFERENCES links_collections(id) ON DELETE CASCADE,
 			name TEXT NOT NULL, icon TEXT NOT NULL DEFAULT '', parent_folder_id TEXT NOT NULL DEFAULT '',
 			position INTEGER NOT NULL DEFAULT 0, tags_json TEXT NOT NULL DEFAULT '[]',
 			created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
 			UNIQUE(list_id,parent_folder_id,name COLLATE NOCASE)
 		)`,
-		`CREATE INDEX IF NOT EXISTS links_folders_by_list ON links_folders(owner_id,list_id,parent_folder_id,position,name)`,
-		`CREATE TABLE IF NOT EXISTS links_tags (
+				`CREATE INDEX IF NOT EXISTS links_folders_by_list ON links_folders(owner_id,list_id,parent_folder_id,position,name)`,
+				`CREATE TABLE IF NOT EXISTS links_tags (
 			id TEXT PRIMARY KEY NOT NULL, owner_id TEXT NOT NULL, name TEXT NOT NULL, color TEXT NOT NULL DEFAULT '',
 			created_at TEXT NOT NULL, updated_at TEXT NOT NULL, UNIQUE(owner_id,name COLLATE NOCASE)
 		)`,
-		`CREATE TABLE IF NOT EXISTS link_items (
+				`CREATE TABLE IF NOT EXISTS link_items (
 			id TEXT PRIMARY KEY NOT NULL, owner_id TEXT NOT NULL, list_id TEXT NOT NULL REFERENCES links_collections(id) ON DELETE CASCADE,
 			url TEXT NOT NULL, title TEXT NOT NULL, icon_url TEXT NOT NULL DEFAULT '', description TEXT NOT NULL DEFAULT '',
 			folder_id TEXT NOT NULL DEFAULT '', position INTEGER NOT NULL DEFAULT 0, favorite INTEGER NOT NULL DEFAULT 0,
 			tags_json TEXT NOT NULL DEFAULT '[]', secondary_urls_json TEXT NOT NULL DEFAULT '[]',
 			created_at TEXT NOT NULL, updated_at TEXT NOT NULL
 		)`,
-		`CREATE INDEX IF NOT EXISTS link_items_by_collection ON link_items(owner_id,list_id,folder_id,position,title COLLATE NOCASE)`,
-		`CREATE INDEX IF NOT EXISTS link_items_by_owner_title ON link_items(owner_id,title COLLATE NOCASE)`,
-	}
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("begin links schema: %w", err)
-	}
-	defer func() { _ = tx.Rollback() }()
-	for _, stmt := range statements {
-		if _, err := tx.ExecContext(ctx, stmt); err != nil {
-			return fmt.Errorf("initialize links schema: %w", err)
-		}
-	}
-	return tx.Commit()
+				`CREATE INDEX IF NOT EXISTS link_items_by_collection ON link_items(owner_id,list_id,folder_id,position,title COLLATE NOCASE)`,
+				`CREATE INDEX IF NOT EXISTS link_items_by_owner_title ON link_items(owner_id,title COLLATE NOCASE)`,
+			}
+			for _, stmt := range statements {
+				if _, err := tx.ExecContext(ctx, stmt); err != nil {
+					return fmt.Errorf("initialize links schema: %w", err)
+				}
+			}
+			return nil
+		},
+		Down: func(ctx context.Context, tx *sql.Tx) error {
+			_, err := tx.ExecContext(ctx, `DROP TABLE IF EXISTS link_items; DROP TABLE IF EXISTS links_folders; DROP TABLE IF EXISTS links_tags; DROP TABLE IF EXISTS links_collections;`)
+			return err
+		},
+	}})
 }
 
 func (s *Store) HomeCollection(ctx context.Context, ownerID string) (Collection, error) {

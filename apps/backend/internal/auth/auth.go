@@ -91,6 +91,7 @@ type PasswordChangeInput struct {
 
 type Store struct {
 	db            *sql.DB
+	foundation    *foundation.DB
 	disableSignup bool
 	sessionTTL    time.Duration
 	passwordCost  int
@@ -114,7 +115,7 @@ func NewStore(db *foundation.DB, options Options) (*Store, error) {
 		options.Clock = time.Now
 	}
 	return &Store{
-		db: db.SQL(), disableSignup: options.DisableSignup,
+		db: db.SQL(), foundation: db, disableSignup: options.DisableSignup,
 		sessionTTL: options.SessionTTL, passwordCost: options.PasswordCost,
 		clock: options.Clock,
 	}, nil
@@ -123,8 +124,11 @@ func NewStore(db *foundation.DB, options Options) (*Store, error) {
 // Initialize installs the auth-owned schema. It is idempotent and is separate
 // from the application migration table so domains can own their tables.
 func (s *Store) Initialize(ctx context.Context) error {
-	statements := []string{
-		`
+	return s.foundation.ApplyMigrations(ctx, []foundation.Migration{{
+		ID: "0002_auth_schema", Name: "create authentication and user preference tables",
+		Up: func(ctx context.Context, tx *sql.Tx) error {
+			statements := []string{
+				`
 		CREATE TABLE IF NOT EXISTS auth_users (
 			id TEXT PRIMARY KEY NOT NULL,
 			email TEXT NOT NULL COLLATE NOCASE UNIQUE,
@@ -133,7 +137,7 @@ func (s *Store) Initialize(ctx context.Context) error {
 			created_at TEXT NOT NULL,
 			updated_at TEXT NOT NULL
 		);`,
-		`
+				`
 		CREATE TABLE IF NOT EXISTS auth_sessions (
 			id TEXT PRIMARY KEY NOT NULL,
 			user_id TEXT NOT NULL REFERENCES auth_users(id) ON DELETE CASCADE,
@@ -146,39 +150,37 @@ func (s *Store) Initialize(ctx context.Context) error {
 			last_seen_at TEXT NOT NULL,
 			revoked_at TEXT
 		);`,
-		`CREATE INDEX IF NOT EXISTS auth_sessions_by_user ON auth_sessions(user_id, created_at DESC)`,
-		`CREATE INDEX IF NOT EXISTS auth_sessions_by_expiry ON auth_sessions(expires_at)`,
-		`CREATE TABLE IF NOT EXISTS auth_user_properties (
+				`CREATE INDEX IF NOT EXISTS auth_sessions_by_user ON auth_sessions(user_id, created_at DESC)`,
+				`CREATE INDEX IF NOT EXISTS auth_sessions_by_expiry ON auth_sessions(expires_at)`,
+				`CREATE TABLE IF NOT EXISTS auth_user_properties (
 			user_id TEXT NOT NULL REFERENCES auth_users(id) ON DELETE CASCADE,
 			property_name TEXT NOT NULL,
 			property_json TEXT NOT NULL,
 			updated_at TEXT NOT NULL,
 			PRIMARY KEY(user_id, property_name)
 		)`,
-	}
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("begin authentication schema initialization: %w", err)
-	}
-	defer func() { _ = tx.Rollback() }()
-	for _, statement := range statements {
-		if _, err := tx.ExecContext(ctx, statement); err != nil {
-			return fmt.Errorf("initialize authentication schema: %w", err)
-		}
-	}
-	for _, column := range []struct{ name, definition string }{
-		{name: "display_name", definition: "TEXT NOT NULL DEFAULT 'Web browser'"},
-		{name: "client_type", definition: "TEXT NOT NULL DEFAULT 'browser'"},
-		{name: "platform", definition: "TEXT NOT NULL DEFAULT ''"},
-	} {
-		if err := ensureSessionColumn(ctx, tx, column.name, column.definition); err != nil {
-			return fmt.Errorf("migrate authentication session column %q: %w", column.name, err)
-		}
-	}
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("commit authentication schema initialization: %w", err)
-	}
-	return nil
+			}
+			for _, statement := range statements {
+				if _, err := tx.ExecContext(ctx, statement); err != nil {
+					return fmt.Errorf("initialize authentication schema: %w", err)
+				}
+			}
+			for _, column := range []struct{ name, definition string }{
+				{name: "display_name", definition: "TEXT NOT NULL DEFAULT 'Web browser'"},
+				{name: "client_type", definition: "TEXT NOT NULL DEFAULT 'browser'"},
+				{name: "platform", definition: "TEXT NOT NULL DEFAULT ''"},
+			} {
+				if err := ensureSessionColumn(ctx, tx, column.name, column.definition); err != nil {
+					return fmt.Errorf("migrate authentication session column %q: %w", column.name, err)
+				}
+			}
+			return nil
+		},
+		Down: func(ctx context.Context, tx *sql.Tx) error {
+			_, err := tx.ExecContext(ctx, `DROP TABLE IF EXISTS auth_user_properties; DROP TABLE IF EXISTS auth_sessions; DROP TABLE IF EXISTS auth_users;`)
+			return err
+		},
+	}})
 }
 
 func (s *Store) Signup(ctx context.Context, input SignupInput) (AuthResult, error) {

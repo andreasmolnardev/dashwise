@@ -20,21 +20,25 @@ var (
 )
 
 type Store struct {
-	db    *sql.DB
-	clock func() time.Time
+	db         *sql.DB
+	foundation *foundation.DB
+	clock      func() time.Time
 }
 
 func NewStore(db *foundation.DB) (*Store, error) {
 	if db == nil || db.SQL() == nil {
 		return nil, errors.New("news store requires an open database")
 	}
-	return &Store{db: db.SQL(), clock: time.Now}, nil
+	return &Store{db: db.SQL(), foundation: db, clock: time.Now}, nil
 }
 
 // Initialize creates the News-owned schema. The operation is safe to repeat.
 func (s *Store) Initialize(ctx context.Context) error {
-	statements := []string{
-		`CREATE TABLE IF NOT EXISTS news_subscriptions (
+	return s.foundation.ApplyMigrations(ctx, []foundation.Migration{{
+		ID: "0011_news_domain", Name: "create News subscriptions and materialized article tables",
+		Up: func(ctx context.Context, tx *sql.Tx) error {
+			statements := []string{
+				`CREATE TABLE IF NOT EXISTS news_subscriptions (
 			id TEXT PRIMARY KEY NOT NULL,
 			owner_id TEXT NOT NULL,
 			url TEXT NOT NULL,
@@ -48,8 +52,8 @@ func (s *Store) Initialize(ctx context.Context) error {
 			updated_at TEXT NOT NULL,
 			UNIQUE(owner_id, url)
 		)`,
-		`CREATE INDEX IF NOT EXISTS news_subscriptions_by_owner ON news_subscriptions(owner_id, title COLLATE NOCASE)`,
-		`CREATE TABLE IF NOT EXISTS news_feeds (
+				`CREATE INDEX IF NOT EXISTS news_subscriptions_by_owner ON news_subscriptions(owner_id, title COLLATE NOCASE)`,
+				`CREATE TABLE IF NOT EXISTS news_feeds (
 			id TEXT PRIMARY KEY NOT NULL,
 			owner_id TEXT NOT NULL,
 			title TEXT NOT NULL,
@@ -60,28 +64,28 @@ func (s *Store) Initialize(ctx context.Context) error {
 			created_at TEXT NOT NULL,
 			updated_at TEXT NOT NULL
 		)`,
-		`CREATE INDEX IF NOT EXISTS news_feeds_by_owner ON news_feeds(owner_id, title COLLATE NOCASE)`,
-		`CREATE UNIQUE INDEX IF NOT EXISTS news_feeds_by_system_key ON news_feeds(owner_id, system_key) WHERE system_key <> ''`,
-		`CREATE TABLE IF NOT EXISTS news_feed_subscriptions (
+				`CREATE INDEX IF NOT EXISTS news_feeds_by_owner ON news_feeds(owner_id, title COLLATE NOCASE)`,
+				`CREATE UNIQUE INDEX IF NOT EXISTS news_feeds_by_system_key ON news_feeds(owner_id, system_key) WHERE system_key <> ''`,
+				`CREATE TABLE IF NOT EXISTS news_feed_subscriptions (
 			owner_id TEXT NOT NULL,
 			feed_id TEXT NOT NULL REFERENCES news_feeds(id) ON DELETE CASCADE,
 			subscription_id TEXT NOT NULL REFERENCES news_subscriptions(id) ON DELETE CASCADE,
 			PRIMARY KEY(feed_id, subscription_id)
 		)`,
-		`CREATE TABLE IF NOT EXISTS news_feed_includes (
+				`CREATE TABLE IF NOT EXISTS news_feed_includes (
 			owner_id TEXT NOT NULL,
 			feed_id TEXT NOT NULL REFERENCES news_feeds(id) ON DELETE CASCADE,
 			included_feed_id TEXT NOT NULL REFERENCES news_feeds(id) ON DELETE CASCADE,
 			PRIMARY KEY(feed_id, included_feed_id),
 			CHECK(feed_id <> included_feed_id)
 		)`,
-		`CREATE TABLE IF NOT EXISTS news_feed_exclusions (
+				`CREATE TABLE IF NOT EXISTS news_feed_exclusions (
 			owner_id TEXT NOT NULL,
 			feed_id TEXT NOT NULL REFERENCES news_feeds(id) ON DELETE CASCADE,
 			subscription_id TEXT NOT NULL REFERENCES news_subscriptions(id) ON DELETE CASCADE,
 			PRIMARY KEY(feed_id, subscription_id)
 		)`,
-		`CREATE TABLE IF NOT EXISTS news_articles (
+				`CREATE TABLE IF NOT EXISTS news_articles (
 			id TEXT PRIMARY KEY NOT NULL,
 			owner_id TEXT NOT NULL,
 			dedupe_key TEXT NOT NULL,
@@ -94,16 +98,16 @@ func (s *Store) Initialize(ctx context.Context) error {
 			updated_at TEXT NOT NULL,
 			UNIQUE(owner_id, dedupe_key)
 		)`,
-		`CREATE INDEX IF NOT EXISTS news_articles_by_published ON news_articles(owner_id, published_at DESC, id)`,
-		`CREATE INDEX IF NOT EXISTS news_articles_by_canonical_url ON news_articles(owner_id, canonical_url)`,
-		`CREATE TABLE IF NOT EXISTS news_article_sources (
+				`CREATE INDEX IF NOT EXISTS news_articles_by_published ON news_articles(owner_id, published_at DESC, id)`,
+				`CREATE INDEX IF NOT EXISTS news_articles_by_canonical_url ON news_articles(owner_id, canonical_url)`,
+				`CREATE TABLE IF NOT EXISTS news_article_sources (
 			article_id TEXT NOT NULL REFERENCES news_articles(id) ON DELETE CASCADE,
 			subscription_id TEXT NOT NULL REFERENCES news_subscriptions(id) ON DELETE CASCADE,
 			last_seen_at TEXT NOT NULL,
 			PRIMARY KEY(article_id, subscription_id)
 		)`,
-		`CREATE INDEX IF NOT EXISTS news_article_sources_by_subscription ON news_article_sources(subscription_id, last_seen_at DESC)`,
-		`CREATE TABLE IF NOT EXISTS news_saved_lists (
+				`CREATE INDEX IF NOT EXISTS news_article_sources_by_subscription ON news_article_sources(subscription_id, last_seen_at DESC)`,
+				`CREATE TABLE IF NOT EXISTS news_saved_lists (
 			id TEXT PRIMARY KEY NOT NULL,
 			owner_id TEXT NOT NULL,
 			name TEXT NOT NULL,
@@ -111,15 +115,15 @@ func (s *Store) Initialize(ctx context.Context) error {
 			updated_at TEXT NOT NULL,
 			UNIQUE(owner_id, name COLLATE NOCASE)
 		)`,
-		`CREATE TABLE IF NOT EXISTS news_saved_list_items (
+				`CREATE TABLE IF NOT EXISTS news_saved_list_items (
 			owner_id TEXT NOT NULL,
 			list_id TEXT NOT NULL REFERENCES news_saved_lists(id) ON DELETE CASCADE,
 			article_id TEXT NOT NULL REFERENCES news_articles(id) ON DELETE CASCADE,
 			created_at TEXT NOT NULL,
 			PRIMARY KEY(list_id, article_id)
 		)`,
-		`CREATE INDEX IF NOT EXISTS news_saved_list_items_by_owner ON news_saved_list_items(owner_id, created_at DESC)`,
-		`CREATE TABLE IF NOT EXISTS news_article_user_state (
+				`CREATE INDEX IF NOT EXISTS news_saved_list_items_by_owner ON news_saved_list_items(owner_id, created_at DESC)`,
+				`CREATE TABLE IF NOT EXISTS news_article_user_state (
 			owner_id TEXT NOT NULL,
 			article_id TEXT NOT NULL REFERENCES news_articles(id) ON DELETE CASCADE,
 			is_read INTEGER NOT NULL DEFAULT 0,
@@ -127,26 +131,24 @@ func (s *Store) Initialize(ctx context.Context) error {
 			updated_at TEXT NOT NULL,
 			PRIMARY KEY(owner_id, article_id)
 		)`,
-		`CREATE TABLE IF NOT EXISTS news_preferences (
+				`CREATE TABLE IF NOT EXISTS news_preferences (
 			owner_id TEXT PRIMARY KEY NOT NULL,
 			default_list_id TEXT NOT NULL DEFAULT '',
 			updated_at TEXT NOT NULL
 		)`,
-	}
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("begin news schema initialization: %w", err)
-	}
-	defer func() { _ = tx.Rollback() }()
-	for _, statement := range statements {
-		if _, err := tx.ExecContext(ctx, statement); err != nil {
-			return fmt.Errorf("initialize news schema: %w", err)
-		}
-	}
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("commit news schema initialization: %w", err)
-	}
-	return nil
+			}
+			for _, statement := range statements {
+				if _, err := tx.ExecContext(ctx, statement); err != nil {
+					return fmt.Errorf("initialize news schema: %w", err)
+				}
+			}
+			return nil
+		},
+		Down: func(ctx context.Context, tx *sql.Tx) error {
+			_, err := tx.ExecContext(ctx, `DROP TABLE IF EXISTS news_preferences; DROP TABLE IF EXISTS news_article_user_state; DROP TABLE IF EXISTS news_saved_list_items; DROP TABLE IF EXISTS news_saved_lists; DROP TABLE IF EXISTS news_article_sources; DROP TABLE IF EXISTS news_articles; DROP TABLE IF EXISTS news_feed_exclusions; DROP TABLE IF EXISTS news_feed_includes; DROP TABLE IF EXISTS news_feed_subscriptions; DROP TABLE IF EXISTS news_feeds; DROP TABLE IF EXISTS news_subscriptions;`)
+			return err
+		},
+	}})
 }
 
 func (s *Store) CreateSubscription(ctx context.Context, ownerID string, input SubscriptionInput) (Subscription, error) {
