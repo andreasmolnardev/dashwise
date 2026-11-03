@@ -234,7 +234,7 @@ configuration:
                     if(desc contains 'snow', 'Cold with possible snowfall.',
                       if(tomorrow_temp > today_temp, 'Warming trend tomorrow.',
                         if(tomorrow_temp < today_temp, 'Cooler weather on the way.',
-                          'Mild and stable weather ahead.']))))))
+                          'Mild and stable weather ahead.')))))))
           inputs:
             rain_message: "computed.weather.rain_message"
             desc: "computed.weather.description"
