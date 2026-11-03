@@ -2,7 +2,7 @@
 
 ## Goal
 
-Reshape Dashwise around a reusable, embeddable application data platform. Applications and integrations provide data; everything that displays or consumes it is a view. The platform supplies schema-as-code, migrations, identity and authorization context, typed queries and mutations, and live subscriptions.
+Migrate the full capabilities of Dashwise to a reusable, embeddable application data platform. Applications and integrations provide data; everything that displays or consumes it is a view. The platform supplies schema-as-code, migrations, identity and authorization context, typed queries and mutations, and live subscriptions. The migration target is feature parity across the current app, integrations, settings, clients, and operational flows; vertical slices validate the architecture and do not reduce that target.
 
 This plan assumes a Go backend, a React frontend, and a separately packaged Go data platform. It does not assume a new storage engine: SQLite is the initial durable backend. The TypeScript integration SDK remains supported through a defined runtime boundary. Production account/data transfer from the current `dashwise-fat` app to `godashwise` is intentionally a late phase, after the new application model and import target have settled.
 
@@ -69,9 +69,10 @@ Keep one Go module for `packages/data-platform` and one for `apps/backend`; do n
 - Map current PocketBase collections, auth/session behavior, API routes, scheduled jobs, integrations, websocket events, backups, and media storage to the target domains.
 - Record which data is user-owned, integration-owned, derived/cache-only, append-only, or expiring.
 - Document compatibility requirements for current frontend clients, YAML integrations, SDK integrations, and Frame Companion.
-- Define the first release boundary: single-node, embedded SQLite, one Dashwise backend process.
+- Define the initial deployment boundary: single-node, embedded SQLite, one Dashwise backend process, while retaining the full current capability set as the migration target.
+- Build a feature-parity inventory covering every current app surface, user flow, integration capability, API/client, scheduled job, notification path, backup/restore flow, and admin operation. Track each as migrated, intentionally redesigned with equivalent capability, or explicitly retired with a product decision.
 
-**Exit:** a migration inventory and data ownership/retention map exist; no records are assigned to a generic resource store by default.
+**Exit:** a full feature-parity inventory and data ownership/retention map exist; no records are assigned to a generic resource store by default, and no current capability is silently dropped.
 
 ### 1. Freeze portable contracts
 
@@ -114,7 +115,7 @@ Migrate domains in increasing complexity, keeping existing URLs or redirects whe
 3. **Monitoring:** host resources, current state, high-volume metric history, live subscriptions, and alert actions. Keep time-series storage separate if resource snapshots do not meet query/retention needs.
 4. **Notifications and Activities:** implement separate lifecycle and storage contracts; verify expiry/read/delivery behavior for notifications and append-only behavior for Activities.
 
-Each slice should be usable end-to-end from the new frontend client before the old path is retired.
+These are implementation slices, not a reduced MVP scope. Continue through every item in the feature-parity inventory, including onboarding, all settings, all integration surfaces and lifecycles, Frame Companion/device flows, media, backups, administration, and deployment behavior. Each slice should be usable end-to-end from the new frontend client before its old path is retired; do not declare the migration complete until the full inventory is covered or a capability has an explicit replacement/retirement decision.
 
 ### 5. Convert the frontend to views
 
@@ -158,7 +159,7 @@ The architecture is specific enough to start discovery and contract work. These 
 2. **Query boundary:** whether v1 allows only declarative ViewSpec queries or also registered Go query functions. Recommended: both, with browser clients limited to registered functions/ViewSpecs.
 3. **Integration execution:** separate Bun host versus retaining a temporary TypeScript backend runtime. Recommended: local versioned protocol, so Go never embeds a second language runtime as a core dependency.
 4. **Data migration and rollback (late-stage):** export bundle format, downtime window, and whether dual-write is required. Recommended: versioned export/import with dry-run validation and a bounded read-only cutover rather than indefinite dual-write.
-5. **First release scope:** which app areas ship in the first usable migration. Recommended: Links plus News; then Monitoring, Activities, and Notifications.
+5. **Migration order:** which capability slices are implemented first for dependency and risk reasons. Recommended order is Links, News, Monitoring, then Activities and Notifications, while keeping full feature parity as the completion bar.
 6. **Platform release promise:** internal reusable module first, or public stable API immediately. Recommended: prove it in Dashwise before promising long-term compatibility to external users.
 
 ## Main risks and controls
