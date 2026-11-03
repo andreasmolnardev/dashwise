@@ -9,6 +9,7 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/mail"
@@ -40,11 +41,20 @@ type Options struct {
 }
 
 type User struct {
-	ID        string    `json:"id"`
-	Email     string    `json:"email"`
-	Name      string    `json:"name"`
-	CreatedAt time.Time `json:"createdAt"`
-	UpdatedAt time.Time `json:"updatedAt"`
+	ID         string         `json:"id"`
+	Email      string         `json:"email"`
+	Name       string         `json:"name"`
+	CreatedAt  time.Time      `json:"createdAt"`
+	UpdatedAt  time.Time      `json:"updatedAt"`
+	Properties map[string]any `json:"-"`
+}
+
+func (u User) MarshalJSON() ([]byte, error) {
+	record := map[string]any{"id": u.ID, "email": u.Email, "name": u.Name, "createdAt": u.CreatedAt, "updatedAt": u.UpdatedAt}
+	for name, value := range u.Properties {
+		record[name] = value
+	}
+	return json.Marshal(record)
 }
 
 type Session struct {
@@ -138,6 +148,13 @@ func (s *Store) Initialize(ctx context.Context) error {
 		);`,
 		`CREATE INDEX IF NOT EXISTS auth_sessions_by_user ON auth_sessions(user_id, created_at DESC)`,
 		`CREATE INDEX IF NOT EXISTS auth_sessions_by_expiry ON auth_sessions(expires_at)`,
+		`CREATE TABLE IF NOT EXISTS auth_user_properties (
+			user_id TEXT NOT NULL REFERENCES auth_users(id) ON DELETE CASCADE,
+			property_name TEXT NOT NULL,
+			property_json TEXT NOT NULL,
+			updated_at TEXT NOT NULL,
+			PRIMARY KEY(user_id, property_name)
+		)`,
 	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -204,7 +221,11 @@ func (s *Store) Signup(ctx context.Context, input SignupInput) (AuthResult, erro
 		}
 		return AuthResult{}, fmt.Errorf("create user: %w", err)
 	}
-	return s.createSession(ctx, User{ID: userID, Email: email, Name: name, CreatedAt: s.now().UTC(), UpdatedAt: s.now().UTC()})
+	user, err := s.loadProperties(ctx, User{ID: userID, Email: email, Name: name, CreatedAt: s.now().UTC(), UpdatedAt: s.now().UTC()})
+	if err != nil {
+		return AuthResult{}, err
+	}
+	return s.createSession(ctx, user)
 }
 
 func (s *Store) Login(ctx context.Context, email, password string) (AuthResult, error) {
@@ -230,6 +251,10 @@ func (s *Store) Login(ctx context.Context, email, password string) (AuthResult, 
 		return AuthResult{}, err
 	}
 	user.UpdatedAt, err = parseTime(updatedAt)
+	if err != nil {
+		return AuthResult{}, err
+	}
+	user, err = s.loadProperties(ctx, user)
 	if err != nil {
 		return AuthResult{}, err
 	}
@@ -261,6 +286,10 @@ func (s *Store) Validate(ctx context.Context, token string) (User, Session, erro
 		return User{}, Session{}, err
 	}
 	user.UpdatedAt, err = parseTime(updatedAt)
+	if err != nil {
+		return User{}, Session{}, err
+	}
+	user, err = s.loadProperties(ctx, user)
 	if err != nil {
 		return User{}, Session{}, err
 	}
@@ -438,7 +467,58 @@ func (s *Store) UserByID(ctx context.Context, id string) (User, error) {
 		return User{}, err
 	}
 	user.UpdatedAt, err = parseTime(updatedAt)
-	return user, err
+	if err != nil {
+		return User{}, err
+	}
+	return s.loadProperties(ctx, user)
+}
+
+func (s *Store) UpdateUserProperty(ctx context.Context, userID, propertyName string, value any) (User, error) {
+	switch propertyName {
+	case "appearancePreferences", "localizationPreferences", "screensaverPreferences", "searchPreferences", "global":
+	default:
+		return User{}, fmt.Errorf("%w: property %q cannot be changed", ErrInvalidInput, propertyName)
+	}
+	if userID == "" {
+		return User{}, ErrUnauthorized
+	}
+	encoded, err := json.Marshal(value)
+	if err != nil || len(encoded) > 1<<20 {
+		return User{}, fmt.Errorf("%w: user property value is invalid or too large", ErrInvalidInput)
+	}
+	now := s.now().Format(time.RFC3339Nano)
+	_, err = s.db.ExecContext(ctx, `INSERT INTO auth_user_properties(user_id,property_name,property_json,updated_at) VALUES(?,?,?,?) ON CONFLICT(user_id,property_name) DO UPDATE SET property_json=excluded.property_json,updated_at=excluded.updated_at`, userID, propertyName, string(encoded), now)
+	if err != nil {
+		return User{}, fmt.Errorf("update user property: %w", err)
+	}
+	if _, err := s.db.ExecContext(ctx, `UPDATE auth_users SET updated_at=? WHERE id=?`, now, userID); err != nil {
+		return User{}, fmt.Errorf("update user timestamp: %w", err)
+	}
+	return s.UserByID(ctx, userID)
+}
+
+func (s *Store) loadProperties(ctx context.Context, user User) (User, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT property_name,property_json FROM auth_user_properties WHERE user_id=?`, user.ID)
+	if err != nil {
+		return User{}, fmt.Errorf("load user properties: %w", err)
+	}
+	defer rows.Close()
+	user.Properties = make(map[string]any)
+	for rows.Next() {
+		var name, encoded string
+		var value any
+		if err := rows.Scan(&name, &encoded); err != nil {
+			return User{}, err
+		}
+		if err := json.Unmarshal([]byte(encoded), &value); err != nil {
+			return User{}, fmt.Errorf("decode user property %q: %w", name, err)
+		}
+		user.Properties[name] = value
+	}
+	if err := rows.Err(); err != nil {
+		return User{}, err
+	}
+	return user, nil
 }
 
 func (s *Store) createSession(ctx context.Context, user User) (AuthResult, error) {

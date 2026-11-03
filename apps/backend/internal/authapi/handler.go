@@ -28,6 +28,7 @@ func New(store *auth.Store) (http.Handler, error) {
 	h.mux.HandleFunc("POST /api/v1/auth/validate-auth", h.validate)
 	h.mux.HandleFunc("POST /api/v1/auth/logout", h.logout)
 	h.mux.HandleFunc("POST /api/v1/auth/change-password", h.changePassword)
+	h.mux.HandleFunc("PATCH /api/v1/auth/update-user-property", h.updateUserProperty)
 	h.mux.HandleFunc("GET /api/v1/auth/me", h.me)
 	h.mux.HandleFunc("GET /api/v1/sessions", h.listSessions)
 	h.mux.HandleFunc("DELETE /api/v1/sessions/{sessionId}", h.revokeSession)
@@ -144,6 +145,33 @@ func (h *Handler) changePassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]bool{"success": true})
+}
+
+func (h *Handler) updateUserProperty(w http.ResponseWriter, r *http.Request) {
+	user, _, ok := h.authenticate(w, r)
+	if !ok {
+		return
+	}
+	var input struct {
+		PropertyName  string          `json:"propertyName"`
+		PropertyValue json.RawMessage `json:"propertyValue"`
+	}
+	if !decode(w, r, &input) {
+		return
+	}
+	var value any
+	if len(input.PropertyValue) > 0 {
+		if err := json.Unmarshal(input.PropertyValue, &value); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid property value")
+			return
+		}
+	}
+	updated, err := h.store.UpdateUserProperty(r.Context(), user.ID, input.PropertyName, value)
+	if err != nil {
+		writeAuthError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, updated)
 }
 
 func (h *Handler) me(w http.ResponseWriter, r *http.Request) {
