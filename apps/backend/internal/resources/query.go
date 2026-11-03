@@ -39,6 +39,12 @@ func (s *Store) compileQuery(ctx context.Context, query Query) (string, []any, e
 	if query.OwnerID == "" {
 		return "", nil, errors.New("owner scope is required")
 	}
+	if len(query.Types) > 50 || len(query.Filters) > 20 || len(query.Capabilities) > 32 {
+		return "", nil, errors.New("resource query has too many types, filters, or capabilities")
+	}
+	if len(query.Search) > 256 {
+		return "", nil, errors.New("resource search is limited to 256 bytes")
+	}
 	conditions := []string{"owner_id = ?"}
 	args := []any{query.OwnerID}
 	if query.Provider != "" {
@@ -80,7 +86,7 @@ func (s *Store) compileQuery(ctx context.Context, query Query) (string, []any, e
 		if !exists || !field.Filterable {
 			return "", nil, fmt.Errorf("field %q is not filterable", filter.Field)
 		}
-		condition, filterArgs, err := compileFilter(field.Name, filter)
+		condition, filterArgs, err := compileFilter(field, filter)
 		if err != nil {
 			return "", nil, err
 		}
@@ -121,8 +127,8 @@ func (s *Store) compileQuery(ctx context.Context, query Query) (string, []any, e
 	return " WHERE " + join(conditions, " AND "), args, nil
 }
 
-func compileFilter(name string, filter Filter) (string, []any, error) {
-	path := "$." + name // Definition validation restricts this to a safe identifier.
+func compileFilter(fieldDefinition FieldDefinition, filter Filter) (string, []any, error) {
+	path := "$." + fieldDefinition.Name // Definition validation restricts this to a safe identifier.
 	field := "json_extract(data_json, ?)"
 	if filter.Operator == "exists" {
 		if filter.Value == nil {
@@ -146,10 +152,19 @@ func compileFilter(name string, filter Filter) (string, []any, error) {
 		return "", nil, errors.New("filter value is required")
 	}
 	if operator == "contains" {
+		if fieldDefinition.Type != "string" && fieldDefinition.Type != "text" && fieldDefinition.Type != "url" && fieldDefinition.Type != "datetime" && fieldDefinition.Type != "date" {
+			return "", nil, errors.New("contains operator requires a string field")
+		}
 		if _, ok := filter.Value.(string); !ok {
 			return "", nil, errors.New("contains filter value must be a string")
 		}
 		return "instr(lower(COALESCE(" + field + ", '')), lower(?)) > 0", []any{path, filter.Value}, nil
+	}
+	if err := validateFieldValue(fieldDefinition, filter.Value); err != nil {
+		return "", nil, err
+	}
+	if (operator == ">" || operator == ">=" || operator == "<" || operator == "<=") && fieldDefinition.Type == "boolean" {
+		return "", nil, errors.New("ordered comparisons are not supported for boolean fields")
 	}
 	return field + " " + operator + " ?", []any{path, filter.Value}, nil
 }
