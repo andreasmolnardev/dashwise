@@ -12,11 +12,13 @@ This plan assumes a Go backend, a React frontend, and a separately packaged Go d
 - **Storage:** SQLite is the embedded source of truth. SQLite-backed cache tables support rebuildable/expiring data such as News articles. Redis remains optional for shared cache or fan-out needs. Filesystem storage holds blobs.
 - **Dashwise domain:** Links, Monitoring, News, Activities, and Notifications retain their own domain models and lifecycle. Resources, activities, and notifications are separate concepts.
 - **Resources:** provider-owned, schema-defined records with identity, access policy, freshness, retention, and declared capabilities.
-- **Views:** every consumer of data is a view. Dashboard pages compose views; widgets are compact views; Search, Frames, and app pages are views.
+- **Shortcuts:** shortcuts are resources, not a parallel data model. A resource may declare shortcut/launch capabilities and actions; Search and named Apps are views over eligible shortcut resources.
+- **Views:** every consumer of data is a view. Dashboard pages compose views; widgets are compact views; Search, Frames, and app pages are views. The News app is a view over News feed-item resources; its sidebar supplies typed query parameters/filters. Feed fetching, subscription management, and saved-article state remain backend domain services/data, separate from the News presentation.
+- **Monitoring:** keep the Monitoring app as views over resources that declare the monitoring capability and provide the fields needed by the shared Monitoring presentations. Integrations such as Beszel configure and expose their servers as those resources. Remove Dashwise's built-in SSH client/host-management feature; do not remove the rest of Monitoring.
 - **Query contract:** a versioned JSON view/query specification, validated and executed by the backend. HTTP/OpenAPI is the portable API contract; generate the TypeScript client and Go types/validators from shared schemas.
 - **Search:** frontend UI in the web app; Dashwise resource participation and routes in the backend; generic query/index APIs in the data platform; SQLite FTS as the initial derived index.
 - **Frames:** a frontend big-screen display mode over saved views. Backend persists configuration and enforces access; Frames do not get a separate data model.
-- **Integrations:** native and YAML providers adapt into the resource API. TypeScript SDK packages remain TypeScript; use a versioned local protocol if the Go backend hosts them separately.
+- **Integrations:** YAML remains a first-class lightweight option for straightforward REST integrations. TypeScript SDK integrations are the preferred path for richer integrations that need protocol clients, persistent connections, lifecycle management, actions, or non-trivial transformation. Both authoring paths feed the same resource/provider contract and shared views; YAML is not merely a temporary compatibility format. Use a versioned local protocol if the Go backend hosts TypeScript integrations separately.
 
 ## Target repository shape
 
@@ -110,12 +112,12 @@ Keep one Go module for `packages/data-platform` and one for `apps/backend`; do n
 
 Migrate domains in increasing complexity, keeping existing URLs or redirects where practical:
 
-1. **Links:** user-managed resource records, relationships, CRUD actions, Search, list/detail views.
-2. **News:** subscription provider jobs, deduplicated article data, expiring SQLite cache tables, saved article state, feed views, and stale-cache behavior after fetch failures.
-3. **Monitoring:** host resources, current state, high-volume metric history, live subscriptions, and alert actions. Keep time-series storage separate if resource snapshots do not meet query/retention needs.
+1. **Links and Shortcuts:** user-managed link resources and provider-owned shortcut resources, relationships, launch/action capabilities, Search, App/list/detail views.
+2. **News:** subscription provider jobs, deduplicated News feed-item resources, expiring SQLite cache tables, and stale-cache behavior after fetch failures. Implement the News app as a view whose sidebar selections become typed query filters over those resources; keep subscription management and saved-article state in their domain services.
+3. **Monitoring:** shared Monitoring views over native or integration-provided monitoring resources, including Beszel servers mapped to the required resource properties; current state, high-volume metric history, live subscriptions, and alert actions remain in scope. Keep time-series storage separate if resource snapshots do not meet query/retention needs. Retire Dashwise's built-in SSH host/client feature and record its removal in the parity inventory.
 4. **Notifications and Activities:** implement separate lifecycle and storage contracts; verify expiry/read/delivery behavior for notifications and append-only behavior for Activities.
 
-These are implementation slices, not a reduced MVP scope. Continue through every item in the feature-parity inventory, including onboarding, all settings, all integration surfaces and lifecycles, Frame Companion/device flows, media, backups, administration, and deployment behavior. Each slice should be usable end-to-end from the new frontend client before its old path is retired; do not declare the migration complete until the full inventory is covered or a capability has an explicit replacement/retirement decision.
+These are implementation slices, not a reduced MVP scope. Continue through every retained item in the feature-parity inventory, including onboarding, all settings, all integration surfaces and lifecycles, Frame Companion/device flows, backups, administration, and deployment behavior. The Media Player is an explicit retirement; any unrelated media handling must be inventoried separately. Each slice should be usable end-to-end from the new frontend client before its old path is retired; do not declare the migration complete until all retained capabilities are covered or a capability has an explicit replacement/retirement decision.
 
 ### 5. Convert the frontend to views
 
@@ -132,8 +134,9 @@ These are implementation slices, not a reduced MVP scope. Continue through every
 ### 6. Migrate integrations and retire legacy paths
 
 - Implement native providers through the same resource API used by SDK providers.
-- Adapt YAML integration definitions where they map cleanly to resource declarations and view contributions; retain a compatibility renderer during transition.
-- Keep TypeScript SDK authoring packages, actions, resources, and lifecycle semantics. Run them through the local integration-host protocol if needed.
+- Keep YAML as the low-friction declarative path for simple REST fetching, mapping, and resource contributions; adapt its existing definitions to the shared provider/resource contract and retain a compatibility renderer during transition.
+- Keep TypeScript SDK integrations as the preferred path for protocols and integrations that need managed clients, persistent connections, lifecycle behavior, richer actions, or substantial transformation. Run them through the local integration-host protocol if needed.
+- Ensure YAML and TypeScript integrations can both contribute to the same resource types and views without creating separate frontend data paths.
 - Migrate SDK resource persistence, Search participation, and live updates to the shared platform.
 - Migrate remaining settings and user preferences through the same domain import/export contract.
 - Build the production transfer path as a separate late-stage deliverable: a versioned export flow/modal in current `dashwise-fat` and an import flow in `godashwise` (with a CLI option for recovery/automation if useful).
@@ -157,7 +160,7 @@ The architecture is specific enough to start discovery and contract work. These 
 
 1. **Auth transfer policy (late-stage):** whether local password hashes are portable, how OIDC subjects map, whether TOTP and integration secrets are encrypted in the export or re-entered, and which scoped tokens must be recreated. Active sessions should expire at cutover.
 2. **Query boundary:** whether v1 allows only declarative ViewSpec queries or also registered Go query functions. Recommended: both, with browser clients limited to registered functions/ViewSpecs.
-3. **Integration execution:** separate Bun host versus retaining a temporary TypeScript backend runtime. Recommended: local versioned protocol, so Go never embeds a second language runtime as a core dependency.
+3. **Integration execution:** separate Bun host versus retaining a temporary TypeScript backend runtime. Recommended: local versioned protocol, so Go never embeds a second language runtime as a core dependency. Preserve YAML as the simpler REST authoring mode alongside the TypeScript SDK.
 4. **Data migration and rollback (late-stage):** export bundle format, downtime window, and whether dual-write is required. Recommended: versioned export/import with dry-run validation and a bounded read-only cutover rather than indefinite dual-write.
 5. **Migration order:** which capability slices are implemented first for dependency and risk reasons. Recommended order is Links, News, Monitoring, then Activities and Notifications, while keeping full feature parity as the completion bar.
 6. **Platform release promise:** internal reusable module first, or public stable API immediately. Recommended: prove it in Dashwise before promising long-term compatibility to external users.
