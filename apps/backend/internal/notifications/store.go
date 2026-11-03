@@ -60,21 +60,56 @@ func NewStore(db *foundation.DB) (*Store, error) {
 	return &Store{db: db.SQL(), foundation: db, now: time.Now}, nil
 }
 func (s *Store) Initialize(ctx context.Context) error {
-	err := s.foundation.ApplyMigrations(ctx, []foundation.Migration{{ID: "0012_notifications_domain", Name: "notification topics and inbox", Up: func(ctx context.Context, tx *sql.Tx) error {
-		for _, q := range []string{
-			`CREATE TABLE IF NOT EXISTS notification_topics(id TEXT PRIMARY KEY NOT NULL,owner_id TEXT NOT NULL,title TEXT NOT NULL,priority INTEGER NOT NULL DEFAULT 1,created_at TEXT NOT NULL,updated_at TEXT NOT NULL,UNIQUE(owner_id,title COLLATE NOCASE))`,
-			`CREATE INDEX IF NOT EXISTS notification_topics_by_owner ON notification_topics(owner_id,priority,title COLLATE NOCASE)`,
-			`CREATE TABLE IF NOT EXISTS notification_items(id TEXT PRIMARY KEY NOT NULL,topic_id TEXT NOT NULL REFERENCES notification_topics(id) ON DELETE CASCADE,content_json TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'sent',source TEXT NOT NULL DEFAULT 'system',forward_status TEXT NOT NULL DEFAULT 'none',created_at TEXT NOT NULL,received_at TEXT)`,
-			`CREATE INDEX IF NOT EXISTS notification_items_by_topic_created ON notification_items(topic_id,created_at DESC)`,
-			`CREATE TABLE IF NOT EXISTS notification_topic_tokens(id TEXT PRIMARY KEY NOT NULL,topic_id TEXT NOT NULL REFERENCES notification_topics(id) ON DELETE CASCADE,token_hash TEXT NOT NULL UNIQUE,expires_at TEXT,created_at TEXT NOT NULL)`,
-			`CREATE TABLE IF NOT EXISTS notification_forwarders(id TEXT PRIMARY KEY NOT NULL,topic_id TEXT NOT NULL REFERENCES notification_topics(id) ON DELETE CASCADE,target TEXT NOT NULL,is_active INTEGER NOT NULL DEFAULT 1,created_at TEXT NOT NULL,updated_at TEXT NOT NULL)`,
-		} {
-			if _, e := tx.ExecContext(ctx, q); e != nil {
-				return fmt.Errorf("initialize notifications schema: %w", e)
+	err := s.foundation.ApplyMigrations(ctx, []foundation.Migration{
+		{ID: "0012_notifications_schema_repair", Name: "preserve bootstrap notification table", Up: func(ctx context.Context, tx *sql.Tx) error {
+			rows, err := tx.QueryContext(ctx, `PRAGMA table_info(notification_items)`)
+			if err != nil {
+				return err
 			}
-		}
-		return nil
-	}}})
+			hasTable, hasTopicID := false, false
+			for rows.Next() {
+				var cid, notnull, pk int
+				var name, typ string
+				var defaultValue any
+				if err := rows.Scan(&cid, &name, &typ, &notnull, &defaultValue, &pk); err != nil {
+					_ = rows.Close()
+					return err
+				}
+				hasTable = true
+				if name == "topic_id" {
+					hasTopicID = true
+				}
+			}
+			if err := rows.Err(); err != nil {
+				_ = rows.Close()
+				return err
+			}
+			if err := rows.Close(); err != nil {
+				return err
+			}
+			if hasTable && !hasTopicID {
+				if _, err := tx.ExecContext(ctx, `ALTER TABLE notification_items RENAME TO notification_items_legacy_bootstrap`); err != nil {
+					return fmt.Errorf("preserve bootstrap notifications: %w", err)
+				}
+			}
+			return nil
+		}},
+		{ID: "0012_notifications_domain", Name: "notification topics and inbox", Up: func(ctx context.Context, tx *sql.Tx) error {
+			for _, q := range []string{
+				`CREATE TABLE IF NOT EXISTS notification_topics(id TEXT PRIMARY KEY NOT NULL,owner_id TEXT NOT NULL,title TEXT NOT NULL,priority INTEGER NOT NULL DEFAULT 1,created_at TEXT NOT NULL,updated_at TEXT NOT NULL,UNIQUE(owner_id,title COLLATE NOCASE))`,
+				`CREATE INDEX IF NOT EXISTS notification_topics_by_owner ON notification_topics(owner_id,priority,title COLLATE NOCASE)`,
+				`CREATE TABLE IF NOT EXISTS notification_items(id TEXT PRIMARY KEY NOT NULL,topic_id TEXT NOT NULL REFERENCES notification_topics(id) ON DELETE CASCADE,content_json TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'sent',source TEXT NOT NULL DEFAULT 'system',forward_status TEXT NOT NULL DEFAULT 'none',created_at TEXT NOT NULL,received_at TEXT)`,
+				`CREATE INDEX IF NOT EXISTS notification_items_by_topic_created ON notification_items(topic_id,created_at DESC)`,
+				`CREATE TABLE IF NOT EXISTS notification_topic_tokens(id TEXT PRIMARY KEY NOT NULL,topic_id TEXT NOT NULL REFERENCES notification_topics(id) ON DELETE CASCADE,token_hash TEXT NOT NULL UNIQUE,expires_at TEXT,created_at TEXT NOT NULL)`,
+				`CREATE TABLE IF NOT EXISTS notification_forwarders(id TEXT PRIMARY KEY NOT NULL,topic_id TEXT NOT NULL REFERENCES notification_topics(id) ON DELETE CASCADE,target TEXT NOT NULL,is_active INTEGER NOT NULL DEFAULT 1,created_at TEXT NOT NULL,updated_at TEXT NOT NULL)`,
+			} {
+				if _, e := tx.ExecContext(ctx, q); e != nil {
+					return fmt.Errorf("initialize notifications schema: %w", e)
+				}
+			}
+			return nil
+		}},
+	})
 	if err != nil {
 		return err
 	}

@@ -18,6 +18,7 @@ import (
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/auth"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/authapi"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/config"
+	"github.com/andreasmolnardev/dashwise/apps/backend/internal/consumersapi"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/integrations"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/integrationsapi"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/links"
@@ -33,11 +34,14 @@ import (
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/resourceapi"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/resources"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/secrets"
+	"github.com/andreasmolnardev/dashwise/apps/backend/internal/shortcuts"
+	"github.com/andreasmolnardev/dashwise/apps/backend/internal/shortcutsapi"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/systemapi"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/viewapi"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/views"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/wallpapers"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/wallpapersapi"
+	"github.com/andreasmolnardev/dashwise/apps/backend/internal/yamlruntime"
 	"github.com/andreasmolnardev/dashwise/packages/foundation"
 )
 
@@ -245,6 +249,21 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, err
 		_ = db.Close()
 		return nil, fmt.Errorf("initialize Pages API: %w", err)
 	}
+	consumersHandler, err := consumersapi.New(integrationsStore, authenticateOwner(authStore), yamlruntime.New())
+	if err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("initialize Widgets and Glanceables API: %w", err)
+	}
+	shortcutsStore, err := shortcuts.New(db, resourceStore)
+	if err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("initialize Shortcuts store: %w", err)
+	}
+	shortcutsHandler, err := shortcutsapi.New(shortcutsStore, authenticateOwner(authStore))
+	if err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("initialize Shortcuts API: %w", err)
+	}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) {
@@ -289,6 +308,14 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, err
 	mux.Handle("/api/v1/test/bookmarks", systemHandler)
 	mux.Handle("/api/v1/pageConfig", pagesHandler)
 	mux.Handle("/api/v1/pageConfig/", pagesHandler)
+	mux.Handle("/api/v1/widgets", consumersHandler)
+	mux.Handle("/api/v1/widgets/", consumersHandler)
+	mux.Handle("/api/v1/glanceables", consumersHandler)
+	mux.Handle("/api/v1/glanceables/", consumersHandler)
+	mux.Handle("/api/v1/integrations/consumerData", consumersHandler)
+	mux.Handle("/api/v1/integrations/widget-properties", consumersHandler)
+	mux.Handle("/api/v1/shortcuts", shortcutsHandler)
+	mux.Handle("/api/v1/shortcuts/", shortcutsHandler)
 	mux.Handle("/api/", http.NotFoundHandler())
 	mux.Handle("/", frontend(cfg.WebDist))
 
