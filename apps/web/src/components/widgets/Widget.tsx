@@ -23,10 +23,10 @@ import { parseSdkContributionKey } from "./sdkContributionKey";
 import { useLocalization } from "@/context/LocalizationContext";
 import useAuth from "@/context/useAuth";
 import { useActivity } from "@/context/ActivityContext";
+import { useResourceView } from "@/hooks/useResourceView";
+import type { ViewResourceQuery } from "@/lib/viewsApi";
 import {
   getConsumerDataAction,
-  getLinksCollectionsAction,
-  getLinksItemsAction,
   getNewsFeedAction,
   previewImageSourceAction,
 } from '@/lib/apiClient';
@@ -220,62 +220,32 @@ function LatestLinksWidgetWrapper({
   maxItems?: number;
   title?: string;
 }) {
-  const { withAuth } = useAuth();
-  const [items, setItems] = useState<LatestLinkItem[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    let cancelled = false;
-    const selectedListId = String(listId || collectionId || "").trim();
-
-    setLoading(true);
-
-    const fetchItems = async () => {
-      const links = await withAuth(async (auth) => {
-        if (selectedListId) {
-          const listItems = await getLinksItemsAction(auth, selectedListId);
-          return Array.isArray(listItems) ? listItems : [];
-        }
-
-        const collections = await getLinksCollectionsAction(auth);
-        const listIds = Array.isArray(collections)
-          ? collections.map((collection: any) => String(collection?.id ?? "").trim()).filter(Boolean)
-          : [];
-        const groupedItems = await Promise.all(
-          listIds.map(async (id) => {
-            try {
-              const listItems = await getLinksItemsAction(auth, id);
-              return Array.isArray(listItems) ? listItems : [];
-            } catch {
-              return [];
-            }
-          }),
-        );
-
-        return groupedItems.flat();
-      });
-
-      return Array.isArray(links) ? links : [];
-    };
-
-    void fetchItems()
-      .then((links) => {
-        if (!cancelled) {
-          setItems(sortLatestLinks(links).slice(0, maxItems));
-        }
-      })
-      .catch((err) => {
-        console.error("Failed to fetch latest links", err);
-        if (!cancelled) setItems([]);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [collectionId, listId, maxItems, withAuth]);
+  const selectedListId = String(listId || collectionId || "").trim();
+  const query = useMemo<ViewResourceQuery>(() => ({
+    types: ["dashwise.link"],
+    provider: "dashwise",
+    providerInstanceId: "links",
+    capabilities: [],
+    filters: selectedListId
+      ? [{ field: "collectionId", operator: "eq", value: selectedListId }]
+      : [],
+    search: "",
+    orderBy: "createdAt",
+    limit: Math.min(200, Math.max(1, maxItems)),
+    offset: 0,
+  }), [maxItems, selectedListId]);
+  const resourceView = useResourceView(query);
+  const items = useMemo<LatestLinkItem[]>(() => (resourceView.data?.items ?? []).map((resource) => ({
+    id: resource.providerResourceId,
+    url: textValue(resource.data.url),
+    title: textValue(resource.data.title),
+    iconUrl: textValue(resource.data.iconUrl) || undefined,
+    description: textValue(resource.data.description),
+    collection: textValue(resource.data.collectionName),
+    created: textValue(resource.data.createdAt),
+    updated: resource.updatedAt,
+  })), [resourceView.data]);
+  const loading = resourceView.isPending;
 
   if (loading) {
     return (
@@ -311,12 +281,8 @@ function LatestLinksWidgetWrapper({
   );
 }
 
-function sortLatestLinks(items: LatestLinkItem[]) {
-  return [...items].sort((left, right) => {
-    const leftTime = new Date(left.created || left.updated || 0).getTime();
-    const rightTime = new Date(right.created || right.updated || 0).getTime();
-    return (Number.isNaN(rightTime) ? 0 : rightTime) - (Number.isNaN(leftTime) ? 0 : leftTime);
-  });
+function textValue(value: unknown) {
+  return typeof value === "string" ? value : "";
 }
 
 function formatLatestLinkDate(value?: string) {
