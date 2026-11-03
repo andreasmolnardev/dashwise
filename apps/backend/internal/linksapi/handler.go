@@ -1,5 +1,5 @@
 // Package linksapi exposes the existing Dashwise Links HTTP contract over the
-// SQLite-backed links domain.
+// SQLite-backed links domain. The link metadata endpoint lives in metadata.go.
 package linksapi
 
 import (
@@ -53,6 +53,7 @@ func New(store *links.Store, authenticate resourceapi.Authenticate) (http.Handle
 	h.mux.HandleFunc("PUT /api/v1/links/rss/{feedId}", h.updateRSS)
 	h.mux.HandleFunc("DELETE /api/v1/links/rss/{feedId}", h.deleteRSS)
 	h.mux.HandleFunc("GET /api/v1/links/rss/{feedId}", h.publicRSS)
+	h.mux.HandleFunc("GET /api/v1/links/metadata", h.linkMetadata)
 	return h.mux, nil
 }
 
