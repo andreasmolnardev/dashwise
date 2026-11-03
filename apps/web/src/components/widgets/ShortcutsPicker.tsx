@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useMemo, useState } from "react";
 import AppIcon from "@dashwise/app-icon";
-import useAuth from "@/context/useAuth";
-import { getShortcutsAction } from "@/lib/apiClient";
+import { useResourceView } from "@/hooks/useResourceView";
+import type { ViewResourceQuery } from "@/lib/viewsApi";
 import { Input } from "@/components/ui/input";
 
 type Shortcut = {
@@ -17,14 +17,26 @@ type Shortcut = {
 export default function ShortcutsPicker(
   { value, onChange }: { value: string[]; onChange: (value: string[]) => void },
 ) {
-  const { withAuth } = useAuth();
-  const [items, setItems] = useState<Shortcut[]>([]);
   const [query, setQuery] = useState("");
-  useEffect(() => {
-    void withAuth((auth) => getShortcutsAction(auth)).then((data) => {
-      if (Array.isArray(data)) setItems(data as Shortcut[]);
-    }).catch(() => setItems([]));
-  }, [withAuth]);
+  const resourceQuery = useMemo<ViewResourceQuery>(() => ({
+    types: ["dashwise.shortcut"],
+    provider: "dashwise",
+    providerInstanceId: "shortcuts",
+    capabilities: [],
+    filters: [{ field: "kind", operator: "eq", value: "shortcut" }],
+    search: "",
+    orderBy: "updatedAt",
+    limit: 200,
+    offset: 0,
+  }), []);
+  const resourceView = useResourceView(resourceQuery);
+  const items = useMemo<Shortcut[]>(() => (resourceView.data?.items ?? []).map((resource) => ({
+    id: resource.providerResourceId,
+    name: textValue(resource.data.name),
+    icon: textValue(resource.data.icon) || undefined,
+    secondaryInfo: textValue(resource.data.secondary) || undefined,
+    type: textValue(resource.data.kind) || undefined,
+  })), [resourceView.data]);
   const filtered = items.filter((item) =>
     item.name.toLowerCase().includes(query.toLowerCase())
   );
@@ -77,4 +89,8 @@ export default function ShortcutsPicker(
       </div>
     </div>
   );
+}
+
+function textValue(value: unknown) {
+  return typeof value === "string" ? value : "";
 }
