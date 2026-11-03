@@ -11,6 +11,7 @@ func BuiltinDefinitions() []Definition {
 			Type: "dashwise.link", Version: 1, Title: "Link",
 			Fields: []FieldDefinition{
 				{Name: "title", Type: "string", Filterable: true, Searchable: true},
+				{Name: "kind", Type: "string", Filterable: true},
 				{Name: "url", Type: "url", Searchable: true},
 				{Name: "description", Type: "text", Searchable: true},
 				{Name: "collectionId", Type: "string", Filterable: true},

@@ -40,6 +40,9 @@ export const queryKeys = {
     root: (token: string | null) => ["views", token, "list"] as const,
     run: (token: string | null, viewId: string) => ["views", token, "run", viewId] as const,
   },
+  resources: {
+    query: (query: Record<string, unknown>) => ["resources", "query", query] as const,
+  },
   monitoring: {
     monitors: ["monitoring", "monitors"] as const,
     hosts: ["monitoring", "hosts"] as const,

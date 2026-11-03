@@ -1,29 +1,54 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import AppIcon from "@dashwise/app-icon";
 import WidgetColumnTemplate from "@dashwise/integrationskit/templates/WidgetColumn";
 import useAuth from "@/context/useAuth";
-import { getHomeLinksAction, getShortcutsAction, logShortcutUsageAction, proxyIntegrationAction } from "@/lib/apiClient";
+import { getHomeLinksAction, logShortcutUsageAction, proxyIntegrationAction } from "@/lib/apiClient";
 import { getRoutedLinkUrl } from "@/lib/linkRouting";
+import { useResourceView } from "@/hooks/useResourceView";
+import type { ViewResourceQuery } from "@/lib/viewsApi";
 
 type Shortcut = { id: string; name: string; icon?: string; sourceId?: string; action: string | { type: string; url?: string } };
 
 export default function ShortcutsWidget({ shortcutIds = [], className = "" }: { shortcutIds?: string[]; className?: string }) {
   const { withAuth, toggleTheme, toggleLinkTileLayout } = useAuth();
-  const [shortcuts, setShortcuts] = useState<Shortcut[]>([]);
   const [homeLinks, setHomeLinks] = useState<Array<{ id: string; url: string; secondaryUrls?: Array<{ url: string; routingRule: string }> }>>([]);
+  const query = useMemo<ViewResourceQuery>(() => ({
+    types: ["dashwise.shortcut"],
+    provider: "dashwise",
+    providerInstanceId: "shortcuts",
+    capabilities: [],
+    filters: [{ field: "kind", operator: "eq", value: "shortcut" }],
+    search: "",
+    orderBy: "updatedAt",
+    limit: 200,
+    offset: 0,
+  }), []);
+  const resourceView = useResourceView(query);
+  const shortcuts = useMemo<Shortcut[]>(() => {
+    const selected = new Map<string, Shortcut>((resourceView.data?.items ?? []).map((resource) => {
+      const data = resource.data;
+      const shortcut: Shortcut = {
+        id: resource.providerResourceId,
+        name: textValue(data.name) || textValue(data.title),
+        icon: textValue(data.icon) || undefined,
+        sourceId: textValue(data.sourceId) || undefined,
+        action: (data.action ?? "") as Shortcut["action"],
+      };
+      return [resource.providerResourceId, shortcut];
+    }));
+    return shortcutIds.map((id) => selected.get(id)).filter((item): item is Shortcut => item !== undefined);
+  }, [resourceView.data, shortcutIds]);
 
   useEffect(() => {
     let cancelled = false;
-    void Promise.all([withAuth((auth) => getShortcutsAction(auth)), withAuth((auth) => getHomeLinksAction(auth))]).then(([items, links]) => {
-      if (cancelled || !Array.isArray(items)) return;
-      const selected = new Map((items as Shortcut[]).map((item) => [item.id, item]));
-      setShortcuts(shortcutIds.map((id) => selected.get(id)).filter((item): item is Shortcut => Boolean(item)));
+    void withAuth((auth) => getHomeLinksAction(auth)).then((links) => {
+      if (cancelled) return;
       setHomeLinks(Array.isArray(links) ? links as typeof homeLinks : []);
-    }).catch(() => { if (!cancelled) { setShortcuts([]); setHomeLinks([]); } });
+    }).catch(() => { if (!cancelled) setHomeLinks([]); });
     return () => { cancelled = true; };
-  }, [shortcutIds, withAuth]);
+  }, [withAuth]);
 
   const runShortcut = async (shortcut: Shortcut) => {
     const action = shortcut.action;
@@ -66,4 +91,8 @@ export default function ShortcutsWidget({ shortcutIds = [], className = "" }: { 
       </button>) : <p className="w-full text-xs text-white/50">Select shortcuts in widget settings.</p>}
     </div>
   </WidgetColumnTemplate>;
+}
+
+function textValue(value: unknown) {
+  return typeof value === "string" ? value : "";
 }

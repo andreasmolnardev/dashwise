@@ -72,6 +72,33 @@ export type ViewWriteInput = {
   definition: ViewDefinition;
 };
 
+/** Query resources directly for an ephemeral view such as a widget or frame. */
+export async function queryResourcesAction(
+  auth: ActionAuth,
+  query: ViewResourceQuery,
+): Promise<ViewResourcePage> {
+  const url = new URL(backendUrl("/api/v1/resources"));
+  for (const type of query.types) url.searchParams.append("type", type);
+  for (const capability of query.capabilities) url.searchParams.append("capability", capability);
+  if (query.provider) url.searchParams.set("provider", query.provider);
+  if (query.providerInstanceId) url.searchParams.set("providerInstanceId", query.providerInstanceId);
+  if (query.filters.length) url.searchParams.set("filters", JSON.stringify(query.filters));
+  if (query.search) url.searchParams.set("search", query.search);
+  if (query.orderBy) url.searchParams.set("orderBy", query.orderBy);
+  url.searchParams.set("limit", String(query.limit));
+  url.searchParams.set("offset", String(query.offset));
+  const response = await fetch(url, { headers: authHeaders(auth) });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const error = new Error(
+      typeof result?.error === "string" ? result.error : "resource query failed",
+    ) as Error & { status?: number };
+    error.status = response.status;
+    throw error;
+  }
+  return result as ViewResourcePage;
+}
+
 async function viewRequest<T>(
   auth: ActionAuth,
   path: string,
