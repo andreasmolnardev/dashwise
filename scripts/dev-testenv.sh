@@ -79,7 +79,7 @@ APP_PORT="$(next_free_port 3000)"
 
 sed \
   -e "s/\"[0-9][0-9]*:3000\"/\"${APP_PORT}:3000\"/g" \
-  -e "s|NEXT_PUBLIC_APP_URL: .*|NEXT_PUBLIC_APP_URL: http://localhost:${APP_PORT}|g" \
+  -e "s|DASHWISE_URL: .*|DASHWISE_URL: http://localhost:${APP_PORT}|g" \
   "$BASE_COMPOSE" > "$TEST_COMPOSE"
 
 printf 'Using Dashwise app port %s\n' "$APP_PORT"
