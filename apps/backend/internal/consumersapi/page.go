@@ -6,13 +6,13 @@ import (
 	"strings"
 
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/integrations"
-	"github.com/andreasmolnardev/dashwise/apps/backend/internal/yamlruntime"
+	"github.com/andreasmolnardev/dashwise/apps/backend/internal/resources"
 )
 
 // ResolvePageData resolves YAML-backed widget and glanceable consumers saved
 // in one page configuration. Per-consumer failures are returned in that item,
 // matching the existing pageConfig integrationData contract.
-func ResolvePageData(ctx context.Context, owner string, pageConfig map[string]any, store *integrations.Store, runtime *yamlruntime.Runtime) []map[string]any {
+func ResolvePageData(ctx context.Context, owner string, pageConfig map[string]any, store *integrations.Store, resourceStore *resources.Store) []map[string]any {
 	candidates := collectPageCandidates(pageConfig)
 	out := make([]map[string]any, 0, len(candidates))
 	items, listErr := store.List(ctx, owner, false)
@@ -33,28 +33,11 @@ func ResolvePageData(ctx context.Context, owner string, pageConfig map[string]an
 		if !strings.Contains(candidate.key, "#") {
 			base["consumerKey"] = integration.ID + "#" + candidate.key
 		}
-		environment := cloneEnv(integration.Environment)
-		for name, definition := range object(object(integration.Config["configuration"])["environment_variables"]) {
-			if environment[name] == "" {
-				if value, exists := object(definition)["default"]; exists {
-					environment[name] = fmt.Sprint(value)
-				}
-			}
-		}
-		result, err := runtime.Execute(ctx, integration.Config, environment)
+		data, err := readIntegrationView(ctx, owner, integration, resourceStore)
 		if err != nil {
-			base["success"], base["error"] = false, "integration data could not be resolved"
+			base["success"], base["error"] = false, "integration resource view is not available"
 			out = append(out, base)
 			continue
-		}
-		data := result.Computed
-		if data == nil {
-			data = map[string]any{}
-		}
-		for id, endpoint := range result.Endpoints {
-			if _, exists := data[id]; !exists {
-				data[id] = endpoint.MappedResponse
-			}
 		}
 		input := merge(candidate.properties, object(object(entry["data"])["input"]))
 		widget := applyInput(entry, input)

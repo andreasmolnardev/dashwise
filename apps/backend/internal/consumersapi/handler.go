@@ -14,23 +14,25 @@ import (
 
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/integrations"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/resourceapi"
+	"github.com/andreasmolnardev/dashwise/apps/backend/internal/resources"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/yamlruntime"
 )
 
 const maxBodyBytes = 1 << 20
 
 type Handler struct {
-	store   *integrations.Store
-	auth    resourceapi.Authenticate
-	runtime *yamlruntime.Runtime
-	mux     *http.ServeMux
+	store     *integrations.Store
+	auth      resourceapi.Authenticate
+	runtime   *yamlruntime.Runtime
+	resources *resources.Store
+	mux       *http.ServeMux
 }
 
-func New(store *integrations.Store, authenticate resourceapi.Authenticate, runtime *yamlruntime.Runtime) (http.Handler, error) {
-	if store == nil || authenticate == nil || runtime == nil {
-		return nil, errors.New("consumer API requires integration storage, auth, and YAML runtime")
+func New(store *integrations.Store, authenticate resourceapi.Authenticate, runtime *yamlruntime.Runtime, resourceStore *resources.Store) (http.Handler, error) {
+	if store == nil || authenticate == nil || runtime == nil || resourceStore == nil {
+		return nil, errors.New("consumer API requires integration storage, auth, YAML runtime, and resource storage")
 	}
-	h := &Handler{store: store, auth: authenticate, runtime: runtime, mux: http.NewServeMux()}
+	h := &Handler{store: store, auth: authenticate, runtime: runtime, resources: resourceStore, mux: http.NewServeMux()}
 	h.mux.HandleFunc("GET /api/v1/widgets", h.widgets)
 	h.mux.HandleFunc("GET /api/v1/glanceables", h.glanceables)
 	h.mux.HandleFunc("GET /api/v1/glanceables/glanceable", h.glanceables)
@@ -262,18 +264,28 @@ func (h *Handler) consumer(w http.ResponseWriter, r *http.Request, key, kind str
 			}
 		}
 	}
-	result, err := h.runtime.Execute(r.Context(), config, environment)
-	if err != nil {
-		writeError(w, 502, "integration data could not be resolved")
-		return
-	}
-	data := result.Computed
-	if data == nil {
-		data = map[string]any{}
-	}
-	for id, endpoint := range result.Endpoints {
-		if _, exists := object(data)[id]; !exists {
-			object(data)[id] = endpoint.MappedResponse
+	var data map[string]any
+	if preview || len(overrides) > 0 {
+		result, err := h.runtime.Execute(r.Context(), config, environment)
+		if err != nil {
+			writeError(w, 502, "integration data could not be resolved")
+			return
+		}
+		data = result.Computed
+		if data == nil {
+			data = map[string]any{}
+		}
+		for id, endpoint := range result.Endpoints {
+			if _, exists := data[id]; !exists {
+				data[id] = endpoint.MappedResponse
+			}
+		}
+	} else {
+		var err error
+		data, err = readIntegrationView(r.Context(), owner, integration, h.resources)
+		if err != nil {
+			writeError(w, 503, "integration resource view is not available yet")
+			return
 		}
 	}
 	input := merge(properties, object(object(entry["data"])["input"]))

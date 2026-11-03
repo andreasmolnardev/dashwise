@@ -39,6 +39,9 @@ with `$.`; numeric segments address array elements. Supported field types are
 `object`, and `array`. Resource types are namespaced as
 `integration.<integration-slug>.<collection-slug>`.
 
-The Go resource sync refreshes these collections once per minute. Failed
-endpoint runs keep their last successful snapshot. Removed collection items and
-deleted YAML integration instances are reconciled from the resource store.
+The Go resource sync refreshes these collections and endpoint/computed result
+resources once per minute. Existing widget renderers still receive their
+current payload shape, reconstructed from an owner-scoped resource query.
+Failed endpoint runs keep their last successful snapshot. Removed collection
+items and deleted YAML integration instances are reconciled from the resource
+store.

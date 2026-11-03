@@ -2,7 +2,9 @@ package resourcesync
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"reflect"
 	"regexp"
 	"strings"
 
@@ -38,13 +40,7 @@ func SyncYAMLResources(ctx context.Context, owner string, source *integrations.S
 			}
 			continue
 		}
-		if len(collections) == 0 {
-			if err := reconcileYAMLInstance(ctx, owner, target, item.ID, map[string]bool{}); err != nil && firstErr == nil {
-				firstErr = err
-			}
-			continue
-		}
-		result, err := runtime.Execute(ctx, item.Config, item.Environment)
+		result, err := runtime.Execute(ctx, item.Config, yamlEnvironment(item))
 		if err != nil {
 			// Preserve the previous materialization on request or mapping errors.
 			if firstErr == nil {
@@ -54,9 +50,40 @@ func SyncYAMLResources(ctx context.Context, owner string, source *integrations.S
 		}
 		wanted := map[string]bool{}
 		integrationFailed := false
+		resultDefinition := resources.Definition{
+			Type: YAMLResultResourceType(item), Version: 1, Title: "YAML integration data",
+			Fields:       []resources.FieldDefinition{{Name: "name", Type: "string", Searchable: true}},
+			Capabilities: []string{"list", "detail"},
+		}
+		if err := registerResourceDefinition(ctx, registry, resultDefinition); err != nil {
+			integrationFailed = true
+			if firstErr == nil {
+				firstErr = fmt.Errorf("register YAML result resource type %q: %w", resultDefinition.Type, err)
+			}
+		}
+		for id, endpoint := range result.Endpoints {
+			if err := upsertYAMLResult(ctx, owner, item, resultDefinition.Type, "endpoint:"+id, first(endpoint.Name, id), endpoint.MappedResponse, target); err != nil {
+				integrationFailed = true
+				if firstErr == nil {
+					firstErr = err
+				}
+				continue
+			}
+			wanted[resultDefinition.Type+"\nendpoint:"+id] = true
+		}
+		for id, value := range result.Computed {
+			if err := upsertYAMLResult(ctx, owner, item, resultDefinition.Type, "computed:"+id, id, value, target); err != nil {
+				integrationFailed = true
+				if firstErr == nil {
+					firstErr = err
+				}
+				continue
+			}
+			wanted[resultDefinition.Type+"\ncomputed:"+id] = true
+		}
 		for _, collection := range collections {
 			definition := collection.definition(item)
-			if err := registry.Register(ctx, definition); err != nil {
+			if err := registerResourceDefinition(ctx, registry, definition); err != nil {
 				integrationFailed = true
 				if firstErr == nil {
 					firstErr = fmt.Errorf("register YAML resource type %q: %w", definition.Type, err)
@@ -132,6 +159,49 @@ func SyncYAMLResources(ctx context.Context, owner string, source *integrations.S
 		firstErr = err
 	}
 	return firstErr
+}
+
+func yamlEnvironment(item integrations.Integration) map[string]string {
+	environment := make(map[string]string, len(item.Environment))
+	for key, value := range item.Environment {
+		environment[key] = value
+	}
+	definitions := object(object(item.Config["configuration"])["environment_variables"])
+	for key, definition := range definitions {
+		if environment[key] == "" {
+			if value, ok := object(definition)["default"]; ok {
+				environment[key] = fmt.Sprint(value)
+			}
+		}
+	}
+	return environment
+}
+
+func registerResourceDefinition(ctx context.Context, registry *resources.Registry, definition resources.Definition) error {
+	existing, err := registry.Get(ctx, definition.Type)
+	if err == nil && reflect.DeepEqual(existing, definition) {
+		return nil
+	}
+	if err != nil && !errors.Is(err, resources.ErrTypeNotFound) {
+		return err
+	}
+	return registry.Register(ctx, definition)
+}
+
+func YAMLResultResourceType(item integrations.Integration) string {
+	return "integration." + integrationResourceSlug(item) + ".results"
+}
+
+func upsertYAMLResult(ctx context.Context, owner string, item integrations.Integration, resourceType, resourceID, name string, payload any, target *resources.Store) error {
+	_, err := target.Upsert(ctx, resources.Resource{
+		Type: resourceType, Provider: "yaml", ProviderInstanceID: item.ID,
+		ProviderResourceID: resourceID, OwnerID: owner,
+		Data: map[string]any{"name": name, "payload": payload}, Capabilities: []string{"list", "detail"}, State: "current",
+	})
+	if err != nil {
+		return fmt.Errorf("materialize YAML integration result %q/%q: %w", item.ID, resourceID, err)
+	}
+	return nil
 }
 
 func reconcileYAMLInstance(ctx context.Context, owner string, target *resources.Store, instanceID string, wanted map[string]bool) error {
@@ -241,11 +311,7 @@ func yamlResourceCollections(config map[string]any) ([]yamlResourceCollection, e
 }
 
 func (c yamlResourceCollection) definition(item integrations.Integration) resources.Definition {
-	base := first(stringValue(object(item.Config["details"])["slug"]), stringValue(object(item.Config["details"])["name"]), item.Name, item.ID)
-	slug := strings.ToLower(strings.Trim(resourceTypeSlugPattern.ReplaceAllString(base, "-"), "-."))
-	if slug == "" {
-		slug = "integration"
-	}
+	slug := integrationResourceSlug(item)
 	collectionSlug := strings.ToLower(strings.Trim(resourceTypeSlugPattern.ReplaceAllString(c.id, "-"), "-."))
 	if collectionSlug == "" {
 		collectionSlug = "resources"
@@ -260,7 +326,16 @@ func (c yamlResourceCollection) definition(item integrations.Integration) resour
 		}
 		fields = append(fields, resources.FieldDefinition{Name: field.name, Type: field.kind, Filterable: field.filterable, Searchable: field.searchable})
 	}
-	return resources.Definition{Type: "integration." + slug + "." + collectionSlug, Version: 1, Title: item.Name + " " + c.id, Fields: fields, Capabilities: c.capabilities}
+	return resources.Definition{Type: "integration." + slug + "." + collectionSlug, Version: 1, Title: c.id, Fields: fields, Capabilities: c.capabilities}
+}
+
+func integrationResourceSlug(item integrations.Integration) string {
+	base := first(stringValue(object(item.Config["details"])["slug"]), stringValue(object(item.Config["details"])["name"]), item.Name, item.ID)
+	slug := strings.ToLower(strings.Trim(resourceTypeSlugPattern.ReplaceAllString(base, "-"), "-."))
+	if slug == "" {
+		return "integration"
+	}
+	return slug
 }
 
 func yamlPath(value any, path string) (any, bool) {
