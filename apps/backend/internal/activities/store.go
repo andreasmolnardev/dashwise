@@ -206,6 +206,22 @@ func (s *Store) Delete(ctx context.Context, owner, id string) error {
 	}
 	return nil
 }
+
+// DeleteExpired removes historical activity events beyond retention. Current
+// state records are retained because they represent active conditions rather
+// than transient events.
+func (s *Store) DeleteExpired(ctx context.Context, retentionDays int) (int64, error) {
+	if retentionDays < 1 || retentionDays > 3650 {
+		retentionDays = 90
+	}
+	cutoff := time.Now().UTC().Add(-time.Duration(retentionDays) * 24 * time.Hour).Format(time.RFC3339Nano)
+	result, err := s.db.ExecContext(ctx, `DELETE FROM activities WHERE created_at < ? AND is_current = 0`, cutoff)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 func (s *Store) Clear(ctx context.Context, owner, source, sourceID, key string) (bool, error) {
 	res, err := s.db.ExecContext(ctx, `DELETE FROM activities WHERE owner_id=? AND source=? AND source_id=? AND idempotency_key=?`, owner, source, sourceID, key)
 	if err != nil {

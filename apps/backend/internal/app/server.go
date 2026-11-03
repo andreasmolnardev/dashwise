@@ -17,6 +17,7 @@ import (
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/activitiesapi"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/auth"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/authapi"
+	"github.com/andreasmolnardev/dashwise/apps/backend/internal/backgroundjobs"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/calendarapi"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/config"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/consumersapi"
@@ -339,6 +340,14 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, err
 		_ = db.Close()
 		return nil, fmt.Errorf("initialize migration archive API: %w", err)
 	}
+	maintenanceRunner, err := backgroundjobs.New(backgroundjobs.Options{
+		Users: authStore, News: newsStore, NewsFetcher: newsFetcher, Resources: resourceStore,
+		Activities: activitiesStore, Logger: logger,
+	})
+	if err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("initialize background maintenance: %w", err)
+	}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) {
@@ -454,6 +463,13 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, err
 		defer app.workers.Done()
 		if err := runActivityConditionReconciliation(workerCtx, authStore, activitiesStore, notificationsStore, resourceStore, registry, logger); err != nil && workerCtx.Err() == nil {
 			logger.Error("resource activity condition reconciliation stopped", "error", err)
+		}
+	}()
+	app.workers.Add(1)
+	go func() {
+		defer app.workers.Done()
+		if err := maintenanceRunner.Run(workerCtx); err != nil && workerCtx.Err() == nil {
+			logger.Error("background maintenance runner stopped", "error", err)
 		}
 	}()
 	return app, nil
