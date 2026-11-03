@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/integrations"
-	"github.com/andreasmolnardev/dashwise/apps/backend/internal/links"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/monitoring"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/resourceapi"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/resources"
@@ -36,7 +35,6 @@ type Handler struct {
 	sdkResources *resources.Store
 	registry     *resources.Registry
 	integrations *integrations.Store
-	links        *links.Store
 	mux          *http.ServeMux
 	upgrader     websocket.Upgrader
 }
@@ -45,7 +43,6 @@ type SDKResourceDependencies struct {
 	Resources    *resources.Store
 	Registry     *resources.Registry
 	Integrations *integrations.Store
-	Links        *links.Store
 }
 
 func New(store *monitoring.Store, authenticate resourceapi.Authenticate, refresh RefreshFunc, sdkDependencies ...SDKResourceDependencies) (http.Handler, error) {
@@ -57,7 +54,6 @@ func New(store *monitoring.Store, authenticate resourceapi.Authenticate, refresh
 		h.sdkResources = sdkDependencies[0].Resources
 		h.registry = sdkDependencies[0].Registry
 		h.integrations = sdkDependencies[0].Integrations
-		h.links = sdkDependencies[0].Links
 	}
 	h.mux.HandleFunc("GET /api/v1/monitoring/sdk-resources", h.sdkMonitoringResources)
 	h.mux.HandleFunc("GET /api/v1/monitors", h.listMonitors)
@@ -268,10 +264,10 @@ func (h *Handler) deleteHost(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) syncOwnerResources(ctx context.Context, owner string) {
-	if h.sdkResources == nil || h.links == nil {
+	if h.sdkResources == nil {
 		return
 	}
-	if err := resourcesync.SyncOwner(ctx, owner, h.links, h.store, h.sdkResources); err != nil {
+	if err := resourcesync.SyncMonitoringOwner(ctx, owner, h.store, h.sdkResources); err != nil {
 		log.Printf("refresh monitoring resource views for owner %q: %v", owner, err)
 	}
 }
