@@ -3,7 +3,9 @@ package wallpapersapi
 
 import (
 	"bytes"
+	"crypto/rand"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"image"
@@ -177,11 +179,32 @@ func (h *Handler) upload(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusRequestEntityTooLarge, map[string]string{"error": "Processed image exceeds 25 MB"})
 		return
 	}
-	if _, err := h.store.Save(r.Context(), owner, filename, mediaType, contents); err != nil {
+	storedName, err := makeStoredFilename(filename)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Could not assign wallpaper identifier"})
+		return
+	}
+	if _, err := h.store.Save(r.Context(), owner, storedName, mediaType, contents); err != nil {
 		writeJSON(w, 400, map[string]string{"error": err.Error()})
 		return
 	}
-	writeJSON(w, 200, map[string]any{"success": true, "path": "/api/v1/wallpapers?fileName=" + url.QueryEscape(filename)})
+	writeJSON(w, 200, map[string]any{"success": true, "path": "/api/v1/wallpapers?fileName=" + url.QueryEscape(storedName)})
+}
+
+func makeStoredFilename(original string) (string, error) {
+	extension := filepath.Ext(original)
+	base := strings.TrimSuffix(filepath.Base(original), extension)
+	if base == "" || base == "." {
+		base = "wallpaper"
+	}
+	if len(base) > 180 {
+		base = base[:180]
+	}
+	var suffix [12]byte
+	if _, err := rand.Read(suffix[:]); err != nil {
+		return "", err
+	}
+	return base + "-" + hex.EncodeToString(suffix[:]) + extension, nil
 }
 
 func prepareWallpaper(contents []byte, contentType string, convertWebP bool) ([]byte, string, error) {

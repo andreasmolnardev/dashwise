@@ -229,15 +229,6 @@ func (s *Store) applyArchive(ctx context.Context, owner string, archive Archive,
 	}()
 	result := Result{Imported: map[string]int{}}
 	importedResourceIDs := make([]string, 0, len(archive.Tables["resources"]))
-	if len(archive.Tables["wallpapers"]) > 0 {
-		var previous string
-		err := tx.QueryRowContext(ctx, `SELECT path FROM wallpapers WHERE owner_id=?`, owner).Scan(&previous)
-		if err == nil && previous != "" {
-			oldWallpaperPaths = append(oldWallpaperPaths, previous)
-		} else if err != nil && !errors.Is(err, sql.ErrNoRows) {
-			return Result{}, err
-		}
-	}
 	for _, spec := range tableSpecs {
 		rows := archive.Tables[spec.name]
 		if len(rows) == 0 {
@@ -261,6 +252,15 @@ func (s *Store) applyArchive(ctx context.Context, owner string, archive Archive,
 			}
 			if spec.ownerColumn != "" {
 				row[spec.ownerColumn] = owner
+			}
+			if spec.name == "wallpapers" {
+				var previous string
+				err := tx.QueryRowContext(ctx, `SELECT path FROM wallpapers WHERE owner_id=? AND file_name=?`, owner, stringValue(row["file_name"])).Scan(&previous)
+				if err == nil && previous != "" {
+					oldWallpaperPaths = append(oldWallpaperPaths, previous)
+				} else if err != nil && !errors.Is(err, sql.ErrNoRows) {
+					return Result{}, err
+				}
 			}
 			if spec.name == "auth_user_properties" && !userPropertyNames[stringValue(row["property_name"])] {
 				return Result{}, fmt.Errorf("%w: unsupported user property", ErrInvalid)
