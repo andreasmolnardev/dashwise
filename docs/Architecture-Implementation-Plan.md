@@ -175,7 +175,7 @@ These remain domain-specific services and workflows.
 Initial production topology:
 
 - Go backend
-- Bun integration host
+- Go-embedded JavaScript runtime for trusted integration bundles
 - React frontend
 - SQLite
 - Filesystem blob storage
@@ -854,18 +854,19 @@ TypeScript SDK integrations support:
 - Provider lifecycle
 - Specialized export behavior
 
-They run in a Bun integration host.
+Integration authors write these integrations in TypeScript. The build bundles them into trusted JavaScript artifacts, which the Go backend runs in its embedded JavaScript runtime. There is no separate integration process or local host protocol in the initial deployment.
 
 ### 9.4 Integration host
 
 Initial design:
 
-- One Bun process
-- Multiple integration instances
-- Versioned local protocol
-- Go backend owns persistent configuration and data
+- The Go backend owns integration lifecycle and persistent configuration.
+- The embedded JavaScript runtime loads the trusted bundles packaged with the server.
+- Multiple configured instances run through the Go-owned lifecycle manager.
+- SDK host APIs bridge integration calls to Go-owned resources, storage, secrets, and actions.
+- TypeScript compilation and bundling happen during development and image builds.
 
-Communication may use a Unix domain socket or localhost TCP.
+The runtime is intended for trusted, installed bundles. It is not a process or operating-system security boundary. Remote or untrusted integration execution remains future work.
 
 The host supports:
 
@@ -1432,8 +1433,7 @@ Core contracts are versioned and validated by end-to-end tests.
 
 Implement:
 
-- Bun runtime host
-- Local protocol
+- Go-embedded JavaScript runtime
 - Instance lifecycle
 - Provider registration
 - Resource synchronization
@@ -1701,7 +1701,7 @@ Consumer/frontend agent:
 
 Integration agent:
 
-- Bun host
+- Go JavaScript runtime and host bridge
 - YAML
 - TypeScript SDK
 - Protocol
@@ -1747,7 +1747,7 @@ Before broad implementation, record the following decisions:
 9. Domains retain specialized workflows.
 10. Resource storage may be stored, materialized, or on-demand.
 11. Go owns persistent state and authorization.
-12. Bun runs TypeScript integration logic.
+12. TypeScript SDK integrations are bundled during builds and execute as trusted bundles in the Go backend's embedded JavaScript runtime.
 13. YAML integrations remain supported.
 14. SQLite is the initial durable backend.
 15. Live resource invalidation uses shared WebSocket infrastructure.
