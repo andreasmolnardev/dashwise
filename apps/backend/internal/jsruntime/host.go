@@ -185,6 +185,8 @@ func (h *StoreHost) Call(ctx context.Context, instanceID, operation string, args
 		return h.activityUpsert(ctx, args)
 	case "activities.clear":
 		return h.activityClear(ctx, args)
+	case "activities.getSettings":
+		return h.activityGetSettings(ctx, args)
 	}
 	parts := strings.Split(operation, ".")
 	if len(parts) != 3 || parts[0] != "resources" {
@@ -256,6 +258,23 @@ func (h *StoreHost) activityUpsert(ctx context.Context, args []any) (any, error)
 	activity.Title = strings.TrimSpace(stringArgValue(payload["title"]))
 	activity.Description = strings.TrimSpace(stringArgValue(payload["description"]))
 	activity.Severity = strings.TrimSpace(stringArgValue(payload["severity"]))
+	if metadata, exists := payload["metadata"]; exists {
+		value, ok := metadata.(map[string]any)
+		if !ok {
+			return nil, errors.New("activity metadata must be an object")
+		}
+		activity.Metadata = value
+	}
+	if action, exists := payload["action"]; exists {
+		value, ok := action.(map[string]any)
+		if !ok {
+			return nil, errors.New("activity action must be an object")
+		}
+		activity.Action = &activities.Action{
+			Label:  strings.TrimSpace(stringArgValue(value["label"])),
+			Target: strings.TrimSpace(stringArgValue(value["target"])),
+		}
+	}
 	// Declared activities honor the owner's definition preferences: when a
 	// configured notification-topic filter has no unread topics left, the
 	// current-state record for this key is cleared instead of (re)published so
@@ -314,6 +333,31 @@ func (h *StoreHost) activityClear(ctx context.Context, args []any) (any, error) 
 		return nil, err
 	}
 	return map[string]any{"removed": removed}, nil
+}
+
+func (h *StoreHost) activityGetSettings(ctx context.Context, args []any) (any, error) {
+	activityID, err := stringArg(args, 0, "activity ID")
+	if err != nil {
+		return nil, err
+	}
+	activityID = strings.TrimSpace(activityID)
+	if !h.activityDeclared[activityID] {
+		return nil, errors.New("SDK requested settings for an undeclared Activity")
+	}
+	settings, err := h.activities.DefinitionSettings(ctx, h.ownerID)
+	if err != nil {
+		return nil, err
+	}
+	definitionID := activities.SDKActivityDefinitionID(h.instanceID, activityID)
+	enabled := true
+	if value, exists := settings.Enabled[definitionID]; exists {
+		enabled = value
+	}
+	config := settings.Config[definitionID]
+	if config == nil {
+		config = map[string]any{}
+	}
+	return map[string]any{"enabled": enabled, "config": config}, nil
 }
 
 // Stop is invoked by the runtime after provider cleanup settles. It releases

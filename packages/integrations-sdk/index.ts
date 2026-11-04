@@ -284,6 +284,14 @@ export type IntegrationActivity = {
   severity?: "info" | "success" | "warning" | "error";
   idempotencyKey?: string;
   metadata?: Record<string, JsonValue>;
+  action?: { label: string; target: string };
+};
+export type IntegrationActivityDefinition = {
+  id: string;
+  title: string;
+  description?: string;
+  severity?: "info" | "success" | "warning" | "error";
+  configSchema?: ConfigSchema;
 };
 export type IntegrationStorage = {
   get<Value extends JsonValue = JsonValue>(key: string): Promise<Value | undefined>;
@@ -323,7 +331,15 @@ export type IntegrationsRuntime<
   readonly actions: {
     execute<Input extends JsonValue = JsonValue>(actionId: string, resource: ResourceIdentity, input: Input): Promise<ActionResult>;
   };
-  readonly activities: { publish(activity: IntegrationActivity): Promise<{ id: string; duplicate: boolean }> };
+  readonly activities: {
+    publish(activity: IntegrationActivity): Promise<{ id: string; duplicate: boolean }>;
+    /** Create or update an ongoing condition until it is cleared or the provider stops. */
+    upsert(key: string, activity: IntegrationActivity): Promise<{ id: string; duplicate: boolean; filtered?: boolean; cleared?: boolean }>;
+    /** Clear one ongoing condition previously written with upsert. */
+    clear(key: string): Promise<{ removed: boolean }>;
+    /** Read the owner-scoped settings for an Activity declared by this integration. */
+    getSettings(activityId: string): Promise<{ enabled: boolean; config: Record<string, JsonValue> }>;
+  };
   readonly events: {
     publish(event: IntegrationEvent): void;
     subscribe(name: string, handler: (event: IntegrationEvent) => void | Promise<void>): () => void;
@@ -350,6 +366,7 @@ export type IntegrationDefinition<
   resources: Resources;
   actions?: Readonly<Record<string, IntegrationAction<any, any, any, any>>>;
   apps?: readonly AppContribution[];
+  activities?: readonly IntegrationActivityDefinition[];
   widgets?: Widgets;
   glanceables?: Glanceables;
   setup?(integrations: IntegrationsRuntime<ConfigValues<Config>, SecretConfigKey<Config>, Resources>): void | Promise<void>;
