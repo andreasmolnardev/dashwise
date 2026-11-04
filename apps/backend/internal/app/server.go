@@ -12,6 +12,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/activities"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/activitiesapi"
@@ -244,6 +245,30 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, err
 		},
 		ReadItems: func(ctx context.Context, owner, id string) (any, error) {
 			return newsStore.ReadSubscriptionItems(ctx, owner, id, 1000)
+		},
+		GroupTopics: func(ctx context.Context, owner, _ string, items []any) ([]any, error) {
+			subscriptions, err := newsStore.ListSubscriptions(ctx, owner)
+			if err != nil {
+				return nil, err
+			}
+			settings := make(map[string]newsapi.TopicGroupingSettings, len(subscriptions))
+			for _, subscription := range subscriptions {
+				values := map[string]any{}
+				_ = json.Unmarshal(subscription.Settings, &values)
+				blacklist := map[string]bool{}
+				if raw, ok := values["similarityGroupingWordsBlacklist"].(string); ok {
+					for _, word := range strings.FieldsFunc(strings.ToLower(raw), func(r rune) bool { return !unicode.IsLetter(r) && !unicode.IsNumber(r) }) {
+						blacklist[word] = true
+					}
+				}
+				enabled := true
+				if value, ok := values["enableTopicGrouping"].(bool); ok {
+					enabled = value
+				}
+				ignoreDescription, _ := values["ignoreDescriptionForTopicGrouping"].(bool)
+				settings[subscription.ID] = newsapi.TopicGroupingSettings{Enabled: enabled, IgnoreDescription: ignoreDescription, Blacklist: blacklist}
+			}
+			return newsapi.GroupTopics(items, settings), nil
 		},
 	})
 	if err != nil {
