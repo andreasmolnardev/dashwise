@@ -62,6 +62,7 @@ export type AuthUserRecord = Partial<{
   localizationPreferences: LocalizationPreferences;
   screensaverPreferences: Record<string, unknown>;
   searchPreferences: SearchPreferences;
+  newsPreferences: Record<string, JsonValue>;
   verified: boolean;
   externalOnly: boolean;
   created: string;

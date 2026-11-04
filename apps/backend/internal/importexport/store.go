@@ -113,7 +113,8 @@ var tableSpecs = []tableSpec{
 
 var userPropertyNames = map[string]bool{
 	"appearancePreferences": true, "localizationPreferences": true,
-	"screensaverPreferences": true, "searchPreferences": true, "global": true,
+	"screensaverPreferences": true, "searchPreferences": true,
+	"newsPreferences": true, "global": true,
 }
 
 func New(db *foundation.DB, secrets SecretProtector, filesDir string) (*Store, error) {
