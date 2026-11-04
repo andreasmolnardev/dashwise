@@ -15,6 +15,7 @@ func BuiltinDefinitions() []Definition {
 				{Name: "url", Type: "url", Searchable: true},
 				{Name: "description", Type: "text", Searchable: true},
 				{Name: "collectionId", Type: "string", Filterable: true},
+				{Name: "tags", Type: "array", Filterable: true},
 				{Name: "favorite", Type: "boolean", Filterable: true},
 				{Name: "position", Type: "number", Filterable: true},
 				{Name: "createdAt", Type: "datetime", Filterable: true},
