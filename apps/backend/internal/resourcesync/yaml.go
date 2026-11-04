@@ -53,7 +53,7 @@ func SyncYAMLResources(ctx context.Context, owner string, source *integrations.S
 		resultDefinition := resources.Definition{
 			Type: YAMLResultResourceType(item), Version: 1, Title: "YAML integration data",
 			Fields:       []resources.FieldDefinition{{Name: "name", Type: "string", Searchable: true}},
-			Capabilities: []string{"list", "detail"},
+			Capabilities: []string{"list", "detail", "search"},
 		}
 		if err := registerResourceDefinition(ctx, registry, resultDefinition); err != nil {
 			integrationFailed = true
@@ -208,7 +208,7 @@ func upsertYAMLResult(ctx context.Context, owner string, item integrations.Integ
 	_, err := target.Upsert(ctx, resources.Resource{
 		Type: resourceType, Provider: "yaml", ProviderInstanceID: item.ID,
 		ProviderResourceID: resourceID, OwnerID: owner,
-		Data: map[string]any{"name": name, "payload": payload}, Capabilities: []string{"list", "detail"}, State: "current",
+		Data: map[string]any{"name": name, "payload": payload}, Capabilities: []string{"list", "detail", "search"}, State: "current",
 	})
 	if err != nil {
 		return fmt.Errorf("materialize YAML integration result %q/%q: %w", item.ID, resourceID, err)

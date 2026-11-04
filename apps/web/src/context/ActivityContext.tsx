@@ -123,6 +123,10 @@ export function ActivityProvider({ children }: { children: ReactNode }) {
             void queryClient.invalidateQueries({ queryKey: ["api", token, ...queryKeys.activities.root] });
             return;
           }
+          if (message.type === "resources:changed") {
+            void queryClient.invalidateQueries({ queryKey: ["api", token, ...queryKeys.resources.root] });
+            return;
+          }
           if (
             message.type === "sdk:resource-revision"
             && typeof message.instanceId === "string"

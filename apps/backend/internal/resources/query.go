@@ -123,6 +123,19 @@ func (s *Store) compileQuery(ctx context.Context, query Query) (string, []any, e
 		}
 		typeSearch := make([]string, 0, len(definitions))
 		for _, definition := range definitions {
+			// Search is an explicit resource capability. A searchable field alone
+			// does not opt a resource into global search; callers can still query
+			// that resource directly for views that need field-level matching.
+			searchEnabled := false
+			for _, capability := range definition.Capabilities {
+				if capability == "search" {
+					searchEnabled = true
+					break
+				}
+			}
+			if !searchEnabled {
+				continue
+			}
 			fields := make([]string, 0, len(definition.Fields))
 			for _, field := range definition.Fields {
 				if field.Searchable {

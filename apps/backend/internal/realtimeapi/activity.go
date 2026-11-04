@@ -262,9 +262,6 @@ func (h *ActivityHandler) serve(w http.ResponseWriter, r *http.Request) {
 					sess.sendPageWidgets(ctx, pageID)
 				}
 			case <-eventTicker.C:
-				if state.subscriptionCount() == 0 {
-					continue
-				}
 				if err := sess.pollResourceRevisions(ctx); err != nil && !errors.Is(err, context.Canceled) {
 					sess.close(websocket.ClosePolicyViolation, "session ended")
 					return
@@ -373,13 +370,19 @@ func (s *connectionSession) pollResourceRevisions(ctx context.Context) error {
 	if next := maxSequence(events); next > after {
 		s.lastSequence.Store(next)
 	}
+	if len(events) == 0 {
+		return nil
+	}
+	if err := s.write(map[string]any{"type": "resources:changed"}); err != nil {
+		return err
+	}
 	s.state.mu.Lock()
 	subscriptions := map[string]resourceIdentity{}
 	for key, identity := range s.state.subscriptions {
 		subscriptions[key] = identity
 	}
 	s.state.mu.Unlock()
-	if len(subscriptions) == 0 || len(events) == 0 {
+	if len(subscriptions) == 0 {
 		return nil
 	}
 	for i := len(events) - 1; i >= 0; i-- {
