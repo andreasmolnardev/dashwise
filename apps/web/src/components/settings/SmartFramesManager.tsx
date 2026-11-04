@@ -33,6 +33,7 @@ import { renderWidget } from "../widgets/Widget";
 import WidgetPropertiesForm, { type GlanceableOption } from "@dashwise/integrationskit/forms/WidgetPropertiesForm";
 import LocationSelectFormComponent from "./LocationSelectForm";
 import { EditGlanceablesView } from "./pages/EditGlanceablesView";
+import type { ClockGlanceableSelection } from "./pages/utils";
 
 const LOCAL_WIDGET_OPTIONS = [
   { value: "glanceable-clock", label: "Glanceable Clock" },
@@ -229,25 +230,28 @@ function getFrameGlanceables(value: unknown): FrameGlanceable[] {
   const record = value && typeof value === "object"
     ? value as Record<string, any>
     : {};
-  const rawItems = Array.isArray(value)
+  const rawItems: unknown[] = Array.isArray(value)
     ? value
     : Array.isArray(record.slots?.list)
     ? record.slots.list
     : [];
 
-  return rawItems.flatMap((item) => {
+  return rawItems.flatMap((item: unknown) => {
     if (typeof item === "string" && item.trim()) {
       return [{ type: item.trim(), params: {} }];
     }
 
-    if (!item || typeof item !== "object" || typeof item.type !== "string" || !item.type.trim()) {
+    if (!item || typeof item !== "object") {
       return [];
     }
 
+    const entry = item as Record<string, unknown>;
+    if (typeof entry.type !== "string" || !entry.type.trim()) return [];
+
     return [{
-      type: item.type.trim(),
-      params: item.params && typeof item.params === "object" && !Array.isArray(item.params)
-        ? item.params
+      type: entry.type.trim(),
+      params: entry.params && typeof entry.params === "object" && !Array.isArray(entry.params)
+        ? entry.params as Record<string, unknown>
         : {},
     }];
   });
@@ -265,11 +269,11 @@ function FrameGlanceableModal({
   onRemove: () => void;
 }) {
   const itemId = "frame-glanceable";
-  const [clockSelection, setClockSelection] = useState({
+  const [clockSelection, setClockSelection] = useState<ClockGlanceableSelection>({
     left: [{ id: itemId, type: glanceable.type }],
     right: [],
   });
-  const [clockGlanceables, setClockGlanceables] = useState({
+  const [clockGlanceables, setClockGlanceables] = useState<Record<string, any>>({
     [itemId]: glanceable.params,
   });
   const [clockGlanceableIntervals, setClockGlanceableIntervals] = useState({
