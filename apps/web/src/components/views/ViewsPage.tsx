@@ -70,7 +70,7 @@ function ViewRun({ view }: { view: ViewRecord }) {
           {errorMessage(runQuery.error, "view query failed")}
         </div>
       ) : (
-        <ResourceList page={runQuery.data} />
+        <ResourceList page={runQuery.data} presentation={view.definition?.presentation} />
       )}
     </section>
   );
@@ -97,6 +97,7 @@ export default function ViewsPage() {
           return [...rest, saved].sort((a, b) => a.name.localeCompare(b.name));
         });
         setActiveView((current) => (current && current.id === saved.id ? saved : current));
+        void queryClient.invalidateQueries({ queryKey: ["api", token, ...queryKeys.views.run(token, saved.id)] });
         setDialogOpen(false);
       },
     },

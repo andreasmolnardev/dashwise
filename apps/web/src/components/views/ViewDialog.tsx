@@ -12,7 +12,6 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -47,7 +46,8 @@ type ViewForm = {
   limit: string;
   offset: string;
   filters: FilterDraft[];
-  presentationJson: string;
+  presentationType: "list" | "table" | "cards";
+  presentationColumns: string;
 };
 
 function emptyForm(): ViewForm {
@@ -62,7 +62,8 @@ function emptyForm(): ViewForm {
     limit: "",
     offset: "",
     filters: [],
-    presentationJson: "",
+    presentationType: "list",
+    presentationColumns: "",
   };
 }
 
@@ -81,6 +82,11 @@ function filterListToDrafts(filters: ViewFilter[] | undefined): FilterDraft[] {
 function viewToForm(view: ViewRecord | null | undefined): ViewForm {
   if (!view) return emptyForm();
   const query = view.definition?.query;
+  const presentation = view.definition?.presentation;
+  const savedRenderer = presentation?.type ?? presentation?.renderer;
+  const presentationType = savedRenderer === "table" || savedRenderer === "cards" || savedRenderer === "list"
+    ? savedRenderer
+    : (Array.isArray(presentation?.columns) ? "table" : "list");
   return {
     name: view.name,
     typesCsv: (query?.types ?? []).join(", "),
@@ -92,8 +98,9 @@ function viewToForm(view: ViewRecord | null | undefined): ViewForm {
     limit: query?.limit ? String(query.limit) : "",
     offset: query?.offset ? String(query.offset) : "",
     filters: filterListToDrafts(query?.filters),
-    presentationJson: view.definition?.presentation
-      ? JSON.stringify(view.definition.presentation, null, 2)
+    presentationType,
+    presentationColumns: Array.isArray(presentation?.columns)
+      ? presentation.columns.filter((column): column is string => typeof column === "string").join(", ")
       : "",
   };
 }
@@ -143,18 +150,12 @@ function formToDefinition(form: ViewForm): ViewResourceQuery | { error: string }
   return query as ViewResourceQuery;
 }
 
-function formToPresentation(form: ViewForm): Record<string, unknown> | undefined | { error: string } {
-  const raw = form.presentationJson.trim();
-  if (!raw) return undefined;
-  try {
-    const parsed = JSON.parse(raw);
-    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
-      return { error: "presentation must be a JSON object" };
-    }
-    return parsed as Record<string, unknown>;
-  } catch {
-    return { error: "presentation must be valid JSON" };
-  }
+function formToPresentation(form: ViewForm): Record<string, unknown> {
+  const columns = form.presentationColumns.split(",").map((column) => column.trim()).filter(Boolean);
+  return {
+    type: form.presentationType,
+    ...(columns.length ? { columns } : {}),
+  };
 }
 
 export default function ViewDialog({
@@ -200,10 +201,6 @@ export default function ViewDialog({
       return;
     }
     const presentation = formToPresentation(form);
-    if (isFormError(presentation)) {
-      setError(presentation.error);
-      return;
-    }
     setSaving(true);
     setError(null);
     try {
@@ -385,14 +382,29 @@ export default function ViewDialog({
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="view-presentation">presentation (optional json object)</Label>
-            <Textarea
-              id="view-presentation"
-              value={form.presentationJson}
-              onChange={(event) => update({ presentationJson: event.target.value })}
-              placeholder={"{ \"columns\": [\"name\"] }"}
-              className="font-mono text-xs min-h-20"
-            />
+            <div className="space-y-3 rounded-xl border border-white/10 p-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="view-presentation-type">renderer</Label>
+                <Select value={form.presentationType} onValueChange={(value) => update({ presentationType: value as ViewForm["presentationType"] })}>
+                  <SelectTrigger id="view-presentation-type" className="w-full"><SelectValue /></SelectTrigger>
+                  <SelectContent className="frosted bg-black/70 text-foreground">
+                    <SelectItem value="list">list</SelectItem>
+                    <SelectItem value="table">table</SelectItem>
+                    <SelectItem value="cards">cards</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="view-presentation-columns">fields (optional, comma separated)</Label>
+                <Input
+                  id="view-presentation-columns"
+                  value={form.presentationColumns}
+                  onChange={(event) => update({ presentationColumns: event.target.value })}
+                  placeholder="name, status, hostname"
+                />
+                <p className="text-xs text-white/45">Table defaults to name, type, provider, state, and updatedAt.</p>
+              </div>
+            </div>
           </div>
         </div>
 

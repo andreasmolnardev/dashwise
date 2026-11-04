@@ -237,10 +237,10 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, err
 		},
 		Refresh: func(ctx context.Context, owner string, ids []string) error {
 			_, err := newsStore.Refresh(ctx, owner, ids, newsFetcher)
-			if err != nil {
-				return err
-			}
-			return materializeNewsResources(ctx, owner, newsStore, resourceStore)
+			return err
+		},
+		SyncResources: func(ctx context.Context, owner string) error {
+			return resourcesync.SyncNewsOwner(ctx, owner, newsStore, resourceStore)
 		},
 		ReadItems: func(ctx context.Context, owner, id string) (any, error) {
 			return newsStore.ReadSubscriptionItems(ctx, owner, id, 1000)
@@ -583,7 +583,7 @@ func runResourceSync(ctx context.Context, authStore *auth.Store, linksStore *lin
 					}
 					logger.Error("sync YAML integration resources", "owner_id", owner, "error", err)
 				}
-				if err := materializeNewsResources(ctx, owner, newsStore, resourceStore); err != nil {
+				if err := resourcesync.SyncNewsOwner(ctx, owner, newsStore, resourceStore); err != nil {
 					if ctx.Err() != nil {
 						return ctx.Err()
 					}
@@ -598,44 +598,6 @@ func runResourceSync(ctx context.Context, authStore *auth.Store, linksStore *lin
 		}
 	}
 }
-
-func materializeNewsResources(ctx context.Context, owner string, source *news.Store, target *resources.Store) error {
-	for offset := 0; ; offset += 100 {
-		page, err := source.QueryArticles(ctx, owner, "all", offset, 100)
-		if err != nil {
-			return err
-		}
-		for _, article := range page.Items {
-			url, _ := article.Data["link"].(string)
-			if url == "" {
-				url = article.CanonicalURL
-			}
-			summary, _ := article.Data["description"].(string)
-			sourceName, _ := article.Data["subscription_name"].(string)
-			data := map[string]any{
-				"title": article.Title, "summary": summary, "url": url,
-				"source": sourceName, "feedIds": article.SourceIDs, "isRead": article.IsRead,
-			}
-			if article.PublishedAt != nil {
-				data["publishedAt"] = article.PublishedAt.UTC().Format(time.RFC3339Nano)
-			}
-			if len(article.SourceIDs) > 0 {
-				data["feedId"] = article.SourceIDs[0]
-			}
-			if _, err := target.Upsert(ctx, resources.Resource{
-				Type: "news.article", Provider: "dashwise", ProviderInstanceID: "news",
-				ProviderResourceID: article.ID, OwnerID: owner, Data: data,
-				Capabilities: []string{"list", "detail", "search", "save", "mark_read"}, State: "current",
-			}); err != nil {
-				return fmt.Errorf("materialize News article: %w", err)
-			}
-		}
-		if len(page.Items) < 100 || offset+len(page.Items) >= page.Total {
-			return nil
-		}
-	}
-}
-
 func authenticateOwner(store *auth.Store) resourceapi.Authenticate {
 	return func(r *http.Request) (string, error) {
 		value := strings.TrimSpace(r.Header.Get("Authorization"))

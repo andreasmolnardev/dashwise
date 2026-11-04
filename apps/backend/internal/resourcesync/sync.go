@@ -7,9 +7,11 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/links"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/monitoring"
+	"github.com/andreasmolnardev/dashwise/apps/backend/internal/news"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/resources"
 )
 
@@ -56,6 +58,51 @@ func SyncMonitoringOwner(ctx context.Context, owner string, monitorStore *monito
 		return fmt.Errorf("monitoring resource sync requires an owner, monitoring store, and resource store")
 	}
 	return syncMonitoring(ctx, owner, monitorStore, resourceStore)
+}
+
+// SyncNewsOwner refreshes one owner's materialized article resources and
+// removes articles that are no longer present in the News domain store.
+func SyncNewsOwner(ctx context.Context, owner string, newsStore *news.Store, resourceStore *resources.Store) error {
+	if strings.TrimSpace(owner) == "" || newsStore == nil || resourceStore == nil {
+		return fmt.Errorf("news resource sync requires an owner, news store, and resource store")
+	}
+	wanted := map[string]bool{}
+	for offset := 0; ; offset += 100 {
+		page, err := newsStore.QueryArticles(ctx, owner, "all", offset, 100)
+		if err != nil {
+			return fmt.Errorf("query News articles for resource sync: %w", err)
+		}
+		for _, article := range page.Items {
+			url, _ := article.Data["link"].(string)
+			if url == "" {
+				url = article.CanonicalURL
+			}
+			summary, _ := article.Data["description"].(string)
+			sourceName, _ := article.Data["subscription_name"].(string)
+			data := map[string]any{
+				"title": article.Title, "summary": summary, "url": url,
+				"source": sourceName, "feedIds": article.SourceIDs, "isRead": article.IsRead,
+			}
+			if article.PublishedAt != nil {
+				data["publishedAt"] = article.PublishedAt.UTC().Format(time.RFC3339Nano)
+			}
+			if len(article.SourceIDs) > 0 {
+				data["feedId"] = article.SourceIDs[0]
+			}
+			if _, err := resourceStore.Upsert(ctx, resources.Resource{
+				Type: "news.article", Provider: provider, ProviderInstanceID: "news",
+				ProviderResourceID: article.ID, OwnerID: owner, Data: data,
+				Capabilities: []string{"list", "detail", "search", "save", "mark_read"}, State: "current",
+			}); err != nil {
+				return fmt.Errorf("materialize News article %q: %w", article.ID, err)
+			}
+			wanted[article.ID] = true
+		}
+		if len(page.Items) < 100 || offset+len(page.Items) >= page.Total {
+			break
+		}
+	}
+	return reconcile(ctx, owner, resourceStore, "news.article", "news", wanted)
 }
 
 func syncLinks(ctx context.Context, owner string, source *links.Store, target *resources.Store) error {

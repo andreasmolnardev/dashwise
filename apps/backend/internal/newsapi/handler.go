@@ -35,6 +35,9 @@ type Options struct {
 	// of the owner's subscriptions; implementations should preserve old articles
 	// when a fetch fails.
 	Refresh func(context.Context, string, []string) error
+	// SyncResources immediately reconciles the owner's article resources after
+	// a News mutation. The periodic sync remains a recovery path.
+	SyncResources func(context.Context, string) error
 	// ReadItems returns one subscription's latest raw materialized feed cache.
 	ReadItems func(context.Context, string, string) (any, error)
 	// GroupTopics applies the existing News topic clustering after articles are
@@ -257,6 +260,9 @@ func (h *Handler) markRead(w http.ResponseWriter, r *http.Request) {
 	count, err := h.store.MarkReadByURL(r.Context(), owner, body.Link, read)
 	if err != nil {
 		writeStoreError(w, err)
+		return
+	}
+	if !h.syncResources(w, r, owner) {
 		return
 	}
 	writeJSON(w, 200, map[string]any{"success": true, "updatedCount": count})
@@ -530,6 +536,9 @@ func (h *Handler) refreshFeeds(w http.ResponseWriter, r *http.Request) {
 		writeStoreError(w, err)
 		return
 	}
+	if !h.syncResources(w, r, owner) {
+		return
+	}
 	writeJSON(w, 200, map[string]string{"message": "Internal refresh triggered"})
 }
 
@@ -587,6 +596,9 @@ func (h *Handler) subscribe(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	if !h.syncResources(w, r, owner) {
+		return
+	}
 	response := map[string]any{"message": "Feed successfully subscribed.", "subscriptionId": sub.ID}
 	if body.View != nil {
 		if view, err := h.feedView(r.Context(), owner, *body.View); err == nil {
@@ -619,6 +631,9 @@ func (h *Handler) unsubscribe(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := h.store.DeleteSubscription(r.Context(), owner, sub.ID); err != nil {
 		writeStoreError(w, err)
+		return
+	}
+	if !h.syncResources(w, r, owner) {
 		return
 	}
 	writeJSON(w, 200, map[string]string{"message": "Subscription removed."})
@@ -667,6 +682,9 @@ func (h *Handler) updateSubscription(w http.ResponseWriter, r *http.Request) {
 			writeStoreError(w, err)
 			return
 		}
+	}
+	if !h.syncResources(w, r, owner) {
+		return
 	}
 	response := map[string]any{"message": "Feed successfully updated.", "subscriptionId": sub.ID}
 	if body.View != nil {
@@ -883,6 +901,17 @@ func (h *Handler) owner(w http.ResponseWriter, r *http.Request) (string, bool) {
 		return "", false
 	}
 	return owner, true
+}
+
+func (h *Handler) syncResources(w http.ResponseWriter, r *http.Request, owner string) bool {
+	if h.opts.SyncResources == nil {
+		return true
+	}
+	if err := h.opts.SyncResources(r.Context(), owner); err != nil {
+		writeStoreError(w, err)
+		return false
+	}
+	return true
 }
 
 func feedJSON(feed news.Feed, items []any) map[string]any {
