@@ -15,6 +15,8 @@ import {
   getLinksItemsAction,
   getLinksTagsAction,
   updateLinkRssFeedAction,
+  rotateLinkRssSecretAction,
+  revokeLinkRssSecretAction,
   backendUrl,
   type LinkRssFeedInput,
   type LinkRssFeedRecord,
@@ -45,6 +47,7 @@ export default function LinkRssFeedsSettings() {
   const [linkIds, setLinkIds] = useState<string[]>([]);
   const [requiresAuth, setRequiresAuth] = useState(false);
   const [copiedFeedId, setCopiedFeedId] = useState<string | null>(null);
+  const [secretUrls, setSecretUrls] = useState<Record<string, string>>({});
 
   const listNames = useMemo(() => new Map(lists.map((list) => [list.id, list.name])), [lists]);
   const selectedTags = tags.filter((tag) => tagIds.includes(tag.id));
@@ -119,6 +122,9 @@ export default function LinkRssFeedsSettings() {
       setFeeds((current) => editingId
         ? current.map((feed) => feed.id === result.id ? result : feed).sort((a, b) => a.name.localeCompare(b.name))
         : [...current, result].sort((a, b) => a.name.localeCompare(b.name)));
+      if (!result.hasSecret) {
+        setSecretUrls((current) => { const next = { ...current }; delete next[result.id]; return next; });
+      }
       resetForm();
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : String(saveError));
@@ -134,6 +140,7 @@ export default function LinkRssFeedsSettings() {
     try {
       await withAuth((auth) => deleteLinkRssFeedAction(auth, feed.id));
       setFeeds((current) => current.filter((entry) => entry.id !== feed.id));
+      setSecretUrls((current) => { const next = { ...current }; delete next[feed.id]; return next; });
       if (editingId === feed.id) resetForm();
     } catch (removeError) {
       setError(removeError instanceof Error ? removeError.message : String(removeError));
@@ -153,6 +160,38 @@ export default function LinkRssFeedsSettings() {
     }
   }
 
+  async function rotateSecretUrl(feed: LinkRssFeedRecord) {
+    if (!token || saving) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const { token: secret } = await withAuth((auth) => rotateLinkRssSecretAction(auth, feed.id));
+      const url = backendUrl(`/api/v1/links/rss/${encodeURIComponent(feed.id)}?token=${encodeURIComponent(secret)}`);
+      setSecretUrls((current) => ({ ...current, [feed.id]: url }));
+      setFeeds((current) => current.map((entry) => entry.id === feed.id ? { ...entry, hasSecret: true } : entry));
+      try { await navigator.clipboard.writeText(url); } catch { /* The URL remains visible for manual copying. */ }
+    } catch (secretError) {
+      setError(secretError instanceof Error ? secretError.message : String(secretError));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function revokeSecretUrl(feed: LinkRssFeedRecord) {
+    if (!token || saving) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await withAuth((auth) => revokeLinkRssSecretAction(auth, feed.id));
+      setSecretUrls((current) => { const next = { ...current }; delete next[feed.id]; return next; });
+      setFeeds((current) => current.map((entry) => entry.id === feed.id ? { ...entry, hasSecret: false } : entry));
+    } catch (secretError) {
+      setError(secretError instanceof Error ? secretError.message : String(secretError));
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <>
       <button
@@ -169,7 +208,7 @@ export default function LinkRssFeedsSettings() {
         <DialogContent className="frosted text-foreground w-[min(94vw,48rem)] max-w-none max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Link RSS feeds</DialogTitle>
-            <DialogDescription>Create RSS feeds from a link list, selected tags, and individual links.</DialogDescription>
+            <DialogDescription>Create RSS feeds from a link list, selected tags, and individual links. Private feeds can use a revocable scoped URL for feed readers.</DialogDescription>
           </DialogHeader>
 
           <section className="space-y-2">
@@ -197,11 +236,18 @@ export default function LinkRssFeedsSettings() {
                         </div>
                         <div className="mt-1 truncate text-xs text-white/50">{listNames.get(feed.listId) ?? "Link list"}</div>
                         <a className="mt-1 block truncate text-xs text-sky-300 hover:underline" href={feedUrl} target="_blank" rel="noreferrer">{feedUrl}</a>
+                        {secretUrls[feed.id] && <Input className="frosted mt-2 text-xs" readOnly value={secretUrls[feed.id]} aria-label={`Scoped secret URL for ${feed.name}`} onFocus={(event) => event.currentTarget.select()} />}
                       </div>
                       <div className="flex shrink-0 gap-1">
                         <Button type="button" variant="ghost" size="icon" title="Copy RSS URL" onClick={() => void copyFeedUrl(feed)}>
                           <Icon icon={copiedFeedId === feed.id ? "fa6-solid:check" : "fa6-regular:copy"} />
                         </Button>
+                        {feed.requiresAuth && <Button type="button" variant="ghost" size="icon" title={feed.hasSecret ? "Rotate scoped secret URL" : "Create scoped secret URL"} onClick={() => void rotateSecretUrl(feed)} disabled={saving}>
+                          <Icon icon="fa6-solid:key" />
+                        </Button>}
+                        {feed.hasSecret && <Button type="button" variant="ghost" size="icon" title="Revoke scoped secret URL" onClick={() => void revokeSecretUrl(feed)} disabled={saving}>
+                          <Icon icon="fa6-solid:lock" />
+                        </Button>}
                         <Button type="button" variant="ghost" size="icon" title="Edit feed" onClick={() => editFeed(feed)}>
                           <Icon icon="fa6-solid:pen-to-square" />
                         </Button>

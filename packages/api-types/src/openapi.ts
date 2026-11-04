@@ -5083,7 +5083,7 @@ export interface paths {
         };
         /**
          * Read a generated RSS feed
-         * @description A token query parameter may authorize feeds configured to require authentication.
+         * @description A feed-scoped revocable secret token or an authenticated Dashwise account may authorize private feeds.
          */
         get: {
             parameters: {
@@ -5167,6 +5167,82 @@ export interface paths {
                     content: {
                         "application/json": {
                             id: string;
+                        };
+                    };
+                };
+                401: components["responses"]["JsonUnauthorized"];
+                404: components["responses"]["JsonNotFound"];
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/links/rss/{feedId}/secret": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                feedId: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Rotate the scoped secret URL for a private RSS feed
+         * @description Returns the new token once. Rotating it revokes the previous token.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    feedId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description New feed-scoped bearer token */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            token: string;
+                        };
+                    };
+                };
+                400: components["responses"]["JsonBadRequest"];
+                401: components["responses"]["JsonUnauthorized"];
+                404: components["responses"]["JsonNotFound"];
+            };
+        };
+        /** Revoke the scoped secret URL for an RSS feed */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    feedId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Feed secret revoked */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            /** @constant */
+                            hasSecret: false;
                         };
                     };
                 };
@@ -5497,6 +5573,8 @@ export interface components {
             tagIds: string[];
             linkIds: string[];
             requiresAuth: boolean;
+            /** @description Whether a revocable feed-scoped token is configured. */
+            hasSecret: boolean;
         };
         LinkRSSFeedInput: {
             name: string;

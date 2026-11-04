@@ -4893,7 +4893,7 @@
 					"links"
 				],
 				"summary": "Read a generated RSS feed",
-				"description": "A token query parameter may authorize feeds configured to require authentication.",
+				"description": "A feed-scoped revocable secret token or an authenticated Dashwise account may authorize private feeds.",
 				"parameters": [
 					{
 						"name": "token",
@@ -4985,6 +4985,101 @@
 									"properties": {
 										"id": {
 											"type": "string"
+										}
+									}
+								}
+							}
+						}
+					},
+					"401": {
+						"$ref": "#/components/responses/JsonUnauthorized"
+					},
+					"404": {
+						"$ref": "#/components/responses/JsonNotFound"
+					}
+				}
+			}
+		},
+		"/links/rss/{feedId}/secret": {
+			"parameters": [
+				{
+					"name": "feedId",
+					"in": "path",
+					"required": true,
+					"schema": {
+						"type": "string"
+					}
+				}
+			],
+			"post": {
+				"tags": [
+					"links"
+				],
+				"summary": "Rotate the scoped secret URL for a private RSS feed",
+				"description": "Returns the new token once. Rotating it revokes the previous token.",
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "New feed-scoped bearer token",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"required": [
+										"token"
+									],
+									"properties": {
+										"token": {
+											"type": "string"
+										}
+									}
+								}
+							}
+						}
+					},
+					"400": {
+						"$ref": "#/components/responses/JsonBadRequest"
+					},
+					"401": {
+						"$ref": "#/components/responses/JsonUnauthorized"
+					},
+					"404": {
+						"$ref": "#/components/responses/JsonNotFound"
+					}
+				}
+			},
+			"delete": {
+				"tags": [
+					"links"
+				],
+				"summary": "Revoke the scoped secret URL for an RSS feed",
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Feed secret revoked",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"required": [
+										"id",
+										"hasSecret"
+									],
+									"properties": {
+										"id": {
+											"type": "string"
+										},
+										"hasSecret": {
+											"type": "boolean",
+											"const": false
 										}
 									}
 								}
@@ -5453,7 +5548,8 @@
 					"listId",
 					"tagIds",
 					"linkIds",
-					"requiresAuth"
+					"requiresAuth",
+					"hasSecret"
 				],
 				"properties": {
 					"id": {
@@ -5482,6 +5578,10 @@
 					},
 					"requiresAuth": {
 						"type": "boolean"
+					},
+					"hasSecret": {
+						"type": "boolean",
+						"description": "Whether a revocable feed-scoped token is configured."
 					}
 				}
 			},

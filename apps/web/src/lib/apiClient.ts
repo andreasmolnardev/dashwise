@@ -596,9 +596,10 @@ export type LinkRssFeedRecord = {
   tagIds: string[];
   linkIds: string[];
   requiresAuth: boolean;
+  hasSecret: boolean;
 };
 
-export type LinkRssFeedInput = Omit<LinkRssFeedRecord, "id" | "user">;
+export type LinkRssFeedInput = Omit<LinkRssFeedRecord, "id" | "user" | "hasSecret">;
 
 async function linkRssRequest<T>(auth: ActionAuth, path: string, method = "GET", body?: unknown): Promise<T> {
   const response = await fetch(backendUrl(`/api/v1/links/rss${path}`), {
@@ -628,6 +629,14 @@ export function updateLinkRssFeedAction(auth: ActionAuth, feedId: string, input:
 
 export function deleteLinkRssFeedAction(auth: ActionAuth, feedId: string) {
   return linkRssRequest<{ id: string }>(auth, `/${encodeURIComponent(feedId)}`, "DELETE");
+}
+
+export function rotateLinkRssSecretAction(auth: ActionAuth, feedId: string) {
+  return linkRssRequest<{ token: string }>(auth, `/${encodeURIComponent(feedId)}/secret`, "POST");
+}
+
+export function revokeLinkRssSecretAction(auth: ActionAuth, feedId: string) {
+  return linkRssRequest<{ id: string; hasSecret: false }>(auth, `/${encodeURIComponent(feedId)}/secret`, "DELETE");
 }
 
 export async function createLinkItemAction(auth: ActionAuth, data: { url: string; title: string; iconUrl?: string; description?: string; linkGroup?: string; folder?: string; collection?: string; tags?: string[]; secondaryUrls?: { name: string; url: string; routingRule: string }[] }) {

@@ -26,6 +26,10 @@ export type LinkRssFeed = {
     tagIds: Array<string>;
     linkIds: Array<string>;
     requiresAuth: boolean;
+    /**
+     * Whether a revocable feed-scoped token is configured.
+     */
+    hasSecret: boolean;
 };
 
 export type LinkRssFeedInput = {
@@ -4401,6 +4405,77 @@ export type PutLinksRssByFeedIdResponses = {
 };
 
 export type PutLinksRssByFeedIdResponse = PutLinksRssByFeedIdResponses[keyof PutLinksRssByFeedIdResponses];
+
+export type DeleteLinksRssByFeedIdSecretData = {
+    body?: never;
+    path: {
+        feedId: string;
+    };
+    query?: never;
+    url: '/links/rss/{feedId}/secret';
+};
+
+export type DeleteLinksRssByFeedIdSecretErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Error;
+    /**
+     * Not Found
+     */
+    404: Error;
+};
+
+export type DeleteLinksRssByFeedIdSecretError = DeleteLinksRssByFeedIdSecretErrors[keyof DeleteLinksRssByFeedIdSecretErrors];
+
+export type DeleteLinksRssByFeedIdSecretResponses = {
+    /**
+     * Feed secret revoked
+     */
+    200: {
+        id: string;
+        hasSecret: boolean;
+    };
+};
+
+export type DeleteLinksRssByFeedIdSecretResponse = DeleteLinksRssByFeedIdSecretResponses[keyof DeleteLinksRssByFeedIdSecretResponses];
+
+export type PostLinksRssByFeedIdSecretData = {
+    body?: never;
+    path: {
+        feedId: string;
+    };
+    query?: never;
+    url: '/links/rss/{feedId}/secret';
+};
+
+export type PostLinksRssByFeedIdSecretErrors = {
+    /**
+     * Bad Request
+     */
+    400: Error;
+    /**
+     * Unauthorized
+     */
+    401: Error;
+    /**
+     * Not Found
+     */
+    404: Error;
+};
+
+export type PostLinksRssByFeedIdSecretError = PostLinksRssByFeedIdSecretErrors[keyof PostLinksRssByFeedIdSecretErrors];
+
+export type PostLinksRssByFeedIdSecretResponses = {
+    /**
+     * New feed-scoped bearer token
+     */
+    200: {
+        token: string;
+    };
+};
+
+export type PostLinksRssByFeedIdSecretResponse = PostLinksRssByFeedIdSecretResponses[keyof PostLinksRssByFeedIdSecretResponses];
 
 export type DeleteNewsSavedArticlesData = {
     body: {

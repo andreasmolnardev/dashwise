@@ -2,7 +2,12 @@ package links
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/sha256"
+	"crypto/subtle"
 	"database/sql"
+	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"sort"
@@ -21,6 +26,7 @@ type RSSFeed struct {
 	TagIDs       []string `json:"tagIds"`
 	LinkIDs      []string `json:"linkIds"`
 	RequiresAuth bool     `json:"requiresAuth"`
+	HasSecret    bool     `json:"hasSecret"`
 }
 type RSSItem struct {
 	ID          string    `json:"id"`
@@ -39,11 +45,14 @@ func (s *Store) InitializeRSS(ctx context.Context) error {
 	return s.foundation.ApplyMigrations(ctx, []foundation.Migration{{ID: "0015_links_rss", Name: "Links RSS feeds", Up: func(ctx context.Context, tx *sql.Tx) error {
 		_, err := tx.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS links_rss_feeds(id TEXT PRIMARY KEY NOT NULL,owner_id TEXT NOT NULL,name TEXT NOT NULL,list_id TEXT NOT NULL,tag_ids_json TEXT NOT NULL,link_ids_json TEXT NOT NULL,requires_auth INTEGER NOT NULL DEFAULT 0,created_at TEXT NOT NULL,updated_at TEXT NOT NULL)`)
 		return err
+	}}, {ID: "0021_links_rss_secrets", Name: "Scoped Links RSS secrets", Up: func(ctx context.Context, tx *sql.Tx) error {
+		_, err := tx.ExecContext(ctx, `ALTER TABLE links_rss_feeds ADD COLUMN secret_hash TEXT NOT NULL DEFAULT ''`)
+		return err
 	}}})
 }
 
 func (s *Store) ListRSSFeeds(ctx context.Context, owner string) ([]RSSFeed, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT id,owner_id,name,list_id,tag_ids_json,link_ids_json,requires_auth FROM links_rss_feeds WHERE owner_id=? ORDER BY name COLLATE NOCASE`, owner)
+	rows, err := s.db.QueryContext(ctx, `SELECT id,owner_id,name,list_id,tag_ids_json,link_ids_json,requires_auth,secret_hash FROM links_rss_feeds WHERE owner_id=? ORDER BY name COLLATE NOCASE`, owner)
 	if err != nil {
 		return nil, err
 	}
@@ -59,14 +68,14 @@ func (s *Store) ListRSSFeeds(ctx context.Context, owner string) ([]RSSFeed, erro
 	return out, rows.Err()
 }
 func (s *Store) GetRSSFeed(ctx context.Context, owner, id string) (RSSFeed, error) {
-	item, err := scanRSS(s.db.QueryRowContext(ctx, `SELECT id,owner_id,name,list_id,tag_ids_json,link_ids_json,requires_auth FROM links_rss_feeds WHERE owner_id=? AND id=?`, owner, id))
+	item, err := scanRSS(s.db.QueryRowContext(ctx, `SELECT id,owner_id,name,list_id,tag_ids_json,link_ids_json,requires_auth,secret_hash FROM links_rss_feeds WHERE owner_id=? AND id=?`, owner, id))
 	if errors.Is(err, sql.ErrNoRows) {
 		return RSSFeed{}, ErrNotFound
 	}
 	return item, err
 }
 func (s *Store) GetRSSFeedPublic(ctx context.Context, id string) (RSSFeed, error) {
-	item, err := scanRSS(s.db.QueryRowContext(ctx, `SELECT id,owner_id,name,list_id,tag_ids_json,link_ids_json,requires_auth FROM links_rss_feeds WHERE id=?`, id))
+	item, err := scanRSS(s.db.QueryRowContext(ctx, `SELECT id,owner_id,name,list_id,tag_ids_json,link_ids_json,requires_auth,secret_hash FROM links_rss_feeds WHERE id=?`, id))
 	if errors.Is(err, sql.ErrNoRows) {
 		return RSSFeed{}, ErrNotFound
 	}
@@ -119,7 +128,7 @@ func (s *Store) writeRSS(ctx context.Context, owner, id string, in RSSInput) (RS
 		}
 		_, err = s.db.ExecContext(ctx, `INSERT INTO links_rss_feeds(id,owner_id,name,list_id,tag_ids_json,link_ids_json,requires_auth,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)`, id, owner, in.Name, in.ListID, string(tags), string(links), boolInt(in.RequiresAuth), now, now)
 	} else {
-		res, e := s.db.ExecContext(ctx, `UPDATE links_rss_feeds SET name=?,list_id=?,tag_ids_json=?,link_ids_json=?,requires_auth=?,updated_at=? WHERE owner_id=? AND id=?`, in.Name, in.ListID, string(tags), string(links), boolInt(in.RequiresAuth), now, owner, id)
+		res, e := s.db.ExecContext(ctx, `UPDATE links_rss_feeds SET name=?,list_id=?,tag_ids_json=?,link_ids_json=?,requires_auth=?,secret_hash=CASE WHEN ?=0 THEN '' ELSE secret_hash END,updated_at=? WHERE owner_id=? AND id=?`, in.Name, in.ListID, string(tags), string(links), boolInt(in.RequiresAuth), boolInt(in.RequiresAuth), now, owner, id)
 		err = e
 		if err == nil {
 			n, _ := res.RowsAffected()
@@ -143,6 +152,66 @@ func (s *Store) DeleteRSSFeed(ctx context.Context, owner, id string) error {
 		return ErrNotFound
 	}
 	return nil
+}
+
+// RotateRSSSecret creates a new bearer-free secret URL credential for one
+// private feed. Only the hash is stored; the caller receives the token once.
+func (s *Store) RotateRSSSecret(ctx context.Context, owner, id string) (string, error) {
+	var requiresAuth int
+	if err := s.db.QueryRowContext(ctx, `SELECT requires_auth FROM links_rss_feeds WHERE owner_id=? AND id=?`, owner, id).Scan(&requiresAuth); errors.Is(err, sql.ErrNoRows) {
+		return "", ErrNotFound
+	} else if err != nil {
+		return "", err
+	}
+	if requiresAuth == 0 {
+		return "", ErrInvalid
+	}
+	random := make([]byte, 32)
+	if _, err := rand.Read(random); err != nil {
+		return "", err
+	}
+	token := "dwrss_" + base64.RawURLEncoding.EncodeToString(random)
+	secretHash := hashRSSSecret(token)
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	result, err := s.db.ExecContext(ctx, `UPDATE links_rss_feeds SET secret_hash=?,updated_at=? WHERE owner_id=? AND id=? AND requires_auth=1`, secretHash, now, owner, id)
+	if err != nil {
+		return "", err
+	}
+	if affected, _ := result.RowsAffected(); affected == 0 {
+		return "", ErrInvalid
+	}
+	return token, nil
+}
+
+func (s *Store) RevokeRSSSecret(ctx context.Context, owner, id string) error {
+	result, err := s.db.ExecContext(ctx, `UPDATE links_rss_feeds SET secret_hash='',updated_at=? WHERE owner_id=? AND id=?`, time.Now().UTC().Format(time.RFC3339Nano), owner, id)
+	if err != nil {
+		return err
+	}
+	count, _ := result.RowsAffected()
+	if count == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func (s *Store) ValidateRSSSecret(ctx context.Context, id, token string) (bool, error) {
+	var storedHash string
+	if err := s.db.QueryRowContext(ctx, `SELECT secret_hash FROM links_rss_feeds WHERE id=?`, id).Scan(&storedHash); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return false, ErrNotFound
+		}
+		return false, err
+	}
+	if storedHash == "" || token == "" {
+		return false, nil
+	}
+	return subtle.ConstantTimeCompare([]byte(storedHash), []byte(hashRSSSecret(token))) == 1, nil
+}
+
+func hashRSSSecret(token string) string {
+	hash := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(hash[:])
 }
 func (s *Store) RSSItems(ctx context.Context, feed RSSFeed, resourceStore *resources.Store) ([]RSSItem, error) {
 	if resourceStore == nil {
@@ -245,7 +314,8 @@ func scanRSS(row rssScanner) (RSSFeed, error) {
 	var f RSSFeed
 	var tags, links string
 	var required int
-	err := row.Scan(&f.ID, &f.User, &f.Name, &f.ListID, &tags, &links, &required)
+	var secretHash string
+	err := row.Scan(&f.ID, &f.User, &f.Name, &f.ListID, &tags, &links, &required, &secretHash)
 	if err != nil {
 		return f, err
 	}
@@ -258,6 +328,7 @@ func scanRSS(row rssScanner) (RSSFeed, error) {
 		f.LinkIDs = []string{}
 	}
 	f.RequiresAuth = required != 0
+	f.HasSecret = secretHash != ""
 	return f, nil
 }
 func uniqueIDs(items []string) []string {

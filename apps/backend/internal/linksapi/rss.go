@@ -75,6 +75,33 @@ func (h *Handler) deleteRSS(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, 200, map[string]string{"id": id})
 }
+
+func (h *Handler) rotateRSSSecret(w http.ResponseWriter, r *http.Request) {
+	owner, ok := h.owner(w, r)
+	if !ok {
+		return
+	}
+	token, err := h.store.RotateRSSSecret(r.Context(), owner, r.PathValue("feedId"))
+	if err != nil {
+		h.fail(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"token": token})
+}
+
+func (h *Handler) revokeRSSSecret(w http.ResponseWriter, r *http.Request) {
+	owner, ok := h.owner(w, r)
+	if !ok {
+		return
+	}
+	id := r.PathValue("feedId")
+	if err := h.store.RevokeRSSSecret(r.Context(), owner, id); err != nil {
+		h.fail(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"id": id, "hasSecret": false})
+}
+
 func (h *Handler) publicRSS(w http.ResponseWriter, r *http.Request) {
 	feed, err := h.store.GetRSSFeedPublic(r.Context(), r.PathValue("feedId"))
 	if err != nil {
@@ -82,13 +109,23 @@ func (h *Handler) publicRSS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if feed.RequiresAuth {
-		owner, ok := h.rssOwner(w, r)
-		if !ok {
-			return
+		secretAuthorized := false
+		if token := strings.TrimSpace(r.URL.Query().Get("token")); token != "" {
+			secretAuthorized, err = h.store.ValidateRSSSecret(r.Context(), feed.ID, token)
+			if err != nil {
+				h.fail(w, err)
+				return
+			}
 		}
-		if owner != feed.User {
-			writeError(w, 401, "Unauthorized")
-			return
+		if !secretAuthorized {
+			owner, ok := h.rssOwner(w, r)
+			if !ok {
+				return
+			}
+			if owner != feed.User {
+				writeError(w, 401, "Unauthorized")
+				return
+			}
 		}
 	}
 	if err := resourcesync.SyncLinksOwner(r.Context(), feed.User, h.store, h.resources); err != nil {
