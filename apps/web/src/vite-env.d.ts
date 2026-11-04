@@ -9,3 +9,5 @@ interface ImportMetaEnv {
   readonly NEXT_PUBLIC_ENABLE_SSO?: string;
   readonly NEXT_PUBLIC_DISABLE_USER_SIGNUP?: string;
 }
+
+declare module "iconify-picker";

@@ -119,6 +119,9 @@
       "dependencies": {
         "@iconify-icon/react": "^3.0.3",
       },
+      "devDependencies": {
+        "@types/react": "^19.2.7",
+      },
       "peerDependencies": {
         "react": ">=19",
         "react-dom": ">=19",

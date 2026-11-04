@@ -10,6 +10,9 @@
   "dependencies": {
     "@iconify-icon/react": "^3.0.3"
   },
+  "devDependencies": {
+    "@types/react": "^19.2.7"
+  },
   "exports": {
     ".": {
       "types": "./index.ts",
