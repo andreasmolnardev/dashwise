@@ -2483,31 +2483,6 @@ export type GetPageConfigUserPagesResponses = {
 
 export type GetPageConfigUserPagesResponse = GetPageConfigUserPagesResponses[keyof GetPageConfigUserPagesResponses];
 
-export type GetTestBookmarksData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/test/bookmarks';
-};
-
-export type GetTestBookmarksErrors = {
-    /**
-     * Unauthorized
-     */
-    401: Error;
-};
-
-export type GetTestBookmarksError = GetTestBookmarksErrors[keyof GetTestBookmarksErrors];
-
-export type GetTestBookmarksResponses = {
-    /**
-     * OK
-     */
-    200: GenericObject;
-};
-
-export type GetTestBookmarksResponse = GetTestBookmarksResponses[keyof GetTestBookmarksResponses];
-
 export type GetWallpapersData = {
     body?: never;
     path?: never;
@@ -2613,31 +2588,6 @@ export type GetWidgetsGlanceablesResponses = {
 };
 
 export type GetWidgetsGlanceablesResponse = GetWidgetsGlanceablesResponses[keyof GetWidgetsGlanceablesResponses];
-
-export type GetWeatherData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/weather';
-};
-
-export type GetWeatherErrors = {
-    /**
-     * Unauthorized
-     */
-    401: Error;
-};
-
-export type GetWeatherError = GetWeatherErrors[keyof GetWeatherErrors];
-
-export type GetWeatherResponses = {
-    /**
-     * OK
-     */
-    200: GenericObject;
-};
-
-export type GetWeatherResponse = GetWeatherResponses[keyof GetWeatherResponses];
 
 export type PostPageConfigHomeData = {
     body?: JsonBody;

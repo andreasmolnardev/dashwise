@@ -2761,38 +2761,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/test/bookmarks": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Test bookmarks
-         * @description Authenticated placeholder endpoint.
-         */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                200: components["responses"]["JsonOk"];
-                401: components["responses"]["JsonUnauthorized"];
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/wallpapers": {
         parameters: {
             query?: never;
@@ -2935,38 +2903,6 @@ export interface paths {
             requestBody?: never;
             responses: {
                 200: components["responses"]["JsonOk"];
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/weather": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get weather
-         * @description Authenticated placeholder endpoint.
-         */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                200: components["responses"]["JsonOk"];
-                401: components["responses"]["JsonUnauthorized"];
             };
         };
         put?: never;

@@ -52,8 +52,6 @@ func NewWithOptions(auth resourceapi.Authenticate, options Options) (*Handler, e
 	h := &Handler{auth: auth, client: &http.Client{Timeout: 8 * time.Second}, mux: http.NewServeMux(), iconsDir: filepath.Join(webDist, "icons"), versions: NewVersionChecker(options.Version, options.GitHubRepo), disableSignup: options.DisableSignup}
 	h.mux.HandleFunc("GET /api/v1/appInfo", h.appInfo)
 	h.mux.HandleFunc("GET /api/v1/locations", h.locations)
-	h.mux.HandleFunc("GET /api/v1/weather", h.weather)
-	h.mux.HandleFunc("GET /api/v1/test/bookmarks", h.bookmarks)
 	h.mux.HandleFunc("GET /api/v1/jobs/pullIcons", h.pullIcons)
 	return h, nil
 }
@@ -111,24 +109,12 @@ func (h *Handler) locations(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, result)
 }
 
-func (h *Handler) weather(w http.ResponseWriter, r *http.Request) {
-	if h.owner(w, r) {
-		writeJSON(w, 200, map[string]any{})
-	}
-}
-
 func (h *Handler) appInfo(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"updateAvailable":    h.versions.UpdateAvailable(),
 		"currentAppVersion":  h.versions.version,
 		"userSignupDisabled": h.disableSignup,
 	})
-}
-
-func (h *Handler) bookmarks(w http.ResponseWriter, r *http.Request) {
-	if h.owner(w, r) {
-		writeJSON(w, 200, map[string]any{})
-	}
 }
 
 func writeJSON(w http.ResponseWriter, status int, value any) {

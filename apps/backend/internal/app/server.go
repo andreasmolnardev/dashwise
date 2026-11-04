@@ -435,8 +435,6 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, err
 	mux.Handle("/api/v1/integrations/", integrationsHandler)
 	mux.Handle("/api/v1/sdk-integrations/", sdkIntegrationsHandler)
 	mux.Handle("/api/v1/locations", systemHandler)
-	mux.Handle("/api/v1/weather", systemHandler)
-	mux.Handle("/api/v1/test/bookmarks", systemHandler)
 	mux.Handle("/api/v1/jobs/pullIcons", systemHandler)
 	mux.Handle("/api/v1/pageConfig", pagesHandler)
 	mux.Handle("/api/v1/pageConfig/", pagesHandler)

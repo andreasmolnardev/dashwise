@@ -1441,19 +1441,6 @@ paths:
       responses:
         "200":
           $ref: "#/components/responses/JsonOk"
-  /test/bookmarks:
-    get:
-      tags:
-        - test
-      summary: Test bookmarks
-      description: Authenticated placeholder endpoint.
-      security:
-        - bearerAuth: []
-      responses:
-        "200":
-          $ref: "#/components/responses/JsonOk"
-        "401":
-          $ref: "#/components/responses/JsonUnauthorized"
   /wallpapers:
     post:
       tags:
@@ -1540,19 +1527,6 @@ paths:
       responses:
         "200":
           $ref: "#/components/responses/JsonOk"
-  /weather:
-    get:
-      tags:
-        - weather
-      summary: Get weather
-      description: Authenticated placeholder endpoint.
-      security:
-        - bearerAuth: []
-      responses:
-        "200":
-          $ref: "#/components/responses/JsonOk"
-        "401":
-          $ref: "#/components/responses/JsonUnauthorized"
   /pageConfig/home:
     post:
       tags:
