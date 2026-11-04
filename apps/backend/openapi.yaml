@@ -1591,6 +1591,35 @@ paths:
       responses:
         "200":
           $ref: "#/components/responses/JsonOk"
+  /links/folders/{folderId}:
+    put:
+      tags:
+        - links
+      summary: Update links folder
+      parameters:
+        - name: folderId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        $ref: "#/components/requestBodies/JsonBody"
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
+    delete:
+      tags:
+        - links
+      summary: Delete links folder
+      parameters:
+        - name: folderId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
   /links/folders/{folderId}/icon:
     put:
       tags:

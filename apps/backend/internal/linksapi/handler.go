@@ -43,6 +43,8 @@ func New(store *links.Store, authenticate resourceapi.Authenticate, resourceStor
 	h.mux.HandleFunc("DELETE /api/v1/links/home/groups/{groupName}", h.deleteGroup)
 	h.mux.HandleFunc("GET /api/v1/links/folders", h.listFolders)
 	h.mux.HandleFunc("POST /api/v1/links/folders", h.createFolder)
+	h.mux.HandleFunc("PUT /api/v1/links/folders/{folderId}", h.updateFolder)
+	h.mux.HandleFunc("DELETE /api/v1/links/folders/{folderId}", h.deleteFolder)
 	h.mux.HandleFunc("PUT /api/v1/links/folders/{folderId}/icon", h.updateFolderIcon)
 	h.mux.HandleFunc("GET /api/v1/links/items", h.listItems)
 	h.mux.HandleFunc("POST /api/v1/links/items", h.createItem)
@@ -403,6 +405,50 @@ func (h *Handler) createFolder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"id": folder.ID, "name": folder.Name, "icon": folder.Icon, "parentFolder": optional(folder.ParentFolder), "list": folder.List})
+}
+
+func (h *Handler) updateFolder(w http.ResponseWriter, r *http.Request) {
+	owner, ok := h.owner(w, r)
+	if !ok {
+		return
+	}
+	var body struct {
+		Name         string   `json:"name"`
+		Icon         string   `json:"icon"`
+		ParentFolder string   `json:"parentFolder"`
+		Position     int      `json:"position"`
+		Tags         []string `json:"tags"`
+	}
+	if !h.decode(w, r, &body) {
+		return
+	}
+	folder, err := h.store.UpdateFolder(r.Context(), owner, r.PathValue("folderId"), links.FolderInput{
+		Name: body.Name, Icon: body.Icon, ParentFolder: body.ParentFolder,
+		Position: body.Position, Tags: body.Tags,
+	})
+	if err != nil {
+		h.fail(w, err)
+		return
+	}
+	if !h.syncResources(w, r, owner) {
+		return
+	}
+	writeJSON(w, http.StatusOK, folder)
+}
+
+func (h *Handler) deleteFolder(w http.ResponseWriter, r *http.Request) {
+	owner, ok := h.owner(w, r)
+	if !ok {
+		return
+	}
+	if err := h.store.DeleteFolder(r.Context(), owner, r.PathValue("folderId")); err != nil {
+		h.fail(w, err)
+		return
+	}
+	if !h.syncResources(w, r, owner) {
+		return
+	}
+	writeJSON(w, http.StatusOK, nil)
 }
 
 func (h *Handler) updateFolderIcon(w http.ResponseWriter, r *http.Request) {
