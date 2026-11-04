@@ -13,6 +13,7 @@ export default function Screensaver(
   { active, onExit, initialFrameId }: { active: boolean; onExit: () => void; initialFrameId?: string | null },
 ) {
   const { user, token } = useAuth();
+  const appearancePreferences = user?.appearancePreferences as Record<string, any> | undefined;
   const [fonts, setFonts] = useState<{ name: string; path: string }[]>([]);
   const [screensaverConfig, setScreensaverConfig] = useState<any>(
     user?.screensaverPreferences,
@@ -109,7 +110,7 @@ export default function Screensaver(
   }, [active]);
 
   const useHomePageStyle = screensaverConfig?.useHomePageStyle ?? true;
-  const homePageFont = user?.appearancePreferences?.clock?.defaultFont ||
+  const homePageFont = appearancePreferences?.clock?.defaultFont ||
     "MomoTrustDisplay";
 
   const clockFont = useHomePageStyle
@@ -212,9 +213,9 @@ export default function Screensaver(
             ? frame.params.backgroundImages.filter((item: unknown) => typeof item === "string")
             : [];
           const rawUrl = source === "global-frame"
-            ? String(screensaverConfig?.backgroundImageUrl ?? user?.appearancePreferences?.backgroundImageUrl ?? "")
+            ? String(screensaverConfig?.backgroundImageUrl ?? appearancePreferences?.backgroundImageUrl ?? "")
             : source === "current"
-            ? String(user?.appearancePreferences?.backgroundImageUrl ?? "")
+            ? String(appearancePreferences?.backgroundImageUrl ?? "")
             : images.length
             ? String(images[(backgroundIndexes[frame.id] ?? 0) % images.length])
             : String(frame?.params?.backgroundImageUrl ?? "");
@@ -249,7 +250,7 @@ export default function Screensaver(
       cancelled = true;
       revokeUrls.forEach((url) => URL.revokeObjectURL(url));
     };
-  }, [frames, token, backgroundIndexes, screensaverConfig?.backgroundImageUrl, user?.appearancePreferences?.backgroundImageUrl]);
+  }, [frames, token, backgroundIndexes, screensaverConfig?.backgroundImageUrl, appearancePreferences?.backgroundImageUrl]);
 
   const handleScroll = (event: React.UIEvent<HTMLDivElement>) => {
     const target = event.currentTarget;
@@ -326,7 +327,7 @@ export default function Screensaver(
         />
         {frames.map((frame: any) => {
           const filters = frame.params?.backgroundFilters as Record<string, any> | undefined;
-          const fallbackFilters = user?.appearancePreferences?.wallpaperFilters;
+          const fallbackFilters = appearancePreferences?.wallpaperFilters;
           const blurValue = typeof filters?.blur === "number"
             ? filters.blur
             : typeof fallbackFilters?.blur === "number"
