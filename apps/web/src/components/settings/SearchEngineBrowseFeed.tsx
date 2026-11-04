@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input"; // shadcn input
 import { usePageConfig } from "@/hooks/usePageConfig";
 import useAuth from "@/context/useAuth";
+import type { SearchEngine } from "@dashwise/types/sdk";
 
 // --- Types ---
 
@@ -20,15 +21,6 @@ interface DDGBang {
     sc: string; // Subcategory
     t: string; // Trigger/Slug
     u: string; // URL Template
-}
-
-interface SearchEngine {
-    icon: string;
-    name: string;
-    slug: string;
-    status: "enabled" | "disabled";
-    url_home: string;
-    url_params: string;
 }
 
 // --- Helper Functions ---

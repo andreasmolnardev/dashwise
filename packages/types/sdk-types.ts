@@ -7,6 +7,21 @@ export type JsonPrimitive = string | number | boolean | null;
 export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue };
 export type UserPropertyValue = JsonValue;
 
+export type SearchEngine = {
+  icon: string;
+  name: string;
+  slug: string;
+  status: "enabled" | "disabled" | "default";
+  url_home: string;
+  url_params: string;
+};
+
+export type SearchPreferences = {
+  searchEngines?: SearchEngine[];
+  searchEngineShortcutFallback?: string;
+  [key: string]: JsonValue | undefined;
+};
+
 export type AuthUserRecord = Partial<{
   id: string;
   email: string;
@@ -15,7 +30,7 @@ export type AuthUserRecord = Partial<{
   appearancePreferences: Record<string, unknown>;
   localizationPreferences: Record<string, unknown>;
   screensaverPreferences: Record<string, unknown>;
-  searchPreferences: Record<string, unknown>;
+  searchPreferences: SearchPreferences;
   verified: boolean;
   externalOnly: boolean;
   created: string;

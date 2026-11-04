@@ -23,6 +23,7 @@ import SearchEngineBrowseFeedComponent from "@/components/settings/SearchEngineB
 import { Icon } from "@iconify-icon/react";
 import { Select, SelectValue, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import useAuth from "@/context/useAuth";
+import type { AuthUserRecord, SearchEngine } from "@dashwise/types/sdk";
 
 export default function SearchSettingsPage() {
   const { user, updateUserProperty } = useAuth();
@@ -285,7 +286,7 @@ export default function SearchSettingsPage() {
   );
 }
 
-function RedirectBangsSetting(user) {
+function RedirectBangsSetting({ user }: { user: AuthUserRecord }) {
   const { updateUserProperty } = useAuth();
 
   async function handleChange(newVal: string) {
@@ -309,7 +310,7 @@ function RedirectBangsSetting(user) {
         </SelectTrigger>
 
         <SelectContent>
-          {user.searchPreferences?.searchEngines.map((engine) => (
+          {(user.searchPreferences?.searchEngines ?? []).map((engine) => (
             <SelectItem key={engine.slug} value={engine.slug}>
               {engine.name}
             </SelectItem>
