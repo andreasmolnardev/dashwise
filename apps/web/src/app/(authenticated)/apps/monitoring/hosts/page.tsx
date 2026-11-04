@@ -1,10 +1,22 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import AppIcon from "@dashwise/app-icon";
 import useAuth from "@/context/useAuth";
+import { Button } from "@/components/ui/button";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  deleteMonitoringHostAction,
   getMonitoringHostsAction,
   type MonitoringHostRecord,
 } from "@/lib/apiClient";
@@ -164,8 +176,12 @@ function Containers({ containers }: { containers: Record<string, unknown>[] }) {
 
 export default function MonitoringHostPage() {
   const { hostId } = useParams();
+  const navigate = useNavigate();
   const { token, withAuth } = useAuth();
   const [host, setHost] = useState<MonitoringHostRecord | null>(null);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const { records, live, error } = useMonitoringHostMetrics(hostId);
   useEffect(() => {
     if (!token || !hostId) {
@@ -187,6 +203,20 @@ export default function MonitoringHostPage() {
   const containers = Array.isArray(valueAt(latest?.values || {}, "containers"))
     ? valueAt(latest?.values || {}, "containers") as Record<string, unknown>[]
     : [];
+  const deleteHost = async () => {
+    if (!hostId) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await withAuth((auth) => deleteMonitoringHostAction(auth, hostId));
+      setConfirmDeleteOpen(false);
+      navigate("/apps/monitoring");
+    } catch (error) {
+      setDeleteError(error instanceof Error ? error.message : "Could not remove this host.");
+    } finally {
+      setDeleting(false);
+    }
+  };
   const cpu = latest
     ? numberAt(latest, ["cpu.percent", "cpu.usage", "cpu"])
     : 0;
@@ -206,19 +236,25 @@ export default function MonitoringHostPage() {
             {host?.hostname || "Loading host details"}
           </p>
         </div>
-        <span
-          className={`flex items-center gap-2 text-sm ${
-            live ? "text-emerald-300" : "text-white/50"
-          }`}
-        >
-          <i
-            className={`h-2 w-2 rounded-full ${
-              live ? "bg-emerald-400" : "bg-white/35"
+        <div className="flex items-center gap-3">
+          <span
+            className={`flex items-center gap-2 text-sm ${
+              live ? "text-emerald-300" : "text-white/50"
             }`}
-          />
-          {live ? "live" : "reconnecting"}
-        </span>
+          >
+            <i
+              className={`h-2 w-2 rounded-full ${
+                live ? "bg-emerald-400" : "bg-white/35"
+              }`}
+            />
+            {live ? "live" : "reconnecting"}
+          </span>
+          <Button type="button" variant="destructive-ghost" disabled={!host} onClick={() => setConfirmDeleteOpen(true)}>
+            Remove host
+          </Button>
+        </div>
       </header>
+      {deleteError && <p className="text-sm text-red-200">{deleteError}</p>}
       <section className="frosted rounded-xl px-4 py-3 shadow-sm">
         <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
           <span>
@@ -395,6 +431,22 @@ export default function MonitoringHostPage() {
         </section>
       )}
       <Containers containers={containers} />
+      <AlertDialog open={confirmDeleteOpen} onOpenChange={setConfirmDeleteOpen}>
+        <AlertDialogContent className="frosted text-foreground">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove {host?.name || "this host"}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This removes the host and its stored metric history from Monitoring.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={(event) => { event.preventDefault(); void deleteHost(); }} disabled={deleting}>
+              {deleting ? "Removing…" : "Remove host"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
