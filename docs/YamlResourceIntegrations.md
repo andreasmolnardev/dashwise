@@ -53,6 +53,35 @@ Collections declaring the `monitoring` capability also appear in Monitoring's
 attributes, so YAML integrations can add monitoring data without a
 provider-specific frontend adapter.
 
+## Resource-backed integration widgets
+
+A widget can declare `resource_query` to opt into the shared resource query
+path instead of relying only on its integration's endpoint/computed payload.
+The backend applies the authenticated owner's scope and returns the result in
+`data.resourceView` as `{ items, total, limit, offset }`. `items` are ordinary
+resource records, including their `type`, `data`, and provider metadata. The
+query declaration accepts the same `types`, `provider`, `providerInstanceId`,
+`capabilities`, `filters`, `search`, `orderBy`, `limit`, and `offset` fields as
+the resource API. At least one resource type is required; the owner is always
+derived from the authenticated session.
+
+```yaml
+widgets:
+  - key: recent-services
+    name: Recent services
+    template: columns
+    resource_query:
+      types: [integration.example-status.services]
+      orderBy: updatedAt
+      limit: 20
+    data:
+      source: resourceView.items
+```
+
+Widgets without `resource_query` keep their existing `consumerData` behavior.
+The YAML runtime still supplies endpoint/computed data, so a resource-backed
+widget may combine `resourceView` with those existing integration values.
+
 ## Beszel
 
 The Beszel YAML integration declares its `systems` collection as

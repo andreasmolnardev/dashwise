@@ -31,8 +31,12 @@ ephemeral resource queries through the same contract.
 The current widget UI still receives its established YAML widget blueprint and
 data payload. For regular page loads, the Go compatibility adapter reconstructs
 that payload from an owner-scoped query of materialized integration resources.
-Preview requests with unsaved environment overrides execute the YAML definition
-directly so the settings editor can preview pending changes.
+YAML widgets may additionally declare `resource_query`; its result is available
+to the existing renderer as `data.resourceView`, alongside integration
+endpoint/computed values. Widgets without that declaration retain their
+existing `consumerData` behavior. Preview requests with unsaved environment
+overrides execute the YAML definition directly so the settings editor can
+preview pending changes.
 
 ## Resource collections in YAML
 

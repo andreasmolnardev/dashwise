@@ -2,6 +2,7 @@ package consumersapi
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -9,6 +10,40 @@ import (
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/resources"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/resourcesync"
 )
+
+func widgetResourceQuery(widget map[string]any) (any, bool) {
+	query, ok := widget["resource_query"]
+	if !ok {
+		query, ok = widget["resourceQuery"]
+	}
+	return query, ok
+}
+
+// queryWidgetResources executes a widget-declared ResourceQuery under the
+// authenticated owner. The manifest can select types and filters, but cannot
+// supply or override the owner scope.
+func queryWidgetResources(ctx context.Context, owner string, declaration any, store *resources.Store) (map[string]any, error) {
+	if store == nil {
+		return nil, fmt.Errorf("resource store is unavailable")
+	}
+	encoded, err := json.Marshal(declaration)
+	if err != nil {
+		return nil, fmt.Errorf("encode widget resource query: %w", err)
+	}
+	var query resources.Query
+	if err := json.Unmarshal(encoded, &query); err != nil {
+		return nil, fmt.Errorf("decode widget resource query: %w", err)
+	}
+	if len(query.Types) == 0 {
+		return nil, fmt.Errorf("widget resource query must select at least one type")
+	}
+	query.OwnerID = owner
+	page, err := store.Query(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("query widget resources: %w", err)
+	}
+	return map[string]any{"items": page.Items, "total": page.Total, "limit": page.Limit, "offset": page.Offset}, nil
+}
 
 // readIntegrationView evaluates the integration's materialized endpoint and
 // computed resources into the shape the retained YAML widget renderer expects.

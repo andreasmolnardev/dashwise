@@ -288,6 +288,21 @@ func (h *Handler) consumer(w http.ResponseWriter, r *http.Request, key, kind str
 			return
 		}
 	}
+	// A widget can opt into the shared resource layer with a declarative
+	// resource_query. This keeps ordinary SDK/YAML consumerData widgets on
+	// their established path while allowing resource-first widgets to consume
+	// the same owner-scoped query contract as other views.
+	if rawQuery, ok := widgetResourceQuery(entry); ok {
+		view, err := queryWidgetResources(r.Context(), owner, rawQuery, h.resources)
+		if err != nil {
+			writeError(w, 400, "widget resource query is invalid")
+			return
+		}
+		if data == nil {
+			data = map[string]any{}
+		}
+		data["resourceView"] = view
+	}
 	input := merge(properties, object(object(entry["data"])["input"]))
 	widgetJSON := applyInput(entry, input)
 	resolved := object(entry["properties"])
@@ -300,6 +315,9 @@ func (h *Handler) consumer(w http.ResponseWriter, r *http.Request, key, kind str
 		}
 	}
 	payload := map[string]any{"consumer": kind, "key": key, "integrationId": integration.ID, "data": data, "blueprint": map[string]any{"template": first(stringValue(entry["template"]), "columns"), "resolved": resolved, "widgetJSON": widgetJSON}, "fresh": nil}
+	if query, ok := widgetResourceQuery(entry); ok {
+		payload["blueprint"].(map[string]any)["resourceQuery"] = query
+	}
 	if !preview {
 		payload["cache"] = map[string]any{"fresh": true, "stale": false}
 	}
@@ -353,7 +371,13 @@ func normalizeWidget(in map[string]any) map[string]any {
 	if properties == nil {
 		properties = map[string]any{}
 	}
-	return map[string]any{"key": key, "slug": key, "name": name, "description": in["description"], "template": first(stringValue(in["template"]), "columns"), "properties": properties, "data": in["data"], "preview": map[string]any{"template": first(stringValue(in["template"]), "columns"), "properties": properties}}
+	result := map[string]any{"key": key, "slug": key, "name": name, "description": in["description"], "template": first(stringValue(in["template"]), "columns"), "properties": properties, "data": in["data"], "preview": map[string]any{"template": first(stringValue(in["template"]), "columns"), "properties": properties}}
+	if query, ok := in["resource_query"]; ok {
+		result["resourceQuery"] = query
+	} else if query, ok := in["resourceQuery"]; ok {
+		result["resourceQuery"] = query
+	}
+	return result
 }
 func normalizeGlanceable(in map[string]any) map[string]any {
 	name := first(stringValue(in["name"]), stringValue(in["displayName"]), "Glanceable")
