@@ -241,19 +241,100 @@ func (r *Runner) refreshNews(ctx context.Context) error {
 			if firstErr == nil {
 				firstErr = err
 			}
-			continue
+		} else {
+			if result.Failed > 0 {
+				r.logger.Warn("some News feeds could not be refreshed", "owner_id", owner, "failed", result.Failed, "refreshed", result.Fetched)
+			}
+			if err := r.materializeNewsResources(ctx, owner); err != nil {
+				r.logger.Error("materialize News resources", "owner_id", owner, "error", err)
+				if firstErr == nil {
+					firstErr = err
+				}
+			}
 		}
-		if result.Failed > 0 {
-			r.logger.Warn("some News feeds could not be refreshed", "owner_id", owner, "failed", result.Failed, "refreshed", result.Fetched)
-		}
-		if err := r.materializeNewsResources(ctx, owner); err != nil {
-			r.logger.Error("materialize News resources", "owner_id", owner, "error", err)
+		if err := r.reconcileNewsFeedFailureActivities(ctx, owner); err != nil {
+			r.logger.Error("reconcile News feed failure activities", "owner_id", owner, "error", err)
 			if firstErr == nil {
 				firstErr = err
 			}
 		}
 	}
 	return firstErr
+}
+
+func (r *Runner) reconcileNewsFeedFailureActivities(ctx context.Context, owner string) error {
+	settings, err := r.activities.DefinitionSettings(ctx, owner)
+	if err != nil {
+		return err
+	}
+	threshold := 3
+	if configured, ok := settings.Config["news.feed-failures"]["repeatFailures"]; ok {
+		switch value := configured.(type) {
+		case float64:
+			if value >= 1 && value <= 20 {
+				threshold = int(value)
+			}
+		case int:
+			if value >= 1 && value <= 20 {
+				threshold = value
+			}
+		}
+	}
+	enabled := true
+	if value, exists := settings.Enabled["news.feed-failures"]; exists {
+		enabled = value
+	}
+	subscriptions, err := r.news.ListSubscriptions(ctx, owner)
+	if err != nil {
+		return err
+	}
+	activeSubscriptions := make(map[string]struct{}, len(subscriptions))
+	for _, subscription := range subscriptions {
+		activeSubscriptions[subscription.ID] = struct{}{}
+		key := "feed:" + subscription.ID + ":failure"
+		if !enabled || subscription.FetchErrorCount < threshold {
+			_, err := r.activities.Clear(ctx, owner, "news", subscription.ID, key)
+			if err != nil {
+				return err
+			}
+			continue
+		}
+		title := subscription.Title
+		if title == "" {
+			title = "News feed"
+		}
+		_, _, err := r.activities.Publish(ctx, owner, activities.Input{
+			Source: "news", SourceID: subscription.ID, Type: "news.feed-failure",
+			Title:       "News feed is failing: " + title,
+			Description: fmt.Sprintf("The feed has failed to refresh %d consecutive times.", subscription.FetchErrorCount),
+			Severity:    "warning", IdempotencyKey: key, Current: true,
+			Metadata: map[string]any{"subscriptionId": subscription.ID, "failureCount": subscription.FetchErrorCount},
+		})
+		if err != nil {
+			return err
+		}
+	}
+	stale := make([]activities.Record, 0)
+	for pageNumber := 1; ; pageNumber++ {
+		page, err := r.activities.List(ctx, owner, activities.Query{Source: "news", Type: "news.feed-failure", Page: pageNumber, PerPage: 100})
+		if err != nil {
+			return err
+		}
+		for _, item := range page.Items {
+			if _, exists := activeSubscriptions[item.SourceID]; !exists {
+				stale = append(stale, item)
+			}
+		}
+		if len(page.Items) < page.PerPage || pageNumber*page.PerPage >= page.TotalItems {
+			break
+		}
+	}
+	for _, item := range stale {
+		if _, err := r.activities.Clear(ctx, owner, "news", item.SourceID, item.IdempotencyKey); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (r *Runner) materializeNewsResources(ctx context.Context, owner string) error {
