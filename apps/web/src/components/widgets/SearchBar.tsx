@@ -35,6 +35,7 @@ type Shortcut = {
   action: string | ProxyAction;
   actions?: Record<string, string>;
   secondaryActions?: Record<string, string>;
+  isPinned?: boolean;
   isDisabled?: boolean;
   tags?: string[];
 };
@@ -115,6 +116,7 @@ function CommandBarHost() {
       action: (data.action ?? "") as Shortcut["action"],
       actions: objectValue(data.actions) as Record<string, string> | undefined,
       secondaryActions: objectValue(data.secondaryActions) as Record<string, string> | undefined,
+      isPinned: typeof data.isPinned === "boolean" ? data.isPinned : undefined,
       isDisabled: typeof data.isDisabled === "boolean" ? data.isDisabled : undefined,
       tags: Array.isArray(data.tags) ? data.tags.filter((tag): tag is string => typeof tag === "string") : undefined,
     };
