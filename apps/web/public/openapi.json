@@ -1305,6 +1305,149 @@
 				}
 			}
 		},
+		"/auth/api-credentials": {
+			"get": {
+				"tags": [
+					"auth"
+				],
+				"summary": "List scoped API credentials for the authenticated account",
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Credential metadata. Raw token values are never listed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"required": [
+										"credentials"
+									],
+									"properties": {
+										"credentials": {
+											"type": "array",
+											"items": {
+												"$ref": "#/components/schemas/APICredential"
+											}
+										}
+									}
+								}
+							}
+						}
+					},
+					"401": {
+						"$ref": "#/components/responses/JsonUnauthorized"
+					}
+				}
+			},
+			"post": {
+				"tags": [
+					"auth"
+				],
+				"summary": "Create a read-only resource API credential",
+				"description": "The raw bearer token is returned once. It is stored as a hash, expires within at most 365 days, and has only the resources:read scope.",
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"additionalProperties": false,
+								"required": [
+									"name",
+									"expiresInDays"
+								],
+								"properties": {
+									"name": {
+										"type": "string",
+										"minLength": 1,
+										"maxLength": 80
+									},
+									"expiresInDays": {
+										"type": "integer",
+										"minimum": 1,
+										"maximum": 365
+									}
+								}
+							}
+						}
+					}
+				},
+				"responses": {
+					"201": {
+						"description": "Created credential and one-time token value.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"required": [
+										"credential",
+										"token"
+									],
+									"properties": {
+										"credential": {
+											"$ref": "#/components/schemas/APICredential"
+										},
+										"token": {
+											"type": "string",
+											"description": "Display once; never returned by list operations."
+										}
+									}
+								}
+							}
+						}
+					},
+					"400": {
+						"$ref": "#/components/responses/JsonBadRequest"
+					},
+					"401": {
+						"$ref": "#/components/responses/JsonUnauthorized"
+					}
+				}
+			}
+		},
+		"/auth/api-credentials/{id}": {
+			"delete": {
+				"tags": [
+					"auth"
+				],
+				"summary": "Revoke an API credential owned by the authenticated account",
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"204": {
+						"description": "Credential revoked."
+					},
+					"401": {
+						"$ref": "#/components/responses/JsonUnauthorized"
+					},
+					"404": {
+						"$ref": "#/components/responses/JsonNotFound"
+					}
+				}
+			}
+		},
 		"/sessions": {
 			"get": {
 				"tags": [
@@ -3741,6 +3884,7 @@
 					"resources"
 				],
 				"summary": "Query owner-scoped resources",
+				"description": "Device sessions may query and mutate resources. Scoped API credentials can use this query endpoint only with the resources:read scope.",
 				"security": [
 					{
 						"bearerAuth": []
@@ -3919,6 +4063,7 @@
 					"resources"
 				],
 				"summary": "Get an owner-scoped resource",
+				"description": "Scoped API credentials can read resources using the resources:read scope.",
 				"security": [
 					{
 						"bearerAuth": []
@@ -5254,6 +5399,51 @@
 			}
 		},
 		"schemas": {
+			"APICredential": {
+				"type": "object",
+				"additionalProperties": false,
+				"required": [
+					"id",
+					"name",
+					"prefix",
+					"scopes",
+					"createdAt",
+					"expiresAt"
+				],
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string"
+					},
+					"prefix": {
+						"type": "string",
+						"description": "Non-secret token prefix for identification."
+					},
+					"scopes": {
+						"type": "array",
+						"items": {
+							"type": "string",
+							"enum": [
+								"resources:read"
+							]
+						}
+					},
+					"createdAt": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"expiresAt": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"lastUsedAt": {
+						"type": "string",
+						"format": "date-time"
+					}
+				}
+			},
 			"LinkRSSFeed": {
 				"type": "object",
 				"required": [
@@ -6555,7 +6745,7 @@
 			"bearerAuth": {
 				"type": "http",
 				"scheme": "bearer",
-				"description": "Dashwise opaque device-session token with the dws_ prefix."
+				"description": "Dashwise device-session token or a scoped API credential. Scoped API credentials are accepted only by resource read endpoints."
 			}
 		}
 	}
