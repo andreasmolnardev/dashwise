@@ -1324,12 +1324,23 @@ paths:
       responses:
         "200":
           $ref: "#/components/responses/JsonOk"
+  /notifications/dismiss:
+    post:
+      tags:
+        - notifications
+      summary: Dismiss notifications
+      description: Dismiss selected notification items from the inbox. An empty ids array dismisses all items for the authenticated user.
+      requestBody:
+        $ref: "#/components/requestBodies/JsonBody"
+      responses:
+        "200":
+          $ref: "#/components/responses/JsonOk"
   /notifications/{topic}:
     post:
       tags:
         - notifications
       summary: Send notification to topic
-      description: Accepts a scoped topic token in the path, or a topic ID with a Dashwise device-session bearer token. User/password Basic authentication is not supported.
+      description: Accepts a scoped topic token in the path, or a topic ID with a Dashwise device-session bearer token. User/password Basic authentication is not supported. An optional expiresAt RFC 3339 timestamp on the envelope removes the notification after that time.
       parameters:
         - name: topic
           in: path

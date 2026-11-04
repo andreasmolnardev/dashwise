@@ -32,6 +32,7 @@ func New(store *notifications.Store, auth resourceapi.Authenticate) (http.Handle
 	h.mux.HandleFunc("POST /api/v1/notifications/topics", h.createTopic)
 	h.mux.HandleFunc("DELETE /api/v1/notifications/topics", h.deleteTopic)
 	h.mux.HandleFunc("POST /api/v1/notifications/markAsRead", h.markRead)
+	h.mux.HandleFunc("POST /api/v1/notifications/dismiss", h.dismiss)
 	h.mux.HandleFunc("POST /api/v1/notifications/test", h.test)
 	h.mux.HandleFunc("GET /api/v1/notifications/topicTokens", h.listTokens)
 	h.mux.HandleFunc("POST /api/v1/notifications/topicTokens", h.createToken)
@@ -143,6 +144,23 @@ func (h *Handler) markRead(w http.ResponseWriter, r *http.Request) {
 	}
 	write(w, 200, nil)
 }
+func (h *Handler) dismiss(w http.ResponseWriter, r *http.Request) {
+	owner, ok := h.owner(w, r)
+	if !ok {
+		return
+	}
+	var in struct {
+		IDs []string `json:"ids"`
+	}
+	if !decode(w, r, &in) {
+		return
+	}
+	if err := h.store.Dismiss(r.Context(), owner, in.IDs); err != nil {
+		h.fail(w, err)
+		return
+	}
+	write(w, 200, map[string]bool{"success": true})
+}
 func (h *Handler) test(w http.ResponseWriter, r *http.Request) {
 	owner, ok := h.owner(w, r)
 	if !ok {
@@ -179,6 +197,7 @@ func (h *Handler) publish(w http.ResponseWriter, r *http.Request) {
 	}
 	content := body
 	source := "api"
+	expiresAt := ""
 	if m, ok := body.(map[string]any); ok {
 		if v, exists := m["content"]; exists {
 			content = v
@@ -186,10 +205,19 @@ func (h *Handler) publish(w http.ResponseWriter, r *http.Request) {
 		if v, exists := m["source"].(string); exists && v != "" {
 			source = v
 		}
+		if v, exists := m["expiresAt"].(string); exists && v != "" {
+			expiresAt = v
+		}
+	}
+	if expiresAt != "" {
+		if _, err := time.Parse(time.RFC3339, expiresAt); err != nil {
+			h.fail(w, notifications.ErrInvalid)
+			return
+		}
 	}
 	topic, e := h.store.ResolveToken(r.Context(), topicRef)
 	if e == nil {
-		item, err := h.store.Publish(r.Context(), topic.ID, content, "token")
+		item, err := h.store.PublishWithExpiry(r.Context(), topic.ID, content, "token", expiresAt)
 		if err != nil {
 			h.fail(w, err)
 			return
@@ -206,7 +234,7 @@ func (h *Handler) publish(w http.ResponseWriter, r *http.Request) {
 		h.fail(w, e)
 		return
 	}
-	item, e := h.store.Publish(r.Context(), topic.ID, content, source)
+	item, e := h.store.PublishWithExpiry(r.Context(), topic.ID, content, source, expiresAt)
 	if e != nil {
 		h.fail(w, e)
 		return

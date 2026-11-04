@@ -2514,6 +2514,37 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/notifications/dismiss": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Dismiss notifications
+         * @description Dismiss selected notification items from the inbox. An empty ids array dismisses all items for the authenticated user.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: components["requestBodies"]["JsonBody"];
+            responses: {
+                200: components["responses"]["JsonOk"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/notifications/{topic}": {
         parameters: {
             query?: never;
@@ -2525,7 +2556,7 @@ export interface paths {
         put?: never;
         /**
          * Send notification to topic
-         * @description Accepts a scoped topic token in the path, or a topic ID with a Dashwise device-session bearer token. User/password Basic authentication is not supported.
+         * @description Accepts a scoped topic token in the path, or a topic ID with a Dashwise device-session bearer token. User/password Basic authentication is not supported. An optional expiresAt RFC 3339 timestamp on the envelope removes the notification after that time.
          */
         post: {
             parameters: {

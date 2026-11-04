@@ -43,6 +43,7 @@ type Item struct {
 	TopicName     string `json:"topicName"`
 	Source        string `json:"source,omitempty"`
 	ForwardStatus string `json:"forwardStatus,omitempty"`
+	ExpiresAt     string `json:"expiresAt,omitempty"`
 }
 type Forwarder struct {
 	ID       string `json:"id"`
@@ -105,6 +106,18 @@ func (s *Store) Initialize(ctx context.Context) error {
 			} {
 				if _, e := tx.ExecContext(ctx, q); e != nil {
 					return fmt.Errorf("initialize notifications schema: %w", e)
+				}
+			}
+			return nil
+		}},
+		{ID: "0013_notification_item_lifecycle", Name: "notification dismissal and expiration", Up: func(ctx context.Context, tx *sql.Tx) error {
+			for _, q := range []string{
+				`ALTER TABLE notification_items ADD COLUMN dismissed_at TEXT`,
+				`ALTER TABLE notification_items ADD COLUMN expires_at TEXT`,
+				`CREATE INDEX notification_items_by_expiry ON notification_items(expires_at) WHERE expires_at IS NOT NULL`,
+			} {
+				if _, err := tx.ExecContext(ctx, q); err != nil {
+					return fmt.Errorf("add notification lifecycle fields: %w", err)
 				}
 			}
 			return nil
@@ -184,8 +197,19 @@ func (s *Store) DeleteTopic(ctx context.Context, owner, id string) error {
 	return nil
 }
 func (s *Store) Publish(ctx context.Context, topicID string, content any, source string) (Item, error) {
+	return s.PublishWithExpiry(ctx, topicID, content, source, "")
+}
+
+func (s *Store) PublishWithExpiry(ctx context.Context, topicID string, content any, source, expiresAt string) (Item, error) {
 	if source == "" {
 		source = "system"
+	}
+	if expiresAt != "" {
+		parsed, err := time.Parse(time.RFC3339, expiresAt)
+		if err != nil {
+			return Item{}, ErrInvalid
+		}
+		expiresAt = parsed.UTC().Format(time.RFC3339Nano)
 	}
 	b, e := json.Marshal(content)
 	if e != nil {
@@ -196,7 +220,7 @@ func (s *Store) Publish(ctx context.Context, topicID string, content any, source
 		return Item{}, e
 	}
 	now := s.now().UTC().Format(time.RFC3339Nano)
-	res, e := s.db.ExecContext(ctx, `INSERT INTO notification_items(id,topic_id,content_json,status,source,forward_status,created_at) SELECT ?,id,?,'sent',?,'queued',? FROM notification_topics WHERE id=?`, id, string(b), source, now, topicID)
+	res, e := s.db.ExecContext(ctx, `INSERT INTO notification_items(id,topic_id,content_json,status,source,forward_status,created_at,expires_at) SELECT ?,id,?,'sent',?,'queued',?,? FROM notification_topics WHERE id=?`, id, string(b), source, now, nullableText(expiresAt), topicID)
 	if e != nil {
 		return Item{}, e
 	}
@@ -208,7 +232,14 @@ func (s *Store) Publish(ctx context.Context, topicID string, content any, source
 	if e = json.Unmarshal(b, &value); e != nil {
 		return Item{}, e
 	}
-	return Item{ID: id, Content: value, Status: "sent", Created: now, TopicID: topicID, Source: source, ForwardStatus: "queued"}, nil
+	return Item{ID: id, Content: value, Status: "sent", Created: now, TopicID: topicID, Source: source, ForwardStatus: "queued", ExpiresAt: expiresAt}, nil
+}
+
+func nullableText(value string) any {
+	if value == "" {
+		return nil
+	}
+	return value
 }
 
 func (s *Store) ListForwarders(ctx context.Context, owner string) ([]Forwarder, error) {
@@ -315,6 +346,9 @@ func (s *Store) ProcessQueued(ctx context.Context, send func(context.Context, st
 	}
 	s.deliveryMu.Lock()
 	defer s.deliveryMu.Unlock()
+	if err := s.PruneExpired(ctx); err != nil {
+		return err
+	}
 	if limit <= 0 || limit > 500 {
 		limit = 100
 	}
@@ -422,7 +456,10 @@ func FormatMessage(content any) string {
 	return fmt.Sprint(content)
 }
 func (s *Store) ListItems(ctx context.Context, owner string, unread bool) ([]Item, error) {
-	q := `SELECT i.id,i.content_json,i.status,i.created_at,t.id,t.title,i.source,i.forward_status FROM notification_items i JOIN notification_topics t ON t.id=i.topic_id WHERE t.owner_id=?`
+	if err := s.PruneExpired(ctx); err != nil {
+		return nil, err
+	}
+	q := `SELECT i.id,i.content_json,i.status,i.created_at,t.id,t.title,i.source,i.forward_status,COALESCE(i.expires_at,'') FROM notification_items i JOIN notification_topics t ON t.id=i.topic_id WHERE t.owner_id=? AND i.dismissed_at IS NULL`
 	if unread {
 		q += ` AND i.status!='read'`
 	}
@@ -437,7 +474,7 @@ func (s *Store) ListItems(ctx context.Context, owner string, unread bool) ([]Ite
 	for rows.Next() {
 		var i Item
 		var raw string
-		if e = rows.Scan(&i.ID, &raw, &i.Status, &i.Created, &i.TopicID, &i.TopicName, &i.Source, &i.ForwardStatus); e != nil {
+		if e = rows.Scan(&i.ID, &raw, &i.Status, &i.Created, &i.TopicID, &i.TopicName, &i.Source, &i.ForwardStatus, &i.ExpiresAt); e != nil {
 			return nil, e
 		}
 		if e = json.Unmarshal([]byte(raw), &i.Content); e != nil {
@@ -470,9 +507,36 @@ func (s *Store) ListItems(ctx context.Context, owner string, unread bool) ([]Ite
 	return out, nil
 }
 func (s *Store) Counts(ctx context.Context, owner string) (map[string]int, error) {
+	if err := s.PruneExpired(ctx); err != nil {
+		return nil, err
+	}
 	var total, unread int
-	e := s.db.QueryRowContext(ctx, `SELECT COUNT(*),COALESCE(SUM(CASE WHEN i.status!='read' THEN 1 ELSE 0 END),0) FROM notification_items i JOIN notification_topics t ON t.id=i.topic_id WHERE t.owner_id=?`, owner).Scan(&total, &unread)
+	e := s.db.QueryRowContext(ctx, `SELECT COUNT(*),COALESCE(SUM(CASE WHEN i.status!='read' THEN 1 ELSE 0 END),0) FROM notification_items i JOIN notification_topics t ON t.id=i.topic_id WHERE t.owner_id=? AND i.dismissed_at IS NULL`, owner).Scan(&total, &unread)
 	return map[string]int{"total": total, "unread": unread}, e
+}
+
+func (s *Store) PruneExpired(ctx context.Context) error {
+	_, err := s.db.ExecContext(ctx, `DELETE FROM notification_items WHERE expires_at IS NOT NULL AND expires_at<=?`, s.now().UTC().Format(time.RFC3339Nano))
+	return err
+}
+
+func (s *Store) Dismiss(ctx context.Context, owner string, ids []string) error {
+	now := s.now().UTC().Format(time.RFC3339Nano)
+	if len(ids) == 0 {
+		_, err := s.db.ExecContext(ctx, `UPDATE notification_items SET dismissed_at=? WHERE topic_id IN(SELECT id FROM notification_topics WHERE owner_id=?) AND dismissed_at IS NULL`, now, owner)
+		return err
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	for _, id := range ids {
+		if _, err = tx.ExecContext(ctx, `UPDATE notification_items SET dismissed_at=? WHERE id=? AND topic_id IN(SELECT id FROM notification_topics WHERE owner_id=?) AND dismissed_at IS NULL`, now, id, owner); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
 }
 func (s *Store) MarkRead(ctx context.Context, owner string, ids []string) error {
 	if len(ids) == 0 {

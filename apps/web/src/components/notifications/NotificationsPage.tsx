@@ -18,7 +18,7 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Check, MoreHorizontal, Pencil, Plus } from "lucide-react";
+import { Check, MoreHorizontal, Pencil, Plus, X } from "lucide-react";
 import { Icon } from "@iconify-icon/react";
 import { cn } from "@/lib/utils";
 import config from "@/lib/config";
@@ -27,6 +27,7 @@ import {
     deleteNotificationTopicAction,
     getNotificationsAction,
     getNotificationTopicsAction,
+    dismissNotificationsAction,
     markNotificationsAsReadAction,
     testForwarderAction,
 } from '@/lib/apiClient';
@@ -50,6 +51,7 @@ export type NotificationItem = {
     topicName: string;
     title?: string;
     description?: string;
+    expiresAt?: string;
 };
 
 type TopicItem = { id: string; title: string };
@@ -191,6 +193,10 @@ export default function NotificationsPage() {
             },
         },
     );
+    const dismissMutation = useApiMutation(
+        (auth, ids: string[]) => dismissNotificationsAction(auth, ids),
+        { onSuccess: invalidateNotifications },
+    );
     const createTopicMutation = useApiMutation((auth, title: string) => createNotificationTopicAction(auth, title), { onSuccess: invalidateNotifications });
     const deleteTopicMutation = useApiMutation((auth, topicId: string) => deleteNotificationTopicAction(auth, topicId), { onSuccess: invalidateNotifications });
     const testForwarderMutation = useApiMutation(testForwarderAction);
@@ -269,6 +275,15 @@ export default function NotificationsPage() {
             await markReadMutation.mutateAsync([]);
         } catch (err) {
             console.error("Failed to mark all notifications as read:", err);
+        }
+    };
+
+    const dismiss = async (notifId: string) => {
+        if (!token) return;
+        try {
+            await dismissMutation.mutateAsync([notifId]);
+        } catch (err) {
+            console.error("Failed to dismiss notification:", err);
         }
     };
 
@@ -565,6 +580,10 @@ export default function NotificationsPage() {
                                             <DropdownMenuLabel className="font-semibold">
                                                 Actions
                                             </DropdownMenuLabel>
+                                            <DropdownMenuItem onClick={() => dismiss(notif.id)}>
+                                                <X className="mr-2 h-4 w-4" />
+                                                Dismiss
+                                            </DropdownMenuItem>
                                             <DropdownMenuItem
                                                 onClick={() =>
                                                     navigator.clipboard

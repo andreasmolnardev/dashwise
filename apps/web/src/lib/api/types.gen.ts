@@ -2287,6 +2287,22 @@ export type PostNotificationsMarkAsReadResponses = {
 
 export type PostNotificationsMarkAsReadResponse = PostNotificationsMarkAsReadResponses[keyof PostNotificationsMarkAsReadResponses];
 
+export type PostNotificationsDismissData = {
+    body?: JsonBody;
+    path?: never;
+    query?: never;
+    url: '/notifications/dismiss';
+};
+
+export type PostNotificationsDismissResponses = {
+    /**
+     * OK
+     */
+    200: GenericObject;
+};
+
+export type PostNotificationsDismissResponse = PostNotificationsDismissResponses[keyof PostNotificationsDismissResponses];
+
 export type PostNotificationsByTopicData = {
     body?: JsonBody;
     path: {
