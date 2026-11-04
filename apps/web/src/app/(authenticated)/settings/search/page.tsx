@@ -28,6 +28,7 @@ export default function SearchSettingsPage() {
   const { user, updateUserProperty } = useAuth();
   const [engines, setEngines] = useState<SearchEngine[]>(user.searchPreferences?.searchEngines || []);
   const [activeTab, setActiveTab] = useState("manual");
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   // sync when config changes
   useEffect(() => {
@@ -43,8 +44,10 @@ export default function SearchSettingsPage() {
   };
 
   async function persistEngines(updated: SearchEngine[]) {
+    const previous = engines;
     // update local state immediately for snappy UI
     setEngines(updated);
+    setSaveError(null);
 
     try {
       await updateUserProperty("searchPreferences", {
@@ -53,7 +56,9 @@ export default function SearchSettingsPage() {
       });
     } catch (err) {
       console.error("Failed to persist search engines:", err);
-      // NOTE: we don't revert local state here — you can add error recovery if desired
+      // Only roll back if the user hasn't made a newer change while this save was pending.
+      setEngines((current) => current === updated ? previous : current);
+      setSaveError(err instanceof Error ? err.message : "Failed to save search engines");
     }
   }
 
@@ -115,6 +120,12 @@ export default function SearchSettingsPage() {
             </Button>
           </div>
         </div>
+
+        {saveError && (
+          <p role="alert" className="text-sm text-destructive">
+            {saveError}. Your saved search engines were restored.
+          </p>
+        )}
 
         <div className="grid gap-4">
           {engines.map((engine) => (
