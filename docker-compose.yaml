@@ -9,7 +9,7 @@ services:
       DATA_DIR: /data
       DATABASE_PATH: /data/dashwise.sqlite
       WEB_DIST: /app/public
-      DASHWISE_URL: ${DASHWISE_URL:-http://localhost:3000}
+      DASHWISE_URL: ${DASHWISE_URL:-http://localhost:3016}
       ENABLE_SSO: ${ENABLE_SSO:-false}
       OIDC_ISSUER_URL: ${OIDC_ISSUER_URL:-}
       OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-}
