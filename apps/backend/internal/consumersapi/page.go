@@ -39,6 +39,15 @@ func ResolvePageData(ctx context.Context, owner string, pageConfig map[string]an
 			out = append(out, base)
 			continue
 		}
+		if declaration, ok := consumerResourceQuery(entry); ok {
+			view, err := queryConsumerResources(ctx, owner, declaration, resourceStore)
+			if err != nil {
+				base["success"], base["error"] = false, "integration resource query is not available"
+				out = append(out, base)
+				continue
+			}
+			data["resourceView"] = view
+		}
 		input := merge(candidate.properties, object(object(entry["data"])["input"]))
 		widget := applyInput(entry, input)
 		resolved := merge(object(entry["properties"]), map[string]any{})
@@ -49,7 +58,16 @@ func ResolvePageData(ctx context.Context, owner string, pageConfig map[string]an
 		}
 		base["success"] = true
 		base["data"] = data
-		base["blueprint"] = map[string]any{"template": first(stringValue(entry["template"]), "columns"), "resolved": resolved, "widgetJSON": widget}
+		blueprint := map[string]any{"template": first(stringValue(entry["template"]), "columns"), "resolved": resolved}
+		if candidate.consumer == "glanceable" {
+			blueprint["glanceableJSON"] = widget
+		} else {
+			blueprint["widgetJSON"] = widget
+		}
+		if declaration, ok := consumerResourceQuery(entry); ok {
+			blueprint["resourceQuery"] = declaration
+		}
+		base["blueprint"] = blueprint
 		out = append(out, base)
 	}
 	return out

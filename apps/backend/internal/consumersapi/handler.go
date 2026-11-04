@@ -288,12 +288,11 @@ func (h *Handler) consumer(w http.ResponseWriter, r *http.Request, key, kind str
 			return
 		}
 	}
-	// A widget can opt into the shared resource layer with a declarative
-	// resource_query. This keeps ordinary SDK/YAML consumerData widgets on
-	// their established path while allowing resource-first widgets to consume
-	// the same owner-scoped query contract as other views.
-	if rawQuery, ok := widgetResourceQuery(entry); ok {
-		view, err := queryWidgetResources(r.Context(), owner, rawQuery, h.resources)
+	// Widgets and glanceables can opt into the shared resource layer with a
+	// declarative resource_query while ordinary consumerData definitions keep
+	// their existing materialized endpoint path.
+	if rawQuery, ok := consumerResourceQuery(entry); ok {
+		view, err := queryConsumerResources(r.Context(), owner, rawQuery, h.resources)
 		if err != nil {
 			writeError(w, 400, "widget resource query is invalid")
 			return
@@ -314,8 +313,14 @@ func (h *Handler) consumer(w http.ResponseWriter, r *http.Request, key, kind str
 			resolved[k] = v
 		}
 	}
-	payload := map[string]any{"consumer": kind, "key": key, "integrationId": integration.ID, "data": data, "blueprint": map[string]any{"template": first(stringValue(entry["template"]), "columns"), "resolved": resolved, "widgetJSON": widgetJSON}, "fresh": nil}
-	if query, ok := widgetResourceQuery(entry); ok {
+	blueprint := map[string]any{"template": first(stringValue(entry["template"]), "columns"), "resolved": resolved}
+	if kind == "glanceable" {
+		blueprint["glanceableJSON"] = widgetJSON
+	} else {
+		blueprint["widgetJSON"] = widgetJSON
+	}
+	payload := map[string]any{"consumer": kind, "key": key, "integrationId": integration.ID, "data": data, "blueprint": blueprint, "fresh": nil}
+	if query, ok := consumerResourceQuery(entry); ok {
 		payload["blueprint"].(map[string]any)["resourceQuery"] = query
 	}
 	if !preview {
@@ -394,6 +399,9 @@ func normalizeGlanceable(in map[string]any) map[string]any {
 		if v, ok := in[k]; ok {
 			result[k] = v
 		}
+	}
+	if query, ok := consumerResourceQuery(in); ok {
+		result["resourceQuery"] = query
 	}
 	return result
 }

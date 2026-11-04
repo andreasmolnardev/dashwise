@@ -391,10 +391,10 @@ function ResolvedGlanceableContent({
       <GlanceableComponent
         glanceableJSON={blueprint?.glanceableJSON}
         data={resolved?.data}
-        resolved={{
+        resolved={blueprint?.text || blueprint?.icon ? {
           text: blueprint?.text ?? "",
           icon: blueprint?.icon,
-        }}
+        } : undefined}
         params={params}
           formatters={formatters}
         className={className}

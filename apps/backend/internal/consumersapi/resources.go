@@ -11,18 +11,18 @@ import (
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/resourcesync"
 )
 
-func widgetResourceQuery(widget map[string]any) (any, bool) {
-	query, ok := widget["resource_query"]
+func consumerResourceQuery(consumer map[string]any) (any, bool) {
+	query, ok := consumer["resource_query"]
 	if !ok {
-		query, ok = widget["resourceQuery"]
+		query, ok = consumer["resourceQuery"]
 	}
 	return query, ok
 }
 
-// queryWidgetResources executes a widget-declared ResourceQuery under the
-// authenticated owner. The manifest can select types and filters, but cannot
+// queryConsumerResources executes a consumer-declared ResourceQuery under the
+// authenticated owner. A manifest can select types and filters, but cannot
 // supply or override the owner scope.
-func queryWidgetResources(ctx context.Context, owner string, declaration any, store *resources.Store) (map[string]any, error) {
+func queryConsumerResources(ctx context.Context, owner string, declaration any, store *resources.Store) (map[string]any, error) {
 	if store == nil {
 		return nil, fmt.Errorf("resource store is unavailable")
 	}
