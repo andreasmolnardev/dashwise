@@ -909,35 +909,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/auth/mfa": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** MFA verification */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: components["requestBodies"]["JsonBody"];
-            responses: {
-                200: components["responses"]["JsonOk"];
-                401: components["responses"]["JsonUnauthorized"];
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/auth/signup": {
         parameters: {
             query?: never;
@@ -1881,34 +1852,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/jobs/shortcuts": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Shortcuts indexing job */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                200: components["responses"]["JsonOk"];
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/jobs/pullIcons": {
         parameters: {
             query?: never;
@@ -2094,21 +2037,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get system-agent host */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: components["parameters"]["Id"];
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                200: components["responses"]["JsonOk"];
-            };
-        };
+        get?: never;
         /** Update system-agent host */
         put: {
             parameters: {

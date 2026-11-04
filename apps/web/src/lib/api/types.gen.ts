@@ -1083,31 +1083,6 @@ export type PostAuthLoginResponses = {
 
 export type PostAuthLoginResponse = PostAuthLoginResponses[keyof PostAuthLoginResponses];
 
-export type PostAuthMfaData = {
-    body?: JsonBody;
-    path?: never;
-    query?: never;
-    url: '/auth/mfa';
-};
-
-export type PostAuthMfaErrors = {
-    /**
-     * Unauthorized
-     */
-    401: Error;
-};
-
-export type PostAuthMfaError = PostAuthMfaErrors[keyof PostAuthMfaErrors];
-
-export type PostAuthMfaResponses = {
-    /**
-     * OK
-     */
-    200: GenericObject;
-};
-
-export type PostAuthMfaResponse = PostAuthMfaResponses[keyof PostAuthMfaResponses];
-
 export type PostAuthSignupData = {
     body?: JsonBody;
     path?: never;
@@ -1818,22 +1793,6 @@ export type PostLinksTagsResponses = {
 
 export type PostLinksTagsResponse = PostLinksTagsResponses[keyof PostLinksTagsResponses];
 
-export type GetJobsShortcutsData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/jobs/shortcuts';
-};
-
-export type GetJobsShortcutsResponses = {
-    /**
-     * OK
-     */
-    200: GenericObject;
-};
-
-export type GetJobsShortcutsResponse = GetJobsShortcutsResponses[keyof GetJobsShortcutsResponses];
-
 export type GetJobsPullIconsData = {
     body?: never;
     path?: never;
@@ -1997,24 +1956,6 @@ export type DeleteMonitoringHostsByIdResponses = {
 };
 
 export type DeleteMonitoringHostsByIdResponse = DeleteMonitoringHostsByIdResponses[keyof DeleteMonitoringHostsByIdResponses];
-
-export type GetMonitoringHostsByIdData = {
-    body?: never;
-    path: {
-        id: string;
-    };
-    query?: never;
-    url: '/monitoring/hosts/{id}';
-};
-
-export type GetMonitoringHostsByIdResponses = {
-    /**
-     * OK
-     */
-    200: GenericObject;
-};
-
-export type GetMonitoringHostsByIdResponse = GetMonitoringHostsByIdResponses[keyof GetMonitoringHostsByIdResponses];
 
 export type PutMonitoringHostsByIdData = {
     body?: JsonBody;

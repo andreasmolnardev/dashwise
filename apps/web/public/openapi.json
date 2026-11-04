@@ -1037,25 +1037,6 @@
 				}
 			}
 		},
-		"/auth/mfa": {
-			"post": {
-				"tags": [
-					"auth"
-				],
-				"summary": "MFA verification",
-				"requestBody": {
-					"$ref": "#/components/requestBodies/JsonBody"
-				},
-				"responses": {
-					"200": {
-						"$ref": "#/components/responses/JsonOk"
-					},
-					"401": {
-						"$ref": "#/components/responses/JsonUnauthorized"
-					}
-				}
-			}
-		},
 		"/auth/signup": {
 			"post": {
 				"tags": [
@@ -1883,19 +1864,6 @@
 				}
 			}
 		},
-		"/jobs/shortcuts": {
-			"get": {
-				"tags": [
-					"jobs"
-				],
-				"summary": "Shortcuts indexing job",
-				"responses": {
-					"200": {
-						"$ref": "#/components/responses/JsonOk"
-					}
-				}
-			}
-		},
 		"/jobs/pullIcons": {
 			"get": {
 				"tags": [
@@ -2035,22 +2003,6 @@
 			}
 		},
 		"/monitoring/hosts/{id}": {
-			"get": {
-				"tags": [
-					"monitoring"
-				],
-				"summary": "Get system-agent host",
-				"parameters": [
-					{
-						"$ref": "#/components/parameters/Id"
-					}
-				],
-				"responses": {
-					"200": {
-						"$ref": "#/components/responses/JsonOk"
-					}
-				}
-			},
 			"put": {
 				"tags": [
 					"monitoring"
