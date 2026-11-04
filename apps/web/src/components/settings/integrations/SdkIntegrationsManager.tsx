@@ -97,6 +97,34 @@ export default function SdkIntegrationsManager({ view }: { view: "installed" | "
 
   useEffect(() => { void refresh(); }, [refresh]);
 
+  // SDK providers start asynchronously after install or save. Keep runtime
+  // state current so the card does not remain stuck on its first "starting"
+  // snapshot after the backend handshake finishes.
+  useEffect(() => {
+    if (view !== "installed" || instances.length === 0) return;
+    let cancelled = false;
+    const refreshStatuses = async () => {
+      const statuses = await Promise.all(instances.map(async (instance) => {
+        const status = await withAuth((auth) => getSdkIntegrationInstanceStatusAction(auth, instance.id)).catch(() => null);
+        return [instance.id, status] as const;
+      }));
+      if (cancelled) return;
+      setRuntimeStatuses((current) => {
+        const next = { ...current };
+        for (const [instanceId, status] of statuses) {
+          if (status) next[instanceId] = status;
+        }
+        return next;
+      });
+    };
+    void refreshStatuses();
+    const timer = window.setInterval(() => void refreshStatuses(), 2000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [view, instances, withAuth]);
+
   const selectedDefinition = useMemo(
     () => catalog.find((entry) => entry.id === (editing?.source ?? installing?.id)) ?? null,
     [catalog, editing, installing],
