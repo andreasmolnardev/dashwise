@@ -221,6 +221,10 @@ func (h *ActivityHandler) serve(w http.ResponseWriter, r *http.Request) {
 		if _, _, err := h.auth.Validate(ctx, token); err != nil {
 			return err
 		}
+		notificationRevision, err := h.notifications.ChangeRevision(ctx, user.ID)
+		if err != nil {
+			return err
+		}
 		items, err := h.notifications.ListItems(ctx, user.ID, false)
 		if err != nil {
 			return err
@@ -230,6 +234,7 @@ func (h *ActivityHandler) serve(w http.ResponseWriter, r *http.Request) {
 			return err
 		}
 		calendarEvents := h.calendarEvents(ctx, user.ID)
+		sess.notificationRevision.Store(notificationRevision)
 		return write(map[string]any{"type": "activity:snapshot", "notifications": items, "calendarEvents": calendarEvents, "activities": page.Items})
 	}
 	if err := snapshot(r.Context()); err != nil {
@@ -262,6 +267,10 @@ func (h *ActivityHandler) serve(w http.ResponseWriter, r *http.Request) {
 					sess.sendPageWidgets(ctx, pageID)
 				}
 			case <-eventTicker.C:
+				if err := sess.pollNotifications(ctx); err != nil && !errors.Is(err, context.Canceled) {
+					sess.close(websocket.ClosePolicyViolation, "session ended")
+					return
+				}
 				if err := sess.pollResourceRevisions(ctx); err != nil && !errors.Is(err, context.Canceled) {
 					sess.close(websocket.ClosePolicyViolation, "session ended")
 					return
@@ -286,15 +295,51 @@ func (h *ActivityHandler) serve(w http.ResponseWriter, r *http.Request) {
 // connectionSession carries the per-connection collaborators needed to answer
 // client messages while background loops continue.
 type connectionSession struct {
-	handler      *ActivityHandler
-	conn         *websocket.Conn
-	token        string
-	owner        string
-	sessionID    string
-	write        func(any) error
-	state        *subscriptionState
-	brokerConn   *realtimebroker.Connection
-	lastSequence atomic.Int64
+	handler              *ActivityHandler
+	conn                 *websocket.Conn
+	token                string
+	owner                string
+	sessionID            string
+	write                func(any) error
+	state                *subscriptionState
+	brokerConn           *realtimebroker.Connection
+	lastSequence         atomic.Int64
+	notificationRevision atomic.Int64
+}
+
+func (s *connectionSession) pollNotifications(ctx context.Context) error {
+	revision, err := s.handler.notifications.ChangeRevision(ctx, s.owner)
+	if err != nil {
+		return err
+	}
+	if revision == s.notificationRevision.Load() {
+		return nil
+	}
+	var items []notifications.Item
+	for attempt := 0; attempt < 3; attempt++ {
+		revision, err = s.handler.notifications.ChangeRevision(ctx, s.owner)
+		if err != nil {
+			return err
+		}
+		items, err = s.handler.notifications.ListItems(ctx, s.owner, false)
+		if err != nil {
+			return err
+		}
+		latest, err := s.handler.notifications.ChangeRevision(ctx, s.owner)
+		if err != nil {
+			return err
+		}
+		if latest == revision {
+			s.notificationRevision.Store(latest)
+			return s.write(map[string]any{"type": "notifications:snapshot", "notifications": items})
+		}
+		if attempt == 2 {
+			// Keep the earlier cursor when writes race with this bounded refresh;
+			// a later poll will pick them up instead of skipping them.
+			s.notificationRevision.Store(revision)
+		}
+	}
+	return s.write(map[string]any{"type": "notifications:snapshot", "notifications": items})
 }
 
 // sessClose closes a websocket whose full connectionSession is not set up

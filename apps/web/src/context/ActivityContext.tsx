@@ -145,6 +145,15 @@ export function ActivityProvider({ children }: { children: ReactNode }) {
             }
             return;
           }
+          if (message.type === "notifications:snapshot") {
+            const nextNotifications = Array.isArray(message.notifications) ? message.notifications as ActivityNotification[] : [];
+            setNotifications((current) => sameJsonValue(current, nextNotifications) ? current : nextNotifications);
+            queryClient.setQueryData<ActivityNotification[]>(
+              ["api", token, ...queryKeys.notifications.items(token)],
+              (current) => current === undefined ? nextNotifications : sameJsonValue(current, nextNotifications) ? current : nextNotifications,
+            );
+            return;
+          }
           if (message.type !== "activity:snapshot") return;
           if (Array.isArray(message.activities) && !sameJsonValue(lastActivitiesSnapshot.current, message.activities)) {
             lastActivitiesSnapshot.current = message.activities;

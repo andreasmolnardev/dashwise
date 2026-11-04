@@ -122,6 +122,39 @@ func (s *Store) Initialize(ctx context.Context) error {
 			}
 			return nil
 		}},
+		{ID: "0014_notification_change_signal", Name: "owner-scoped notification change revisions", Up: func(ctx context.Context, tx *sql.Tx) error {
+			for _, q := range []string{
+				`CREATE TABLE notification_revisions(owner_id TEXT PRIMARY KEY NOT NULL, revision INTEGER NOT NULL DEFAULT 0)`,
+				`CREATE TRIGGER notification_items_revision_insert AFTER INSERT ON notification_items BEGIN
+					INSERT INTO notification_revisions(owner_id,revision)
+					VALUES((SELECT owner_id FROM notification_topics WHERE id=NEW.topic_id),1)
+					ON CONFLICT(owner_id) DO UPDATE SET revision=revision+1;
+				END`,
+				`CREATE TRIGGER notification_items_revision_update AFTER UPDATE ON notification_items BEGIN
+					INSERT INTO notification_revisions(owner_id,revision)
+					VALUES((SELECT owner_id FROM notification_topics WHERE id=NEW.topic_id),1)
+					ON CONFLICT(owner_id) DO UPDATE SET revision=revision+1;
+				END`,
+				`CREATE TRIGGER notification_items_revision_delete AFTER DELETE ON notification_items BEGIN
+					INSERT INTO notification_revisions(owner_id,revision)
+					SELECT owner_id,1 FROM notification_topics WHERE id=OLD.topic_id
+					ON CONFLICT(owner_id) DO UPDATE SET revision=revision+1;
+				END`,
+				`CREATE TRIGGER notification_topics_revision_delete AFTER DELETE ON notification_topics BEGIN
+					INSERT INTO notification_revisions(owner_id,revision) VALUES(OLD.owner_id,1)
+					ON CONFLICT(owner_id) DO UPDATE SET revision=revision+1;
+				END`,
+				`CREATE TRIGGER notification_topics_revision_title AFTER UPDATE OF title ON notification_topics BEGIN
+					INSERT INTO notification_revisions(owner_id,revision) VALUES(NEW.owner_id,1)
+					ON CONFLICT(owner_id) DO UPDATE SET revision=revision+1;
+				END`,
+			} {
+				if _, err := tx.ExecContext(ctx, q); err != nil {
+					return fmt.Errorf("create notification change signal: %w", err)
+				}
+			}
+			return nil
+		}},
 	})
 	if err != nil {
 		return err
@@ -513,6 +546,17 @@ func (s *Store) Counts(ctx context.Context, owner string) (map[string]int, error
 	var total, unread int
 	e := s.db.QueryRowContext(ctx, `SELECT COUNT(*),COALESCE(SUM(CASE WHEN i.status!='read' THEN 1 ELSE 0 END),0) FROM notification_items i JOIN notification_topics t ON t.id=i.topic_id WHERE t.owner_id=? AND i.dismissed_at IS NULL`, owner).Scan(&total, &unread)
 	return map[string]int{"total": total, "unread": unread}, e
+}
+
+// ChangeRevision returns the owner-scoped revision used by realtime clients to
+// detect inbox changes without rebuilding the full Activities snapshot.
+func (s *Store) ChangeRevision(ctx context.Context, owner string) (int64, error) {
+	if strings.TrimSpace(owner) == "" {
+		return 0, ErrInvalid
+	}
+	var revision int64
+	err := s.db.QueryRowContext(ctx, `SELECT COALESCE((SELECT revision FROM notification_revisions WHERE owner_id=?),0)`, owner).Scan(&revision)
+	return revision, err
 }
 
 func (s *Store) PruneExpired(ctx context.Context) error {
