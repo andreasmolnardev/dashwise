@@ -2,8 +2,10 @@ package jsruntime
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/tls"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -181,6 +183,8 @@ func (h *StoreHost) Call(ctx context.Context, instanceID, operation string, args
 		return h.storage(ctx, operation, args)
 	}
 	switch operation {
+	case "activities.publish":
+		return h.activityPublish(ctx, args)
 	case "activities.upsert":
 		return h.activityUpsert(ctx, args)
 	case "activities.clear":
@@ -232,6 +236,41 @@ func (h *StoreHost) secretDefinition(key string) (map[string]any, bool) {
 // Records are owner- and instance-scoped, stored as current-state entries
 // keyed by the provider-supplied idempotency key, mirroring the TypeScript
 // integration activity path.
+func (h *StoreHost) activityPublish(ctx context.Context, args []any) (any, error) {
+	if len(args) != 1 {
+		return nil, errors.New("activities.publish requires an activity payload")
+	}
+	payload, ok := args[0].(map[string]any)
+	if !ok || len(payload) > 24 {
+		return nil, errors.New("activity payload must be a small object")
+	}
+	activity, err := sdkActivityInput(payload, h.source, h.instanceID)
+	if err != nil {
+		return nil, err
+	}
+	key := strings.TrimSpace(stringArgValue(payload["idempotencyKey"]))
+	if key != "" {
+		if len(key) > 256 {
+			return nil, errors.New("activity idempotency key must not exceed 256 bytes")
+		}
+		activity.IdempotencyKey = key
+	} else {
+		var raw [16]byte
+		if _, err := rand.Read(raw[:]); err != nil {
+			return nil, err
+		}
+		activity.EventID = hex.EncodeToString(raw[:])
+	}
+	if h.activityTopicsStale(ctx, activity.Type) {
+		return map[string]any{"id": "", "duplicate": false, "filtered": true}, nil
+	}
+	record, duplicate, err := h.activities.Publish(ctx, h.ownerID, activity)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{"id": record.ID, "duplicate": duplicate}, nil
+}
+
 func (h *StoreHost) activityUpsert(ctx context.Context, args []any) (any, error) {
 	if len(args) != 2 {
 		return nil, errors.New("activities.upsert requires a key and an activity payload")
@@ -248,33 +287,12 @@ func (h *StoreHost) activityUpsert(ctx context.Context, args []any) (any, error)
 	if !ok || len(payload) > 24 {
 		return nil, errors.New("activity payload must be a small object")
 	}
-	activity := activities.Input{
-		Source:         h.source,
-		SourceID:       h.instanceID,
-		IdempotencyKey: key,
-		Current:        true,
+	activity, err := sdkActivityInput(payload, h.source, h.instanceID)
+	if err != nil {
+		return nil, err
 	}
-	activity.Type = strings.TrimSpace(stringArgValue(payload["type"]))
-	activity.Title = strings.TrimSpace(stringArgValue(payload["title"]))
-	activity.Description = strings.TrimSpace(stringArgValue(payload["description"]))
-	activity.Severity = strings.TrimSpace(stringArgValue(payload["severity"]))
-	if metadata, exists := payload["metadata"]; exists {
-		value, ok := metadata.(map[string]any)
-		if !ok {
-			return nil, errors.New("activity metadata must be an object")
-		}
-		activity.Metadata = value
-	}
-	if action, exists := payload["action"]; exists {
-		value, ok := action.(map[string]any)
-		if !ok {
-			return nil, errors.New("activity action must be an object")
-		}
-		activity.Action = &activities.Action{
-			Label:  strings.TrimSpace(stringArgValue(value["label"])),
-			Target: strings.TrimSpace(stringArgValue(value["target"])),
-		}
-	}
+	activity.IdempotencyKey = key
+	activity.Current = true
 	// Declared activities honor the owner's definition preferences: when a
 	// configured notification-topic filter has no unread topics left, the
 	// current-state record for this key is cleared instead of (re)published so
@@ -291,6 +309,34 @@ func (h *StoreHost) activityUpsert(ctx context.Context, args []any) (any, error)
 		return nil, err
 	}
 	return map[string]any{"id": record.ID, "duplicate": published}, nil
+}
+
+func sdkActivityInput(payload map[string]any, source, sourceID string) (activities.Input, error) {
+	activity := activities.Input{
+		Source: source, SourceID: sourceID,
+		Type:        strings.TrimSpace(stringArgValue(payload["type"])),
+		Title:       strings.TrimSpace(stringArgValue(payload["title"])),
+		Description: strings.TrimSpace(stringArgValue(payload["description"])),
+		Severity:    strings.TrimSpace(stringArgValue(payload["severity"])),
+	}
+	if metadata, exists := payload["metadata"]; exists {
+		value, ok := metadata.(map[string]any)
+		if !ok {
+			return activities.Input{}, errors.New("activity metadata must be an object")
+		}
+		activity.Metadata = value
+	}
+	if action, exists := payload["action"]; exists {
+		value, ok := action.(map[string]any)
+		if !ok {
+			return activities.Input{}, errors.New("activity action must be an object")
+		}
+		activity.Action = &activities.Action{
+			Label:  strings.TrimSpace(stringArgValue(value["label"])),
+			Target: strings.TrimSpace(stringArgValue(value["target"])),
+		}
+	}
+	return activity, nil
 }
 
 // activityTopicsStale reports whether a declared activity's owner-configured
