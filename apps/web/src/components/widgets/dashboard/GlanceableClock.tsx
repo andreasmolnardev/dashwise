@@ -11,6 +11,7 @@ import { usePageConfig } from "@/hooks/usePageConfig";
 import type { WidgetItemProps } from "../Widget";
 import { useLocalization } from "@/context/LocalizationContext";
 import { useActivity } from "@/context/ActivityContext";
+import { useCalendarEvents } from "@/hooks/useCalendarEvents";
 import { Bell, CalendarDays } from "lucide-react";
 import { readPageIntegrationConsumer } from "@/lib/pageIntegrationDataCache";
 import type { ClockAppearance } from "../../settings/ClockFontSelectionCarousel";
@@ -276,7 +277,8 @@ function ResolvedGlanceableContent({
   className?: string;
   formatters?: LocalizationFormatters;
 }) {
-  const { unreadCount, calendarEvents } = useActivity();
+  const { unreadCount } = useActivity();
+  const { events: calendarEvents } = useCalendarEvents(type === "latest-activities");
   const { withAuth } = useAuth();
   const [backendPayload, setBackendPayload] = useState<ResolvedGlanceablePayload | null>(null);
   const [loading, setLoading] = useState(false);

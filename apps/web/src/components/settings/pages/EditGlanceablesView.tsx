@@ -16,7 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { ClockGlanceableIntervals, ClockGlanceableSelection, DEFAULT_GLANCEABLE_CAROUSEL_INTERVAL, GlanceableSide } from "./utils";
 import { useLocalization } from "@/context/LocalizationContext";
-import { useActivity } from "@/context/ActivityContext";
+import { useCalendarEvents } from "@/hooks/useCalendarEvents";
 import useAuth from "@/context/useAuth";
 import { getIntegrationWithGlanceableAction } from '@/lib/apiClient';
 import ActivityStream from "@/components/activity/ActivityStream";
@@ -89,7 +89,7 @@ export function EditGlanceablesView({
   hideAddGlanceable = false,
 }: EditGlanceablesViewProps) {
   const localization = useLocalization();
-  const { calendarEvents } = useActivity();
+  const { events: calendarEvents } = useCalendarEvents();
   const { withAuth, user } = useAuth();
   const editorTitle = titleOverride ?? (
     selectedClockPart === "clock"

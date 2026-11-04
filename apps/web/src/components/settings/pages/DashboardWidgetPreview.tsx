@@ -39,7 +39,7 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { renderWidget } from "@/components/widgets/Widget";
-import { useActivity } from "@/context/ActivityContext";
+import { useCalendarEvents } from "@/hooks/useCalendarEvents";
 import ShortcutsPicker from "@/components/widgets/ShortcutsPicker";
 import SdkContributionConfigForm from "@/components/settings/integrations/SdkContributionConfigForm";
 import { EditGlanceablesView } from "@/components/settings/pages/EditGlanceablesView";
@@ -696,7 +696,7 @@ function WidgetInputEditor({
   dataError: string | null;
   setDataError: (value: string | null) => void;
 }) {
-  const { calendarEvents } = useActivity();
+  const { events: calendarEvents } = useCalendarEvents(widgetType === "countdown");
   const dateSuggestions = widgetType === "countdown"
     ? calendarEvents.map((event) => ({
         value: event.id,

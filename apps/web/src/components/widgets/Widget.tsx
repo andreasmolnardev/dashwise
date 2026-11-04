@@ -22,8 +22,8 @@ import ProgressWidget from "./ProgressWidget";
 import { parseSdkContributionKey } from "./sdkContributionKey";
 import { useLocalization } from "@/context/LocalizationContext";
 import useAuth from "@/context/useAuth";
-import { useActivity } from "@/context/ActivityContext";
 import { useResourceView } from "@/hooks/useResourceView";
+import { useCalendarEvents } from "@/hooks/useCalendarEvents";
 import type { ViewResourceQuery } from "@/lib/viewsApi";
 import {
   getConsumerDataAction,
@@ -374,10 +374,10 @@ function CalendarUpcomingWidgetWrapper({
   integrationId?: string;
   maxItems?: number;
 }) {
-  const { calendarEvents } = useActivity();
+  const { events: calendarEvents } = useCalendarEvents();
 
   const events = integrationId
-    ? calendarEvents.filter((event) => event.id.startsWith(`${integrationId}:`))
+    ? calendarEvents.filter((event) => event.integrationId === integrationId)
     : calendarEvents;
 
   return (
