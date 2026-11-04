@@ -46,7 +46,7 @@ type ViewForm = {
   limit: string;
   offset: string;
   filters: FilterDraft[];
-  presentationType: "list" | "table" | "cards";
+  presentationType: "list" | "table" | "cards" | "detail" | "metric" | "chart" | "article-list";
   presentationColumns: string;
 };
 
@@ -84,7 +84,7 @@ function viewToForm(view: ViewRecord | null | undefined): ViewForm {
   const query = view.definition?.query;
   const presentation = view.definition?.presentation;
   const savedRenderer = presentation?.type ?? presentation?.renderer;
-  const presentationType = savedRenderer === "table" || savedRenderer === "cards" || savedRenderer === "list"
+  const presentationType = savedRenderer === "table" || savedRenderer === "cards" || savedRenderer === "list" || savedRenderer === "detail" || savedRenderer === "metric" || savedRenderer === "chart" || savedRenderer === "article-list"
     ? savedRenderer
     : (Array.isArray(presentation?.columns) ? "table" : "list");
   return {
@@ -391,6 +391,10 @@ export default function ViewDialog({
                     <SelectItem value="list">list</SelectItem>
                     <SelectItem value="table">table</SelectItem>
                     <SelectItem value="cards">cards</SelectItem>
+                    <SelectItem value="detail">detail</SelectItem>
+                    <SelectItem value="metric">metric</SelectItem>
+                    <SelectItem value="chart">chart</SelectItem>
+                    <SelectItem value="article-list">article list</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

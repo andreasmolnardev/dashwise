@@ -7,11 +7,11 @@ import type { ViewResource, ViewResourcePage } from "@/lib/viewsApi";
 const MAX_ATTRS_PER_CARD = 6;
 const DEFAULT_TABLE_COLUMNS = ["name", "type", "provider", "state", "updatedAt"];
 
-type Renderer = "list" | "table" | "cards";
+type Renderer = "list" | "table" | "cards" | "detail" | "metric" | "chart" | "article-list";
 
 function rendererName(presentation: Record<string, unknown> | undefined): Renderer {
   const value = presentation?.type ?? presentation?.renderer;
-  if (value === "table" || value === "cards") return value;
+  if (value === "table" || value === "cards" || value === "detail" || value === "metric" || value === "chart" || value === "article-list") return value;
   // Older saved configs used `columns` without declaring a renderer.
   if (value === undefined && Array.isArray(presentation?.columns)) return "table";
   return "list";
@@ -174,6 +174,77 @@ export default function ResourceList({
             );
           })}
         </div>
+      </div>
+    );
+  }
+
+  if (renderer === "detail") {
+    const resource = resources[0];
+    const attributes = resourceAttributes(resource, columns);
+    return (
+      <article className={cn("frosted space-y-4 rounded-2xl p-5", className)}>
+        <header>
+          <h2 className="text-lg font-semibold">{resourceTitle(resource)}</h2>
+          <p className="mt-1 text-xs text-white/50">{resource.type} · {resource.provider} · {resource.state}</p>
+        </header>
+        <dl className="grid gap-x-5 gap-y-2 sm:grid-cols-[auto_1fr]">
+          {attributes.map(({ label, value }) => <div key={label} className="contents"><dt className="text-xs text-white/45">{fieldLabel(label)}</dt><dd className="break-words text-sm text-white/80">{value}</dd></div>)}
+        </dl>
+      </article>
+    );
+  }
+
+  if (renderer === "metric") {
+    const field = columns[0] ?? "value";
+    const value = resourceField(resources[0], field);
+    return (
+      <div className={cn("frosted rounded-2xl p-5", className)}>
+        <p className="text-xs text-white/50">{fieldLabel(field)}</p>
+        <p className="mt-2 break-all text-4xl font-semibold tabular-nums">{tableValue(value)}</p>
+        <p className="mt-2 text-xs text-white/45">{resourceTitle(resources[0])}</p>
+      </div>
+    );
+  }
+
+  if (renderer === "chart") {
+    const valueField = columns[1] ?? columns[0] ?? "value";
+    const labelField = columns.length > 1 ? columns[0] : "name";
+    const points = resources.map((resource) => ({
+      resource,
+      label: tableValue(resourceField(resource, labelField)),
+      value: Number(resourceField(resource, valueField)),
+    })).filter((point) => Number.isFinite(point.value));
+    const max = Math.max(1, ...points.map((point) => Math.abs(point.value)));
+    return (
+      <div className={cn("frosted space-y-3 rounded-2xl p-4", className)}>
+        <p className="text-xs text-white/50">{fieldLabel(valueField)}</p>
+        {points.map((point) => (
+          <div key={point.resource.id} className="grid grid-cols-[minmax(5rem,8rem)_1fr_auto] items-center gap-3 text-xs">
+            <span className="truncate text-white/65">{point.label}</span>
+            <div className="h-2 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-primary" style={{ width: `${Math.max(2, Math.abs(point.value) / max * 100)}%` }} /></div>
+            <span className="tabular-nums text-white/80">{tableValue(point.value)}</span>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (renderer === "article-list") {
+    return (
+      <div className={cn("space-y-2", className)}>
+        {resources.map((resource) => {
+          const title = resourceTitle(resource);
+          const url = resourceField(resource, "url");
+          const safeUrl = typeof url === "string" && /^https?:\/\//i.test(url) ? url : undefined;
+          const summary = resourceField(resource, "summary") ?? resourceField(resource, "description");
+          return (
+            <article key={resource.id} className="frosted rounded-xl p-3">
+              <h3 className="text-sm font-medium">{safeUrl ? <a className="hover:underline" href={safeUrl} target="_blank" rel="noreferrer">{title}</a> : title}</h3>
+              {typeof summary === "string" && summary && <p className="mt-1 line-clamp-3 text-xs text-white/65">{summary}</p>}
+              <p className="mt-2 text-[10px] text-white/40">{tableValue(resourceField(resource, "source"))} · {tableValue(resourceField(resource, "publishedAt"))}</p>
+            </article>
+          );
+        })}
       </div>
     );
   }
