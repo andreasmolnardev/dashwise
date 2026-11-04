@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -291,7 +292,7 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, err
 		_ = db.Close()
 		return nil, fmt.Errorf("initialize device authorization API: %w", err)
 	}
-	resourceHandler, err := resourceapi.New(resourceStore, registry, authenticateOwner(authStore))
+	resourceHandler, err := resourceapi.NewWithAuthorization(resourceStore, registry, authenticateResourceOwner(authStore), authorizeResourceOperation(authStore))
 	if err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("initialize resource API: %w", err)
@@ -638,6 +639,62 @@ func authenticateOwner(store *auth.Store) resourceapi.Authenticate {
 		}
 		return user.ID, nil
 	}
+}
+
+func authenticateResourceOwner(store *auth.Store) resourceapi.Authenticate {
+	return func(r *http.Request) (string, error) {
+		token := bearerToken(r)
+		if token == "" {
+			return "", resourceapi.ErrUnauthorized
+		}
+		user, session, err := store.Validate(r.Context(), token)
+		if err == nil {
+			if sessionID := strings.TrimSpace(r.Header.Get("X-Session-Id")); sessionID != "" && sessionID != session.ID {
+				return "", resourceapi.ErrUnauthorized
+			}
+			return user.ID, nil
+		}
+		principal, err := store.ValidateAPICredential(r.Context(), token)
+		if err != nil {
+			return "", resourceapi.ErrUnauthorized
+		}
+		return principal.OwnerID, nil
+	}
+}
+
+func authorizeResourceOperation(store *auth.Store) resourceapi.Authorize {
+	return func(r *http.Request, requiredScope string) error {
+		token := bearerToken(r)
+		if token == "" {
+			return resourceapi.ErrUnauthorized
+		}
+		if _, session, err := store.Validate(r.Context(), token); err == nil {
+			if sessionID := strings.TrimSpace(r.Header.Get("X-Session-Id")); sessionID != "" {
+				if sessionID != session.ID {
+					return resourceapi.ErrUnauthorized
+				}
+			}
+			return nil
+		}
+		principal, err := store.ValidateAPICredential(r.Context(), token)
+		if err != nil {
+			return resourceapi.ErrUnauthorized
+		}
+		for _, scope := range principal.Scopes {
+			if scope == requiredScope {
+				return nil
+			}
+		}
+		return errors.New("API credential lacks scope")
+	}
+}
+
+func bearerToken(r *http.Request) string {
+	value := strings.TrimSpace(r.Header.Get("Authorization"))
+	if len(value) < len("Bearer ") || !strings.EqualFold(value[:len("Bearer ")], "Bearer ") {
+		return ""
+	}
+	return strings.TrimSpace(value[len("Bearer "):])
 }
 
 func (app *App) ListenAndServe() error {

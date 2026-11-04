@@ -37,6 +37,8 @@ var (
 	ErrInvalidSSOState          = errors.New("invalid or expired SSO state")
 	ErrInvalidSSOTicket         = errors.New("invalid or expired SSO exchange ticket")
 	ErrRecentOIDCReauthRequired = errors.New("Recent SSO reauthentication is required to delete this account. Reauthenticate with your identity provider, then try again.")
+	ErrInvalidAPICredential     = errors.New("invalid API credential")
+	ErrAPICredentialNotFound    = errors.New("API credential not found")
 )
 
 const (
@@ -90,6 +92,31 @@ type Session struct {
 	ExpiresAt   time.Time `json:"expiresAt"`
 	LastSeen    time.Time `json:"lastSeenAt"`
 }
+
+// APICredential contains revocable, scoped credentials for external clients.
+// The token itself is returned only by CreateAPICredential.
+type APICredential struct {
+	ID         string     `json:"id"`
+	Name       string     `json:"name"`
+	Prefix     string     `json:"prefix"`
+	Scopes     []string   `json:"scopes"`
+	CreatedAt  time.Time  `json:"createdAt"`
+	ExpiresAt  time.Time  `json:"expiresAt"`
+	LastUsedAt *time.Time `json:"lastUsedAt,omitempty"`
+}
+
+type CreatedAPICredential struct {
+	Credential APICredential `json:"credential"`
+	Token      string        `json:"token"`
+}
+
+type APICredentialPrincipal struct {
+	ID      string
+	OwnerID string
+	Scopes  []string
+}
+
+const APICredentialResourceReadScope = "resources:read"
 
 type AuthResult struct {
 	Token     string `json:"token"`
@@ -257,6 +284,30 @@ func (s *Store) Initialize(ctx context.Context) error {
 			} {
 				if err := ensureColumn(ctx, tx, "auth_oidc_states", column.name, column.definition); err != nil {
 					return fmt.Errorf("add OIDC state %s: %w", column.name, err)
+				}
+			}
+			return nil
+		},
+	}, {
+		ID: "0006_auth_api_credentials", Name: "scoped external API credentials",
+		Up: func(ctx context.Context, tx *sql.Tx) error {
+			for _, statement := range []string{
+				`CREATE TABLE IF NOT EXISTS auth_api_credentials (
+					id TEXT PRIMARY KEY NOT NULL,
+					user_id TEXT NOT NULL REFERENCES auth_users(id) ON DELETE CASCADE,
+					name TEXT NOT NULL,
+					token_hash TEXT NOT NULL UNIQUE,
+					token_prefix TEXT NOT NULL,
+					scopes_json TEXT NOT NULL,
+					created_at TEXT NOT NULL,
+					expires_at TEXT NOT NULL,
+					last_used_at TEXT
+				)`,
+				`CREATE INDEX IF NOT EXISTS auth_api_credentials_by_user ON auth_api_credentials(user_id,created_at DESC)`,
+				`CREATE INDEX IF NOT EXISTS auth_api_credentials_by_expiry ON auth_api_credentials(expires_at)`,
+			} {
+				if _, err := tx.ExecContext(ctx, statement); err != nil {
+					return fmt.Errorf("create scoped API credential schema: %w", err)
 				}
 			}
 			return nil
@@ -795,6 +846,121 @@ func (s *Store) ListSessions(ctx context.Context, userID string) ([]Session, err
 		return nil, fmt.Errorf("iterate sessions: %w", err)
 	}
 	return sessions, nil
+}
+
+// CreateAPICredential creates a resource-query-only API credential. Its raw
+// value is returned once; only its SHA-256 digest is persisted.
+func (s *Store) CreateAPICredential(ctx context.Context, userID, name string, expiresInDays int) (CreatedAPICredential, error) {
+	name = strings.TrimSpace(name)
+	if userID == "" || len(name) < 1 || len(name) > 80 || expiresInDays < 1 || expiresInDays > 365 {
+		return CreatedAPICredential{}, ErrInvalidInput
+	}
+	random, err := randomID(32)
+	if err != nil {
+		return CreatedAPICredential{}, err
+	}
+	token := "dw_api_" + random
+	id, err := randomID(16)
+	if err != nil {
+		return CreatedAPICredential{}, err
+	}
+	now := s.now().UTC()
+	expires := now.Add(time.Duration(expiresInDays) * 24 * time.Hour)
+	scopes := []string{APICredentialResourceReadScope}
+	scopesJSON, err := json.Marshal(scopes)
+	if err != nil {
+		return CreatedAPICredential{}, err
+	}
+	if _, err := s.db.ExecContext(ctx, `INSERT INTO auth_api_credentials(id,user_id,name,token_hash,token_prefix,scopes_json,created_at,expires_at) VALUES(?,?,?,?,?,?,?,?)`,
+		id, userID, name, hashToken(token), token[:15], string(scopesJSON), now.Format(time.RFC3339Nano), expires.Format(time.RFC3339Nano)); err != nil {
+		return CreatedAPICredential{}, fmt.Errorf("create API credential: %w", err)
+	}
+	return CreatedAPICredential{
+		Credential: APICredential{ID: id, Name: name, Prefix: token[:15], Scopes: scopes, CreatedAt: now, ExpiresAt: expires},
+		Token:      token,
+	}, nil
+}
+
+func (s *Store) ListAPICredentials(ctx context.Context, userID string) ([]APICredential, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT id,name,token_prefix,scopes_json,created_at,expires_at,last_used_at FROM auth_api_credentials WHERE user_id=? AND expires_at>? ORDER BY created_at DESC`, userID, s.now().UTC().Format(time.RFC3339Nano))
+	if err != nil {
+		return nil, fmt.Errorf("list API credentials: %w", err)
+	}
+	defer rows.Close()
+	credentials := make([]APICredential, 0)
+	for rows.Next() {
+		var credential APICredential
+		var scopesJSON, createdAt, expiresAt string
+		var lastUsedAt sql.NullString
+		if err := rows.Scan(&credential.ID, &credential.Name, &credential.Prefix, &scopesJSON, &createdAt, &expiresAt, &lastUsedAt); err != nil {
+			return nil, fmt.Errorf("read API credential: %w", err)
+		}
+		if err := json.Unmarshal([]byte(scopesJSON), &credential.Scopes); err != nil {
+			return nil, fmt.Errorf("decode API credential scopes: %w", err)
+		}
+		if credential.CreatedAt, err = parseTime(createdAt); err != nil {
+			return nil, err
+		}
+		if credential.ExpiresAt, err = parseTime(expiresAt); err != nil {
+			return nil, err
+		}
+		if lastUsedAt.Valid {
+			parsed, err := parseTime(lastUsedAt.String)
+			if err != nil {
+				return nil, err
+			}
+			credential.LastUsedAt = &parsed
+		}
+		credentials = append(credentials, credential)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate API credentials: %w", err)
+	}
+	return credentials, nil
+}
+
+func (s *Store) RevokeAPICredential(ctx context.Context, userID, id string) error {
+	result, err := s.db.ExecContext(ctx, `DELETE FROM auth_api_credentials WHERE user_id=? AND id=?`, userID, id)
+	if err != nil {
+		return fmt.Errorf("revoke API credential: %w", err)
+	}
+	count, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if count == 0 {
+		return ErrAPICredentialNotFound
+	}
+	return nil
+}
+
+// ValidateAPICredential validates a bearer token and refreshes its last-used
+// timestamp. The returned principal contains only owner and scope metadata.
+func (s *Store) ValidateAPICredential(ctx context.Context, token string) (APICredentialPrincipal, error) {
+	if strings.TrimSpace(token) == "" {
+		return APICredentialPrincipal{}, ErrInvalidAPICredential
+	}
+	now := s.now().UTC()
+	var principal APICredentialPrincipal
+	var scopesJSON, expiresAt string
+	err := s.db.QueryRowContext(ctx, `SELECT id,user_id,scopes_json,expires_at FROM auth_api_credentials WHERE token_hash=?`, hashToken(token)).Scan(&principal.ID, &principal.OwnerID, &scopesJSON, &expiresAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return APICredentialPrincipal{}, ErrInvalidAPICredential
+	}
+	if err != nil {
+		return APICredentialPrincipal{}, fmt.Errorf("validate API credential: %w", err)
+	}
+	expires, err := parseTime(expiresAt)
+	if err != nil || !expires.After(now) {
+		return APICredentialPrincipal{}, ErrInvalidAPICredential
+	}
+	if err := json.Unmarshal([]byte(scopesJSON), &principal.Scopes); err != nil {
+		return APICredentialPrincipal{}, fmt.Errorf("decode API credential scopes: %w", err)
+	}
+	if _, err := s.db.ExecContext(ctx, `UPDATE auth_api_credentials SET last_used_at=? WHERE id=?`, now.Format(time.RFC3339Nano), principal.ID); err != nil {
+		return APICredentialPrincipal{}, fmt.Errorf("refresh API credential usage: %w", err)
+	}
+	return principal, nil
 }
 
 // HasActiveSession reports whether the user currently holds a live

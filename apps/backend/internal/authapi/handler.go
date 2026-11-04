@@ -58,7 +58,62 @@ func New(store *auth.Store, options ...Options) (http.Handler, error) {
 	h.mux.HandleFunc("DELETE /api/v1/sessions/{sessionId}", h.revokeSession)
 	h.mux.HandleFunc("GET /api/v1/sessions/current", h.currentSession)
 	h.mux.HandleFunc("PATCH /api/v1/sessions/current", h.renameCurrentSession)
+	h.mux.HandleFunc("GET /api/v1/auth/api-credentials", h.listAPICredentials)
+	h.mux.HandleFunc("POST /api/v1/auth/api-credentials", h.createAPICredential)
+	h.mux.HandleFunc("DELETE /api/v1/auth/api-credentials/{id}", h.revokeAPICredential)
 	return h.mux, nil
+}
+
+func (h *Handler) listAPICredentials(w http.ResponseWriter, r *http.Request) {
+	user, _, ok := h.authenticate(w, r)
+	if !ok {
+		return
+	}
+	credentials, err := h.store.ListAPICredentials(r.Context(), user.ID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not list API credentials")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"credentials": credentials})
+}
+
+func (h *Handler) createAPICredential(w http.ResponseWriter, r *http.Request) {
+	user, _, ok := h.authenticate(w, r)
+	if !ok {
+		return
+	}
+	var input struct {
+		Name          string `json:"name"`
+		ExpiresInDays int    `json:"expiresInDays"`
+	}
+	if !decode(w, r, &input) {
+		return
+	}
+	created, err := h.store.CreateAPICredential(r.Context(), user.ID, input.Name, input.ExpiresInDays)
+	if errors.Is(err, auth.ErrInvalidInput) {
+		writeError(w, http.StatusBadRequest, "name must be 1 to 80 characters and expiry must be 1 to 365 days")
+		return
+	}
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not create API credential")
+		return
+	}
+	writeJSON(w, http.StatusCreated, created)
+}
+
+func (h *Handler) revokeAPICredential(w http.ResponseWriter, r *http.Request) {
+	user, _, ok := h.authenticate(w, r)
+	if !ok {
+		return
+	}
+	if err := h.store.RevokeAPICredential(r.Context(), user.ID, r.PathValue("id")); errors.Is(err, auth.ErrAPICredentialNotFound) {
+		writeError(w, http.StatusNotFound, "API credential not found")
+		return
+	} else if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not revoke API credential")
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (h *Handler) ssoDisabled(w http.ResponseWriter, _ *http.Request) {

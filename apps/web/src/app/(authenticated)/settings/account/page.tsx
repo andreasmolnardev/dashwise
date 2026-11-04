@@ -16,7 +16,7 @@ import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ChangePasswordRequest } from '@/lib/apiClient';
 import { useLocation, useNavigate } from "react-router-dom";
-import { changePasswordAction, deleteAccountAction, startAccountReauthenticationAction } from '@/lib/apiClient';
+import { changePasswordAction, createAPICredentialAction, deleteAccountAction, listAPICredentialsAction, revokeAPICredentialAction, startAccountReauthenticationAction, type CreatedAPICredential } from '@/lib/apiClient';
 import { approveDeviceCodeAction, cancelDeviceCodeAction, getCurrentSessionAction, listSessionsAction, lookupDeviceCodeAction, renameCurrentSessionAction, revokeSessionAction } from '@/lib/apiClient';
 import { DialogDescription } from "@radix-ui/react-dialog";
 import useAuth from "@/context/useAuth";
@@ -48,6 +48,10 @@ export default function AccountSettingsPage() {
   const [deviceRequest, setDeviceRequest] = useState<Awaited<ReturnType<typeof lookupDeviceCodeAction>> | null>(null);
   const [deviceCodeError, setDeviceCodeError] = useState<string | null>(null);
   const [deviceCodeLoading, setDeviceCodeLoading] = useState(false);
+  const [apiCredentialName, setApiCredentialName] = useState("");
+  const [apiCredentialExpiry, setApiCredentialExpiry] = useState(90);
+  const [createdAPICredential, setCreatedAPICredential] = useState<CreatedAPICredential | null>(null);
+  const [apiCredentialError, setAPICredentialError] = useState<string | null>(null);
   const queryClient = useQueryClient();
   useEffect(() => {
     const reauthResult = new URLSearchParams(location.search).get("reauth");
@@ -56,6 +60,22 @@ export default function AccountSettingsPage() {
     if (reauthResult) navigate(location.pathname, { replace: true });
   }, [location.pathname, location.search, navigate]);
   const sessionsQuery = useQuery({ queryKey: ["auth", "sessions", token], enabled: Boolean(token), queryFn: () => withAuth(listSessionsAction) });
+  const apiCredentialsQuery = useQuery({ queryKey: ["auth", "api-credentials", token], enabled: Boolean(token), queryFn: () => withAuth(listAPICredentialsAction) });
+  const createAPICredentialMutation = useMutation({
+    mutationFn: () => withAuth((auth) => createAPICredentialAction(auth, apiCredentialName, apiCredentialExpiry)),
+    onSuccess: (created) => {
+      setCreatedAPICredential(created);
+      setApiCredentialName("");
+      setAPICredentialError(null);
+      void queryClient.invalidateQueries({ queryKey: ["auth", "api-credentials", token] });
+    },
+    onError: (cause) => setAPICredentialError(cause instanceof Error ? cause.message : "Could not create API credential"),
+  });
+  const revokeAPICredentialMutation = useMutation({
+    mutationFn: (id: string) => withAuth((auth) => revokeAPICredentialAction(auth, id)),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["auth", "api-credentials", token] }),
+    onError: (cause) => setAPICredentialError(cause instanceof Error ? cause.message : "Could not revoke API credential"),
+  });
   const sessionQuery = useQuery({
     queryKey: queryKeys.auth.session(token),
     enabled: Boolean(token),
@@ -255,6 +275,45 @@ export default function AccountSettingsPage() {
             </div>
           </DialogContent>
         </Dialog>
+
+        <section className="frosted col-span-full rounded-lg p-4 grid gap-3">
+          <div>
+            <h3 className="text-lg font-semibold">External API credentials</h3>
+            <p className="text-sm font-normal text-muted-foreground">Create read-only credentials for querying your resources. The token is shown once and expires automatically.</p>
+          </div>
+          {createdAPICredential && (
+            <div role="alert" className="grid gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
+              <p>Copy this token now. Dashwise will not show it again.</p>
+              <code className="break-all rounded bg-black/20 p-2">{createdAPICredential.token}</code>
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" variant="outline" onClick={() => void navigator.clipboard.writeText(createdAPICredential.token)}>Copy token</Button>
+                <Button type="button" variant="ghost" onClick={() => setCreatedAPICredential(null)}>Hide token</Button>
+              </div>
+            </div>
+          )}
+          <form className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_150px_auto]" onSubmit={(event) => { event.preventDefault(); setAPICredentialError(null); createAPICredentialMutation.mutate(); }}>
+            <Input value={apiCredentialName} onChange={(event) => setApiCredentialName(event.target.value)} placeholder="Credential name" aria-label="Credential name" maxLength={80} required />
+            <select className="frosted rounded-md border px-3 py-2 text-sm" value={apiCredentialExpiry} onChange={(event) => setApiCredentialExpiry(Number(event.target.value))} aria-label="Credential expiration">
+              <option value={30}>Expires in 30 days</option>
+              <option value={90}>Expires in 90 days</option>
+              <option value={365}>Expires in 1 year</option>
+            </select>
+            <Button type="submit" disabled={createAPICredentialMutation.isPending || !apiCredentialName.trim()}>{createAPICredentialMutation.isPending ? "Creating…" : "Create credential"}</Button>
+          </form>
+          {apiCredentialError && <p role="alert" className="text-sm text-red-300">{apiCredentialError}</p>}
+          {apiCredentialsQuery.isLoading && <p className="text-sm text-muted-foreground">Loading credentials…</p>}
+          {apiCredentialsQuery.isError && <p role="alert" className="text-sm text-red-300">API credentials could not be loaded.</p>}
+          {apiCredentialsQuery.data?.map((credential) => (
+            <div key={credential.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border p-2 text-sm">
+              <div className="min-w-0">
+                <p className="font-medium">{credential.name} <code className="font-normal text-muted-foreground">{credential.prefix}…</code></p>
+                <p className="font-normal text-muted-foreground">Read resources · expires {new Date(credential.expiresAt).toLocaleDateString()} · {credential.lastUsedAt ? `last used ${new Date(credential.lastUsedAt).toLocaleString()}` : "not used yet"}</p>
+              </div>
+              <Button type="button" variant="ghost" size="sm" disabled={revokeAPICredentialMutation.isPending} onClick={() => { if (window.confirm(`Revoke ${credential.name}? Clients using it will lose access.`)) revokeAPICredentialMutation.mutate(credential.id); }}>Revoke</Button>
+            </div>
+          ))}
+          {apiCredentialsQuery.isSuccess && apiCredentialsQuery.data.length === 0 && <p className="text-sm font-normal text-muted-foreground">No API credentials created.</p>}
+        </section>
 
         <Dialog
           open={isDeviceNameDialogOpen}

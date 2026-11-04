@@ -469,6 +469,49 @@ export async function renameCurrentSessionAction(auth: ActionAuth, displayName: 
   })) as Promise<SessionRecord>;
 }
 
+export type APICredentialRecord = {
+  id: string;
+  name: string;
+  prefix: string;
+  scopes: string[];
+  createdAt: string;
+  expiresAt: string;
+  lastUsedAt?: string;
+};
+
+export type CreatedAPICredential = {
+  credential: APICredentialRecord;
+  token: string;
+};
+
+async function apiCredentialRequest<T>(auth: ActionAuth, path: string, method = "GET", body?: unknown): Promise<T> {
+  const response = await fetch(backendUrl(`/api/v1/auth/api-credentials${path}`), {
+    method,
+    headers: { ...authHeaders(auth), ...(body === undefined ? {} : { "content-type": "application/json" }) },
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  });
+  handleUnauthorizedResponse(response);
+  if (response.status === 204) return undefined as T;
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(typeof result?.error === "string" ? result.error : "API credential request failed");
+  }
+  return result as T;
+}
+
+export async function listAPICredentialsAction(auth: ActionAuth): Promise<APICredentialRecord[]> {
+  const response = await apiCredentialRequest<{ credentials: APICredentialRecord[] }>(auth, "");
+  return response.credentials;
+}
+
+export function createAPICredentialAction(auth: ActionAuth, name: string, expiresInDays: number) {
+  return apiCredentialRequest<CreatedAPICredential>(auth, "", "POST", { name, expiresInDays });
+}
+
+export function revokeAPICredentialAction(auth: ActionAuth, id: string) {
+  return apiCredentialRequest<void>(auth, `/${encodeURIComponent(id)}`, "DELETE");
+}
+
 // --- Links actions ---
 
 export async function getLinksCollectionsAction(auth: ActionAuth) {

@@ -19,23 +19,33 @@ import (
 const maxBodyBytes = 1 << 20
 const maxFilterBytes = 4096
 
+var ErrUnauthorized = errors.New("resource API authentication required")
+
 // Authenticate must return the authenticated owner ID. Handlers always use
 // this value as the owner scope and never accept an owner from client input.
 type Authenticate func(*http.Request) (ownerID string, err error)
+type Authorize func(*http.Request, string) error
 
 type Handler struct {
 	store        *resources.Store
 	registry     *resources.Registry
 	authenticate Authenticate
+	authorize    Authorize
 	mux          *http.ServeMux
 }
 
 // New registers the resource HTTP routes and returns their handler.
 func New(store *resources.Store, registry *resources.Registry, authenticate Authenticate) (http.Handler, error) {
+	return NewWithAuthorization(store, registry, authenticate, nil)
+}
+
+// NewWithAuthorization allows application-issued scoped credentials to limit
+// operations while preserving the same owner-scoped resource API.
+func NewWithAuthorization(store *resources.Store, registry *resources.Registry, authenticate Authenticate, authorize Authorize) (http.Handler, error) {
 	if store == nil || registry == nil || authenticate == nil {
 		return nil, errors.New("resource API requires a store, registry, and authenticator")
 	}
-	h := &Handler{store: store, registry: registry, authenticate: authenticate, mux: http.NewServeMux()}
+	h := &Handler{store: store, registry: registry, authenticate: authenticate, authorize: authorize, mux: http.NewServeMux()}
 	h.mux.HandleFunc("GET /api/v1/resource-types", h.listTypes)
 	h.mux.HandleFunc("GET /api/v1/resources", h.queryResources)
 	h.mux.HandleFunc("POST /api/v1/resources", h.upsertResource)
@@ -46,6 +56,9 @@ func New(store *resources.Store, registry *resources.Registry, authenticate Auth
 
 func (h *Handler) listTypes(w http.ResponseWriter, r *http.Request) {
 	if _, ok := h.owner(w, r); !ok {
+		return
+	}
+	if !h.requireScope(w, r, "resources:read") {
 		return
 	}
 	types, err := h.registry.List(r.Context())
@@ -59,6 +72,9 @@ func (h *Handler) listTypes(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) queryResources(w http.ResponseWriter, r *http.Request) {
 	ownerID, ok := h.owner(w, r)
 	if !ok {
+		return
+	}
+	if !h.requireScope(w, r, "resources:read") {
 		return
 	}
 	query, err := parseQuery(r.URL.Query())
@@ -86,6 +102,9 @@ func (h *Handler) queryResources(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) upsertResource(w http.ResponseWriter, r *http.Request) {
 	ownerID, ok := h.owner(w, r)
 	if !ok {
+		return
+	}
+	if !h.requireScope(w, r, "resources:write") {
 		return
 	}
 	var input struct {
@@ -130,6 +149,9 @@ func (h *Handler) getResource(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	if !h.requireScope(w, r, "resources:read") {
+		return
+	}
 	resource, err := h.store.Get(r.Context(), ownerID, r.PathValue("id"))
 	if errors.Is(err, resources.ErrNotFound) {
 		writeError(w, http.StatusNotFound, "resource not found")
@@ -145,6 +167,9 @@ func (h *Handler) getResource(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) deleteResource(w http.ResponseWriter, r *http.Request) {
 	ownerID, ok := h.owner(w, r)
 	if !ok {
+		return
+	}
+	if !h.requireScope(w, r, "resources:write") {
 		return
 	}
 	if err := h.store.Delete(r.Context(), ownerID, r.PathValue("id")); errors.Is(err, resources.ErrNotFound) {
@@ -164,6 +189,21 @@ func (h *Handler) owner(w http.ResponseWriter, r *http.Request) (string, bool) {
 		return "", false
 	}
 	return ownerID, true
+}
+
+func (h *Handler) requireScope(w http.ResponseWriter, r *http.Request, scope string) bool {
+	if h.authorize == nil {
+		return true
+	}
+	if err := h.authorize(r, scope); err != nil {
+		if errors.Is(err, ErrUnauthorized) {
+			writeError(w, http.StatusUnauthorized, "authentication required")
+			return false
+		}
+		writeError(w, http.StatusForbidden, "API credential lacks required scope")
+		return false
+	}
+	return true
 }
 
 func parseQuery(values url.Values) (resources.Query, error) {
