@@ -154,6 +154,17 @@ export default function SdkIntegrationsManager({ view }: { view: "installed" | "
 
   const save = async () => {
     if (!selectedDefinition) return;
+    for (const [key, rawField] of Object.entries(selectedDefinition.config)) {
+      const field = rawField as ConfigField;
+      if (!field.required) continue;
+      const value = draft[key] ?? field.default;
+      const isSavedSecret = field.type === "secret" && editing?.configuredSecrets.includes(key);
+      if (isSavedSecret) continue;
+      if (value === undefined || value === null || (typeof value === "string" && value.trim() === "")) {
+        setError(`${field.label ?? field.title ?? key} is required.`);
+        return;
+      }
+    }
     const config: Record<string, unknown> = {};
     for (const [key, rawField] of Object.entries(selectedDefinition.config)) {
       const field = rawField as ConfigField;

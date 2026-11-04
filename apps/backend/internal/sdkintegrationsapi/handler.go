@@ -625,7 +625,17 @@ func normalizeConfig(manifest jsruntime.Manifest, incoming, current map[string]a
 	}
 	for key, fieldRaw := range manifest.Config {
 		field := object(fieldRaw)
-		if boolValue(field["required"]) && config[key] == nil && secrets[key] == "" {
+		if !boolValue(field["required"]) {
+			continue
+		}
+		value, exists := config[key]
+		missing := !exists || value == nil
+		if text(field["type"]) == "secret" {
+			missing = strings.TrimSpace(secrets[key]) == ""
+		} else if stringValue, ok := value.(string); ok {
+			missing = strings.TrimSpace(stringValue) == ""
+		}
+		if missing {
 			return nil, nil, fmt.Errorf("missing required SDK configuration: %s", key)
 		}
 	}
