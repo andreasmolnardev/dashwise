@@ -92,6 +92,33 @@ func (s *Store) Initialize(ctx context.Context) error {
 			_, err := tx.ExecContext(ctx, `ALTER TABLE change_events_unscoped RENAME TO change_events`)
 			return err
 		},
+	}, {
+		ID: "0020_resource_search_fts", Name: "index searchable resource fields with FTS5",
+		Up: func(ctx context.Context, tx *sql.Tx) error {
+			if _, err := tx.ExecContext(ctx, `CREATE VIRTUAL TABLE resource_search USING fts5(resource_id UNINDEXED, owner_id UNINDEXED, resource_type UNINDEXED, searchable_text, tokenize='trigram')`); err != nil {
+				return err
+			}
+			_, err := tx.ExecContext(ctx, `
+				INSERT INTO resource_search(resource_id, owner_id, resource_type, searchable_text)
+				SELECT r.id, r.owner_id, r.type,
+					COALESCE((
+						SELECT group_concat(CAST(json_extract(r.data_json, '$.' || json_extract(field.value, '$.name')) AS TEXT), ' ')
+						FROM json_each(definition.definition_json, '$.fields') field
+						WHERE json_extract(field.value, '$.searchable') = 1
+					), '')
+				FROM resources r
+				JOIN resource_types definition ON definition.type = r.type
+				WHERE EXISTS (
+					SELECT 1 FROM json_each(definition.definition_json, '$.capabilities') capability
+					WHERE capability.value = 'search'
+				)
+			`)
+			return err
+		},
+		Down: func(ctx context.Context, tx *sql.Tx) error {
+			_, err := tx.ExecContext(ctx, `DROP TABLE IF EXISTS resource_search`)
+			return err
+		},
 	}})
 }
 
@@ -187,6 +214,15 @@ func (s *Store) Upsert(ctx context.Context, resource Resource) (Resource, error)
 	if err != nil {
 		return Resource{}, fmt.Errorf("upsert resource: %w", err)
 	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM resource_search WHERE resource_id = ?`, resource.ID); err != nil {
+		return Resource{}, fmt.Errorf("remove resource from search index: %w", err)
+	}
+	if hasSearchCapability(definition) {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO resource_search(resource_id, owner_id, resource_type, searchable_text) VALUES(?, ?, ?, ?)`,
+			resource.ID, resource.OwnerID, resource.Type, searchableText(resource.Data, definition)); err != nil {
+			return Resource{}, fmt.Errorf("index searchable resource fields: %w", err)
+		}
+	}
 	if _, err := tx.ExecContext(ctx, `INSERT INTO change_events(resource_id, operation, created_at, owner_id, resource_type, provider_instance_id, provider_resource_id) VALUES(?, 'upsert', ?, ?, ?, ?, ?)`, resource.ID, nowText, resource.OwnerID, resource.Type, resource.ProviderInstanceID, resource.ProviderResourceID); err != nil {
 		return Resource{}, fmt.Errorf("record resource change: %w", err)
 	}
@@ -230,6 +266,9 @@ func (s *Store) Delete(ctx context.Context, ownerID, id string) error {
 	}
 	if count == 0 {
 		return ErrNotFound
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM resource_search WHERE resource_id = ?`, id); err != nil {
+		return fmt.Errorf("remove deleted resource from search index: %w", err)
 	}
 	if _, err := tx.ExecContext(ctx, `INSERT INTO change_events(resource_id, operation, created_at, owner_id, resource_type, provider_instance_id, provider_resource_id) VALUES(?, 'delete', ?, ?, ?, ?, ?)`,
 		id, time.Now().UTC().Format(time.RFC3339Nano), ownerID, resourceType, providerInstanceID, providerResourceID); err != nil {

@@ -51,6 +51,9 @@ func (r *Registry) Register(ctx context.Context, definition Definition) error {
 	r.mu.Lock()
 	r.definitions[definition.Type] = definition
 	r.mu.Unlock()
+	if err := reindexResourceType(ctx, r.db, definition); err != nil {
+		return fmt.Errorf("reindex resources for type %q: %w", definition.Type, err)
+	}
 	return nil
 }
 

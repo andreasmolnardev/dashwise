@@ -2,8 +2,10 @@ package resources
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 )
 
@@ -130,18 +132,12 @@ func (s *Store) compileQuery(ctx context.Context, query Query) (string, []any, e
 			}
 		}
 		typeSearch := make([]string, 0, len(definitions))
+		useFTS := len([]rune(query.Search)) >= 3
 		for _, definition := range definitions {
 			// Search is an explicit resource capability. A searchable field alone
 			// does not opt a resource into global search; callers can still query
 			// that resource directly for views that need field-level matching.
-			searchEnabled := false
-			for _, capability := range definition.Capabilities {
-				if capability == "search" {
-					searchEnabled = true
-					break
-				}
-			}
-			if !searchEnabled {
+			if !hasSearchCapability(definition) {
 				continue
 			}
 			fields := make([]string, 0, len(definition.Fields))
@@ -157,8 +153,13 @@ func (s *Store) compileQuery(ctx context.Context, query Query) (string, []any, e
 			for range fields {
 				fieldSearch = append(fieldSearch, "instr(lower(COALESCE(json_extract(data_json, ?), '')), lower(?)) > 0")
 			}
-			typeSearch = append(typeSearch, "(type = ? AND ("+join(fieldSearch, " OR ")+"))")
-			args = append(args, definition.Type)
+			if useFTS {
+				typeSearch = append(typeSearch, "(type = ? AND id IN (SELECT resource_id FROM resource_search WHERE searchable_text MATCH ? AND owner_id = ? AND resource_type = ?) AND ("+join(fieldSearch, " OR ")+"))")
+				args = append(args, definition.Type, ftsPhrase(query.Search), query.OwnerID, definition.Type)
+			} else {
+				typeSearch = append(typeSearch, "(type = ? AND ("+join(fieldSearch, " OR ")+"))")
+				args = append(args, definition.Type)
+			}
 			for _, name := range fields {
 				args = append(args, "$."+name, query.Search)
 			}
@@ -169,6 +170,57 @@ func (s *Store) compileQuery(ctx context.Context, query Query) (string, []any, e
 		conditions = append(conditions, "("+join(typeSearch, " OR ")+")")
 	}
 	return " WHERE " + join(conditions, " AND "), args, nil
+}
+
+func ftsPhrase(value string) string {
+	return `"` + strings.ReplaceAll(value, `"`, `""`) + `"`
+}
+
+func hasSearchCapability(definition Definition) bool {
+	for _, capability := range definition.Capabilities {
+		if capability == "search" {
+			return true
+		}
+	}
+	return false
+}
+
+func searchableText(data map[string]any, definition Definition) string {
+	parts := make([]string, 0, len(definition.Fields))
+	for _, field := range definition.Fields {
+		if !field.Searchable {
+			continue
+		}
+		value, exists := data[field.Name]
+		if !exists || value == nil {
+			continue
+		}
+		var text string
+		switch value := value.(type) {
+		case string:
+			text = value
+		case bool:
+			text = strconv.FormatBool(value)
+		case float64:
+			text = strconv.FormatFloat(value, 'f', -1, 64)
+		case float32:
+			text = strconv.FormatFloat(float64(value), 'f', -1, 32)
+		case int:
+			text = strconv.Itoa(value)
+		case int64:
+			text = strconv.FormatInt(value, 10)
+		case json.Number:
+			text = value.String()
+		case map[string]any, []any:
+			continue
+		default:
+			text = fmt.Sprint(value)
+		}
+		if strings.TrimSpace(text) != "" {
+			parts = append(parts, text)
+		}
+	}
+	return strings.Join(parts, " ")
 }
 
 func compileSort(ctx context.Context, registry *Registry, query Query) (string, error) {
