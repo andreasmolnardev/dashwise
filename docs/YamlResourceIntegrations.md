@@ -48,11 +48,15 @@ Failed endpoint runs keep their last successful snapshot. Removed collection
 items and deleted YAML integration instances are reconciled from the resource
 store.
 
+Collections declaring the `monitoring` capability also appear in Monitoring's
+**Integrated systems** view. Their declared resource fields are shown as
+attributes, so YAML integrations can add monitoring data without a
+provider-specific frontend adapter.
+
 ## Beszel
 
 The Beszel YAML integration declares its `systems` collection as
 `integration.beszel.systems` resources with the `monitoring` capability. The
-Monitoring app shows those systems under **Integrated systems** and displays
-their current status, host information, usage, load, and network fields. The
-resource mapping only copies those declared fields; integration credentials
-remain in the encrypted integration environment.
+resource mapping exposes current status, host information, usage, load, and
+network fields; integration credentials remain in the encrypted integration
+environment.

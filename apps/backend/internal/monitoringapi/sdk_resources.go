@@ -4,13 +4,12 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/andreasmolnardev/dashwise/apps/backend/internal/integrations"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/resources"
 )
 
-// sdkMonitoringResources returns SDK resources explicitly marked for
-// monitoring and retained Beszel YAML system resources. It mirrors the
-// monitoring UI contract while reading from the normalized owner-scoped store.
+// sdkMonitoringResources returns SDK and YAML resources explicitly marked for
+// monitoring. It mirrors the monitoring UI contract while reading from the
+// normalized owner-scoped resource store.
 func (h *Handler) sdkMonitoringResources(w http.ResponseWriter, r *http.Request) {
 	owner, ok := h.owner(w, r)
 	if !ok {
@@ -39,7 +38,7 @@ func (h *Handler) sdkMonitoringResources(w http.ResponseWriter, r *http.Request)
 				kind   string
 				icon   string
 			}{name: instance.Name, source: instance.Source, kind: "sdk"}
-		} else if isBeszelIntegration(instance) {
+		} else if instance.Type == "yaml" {
 			details, _ := instance.Config["details"].(map[string]any)
 			icon, _ := details["icon"].(string)
 			byID[instance.ID] = struct {
@@ -98,10 +97,10 @@ func (h *Handler) sdkMonitoringResources(w http.ResponseWriter, r *http.Request)
 			}
 		}
 	}
-	// Beszel remains a YAML integration. Its declared systems collection is
-	// exposed through the same monitoring resource UI as SDK providers.
+	// Any YAML collection that declares monitoring capability is exposed through
+	// the same monitoring resource UI, independent of its integration identity.
 	for _, definition := range types {
-		if !strings.HasPrefix(definition.Type, "integration.beszel.") || !containsExact(definition.Capabilities, "monitoring") {
+		if !strings.HasPrefix(definition.Type, "integration.") || !containsExact(definition.Capabilities, "monitoring") {
 			continue
 		}
 		for offset := 0; ; offset += 200 {
@@ -110,7 +109,7 @@ func (h *Handler) sdkMonitoringResources(w http.ResponseWriter, r *http.Request)
 				Capabilities: []string{"monitoring"}, Limit: 200, Offset: offset,
 			})
 			if err != nil {
-				writeError(w, http.StatusInternalServerError, "could not load Beszel monitoring resources")
+				writeError(w, http.StatusInternalServerError, "could not load YAML monitoring resources")
 				return
 			}
 			for _, item := range page.Items {
@@ -122,22 +121,30 @@ func (h *Handler) sdkMonitoringResources(w http.ResponseWriter, r *http.Request)
 				if name == "" {
 					name = item.ProviderResourceID
 				}
-				status, _ := item.Data["status"].(string)
-				state := "offline"
-				if strings.EqualFold(status, "up") {
-					state = "online"
+				state, _ := item.Data["status"].(string)
+				if state == "" {
+					state, _ = item.Data["state"].(string)
 				}
-				attributes := map[string]any{}
-				for _, field := range []string{"info", "usage", "load", "network"} {
-					if value, found := item.Data[field]; found {
+				if strings.EqualFold(state, "up") {
+					state = "online"
+				} else if strings.EqualFold(state, "down") {
+					state = "offline"
+				} else if state == "" {
+					state = "unknown"
+				}
+				attributes := make(map[string]any, len(item.Data))
+				for field, value := range item.Data {
+					if field != "name" && field != "status" && field != "state" {
 						attributes[field] = value
 					}
 				}
+				parts := strings.Split(definition.Type, ".")
+				collectionID := strings.Join(parts[2:], ".")
 				result = append(result, map[string]any{
 					"id": item.ProviderResourceID, "name": name, "icon": instance.icon,
 					"state": state, "attributes": attributes,
 					"instanceId": item.ProviderInstanceID, "instanceName": instance.name,
-					"source": instance.source, "collectionId": strings.TrimPrefix(definition.Type, "integration.beszel."),
+					"source": instance.source, "collectionId": collectionID,
 					"capabilities": item.Capabilities, "updatedAt": item.UpdatedAt,
 				})
 			}
@@ -147,13 +154,6 @@ func (h *Handler) sdkMonitoringResources(w http.ResponseWriter, r *http.Request)
 		}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"resources": result})
-}
-
-func isBeszelIntegration(instance integrations.Integration) bool {
-	details, _ := instance.Config["details"].(map[string]any)
-	name, _ := details["name"].(string)
-	slug, _ := details["slug"].(string)
-	return strings.EqualFold(strings.TrimSpace(name), "Beszel") || strings.EqualFold(strings.TrimSpace(slug), "beszel") || strings.HasSuffix(strings.ToLower(instance.Source), "/beszel.yaml")
 }
 
 func containsExact(values []string, target string) bool {
