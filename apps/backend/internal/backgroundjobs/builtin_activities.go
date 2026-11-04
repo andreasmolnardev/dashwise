@@ -29,6 +29,9 @@ func (r *Runner) runBuiltinActivityProviders(ctx context.Context) error {
 		if err == nil {
 			err = r.reconcileNewsFeedFailureActivities(ctx, owner)
 		}
+		if err == nil {
+			err = r.reconcileIntegrationUpdateActivities(ctx, owner)
+		}
 		if err != nil {
 			r.logger.Error("reconcile builtin activities", "owner_id", owner, "error", err)
 			if firstErr == nil {
@@ -37,6 +40,71 @@ func (r *Runner) runBuiltinActivityProviders(ctx context.Context) error {
 		}
 	}
 	return firstErr
+}
+
+func (r *Runner) reconcileIntegrationUpdateActivities(ctx context.Context, owner string) error {
+	existing, err := listActivities(ctx, r.activities, owner, "integration", "integrations.updates")
+	if err != nil {
+		return err
+	}
+	settings, err := r.activities.DefinitionSettings(ctx, owner)
+	if err != nil {
+		return err
+	}
+	if !activityDefinitionEnabled(settings, "integrations.updates") {
+		return clearActivities(ctx, r.activities, owner, "integration", existing)
+	}
+	items, err := r.integrations.List(ctx, owner, false)
+	if err != nil {
+		return err
+	}
+	active := make(map[string]bool, len(items))
+	for _, item := range items {
+		available, _ := item.LocalData["updateAvailable"].(bool)
+		if !available {
+			continue
+		}
+		active[item.ID] = true
+		version, _ := item.LocalData["remoteVersion"].(string)
+		name := item.Name
+		if name == "" {
+			name = "Integration"
+		}
+		title := name + " update available"
+		description := "A newer YAML integration version is available."
+		if version != "" {
+			description = "Version " + version + " is available to install."
+		}
+		alreadyPublished := false
+		for _, record := range existing {
+			if record.Current && record.SourceID == item.ID && record.Title == title && record.Description == description {
+				alreadyPublished = true
+				break
+			}
+		}
+		if alreadyPublished {
+			continue
+		}
+		_, _, err := r.activities.Publish(ctx, owner, activities.Input{
+			Source: "integration", SourceID: item.ID, Type: "integrations.updates",
+			Title: title, Description: description, Severity: "info",
+			IdempotencyKey: "integration:update", Current: true,
+			Metadata: map[string]any{"integrationId": item.ID, "version": version},
+			Action:   &activities.Action{Label: "Review integrations", Target: "/settings/integrations"},
+		})
+		if err != nil {
+			return err
+		}
+	}
+	for _, record := range existing {
+		if active[record.SourceID] {
+			continue
+		}
+		if _, err := r.activities.Clear(ctx, owner, "integration", record.SourceID, record.IdempotencyKey); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (r *Runner) reconcileUnreadNotificationActivity(ctx context.Context, owner string, settings activities.DefinitionSettings) error {

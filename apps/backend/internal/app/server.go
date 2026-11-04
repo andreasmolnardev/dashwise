@@ -411,7 +411,7 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (*App, err
 	}
 	maintenanceRunner, err := backgroundjobs.New(backgroundjobs.Options{
 		Users: authStore, News: newsStore, NewsFetcher: newsFetcher, Resources: resourceStore,
-		Activities: activitiesStore, Monitoring: monitoringStore, Notifications: notificationsStore,
+		Activities: activitiesStore, Integrations: integrationsStore, Monitoring: monitoringStore, Notifications: notificationsStore,
 		Logger: logger, ActivityRetentionDays: cfg.ActivityRetentionDays,
 		NewsInterval: cfg.NewsRefreshInterval,
 	})

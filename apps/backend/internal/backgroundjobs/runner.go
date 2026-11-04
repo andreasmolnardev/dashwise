@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/activities"
+	"github.com/andreasmolnardev/dashwise/apps/backend/internal/integrations"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/monitoring"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/news"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/notifications"
@@ -26,6 +27,7 @@ type Options struct {
 	NewsFetcher           *news.Fetcher
 	Resources             *resources.Store
 	Activities            *activities.Store
+	Integrations          *integrations.Store
 	Monitoring            *monitoring.Store
 	Notifications         *notifications.Store
 	NewsInterval          time.Duration
@@ -41,6 +43,7 @@ type Runner struct {
 	newsFetcher           *news.Fetcher
 	resources             *resources.Store
 	activities            *activities.Store
+	integrations          *integrations.Store
 	monitoring            *monitoring.Store
 	notifications         *notifications.Store
 	newsInterval          time.Duration
@@ -51,8 +54,8 @@ type Runner struct {
 }
 
 func New(options Options) (*Runner, error) {
-	if options.Users == nil || options.News == nil || options.NewsFetcher == nil || options.Resources == nil || options.Activities == nil || options.Monitoring == nil || options.Notifications == nil {
-		return nil, fmt.Errorf("background jobs require user, News, resource, Activities, Monitoring, and Notifications stores")
+	if options.Users == nil || options.News == nil || options.NewsFetcher == nil || options.Resources == nil || options.Activities == nil || options.Integrations == nil || options.Monitoring == nil || options.Notifications == nil {
+		return nil, fmt.Errorf("background jobs require user, News, resource, Activities, Integrations, Monitoring, and Notifications stores")
 	}
 	if options.NewsInterval <= 0 {
 		options.NewsInterval = 30 * time.Minute
@@ -71,7 +74,7 @@ func New(options Options) (*Runner, error) {
 	}
 	return &Runner{
 		users: options.Users, news: options.News, newsFetcher: options.NewsFetcher,
-		resources: options.Resources, activities: options.Activities,
+		resources: options.Resources, activities: options.Activities, integrations: options.Integrations,
 		monitoring: options.Monitoring, notifications: options.Notifications,
 		newsInterval: options.NewsInterval, monitorInterval: options.MonitorInterval, activityInterval: options.ActivityInterval,
 		activityRetentionDays: options.ActivityRetentionDays, logger: options.Logger,

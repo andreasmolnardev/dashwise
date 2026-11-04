@@ -309,8 +309,6 @@ func builtinAvailabilityReason(id string) string {
 		return "Use an integration's SDK activity declaration for instance-specific connection failures."
 	case "jobs.issues":
 		return "Unavailable because background job lifecycle events are not exposed as Activities."
-	case "integrations.updates":
-		return "Unavailable because the integration catalog does not provide update metadata."
 	default:
 		return ""
 	}
