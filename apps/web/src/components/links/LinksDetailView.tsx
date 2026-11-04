@@ -56,7 +56,7 @@ type LinkSortField = "created" | "title";
 export interface LinksDetailViewProps {
     title: string;
     description?: string;
-    listId: string;
+    listId?: string;
     folders: LinkFolderRecord[];
     items: LinkItemRecord[];
     tags: LinkTagRecord[];
@@ -684,12 +684,22 @@ export default function LinksDetailView({
                 {sortedLinks.length === 0 ? (
                     <div className="flex justify-center py-16 text-sm text-white/55">
                         <span>
-                            <a
-                                href={`/apps/links/lists/${listId}?add=1`}
-                                className="text-white/65 underline decoration-white/25 underline-offset-4 transition-colors hover:text-white hover:decoration-white/60"
-                            >
-                                Add a link
-                            </a>{" "}to get started
+                            {listId ? (
+                                <a
+                                    href={`/apps/links/lists/${listId}?add=1`}
+                                    className="text-white/65 underline decoration-white/25 underline-offset-4 transition-colors hover:text-white hover:decoration-white/60"
+                                >
+                                    Add a link
+                                </a>
+                            ) : (
+                                <button
+                                    type="button"
+                                    onClick={() => onAddLink?.()}
+                                    className="text-white/65 underline decoration-white/25 underline-offset-4 transition-colors hover:text-white hover:decoration-white/60"
+                                >
+                                    Add a link
+                                </button>
+                            )}{" "}to get started
                         </span>
                     </div>
                 ) : (
@@ -720,20 +730,22 @@ export default function LinksDetailView({
                 </button>
             ) : null}
 
-            <CreateLinksFolderDialog
-                open={createFolderOpen}
-                onOpenChange={(open) => {
-                    setCreateFolderOpen(open);
-                    if (!open) setCreateFolderParentId(null);
-                }}
-                listId={listId}
-                parentFolderId={createFolderParentId ?? undefined}
-                onCreated={(folder) => {
-                    onFolderCreated?.(folder);
-                    setCreateFolderOpen(false);
-                    setCreateFolderParentId(null);
-                }}
-            />
+            {listId ? (
+                <CreateLinksFolderDialog
+                    open={createFolderOpen}
+                    onOpenChange={(open) => {
+                        setCreateFolderOpen(open);
+                        if (!open) setCreateFolderParentId(null);
+                    }}
+                    listId={listId}
+                    parentFolderId={createFolderParentId ?? undefined}
+                    onCreated={(folder) => {
+                        onFolderCreated?.(folder);
+                        setCreateFolderOpen(false);
+                        setCreateFolderParentId(null);
+                    }}
+                />
+            ) : null}
 
             <Dialog open={Boolean(shareItem)} onOpenChange={(open) => !open && setShareItem(null)}>
                 <DialogContent className="frosted text-foreground max-w-md">

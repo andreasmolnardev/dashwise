@@ -501,8 +501,8 @@ export async function getHomeLinkGroupsAction(auth: ActionAuth) {
   return extractData(await getLinksHomeGroups({ headers: authHeaders(auth) }));
 }
 
-export async function createHomeLinkGroupAction(auth: ActionAuth, name: string) {
-  return extractData(await postLinksHomeGroups({ body: { auth, name }, headers: authHeaders(auth) }));
+export async function createHomeLinkGroupAction(auth: ActionAuth, name: string): Promise<{ id: string; name: string }> {
+  return extractData(await postLinksHomeGroups({ body: { auth, name }, headers: authHeaders(auth) })) as unknown as { id: string; name: string };
 }
 
 export async function renameHomeLinkGroupAction(auth: ActionAuth, currentName: string, name: string): Promise<{ oldName: string; name: string }> {
@@ -1031,8 +1031,8 @@ export async function getNotificationTopicsAction(auth: ActionAuth) {
   return extractData(await getNotificationsTopics({ headers: authHeaders(auth) }));
 }
 
-export async function createNotificationTopicAction(auth: ActionAuth, title: string) {
-  return extractData(await postNotificationsTopics({ body: { auth, title }, headers: authHeaders(auth) }));
+export async function createNotificationTopicAction(auth: ActionAuth, title: string): Promise<{ ok: boolean; topicId: string }> {
+  return extractData(await postNotificationsTopics({ body: { auth, title }, headers: authHeaders(auth) })) as unknown as { ok: boolean; topicId: string };
 }
 
 export async function deleteNotificationTopicAction(auth: ActionAuth, topicId: string) {
@@ -1079,8 +1079,8 @@ export async function getForwardersAction(auth: ActionAuth) {
   return extractData(await getNotificationsForwarders({ headers: authHeaders(auth) }));
 }
 
-export async function createForwarderAction(auth: ActionAuth, body: any) {
-  return extractData(await postNotificationsForwarders({ body, headers: authHeaders(auth) }));
+export async function createForwarderAction(auth: ActionAuth, body: any): Promise<{ item: { id: string; topic: { id: string }; target: string; isActive: boolean; created?: string | null; updated?: string | null } }> {
+  return extractData(await postNotificationsForwarders({ body, headers: authHeaders(auth) })) as unknown as { item: { id: string; topic: { id: string }; target: string; isActive: boolean; created?: string | null; updated?: string | null } };
 }
 
 export async function updateForwarderAction(auth: ActionAuth, body: any) {
