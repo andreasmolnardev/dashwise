@@ -11,6 +11,7 @@ import widgetsRoute from "./widgets.route";
 import shortcutsRoute from "./shortcuts.route";
 import activitiesRoute from "./activities.route";
 import sdkIntegrationsRoute from "./sdk-integrations.route";
+import migrationExportRoute from "./migration-export.route";
 
 const dataRoute = new Hono();
 
@@ -25,5 +26,6 @@ dataRoute.route("/", wallpapersRoute);
 dataRoute.route("/", shortcutsRoute);
 dataRoute.route("/", activitiesRoute);
 dataRoute.route("/", sdkIntegrationsRoute);
+dataRoute.route("/", migrationExportRoute);
 
 export default dataRoute;
