@@ -84,6 +84,47 @@ func (h *Handler) sdkMonitoringResources(w http.ResponseWriter, r *http.Request)
 				for key, value := range item.Data {
 					data[key] = value
 				}
+				// Keep the response shape aligned with the SDK resource contract.
+				// Provider payloads are allowed to omit display metadata, but the
+				// monitoring sidebar and detail route still need a stable ID/name.
+				data["id"] = item.ProviderResourceID
+				if name, _ := data["name"].(string); strings.TrimSpace(name) == "" {
+					if title, _ := data["title"].(string); strings.TrimSpace(title) != "" {
+						data["name"] = title
+					} else {
+						data["name"] = item.ProviderResourceID
+					}
+				}
+				if _, exists := data["type"]; !exists {
+					data["type"] = definition.Type
+				}
+				if _, exists := data["state"]; !exists {
+					data["state"] = item.State
+				}
+				if _, exists := data["attributes"]; !exists {
+					attributes := make(map[string]any)
+					for key, value := range item.Data {
+						switch key {
+						case "id", "name", "icon", "type", "tags", "capabilities", "state", "available", "actions", "apps", "updatedAt", "upstreamId", "collectionId", "revision", "stale":
+							continue
+						default:
+							attributes[key] = value
+						}
+					}
+					data["attributes"] = attributes
+				}
+				if _, exists := data["available"]; !exists {
+					data["available"] = item.State != "unavailable"
+				}
+				if _, exists := data["upstreamId"]; !exists {
+					data["upstreamId"] = item.ProviderResourceID
+				}
+				if _, exists := data["revision"]; !exists {
+					data["revision"] = 0
+				}
+				if _, exists := data["stale"]; !exists {
+					data["stale"] = false
+				}
 				data["instanceId"] = item.ProviderInstanceID
 				data["instanceName"] = instance.name
 				data["source"] = instance.source
