@@ -25,9 +25,14 @@ and replaced by the account that is authenticated during import.
 Supported canonical tables are `links_collections`, `links_folders`,
 `links_tags`, `link_items`, `links_rss_feeds`, all `news_*` domain tables,
 `monitors`, `monitor_pings`, `monitoring_hosts`, their stats/history tables,
-notification topics/items/tokens/forwarders, `activities`, `integrations`,
-`page_configs`, `saved_views`, `resources`, `auth_user_properties`, and
-`wallpapers`. These names mirror the Go SQLite schema. The legacy modal owns
+notification topics/items/tokens/forwarders, `activities`,
+`activity_definition_settings`, `integrations`, `page_configs`, `saved_views`,
+`resources`, `auth_user_properties`, and `wallpapers`. Activity definition
+settings include enabled/config preferences and resource conditions in their
+`settings_json` value; the importer reassigns the row to the authenticated
+account and checks that condition integration, resource, and notification
+topic references belong to that account. These names mirror the Go SQLite
+schema. The legacy modal owns
 mapping its PocketBase collection names (for example `linksLists`,
 `linkItems`, `pageConfig`, and `integrations`) and legacy field names into
 those canonical shapes.

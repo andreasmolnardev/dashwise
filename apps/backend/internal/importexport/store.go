@@ -92,6 +92,10 @@ var tableSpecs = []tableSpec{
 	{"page_configs", "owner_id", "owner_id=?", 280},
 	{"saved_views", "owner_id", "owner_id=?", 290},
 	{"resources", "owner_id", "owner_id=?", 300},
+	// Activity definition settings contain enabled/config preferences and the
+	// user's resource-condition definitions in settings_json. Place them after
+	// their integration, resource, and notification-topic references.
+	{"activity_definition_settings", "owner_id", "owner_id=?", 305},
 	{"auth_user_properties", "user_id", "user_id=?", 310},
 	{"wallpapers", "owner_id", "owner_id=?", 320},
 }
@@ -446,6 +450,11 @@ func (s *Store) validateOwnership(ctx context.Context, tx *sql.Tx, table, owner 
 			}
 		}
 	}
+	if table == "activity_definition_settings" {
+		if err := s.validateActivityDefinitionSettings(ctx, tx, owner, row); err != nil {
+			return err
+		}
+	}
 	checks := map[string][]struct{ table, column string }{
 		"links_folders": {{"links_collections", "list_id"}}, "link_items": {{"links_collections", "list_id"}},
 		"links_rss_feeds":         {{"links_collections", "list_id"}},
@@ -471,6 +480,56 @@ func (s *Store) validateOwnership(ctx context.Context, tx *sql.Tx, table, owner 
 				return fmt.Errorf("%w: %s references a record outside the importing account", ErrInvalid, table)
 			}
 			return err
+		}
+	}
+	return nil
+}
+
+// Activity resource conditions are embedded in settings_json rather than
+// stored in a separate table. Validate their account-scoped references before
+// importing the settings row so an archive cannot point conditions at another
+// account's integrations, resources, or notification topics.
+func (s *Store) validateActivityDefinitionSettings(ctx context.Context, tx *sql.Tx, owner string, row map[string]any) error {
+	raw := stringValue(row["settings_json"])
+	var settings struct {
+		Conditions []struct {
+			InstanceID         string   `json:"instanceId"`
+			ResourceID         string   `json:"resourceId"`
+			NotificationTopics []string `json:"notificationTopics"`
+		} `json:"conditions"`
+	}
+	if err := json.Unmarshal([]byte(raw), &settings); err != nil {
+		return fmt.Errorf("%w: invalid activity definition settings", ErrInvalid)
+	}
+	for _, condition := range settings.Conditions {
+		if condition.InstanceID == "" {
+			return fmt.Errorf("%w: activity condition has no integration instance", ErrInvalid)
+		}
+		var exists int
+		if err := tx.QueryRowContext(ctx, `SELECT 1 FROM integrations WHERE id=? AND owner_id=?`, condition.InstanceID, owner).Scan(&exists); err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return fmt.Errorf("%w: activity condition references an integration outside the importing account", ErrInvalid)
+			}
+			return err
+		}
+		if condition.ResourceID != "" {
+			if err := tx.QueryRowContext(ctx, `SELECT 1 FROM resources WHERE owner_id=? AND provider_instance_id=? AND (id=? OR provider_resource_id=?)`, owner, condition.InstanceID, condition.ResourceID, condition.ResourceID).Scan(&exists); err != nil {
+				if errors.Is(err, sql.ErrNoRows) {
+					return fmt.Errorf("%w: activity condition references a resource outside the importing account", ErrInvalid)
+				}
+				return err
+			}
+		}
+		for _, topicID := range condition.NotificationTopics {
+			if topicID == "" {
+				return fmt.Errorf("%w: activity condition has an empty notification topic", ErrInvalid)
+			}
+			if err := tx.QueryRowContext(ctx, `SELECT 1 FROM notification_topics WHERE id=? AND owner_id=?`, topicID, owner).Scan(&exists); err != nil {
+				if errors.Is(err, sql.ErrNoRows) {
+					return fmt.Errorf("%w: activity condition references a notification topic outside the importing account", ErrInvalid)
+				}
+				return err
+			}
 		}
 	}
 	return nil
