@@ -327,7 +327,7 @@ export default function NewsDashboardComponent() {
 
                 void withAuth((auth) => getNewsSubscriptionJsonAction(auth, String(target.id)))
                     .then((feedJson) => {
-                        setEditingFeed((current) => current?.id === target.id
+                        setEditingFeed((current) => current && current.id === target.id
                             ? { ...current, json: feedJson.json }
                             : current);
                     })
@@ -1295,7 +1295,7 @@ function stringValues(value: unknown) {
     return Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === "string") : [];
 }
 
-export function formatRelativeTime(isoDate: string): string {
+export function formatRelativeTime(isoDate: string | Date): string {
     const date = new Date(isoDate);
     const now = new Date();
 

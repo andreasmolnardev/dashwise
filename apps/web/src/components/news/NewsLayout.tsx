@@ -14,19 +14,16 @@ import {
 import AppTemplate, { Content, GroupLabel, Sidebar, Tab } from "@/components/apps/LayoutTemplate";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/queryClient";
+import type { JsonValue, NewsFeedDraft } from "@dashwise/types/sdk";
 
-export interface Subscription {
-    id?: string;
-    title?: string;
+export interface Subscription extends Omit<NewsFeedDraft, "url" | "feedUrl"> {
     url: string;
-    icon?: string;
-    feedIds?: string[];
-    fetchErrors?: string;
+    feedUrl: string;
 }
 
 export interface FeedRecord {
     id: string;
-    title?: string;
+    title: string;
     icon?: string;
     subscriptionRefs?: string[];
     includedFeedRefs?: string[];
@@ -181,7 +178,7 @@ export default function NewsLayout({ children }: { children: ReactNode }) {
 
         const value = user?.newsPreferences;
         const currentPreferences = value && typeof value === "object"
-            ? value as Record<string, unknown>
+            ? value as Record<string, JsonValue>
             : {};
 
         const nextPreferences = { ...currentPreferences };

@@ -139,6 +139,9 @@ export type NewsFeedItem = {
   title: string;
   link: string;
   pubDate: string | Date;
+  description?: string;
+  author?: string;
+  thumbnailUrl?: string;
   subscription_id: string;
   subscription_name: string;
   topicId?: string;
