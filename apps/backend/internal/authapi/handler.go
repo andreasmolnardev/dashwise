@@ -153,7 +153,7 @@ func (h *Handler) logout(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) changePassword(w http.ResponseWriter, r *http.Request) {
-	user, _, ok := h.authenticate(w, r)
+	user, session, ok := h.authenticate(w, r)
 	if !ok {
 		return
 	}
@@ -172,7 +172,7 @@ func (h *Handler) changePassword(w http.ResponseWriter, r *http.Request) {
 	err := h.store.ChangePassword(r.Context(), user.ID, auth.PasswordChangeInput{
 		Email: input.Email, OldPassword: input.OldPassword,
 		NewPassword: input.NewPassword, PasswordConfirm: input.PasswordConfirm,
-	})
+	}, session.ID)
 	if err != nil {
 		writeAuthError(w, err)
 		return

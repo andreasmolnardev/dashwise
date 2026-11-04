@@ -851,7 +851,7 @@ func (s *Store) RenameSession(ctx context.Context, userID, sessionID, displayNam
 	return session, nil
 }
 
-func (s *Store) ChangePassword(ctx context.Context, userID string, input PasswordChangeInput) error {
+func (s *Store) ChangePassword(ctx context.Context, userID string, input PasswordChangeInput, currentSessionIDs ...string) error {
 	if userID == "" {
 		return ErrUnauthorized
 	}
@@ -889,8 +889,17 @@ func (s *Store) ChangePassword(ctx context.Context, userID string, input Passwor
 	if _, err := tx.ExecContext(ctx, `UPDATE auth_users SET password_hash=?,password_login_enabled=1,updated_at=? WHERE id=?`, string(newHash), now, userID); err != nil {
 		return fmt.Errorf("update password: %w", err)
 	}
-	if _, err := tx.ExecContext(ctx, `UPDATE auth_sessions SET revoked_at=? WHERE user_id=? AND revoked_at IS NULL`, now, userID); err != nil {
+	var revokeResult sql.Result
+	if len(currentSessionIDs) > 0 && strings.TrimSpace(currentSessionIDs[0]) != "" {
+		revokeResult, err = tx.ExecContext(ctx, `UPDATE auth_sessions SET revoked_at=? WHERE user_id=? AND id<>? AND revoked_at IS NULL`, now, userID, currentSessionIDs[0])
+	} else {
+		revokeResult, err = tx.ExecContext(ctx, `UPDATE auth_sessions SET revoked_at=? WHERE user_id=? AND revoked_at IS NULL`, now, userID)
+	}
+	if err != nil {
 		return fmt.Errorf("revoke user sessions: %w", err)
+	}
+	if _, err := revokeResult.RowsAffected(); err != nil {
+		return fmt.Errorf("count revoked user sessions: %w", err)
 	}
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("commit password change: %w", err)
