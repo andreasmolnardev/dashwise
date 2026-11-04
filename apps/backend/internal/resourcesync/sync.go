@@ -128,6 +128,7 @@ func syncLinks(ctx context.Context, owner string, source *links.Store, target *r
 				"favorite":     item.Favorite,
 				"position":     item.Position,
 				"createdAt":    item.Created.UTC().Format("2006-01-02T15:04:05.999999999Z07:00"),
+				"updatedAt":    item.Updated.UTC().Format("2006-01-02T15:04:05.999999999Z07:00"),
 			}
 			if collectionNames[item.Collection] != "" {
 				data["collectionName"] = collectionNames[item.Collection]

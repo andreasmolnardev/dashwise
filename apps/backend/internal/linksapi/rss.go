@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/links"
+	"github.com/andreasmolnardev/dashwise/apps/backend/internal/resourcesync"
 )
 
 type rssInput struct {
@@ -90,7 +91,11 @@ func (h *Handler) publicRSS(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	items, err := h.store.RSSItems(r.Context(), feed)
+	if err := resourcesync.SyncLinksOwner(r.Context(), feed.User, h.store, h.resources); err != nil {
+		h.fail(w, err)
+		return
+	}
+	items, err := h.store.RSSItems(r.Context(), feed, h.resources)
 	if err != nil {
 		h.fail(w, err)
 		return

@@ -5,9 +5,11 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"sort"
 	"strings"
 	"time"
 
+	"github.com/andreasmolnardev/dashwise/apps/backend/internal/resources"
 	"github.com/andreasmolnardev/dashwise/packages/foundation"
 )
 
@@ -142,10 +144,9 @@ func (s *Store) DeleteRSSFeed(ctx context.Context, owner, id string) error {
 	}
 	return nil
 }
-func (s *Store) RSSItems(ctx context.Context, feed RSSFeed) ([]RSSItem, error) {
-	items, err := s.ListItems(ctx, feed.User, feed.ListID, nil)
-	if err != nil {
-		return nil, err
+func (s *Store) RSSItems(ctx context.Context, feed RSSFeed, resourceStore *resources.Store) ([]RSSItem, error) {
+	if resourceStore == nil {
+		return nil, errors.New("RSS resource query requires a resource store")
 	}
 	links := map[string]bool{}
 	tags := map[string]bool{}
@@ -155,19 +156,87 @@ func (s *Store) RSSItems(ctx context.Context, feed RSSFeed) ([]RSSItem, error) {
 	for _, id := range feed.TagIDs {
 		tags[id] = true
 	}
-	out := []RSSItem{}
-	for _, item := range items {
-		include := links[item.ID]
-		for _, tag := range item.Tags {
-			if tags[tag] {
-				include = true
-			}
+	resourcesFound := []resources.Resource{}
+	for offset := 0; ; offset += 200 {
+		page, err := resourceStore.Query(ctx, resources.Query{
+			OwnerID: feed.User, Types: []string{"dashwise.link"},
+			Filters: []resources.Filter{{Field: "collectionId", Operator: "eq", Value: feed.ListID}},
+			Sort:    []resources.SortField{{Field: "position", Direction: "asc"}, {Field: "title", Direction: "asc"}},
+			Limit:   200, Offset: offset,
+		})
+		if err != nil {
+			return nil, err
 		}
-		if include {
-			out = append(out, RSSItem{ID: item.ID, Title: firstString(item.Title, item.URL, "Link"), URL: item.URL, Description: item.Description, Updated: item.Updated})
+		resourcesFound = append(resourcesFound, page.Items...)
+		if len(page.Items) < page.Limit || offset+len(page.Items) >= page.Total {
+			break
 		}
 	}
+	// Links historically order items by position, then case-insensitive title.
+	// Keep that ordering when resources have been synchronized from the domain store.
+	sort.SliceStable(resourcesFound, func(i, j int) bool {
+		left, right := resourcesFound[i], resourcesFound[j]
+		lp, _ := numericValue(left.Data["position"])
+		rp, _ := numericValue(right.Data["position"])
+		if lp != rp {
+			return lp < rp
+		}
+		lt, _ := left.Data["title"].(string)
+		rt, _ := right.Data["title"].(string)
+		ll, rr := sqliteNoCaseKey(lt), sqliteNoCaseKey(rt)
+		if ll != rr {
+			return ll < rr
+		}
+		return left.ProviderResourceID < right.ProviderResourceID
+	})
+	out := []RSSItem{}
+	for _, item := range resourcesFound {
+		include := links[item.ProviderResourceID]
+		if rawTags, ok := item.Data["tags"].([]any); ok {
+			for _, rawTag := range rawTags {
+				if tag, ok := rawTag.(string); ok && tags[tag] {
+					include = true
+					break
+				}
+			}
+		}
+		if !include {
+			continue
+		}
+		updated, _ := time.Parse(time.RFC3339Nano, stringValue(item.Data["updatedAt"]))
+		url, _ := item.Data["url"].(string)
+		title, _ := item.Data["title"].(string)
+		description, _ := item.Data["description"].(string)
+		out = append(out, RSSItem{ID: item.ProviderResourceID, Title: firstString(title, url, "Link"), URL: url, Description: description, Updated: updated})
+	}
 	return out, nil
+}
+
+func numericValue(value any) (float64, bool) {
+	switch value := value.(type) {
+	case float64:
+		return value, true
+	case int:
+		return float64(value), true
+	case int64:
+		return float64(value), true
+	default:
+		return 0, false
+	}
+}
+
+func stringValue(value any) string {
+	text, _ := value.(string)
+	return text
+}
+
+func sqliteNoCaseKey(value string) string {
+	return strings.Map(func(r rune) rune {
+		if r >= 'A' && r <= 'Z' {
+			return r + ('a' - 'A')
+		}
+		return r
+	}, value)
 }
 
 type rssScanner interface{ Scan(...any) error }

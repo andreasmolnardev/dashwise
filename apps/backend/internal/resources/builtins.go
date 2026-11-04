@@ -19,6 +19,7 @@ func BuiltinDefinitions() []Definition {
 				{Name: "favorite", Type: "boolean", Filterable: true},
 				{Name: "position", Type: "number", Filterable: true},
 				{Name: "createdAt", Type: "datetime", Filterable: true},
+				{Name: "updatedAt", Type: "datetime", Filterable: true},
 			},
 			Capabilities: []string{"list", "detail", "search", "launch", "actions"},
 		},
