@@ -216,6 +216,14 @@ func (s *Store) SyncOnDemand(ctx context.Context, owner, appID string, inputs []
 			if sameData(current.Data, data) {
 				continue
 			}
+			// Provider sync owns shortcut metadata, while pin/disable state and
+			// usage belong to the user. Keep those fields when refreshed metadata
+			// changes so a sync cannot silently reset launcher preferences.
+			for _, key := range []string{"isPinned", "isDisabled", "usageStats"} {
+				if value, ok := current.Data[key]; ok {
+					data[key] = value
+				}
+			}
 			current.Data = data
 			if _, err := s.resources.Upsert(ctx, current); err != nil {
 				return nil, err
