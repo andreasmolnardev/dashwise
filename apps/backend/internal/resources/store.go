@@ -302,8 +302,15 @@ func (s *Store) Query(ctx context.Context, query Query) (Page, error) {
 	if err != nil {
 		return Page{}, err
 	}
+	rankArgs := []any{}
+	if query.Search != "" && len([]rune(query.Search)) >= 3 && len(query.Sort) == 0 && query.OrderBy == "" {
+		orderBy = `(SELECT bm25(resource_search) FROM resource_search
+			WHERE resource_search MATCH ? AND resource_id = resources.id
+			AND owner_id = resources.owner_id AND resource_type = resources.type) ASC, ` + orderBy
+		rankArgs = append(rankArgs, ftsPhrase(query.Search))
+	}
 	querySQL := resourceSelect + compiled + ` ORDER BY ` + orderBy + ` LIMIT ? OFFSET ?`
-	queryArgs := append(append([]any{}, args...), limit, offset)
+	queryArgs := append(append(append([]any{}, args...), rankArgs...), limit, offset)
 	rows, err := s.db.QueryContext(ctx, querySQL, queryArgs...)
 	if err != nil {
 		return Page{}, fmt.Errorf("query resources: %w", err)
