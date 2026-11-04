@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/andreasmolnardev/dashwise/apps/backend/internal/resources"
 	"github.com/andreasmolnardev/dashwise/packages/foundation"
 )
 
@@ -227,6 +228,7 @@ func (s *Store) applyArchive(ctx context.Context, owner string, archive Archive,
 		}
 	}()
 	result := Result{Imported: map[string]int{}}
+	importedResourceIDs := make([]string, 0, len(archive.Tables["resources"]))
 	if len(archive.Tables["wallpapers"]) > 0 {
 		var previous string
 		err := tx.QueryRowContext(ctx, `SELECT path FROM wallpapers WHERE owner_id=?`, owner).Scan(&previous)
@@ -272,7 +274,15 @@ func (s *Store) applyArchive(ctx context.Context, owner string, archive Archive,
 			if err := upsertRow(ctx, tx, spec.name, columns, row); err != nil {
 				return Result{}, fmt.Errorf("write %s: %w", spec.name, err)
 			}
+			if spec.name == "resources" {
+				importedResourceIDs = append(importedResourceIDs, stringValue(row["id"]))
+			}
 			result.Imported[spec.name]++
+		}
+	}
+	if len(importedResourceIDs) > 0 {
+		if err := resources.ReconcileImportedOwner(ctx, tx, owner, importedResourceIDs); err != nil {
+			return Result{}, fmt.Errorf("reconcile imported resources: %w", err)
 		}
 	}
 	if !commit {
