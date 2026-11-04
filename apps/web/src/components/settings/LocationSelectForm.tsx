@@ -13,6 +13,14 @@ interface SearchResult {
     lon: string;
 }
 
+function isSearchResult(value: unknown): value is SearchResult {
+    if (!value || typeof value !== "object") return false;
+    const result = value as Record<string, unknown>;
+    return typeof result.display_name === "string" &&
+        typeof result.lat === "string" &&
+        typeof result.lon === "string";
+}
+
 interface LocationSelectFormProps {
     value: { displayName: string; coordinates: string };
     onChange: (val: { displayName: string; coordinates: string }) => void;
@@ -43,7 +51,7 @@ export default function LocationSelectFormComponent({
         try {
             if (!token) throw new Error("Not authenticated");
             const json = await withAuth((auth) => getLocationsAction(auth, q));
-            setSearchResults(json || []);
+            setSearchResults(Array.isArray(json) ? json.filter(isSearchResult) : []);
             setAnimateResults(true);
         } catch (err) {
             console.error(err);
