@@ -96,6 +96,10 @@ var tableSpecs = []tableSpec{
 	{"notification_forwarders", "", "topic_id IN (SELECT id FROM notification_topics WHERE owner_id=?)", 250},
 	{"activities", "owner_id", "owner_id=?", 260},
 	{"integrations", "owner_id", "owner_id=?", 270},
+	// SDK integrations can persist non-secret runtime state between executions.
+	// Keep it with the integration instance when accounts are moved to another
+	// Dashwise database.
+	{"sdk_storage", "owner_id", "owner_id=?", 275},
 	{"page_configs", "owner_id", "owner_id=?", 280},
 	{"saved_views", "owner_id", "owner_id=?", 290},
 	{"resources", "owner_id", "owner_id=?", 300},
@@ -502,6 +506,7 @@ func (s *Store) validateOwnership(ctx context.Context, tx *sql.Tx, table, owner 
 		"news_article_user_state": {{"news_articles", "article_id"}},
 		"monitor_pings":           {{"monitors", "monitor_id"}},
 		"monitoring_host_stats":   {{"monitoring_hosts", "host_id"}}, "monitoring_host_history": {{"monitoring_hosts", "host_id"}},
+		"sdk_storage":        {{"integrations", "integration_instance_id"}},
 		"notification_items": {{"notification_topics", "topic_id"}}, "notification_topic_tokens": {{"notification_topics", "topic_id"}}, "notification_forwarders": {{"notification_topics", "topic_id"}},
 	}
 	for _, check := range checks[table] {

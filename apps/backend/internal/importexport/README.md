@@ -26,8 +26,11 @@ Supported canonical tables are `links_collections`, `links_folders`,
 `links_tags`, `link_items`, `links_rss_feeds`, all `news_*` domain tables,
 `monitors`, `monitor_pings`, `monitoring_hosts`, their stats/history tables,
 notification topics/items/tokens/forwarders, `activities`,
-`activity_definition_settings`, `integrations`, `page_configs`, `saved_views`,
-`resources`, `auth_user_properties`, and `wallpapers`. Activity definition
+`activity_definition_settings`, `integrations`, `sdk_storage`, `page_configs`,
+`saved_views`, `resources`, `auth_user_properties`, and `wallpapers`. SDK
+storage is scoped to its integration instance and is imported only when that
+integration belongs to the authenticated account. Treat archives as private:
+SDK storage values may contain provider state or credentials. Activity definition
 settings include enabled/config preferences and resource conditions in their
 `settings_json` value; the importer reassigns the row to the authenticated
 account and checks that condition integration, resource, and notification
