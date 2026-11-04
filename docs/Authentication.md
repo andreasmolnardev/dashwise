@@ -2,7 +2,7 @@ Dashwise authentication is built into the Go backend; accounts live in the embed
 
 Dashwise verifies the provider's signed ID token, issuer, audience, nonce, PKCE exchange, and verified email claim. External identities are linked by issuer and subject; a verified email can link the provider to an existing Dashwise account. New SSO accounts follow `DISABLE_USER_SIGNUP`. The callback places a short-lived, one-use ticket in an HttpOnly cookie and the SPA exchanges it for a regular Dashwise session, so the session token is not placed in the redirect URL.
 
-An SSO-created account can add a local password from Account settings while signed in. Until then, local password login is disabled for that account, and account deletion requires the active SSO session plus email confirmation (and TOTP if configured).
+An SSO-created account can add a local password from Account settings while signed in. Until then, local password login is disabled for that account. To delete an external-only account, Account settings starts `POST /api/v1/auth/sso/reauth` with the current bearer token and `X-Session-Id`. The backend binds one-time OAuth state to that user and device session, requests `prompt=login` and `max_age=0`, and accepts the callback only when the verified ID token identifies the already linked issuer/subject and contains a recent `auth_time`. The same session can then delete the account for 10 minutes after the provider interaction, with email confirmation and TOTP if configured. A stale reauthentication is rejected with instructions to repeat the provider sign-in. Password-backed accounts continue to confirm their password and TOTP if enabled.
 
 # Accounts, Sessions, and Devices
 

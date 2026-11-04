@@ -996,7 +996,7 @@
 					"auth"
 				],
 				"summary": "Delete account",
-				"description": "Requires an active device session plus password/TOTP confirmation for the same user.",
+				"description": "Requires an active device session. Password accounts must confirm their password and TOTP when enabled; external-only accounts must first complete a recent OIDC reauthentication tied to the current device session, then confirm their email and TOTP when enabled.",
 				"security": [
 					{
 						"bearerAuth": []
@@ -1011,6 +1011,9 @@
 					},
 					"401": {
 						"$ref": "#/components/responses/JsonUnauthorized"
+					},
+					"403": {
+						"description": "Recent SSO reauthentication is required"
 					}
 				}
 			}
@@ -1084,6 +1087,63 @@
 					},
 					"302": {
 						"description": "Redirect"
+					}
+				}
+			}
+		},
+		"/auth/sso/reauth": {
+			"post": {
+				"tags": [
+					"auth"
+				],
+				"summary": "Start OIDC reauthentication for account deletion",
+				"description": "Requires an authenticated external-only account and matching X-Session-Id. Sets the OIDC state cookie and returns an authorization URL that forces provider login; successful callbacks reauthenticate the initiating session for 10 minutes.",
+				"parameters": [
+					{
+						"name": "X-Session-Id",
+						"in": "header",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OIDC authorization URL",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"required": [
+										"url"
+									],
+									"properties": {
+										"url": {
+											"type": "string",
+											"format": "uri"
+										}
+									}
+								}
+							}
+						}
+					},
+					"400": {
+						"$ref": "#/components/responses/JsonBadRequest"
+					},
+					"401": {
+						"$ref": "#/components/responses/JsonUnauthorized"
+					},
+					"403": {
+						"description": "Account does not support SSO reauthentication"
+					},
+					"503": {
+						"description": "SSO provider is unavailable"
 					}
 				}
 			}

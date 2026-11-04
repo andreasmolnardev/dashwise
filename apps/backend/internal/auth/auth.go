@@ -27,15 +27,16 @@ import (
 )
 
 var (
-	ErrSignupDisabled     = errors.New("signup is disabled")
-	ErrInvalidCredentials = errors.New("invalid email or password")
-	ErrEmailExists        = errors.New("email is already registered")
-	ErrInvalidInput       = errors.New("invalid authentication input")
-	ErrUnauthorized       = errors.New("unauthorized")
-	ErrTOTPRequired       = errors.New("TOTP code required because two-factor authentication is enabled")
-	ErrInvalidTOTP        = errors.New("invalid TOTP code")
-	ErrInvalidSSOState    = errors.New("invalid or expired SSO state")
-	ErrInvalidSSOTicket   = errors.New("invalid or expired SSO exchange ticket")
+	ErrSignupDisabled           = errors.New("signup is disabled")
+	ErrInvalidCredentials       = errors.New("invalid email or password")
+	ErrEmailExists              = errors.New("email is already registered")
+	ErrInvalidInput             = errors.New("invalid authentication input")
+	ErrUnauthorized             = errors.New("unauthorized")
+	ErrTOTPRequired             = errors.New("TOTP code required because two-factor authentication is enabled")
+	ErrInvalidTOTP              = errors.New("invalid TOTP code")
+	ErrInvalidSSOState          = errors.New("invalid or expired SSO state")
+	ErrInvalidSSOTicket         = errors.New("invalid or expired SSO exchange ticket")
+	ErrRecentOIDCReauthRequired = errors.New("Recent SSO reauthentication is required to delete this account. Reauthenticate with your identity provider, then try again.")
 )
 
 const (
@@ -243,16 +244,46 @@ func (s *Store) Initialize(ctx context.Context) error {
 			}
 			return nil
 		},
+	}, {
+		ID: "0005_auth_oidc_reauthentication", Name: "OIDC reauthentication for sensitive account actions",
+		Up: func(ctx context.Context, tx *sql.Tx) error {
+			if err := ensureColumn(ctx, tx, "auth_sessions", "oidc_reauthenticated_at", "TEXT"); err != nil {
+				return fmt.Errorf("add session OIDC reauthentication timestamp: %w", err)
+			}
+			for _, column := range []struct{ name, definition string }{
+				{name: "purpose", definition: "TEXT NOT NULL DEFAULT 'login'"},
+				{name: "user_id", definition: "TEXT"},
+				{name: "session_id", definition: "TEXT"},
+			} {
+				if err := ensureColumn(ctx, tx, "auth_oidc_states", column.name, column.definition); err != nil {
+					return fmt.Errorf("add OIDC state %s: %w", column.name, err)
+				}
+			}
+			return nil
+		},
 	}})
 }
 
 // StoreOIDCState persists short-lived, single-use OAuth state and PKCE data.
 func (s *Store) StoreOIDCState(ctx context.Context, state, nonce, verifier string) error {
+	return s.storeOIDCState(ctx, state, nonce, verifier, "login", "", "")
+}
+
+// StoreOIDCReauthState binds a forced identity-provider interaction to the
+// currently authenticated user and session.
+func (s *Store) StoreOIDCReauthState(ctx context.Context, state, nonce, verifier, userID, sessionID string) error {
+	if strings.TrimSpace(userID) == "" || strings.TrimSpace(sessionID) == "" {
+		return ErrInvalidSSOState
+	}
+	return s.storeOIDCState(ctx, state, nonce, verifier, "delete-account", userID, sessionID)
+}
+
+func (s *Store) storeOIDCState(ctx context.Context, state, nonce, verifier, purpose, userID, sessionID string) error {
 	if state == "" || nonce == "" || verifier == "" {
 		return ErrInvalidSSOState
 	}
 	now := s.now().UTC()
-	_, err := s.db.ExecContext(ctx, `INSERT INTO auth_oidc_states(state_hash,nonce,verifier,expires_at) VALUES(?,?,?,?)`, hashToken(state), nonce, verifier, now.Add(10*time.Minute).Format(time.RFC3339Nano))
+	_, err := s.db.ExecContext(ctx, `INSERT INTO auth_oidc_states(state_hash,nonce,verifier,expires_at,purpose,user_id,session_id) VALUES(?,?,?,?,?,NULLIF(?,''),NULLIF(?,''))`, hashToken(state), nonce, verifier, now.Add(10*time.Minute).Format(time.RFC3339Nano), purpose, userID, sessionID)
 	if err != nil {
 		return fmt.Errorf("store OIDC state: %w", err)
 	}
@@ -260,35 +291,85 @@ func (s *Store) StoreOIDCState(ctx context.Context, state, nonce, verifier strin
 	return nil
 }
 
+type OIDCState struct {
+	Nonce, Verifier, Purpose, UserID, SessionID string
+}
+
 // ConsumeOIDCState removes and returns valid state data exactly once.
 func (s *Store) ConsumeOIDCState(ctx context.Context, state string) (nonce, verifier string, err error) {
+	consumed, err := s.ConsumeOIDCStateData(ctx, state)
+	return consumed.Nonce, consumed.Verifier, err
+}
+
+// ConsumeOIDCStateData removes and returns valid state data exactly once.
+func (s *Store) ConsumeOIDCStateData(ctx context.Context, state string) (OIDCState, error) {
 	if state == "" {
-		return "", "", ErrInvalidSSOState
+		return OIDCState{}, ErrInvalidSSOState
 	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return "", "", err
+		return OIDCState{}, err
 	}
 	defer tx.Rollback()
 	var expiresAt string
-	err = tx.QueryRowContext(ctx, `SELECT nonce,verifier,expires_at FROM auth_oidc_states WHERE state_hash=?`, hashToken(state)).Scan(&nonce, &verifier, &expiresAt)
+	var consumed OIDCState
+	err = tx.QueryRowContext(ctx, `SELECT nonce,verifier,expires_at,purpose,COALESCE(user_id,''),COALESCE(session_id,'') FROM auth_oidc_states WHERE state_hash=?`, hashToken(state)).Scan(&consumed.Nonce, &consumed.Verifier, &expiresAt, &consumed.Purpose, &consumed.UserID, &consumed.SessionID)
 	if errors.Is(err, sql.ErrNoRows) {
-		return "", "", ErrInvalidSSOState
+		return OIDCState{}, ErrInvalidSSOState
 	}
 	if err != nil {
-		return "", "", fmt.Errorf("read OIDC state: %w", err)
+		return OIDCState{}, fmt.Errorf("read OIDC state: %w", err)
 	}
 	expires, err := parseTime(expiresAt)
 	if err != nil || !expires.After(s.now()) {
-		return "", "", ErrInvalidSSOState
+		return OIDCState{}, ErrInvalidSSOState
 	}
 	if _, err := tx.ExecContext(ctx, `DELETE FROM auth_oidc_states WHERE state_hash=?`, hashToken(state)); err != nil {
-		return "", "", fmt.Errorf("consume OIDC state: %w", err)
+		return OIDCState{}, fmt.Errorf("consume OIDC state: %w", err)
 	}
 	if err := tx.Commit(); err != nil {
-		return "", "", fmt.Errorf("commit OIDC state: %w", err)
+		return OIDCState{}, fmt.Errorf("commit OIDC state: %w", err)
 	}
-	return nonce, verifier, nil
+	return consumed, nil
+}
+
+// MarkOIDCReauthenticated records a recent, verified external identity
+// interaction for the exact active device session that initiated it.
+func (s *Store) MarkOIDCReauthenticated(ctx context.Context, userID, sessionID, issuer, subject string, authenticatedAt time.Time) error {
+	now := s.now().UTC()
+	if userID == "" || sessionID == "" || issuer == "" || subject == "" || authenticatedAt.After(now.Add(time.Minute)) || now.Sub(authenticatedAt) > 10*time.Minute {
+		return ErrRecentOIDCReauthRequired
+	}
+	result, err := s.db.ExecContext(ctx, `UPDATE auth_sessions SET oidc_reauthenticated_at=? WHERE id=? AND user_id=? AND revoked_at IS NULL AND expires_at>? AND EXISTS (SELECT 1 FROM auth_external_identities WHERE user_id=? AND issuer=? AND subject=?)`, authenticatedAt.UTC().Format(time.RFC3339Nano), sessionID, userID, now.Format(time.RFC3339Nano), userID, issuer, subject)
+	if err != nil {
+		return fmt.Errorf("record OIDC reauthentication: %w", err)
+	}
+	changed, err := result.RowsAffected()
+	if err != nil || changed != 1 {
+		return ErrInvalidSSOState
+	}
+	return nil
+}
+
+func (s *Store) RequireRecentOIDCReauthentication(ctx context.Context, userID, sessionID string) error {
+	var value sql.NullString
+	if err := s.db.QueryRowContext(ctx, `SELECT oidc_reauthenticated_at FROM auth_sessions WHERE id=? AND user_id=? AND revoked_at IS NULL AND expires_at>?`, sessionID, userID, s.now().UTC().Format(time.RFC3339Nano)).Scan(&value); err != nil {
+		return ErrRecentOIDCReauthRequired
+	}
+	if !value.Valid {
+		return ErrRecentOIDCReauthRequired
+	}
+	parsed, err := parseTime(value.String)
+	if err != nil || parsed.After(s.now().Add(time.Minute)) || s.now().Sub(parsed) > 10*time.Minute {
+		return ErrRecentOIDCReauthRequired
+	}
+	return nil
+}
+
+func (s *Store) IsExternalIdentity(ctx context.Context, userID, issuer, subject string) bool {
+	var exists int
+	err := s.db.QueryRowContext(ctx, `SELECT 1 FROM auth_external_identities WHERE user_id=? AND issuer=? AND subject=?`, userID, issuer, subject).Scan(&exists)
+	return err == nil
 }
 
 // LoginExternal links a verified external identity to an account. Existing
@@ -861,7 +942,7 @@ func (s *Store) ListUserIDs(ctx context.Context) ([]string, error) {
 // owner_id column in one SQLite transaction, and deletes the account row. Local
 // wallpaper files are removed after commit; only generated wallpaper files in
 // a wallpapers directory are eligible for removal.
-func (s *Store) DeleteAccount(ctx context.Context, userID, email, password, totp string) error {
+func (s *Store) DeleteAccount(ctx context.Context, userID, email, password, totp string, sessionIDs ...string) error {
 	if strings.TrimSpace(userID) == "" || strings.TrimSpace(email) == "" {
 		return fmt.Errorf("%w: email is required", ErrInvalidInput)
 	}
@@ -876,6 +957,14 @@ func (s *Store) DeleteAccount(ctx context.Context, userID, email, password, totp
 	}
 	if !strings.EqualFold(strings.TrimSpace(email), storedEmail) || (passwordLoginEnabled != 0 && (password == "" || bcrypt.CompareHashAndPassword([]byte(passwordHash), []byte(password)) != nil)) {
 		return ErrInvalidCredentials
+	}
+	if passwordLoginEnabled == 0 {
+		if len(sessionIDs) == 0 || strings.TrimSpace(sessionIDs[0]) == "" {
+			return ErrRecentOIDCReauthRequired
+		}
+		if err := s.RequireRecentOIDCReauthentication(ctx, userID, sessionIDs[0]); err != nil {
+			return err
+		}
 	}
 	if len(totpSecretCipher) > 0 {
 		if err := s.verifyTOTP(totpSecretCipher, totp); err != nil {

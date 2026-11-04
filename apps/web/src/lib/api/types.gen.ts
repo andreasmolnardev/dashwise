@@ -1041,6 +1041,10 @@ export type DeleteAuthDeleteAccountErrors = {
      * Unauthorized
      */
     401: Error;
+    /**
+     * Recent SSO reauthentication is required
+     */
+    403: unknown;
 };
 
 export type DeleteAuthDeleteAccountError = DeleteAuthDeleteAccountErrors[keyof DeleteAuthDeleteAccountErrors];
@@ -1144,6 +1148,48 @@ export type GetAuthSsoResponses = {
 };
 
 export type GetAuthSsoResponse = GetAuthSsoResponses[keyof GetAuthSsoResponses];
+
+export type PostAuthSsoReauthData = {
+    body?: never;
+    headers: {
+        'X-Session-Id': string;
+    };
+    path?: never;
+    query?: never;
+    url: '/auth/sso/reauth';
+};
+
+export type PostAuthSsoReauthErrors = {
+    /**
+     * Bad Request
+     */
+    400: Error;
+    /**
+     * Unauthorized
+     */
+    401: Error;
+    /**
+     * Account does not support SSO reauthentication
+     */
+    403: unknown;
+    /**
+     * SSO provider is unavailable
+     */
+    503: unknown;
+};
+
+export type PostAuthSsoReauthError = PostAuthSsoReauthErrors[keyof PostAuthSsoReauthErrors];
+
+export type PostAuthSsoReauthResponses = {
+    /**
+     * OIDC authorization URL
+     */
+    200: {
+        url: string;
+    };
+};
+
+export type PostAuthSsoReauthResponse = PostAuthSsoReauthResponses[keyof PostAuthSsoReauthResponses];
 
 export type PostAuthSsoExchangeData = {
     body?: never;

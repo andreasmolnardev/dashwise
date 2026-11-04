@@ -105,27 +105,81 @@ func (o *oidcLogin) start(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusServiceUnavailable, "SSO provider is unavailable")
 		return
 	}
-	state, err := randomOAuthValue(32)
+	url, state, err := o.authorizationURL(r.Context(), "", "")
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not start SSO login")
 		return
+	}
+	setOIDCStateCookie(w, state, o.secureCookie)
+	http.Redirect(w, r, url, http.StatusFound)
+}
+
+func (o *oidcLogin) reauthenticate(w http.ResponseWriter, r *http.Request) {
+	token := strings.TrimSpace(strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer "))
+	if token == "" {
+		writeError(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+	user, session, err := o.store.Validate(r.Context(), token)
+	if err != nil {
+		writeError(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+	if provided := strings.TrimSpace(r.Header.Get("X-Session-Id")); provided == "" || provided != session.ID {
+		writeError(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+	if !user.ExternalOnly {
+		writeError(w, http.StatusBadRequest, "SSO reauthentication is only available for external-only accounts")
+		return
+	}
+	if err := o.initialize(r.Context()); err != nil {
+		writeError(w, http.StatusServiceUnavailable, "SSO provider is unavailable")
+		return
+	}
+	authorizationURL, state, err := o.authorizationURL(r.Context(), user.ID, session.ID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not start SSO reauthentication")
+		return
+	}
+	setOIDCStateCookie(w, state, o.secureCookie)
+	writeJSON(w, http.StatusOK, map[string]string{"url": authorizationURL})
+}
+
+func (o *oidcLogin) authorizationURL(ctx context.Context, reauthUserID, reauthSessionID string) (string, string, error) {
+	state, err := randomOAuthValue(32)
+	if err != nil {
+		return "", "", err
 	}
 	nonce, err := randomOAuthValue(32)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "could not start SSO login")
-		return
+		return "", "", err
 	}
 	verifier := oauth2.GenerateVerifier()
-	if err := o.store.StoreOIDCState(r.Context(), state, nonce, verifier); err != nil {
-		writeError(w, http.StatusInternalServerError, "could not start SSO login")
-		return
+	if reauthUserID != "" {
+		err = o.store.StoreOIDCReauthState(ctx, state, nonce, verifier, reauthUserID, reauthSessionID)
+	} else {
+		err = o.store.StoreOIDCState(ctx, state, nonce, verifier)
 	}
+	if err != nil {
+		return "", "", err
+	}
+	returnURL := o.oauth.AuthCodeURL(state, oidc.Nonce(nonce), oauth2.S256ChallengeOption(verifier))
+	if reauthUserID != "" {
+		returnURL = o.oauth.AuthCodeURL(state, oidc.Nonce(nonce), oauth2.S256ChallengeOption(verifier), oauth2.SetAuthURLParam("prompt", "login"), oauth2.SetAuthURLParam("max_age", "0"))
+	}
+	return returnURL, state, nil
+}
+
+func setOIDCStateCookie(w http.ResponseWriter, state string, secure bool) {
+	// On same-origin deployments this cookie adds browser binding to state. The
+	// reauthentication flow also binds its unguessable, single-use state to the
+	// initiating user and session for cross-origin frontend deployments.
 	http.SetCookie(w, &http.Cookie{
 		Name: oidcStateCookie, Value: state, Path: "/api/v1/auth/callback",
-		HttpOnly: true, Secure: o.secureCookie, SameSite: http.SameSiteLaxMode,
+		HttpOnly: true, Secure: secure, SameSite: http.SameSiteLaxMode,
 		MaxAge: 600, Expires: time.Now().Add(10 * time.Minute),
 	})
-	http.Redirect(w, r, o.oauth.AuthCodeURL(state, oidc.Nonce(nonce), oauth2.S256ChallengeOption(verifier)), http.StatusFound)
 }
 
 func (o *oidcLogin) callback(w http.ResponseWriter, r *http.Request) {
@@ -136,38 +190,47 @@ func (o *oidcLogin) callback(w http.ResponseWriter, r *http.Request) {
 	state := r.URL.Query().Get("state")
 	stateCookie, cookieErr := r.Cookie(oidcStateCookie)
 	clearOIDCStateCookie(w, o.secureCookie)
-	if cookieErr != nil || subtle.ConstantTimeCompare([]byte(state), []byte(stateCookie.Value)) != 1 {
+	if state == "" {
 		o.fail(w, r)
 		return
 	}
-	nonce, verifier, err := o.store.ConsumeOIDCState(r.Context(), state)
+	stateData, err := o.store.ConsumeOIDCStateData(r.Context(), state)
 	if err != nil {
 		o.fail(w, r)
 		return
 	}
-	if r.URL.Query().Get("error") != "" || r.URL.Query().Get("code") == "" {
+	if cookieErr == nil && subtle.ConstantTimeCompare([]byte(state), []byte(stateCookie.Value)) != 1 || cookieErr != nil && stateData.Purpose != "delete-account" {
+		o.failFlow(w, r, stateData.Purpose)
+		return
+	}
+	nonce, verifier := stateData.Nonce, stateData.Verifier
+	if stateData.Purpose != "login" && stateData.Purpose != "delete-account" {
 		o.fail(w, r)
+		return
+	}
+	if r.URL.Query().Get("error") != "" || r.URL.Query().Get("code") == "" {
+		o.failFlow(w, r, stateData.Purpose)
 		return
 	}
 	exchangeCtx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
 	defer cancel()
 	token, err := o.oauth.Exchange(exchangeCtx, r.URL.Query().Get("code"), oauth2.VerifierOption(verifier))
 	if err != nil {
-		o.fail(w, r)
+		o.failFlow(w, r, stateData.Purpose)
 		return
 	}
 	rawIDToken, ok := token.Extra("id_token").(string)
 	if !ok || rawIDToken == "" {
-		o.fail(w, r)
+		o.failFlow(w, r, stateData.Purpose)
 		return
 	}
 	idToken, err := o.verifier.Verify(r.Context(), rawIDToken)
 	if err != nil {
-		o.fail(w, r)
+		o.failFlow(w, r, stateData.Purpose)
 		return
 	}
 	if subtle.ConstantTimeCompare([]byte(idToken.Nonce), []byte(nonce)) != 1 {
-		o.fail(w, r)
+		o.failFlow(w, r, stateData.Purpose)
 		return
 	}
 	var claims struct {
@@ -176,9 +239,23 @@ func (o *oidcLogin) callback(w http.ResponseWriter, r *http.Request) {
 		EmailVerified bool   `json:"email_verified"`
 		Name          string `json:"name"`
 		PreferredName string `json:"preferred_username"`
+		AuthTime      int64  `json:"auth_time"`
 	}
 	if err := idToken.Claims(&claims); err != nil || claims.Subject == "" || claims.Subject != idToken.Subject {
-		o.fail(w, r)
+		o.failFlow(w, r, stateData.Purpose)
+		return
+	}
+	if stateData.Purpose == "delete-account" {
+		authenticatedAt := time.Unix(claims.AuthTime, 0).UTC()
+		if stateData.UserID == "" || stateData.SessionID == "" || claims.AuthTime == 0 || !o.store.IsExternalIdentity(r.Context(), stateData.UserID, o.issuer, claims.Subject) {
+			o.failFlow(w, r, stateData.Purpose)
+			return
+		}
+		if err := o.store.MarkOIDCReauthenticated(r.Context(), stateData.UserID, stateData.SessionID, o.issuer, claims.Subject, authenticatedAt); err != nil {
+			o.failFlow(w, r, stateData.Purpose)
+			return
+		}
+		http.Redirect(w, r, "/settings/account?reauth=success", http.StatusSeeOther)
 		return
 	}
 	if claims.Email == "" || !claims.EmailVerified {
@@ -205,7 +282,7 @@ func (o *oidcLogin) callback(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if claims.Email == "" || !claims.EmailVerified {
-		o.fail(w, r)
+		o.failFlow(w, r, stateData.Purpose)
 		return
 	}
 	if claims.Name == "" {
@@ -213,12 +290,12 @@ func (o *oidcLogin) callback(w http.ResponseWriter, r *http.Request) {
 	}
 	user, err := o.store.LoginExternal(r.Context(), o.issuer, claims.Subject, claims.Email, claims.Name)
 	if err != nil {
-		o.fail(w, r)
+		o.failFlow(w, r, stateData.Purpose)
 		return
 	}
 	ticket, err := o.store.CreateSSOTicket(r.Context(), user.ID)
 	if err != nil {
-		o.fail(w, r)
+		o.failFlow(w, r, stateData.Purpose)
 		return
 	}
 	http.SetCookie(w, &http.Cookie{
@@ -248,6 +325,16 @@ func (o *oidcLogin) fail(w http.ResponseWriter, r *http.Request) {
 	clearOIDCStateCookie(w, o.secureCookie)
 	clearOIDCTicketCookie(w, o.secureCookie)
 	http.Redirect(w, r, "/auth/login?sso=failed", http.StatusSeeOther)
+}
+
+func (o *oidcLogin) failFlow(w http.ResponseWriter, r *http.Request, purpose string) {
+	clearOIDCStateCookie(w, o.secureCookie)
+	clearOIDCTicketCookie(w, o.secureCookie)
+	if purpose == "delete-account" {
+		http.Redirect(w, r, "/settings/account?reauth=failed", http.StatusSeeOther)
+		return
+	}
+	o.fail(w, r)
 }
 
 func clearOIDCStateCookie(w http.ResponseWriter, secure bool) {

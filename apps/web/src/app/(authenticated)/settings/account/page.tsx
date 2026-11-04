@@ -15,8 +15,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ChangePasswordRequest } from '@/lib/apiClient';
-import { useNavigate } from "react-router-dom";
-import { changePasswordAction, deleteAccountAction } from '@/lib/apiClient';
+import { useLocation, useNavigate } from "react-router-dom";
+import { changePasswordAction, deleteAccountAction, startAccountReauthenticationAction } from '@/lib/apiClient';
 import { approveDeviceCodeAction, cancelDeviceCodeAction, getCurrentSessionAction, listSessionsAction, lookupDeviceCodeAction, renameCurrentSessionAction, revokeSessionAction } from '@/lib/apiClient';
 import { DialogDescription } from "@radix-ui/react-dialog";
 import useAuth from "@/context/useAuth";
@@ -27,6 +27,7 @@ const DEFAULT_SESSION_NAMES = new Set(["web browser"]);
 
 export default function AccountSettingsPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, token, setAuth, logout, withAuth } = useAuth();
   const [oldPassword, setOldPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -38,6 +39,7 @@ export default function AccountSettingsPage() {
   const [deleteTotp, setDeleteTotp] = useState("");
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [reauthNotice, setReauthNotice] = useState<string | null>(null);
   const [sessionName, setSessionName] = useState("");
   const [sessionError, setSessionError] = useState<string | null>(null);
   const [isDeviceNameDialogOpen, setIsDeviceNameDialogOpen] = useState(false);
@@ -47,6 +49,12 @@ export default function AccountSettingsPage() {
   const [deviceCodeError, setDeviceCodeError] = useState<string | null>(null);
   const [deviceCodeLoading, setDeviceCodeLoading] = useState(false);
   const queryClient = useQueryClient();
+  useEffect(() => {
+    const reauthResult = new URLSearchParams(location.search).get("reauth");
+    if (reauthResult === "success") setReauthNotice("Your identity provider confirmed your sign-in. Delete your account within 10 minutes to complete the request.");
+    if (reauthResult === "failed") setReauthNotice("SSO reauthentication failed or was too old. Start again and complete sign-in with your identity provider.");
+    if (reauthResult) navigate(location.pathname, { replace: true });
+  }, [location.pathname, location.search, navigate]);
   const sessionsQuery = useQuery({ queryKey: ["auth", "sessions", token], enabled: Boolean(token), queryFn: () => withAuth(listSessionsAction) });
   const sessionQuery = useQuery({
     queryKey: queryKeys.auth.session(token),
@@ -199,9 +207,26 @@ export default function AccountSettingsPage() {
     }
   };
 
+  const handleStartAccountReauthentication = async () => {
+    setDeleteError(null);
+    setReauthNotice(null);
+    try {
+      const authorizationUrl = await withAuth(startAccountReauthenticationAction);
+      window.location.assign(authorizationUrl);
+    } catch (err: any) {
+      setDeleteError(err?.message ?? "Could not start SSO reauthentication");
+    }
+  };
+
   return (
     <>
       <h1 className="text-3xl font-semibold mb-4">Account</h1>
+      {reauthNotice && (
+        <Alert className="mb-4" variant={reauthNotice.startsWith("SSO reauthentication failed") ? "destructive" : undefined}>
+          <AlertTitle>{reauthNotice.startsWith("SSO reauthentication failed") ? "SSO reauthentication failed" : "SSO reauthentication complete"}</AlertTitle>
+          <AlertDescription>{reauthNotice}</AlertDescription>
+        </Alert>
+      )}
 
       <div className="content grid grid-cols-[auto_1fr_auto] font-medium gap-2 items-center">
         <section className="frosted flex rounded-lg justify-center col-span-full p-2 items-center gap-6">
@@ -463,7 +488,12 @@ export default function AccountSettingsPage() {
               )}
 
               {user?.externalOnly ? (
-                <p className="text-sm text-muted-foreground">Your account is SSO-only. Confirm your email and current sign-in session to delete it.</p>
+                <div className="grid gap-3">
+                  <p className="text-sm text-muted-foreground">Your account uses SSO. Confirm your identity with your provider before deleting it. Reauthentication is valid for 10 minutes.</p>
+                  <Button type="button" variant="outline" disabled={deleteLoading} onClick={handleStartAccountReauthentication}>
+                    Reauthenticate with SSO
+                  </Button>
+                </div>
               ) : (
                 <div className="grid gap-3">
                   <Label htmlFor="delete-password">Password</Label>

@@ -37,10 +37,12 @@ func New(store *auth.Store, options ...Options) (http.Handler, error) {
 	h := &Handler{store: store, mux: http.NewServeMux()}
 	if oidcHandler != nil {
 		h.mux.HandleFunc("GET /api/v1/auth/sso", oidcHandler.start)
+		h.mux.HandleFunc("POST /api/v1/auth/sso/reauth", oidcHandler.reauthenticate)
 		h.mux.HandleFunc("GET /api/v1/auth/callback", oidcHandler.callback)
 		h.mux.HandleFunc("POST /api/v1/auth/sso/exchange", oidcHandler.exchange)
 	} else {
 		h.mux.HandleFunc("GET /api/v1/auth/sso", h.ssoDisabled)
+		h.mux.HandleFunc("POST /api/v1/auth/sso/reauth", h.ssoDisabled)
 		h.mux.HandleFunc("GET /api/v1/auth/callback", h.ssoDisabled)
 		h.mux.HandleFunc("POST /api/v1/auth/sso/exchange", h.ssoDisabled)
 	}
@@ -214,7 +216,7 @@ func (h *Handler) deleteAccount(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnauthorized, "authentication required")
 		return
 	}
-	if err := h.store.DeleteAccount(r.Context(), user.ID, input.Payload.Email, input.Payload.Password, input.Payload.TOTP); err != nil {
+	if err := h.store.DeleteAccount(r.Context(), user.ID, input.Payload.Email, input.Payload.Password, input.Payload.TOTP, session.ID); err != nil {
 		writeAuthError(w, err)
 		return
 	}
@@ -362,6 +364,8 @@ func writeAuthError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusUnauthorized, err.Error())
 	case errors.Is(err, auth.ErrInvalidTOTP):
 		writeError(w, http.StatusUnauthorized, err.Error())
+	case errors.Is(err, auth.ErrRecentOIDCReauthRequired):
+		writeError(w, http.StatusForbidden, err.Error())
 	case errors.Is(err, auth.ErrSignupDisabled):
 		writeError(w, http.StatusForbidden, "sign up is disabled")
 	case errors.Is(err, auth.ErrEmailExists):

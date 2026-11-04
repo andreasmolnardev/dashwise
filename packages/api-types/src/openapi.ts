@@ -853,7 +853,7 @@ export interface paths {
         post?: never;
         /**
          * Delete account
-         * @description Requires an active device session plus password/TOTP confirmation for the same user.
+         * @description Requires an active device session. Password accounts must confirm their password and TOTP when enabled; external-only accounts must first complete a recent OIDC reauthentication tied to the current device session, then confirm their email and TOTP when enabled.
          */
         delete: {
             parameters: {
@@ -866,6 +866,13 @@ export interface paths {
             responses: {
                 200: components["responses"]["JsonOk"];
                 401: components["responses"]["JsonUnauthorized"];
+                /** @description Recent SSO reauthentication is required */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
             };
         };
         options?: never;
@@ -989,6 +996,66 @@ export interface paths {
         };
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/sso/reauth": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start OIDC reauthentication for account deletion
+         * @description Requires an authenticated external-only account and matching X-Session-Id. Sets the OIDC state cookie and returns an authorization URL that forces provider login; successful callbacks reauthenticate the initiating session for 10 minutes.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header: {
+                    "X-Session-Id": string;
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OIDC authorization URL */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: uri */
+                            url: string;
+                        };
+                    };
+                };
+                400: components["responses"]["JsonBadRequest"];
+                401: components["responses"]["JsonUnauthorized"];
+                /** @description Account does not support SSO reauthentication */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description SSO provider is unavailable */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
