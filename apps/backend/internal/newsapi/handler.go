@@ -784,6 +784,7 @@ func (h *Handler) articleItems(ctx context.Context, owner string, articles []new
 	for _, article := range articles {
 		item := clone(article.Data)
 		item["dedupeKey"] = article.DedupeKey
+		item["isRead"] = article.IsRead
 		if article.Title != "" {
 			item["title"] = article.Title
 		}
