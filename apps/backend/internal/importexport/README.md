@@ -63,4 +63,8 @@ transferHandler, err := importexportapi.New(transferStore, authenticateOwner(aut
 ```
 
 Mount the returned handler at `/api/v1/migration/`. It serves authenticated
-`GET /api/v1/migration/export` and `POST /api/v1/migration/import`.
+`GET /api/v1/migration/export`, `POST /api/v1/migration/validate`, and
+`POST /api/v1/migration/import`. Validation applies the full import inside a
+database transaction and rolls it back, including removing any wallpaper files
+created during the preview. The UI requires a successful validation before it
+enables import.

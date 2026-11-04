@@ -74,6 +74,33 @@ export type ResourceQuery = {
     offset?: number;
 };
 
+export type MigrationArchive = {
+    format: 'dashwise-pocketbase-export';
+    version: number;
+    exportedAt: string;
+    source: string;
+    tables: {
+        [key: string]: Array<{
+            [key: string]: unknown;
+        }>;
+    };
+};
+
+export type MigrationValidationResult = {
+    valid: boolean;
+    rowCounts: {
+        [key: string]: number;
+    };
+    skipped?: Array<string>;
+};
+
+export type MigrationImportResult = {
+    imported: {
+        [key: string]: number;
+    };
+    skipped?: Array<string>;
+};
+
 export type SavedViewDefinition = {
     query: ResourceQuery;
     presentation?: {
@@ -3658,3 +3685,86 @@ export type GetViewsByIdResourcesResponses = {
 };
 
 export type GetViewsByIdResourcesResponse = GetViewsByIdResourcesResponses[keyof GetViewsByIdResourcesResponses];
+
+export type GetMigrationExportData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/migration/export';
+};
+
+export type GetMigrationExportErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Error;
+};
+
+export type GetMigrationExportError = GetMigrationExportErrors[keyof GetMigrationExportErrors];
+
+export type GetMigrationExportResponses = {
+    /**
+     * Account migration archive
+     */
+    200: MigrationArchive;
+};
+
+export type GetMigrationExportResponse = GetMigrationExportResponses[keyof GetMigrationExportResponses];
+
+export type PostMigrationValidateData = {
+    body: MigrationArchive;
+    path?: never;
+    query?: never;
+    url: '/migration/validate';
+};
+
+export type PostMigrationValidateErrors = {
+    /**
+     * Bad Request
+     */
+    400: Error;
+    /**
+     * Unauthorized
+     */
+    401: Error;
+};
+
+export type PostMigrationValidateError = PostMigrationValidateErrors[keyof PostMigrationValidateErrors];
+
+export type PostMigrationValidateResponses = {
+    /**
+     * Archive validation result and row counts
+     */
+    200: MigrationValidationResult;
+};
+
+export type PostMigrationValidateResponse = PostMigrationValidateResponses[keyof PostMigrationValidateResponses];
+
+export type PostMigrationImportData = {
+    body: MigrationArchive;
+    path?: never;
+    query?: never;
+    url: '/migration/import';
+};
+
+export type PostMigrationImportErrors = {
+    /**
+     * Bad Request
+     */
+    400: Error;
+    /**
+     * Unauthorized
+     */
+    401: Error;
+};
+
+export type PostMigrationImportError = PostMigrationImportErrors[keyof PostMigrationImportErrors];
+
+export type PostMigrationImportResponses = {
+    /**
+     * Import result
+     */
+    200: MigrationImportResult;
+};
+
+export type PostMigrationImportResponse = PostMigrationImportResponses[keyof PostMigrationImportResponses];

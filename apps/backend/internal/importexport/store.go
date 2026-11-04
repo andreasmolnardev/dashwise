@@ -55,6 +55,12 @@ type Result struct {
 	Skipped  []string       `json:"skipped,omitempty"`
 }
 
+type ValidationResult struct {
+	Valid     bool           `json:"valid"`
+	RowCounts map[string]int `json:"rowCounts"`
+	Skipped   []string       `json:"skipped,omitempty"`
+}
+
 type tableSpec struct {
 	name, ownerColumn, where string
 	order                    int
@@ -165,6 +171,20 @@ func (s *Store) Export(ctx context.Context, owner string) (Archive, error) {
 // Import merges a normalized PocketBase collection export into one existing
 // account. Caller-owned identity always replaces exported owner fields.
 func (s *Store) Import(ctx context.Context, owner string, archive Archive) (Result, error) {
+	return s.applyArchive(ctx, owner, archive, true)
+}
+
+// Validate performs the complete import in a transaction and rolls it back.
+// Wallpaper files written during validation are removed before returning.
+func (s *Store) Validate(ctx context.Context, owner string, archive Archive) (ValidationResult, error) {
+	result, err := s.applyArchive(ctx, owner, archive, false)
+	if err != nil {
+		return ValidationResult{}, err
+	}
+	return ValidationResult{Valid: true, RowCounts: result.Imported, Skipped: result.Skipped}, nil
+}
+
+func (s *Store) applyArchive(ctx context.Context, owner string, archive Archive, commit bool) (Result, error) {
 	if strings.TrimSpace(owner) == "" || archive.Format != Format || archive.Version != Version || len(archive.Tables) == 0 {
 		return Result{}, ErrInvalid
 	}
@@ -254,6 +274,12 @@ func (s *Store) Import(ctx context.Context, owner string, archive Archive) (Resu
 			}
 			result.Imported[spec.name]++
 		}
+	}
+	if !commit {
+		if err := tx.Rollback(); err != nil {
+			return Result{}, err
+		}
+		return result, nil
 	}
 	importID := owner + ":" + archiveHash
 	if _, err := tx.ExecContext(ctx, `INSERT OR IGNORE INTO migration_imports(id,owner_id,archive_hash,imported_at) VALUES(?,?,?,?)`, importID, owner, archiveHash, time.Now().UTC().Format(time.RFC3339Nano)); err != nil {

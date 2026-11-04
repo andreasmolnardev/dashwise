@@ -16,6 +16,7 @@ tags:
   - name: links
   - name: locations
   - name: monitoring
+  - name: migration
   - name: news
   - name: notifications
   - name: pageConfig
@@ -2264,6 +2265,67 @@ paths:
           $ref: "#/components/responses/JsonUnauthorized"
         "404":
           $ref: "#/components/responses/JsonNotFound"
+  /migration/export:
+    get:
+      tags: [migration]
+      summary: Export the authenticated account as a versioned migration archive
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Account migration archive
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MigrationArchive"
+        "401":
+          $ref: "#/components/responses/JsonUnauthorized"
+  /migration/validate:
+    post:
+      tags: [migration]
+      summary: Validate a migration archive without applying its changes
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MigrationArchive"
+      responses:
+        "200":
+          description: Archive validation result and row counts
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MigrationValidationResult"
+        "400":
+          $ref: "#/components/responses/JsonBadRequest"
+        "401":
+          $ref: "#/components/responses/JsonUnauthorized"
+  /migration/import:
+    post:
+      tags: [migration]
+      summary: Import a validated archive into the authenticated account
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MigrationArchive"
+      responses:
+        "200":
+          description: Import result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MigrationImportResult"
+        "400":
+          $ref: "#/components/responses/JsonBadRequest"
+        "401":
+          $ref: "#/components/responses/JsonUnauthorized"
 components:
   parameters:
     Id:
@@ -2348,6 +2410,39 @@ components:
         orderBy: { type: string, enum: [updatedAt, createdAt, type, publishedAt] }
         limit: { type: integer, minimum: 0, maximum: 200 }
         offset: { type: integer, minimum: 0 }
+    MigrationArchive:
+      type: object
+      additionalProperties: false
+      required: [format, version, exportedAt, source, tables]
+      properties:
+        format: { type: string, enum: [dashwise-pocketbase-export] }
+        version: { type: integer, minimum: 1 }
+        exportedAt: { type: string, format: date-time }
+        source: { type: string }
+        tables:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: object
+              additionalProperties: true
+    MigrationValidationResult:
+      type: object
+      required: [valid, rowCounts]
+      properties:
+        valid: { type: boolean }
+        rowCounts:
+          type: object
+          additionalProperties: { type: integer, minimum: 0 }
+        skipped: { type: array, items: { type: string } }
+    MigrationImportResult:
+      type: object
+      required: [imported]
+      properties:
+        imported:
+          type: object
+          additionalProperties: { type: integer, minimum: 0 }
+        skipped: { type: array, items: { type: string } }
     SavedViewDefinition:
       type: object
       additionalProperties: false

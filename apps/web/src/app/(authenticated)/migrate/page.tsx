@@ -18,7 +18,9 @@ import AppIcon from "@dashwise/app-icon";
 import {
   exportMigrationArchiveAction,
   importMigrationArchiveAction,
+  validateMigrationArchiveAction,
   type MigrationArchiveImportResult,
+  type MigrationArchiveValidationResult,
 } from "@/lib/migrationArchiveApi";
 
 type ImportNotice = { kind: "success" | "error"; message: string; result?: MigrationArchiveImportResult };
@@ -26,9 +28,10 @@ type ImportNotice = { kind: "success" | "error"; message: string; result?: Migra
 export default function MigratePage() {
   const { token, redirectToLogin, withAuthRedirect } = useAuth();
   const [file, setFile] = useState<File | null>(null);
-  const [loading, setLoading] = useState<"export" | "import" | null>(null);
+  const [loading, setLoading] = useState<"export" | "validate" | "import" | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [notice, setNotice] = useState<ImportNotice | null>(null);
+  const [preview, setPreview] = useState<MigrationArchiveValidationResult | null>(null);
 
   useEffect(() => {
     if (!token) redirectToLogin();
@@ -57,24 +60,47 @@ export default function MigratePage() {
     }
   };
 
-  const importArchive = async () => {
+  const readArchive = async (selectedFile: File): Promise<unknown> => {
+    let archive: unknown;
+    try {
+      archive = JSON.parse(await selectedFile.text());
+    } catch {
+      throw new Error("choose a valid JSON archive file.");
+    }
+    if (!archive || typeof archive !== "object" || Array.isArray(archive)) {
+      throw new Error("the selected file is not a dashwise archive.");
+    }
+    return archive;
+  };
+
+  const validateArchive = async () => {
     if (!file) return;
+    setLoading("validate");
+    setNotice(null);
+    try {
+      const archive = await readArchive(file);
+      const result = await withAuthRedirect((auth) => validateMigrationArchiveAction(auth, archive));
+      setPreview(result);
+      setNotice({ kind: "success", message: "archive validation passed. review the row counts before importing." });
+    } catch (error) {
+      setPreview(null);
+      setNotice({ kind: "error", message: error instanceof Error ? error.message : "could not validate the archive." });
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  const importArchive = async () => {
+    if (!file || !preview?.valid) return;
     setLoading("import");
     setConfirmOpen(false);
     setNotice(null);
     try {
-      let archive: unknown;
-      try {
-        archive = JSON.parse(await file.text());
-      } catch {
-        throw new Error("choose a valid JSON archive file.");
-      }
-      if (!archive || typeof archive !== "object" || Array.isArray(archive)) {
-        throw new Error("the selected file is not a dashwise archive.");
-      }
+      const archive = await readArchive(file);
       const result = await withAuthRedirect((auth) => importMigrationArchiveAction(auth, archive));
       setNotice({ kind: "success", message: "the archive was imported into your account.", result });
       setFile(null);
+      setPreview(null);
     } catch (error) {
       setNotice({ kind: "error", message: error instanceof Error ? error.message : "could not import the archive." });
     } finally {
@@ -119,11 +145,28 @@ export default function MigratePage() {
             disabled={loading !== null}
             onChange={(event) => {
               setFile(event.target.files?.[0] ?? null);
+              setPreview(null);
               setNotice(null);
             }}
           />
           {file && <p className="truncate text-xs opacity-70">selected: {file.name}</p>}
-          <Button onClick={() => setConfirmOpen(true)} disabled={!file || loading !== null} className="mt-auto w-fit">
+          <Button onClick={() => void validateArchive()} disabled={!file || loading !== null} className="mt-auto w-fit">
+            {loading === "validate" ? "validating archive…" : "validate archive"}
+          </Button>
+          {preview?.valid && (
+            <div className="space-y-2 rounded-md border border-white/10 p-3">
+              <p className="text-sm font-medium">validation passed</p>
+              <p className="text-xs opacity-70">
+                {Object.values(preview.rowCounts).reduce((sum, count) => sum + count, 0)} records across {Object.keys(preview.rowCounts).length} tables will be merged.
+              </p>
+              <ul className="grid gap-x-5 gap-y-1 text-xs opacity-80 sm:grid-cols-2">
+                {Object.entries(preview.rowCounts).map(([table, count]) => (
+                  <li key={table} className="flex justify-between gap-3"><span className="break-all">{table}</span><span className="font-mono">{count}</span></li>
+                ))}
+              </ul>
+            </div>
+          )}
+          <Button onClick={() => setConfirmOpen(true)} disabled={!file || !preview?.valid || loading !== null} className="w-fit">
             {loading === "import" ? "importing archive…" : "import archive"}
           </Button>
         </Card>
@@ -168,12 +211,12 @@ export default function MigratePage() {
           <AlertDialogHeader>
             <AlertDialogTitle>import this archive?</AlertDialogTitle>
             <AlertDialogDescription>
-              Data from “{file?.name}” will be merged into the account you are signed in to. Existing records may be updated when their ids match.
+              The validated data from “{file?.name}” will be merged into the account you are signed in to. Existing records may be updated when their ids match.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={loading !== null}>cancel</AlertDialogCancel>
-            <AlertDialogAction disabled={loading !== null || !file} onClick={(event) => { event.preventDefault(); void importArchive(); }}>
+            <AlertDialogAction disabled={loading !== null || !file || !preview?.valid} onClick={(event) => { event.preventDefault(); void importArchive(); }}>
               import into this account
             </AlertDialogAction>
           </AlertDialogFooter>

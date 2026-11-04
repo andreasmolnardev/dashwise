@@ -26,6 +26,7 @@ func New(store *importexport.Store, authenticate resourceapi.Authenticate) (http
 	}
 	h := &Handler{store: store, auth: authenticate, mux: http.NewServeMux()}
 	h.mux.HandleFunc("GET /api/v1/migration/export", h.export)
+	h.mux.HandleFunc("POST /api/v1/migration/validate", h.validateArchive)
 	h.mux.HandleFunc("POST /api/v1/migration/import", h.importArchive)
 	return h.mux, nil
 }
@@ -59,18 +60,8 @@ func (h *Handler) importArchive(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	r.Body = http.MaxBytesReader(w, r.Body, maxArchiveBytes)
-	defer r.Body.Close()
-	decoder := json.NewDecoder(r.Body)
-	decoder.DisallowUnknownFields()
-	var archive importexport.Archive
-	if err := decoder.Decode(&archive); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid migration archive"})
-		return
-	}
-	var trailing any
-	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "archive must contain one JSON value"})
+	archive, ok := decodeArchive(w, r)
+	if !ok {
 		return
 	}
 	result, err := h.store.Import(r.Context(), owner, archive)
@@ -80,6 +71,42 @@ func (h *Handler) importArchive(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Cache-Control", "no-store")
 	writeJSON(w, http.StatusOK, result)
+}
+
+func (h *Handler) validateArchive(w http.ResponseWriter, r *http.Request) {
+	owner, ok := h.owner(w, r)
+	if !ok {
+		return
+	}
+	archive, ok := decodeArchive(w, r)
+	if !ok {
+		return
+	}
+	result, err := h.store.Validate(r.Context(), owner, archive)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	writeJSON(w, http.StatusOK, result)
+}
+
+func decodeArchive(w http.ResponseWriter, r *http.Request) (importexport.Archive, bool) {
+	r.Body = http.MaxBytesReader(w, r.Body, maxArchiveBytes)
+	defer r.Body.Close()
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	var archive importexport.Archive
+	if err := decoder.Decode(&archive); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid migration archive"})
+		return importexport.Archive{}, false
+	}
+	var trailing any
+	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "archive must contain one JSON value"})
+		return importexport.Archive{}, false
+	}
+	return archive, true
 }
 
 func writeJSON(w http.ResponseWriter, status int, body any) {

@@ -4314,6 +4314,127 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/migration/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Export the authenticated account as a versioned migration archive */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Account migration archive */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MigrationArchive"];
+                    };
+                };
+                401: components["responses"]["JsonUnauthorized"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/migration/validate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Validate a migration archive without applying its changes */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["MigrationArchive"];
+                };
+            };
+            responses: {
+                /** @description Archive validation result and row counts */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MigrationValidationResult"];
+                    };
+                };
+                400: components["responses"]["JsonBadRequest"];
+                401: components["responses"]["JsonUnauthorized"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/migration/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Import a validated archive into the authenticated account */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["MigrationArchive"];
+                };
+            };
+            responses: {
+                /** @description Import result */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MigrationImportResult"];
+                    };
+                };
+                400: components["responses"]["JsonBadRequest"];
+                401: components["responses"]["JsonUnauthorized"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -4384,6 +4505,32 @@ export interface components {
             orderBy?: "updatedAt" | "createdAt" | "type" | "publishedAt";
             limit?: number;
             offset?: number;
+        };
+        MigrationArchive: {
+            /** @enum {string} */
+            format: "dashwise-pocketbase-export";
+            version: number;
+            /** Format: date-time */
+            exportedAt: string;
+            source: string;
+            tables: {
+                [key: string]: {
+                    [key: string]: unknown;
+                }[];
+            };
+        };
+        MigrationValidationResult: {
+            valid: boolean;
+            rowCounts: {
+                [key: string]: number;
+            };
+            skipped?: string[];
+        };
+        MigrationImportResult: {
+            imported: {
+                [key: string]: number;
+            };
+            skipped?: string[];
         };
         SavedViewDefinition: {
             query: components["schemas"]["ResourceQuery"];
