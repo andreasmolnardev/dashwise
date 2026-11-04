@@ -6,10 +6,12 @@ import Screensaver from "@/components/dashboard/Screensaver";
 export default function FramePage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const initialFrameId = searchParams.get("frameId");
 
   return (
     <Screensaver
       active
+      initialFrameId={initialFrameId}
       onExit={() => {
         if (searchParams.get("closeAction") === "urlParam") {
           const nextParams = new URLSearchParams(searchParams);

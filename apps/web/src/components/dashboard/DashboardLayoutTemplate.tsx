@@ -65,6 +65,42 @@ const PRIVACY_RANDOM_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789";
 const PRIVACY_TEXT_ATTRIBUTES = ["alt", "aria-label", "placeholder", "title", "value"];
 const PRIVACY_CLONE_THROTTLE_MS = 250;
 
+type FrameDisplayRules = {
+    showButton?: boolean;
+    inactivityTimeout?: number;
+    inactivityPageId?: string;
+    manualPageId?: string;
+};
+
+function readFrameDisplayRules(globalConfig: Record<string, any> | undefined): FrameDisplayRules {
+    let deviceConfig: Record<string, any> = {};
+    if (typeof window !== "undefined") {
+        try {
+            const stored = window.localStorage.getItem("dashwise_screensaver_device_rules");
+            const parsed = stored ? JSON.parse(stored) : null;
+            if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+                deviceConfig = parsed;
+            }
+        } catch {
+            deviceConfig = {};
+        }
+    }
+
+    const globalDisplay = globalConfig?.displayRules ?? {};
+    const deviceDisplay = deviceConfig.displayRules ?? {};
+    return {
+        showButton: deviceConfig.showButton ?? globalConfig?.showButton,
+        inactivityTimeout: deviceConfig.inactivityTimeout ?? globalConfig?.inactivityTimeout,
+        inactivityPageId: deviceDisplay.inactivityPageId ?? globalDisplay.inactivityPageId ?? "frame",
+        manualPageId: deviceDisplay.manualPageId ?? globalDisplay.manualPageId ?? "frame",
+    };
+}
+
+function frameRoute(frameId?: string) {
+    const target = frameId?.trim() || "frame";
+    return target === "frame" ? "/frame" : `/frame?frameId=${encodeURIComponent(target)}`;
+}
+
 function randomPrivacyString(length: number) {
     const safeLength = Math.max(1, length);
     const values = new Uint32Array(safeLength);
@@ -265,6 +301,9 @@ export default function DashboardLayoutTemplate({
     const navigate = useNavigate();
     const { token, user, withAuth } = useAuth();
     const { subscribePageWidgets } = useActivity();
+    const [frameRules, setFrameRules] = useState<FrameDisplayRules>(() =>
+        readFrameDisplayRules(user?.screensaverPreferences as Record<string, any> | undefined),
+    );
     const openFromURL = searchParams.get("search") === "1";
     const hasSearchBarWidget = useMemo(() => {
         const columns = config?.columns as
@@ -294,6 +333,52 @@ export default function DashboardLayoutTemplate({
     const [measuredHeights, setMeasuredHeights] = useState<
         Record<string, number>
     >({});
+
+    useEffect(() => {
+        const syncRules = () => setFrameRules(
+            readFrameDisplayRules(user?.screensaverPreferences as Record<string, any> | undefined),
+        );
+        syncRules();
+        window.addEventListener("dashwise_local_config_updated", syncRules);
+        return () => window.removeEventListener("dashwise_local_config_updated", syncRules);
+    }, [user?.screensaverPreferences]);
+
+    useEffect(() => {
+        const timeoutSeconds = Number(frameRules.inactivityTimeout);
+        if (!Number.isFinite(timeoutSeconds) || timeoutSeconds <= 0) return;
+
+        let timer: ReturnType<typeof setTimeout> | null = null;
+        const clearTimer = () => {
+            if (timer !== null) clearTimeout(timer);
+            timer = null;
+        };
+        const restartTimer = () => {
+            clearTimer();
+            if (document.visibilityState !== "visible") return;
+            timer = setTimeout(() => {
+                timer = null;
+                navigate(frameRoute(frameRules.inactivityPageId));
+            }, timeoutSeconds * 1000);
+        };
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === "visible") restartTimer();
+            else clearTimer();
+        };
+        const activityEvents = ["pointerdown", "pointermove", "keydown", "touchstart", "wheel"] as const;
+
+        restartTimer();
+        for (const eventName of activityEvents) {
+            window.addEventListener(eventName, restartTimer, { passive: true });
+        }
+        document.addEventListener("visibilitychange", handleVisibilityChange);
+        return () => {
+            clearTimer();
+            for (const eventName of activityEvents) {
+                window.removeEventListener(eventName, restartTimer);
+            }
+            document.removeEventListener("visibilitychange", handleVisibilityChange);
+        };
+    }, [frameRules.inactivityPageId, frameRules.inactivityTimeout, navigate]);
 
     const columns = config?.columns as
         | Record<Column, Record<string, any>>
@@ -915,6 +1000,8 @@ export default function DashboardLayoutTemplate({
                     activePanel={activePanel}
                     columns={columns}
                     onSelectPanel={selectPanel}
+                    showSmartFrameButton={frameRules.showButton === true}
+                    manualFramePath={frameRoute(frameRules.manualPageId)}
                 />
             </div>
             {!isLoading && openFromURL && !hasSearchBarWidget && (
@@ -931,46 +1018,25 @@ export default function DashboardLayoutTemplate({
 
 interface BottomNavbarProps {
     activePanel?: number;
-    setScreensaverActive?: (active: boolean) => void;
     showPages?: boolean;
     columns?: Record<string, any>;
     onSelectPanel?: (panel: number) => void;
+    showSmartFrameButton?: boolean;
+    manualFramePath?: string;
 }
 
 function BottomNavbar({
     activePanel = 1,
-    setScreensaverActive,
     showPages = true,
     columns,
     onSelectPanel,
+    showSmartFrameButton = false,
+    manualFramePath = "/frame",
 }: BottomNavbarProps) {
-    const { user } = useAuth();
     const { unreadCount } = useActivity();
-    const [showSmartFrameButton, setShowSmartFrameButton] = useState(false);
     const [isFullscreen, setIsFullscreen] = useState(() => {
         return typeof document !== "undefined" && !!document.fullscreenElement;
     });
-
-    useEffect(() => {
-        const checkConfig = () => {
-            const local = localStorage.getItem("dashwise_screensaver_device_rules");
-            const localConfig = local ? JSON.parse(local) : null;
-            const globalConfig = user?.screensaverPreferences as any;
-
-            const showLocal = localConfig?.showButton === true;
-            const showGlobal = globalConfig?.showButton === true;
-
-            setShowSmartFrameButton(showLocal || showGlobal);
-        };
-
-        checkConfig();
-        window.addEventListener("dashwise_local_config_updated", checkConfig);
-        return () =>
-            window.removeEventListener(
-                "dashwise_local_config_updated",
-                checkConfig,
-            );
-    }, [user?.screensaverPreferences]);
 
     useEffect(() => {
         const onFullscreenChange = () => {
@@ -1056,7 +1122,7 @@ function BottomNavbar({
                 {showSmartFrameButton && (
                     <li>
                         <Link
-                            to="../frame"
+                            to={manualFramePath}
                             className="hidden md:flex frosted p-2.5 rounded-full group transition-colors duration-200 aspect-square items-center justify-center"
                             title="Open Smart Frame"
                         >

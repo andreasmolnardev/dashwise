@@ -10,7 +10,7 @@ import { fetchWallpaperBlob } from "@/lib/apiClient";
 const TOUCH_CONTROLS_HIDE_DELAY = 2500;
 
 export default function Screensaver(
-  { active, onExit }: { active: boolean; onExit: () => void },
+  { active, onExit, initialFrameId }: { active: boolean; onExit: () => void; initialFrameId?: string | null },
 ) {
   const { user, token } = useAuth();
   const [fonts, setFonts] = useState<{ name: string; path: string }[]>([]);
@@ -155,6 +155,21 @@ export default function Screensaver(
       },
     ];
   }, [screensaverConfig, clockFont, clockFontWeight, color, size]);
+
+  useEffect(() => {
+    if (!active) return;
+    const requestedIndex = initialFrameId
+      ? frames.findIndex((frame: any) => frame.id === initialFrameId)
+      : 0;
+    const nextIndex = requestedIndex >= 0 ? requestedIndex : 0;
+    setActiveFrameIndex(nextIndex);
+    requestAnimationFrame(() => {
+      scrollRef.current?.scrollTo({
+        left: nextIndex * (scrollRef.current?.clientWidth ?? 0),
+        behavior: "auto",
+      });
+    });
+  }, [active, frames, initialFrameId]);
 
   useEffect(() => {
     if (!active) return;
