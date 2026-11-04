@@ -4,8 +4,39 @@ export type ActionAuth = {
 };
 
 export type JsonPrimitive = string | number | boolean | null;
-export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue };
+// Undefined object properties are omitted by JSON.stringify, so permit them
+// in typed preference records while keeping persisted JSON values otherwise
+// constrained to the JSON data model.
+export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue | undefined };
 export type UserPropertyValue = JsonValue;
+
+export type ThemePreference = "light" | "dark" | "system";
+export type WallpaperFilters = {
+  blur?: number;
+  brightness?: number;
+  darkModeBrightness?: number;
+};
+
+export type AppearancePreferences = {
+  accentColor?: string;
+  backgroundImageUrl?: string;
+  themeMode?: ThemePreference;
+  frostedAppearance?: ThemePreference;
+  linkTileStyle?: "default" | "compact";
+  wallpaperFilters?: WallpaperFilters;
+  defaultFont?: string;
+  [key: string]: JsonValue | undefined;
+};
+
+export type LocalizationPreferences = {
+  locale?: string;
+  timeFormat?: string | number;
+  "time-format"?: string | number;
+  dateFormat?: string;
+  weatherUnit?: "c" | "f" | string;
+  weatherLocation?: string;
+  [key: string]: JsonValue | undefined;
+};
 
 export type SearchEngine = {
   icon: string;
@@ -27,8 +58,8 @@ export type AuthUserRecord = Partial<{
   email: string;
   emailVisibility: boolean;
   name: string;
-  appearancePreferences: Record<string, unknown>;
-  localizationPreferences: Record<string, unknown>;
+  appearancePreferences: AppearancePreferences;
+  localizationPreferences: LocalizationPreferences;
   screensaverPreferences: Record<string, unknown>;
   searchPreferences: SearchPreferences;
   verified: boolean;
@@ -42,7 +73,7 @@ export type AuthUserRecord = Partial<{
 };
 
 export type PageConfig = {
-  appearance?: Record<string, unknown>;
+  appearance?: AppearancePreferences;
   columns?: Record<string, unknown>;
   glanceables?: Array<Record<string, unknown>>;
   meta?: Record<string, unknown> & { onboard?: boolean };

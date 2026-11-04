@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { usePageConfig } from "@/hooks/usePageConfig";
 import useAuth from "@/context/useAuth";
+import type { LocalizationPreferences } from "@dashwise/types/sdk";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import ThemeSelectComponent from "@/components/settings/ThemeSelect";
@@ -60,7 +61,7 @@ export default function OnboardingPage() {
     }
   }, [config?.meta?.onboard, navigate]);
 
-  async function updateGlobal(patch: Record<string, any>) {
+  async function updateGlobal(patch: Partial<LocalizationPreferences>) {
     await updateUserProperty(
       "localizationPreferences",
       Object.fromEntries(

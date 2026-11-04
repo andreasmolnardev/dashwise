@@ -12,16 +12,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import useAuth from "@/context/useAuth";
+import type { AppearancePreferences } from "@dashwise/types/sdk";
 
 interface UrlWallpaperDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   configKey?: string;
-}
-
-interface AppearanceConfig {
-  backgroundImageUrl?: string;
-  accentColor?: string;
 }
 
 export default function UrlWallpaperDialogComponent({
@@ -45,8 +41,8 @@ export default function UrlWallpaperDialogComponent({
     setMessage(null);
 
     try {
-      const currentAppearance = (user?.appearancePreferences ?? {}) as AppearanceConfig;
-      const updatedAppearance: AppearanceConfig = {
+      const currentAppearance = user?.appearancePreferences ?? {};
+      const updatedAppearance: AppearancePreferences = {
         ...currentAppearance,
         backgroundImageUrl: url,
       };

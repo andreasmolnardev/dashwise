@@ -16,18 +16,10 @@ import {
 import { Label } from "@/components/ui/label";
 import { ColorPicker } from "@/components/settings/ColorPicker";
 import useAuth from "@/context/useAuth";
+import type { AppearancePreferences } from "@dashwise/types/sdk";
 
 type ThemeMode = "system" | "dark" | "light";
 type LinkTileStyle = "default" | "compact";
-
-// Type for the appearance config
-type AppearanceConfig = {
-  accentColor?: string;
-  themeMode?: ThemeMode;
-  frostedAppearance?: ThemeMode;
-  linkTileStyle?: LinkTileStyle;
-  [key: string]: string | undefined;
-};
 
 function applyThemeClasses(themeMode: ThemeMode, frostedAppearance: ThemeMode = themeMode) {
   if (typeof document === "undefined" || typeof window === "undefined") return;
@@ -106,7 +98,7 @@ export default function ThemeSelectComponent({ className }: { className?: string
     // persist to server
     try {
       const currentAppearance = user?.appearancePreferences || {};
-      const appearanceConfig: AppearanceConfig = { ...currentAppearance, accentColor: color_hex };
+      const appearanceConfig: AppearancePreferences = { ...currentAppearance, accentColor: color_hex };
 
       await updateUserProperty("appearancePreferences", appearanceConfig);
     } catch (err: unknown) {
@@ -124,7 +116,7 @@ export default function ThemeSelectComponent({ className }: { className?: string
 
     try {
       const currentAppearance = user?.appearancePreferences || {};
-      const appearanceConfig: AppearanceConfig = {
+      const appearanceConfig: AppearancePreferences = {
         ...currentAppearance,
         themeMode: newMode,
         frostedAppearance: newMode,
@@ -145,7 +137,7 @@ export default function ThemeSelectComponent({ className }: { className?: string
 
     try {
       const currentAppearance = user?.appearancePreferences || {};
-      const appearanceConfig: AppearanceConfig = {
+      const appearanceConfig: AppearancePreferences = {
         ...currentAppearance,
         linkTileStyle: newStyle,
       };

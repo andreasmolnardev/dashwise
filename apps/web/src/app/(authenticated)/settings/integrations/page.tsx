@@ -397,7 +397,7 @@ export default function IntegrationsModularSettingsPage() {
             const nextLocalData = {
               ...(integration.localData ?? {}),
               updateAvailable,
-              remoteVersion: updateAvailable ? remoteVersion : undefined,
+              remoteVersion: updateAvailable && remoteVersion ? remoteVersion : undefined,
               remoteConfig: updateAvailable ? remoteConfig : undefined,
             };
 
@@ -1231,9 +1231,14 @@ function isNewerSemver(candidate: string, current: string) {
     return false;
   }
 
-  for (let index = 0; index < 3; index += 1) {
-    if (candidateParts[index] > currentParts[index]) return true;
-    if (candidateParts[index] < currentParts[index]) return false;
+  const coreVersions: Array<[number, number]> = [
+    [candidateParts[0], currentParts[0]],
+    [candidateParts[1], currentParts[1]],
+    [candidateParts[2], currentParts[2]],
+  ];
+  for (const [candidatePart, currentPart] of coreVersions) {
+    if (candidatePart > currentPart) return true;
+    if (candidatePart < currentPart) return false;
   }
 
   return comparePrerelease(candidateParts[3], currentParts[3]) > 0;

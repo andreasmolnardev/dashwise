@@ -13,8 +13,8 @@ import {
 export default function WallpaperBlurSliderComponent({ className }: { className?: string }) {
   const { user, updateUserProperty } = useAuth();
   
-  const [percent, setPercent] = useState(blurToPercent(DEFAULT_WALLPAPER_FILTERS.blur)); // slider percentage
-  const [previewBlur, setPreviewBlur] = useState(DEFAULT_WALLPAPER_FILTERS.blur); // px
+  const [percent, setPercent] = useState<number>(blurToPercent(DEFAULT_WALLPAPER_FILTERS.blur)); // slider percentage
+  const [previewBlur, setPreviewBlur] = useState<number>(DEFAULT_WALLPAPER_FILTERS.blur); // px
   const [saving, setSaving] = useState(false);
 
   // Load current blur from config on mount

@@ -1,3 +1,5 @@
+import type { WallpaperFilters } from "@dashwise/types/sdk";
+
 export const DEFAULT_WALLPAPER_FILTERS = {
   blur: 10,
   brightness: 61,
@@ -9,11 +11,7 @@ const BRIGHTNESS_MAX = 150;
 const BLUR_MIN = 1;
 const BLUR_MAX = 25;
 
-export type WallpaperFilters = {
-  blur?: number;
-  brightness?: number;
-  darkModeBrightness?: number;
-};
+export type { WallpaperFilters } from "@dashwise/types/sdk";
 
 export function normalizeWallpaperFilters(filters?: WallpaperFilters | null) {
   return {

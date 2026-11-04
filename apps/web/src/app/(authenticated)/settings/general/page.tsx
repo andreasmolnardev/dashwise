@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import LocationSelectFormComponent from "@/components/settings/LocationSelectForm";
 import useAuth from "@/context/useAuth";
+import type { LocalizationPreferences } from "@dashwise/types/sdk";
 import { deleteUnusedHomeLinkGroupsAction, runPullIconsAction, wipeUserLinksAction } from '@/lib/apiClient';
 
 type TimeFormatValue = "24-hour" | "12-hour";
@@ -233,7 +234,7 @@ function LocalizationSettings() {
   const timeFormat = normalizeTimeFormat(globalConfig?.timeFormat ?? globalConfig?.["time-format"]);
   const dateFormat = globalConfig?.dateFormat ?? "DD-MM-YYYY";
 
-  async function updateGlobal(patch: Record<string, any>) {
+  async function updateGlobal(patch: Partial<LocalizationPreferences>) {
     await updateUserProperty(
       "localizationPreferences",
       {

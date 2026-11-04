@@ -23,7 +23,7 @@ export default function AppearanceSettingsPage() {
   const [urlDialogOpen, setUrlDialogOpen] = useState(false);
 
   const imageUrl = user?.appearancePreferences?.backgroundImageUrl || "";
-  const showSourceControl = !imageUrl.includes(config.app_base_url) && !imageUrl.startsWith("/api");
+  const showSourceControl = !imageUrl.includes(config.backend_url) && !imageUrl.startsWith("/api");
 
   return (
     <>
