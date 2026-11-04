@@ -1,4 +1,3 @@
-// TODO fix search preferences implementation
 "use client";
 
 import React, { useEffect, useState, useRef, useCallback } from "react";
@@ -54,6 +53,8 @@ export default function SearchEngineBrowseFeedComponent() {
     const [page, setPage] = useState(1);
     const [search, setSearch] = useState("");
     const [debouncedSearch, setDebouncedSearch] = useState("");
+    const [savingSlug, setSavingSlug] = useState<string | null>(null);
+    const [saveError, setSaveError] = useState<string | null>(null);
 
     // debounce search input (200ms)
     useEffect(() => {
@@ -154,15 +155,17 @@ export default function SearchEngineBrowseFeedComponent() {
 
     // Add Handler (async, then refresh config)
     const handleAddEngine = async (bang: DDGBang) => {
+        if (savingSlug) return;
         const engineConfig = transformToSearchEngine(bang);
         const current = Array.isArray(user?.searchPreferences?.searchEngines) ? user.searchPreferences.searchEngines : [];
         const nextEngines = [...current, engineConfig];
+        setSavingSlug(bang.t);
+        setSaveError(null);
         try {
             await updateUserProperty("searchPreferences", {
                 ...(user?.searchPreferences ?? {}),
                 searchEngines: nextEngines,
             });
-            console.log(`Added ${engineConfig.name}`);
             // Refresh config so the new engine will be filtered out
             try {
                 refreshConfig?.();
@@ -171,7 +174,9 @@ export default function SearchEngineBrowseFeedComponent() {
                 console.warn("refreshConfig failed", e);
             }
         } catch (e) {
-            console.error("Failed to add engine", e);
+            setSaveError(e instanceof Error ? e.message : String(e));
+        } finally {
+            setSavingSlug(null);
         }
     };
 
@@ -214,9 +219,21 @@ export default function SearchEngineBrowseFeedComponent() {
                 </div>
             </div>
 
+            {saveError && (
+                <p role="alert" className="text-sm text-destructive">
+                    Could not add search engine: {saveError}
+                </p>
+            )}
+
             <div className="flex flex-col gap-3">
                 {visibleBangs.map((bang) => (
-                    <BangRow key={bang.t} bang={bang} onAdd={() => handleAddEngine(bang)} />
+                    <BangRow
+                        key={bang.t}
+                        bang={bang}
+                        onAdd={() => handleAddEngine(bang)}
+                        saving={savingSlug === bang.t}
+                        disabled={savingSlug !== null}
+                    />
                 ))}
             </div>
 
@@ -231,7 +248,7 @@ export default function SearchEngineBrowseFeedComponent() {
 }
 
 // --- Row (single-line) sub-component ---
-function BangRow({ bang, onAdd }: { bang: DDGBang; onAdd: () => void }) {
+function BangRow({ bang, onAdd, saving, disabled }: { bang: DDGBang; onAdd: () => void; saving: boolean; disabled: boolean }) {
     const iconUrl = `https://icons.duckduckgo.com/ip3/${bang.d}.ico`;
 
     return (
@@ -273,8 +290,9 @@ function BangRow({ bang, onAdd }: { bang: DDGBang; onAdd: () => void }) {
             </div>
 
             <div className="flex items-center gap-2">
-                <Button onClick={onAdd} size="sm" className="whitespace-nowrap">
-                    <Plus className="mr-2 h-4 w-4" /> Add
+                <Button onClick={onAdd} size="sm" className="whitespace-nowrap" disabled={disabled}>
+                    {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
+                    {saving ? "Adding…" : "Add"}
                 </Button>
 
                 <Button variant="ghost" size="icon" asChild title="Visit Site">
