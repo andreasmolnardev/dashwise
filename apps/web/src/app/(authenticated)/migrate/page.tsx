@@ -56,6 +56,7 @@ export default function MigratePage() {
         credentials: "same-origin",
       });
       if (!response.ok) throw new Error((await response.json().catch(() => ({})))?.error ?? `Export failed (${response.status})`);
+      const warnings = JSON.parse(decodeURIComponent(response.headers.get("x-dashwise-export-warnings") ?? "%5B%5D")) as string[];
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
@@ -64,7 +65,9 @@ export default function MigratePage() {
       anchor.click();
       URL.revokeObjectURL(url);
       setExportOpen(false);
-      setResult("Your private archive was downloaded. Keep it secure and delete it after importing into Go Dashwise.");
+      setResult(warnings.length
+        ? `your private archive was downloaded with ${warnings.length} source mapping warning(s): ${warnings.join("; ")}. keep it secure and delete it after migration.`
+        : "your private archive was downloaded. keep it secure and delete it after importing into go dashwise.");
     } catch (error) {
       setResult(error instanceof Error ? error.message : String(error));
     } finally { setLoading(false); }
@@ -88,15 +91,15 @@ export default function MigratePage() {
         </Button>
       </Card>
       <Card className="p-2 frosted text-foreground">
-        <h2 className="text-xl font-semibold">Export data for Go Dashwise</h2>
-        <p>Download your account data as a private migration archive. It includes integration and monitor secrets so Go Dashwise can re-encrypt them during import. Keep the file private and delete it after migration.</p>
-        <Button onClick={() => setExportOpen(true)} disabled={loading} className="w-min ml-auto">Export data</Button>
+        <h2 className="text-xl font-semibold">export data for go dashwise</h2>
+        <p>Download your account data as a private migration archive. It includes integration and monitor secrets so go dashwise can re-encrypt them during import. Keep the file private and delete it after migration.</p>
+        <Button onClick={() => setExportOpen(true)} disabled={loading} className="w-min ml-auto">export data</Button>
       </Card>
       {exportOpen && <div role="dialog" aria-modal="true" aria-labelledby="export-title" className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
         <Card className="frosted max-w-lg space-y-3 p-4 text-foreground">
-          <h2 id="export-title" className="text-xl font-semibold">Download migration archive?</h2>
-          <p>The archive contains your Dashwise data and private integration credentials. Anyone with the file can access those values until Go Dashwise imports and re-encrypts them.</p>
-          <div className="flex justify-end gap-2"><Button variant="ghost" onClick={() => setExportOpen(false)} disabled={loading}>Cancel</Button><Button onClick={downloadArchive} disabled={loading}>{loading ? "Preparing archive…" : "Download archive"}</Button></div>
+          <h2 id="export-title" className="text-xl font-semibold">download migration archive?</h2>
+          <p>the archive contains your dashwise data and private integration credentials. anyone with the file can access those values until go dashwise imports and re-encrypts them.</p>
+          <div className="flex justify-end gap-2"><Button variant="ghost" onClick={() => setExportOpen(false)} disabled={loading}>cancel</Button><Button onClick={downloadArchive} disabled={loading}>{loading ? "preparing archive…" : "download archive"}</Button></div>
         </Card>
       </div>}
       <Card className="frosted p-2 text-foreground">
