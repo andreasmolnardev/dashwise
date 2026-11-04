@@ -98,7 +98,19 @@ func SyncYAMLResources(ctx context.Context, owner string, source *integrations.S
 				}
 				continue
 			}
-			rows, ok := asSlice(endpoint.MappedResponse)
+			mapped := endpoint.MappedResponse
+			if collection.itemsPath != "" {
+				var found bool
+				mapped, found = yamlPath(mapped, collection.itemsPath)
+				if !found {
+					integrationFailed = true
+					if firstErr == nil {
+						firstErr = fmt.Errorf("YAML resource collection %q items_path %q was not found", collection.id, collection.itemsPath)
+					}
+					continue
+				}
+			}
+			rows, ok := asSlice(mapped)
 			if !ok {
 				integrationFailed = true
 				if firstErr == nil {
@@ -258,9 +270,9 @@ type yamlResourceField struct {
 }
 
 type yamlResourceCollection struct {
-	id, endpoint, idPath, namePath string
-	fields                         []yamlResourceField
-	capabilities                   []string
+	id, endpoint, itemsPath, idPath, namePath string
+	fields                                    []yamlResourceField
+	capabilities                              []string
 }
 
 func yamlResourceCollections(config map[string]any) ([]yamlResourceCollection, error) {
@@ -281,7 +293,11 @@ func yamlResourceCollections(config map[string]any) ([]yamlResourceCollection, e
 		if endpoint == "" || idPath == "" {
 			return nil, fmt.Errorf("resource collection %q requires endpoint and id_path", id)
 		}
-		collection := yamlResourceCollection{id: id, endpoint: endpoint, idPath: idPath, namePath: strings.TrimSpace(stringValue(value["name_path"]))}
+		collection := yamlResourceCollection{
+			id: id, endpoint: endpoint,
+			itemsPath: strings.TrimSpace(stringValue(value["items_path"])),
+			idPath:    idPath, namePath: strings.TrimSpace(stringValue(value["name_path"])),
+		}
 		for _, rawField := range asArray(value["fields"]) {
 			field := object(rawField)
 			name := strings.TrimSpace(stringValue(field["name"]))

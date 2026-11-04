@@ -79,9 +79,10 @@ configuration:
         type: json
         data_path: "items"
       discard_unmapped: true
+      cache_ttl: 30s
       response_mapping:
         systems:
-          iterate: "items"
+          iterate: "."
           mappingProperties:
             id: "id"
             name: "name"
@@ -153,6 +154,47 @@ configuration:
               operation: nth_from_end
               field: "stats.la[0]"
               offset: 480
+
+  resources:
+    systems:
+      endpoint: fetch-systems
+      items_path: systems
+      id_path: id
+      name_path: name
+      capabilities: [list, detail, search, monitoring]
+      fields:
+        - name: status
+          type: string
+          source: info.status
+          filterable: true
+        - name: hostname
+          type: string
+          source: info.hostname
+          searchable: true
+        - name: cpuUsagePercent
+          type: number
+          source: usage.cpu_usage_percent
+          filterable: true
+        - name: memoryUsagePercent
+          type: number
+          source: usage.memory_usage_percent
+          filterable: true
+        - name: diskUsagePercent
+          type: number
+          source: usage.disk_usage_percent
+          filterable: true
+        - name: info
+          type: object
+          source: info
+        - name: usage
+          type: object
+          source: usage
+        - name: load
+          type: object
+          source: load
+        - name: network
+          type: object
+          source: network
 
   computed:
     systems:

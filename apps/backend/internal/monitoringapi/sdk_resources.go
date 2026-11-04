@@ -4,12 +4,13 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/andreasmolnardev/dashwise/apps/backend/internal/integrations"
 	"github.com/andreasmolnardev/dashwise/apps/backend/internal/resources"
 )
 
 // sdkMonitoringResources returns SDK resources explicitly marked for
-// monitoring. It mirrors the retained monitoring settings API while reading
-// from the normalized owner-scoped resource store.
+// monitoring and retained Beszel YAML system resources. It mirrors the
+// monitoring UI contract while reading from the normalized owner-scoped store.
 func (h *Handler) sdkMonitoringResources(w http.ResponseWriter, r *http.Request) {
 	owner, ok := h.owner(w, r)
 	if !ok {
@@ -27,13 +28,26 @@ func (h *Handler) sdkMonitoringResources(w http.ResponseWriter, r *http.Request)
 	byID := make(map[string]struct {
 		name   string
 		source string
+		kind   string
+		icon   string
 	}, len(instances))
 	for _, instance := range instances {
 		if instance.Type == "sdk" {
 			byID[instance.ID] = struct {
 				name   string
 				source string
-			}{name: instance.Name, source: instance.Source}
+				kind   string
+				icon   string
+			}{name: instance.Name, source: instance.Source, kind: "sdk"}
+		} else if isBeszelIntegration(instance) {
+			details, _ := instance.Config["details"].(map[string]any)
+			icon, _ := details["icon"].(string)
+			byID[instance.ID] = struct {
+				name   string
+				source string
+				kind   string
+				icon   string
+			}{name: instance.Name, source: instance.Source, kind: "yaml", icon: icon}
 		}
 	}
 	types, err := h.registry.List(r.Context())
@@ -84,7 +98,62 @@ func (h *Handler) sdkMonitoringResources(w http.ResponseWriter, r *http.Request)
 			}
 		}
 	}
+	// Beszel remains a YAML integration. Its declared systems collection is
+	// exposed through the same monitoring resource UI as SDK providers.
+	for _, definition := range types {
+		if !strings.HasPrefix(definition.Type, "integration.beszel.") || !containsExact(definition.Capabilities, "monitoring") {
+			continue
+		}
+		for offset := 0; ; offset += 200 {
+			page, err := h.sdkResources.Query(r.Context(), resources.Query{
+				OwnerID: owner, Types: []string{definition.Type}, Provider: "yaml",
+				Capabilities: []string{"monitoring"}, Limit: 200, Offset: offset,
+			})
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, "could not load Beszel monitoring resources")
+				return
+			}
+			for _, item := range page.Items {
+				instance, exists := byID[item.ProviderInstanceID]
+				if !exists || instance.kind != "yaml" {
+					continue
+				}
+				name, _ := item.Data["name"].(string)
+				if name == "" {
+					name = item.ProviderResourceID
+				}
+				status, _ := item.Data["status"].(string)
+				state := "offline"
+				if strings.EqualFold(status, "up") {
+					state = "online"
+				}
+				attributes := map[string]any{}
+				for _, field := range []string{"info", "usage", "load", "network"} {
+					if value, found := item.Data[field]; found {
+						attributes[field] = value
+					}
+				}
+				result = append(result, map[string]any{
+					"id": item.ProviderResourceID, "name": name, "icon": instance.icon,
+					"state": state, "attributes": attributes,
+					"instanceId": item.ProviderInstanceID, "instanceName": instance.name,
+					"source": instance.source, "collectionId": strings.TrimPrefix(definition.Type, "integration.beszel."),
+					"capabilities": item.Capabilities, "updatedAt": item.UpdatedAt,
+				})
+			}
+			if len(page.Items) < 200 {
+				break
+			}
+		}
+	}
 	writeJSON(w, http.StatusOK, map[string]any{"resources": result})
+}
+
+func isBeszelIntegration(instance integrations.Integration) bool {
+	details, _ := instance.Config["details"].(map[string]any)
+	name, _ := details["name"].(string)
+	slug, _ := details["slug"].(string)
+	return strings.EqualFold(strings.TrimSpace(name), "Beszel") || strings.EqualFold(strings.TrimSpace(slug), "beszel") || strings.HasSuffix(strings.ToLower(instance.Source), "/beszel.yaml")
 }
 
 func containsExact(values []string, target string) bool {
