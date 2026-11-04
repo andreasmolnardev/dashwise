@@ -3606,6 +3606,15 @@
 						}
 					},
 					{
+						"name": "sort",
+						"in": "query",
+						"description": "JSON-encoded array of ResourceSort values",
+						"schema": {
+							"type": "string",
+							"maxLength": 2048
+						}
+					},
+					{
 						"name": "orderBy",
 						"in": "query",
 						"schema": {
@@ -4208,6 +4217,28 @@
 					"value": {}
 				}
 			},
+			"ResourceSort": {
+				"type": "object",
+				"additionalProperties": false,
+				"required": [
+					"field",
+					"direction"
+				],
+				"properties": {
+					"field": {
+						"type": "string",
+						"minLength": 1,
+						"maxLength": 128
+					},
+					"direction": {
+						"type": "string",
+						"enum": [
+							"asc",
+							"desc"
+						]
+					}
+				}
+			},
 			"ResourceQuery": {
 				"type": "object",
 				"additionalProperties": false,
@@ -4239,6 +4270,13 @@
 					"search": {
 						"type": "string",
 						"maxLength": 256
+					},
+					"sort": {
+						"type": "array",
+						"items": {
+							"$ref": "#/components/schemas/ResourceSort"
+						},
+						"maxItems": 4
 					},
 					"orderBy": {
 						"type": "string",

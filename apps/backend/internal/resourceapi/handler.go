@@ -201,6 +201,17 @@ func parseQuery(values url.Values) (resources.Query, error) {
 			return resources.Query{}, errors.New("too many resource filters")
 		}
 	}
+	if raw := values.Get("sort"); raw != "" {
+		if len(raw) > 2048 {
+			return resources.Query{}, errors.New("sort query is too large")
+		}
+		if err := json.Unmarshal([]byte(raw), &query.Sort); err != nil {
+			return resources.Query{}, errors.New("sort must be a JSON array")
+		}
+		if len(query.Sort) > 4 {
+			return resources.Query{}, errors.New("sort supports at most four fields")
+		}
+	}
 	if len(query.Search) > 256 || len(query.Provider) > 128 || len(query.InstanceID) > 256 {
 		return resources.Query{}, errors.New("resource query parameter is too long")
 	}

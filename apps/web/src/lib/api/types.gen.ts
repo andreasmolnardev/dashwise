@@ -56,6 +56,11 @@ export type ResourceFilter = {
     value?: unknown;
 };
 
+export type ResourceSort = {
+    field: string;
+    direction: 'asc' | 'desc';
+};
+
 export type ResourceQuery = {
     types?: Array<string>;
     provider?: string;
@@ -63,6 +68,7 @@ export type ResourceQuery = {
     capabilities?: Array<string>;
     filters?: Array<ResourceFilter>;
     search?: string;
+    sort?: Array<ResourceSort>;
     orderBy?: 'updatedAt' | 'createdAt' | 'type' | 'publishedAt';
     limit?: number;
     offset?: number;
@@ -3331,6 +3337,10 @@ export type GetResourcesData = {
          */
         filters?: string;
         search?: string;
+        /**
+         * JSON-encoded array of ResourceSort values
+         */
+        sort?: string;
         orderBy?: 'updatedAt' | 'createdAt' | 'type' | 'publishedAt';
         limit?: number;
         offset?: number;

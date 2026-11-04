@@ -3980,6 +3980,8 @@ export interface paths {
                     /** @description JSON-encoded array of ResourceFilter values */
                     filters?: string;
                     search?: string;
+                    /** @description JSON-encoded array of ResourceSort values */
+                    sort?: string;
                     orderBy?: "updatedAt" | "createdAt" | "type" | "publishedAt";
                     limit?: number;
                     offset?: number;
@@ -4365,6 +4367,11 @@ export interface components {
             operator: "eq" | "neq" | "gt" | "gte" | "lt" | "lte" | "contains" | "containsAny" | "exists";
             value?: unknown;
         };
+        ResourceSort: {
+            field: string;
+            /** @enum {string} */
+            direction: "asc" | "desc";
+        };
         ResourceQuery: {
             types?: string[];
             provider?: string;
@@ -4372,6 +4379,7 @@ export interface components {
             capabilities?: string[];
             filters?: components["schemas"]["ResourceFilter"][];
             search?: string;
+            sort?: components["schemas"]["ResourceSort"][];
             /** @enum {string} */
             orderBy?: "updatedAt" | "createdAt" | "type" | "publishedAt";
             limit?: number;

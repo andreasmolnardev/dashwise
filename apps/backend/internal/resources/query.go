@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 )
 
 // Filter is a constrained predicate over a declared, filterable top-level
@@ -15,18 +16,25 @@ type Filter struct {
 	Value    any    `json:"value,omitempty"`
 }
 
+// SortField orders resources by a resource metadata or declared data field.
+type SortField struct {
+	Field     string `json:"field"`
+	Direction string `json:"direction"`
+}
+
 // Query supports owner-scoped resource selection with bounded pagination.
 type Query struct {
-	OwnerID      string   `json:"ownerId"`
-	Types        []string `json:"types,omitempty"`
-	Provider     string   `json:"provider,omitempty"`
-	InstanceID   string   `json:"providerInstanceId,omitempty"`
-	Capabilities []string `json:"capabilities,omitempty"`
-	Filters      []Filter `json:"filters,omitempty"`
-	Search       string   `json:"search,omitempty"`
-	OrderBy      string   `json:"orderBy,omitempty"`
-	Limit        int      `json:"limit,omitempty"`
-	Offset       int      `json:"offset,omitempty"`
+	OwnerID      string      `json:"ownerId"`
+	Types        []string    `json:"types,omitempty"`
+	Provider     string      `json:"provider,omitempty"`
+	InstanceID   string      `json:"providerInstanceId,omitempty"`
+	Capabilities []string    `json:"capabilities,omitempty"`
+	Filters      []Filter    `json:"filters,omitempty"`
+	Search       string      `json:"search,omitempty"`
+	Sort         []SortField `json:"sort,omitempty"`
+	OrderBy      string      `json:"orderBy,omitempty"`
+	Limit        int         `json:"limit,omitempty"`
+	Offset       int         `json:"offset,omitempty"`
 }
 
 type Page struct {
@@ -40,7 +48,7 @@ func (s *Store) compileQuery(ctx context.Context, query Query) (string, []any, e
 	if query.OwnerID == "" {
 		return "", nil, errors.New("owner scope is required")
 	}
-	if len(query.Types) > 50 || len(query.Filters) > 20 || len(query.Capabilities) > 32 {
+	if len(query.Types) > 50 || len(query.Filters) > 20 || len(query.Capabilities) > 32 || len(query.Sort) > 4 {
 		return "", nil, errors.New("resource query has too many types, filters, or capabilities")
 	}
 	if len(query.Search) > 256 {
@@ -161,6 +169,61 @@ func (s *Store) compileQuery(ctx context.Context, query Query) (string, []any, e
 		conditions = append(conditions, "("+join(typeSearch, " OR ")+")")
 	}
 	return " WHERE " + join(conditions, " AND "), args, nil
+}
+
+func compileSort(ctx context.Context, registry *Registry, query Query) (string, error) {
+	if len(query.Sort) == 0 {
+		orderBy := "updated_at DESC, id ASC"
+		switch query.OrderBy {
+		case "createdAt":
+			orderBy = "created_at DESC, id ASC"
+		case "type":
+			orderBy = "type ASC, id ASC"
+		case "publishedAt":
+			if len(query.Types) != 1 || query.Types[0] != "news.article" {
+				return "", errors.New("orderBy publishedAt is supported only for news.article")
+			}
+			orderBy = "json_extract(data_json, '$.publishedAt') DESC, id ASC"
+		case "updatedAt", "":
+		default:
+			return "", errors.New("orderBy must be updatedAt, createdAt, type, or publishedAt for news.article")
+		}
+		return orderBy, nil
+	}
+	if query.OrderBy != "" {
+		return "", errors.New("use either sort or orderBy, not both")
+	}
+	parts := make([]string, 0, len(query.Sort)+1)
+	for _, item := range query.Sort {
+		direction := strings.ToUpper(item.Direction)
+		if direction != "ASC" && direction != "DESC" {
+			return "", errors.New("sort direction must be asc or desc")
+		}
+		var expression string
+		switch item.Field {
+		case "createdAt":
+			expression = "created_at"
+		case "updatedAt":
+			expression = "updated_at"
+		case "type":
+			expression = "type"
+		default:
+			if len(query.Types) != 1 {
+				return "", errors.New("sorting by a resource data field requires exactly one resource type")
+			}
+			definition, err := registry.Get(ctx, query.Types[0])
+			if err != nil {
+				return "", err
+			}
+			if _, exists := definition.field(item.Field); !exists || !fieldPattern.MatchString(item.Field) {
+				return "", fmt.Errorf("field %q is not declared on resource type %q", item.Field, query.Types[0])
+			}
+			expression = "json_extract(data_json, '$." + item.Field + "')"
+		}
+		parts = append(parts, expression+" "+direction)
+	}
+	parts = append(parts, "id ASC")
+	return join(parts, ", "), nil
 }
 
 func compileFilter(fieldDefinition FieldDefinition, filter Filter) (string, []any, error) {

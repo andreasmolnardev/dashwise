@@ -22,6 +22,8 @@ export type ViewFilter = {
   value?: unknown;
 };
 
+export type ViewSort = { field: string; direction: "asc" | "desc" };
+
 export type ViewResourceQuery = {
   types: string[];
   provider: string;
@@ -29,7 +31,8 @@ export type ViewResourceQuery = {
   capabilities: string[];
   filters: ViewFilter[];
   search: string;
-  orderBy: "updatedAt" | "createdAt" | "type" | "publishedAt";
+  sort?: ViewSort[];
+  orderBy?: "updatedAt" | "createdAt" | "type" | "publishedAt";
   limit: number;
   offset: number;
 };
@@ -85,6 +88,7 @@ export async function queryResourcesAction(
   if (query.providerInstanceId) url.searchParams.set("providerInstanceId", query.providerInstanceId);
   if (query.filters.length) url.searchParams.set("filters", JSON.stringify(query.filters));
   if (query.search) url.searchParams.set("search", query.search);
+  if (query.sort?.length) url.searchParams.set("sort", JSON.stringify(query.sort));
   if (query.orderBy) url.searchParams.set("orderBy", query.orderBy);
   url.searchParams.set("limit", String(query.limit));
   url.searchParams.set("offset", String(query.offset));

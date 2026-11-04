@@ -42,7 +42,8 @@ type ViewForm = {
   providerInstanceId: string;
   capabilitiesCsv: string;
   search: string;
-  orderBy: "updatedAt" | "createdAt" | "type" | "publishedAt";
+  sortField: string;
+  sortDirection: "asc" | "desc";
   limit: string;
   offset: string;
   filters: FilterDraft[];
@@ -58,7 +59,8 @@ function emptyForm(): ViewForm {
     providerInstanceId: "",
     capabilitiesCsv: "",
     search: "",
-    orderBy: "updatedAt",
+    sortField: "updatedAt",
+    sortDirection: "desc",
     limit: "",
     offset: "",
     filters: [],
@@ -94,7 +96,8 @@ function viewToForm(view: ViewRecord | null | undefined): ViewForm {
     providerInstanceId: query?.providerInstanceId ?? "",
     capabilitiesCsv: (query?.capabilities ?? []).join(", "),
     search: query?.search ?? "",
-    orderBy: query?.orderBy ?? "updatedAt",
+    sortField: query?.sort?.[0]?.field ?? query?.orderBy ?? "updatedAt",
+    sortDirection: query?.sort?.[0]?.direction ?? (query?.orderBy === "type" ? "asc" : "desc"),
     limit: query?.limit ? String(query.limit) : "",
     offset: query?.offset ? String(query.offset) : "",
     filters: filterListToDrafts(query?.filters),
@@ -142,7 +145,9 @@ function formToDefinition(form: ViewForm): ViewResourceQuery | { error: string }
   }
   if (filters.length) query.filters = filters;
   if (form.search.trim()) query.search = form.search.trim();
-  query.orderBy = form.orderBy;
+  if (form.sortField.trim()) {
+    query.sort = [{ field: form.sortField.trim(), direction: form.sortDirection }];
+  }
   const limit = Number(form.limit);
   if (form.limit.trim() && Number.isFinite(limit) && limit > 0) query.limit = Math.floor(limit);
   const offset = Number(form.offset);
@@ -287,14 +292,21 @@ export default function ViewDialog({
               />
             </div>
             <div className="space-y-1.5">
-              <Label>order by</Label>
-              <Select value={form.orderBy} onValueChange={(value) => update({ orderBy: value as ViewForm["orderBy"] })}>
+              <Label htmlFor="view-sort-field">sort field</Label>
+              <Input
+                id="view-sort-field"
+                value={form.sortField}
+                onChange={(event) => update({ sortField: event.target.value })}
+                placeholder="createdAt"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>direction</Label>
+              <Select value={form.sortDirection} onValueChange={(value) => update({ sortDirection: value as ViewForm["sortDirection"] })}>
                 <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
                 <SelectContent className="frosted bg-black/70 text-foreground">
-                  <SelectItem value="updatedAt">updatedAt</SelectItem>
-                  <SelectItem value="createdAt">createdAt</SelectItem>
-                  <SelectItem value="type">type</SelectItem>
-                  <SelectItem value="publishedAt">publishedAt</SelectItem>
+                  <SelectItem value="asc">ascending</SelectItem>
+                  <SelectItem value="desc">descending</SelectItem>
                 </SelectContent>
               </Select>
             </div>
