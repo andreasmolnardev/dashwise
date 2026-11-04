@@ -143,9 +143,16 @@ function formToDefinition(form: ViewForm): ViewResourceQuery | { error: string }
         : raw,
     });
   }
+  if (filters.length > 0 && types.length !== 1) {
+    return { error: "field filters require exactly one resource type" };
+  }
   if (filters.length) query.filters = filters;
   if (form.search.trim()) query.search = form.search.trim();
   if (form.sortField.trim()) {
+    const resourceFieldSort = !["createdAt", "updatedAt", "type"].includes(form.sortField.trim());
+    if (resourceFieldSort && types.length !== 1) {
+      return { error: "sorting by a resource data field requires exactly one resource type" };
+    }
     query.sort = [{ field: form.sortField.trim(), direction: form.sortDirection }];
   }
   const limit = Number(form.limit);
