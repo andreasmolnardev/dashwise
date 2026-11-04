@@ -82,7 +82,7 @@ func New(options Options) (*Runner, error) {
 // application shuts down. Errors are logged per cycle; transient feed/network
 // failures do not stop unrelated owners or future refreshes.
 func (r *Runner) Run(ctx context.Context) error {
-	workers := 3
+	workers := 4
 	done := make(chan struct{}, workers)
 	go func() {
 		defer func() { done <- struct{}{} }()
@@ -95,6 +95,10 @@ func (r *Runner) Run(ctx context.Context) error {
 	go func() {
 		defer func() { done <- struct{}{} }()
 		r.runLoop(ctx, "HTTP monitor checks", r.monitorInterval, r.runMonitorChecks)
+	}()
+	go func() {
+		defer func() { done <- struct{}{} }()
+		r.runLoop(ctx, "builtin activity providers", time.Minute, r.runBuiltinActivityProviders)
 	}()
 	<-ctx.Done()
 	for i := 0; i < workers; i++ {
