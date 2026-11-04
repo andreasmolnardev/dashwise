@@ -423,7 +423,7 @@ export async function signupUserAction(payload: { _name?: string; email: string;
 }
 
 export async function validateAuthTokenAction(auth: ActionAuth): Promise<ValidateAuthTokenSuccess> {
-  return extractData(await postAuthValidateAuth({ body: auth, headers: authHeaders(auth) }));
+  return extractData(await postAuthValidateAuth({ body: auth, headers: authHeaders(auth) })) as unknown as ValidateAuthTokenSuccess;
 }
 
 export async function deleteAccountAction(auth: ActionAuth, payload: { email: string; password: string; totp?: string }) {
@@ -431,7 +431,11 @@ export async function deleteAccountAction(auth: ActionAuth, payload: { email: st
 }
 
 export async function startAccountReauthenticationAction(auth: ActionAuth): Promise<string> {
-  const result = extractData(await postAuthSsoReauth({ headers: authHeaders(auth) })) as { url?: unknown };
+  const sessionId = auth.sessionId?.trim();
+  if (!sessionId) throw new Error("An active session is required for SSO reauthentication");
+  const result = extractData(await postAuthSsoReauth({
+    headers: { ...(authHeaders(auth) ?? {}), "X-Session-Id": sessionId },
+  })) as { url?: unknown };
   if (typeof result?.url !== "string") throw new Error("Could not start SSO reauthentication");
   return result.url;
 }
@@ -731,7 +735,7 @@ export async function updateMonitoringStatusAction(auth: ActionAuth, body: any) 
 }
 
 export async function getMonitorsAction(auth: ActionAuth): Promise<MonitorRecord[]> {
-  return extractData(await getMonitors({ headers: authHeaders(auth) })) as Promise<MonitorRecord[]>;
+  return extractData(await getMonitors({ headers: authHeaders(auth) })) as unknown as MonitorRecord[];
 }
 
 export async function getMonitorAction(auth: ActionAuth, monitorId: string): Promise<MonitorRecord | null> {
@@ -747,11 +751,11 @@ export async function createMonitorAction(auth: ActionAuth, data: { resourceType
 }
 
 export async function deleteMonitorAction(auth: ActionAuth, monitorId: string): Promise<void> {
-  return extractData(await deleteMonitorsById({ path: { id: monitorId }, headers: authHeaders(auth) }));
+  await deleteMonitorsById({ path: { id: monitorId }, headers: authHeaders(auth) });
 }
 
 export async function getMonitoringHostsAction(auth: ActionAuth): Promise<MonitoringHostRecord[]> {
-  return extractData(await getMonitoringHosts({ headers: authHeaders(auth) })) as Promise<MonitoringHostRecord[]>;
+  return extractData(await getMonitoringHosts({ headers: authHeaders(auth) })) as unknown as MonitoringHostRecord[];
 }
 
 export async function createMonitoringHostAction(auth: ActionAuth, data: MonitoringHostInput): Promise<MonitoringHostRecord> {
@@ -905,7 +909,7 @@ export async function getPageConfigAction(auth: ActionAuth, pageName: string | u
 }
 
 export async function getUserPagesAction(auth: ActionAuth): Promise<Array<{ pageName: string }>> {
-  return extractData(await getPageConfigUserPages({ headers: authHeaders(auth) })) as Promise<Array<{ pageName: string }>>;
+  return extractData(await getPageConfigUserPages({ headers: authHeaders(auth) })) as unknown as Array<{ pageName: string }>;
 }
 
 export async function updatePageConfigAction(auth: ActionAuth, pageName: string | undefined, config: PageConfig): Promise<unknown> {
@@ -1011,7 +1015,7 @@ export async function uploadWallpaperAction(auth: ActionAuth, formData: FormData
 
   return extractData(await postWallpapers({
     body: {
-      auth: { token: auth.token },
+      auth: { token: auth.token ?? undefined },
       fileName,
       mimeType: image.type || undefined,
       contentBase64: await fileToBase64(image),

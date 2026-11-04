@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/select";
 import {
   buildEndpointAuthPayload,
+  buildResponseUpFilter,
   parseEndpointAuth,
   parseResponseFilter,
   type EndpointAuthMode,

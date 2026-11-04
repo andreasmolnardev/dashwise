@@ -1,5 +1,5 @@
 import { authHeaders, backendUrl } from "@/lib/apiClient";
-import type { ActionAuth } from "@/lib/apiClient";
+import type { ActionAuth } from "@dashwise/types/sdk";
 
 type ResourceResult = {
   id?: string;

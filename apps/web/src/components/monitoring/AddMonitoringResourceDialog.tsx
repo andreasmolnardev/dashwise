@@ -36,6 +36,7 @@ import { cn } from "@/lib/utils";
 import {
   buildEndpointAuthPayload,
   buildResponseUpFilter,
+  type EndpointAuthMode,
 } from "./monitoringFormUtils";
 
 type LinkCollection = {
@@ -134,7 +135,7 @@ export default function AddMonitoringResourceDialog({ open, onOpenChange, onCrea
   const [method, setMethod] = useState("GET");
   const [expectedStatusCodes, setExpectedStatusCodes] = useState("200-299");
   const [expectedResponseBody, setExpectedResponseBody] = useState("");
-  const [endpointAuthMode, setEndpointAuthMode] = useState("none");
+  const [endpointAuthMode, setEndpointAuthMode] = useState<EndpointAuthMode>("none");
   const [basicUsername, setBasicUsername] = useState("");
   const [basicPassword, setBasicPassword] = useState("");
   const [bearerToken, setBearerToken] = useState("");
@@ -379,7 +380,11 @@ export default function AddMonitoringResourceDialog({ open, onOpenChange, onCrea
 
             <div className="space-y-2">
               <Label>Endpoint Auth</Label>
-              <Select value={endpointAuthMode} onValueChange={setEndpointAuthMode}>
+              <Select value={endpointAuthMode} onValueChange={(value) => {
+                if (value === "none" || value === "basic" || value === "bearer" || value === "header") {
+                  setEndpointAuthMode(value);
+                }
+              }}>
                 <SelectTrigger className="border-white/10 bg-white/5 text-white">
                   <SelectValue placeholder="Select auth" />
                 </SelectTrigger>
