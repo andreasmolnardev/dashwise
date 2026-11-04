@@ -429,7 +429,7 @@ export default function ActivitiesSettings() {
                         <Switch
                           id={`activity-enabled-${definition.id}`}
                           checked={definition.enabled}
-                          disabled={isSaving}
+                          disabled={isSaving || Boolean(definition.availabilityReason)}
                           aria-label={`Enable ${definition.title}`}
                           onCheckedChange={(enabled) => void saveDefinition(definition.id, { enabled })}
                         />
@@ -450,13 +450,13 @@ export default function ActivitiesSettings() {
                             if (field.type === "boolean") {
                               return <div key={field.key} className="flex items-center justify-between gap-3 rounded-md border border-white/10 px-3 py-2">
                                 <div><Label htmlFor={fieldId}>{field.label}</Label>{field.description && <p className="text-xs text-white/60">{field.description}</p>}</div>
-                                <Switch id={fieldId} checked={Boolean(value)} disabled={isSaving} onCheckedChange={(next) => updateDraft(definition, field.key, next)} />
+                                <Switch id={fieldId} checked={Boolean(value)} disabled={isSaving || Boolean(definition.availabilityReason)} onCheckedChange={(next) => updateDraft(definition, field.key, next)} />
                               </div>;
                             }
                             if (field.type === "select") {
                               return <div key={field.key} className="space-y-1">
                                 <Label htmlFor={fieldId}>{field.label}</Label>
-                                <select id={fieldId} className="h-9 w-full rounded-md border border-white/20 bg-black/20 px-3 text-sm" value={String(value ?? "")} disabled={isSaving} onChange={(event) => updateDraft(definition, field.key, event.target.value)}>
+                                <select id={fieldId} className="h-9 w-full rounded-md border border-white/20 bg-black/20 px-3 text-sm" value={String(value ?? "")} disabled={isSaving || Boolean(definition.availabilityReason)} onChange={(event) => updateDraft(definition, field.key, event.target.value)}>
                                   {field.options?.map((option) => <option key={String(option.value)} value={String(option.value)}>{option.label}</option>)}
                                 </select>
                                 {field.description && <p className="text-xs text-white/60">{field.description}</p>}
@@ -471,7 +471,7 @@ export default function ActivitiesSettings() {
                                     const topic = String(option.value);
                                     const checked = selected.includes(topic);
                                     return <label key={topic} className={`flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm ${checked ? "border-primary/50 bg-primary/10" : "border-white/10"}`}>
-                                      <input type="checkbox" checked={checked} onChange={() => updateDraft(definition, field.key, checked ? selected.filter((item) => item !== topic) : [...selected, topic])} />
+                                      <input type="checkbox" checked={checked} disabled={isSaving || Boolean(definition.availabilityReason)} onChange={() => updateDraft(definition, field.key, checked ? selected.filter((item) => item !== topic) : [...selected, topic])} />
                                       {option.label}
                                     </label>;
                                   })}
@@ -488,7 +488,7 @@ export default function ActivitiesSettings() {
                                 max={field.max}
                                 step={field.step}
                                 value={String(value ?? "")}
-                                disabled={isSaving}
+                                disabled={isSaving || Boolean(definition.availabilityReason)}
                                 onChange={(event) => updateDraft(definition, field.key, field.type === "number" ? Number(event.target.value) : event.target.value)}
                               />
                               {field.description && <p className="text-xs text-white/60">{field.description}</p>}
@@ -496,7 +496,7 @@ export default function ActivitiesSettings() {
                           })}
                         </div>
                         <div className="mt-3 flex justify-end">
-                          <Button type="button" size="sm" variant="secondary" disabled={isSaving || !drafts[definition.id]} onClick={() => void saveDefinition(definition.id, { config: values })}>
+                          <Button type="button" size="sm" variant="secondary" disabled={isSaving || Boolean(definition.availabilityReason) || !drafts[definition.id]} onClick={() => void saveDefinition(definition.id, { config: values })}>
                             {isSaving ? <><Icon icon="fa6-solid:spinner" className="mr-2 animate-spin" />Saving…</> : "Save settings"}
                           </Button>
                         </div>

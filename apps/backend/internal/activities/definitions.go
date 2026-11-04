@@ -120,8 +120,9 @@ func ListDefinitionViews(ctx context.Context, store *Store, owner string, topicS
 		for key, value := range settings.Config[definition.ID] {
 			config[key] = value
 		}
+		availabilityReason := builtinAvailabilityReason(definition.ID)
 		fields := withTopicOptions(definition.Fields, topics)
-		views = append(views, ActivityDefinitionView{ID: definition.ID, Title: definition.Title, Description: definition.Description, Source: "builtin", Enabled: settingEnabled(settings, definition.ID, true), Config: config, ConfigFields: fields})
+		views = append(views, ActivityDefinitionView{ID: definition.ID, Title: definition.Title, Description: definition.Description, Source: "builtin", Enabled: availabilityReason == "" && settingEnabled(settings, definition.ID, true), Config: config, ConfigFields: fields, AvailabilityReason: availabilityReason})
 	}
 	for _, condition := range settings.Conditions {
 		config, _ := jsonObject(condition)
@@ -259,6 +260,9 @@ func SaveDefinitionPreference(ctx context.Context, store *Store, topicStore *not
 		if !found {
 			return ActivityDefinitionView{}, ErrNotFound
 		}
+		if reason := builtinAvailabilityReason(definitionID); reason != "" {
+			return ActivityDefinitionView{}, fmt.Errorf("activity source is unavailable: %s", reason)
+		}
 		fields = builtin.Fields
 		if config != nil {
 			if err := validateConfigPatch(ctx, owner, topicStore, fields, config); err != nil {
@@ -293,6 +297,23 @@ func SaveDefinitionPreference(ctx context.Context, store *Store, topicStore *not
 		}
 	}
 	return ActivityDefinitionView{}, ErrNotFound
+}
+
+func builtinAvailabilityReason(id string) string {
+	switch id {
+	case "sun.events":
+		return "Unavailable because no solar event resource provider is configured."
+	case "weather.warnings":
+		return "Unavailable because configured weather resources do not expose warning events."
+	case "integrations.connection-failures":
+		return "Use an integration's SDK activity declaration for instance-specific connection failures."
+	case "jobs.issues":
+		return "Unavailable because background job lifecycle events are not exposed as Activities."
+	case "integrations.updates":
+		return "Unavailable because the integration catalog does not provide update metadata."
+	default:
+		return ""
+	}
 }
 
 func CreateResourceCondition(ctx context.Context, store *Store, topicStore *notifications.Store, resourceStore *resources.Store, registry *resources.Registry, owner, integrationSource string, input map[string]any, integrationStore *integrations.Store, retained []SDKManifest) (ActivityDefinitionView, error) {
