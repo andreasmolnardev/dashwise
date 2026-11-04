@@ -232,6 +232,125 @@
 						"$ref": "#/components/responses/JsonUnauthorized"
 					}
 				}
+			},
+			"post": {
+				"tags": [
+					"activities"
+				],
+				"summary": "Publish an activity event",
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"required": [
+									"type",
+									"title"
+								],
+								"properties": {
+									"type": {
+										"type": "string"
+									},
+									"title": {
+										"type": "string"
+									},
+									"description": {
+										"type": "string"
+									},
+									"severity": {
+										"type": "string",
+										"enum": [
+											"info",
+											"success",
+											"warning",
+											"error"
+										]
+									},
+									"eventId": {
+										"type": "string"
+									},
+									"idempotencyKey": {
+										"type": "string"
+									},
+									"occurredAt": {
+										"type": "string",
+										"format": "date-time"
+									},
+									"metadata": {
+										"type": "object",
+										"additionalProperties": true
+									},
+									"action": {
+										"type": "object",
+										"additionalProperties": true,
+										"nullable": true
+									}
+								}
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "Existing activity returned for an idempotent duplicate",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"required": [
+										"activity",
+										"duplicate"
+									],
+									"properties": {
+										"activity": {
+											"$ref": "#/components/schemas/Activity"
+										},
+										"duplicate": {
+											"type": "boolean"
+										}
+									}
+								}
+							}
+						}
+					},
+					"201": {
+						"description": "Activity created",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"required": [
+										"activity",
+										"duplicate"
+									],
+									"properties": {
+										"activity": {
+											"$ref": "#/components/schemas/Activity"
+										},
+										"duplicate": {
+											"type": "boolean"
+										}
+									}
+								}
+							}
+						}
+					},
+					"400": {
+						"$ref": "#/components/responses/JsonBadRequest"
+					},
+					"401": {
+						"$ref": "#/components/responses/JsonUnauthorized"
+					},
+					"429": {
+						"description": "Activity publish rate limit exceeded"
+					}
+				}
 			}
 		},
 		"/activities/definitions": {
@@ -2773,6 +2892,33 @@
 			}
 		},
 		"/links/collections/{collectionId}": {
+			"delete": {
+				"tags": [
+					"links"
+				],
+				"summary": "Delete a links collection",
+				"parameters": [
+					{
+						"name": "collectionId",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"$ref": "#/components/responses/JsonOk"
+					},
+					"401": {
+						"$ref": "#/components/responses/JsonUnauthorized"
+					},
+					"404": {
+						"$ref": "#/components/responses/JsonNotFound"
+					}
+				}
+			},
 			"put": {
 				"tags": [
 					"links"
@@ -2791,6 +2937,53 @@
 				"requestBody": {
 					"$ref": "#/components/requestBodies/JsonBody"
 				},
+				"responses": {
+					"200": {
+						"$ref": "#/components/responses/JsonOk"
+					}
+				}
+			}
+		},
+		"/links/folders/{folderId}": {
+			"put": {
+				"tags": [
+					"links"
+				],
+				"summary": "Update links folder",
+				"parameters": [
+					{
+						"name": "folderId",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"$ref": "#/components/requestBodies/JsonBody"
+				},
+				"responses": {
+					"200": {
+						"$ref": "#/components/responses/JsonOk"
+					}
+				}
+			},
+			"delete": {
+				"tags": [
+					"links"
+				],
+				"summary": "Delete links folder",
+				"parameters": [
+					{
+						"name": "folderId",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
 				"responses": {
 					"200": {
 						"$ref": "#/components/responses/JsonOk"
@@ -4131,6 +4324,922 @@
 					}
 				}
 			}
+		},
+		"/auth/me": {
+			"get": {
+				"tags": [
+					"auth"
+				],
+				"summary": "Get the authenticated account",
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Authenticated user",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"required": [
+										"user"
+									],
+									"properties": {
+										"user": {
+											"type": "object",
+											"additionalProperties": true
+										}
+									}
+								}
+							}
+						}
+					},
+					"401": {
+						"$ref": "#/components/responses/JsonUnauthorized"
+					}
+				}
+			}
+		},
+		"/auth/logout": {
+			"post": {
+				"tags": [
+					"auth"
+				],
+				"summary": "Revoke the current session",
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"responses": {
+					"204": {
+						"description": "Session revoked"
+					},
+					"401": {
+						"$ref": "#/components/responses/JsonUnauthorized"
+					}
+				}
+			}
+		},
+		"/auth/device-code": {
+			"get": {
+				"tags": [
+					"auth"
+				],
+				"summary": "Open a device authorization websocket",
+				"description": "Upgrade this request to a websocket. The server sends a short-lived code, secret, and request ID; the client must echo the secret and ID in an authenticate message.",
+				"responses": {
+					"101": {
+						"description": "Websocket connection established"
+					},
+					"400": {
+						"$ref": "#/components/responses/JsonBadRequest"
+					}
+				}
+			}
+		},
+		"/auth/device-code/lookup": {
+			"post": {
+				"tags": [
+					"auth"
+				],
+				"summary": "Look up a device login request",
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"required": [
+									"code"
+								],
+								"properties": {
+									"code": {
+										"type": "string"
+									}
+								}
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "Device login request summary",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"additionalProperties": true
+								}
+							}
+						}
+					},
+					"400": {
+						"$ref": "#/components/responses/JsonBadRequest"
+					},
+					"401": {
+						"$ref": "#/components/responses/JsonUnauthorized"
+					}
+				}
+			}
+		},
+		"/auth/device-code/approve": {
+			"post": {
+				"tags": [
+					"auth"
+				],
+				"summary": "Approve a device login request",
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"required": [
+									"code"
+								],
+								"properties": {
+									"code": {
+										"type": "string"
+									}
+								}
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"$ref": "#/components/responses/JsonOk"
+					},
+					"400": {
+						"$ref": "#/components/responses/JsonBadRequest"
+					},
+					"401": {
+						"$ref": "#/components/responses/JsonUnauthorized"
+					}
+				}
+			}
+		},
+		"/auth/device-code/cancel": {
+			"post": {
+				"tags": [
+					"auth"
+				],
+				"summary": "Cancel a device login request",
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"required": [
+									"code"
+								],
+								"properties": {
+									"code": {
+										"type": "string"
+									}
+								}
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"$ref": "#/components/responses/JsonOk"
+					},
+					"400": {
+						"$ref": "#/components/responses/JsonBadRequest"
+					},
+					"401": {
+						"$ref": "#/components/responses/JsonUnauthorized"
+					}
+				}
+			}
+		},
+		"/glanceables/glanceable": {
+			"get": {
+				"tags": [
+					"widgets"
+				],
+				"summary": "List glanceable consumer definitions",
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Built-in and integration-provided glanceables",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "array",
+									"items": {
+										"type": "object",
+										"additionalProperties": true
+									}
+								}
+							}
+						}
+					},
+					"401": {
+						"$ref": "#/components/responses/JsonUnauthorized"
+					}
+				}
+			}
+		},
+		"/integrations/preview-json": {
+			"post": {
+				"tags": [
+					"integrations"
+				],
+				"summary": "Fetch a JSON response for image or integration previews",
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"required": [
+									"url"
+								],
+								"properties": {
+									"url": {
+										"type": "string",
+										"format": "uri"
+									},
+									"invalidateAfter": {
+										"oneOf": [
+											{
+												"type": "integer",
+												"minimum": 0
+											},
+											{
+												"type": "string"
+											}
+										]
+									},
+									"invalidate_after": {
+										"oneOf": [
+											{
+												"type": "integer",
+												"minimum": 0
+											},
+											{
+												"type": "string"
+											}
+										]
+									}
+								}
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "Fetched JSON value",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"required": [
+										"body"
+									],
+									"properties": {
+										"body": {}
+									}
+								}
+							}
+						}
+					},
+					"400": {
+						"$ref": "#/components/responses/JsonBadRequest"
+					},
+					"401": {
+						"$ref": "#/components/responses/JsonUnauthorized"
+					},
+					"502": {
+						"description": "Preview target could not be fetched",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"required": [
+										"error"
+									],
+									"properties": {
+										"error": {
+											"type": "string"
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/links/rss": {
+			"get": {
+				"tags": [
+					"links"
+				],
+				"summary": "List RSS feeds configured for the account",
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Configured RSS feeds",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "array",
+									"items": {
+										"$ref": "#/components/schemas/LinkRSSFeed"
+									}
+								}
+							}
+						}
+					},
+					"401": {
+						"$ref": "#/components/responses/JsonUnauthorized"
+					}
+				}
+			},
+			"post": {
+				"tags": [
+					"links"
+				],
+				"summary": "Create an RSS feed for links",
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/LinkRSSFeedInput"
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "Created RSS feed",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/LinkRSSFeed"
+								}
+							}
+						}
+					},
+					"400": {
+						"$ref": "#/components/responses/JsonBadRequest"
+					},
+					"401": {
+						"$ref": "#/components/responses/JsonUnauthorized"
+					}
+				}
+			}
+		},
+		"/links/rss/{feedId}": {
+			"parameters": [
+				{
+					"name": "feedId",
+					"in": "path",
+					"required": true,
+					"schema": {
+						"type": "string"
+					}
+				}
+			],
+			"get": {
+				"tags": [
+					"links"
+				],
+				"summary": "Read a generated RSS feed",
+				"description": "A token query parameter may authorize feeds configured to require authentication.",
+				"parameters": [
+					{
+						"name": "token",
+						"in": "query",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "RSS 2.0 feed document",
+						"content": {
+							"application/rss+xml": {
+								"schema": {
+									"type": "string"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Authentication required for this feed"
+					}
+				}
+			},
+			"put": {
+				"tags": [
+					"links"
+				],
+				"summary": "Update an RSS feed",
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/LinkRSSFeedInput"
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "Updated RSS feed",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/LinkRSSFeed"
+								}
+							}
+						}
+					},
+					"400": {
+						"$ref": "#/components/responses/JsonBadRequest"
+					},
+					"401": {
+						"$ref": "#/components/responses/JsonUnauthorized"
+					},
+					"404": {
+						"$ref": "#/components/responses/JsonNotFound"
+					}
+				}
+			},
+			"delete": {
+				"tags": [
+					"links"
+				],
+				"summary": "Delete an RSS feed",
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Deleted RSS feed identifier",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"required": [
+										"id"
+									],
+									"properties": {
+										"id": {
+											"type": "string"
+										}
+									}
+								}
+							}
+						}
+					},
+					"401": {
+						"$ref": "#/components/responses/JsonUnauthorized"
+					},
+					"404": {
+						"$ref": "#/components/responses/JsonNotFound"
+					}
+				}
+			}
+		},
+		"/news/saved-articles": {
+			"get": {
+				"tags": [
+					"news"
+				],
+				"summary": "List saved articles and saved lists",
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "list",
+						"in": "query",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Saved articles and their lists",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"required": [
+										"articles",
+										"lists",
+										"defaultList"
+									],
+									"properties": {
+										"articles": {
+											"type": "array",
+											"items": {
+												"type": "object",
+												"additionalProperties": true
+											}
+										},
+										"lists": {
+											"type": "array",
+											"items": {
+												"type": "object",
+												"additionalProperties": true
+											}
+										},
+										"defaultList": {
+											"type": "string"
+										}
+									}
+								}
+							}
+						}
+					},
+					"401": {
+						"$ref": "#/components/responses/JsonUnauthorized"
+					}
+				}
+			},
+			"post": {
+				"tags": [
+					"news"
+				],
+				"summary": "Save a news article",
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"required": [
+									"article"
+								],
+								"properties": {
+									"article": {
+										"type": "object",
+										"additionalProperties": true
+									},
+									"list": {
+										"type": "string"
+									}
+								}
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "Saved article",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"additionalProperties": true
+								}
+							}
+						}
+					},
+					"400": {
+						"$ref": "#/components/responses/JsonBadRequest"
+					},
+					"401": {
+						"$ref": "#/components/responses/JsonUnauthorized"
+					}
+				}
+			},
+			"delete": {
+				"tags": [
+					"news"
+				],
+				"summary": "Remove a saved article by URL",
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"required": [
+									"link"
+								],
+								"properties": {
+									"link": {
+										"type": "string",
+										"format": "uri"
+									}
+								}
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"$ref": "#/components/responses/JsonOk"
+					},
+					"400": {
+						"$ref": "#/components/responses/JsonBadRequest"
+					},
+					"401": {
+						"$ref": "#/components/responses/JsonUnauthorized"
+					}
+				}
+			}
+		},
+		"/news/saved-articles/read": {
+			"patch": {
+				"tags": [
+					"news"
+				],
+				"summary": "Set a saved article's read state",
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"required": [
+									"link"
+								],
+								"properties": {
+									"link": {
+										"type": "string",
+										"format": "uri"
+									},
+									"isRead": {
+										"type": "boolean",
+										"default": true
+									}
+								}
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"$ref": "#/components/responses/JsonOk"
+					},
+					"400": {
+						"$ref": "#/components/responses/JsonBadRequest"
+					},
+					"401": {
+						"$ref": "#/components/responses/JsonUnauthorized"
+					}
+				}
+			}
+		},
+		"/news/saved-article-lists/{id}": {
+			"parameters": [
+				{
+					"$ref": "#/components/parameters/Id"
+				}
+			],
+			"patch": {
+				"tags": [
+					"news"
+				],
+				"summary": "Rename a saved article list",
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"required": [
+									"name"
+								],
+								"properties": {
+									"name": {
+										"type": "string"
+									}
+								}
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "Updated saved article list",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"additionalProperties": true
+								}
+							}
+						}
+					},
+					"400": {
+						"$ref": "#/components/responses/JsonBadRequest"
+					},
+					"401": {
+						"$ref": "#/components/responses/JsonUnauthorized"
+					},
+					"404": {
+						"$ref": "#/components/responses/JsonNotFound"
+					}
+				}
+			},
+			"delete": {
+				"tags": [
+					"news"
+				],
+				"summary": "Delete a saved article list",
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"responses": {
+					"200": {
+						"$ref": "#/components/responses/JsonOk"
+					},
+					"401": {
+						"$ref": "#/components/responses/JsonUnauthorized"
+					},
+					"404": {
+						"$ref": "#/components/responses/JsonNotFound"
+					}
+				}
+			}
+		},
+		"/shortcuts/{id}": {
+			"patch": {
+				"tags": [
+					"shortcuts"
+				],
+				"summary": "Update shortcut pinning, availability, or app assignment",
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"$ref": "#/components/parameters/Id"
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"isPinned": {
+										"type": "boolean"
+									},
+									"isDisabled": {
+										"type": "boolean"
+									},
+									"app": {
+										"type": "string",
+										"nullable": true
+									}
+								}
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"$ref": "#/components/responses/JsonOk"
+					},
+					"400": {
+						"$ref": "#/components/responses/JsonBadRequest"
+					},
+					"401": {
+						"$ref": "#/components/responses/JsonUnauthorized"
+					},
+					"404": {
+						"$ref": "#/components/responses/JsonNotFound"
+					}
+				}
+			}
+		},
+		"/monitoring/hosts/{id}/stats/live": {
+			"get": {
+				"tags": [
+					"monitoring"
+				],
+				"summary": "Stream live monitoring samples over a websocket",
+				"description": "Upgrade this request to receive host statistics as JSON messages every three seconds when the stored sample changes. A token query parameter is supported for browser websocket clients.",
+				"parameters": [
+					{
+						"$ref": "#/components/parameters/Id"
+					},
+					{
+						"name": "token",
+						"in": "query",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "sessionId",
+						"in": "query",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "since",
+						"in": "query",
+						"required": false,
+						"schema": {
+							"type": "string",
+							"format": "date-time"
+						}
+					}
+				],
+				"responses": {
+					"101": {
+						"description": "Websocket connection established"
+					},
+					"401": {
+						"$ref": "#/components/responses/JsonUnauthorized"
+					},
+					"404": {
+						"$ref": "#/components/responses/JsonNotFound"
+					}
+				}
+			}
 		}
 	},
 	"components": {
@@ -4145,6 +5254,80 @@
 			}
 		},
 		"schemas": {
+			"LinkRSSFeed": {
+				"type": "object",
+				"required": [
+					"id",
+					"user",
+					"name",
+					"listId",
+					"tagIds",
+					"linkIds",
+					"requiresAuth"
+				],
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"user": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string"
+					},
+					"listId": {
+						"type": "string"
+					},
+					"tagIds": {
+						"type": "array",
+						"items": {
+							"type": "string"
+						}
+					},
+					"linkIds": {
+						"type": "array",
+						"items": {
+							"type": "string"
+						}
+					},
+					"requiresAuth": {
+						"type": "boolean"
+					}
+				}
+			},
+			"LinkRSSFeedInput": {
+				"type": "object",
+				"required": [
+					"name",
+					"listId",
+					"tagIds",
+					"linkIds",
+					"requiresAuth"
+				],
+				"properties": {
+					"name": {
+						"type": "string"
+					},
+					"listId": {
+						"type": "string"
+					},
+					"tagIds": {
+						"type": "array",
+						"items": {
+							"type": "string"
+						}
+					},
+					"linkIds": {
+						"type": "array",
+						"items": {
+							"type": "string"
+						}
+					},
+					"requiresAuth": {
+						"type": "boolean"
+					}
+				}
+			},
 			"Resource": {
 				"type": "object",
 				"required": [

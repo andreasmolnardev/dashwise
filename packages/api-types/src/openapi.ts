@@ -121,7 +121,71 @@ export interface paths {
             };
         };
         put?: never;
-        post?: never;
+        /** Publish an activity event */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        type: string;
+                        title: string;
+                        description?: string;
+                        /** @enum {string} */
+                        severity?: "info" | "success" | "warning" | "error";
+                        eventId?: string;
+                        idempotencyKey?: string;
+                        /** Format: date-time */
+                        occurredAt?: string;
+                        metadata?: {
+                            [key: string]: unknown;
+                        };
+                        action?: {
+                            [key: string]: unknown;
+                        } | null;
+                    };
+                };
+            };
+            responses: {
+                /** @description Existing activity returned for an idempotent duplicate */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            activity: components["schemas"]["Activity"];
+                            duplicate: boolean;
+                        };
+                    };
+                };
+                /** @description Activity created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            activity: components["schemas"]["Activity"];
+                            duplicate: boolean;
+                        };
+                    };
+                };
+                400: components["responses"]["JsonBadRequest"];
+                401: components["responses"]["JsonUnauthorized"];
+                /** @description Activity publish rate limit exceeded */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
@@ -3054,7 +3118,67 @@ export interface paths {
             };
         };
         post?: never;
-        delete?: never;
+        /** Delete a links collection */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    collectionId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                200: components["responses"]["JsonOk"];
+                401: components["responses"]["JsonUnauthorized"];
+                404: components["responses"]["JsonNotFound"];
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/links/folders/{folderId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Update links folder */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    folderId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: components["requestBodies"]["JsonBody"];
+            responses: {
+                200: components["responses"]["JsonOk"];
+            };
+        };
+        post?: never;
+        /** Delete links folder */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    folderId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                200: components["responses"]["JsonOk"];
+            };
+        };
         options?: never;
         head?: never;
         patch?: never;
@@ -4435,10 +4559,820 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get the authenticated account */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Authenticated user */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            user: {
+                                [key: string]: unknown;
+                            };
+                        };
+                    };
+                };
+                401: components["responses"]["JsonUnauthorized"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Revoke the current session */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Session revoked */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                401: components["responses"]["JsonUnauthorized"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/device-code": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Open a device authorization websocket
+         * @description Upgrade this request to a websocket. The server sends a short-lived code, secret, and request ID; the client must echo the secret and ID in an authenticate message.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Websocket connection established */
+                101: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                400: components["responses"]["JsonBadRequest"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/device-code/lookup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Look up a device login request */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        code: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Device login request summary */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            [key: string]: unknown;
+                        };
+                    };
+                };
+                400: components["responses"]["JsonBadRequest"];
+                401: components["responses"]["JsonUnauthorized"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/device-code/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Approve a device login request */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        code: string;
+                    };
+                };
+            };
+            responses: {
+                200: components["responses"]["JsonOk"];
+                400: components["responses"]["JsonBadRequest"];
+                401: components["responses"]["JsonUnauthorized"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/device-code/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cancel a device login request */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        code: string;
+                    };
+                };
+            };
+            responses: {
+                200: components["responses"]["JsonOk"];
+                400: components["responses"]["JsonBadRequest"];
+                401: components["responses"]["JsonUnauthorized"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/glanceables/glanceable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List glanceable consumer definitions */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Built-in and integration-provided glanceables */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            [key: string]: unknown;
+                        }[];
+                    };
+                };
+                401: components["responses"]["JsonUnauthorized"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/integrations/preview-json": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Fetch a JSON response for image or integration previews */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** Format: uri */
+                        url: string;
+                        invalidateAfter?: number | string;
+                        invalidate_after?: number | string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Fetched JSON value */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            body: unknown;
+                        };
+                    };
+                };
+                400: components["responses"]["JsonBadRequest"];
+                401: components["responses"]["JsonUnauthorized"];
+                /** @description Preview target could not be fetched */
+                502: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: string;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/links/rss": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List RSS feeds configured for the account */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Configured RSS feeds */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["LinkRSSFeed"][];
+                    };
+                };
+                401: components["responses"]["JsonUnauthorized"];
+            };
+        };
+        put?: never;
+        /** Create an RSS feed for links */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["LinkRSSFeedInput"];
+                };
+            };
+            responses: {
+                /** @description Created RSS feed */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["LinkRSSFeed"];
+                    };
+                };
+                400: components["responses"]["JsonBadRequest"];
+                401: components["responses"]["JsonUnauthorized"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/links/rss/{feedId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                feedId: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * Read a generated RSS feed
+         * @description A token query parameter may authorize feeds configured to require authentication.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    token?: string;
+                };
+                header?: never;
+                path: {
+                    feedId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description RSS 2.0 feed document */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/rss+xml": string;
+                    };
+                };
+                /** @description Authentication required for this feed */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        /** Update an RSS feed */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    feedId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["LinkRSSFeedInput"];
+                };
+            };
+            responses: {
+                /** @description Updated RSS feed */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["LinkRSSFeed"];
+                    };
+                };
+                400: components["responses"]["JsonBadRequest"];
+                401: components["responses"]["JsonUnauthorized"];
+                404: components["responses"]["JsonNotFound"];
+            };
+        };
+        post?: never;
+        /** Delete an RSS feed */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    feedId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Deleted RSS feed identifier */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                        };
+                    };
+                };
+                401: components["responses"]["JsonUnauthorized"];
+                404: components["responses"]["JsonNotFound"];
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/news/saved-articles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List saved articles and saved lists */
+        get: {
+            parameters: {
+                query?: {
+                    list?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Saved articles and their lists */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            articles: {
+                                [key: string]: unknown;
+                            }[];
+                            lists: {
+                                [key: string]: unknown;
+                            }[];
+                            defaultList: string;
+                        };
+                    };
+                };
+                401: components["responses"]["JsonUnauthorized"];
+            };
+        };
+        put?: never;
+        /** Save a news article */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        article: {
+                            [key: string]: unknown;
+                        };
+                        list?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Saved article */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            [key: string]: unknown;
+                        };
+                    };
+                };
+                400: components["responses"]["JsonBadRequest"];
+                401: components["responses"]["JsonUnauthorized"];
+            };
+        };
+        /** Remove a saved article by URL */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** Format: uri */
+                        link: string;
+                    };
+                };
+            };
+            responses: {
+                200: components["responses"]["JsonOk"];
+                400: components["responses"]["JsonBadRequest"];
+                401: components["responses"]["JsonUnauthorized"];
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/news/saved-articles/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Set a saved article's read state */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** Format: uri */
+                        link: string;
+                        /** @default true */
+                        isRead?: boolean;
+                    };
+                };
+            };
+            responses: {
+                200: components["responses"]["JsonOk"];
+                400: components["responses"]["JsonBadRequest"];
+                401: components["responses"]["JsonUnauthorized"];
+            };
+        };
+        trace?: never;
+    };
+    "/news/saved-article-lists/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete a saved article list */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                200: components["responses"]["JsonOk"];
+                401: components["responses"]["JsonUnauthorized"];
+                404: components["responses"]["JsonNotFound"];
+            };
+        };
+        options?: never;
+        head?: never;
+        /** Rename a saved article list */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        name: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Updated saved article list */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            [key: string]: unknown;
+                        };
+                    };
+                };
+                400: components["responses"]["JsonBadRequest"];
+                401: components["responses"]["JsonUnauthorized"];
+                404: components["responses"]["JsonNotFound"];
+            };
+        };
+        trace?: never;
+    };
+    "/shortcuts/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update shortcut pinning, availability, or app assignment */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        isPinned?: boolean;
+                        isDisabled?: boolean;
+                        app?: string | null;
+                    };
+                };
+            };
+            responses: {
+                200: components["responses"]["JsonOk"];
+                400: components["responses"]["JsonBadRequest"];
+                401: components["responses"]["JsonUnauthorized"];
+                404: components["responses"]["JsonNotFound"];
+            };
+        };
+        trace?: never;
+    };
+    "/monitoring/hosts/{id}/stats/live": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Stream live monitoring samples over a websocket
+         * @description Upgrade this request to receive host statistics as JSON messages every three seconds when the stored sample changes. A token query parameter is supported for browser websocket clients.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    token?: string;
+                    sessionId?: string;
+                    since?: string;
+                };
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Websocket connection established */
+                101: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                401: components["responses"]["JsonUnauthorized"];
+                404: components["responses"]["JsonNotFound"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        LinkRSSFeed: {
+            id: string;
+            user: string;
+            name: string;
+            listId: string;
+            tagIds: string[];
+            linkIds: string[];
+            requiresAuth: boolean;
+        };
+        LinkRSSFeedInput: {
+            name: string;
+            listId: string;
+            tagIds: string[];
+            linkIds: string[];
+            requiresAuth: boolean;
+        };
         Resource: {
             id: string;
             type: string;

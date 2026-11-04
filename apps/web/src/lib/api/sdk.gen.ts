@@ -3,7 +3,7 @@
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { DeleteActivitiesByIdData, DeleteActivitiesByIdErrors, DeleteActivitiesByIdResponses, DeleteActivitiesDefinitionsResourceConditionsByConditionIdData, DeleteActivitiesDefinitionsResourceConditionsByConditionIdErrors, DeleteActivitiesDefinitionsResourceConditionsByConditionIdResponses, DeleteAuthDeleteAccountData, DeleteAuthDeleteAccountErrors, DeleteAuthDeleteAccountResponses, DeleteIntegrationsByIdData, DeleteIntegrationsByIdResponses, DeleteLinksDevUserLinksData, DeleteLinksDevUserLinksResponses, DeleteLinksHomeGroupsByGroupNameData, DeleteLinksHomeGroupsByGroupNameResponses, DeleteLinksItemsByLinkIdData, DeleteLinksItemsByLinkIdResponses, DeleteMonitoringHostsByIdData, DeleteMonitoringHostsByIdResponses, DeleteMonitorsByIdData, DeleteMonitorsByIdResponses, DeleteNewsFeedRecordsByIdData, DeleteNewsFeedRecordsByIdResponses, DeleteNotificationsForwardersData, DeleteNotificationsForwardersResponses, DeleteNotificationsTopicsData, DeleteNotificationsTopicsResponses, DeleteNotificationsTopicTokensData, DeleteNotificationsTopicTokensResponses, DeleteResourcesByIdData, DeleteResourcesByIdErrors, DeleteResourcesByIdResponses, DeleteSdkIntegrationsInstancesByIdData, DeleteSdkIntegrationsInstancesByIdErrors, DeleteSdkIntegrationsInstancesByIdResponses, DeleteSessionsBySessionIdData, DeleteSessionsBySessionIdErrors, DeleteSessionsBySessionIdResponses, DeleteViewsByIdData, DeleteViewsByIdErrors, DeleteViewsByIdResponses, GetActivitiesByIdData, GetActivitiesByIdErrors, GetActivitiesByIdResponses, GetActivitiesData, GetActivitiesDefinitionsData, GetActivitiesDefinitionsErrors, GetActivitiesDefinitionsResponses, GetActivitiesErrors, GetActivitiesResponses, GetAppConfigData, GetAppConfigResponses, GetAppInfoData, GetAppInfoResponses, GetAuthCallbackData, GetAuthCallbackResponses, GetAuthSsoData, GetAuthSsoResponses, GetGlanceablesByIntegrationData, GetGlanceablesByIntegrationResponses, GetGlanceablesData, GetGlanceablesResponses, GetIntegrationsCaldavCalendarsData, GetIntegrationsCaldavCalendarsErrors, GetIntegrationsCaldavCalendarsResponses, GetIntegrationsCaldavEventsData, GetIntegrationsCaldavEventsResponses, GetIntegrationsConsumerDataData, GetIntegrationsConsumerDataResponses, GetIntegrationsData, GetIntegrationsResponses, GetIntegrationsWidgetPropertiesData, GetIntegrationsWidgetPropertiesResponses, GetJobsPullIconsData, GetJobsPullIconsErrors, GetJobsPullIconsResponses, GetLinksCollectionsData, GetLinksCollectionsResponses, GetLinksFoldersData, GetLinksFoldersResponses, GetLinksHomeData, GetLinksHomeGroupsData, GetLinksHomeGroupsResponses, GetLinksHomeResponses, GetLinksItemsData, GetLinksItemsResponses, GetLinksMetadataData, GetLinksMetadataResponses, GetLinksTagsData, GetLinksTagsResponses, GetLocationsData, GetLocationsResponses, GetMigrationExportData, GetMigrationExportErrors, GetMigrationExportResponses, GetMonitoringHostsByIdHistoryData, GetMonitoringHostsByIdHistoryResponses, GetMonitoringHostsByIdStatsData, GetMonitoringHostsByIdStatsResponses, GetMonitoringHostsData, GetMonitoringHostsResponses, GetMonitoringSdkResourcesData, GetMonitoringSdkResourcesErrors, GetMonitoringSdkResourcesResponses, GetMonitoringStatusData, GetMonitoringStatusResponses, GetMonitorsByIdData, GetMonitorsByIdResponses, GetMonitorsData, GetMonitorsResponses, GetNewsData, GetNewsFeedData, GetNewsFeedMetadataData, GetNewsFeedMetadataResponses, GetNewsFeedRecordsByIdData, GetNewsFeedRecordsByIdResponses, GetNewsFeedRefreshData, GetNewsFeedRefreshResponses, GetNewsFeedResponses, GetNewsFeedsByIdData, GetNewsFeedsByIdResponses, GetNewsFeedsData, GetNewsFeedsResponses, GetNewsResponses, GetNewsSubscriptionsByIdJsonData, GetNewsSubscriptionsByIdJsonResponses, GetNewsSubscriptionsData, GetNewsSubscriptionsResponses, GetNotificationsData, GetNotificationsForwardersData, GetNotificationsForwardersResponses, GetNotificationsResponses, GetNotificationsTopicsData, GetNotificationsTopicsResponses, GetNotificationsTopicTokensData, GetNotificationsTopicTokensResponses, GetPageConfigData, GetPageConfigResponses, GetPageConfigUserPagesData, GetPageConfigUserPagesResponses, GetResourcesByIdData, GetResourcesByIdErrors, GetResourcesByIdResponses, GetResourcesData, GetResourcesErrors, GetResourcesResponses, GetResourceTypesData, GetResourceTypesErrors, GetResourceTypesResponses, GetSdkIntegrationsCatalogData, GetSdkIntegrationsCatalogErrors, GetSdkIntegrationsCatalogResponses, GetSdkIntegrationsInstancesByIdContributionsByKindByContributionIdData, GetSdkIntegrationsInstancesByIdContributionsByKindByContributionIdErrors, GetSdkIntegrationsInstancesByIdContributionsByKindByContributionIdResponses, GetSdkIntegrationsInstancesByIdData, GetSdkIntegrationsInstancesByIdErrors, GetSdkIntegrationsInstancesByIdResourcesData, GetSdkIntegrationsInstancesByIdResourcesErrors, GetSdkIntegrationsInstancesByIdResourcesResponses, GetSdkIntegrationsInstancesByIdResponses, GetSdkIntegrationsInstancesByIdStatusData, GetSdkIntegrationsInstancesByIdStatusErrors, GetSdkIntegrationsInstancesByIdStatusResponses, GetSdkIntegrationsInstancesData, GetSdkIntegrationsInstancesErrors, GetSdkIntegrationsInstancesResponses, GetSessionsCurrentData, GetSessionsCurrentErrors, GetSessionsCurrentResponses, GetSessionsData, GetSessionsErrors, GetSessionsResponses, GetShortcutsData, GetShortcutsFrequentlyUsedData, GetShortcutsFrequentlyUsedResponses, GetShortcutsResponses, GetViewsByIdData, GetViewsByIdErrors, GetViewsByIdResourcesData, GetViewsByIdResourcesErrors, GetViewsByIdResourcesResponses, GetViewsByIdResponses, GetViewsData, GetViewsErrors, GetViewsResponses, GetWallpapersData, GetWallpapersErrors, GetWallpapersResponses, GetWidgetsByIntegrationData, GetWidgetsByIntegrationResponses, GetWidgetsData, GetWidgetsGlanceableData, GetWidgetsGlanceableResponses, GetWidgetsGlanceablesData, GetWidgetsGlanceablesResponses, GetWidgetsResponses, PatchActivitiesDefinitionsByIdData, PatchActivitiesDefinitionsByIdErrors, PatchActivitiesDefinitionsByIdResponses, PatchAuthUpdateUserPropertyData, PatchAuthUpdateUserPropertyErrors, PatchAuthUpdateUserPropertyResponses, PatchSdkIntegrationsInstancesByIdData, PatchSdkIntegrationsInstancesByIdErrors, PatchSdkIntegrationsInstancesByIdResponses, PatchSessionsCurrentData, PatchSessionsCurrentErrors, PatchSessionsCurrentResponses, PostActivitiesDefinitionsResourceConditionsData, PostActivitiesDefinitionsResourceConditionsErrors, PostActivitiesDefinitionsResourceConditionsResponses, PostAuthChangePasswordData, PostAuthChangePasswordErrors, PostAuthChangePasswordResponses, PostAuthLoginData, PostAuthLoginErrors, PostAuthLoginResponses, PostAuthSignupData, PostAuthSignupErrors, PostAuthSignupResponses, PostAuthSsoExchangeData, PostAuthSsoExchangeErrors, PostAuthSsoExchangeResponses, PostAuthSsoReauthData, PostAuthSsoReauthErrors, PostAuthSsoReauthResponses, PostAuthValidateAuthData, PostAuthValidateAuthErrors, PostAuthValidateAuthResponses, PostIntegrationsByIntegrationIdActivitiesData, PostIntegrationsByIntegrationIdActivitiesErrors, PostIntegrationsByIntegrationIdActivitiesResponses, PostIntegrationsConsumerDataData, PostIntegrationsConsumerDataResponses, PostIntegrationsData, PostIntegrationsProxyActionData, PostIntegrationsProxyActionResponses, PostIntegrationsResponses, PostIntegrationsTestEndpointData, PostIntegrationsTestEndpointResponses, PostLinksCollectionsData, PostLinksCollectionsResponses, PostLinksFoldersData, PostLinksFoldersResponses, PostLinksHomeGroupsCleanupData, PostLinksHomeGroupsCleanupResponses, PostLinksHomeGroupsData, PostLinksHomeGroupsResponses, PostLinksItemsData, PostLinksItemsResponses, PostLinksReorderData, PostLinksReorderResponses, PostLinksTagsData, PostLinksTagsResponses, PostMigrationImportData, PostMigrationImportErrors, PostMigrationImportResponses, PostMigrationValidateData, PostMigrationValidateErrors, PostMigrationValidateResponses, PostMonitoringHostsByIdRefreshData, PostMonitoringHostsByIdRefreshErrors, PostMonitoringHostsByIdRefreshResponses, PostMonitoringHostsData, PostMonitoringHostsResponses, PostMonitoringStatusData, PostMonitoringStatusErrors, PostMonitoringStatusResponses, PostMonitorsData, PostMonitorsResponses, PostNewsFeedRecordsByIdData, PostNewsFeedRecordsByIdResponses, PostNewsFeedRecordsData, PostNewsFeedRecordsResponses, PostNewsFeedRefreshData, PostNewsFeedRefreshResponses, PostNewsFeedSubscribeData, PostNewsFeedSubscribeResponses, PostNewsFeedUnsubscribeData, PostNewsFeedUnsubscribeResponses, PostNewsFeedUpdateData, PostNewsFeedUpdateResponses, PostNewsFixMissingTitlesData, PostNewsFixMissingTitlesResponses, PostNotificationsByTopicData, PostNotificationsByTopicResponses, PostNotificationsData, PostNotificationsDismissData, PostNotificationsDismissResponses, PostNotificationsForwardersData, PostNotificationsForwardersResponses, PostNotificationsForwardersTestData, PostNotificationsForwardersTestResponses, PostNotificationsMarkAsReadData, PostNotificationsMarkAsReadResponses, PostNotificationsResponses, PostNotificationsTestData, PostNotificationsTestResponses, PostNotificationsTopicsData, PostNotificationsTopicsResponses, PostNotificationsTopicTokensData, PostNotificationsTopicTokensResponses, PostPageConfigHomeData, PostPageConfigHomeResponses, PostPageConfigIntegrationDataData, PostPageConfigIntegrationDataResponses, PostPageConfigMigrateLegacyData, PostPageConfigMigrateLegacyResponses, PostResourcesData, PostResourcesErrors, PostResourcesResponses, PostSdkIntegrationsInstancesByIdActionsByActionIdData, PostSdkIntegrationsInstancesByIdActionsByActionIdErrors, PostSdkIntegrationsInstancesByIdActionsByActionIdResponses, PostSdkIntegrationsInstancesByIdContributionsByKindByContributionIdResolveData, PostSdkIntegrationsInstancesByIdContributionsByKindByContributionIdResolveErrors, PostSdkIntegrationsInstancesByIdContributionsByKindByContributionIdResolveResponses, PostSdkIntegrationsInstancesByIdTestConnectionData, PostSdkIntegrationsInstancesByIdTestConnectionErrors, PostSdkIntegrationsInstancesByIdTestConnectionResponses, PostSdkIntegrationsInstancesData, PostSdkIntegrationsInstancesErrors, PostSdkIntegrationsInstancesResponses, PostShortcutsAppsData, PostShortcutsAppsErrors, PostShortcutsAppsResponses, PostShortcutsUsageStatsData, PostShortcutsUsageStatsResponses, PostViewsData, PostViewsErrors, PostViewsResponses, PostWallpapersData, PostWallpapersErrors, PostWallpapersResponses, PutIntegrationsByIdData, PutIntegrationsByIdResponses, PutLinksCollectionsByCollectionIdData, PutLinksCollectionsByCollectionIdResponses, PutLinksFoldersByFolderIdIconData, PutLinksFoldersByFolderIdIconResponses, PutLinksHomeGroupsData, PutLinksHomeGroupsResponses, PutLinksItemsByLinkIdData, PutLinksItemsByLinkIdResponses, PutLinksTagsByTagIdData, PutLinksTagsByTagIdResponses, PutMonitoringHostsByIdData, PutMonitoringHostsByIdResponses, PutMonitorsByIdData, PutMonitorsByIdResponses, PutNotificationsForwardersData, PutNotificationsForwardersResponses, PutNotificationsTopicTokensData, PutNotificationsTopicTokensResponses, PutPageConfigData, PutPageConfigResponses, PutShortcutsOnDemandByAppIdData, PutShortcutsOnDemandByAppIdErrors, PutShortcutsOnDemandByAppIdResponses, PutViewsByIdData, PutViewsByIdErrors, PutViewsByIdResponses } from './types.gen';
+import type { DeleteActivitiesByIdData, DeleteActivitiesByIdErrors, DeleteActivitiesByIdResponses, DeleteActivitiesDefinitionsResourceConditionsByConditionIdData, DeleteActivitiesDefinitionsResourceConditionsByConditionIdErrors, DeleteActivitiesDefinitionsResourceConditionsByConditionIdResponses, DeleteAuthDeleteAccountData, DeleteAuthDeleteAccountErrors, DeleteAuthDeleteAccountResponses, DeleteIntegrationsByIdData, DeleteIntegrationsByIdResponses, DeleteLinksCollectionsByCollectionIdData, DeleteLinksCollectionsByCollectionIdErrors, DeleteLinksCollectionsByCollectionIdResponses, DeleteLinksDevUserLinksData, DeleteLinksDevUserLinksResponses, DeleteLinksFoldersByFolderIdData, DeleteLinksFoldersByFolderIdResponses, DeleteLinksHomeGroupsByGroupNameData, DeleteLinksHomeGroupsByGroupNameResponses, DeleteLinksItemsByLinkIdData, DeleteLinksItemsByLinkIdResponses, DeleteLinksRssByFeedIdData, DeleteLinksRssByFeedIdErrors, DeleteLinksRssByFeedIdResponses, DeleteMonitoringHostsByIdData, DeleteMonitoringHostsByIdResponses, DeleteMonitorsByIdData, DeleteMonitorsByIdResponses, DeleteNewsFeedRecordsByIdData, DeleteNewsFeedRecordsByIdResponses, DeleteNewsSavedArticleListsByIdData, DeleteNewsSavedArticleListsByIdErrors, DeleteNewsSavedArticleListsByIdResponses, DeleteNewsSavedArticlesData, DeleteNewsSavedArticlesErrors, DeleteNewsSavedArticlesResponses, DeleteNotificationsForwardersData, DeleteNotificationsForwardersResponses, DeleteNotificationsTopicsData, DeleteNotificationsTopicsResponses, DeleteNotificationsTopicTokensData, DeleteNotificationsTopicTokensResponses, DeleteResourcesByIdData, DeleteResourcesByIdErrors, DeleteResourcesByIdResponses, DeleteSdkIntegrationsInstancesByIdData, DeleteSdkIntegrationsInstancesByIdErrors, DeleteSdkIntegrationsInstancesByIdResponses, DeleteSessionsBySessionIdData, DeleteSessionsBySessionIdErrors, DeleteSessionsBySessionIdResponses, DeleteViewsByIdData, DeleteViewsByIdErrors, DeleteViewsByIdResponses, GetActivitiesByIdData, GetActivitiesByIdErrors, GetActivitiesByIdResponses, GetActivitiesData, GetActivitiesDefinitionsData, GetActivitiesDefinitionsErrors, GetActivitiesDefinitionsResponses, GetActivitiesErrors, GetActivitiesResponses, GetAppConfigData, GetAppConfigResponses, GetAppInfoData, GetAppInfoResponses, GetAuthCallbackData, GetAuthCallbackResponses, GetAuthDeviceCodeData, GetAuthDeviceCodeErrors, GetAuthMeData, GetAuthMeErrors, GetAuthMeResponses, GetAuthSsoData, GetAuthSsoResponses, GetGlanceablesByIntegrationData, GetGlanceablesByIntegrationResponses, GetGlanceablesData, GetGlanceablesGlanceableData, GetGlanceablesGlanceableErrors, GetGlanceablesGlanceableResponses, GetGlanceablesResponses, GetIntegrationsCaldavCalendarsData, GetIntegrationsCaldavCalendarsErrors, GetIntegrationsCaldavCalendarsResponses, GetIntegrationsCaldavEventsData, GetIntegrationsCaldavEventsResponses, GetIntegrationsConsumerDataData, GetIntegrationsConsumerDataResponses, GetIntegrationsData, GetIntegrationsResponses, GetIntegrationsWidgetPropertiesData, GetIntegrationsWidgetPropertiesResponses, GetJobsPullIconsData, GetJobsPullIconsErrors, GetJobsPullIconsResponses, GetLinksCollectionsData, GetLinksCollectionsResponses, GetLinksFoldersData, GetLinksFoldersResponses, GetLinksHomeData, GetLinksHomeGroupsData, GetLinksHomeGroupsResponses, GetLinksHomeResponses, GetLinksItemsData, GetLinksItemsResponses, GetLinksMetadataData, GetLinksMetadataResponses, GetLinksRssByFeedIdData, GetLinksRssByFeedIdErrors, GetLinksRssByFeedIdResponses, GetLinksRssData, GetLinksRssErrors, GetLinksRssResponses, GetLinksTagsData, GetLinksTagsResponses, GetLocationsData, GetLocationsResponses, GetMigrationExportData, GetMigrationExportErrors, GetMigrationExportResponses, GetMonitoringHostsByIdHistoryData, GetMonitoringHostsByIdHistoryResponses, GetMonitoringHostsByIdStatsData, GetMonitoringHostsByIdStatsLiveData, GetMonitoringHostsByIdStatsLiveErrors, GetMonitoringHostsByIdStatsResponses, GetMonitoringHostsData, GetMonitoringHostsResponses, GetMonitoringSdkResourcesData, GetMonitoringSdkResourcesErrors, GetMonitoringSdkResourcesResponses, GetMonitoringStatusData, GetMonitoringStatusResponses, GetMonitorsByIdData, GetMonitorsByIdResponses, GetMonitorsData, GetMonitorsResponses, GetNewsData, GetNewsFeedData, GetNewsFeedMetadataData, GetNewsFeedMetadataResponses, GetNewsFeedRecordsByIdData, GetNewsFeedRecordsByIdResponses, GetNewsFeedRefreshData, GetNewsFeedRefreshResponses, GetNewsFeedResponses, GetNewsFeedsByIdData, GetNewsFeedsByIdResponses, GetNewsFeedsData, GetNewsFeedsResponses, GetNewsResponses, GetNewsSavedArticlesData, GetNewsSavedArticlesErrors, GetNewsSavedArticlesResponses, GetNewsSubscriptionsByIdJsonData, GetNewsSubscriptionsByIdJsonResponses, GetNewsSubscriptionsData, GetNewsSubscriptionsResponses, GetNotificationsData, GetNotificationsForwardersData, GetNotificationsForwardersResponses, GetNotificationsResponses, GetNotificationsTopicsData, GetNotificationsTopicsResponses, GetNotificationsTopicTokensData, GetNotificationsTopicTokensResponses, GetPageConfigData, GetPageConfigResponses, GetPageConfigUserPagesData, GetPageConfigUserPagesResponses, GetResourcesByIdData, GetResourcesByIdErrors, GetResourcesByIdResponses, GetResourcesData, GetResourcesErrors, GetResourcesResponses, GetResourceTypesData, GetResourceTypesErrors, GetResourceTypesResponses, GetSdkIntegrationsCatalogData, GetSdkIntegrationsCatalogErrors, GetSdkIntegrationsCatalogResponses, GetSdkIntegrationsInstancesByIdContributionsByKindByContributionIdData, GetSdkIntegrationsInstancesByIdContributionsByKindByContributionIdErrors, GetSdkIntegrationsInstancesByIdContributionsByKindByContributionIdResponses, GetSdkIntegrationsInstancesByIdData, GetSdkIntegrationsInstancesByIdErrors, GetSdkIntegrationsInstancesByIdResourcesData, GetSdkIntegrationsInstancesByIdResourcesErrors, GetSdkIntegrationsInstancesByIdResourcesResponses, GetSdkIntegrationsInstancesByIdResponses, GetSdkIntegrationsInstancesByIdStatusData, GetSdkIntegrationsInstancesByIdStatusErrors, GetSdkIntegrationsInstancesByIdStatusResponses, GetSdkIntegrationsInstancesData, GetSdkIntegrationsInstancesErrors, GetSdkIntegrationsInstancesResponses, GetSessionsCurrentData, GetSessionsCurrentErrors, GetSessionsCurrentResponses, GetSessionsData, GetSessionsErrors, GetSessionsResponses, GetShortcutsData, GetShortcutsFrequentlyUsedData, GetShortcutsFrequentlyUsedResponses, GetShortcutsResponses, GetViewsByIdData, GetViewsByIdErrors, GetViewsByIdResourcesData, GetViewsByIdResourcesErrors, GetViewsByIdResourcesResponses, GetViewsByIdResponses, GetViewsData, GetViewsErrors, GetViewsResponses, GetWallpapersData, GetWallpapersErrors, GetWallpapersResponses, GetWidgetsByIntegrationData, GetWidgetsByIntegrationResponses, GetWidgetsData, GetWidgetsGlanceableData, GetWidgetsGlanceableResponses, GetWidgetsGlanceablesData, GetWidgetsGlanceablesResponses, GetWidgetsResponses, PatchActivitiesDefinitionsByIdData, PatchActivitiesDefinitionsByIdErrors, PatchActivitiesDefinitionsByIdResponses, PatchAuthUpdateUserPropertyData, PatchAuthUpdateUserPropertyErrors, PatchAuthUpdateUserPropertyResponses, PatchNewsSavedArticleListsByIdData, PatchNewsSavedArticleListsByIdErrors, PatchNewsSavedArticleListsByIdResponses, PatchNewsSavedArticlesReadData, PatchNewsSavedArticlesReadErrors, PatchNewsSavedArticlesReadResponses, PatchSdkIntegrationsInstancesByIdData, PatchSdkIntegrationsInstancesByIdErrors, PatchSdkIntegrationsInstancesByIdResponses, PatchSessionsCurrentData, PatchSessionsCurrentErrors, PatchSessionsCurrentResponses, PatchShortcutsByIdData, PatchShortcutsByIdErrors, PatchShortcutsByIdResponses, PostActivitiesData, PostActivitiesDefinitionsResourceConditionsData, PostActivitiesDefinitionsResourceConditionsErrors, PostActivitiesDefinitionsResourceConditionsResponses, PostActivitiesErrors, PostActivitiesResponses, PostAuthChangePasswordData, PostAuthChangePasswordErrors, PostAuthChangePasswordResponses, PostAuthDeviceCodeApproveData, PostAuthDeviceCodeApproveErrors, PostAuthDeviceCodeApproveResponses, PostAuthDeviceCodeCancelData, PostAuthDeviceCodeCancelErrors, PostAuthDeviceCodeCancelResponses, PostAuthDeviceCodeLookupData, PostAuthDeviceCodeLookupErrors, PostAuthDeviceCodeLookupResponses, PostAuthLoginData, PostAuthLoginErrors, PostAuthLoginResponses, PostAuthLogoutData, PostAuthLogoutErrors, PostAuthLogoutResponses, PostAuthSignupData, PostAuthSignupErrors, PostAuthSignupResponses, PostAuthSsoExchangeData, PostAuthSsoExchangeErrors, PostAuthSsoExchangeResponses, PostAuthSsoReauthData, PostAuthSsoReauthErrors, PostAuthSsoReauthResponses, PostAuthValidateAuthData, PostAuthValidateAuthErrors, PostAuthValidateAuthResponses, PostIntegrationsByIntegrationIdActivitiesData, PostIntegrationsByIntegrationIdActivitiesErrors, PostIntegrationsByIntegrationIdActivitiesResponses, PostIntegrationsConsumerDataData, PostIntegrationsConsumerDataResponses, PostIntegrationsData, PostIntegrationsPreviewJsonData, PostIntegrationsPreviewJsonErrors, PostIntegrationsPreviewJsonResponses, PostIntegrationsProxyActionData, PostIntegrationsProxyActionResponses, PostIntegrationsResponses, PostIntegrationsTestEndpointData, PostIntegrationsTestEndpointResponses, PostLinksCollectionsData, PostLinksCollectionsResponses, PostLinksFoldersData, PostLinksFoldersResponses, PostLinksHomeGroupsCleanupData, PostLinksHomeGroupsCleanupResponses, PostLinksHomeGroupsData, PostLinksHomeGroupsResponses, PostLinksItemsData, PostLinksItemsResponses, PostLinksReorderData, PostLinksReorderResponses, PostLinksRssData, PostLinksRssErrors, PostLinksRssResponses, PostLinksTagsData, PostLinksTagsResponses, PostMigrationImportData, PostMigrationImportErrors, PostMigrationImportResponses, PostMigrationValidateData, PostMigrationValidateErrors, PostMigrationValidateResponses, PostMonitoringHostsByIdRefreshData, PostMonitoringHostsByIdRefreshErrors, PostMonitoringHostsByIdRefreshResponses, PostMonitoringHostsData, PostMonitoringHostsResponses, PostMonitoringStatusData, PostMonitoringStatusErrors, PostMonitoringStatusResponses, PostMonitorsData, PostMonitorsResponses, PostNewsFeedRecordsByIdData, PostNewsFeedRecordsByIdResponses, PostNewsFeedRecordsData, PostNewsFeedRecordsResponses, PostNewsFeedRefreshData, PostNewsFeedRefreshResponses, PostNewsFeedSubscribeData, PostNewsFeedSubscribeResponses, PostNewsFeedUnsubscribeData, PostNewsFeedUnsubscribeResponses, PostNewsFeedUpdateData, PostNewsFeedUpdateResponses, PostNewsFixMissingTitlesData, PostNewsFixMissingTitlesResponses, PostNewsSavedArticlesData, PostNewsSavedArticlesErrors, PostNewsSavedArticlesResponses, PostNotificationsByTopicData, PostNotificationsByTopicResponses, PostNotificationsData, PostNotificationsDismissData, PostNotificationsDismissResponses, PostNotificationsForwardersData, PostNotificationsForwardersResponses, PostNotificationsForwardersTestData, PostNotificationsForwardersTestResponses, PostNotificationsMarkAsReadData, PostNotificationsMarkAsReadResponses, PostNotificationsResponses, PostNotificationsTestData, PostNotificationsTestResponses, PostNotificationsTopicsData, PostNotificationsTopicsResponses, PostNotificationsTopicTokensData, PostNotificationsTopicTokensResponses, PostPageConfigHomeData, PostPageConfigHomeResponses, PostPageConfigIntegrationDataData, PostPageConfigIntegrationDataResponses, PostPageConfigMigrateLegacyData, PostPageConfigMigrateLegacyResponses, PostResourcesData, PostResourcesErrors, PostResourcesResponses, PostSdkIntegrationsInstancesByIdActionsByActionIdData, PostSdkIntegrationsInstancesByIdActionsByActionIdErrors, PostSdkIntegrationsInstancesByIdActionsByActionIdResponses, PostSdkIntegrationsInstancesByIdContributionsByKindByContributionIdResolveData, PostSdkIntegrationsInstancesByIdContributionsByKindByContributionIdResolveErrors, PostSdkIntegrationsInstancesByIdContributionsByKindByContributionIdResolveResponses, PostSdkIntegrationsInstancesByIdTestConnectionData, PostSdkIntegrationsInstancesByIdTestConnectionErrors, PostSdkIntegrationsInstancesByIdTestConnectionResponses, PostSdkIntegrationsInstancesData, PostSdkIntegrationsInstancesErrors, PostSdkIntegrationsInstancesResponses, PostShortcutsAppsData, PostShortcutsAppsErrors, PostShortcutsAppsResponses, PostShortcutsUsageStatsData, PostShortcutsUsageStatsResponses, PostViewsData, PostViewsErrors, PostViewsResponses, PostWallpapersData, PostWallpapersErrors, PostWallpapersResponses, PutIntegrationsByIdData, PutIntegrationsByIdResponses, PutLinksCollectionsByCollectionIdData, PutLinksCollectionsByCollectionIdResponses, PutLinksFoldersByFolderIdData, PutLinksFoldersByFolderIdIconData, PutLinksFoldersByFolderIdIconResponses, PutLinksFoldersByFolderIdResponses, PutLinksHomeGroupsData, PutLinksHomeGroupsResponses, PutLinksItemsByLinkIdData, PutLinksItemsByLinkIdResponses, PutLinksRssByFeedIdData, PutLinksRssByFeedIdErrors, PutLinksRssByFeedIdResponses, PutLinksTagsByTagIdData, PutLinksTagsByTagIdResponses, PutMonitoringHostsByIdData, PutMonitoringHostsByIdResponses, PutMonitorsByIdData, PutMonitorsByIdResponses, PutNotificationsForwardersData, PutNotificationsForwardersResponses, PutNotificationsTopicTokensData, PutNotificationsTopicTokensResponses, PutPageConfigData, PutPageConfigResponses, PutShortcutsOnDemandByAppIdData, PutShortcutsOnDemandByAppIdErrors, PutShortcutsOnDemandByAppIdResponses, PutViewsByIdData, PutViewsByIdErrors, PutViewsByIdResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -33,6 +33,19 @@ export const getAppInfo = <ThrowOnError extends boolean = false>(options?: Optio
  * List the authenticated user's activities
  */
 export const getActivities = <ThrowOnError extends boolean = false>(options?: Options<GetActivitiesData, ThrowOnError>): RequestResult<GetActivitiesResponses, GetActivitiesErrors, ThrowOnError> => (options?.client ?? client).get<GetActivitiesResponses, GetActivitiesErrors, ThrowOnError>({ url: '/activities', ...options });
+
+/**
+ * Publish an activity event
+ */
+export const postActivities = <ThrowOnError extends boolean = false>(options: Options<PostActivitiesData, ThrowOnError>): RequestResult<PostActivitiesResponses, PostActivitiesErrors, ThrowOnError> => (options.client ?? client).post<PostActivitiesResponses, PostActivitiesErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/activities',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
 
 /**
  * List all available activity definitions and SDK resources
@@ -933,10 +946,32 @@ export const postPageConfigIntegrationData = <ThrowOnError extends boolean = fal
 });
 
 /**
+ * Delete a links collection
+ */
+export const deleteLinksCollectionsByCollectionId = <ThrowOnError extends boolean = false>(options: Options<DeleteLinksCollectionsByCollectionIdData, ThrowOnError>): RequestResult<DeleteLinksCollectionsByCollectionIdResponses, DeleteLinksCollectionsByCollectionIdErrors, ThrowOnError> => (options.client ?? client).delete<DeleteLinksCollectionsByCollectionIdResponses, DeleteLinksCollectionsByCollectionIdErrors, ThrowOnError>({ url: '/links/collections/{collectionId}', ...options });
+
+/**
  * Update links collection
  */
 export const putLinksCollectionsByCollectionId = <ThrowOnError extends boolean = false>(options: Options<PutLinksCollectionsByCollectionIdData, ThrowOnError>): RequestResult<PutLinksCollectionsByCollectionIdResponses, unknown, ThrowOnError> => (options.client ?? client).put<PutLinksCollectionsByCollectionIdResponses, unknown, ThrowOnError>({
     url: '/links/collections/{collectionId}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Delete links folder
+ */
+export const deleteLinksFoldersByFolderId = <ThrowOnError extends boolean = false>(options: Options<DeleteLinksFoldersByFolderIdData, ThrowOnError>): RequestResult<DeleteLinksFoldersByFolderIdResponses, unknown, ThrowOnError> => (options.client ?? client).delete<DeleteLinksFoldersByFolderIdResponses, unknown, ThrowOnError>({ url: '/links/folders/{folderId}', ...options });
+
+/**
+ * Update links folder
+ */
+export const putLinksFoldersByFolderId = <ThrowOnError extends boolean = false>(options: Options<PutLinksFoldersByFolderIdData, ThrowOnError>): RequestResult<PutLinksFoldersByFolderIdResponses, unknown, ThrowOnError> => (options.client ?? client).put<PutLinksFoldersByFolderIdResponses, unknown, ThrowOnError>({
+    url: '/links/folders/{folderId}',
     ...options,
     headers: {
         'Content-Type': 'application/json',
@@ -1352,3 +1387,230 @@ export const postMigrationImport = <ThrowOnError extends boolean = false>(option
         ...options.headers
     }
 });
+
+/**
+ * Get the authenticated account
+ */
+export const getAuthMe = <ThrowOnError extends boolean = false>(options?: Options<GetAuthMeData, ThrowOnError>): RequestResult<GetAuthMeResponses, GetAuthMeErrors, ThrowOnError> => (options?.client ?? client).get<GetAuthMeResponses, GetAuthMeErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/auth/me',
+    ...options
+});
+
+/**
+ * Revoke the current session
+ */
+export const postAuthLogout = <ThrowOnError extends boolean = false>(options?: Options<PostAuthLogoutData, ThrowOnError>): RequestResult<PostAuthLogoutResponses, PostAuthLogoutErrors, ThrowOnError> => (options?.client ?? client).post<PostAuthLogoutResponses, PostAuthLogoutErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/auth/logout',
+    ...options
+});
+
+/**
+ * Open a device authorization websocket
+ *
+ * Upgrade this request to a websocket. The server sends a short-lived code, secret, and request ID; the client must echo the secret and ID in an authenticate message.
+ */
+export const getAuthDeviceCode = <ThrowOnError extends boolean = false>(options?: Options<GetAuthDeviceCodeData, ThrowOnError>): RequestResult<unknown, GetAuthDeviceCodeErrors, ThrowOnError> => (options?.client ?? client).get<unknown, GetAuthDeviceCodeErrors, ThrowOnError>({ url: '/auth/device-code', ...options });
+
+/**
+ * Look up a device login request
+ */
+export const postAuthDeviceCodeLookup = <ThrowOnError extends boolean = false>(options: Options<PostAuthDeviceCodeLookupData, ThrowOnError>): RequestResult<PostAuthDeviceCodeLookupResponses, PostAuthDeviceCodeLookupErrors, ThrowOnError> => (options.client ?? client).post<PostAuthDeviceCodeLookupResponses, PostAuthDeviceCodeLookupErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/auth/device-code/lookup',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Approve a device login request
+ */
+export const postAuthDeviceCodeApprove = <ThrowOnError extends boolean = false>(options: Options<PostAuthDeviceCodeApproveData, ThrowOnError>): RequestResult<PostAuthDeviceCodeApproveResponses, PostAuthDeviceCodeApproveErrors, ThrowOnError> => (options.client ?? client).post<PostAuthDeviceCodeApproveResponses, PostAuthDeviceCodeApproveErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/auth/device-code/approve',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Cancel a device login request
+ */
+export const postAuthDeviceCodeCancel = <ThrowOnError extends boolean = false>(options: Options<PostAuthDeviceCodeCancelData, ThrowOnError>): RequestResult<PostAuthDeviceCodeCancelResponses, PostAuthDeviceCodeCancelErrors, ThrowOnError> => (options.client ?? client).post<PostAuthDeviceCodeCancelResponses, PostAuthDeviceCodeCancelErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/auth/device-code/cancel',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * List glanceable consumer definitions
+ */
+export const getGlanceablesGlanceable = <ThrowOnError extends boolean = false>(options?: Options<GetGlanceablesGlanceableData, ThrowOnError>): RequestResult<GetGlanceablesGlanceableResponses, GetGlanceablesGlanceableErrors, ThrowOnError> => (options?.client ?? client).get<GetGlanceablesGlanceableResponses, GetGlanceablesGlanceableErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/glanceables/glanceable',
+    ...options
+});
+
+/**
+ * Fetch a JSON response for image or integration previews
+ */
+export const postIntegrationsPreviewJson = <ThrowOnError extends boolean = false>(options: Options<PostIntegrationsPreviewJsonData, ThrowOnError>): RequestResult<PostIntegrationsPreviewJsonResponses, PostIntegrationsPreviewJsonErrors, ThrowOnError> => (options.client ?? client).post<PostIntegrationsPreviewJsonResponses, PostIntegrationsPreviewJsonErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/integrations/preview-json',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * List RSS feeds configured for the account
+ */
+export const getLinksRss = <ThrowOnError extends boolean = false>(options?: Options<GetLinksRssData, ThrowOnError>): RequestResult<GetLinksRssResponses, GetLinksRssErrors, ThrowOnError> => (options?.client ?? client).get<GetLinksRssResponses, GetLinksRssErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/links/rss',
+    ...options
+});
+
+/**
+ * Create an RSS feed for links
+ */
+export const postLinksRss = <ThrowOnError extends boolean = false>(options: Options<PostLinksRssData, ThrowOnError>): RequestResult<PostLinksRssResponses, PostLinksRssErrors, ThrowOnError> => (options.client ?? client).post<PostLinksRssResponses, PostLinksRssErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/links/rss',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Delete an RSS feed
+ */
+export const deleteLinksRssByFeedId = <ThrowOnError extends boolean = false>(options: Options<DeleteLinksRssByFeedIdData, ThrowOnError>): RequestResult<DeleteLinksRssByFeedIdResponses, DeleteLinksRssByFeedIdErrors, ThrowOnError> => (options.client ?? client).delete<DeleteLinksRssByFeedIdResponses, DeleteLinksRssByFeedIdErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/links/rss/{feedId}',
+    ...options
+});
+
+/**
+ * Read a generated RSS feed
+ *
+ * A token query parameter may authorize feeds configured to require authentication.
+ */
+export const getLinksRssByFeedId = <ThrowOnError extends boolean = false>(options: Options<GetLinksRssByFeedIdData, ThrowOnError>): RequestResult<GetLinksRssByFeedIdResponses, GetLinksRssByFeedIdErrors, ThrowOnError> => (options.client ?? client).get<GetLinksRssByFeedIdResponses, GetLinksRssByFeedIdErrors, ThrowOnError>({ url: '/links/rss/{feedId}', ...options });
+
+/**
+ * Update an RSS feed
+ */
+export const putLinksRssByFeedId = <ThrowOnError extends boolean = false>(options: Options<PutLinksRssByFeedIdData, ThrowOnError>): RequestResult<PutLinksRssByFeedIdResponses, PutLinksRssByFeedIdErrors, ThrowOnError> => (options.client ?? client).put<PutLinksRssByFeedIdResponses, PutLinksRssByFeedIdErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/links/rss/{feedId}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Remove a saved article by URL
+ */
+export const deleteNewsSavedArticles = <ThrowOnError extends boolean = false>(options: Options<DeleteNewsSavedArticlesData, ThrowOnError>): RequestResult<DeleteNewsSavedArticlesResponses, DeleteNewsSavedArticlesErrors, ThrowOnError> => (options.client ?? client).delete<DeleteNewsSavedArticlesResponses, DeleteNewsSavedArticlesErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/news/saved-articles',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * List saved articles and saved lists
+ */
+export const getNewsSavedArticles = <ThrowOnError extends boolean = false>(options?: Options<GetNewsSavedArticlesData, ThrowOnError>): RequestResult<GetNewsSavedArticlesResponses, GetNewsSavedArticlesErrors, ThrowOnError> => (options?.client ?? client).get<GetNewsSavedArticlesResponses, GetNewsSavedArticlesErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/news/saved-articles',
+    ...options
+});
+
+/**
+ * Save a news article
+ */
+export const postNewsSavedArticles = <ThrowOnError extends boolean = false>(options: Options<PostNewsSavedArticlesData, ThrowOnError>): RequestResult<PostNewsSavedArticlesResponses, PostNewsSavedArticlesErrors, ThrowOnError> => (options.client ?? client).post<PostNewsSavedArticlesResponses, PostNewsSavedArticlesErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/news/saved-articles',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Set a saved article's read state
+ */
+export const patchNewsSavedArticlesRead = <ThrowOnError extends boolean = false>(options: Options<PatchNewsSavedArticlesReadData, ThrowOnError>): RequestResult<PatchNewsSavedArticlesReadResponses, PatchNewsSavedArticlesReadErrors, ThrowOnError> => (options.client ?? client).patch<PatchNewsSavedArticlesReadResponses, PatchNewsSavedArticlesReadErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/news/saved-articles/read',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Delete a saved article list
+ */
+export const deleteNewsSavedArticleListsById = <ThrowOnError extends boolean = false>(options: Options<DeleteNewsSavedArticleListsByIdData, ThrowOnError>): RequestResult<DeleteNewsSavedArticleListsByIdResponses, DeleteNewsSavedArticleListsByIdErrors, ThrowOnError> => (options.client ?? client).delete<DeleteNewsSavedArticleListsByIdResponses, DeleteNewsSavedArticleListsByIdErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/news/saved-article-lists/{id}',
+    ...options
+});
+
+/**
+ * Rename a saved article list
+ */
+export const patchNewsSavedArticleListsById = <ThrowOnError extends boolean = false>(options: Options<PatchNewsSavedArticleListsByIdData, ThrowOnError>): RequestResult<PatchNewsSavedArticleListsByIdResponses, PatchNewsSavedArticleListsByIdErrors, ThrowOnError> => (options.client ?? client).patch<PatchNewsSavedArticleListsByIdResponses, PatchNewsSavedArticleListsByIdErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/news/saved-article-lists/{id}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Update shortcut pinning, availability, or app assignment
+ */
+export const patchShortcutsById = <ThrowOnError extends boolean = false>(options: Options<PatchShortcutsByIdData, ThrowOnError>): RequestResult<PatchShortcutsByIdResponses, PatchShortcutsByIdErrors, ThrowOnError> => (options.client ?? client).patch<PatchShortcutsByIdResponses, PatchShortcutsByIdErrors, ThrowOnError>({
+    security: [{ scheme: 'bearer', type: 'http' }],
+    url: '/shortcuts/{id}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Stream live monitoring samples over a websocket
+ *
+ * Upgrade this request to receive host statistics as JSON messages every three seconds when the stored sample changes. A token query parameter is supported for browser websocket clients.
+ */
+export const getMonitoringHostsByIdStatsLive = <ThrowOnError extends boolean = false>(options: Options<GetMonitoringHostsByIdStatsLiveData, ThrowOnError>): RequestResult<unknown, GetMonitoringHostsByIdStatsLiveErrors, ThrowOnError> => (options.client ?? client).get<unknown, GetMonitoringHostsByIdStatsLiveErrors, ThrowOnError>({ url: '/monitoring/hosts/{id}/stats/live', ...options });

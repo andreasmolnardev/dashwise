@@ -5,6 +5,24 @@ export type ClientOptions = {
     baseUrl: `${string}://${string}/api/v1` | (string & {});
 };
 
+export type LinkRssFeed = {
+    id: string;
+    user: string;
+    name: string;
+    listId: string;
+    tagIds: Array<string>;
+    linkIds: Array<string>;
+    requiresAuth: boolean;
+};
+
+export type LinkRssFeedInput = {
+    name: string;
+    listId: string;
+    tagIds: Array<string>;
+    linkIds: Array<string>;
+    requiresAuth: boolean;
+};
+
 export type Resource = {
     id: string;
     type: string;
@@ -436,6 +454,63 @@ export type GetActivitiesResponses = {
 };
 
 export type GetActivitiesResponse = GetActivitiesResponses[keyof GetActivitiesResponses];
+
+export type PostActivitiesData = {
+    body: {
+        type: string;
+        title: string;
+        description?: string;
+        severity?: 'info' | 'success' | 'warning' | 'error';
+        eventId?: string;
+        idempotencyKey?: string;
+        occurredAt?: string;
+        metadata?: {
+            [key: string]: unknown;
+        };
+        action?: {
+            [key: string]: unknown;
+        } | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/activities';
+};
+
+export type PostActivitiesErrors = {
+    /**
+     * Bad Request
+     */
+    400: Error;
+    /**
+     * Unauthorized
+     */
+    401: Error;
+    /**
+     * Activity publish rate limit exceeded
+     */
+    429: unknown;
+};
+
+export type PostActivitiesError = PostActivitiesErrors[keyof PostActivitiesErrors];
+
+export type PostActivitiesResponses = {
+    /**
+     * Existing activity returned for an idempotent duplicate
+     */
+    200: {
+        activity: Activity;
+        duplicate: boolean;
+    };
+    /**
+     * Activity created
+     */
+    201: {
+        activity: Activity;
+        duplicate: boolean;
+    };
+};
+
+export type PostActivitiesResponse = PostActivitiesResponses[keyof PostActivitiesResponses];
 
 export type GetActivitiesDefinitionsData = {
     body?: never;
@@ -2688,6 +2763,37 @@ export type PostPageConfigIntegrationDataResponses = {
 
 export type PostPageConfigIntegrationDataResponse = PostPageConfigIntegrationDataResponses[keyof PostPageConfigIntegrationDataResponses];
 
+export type DeleteLinksCollectionsByCollectionIdData = {
+    body?: never;
+    path: {
+        collectionId: string;
+    };
+    query?: never;
+    url: '/links/collections/{collectionId}';
+};
+
+export type DeleteLinksCollectionsByCollectionIdErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Error;
+    /**
+     * Not Found
+     */
+    404: Error;
+};
+
+export type DeleteLinksCollectionsByCollectionIdError = DeleteLinksCollectionsByCollectionIdErrors[keyof DeleteLinksCollectionsByCollectionIdErrors];
+
+export type DeleteLinksCollectionsByCollectionIdResponses = {
+    /**
+     * OK
+     */
+    200: GenericObject;
+};
+
+export type DeleteLinksCollectionsByCollectionIdResponse = DeleteLinksCollectionsByCollectionIdResponses[keyof DeleteLinksCollectionsByCollectionIdResponses];
+
 export type PutLinksCollectionsByCollectionIdData = {
     body?: JsonBody;
     path: {
@@ -2705,6 +2811,42 @@ export type PutLinksCollectionsByCollectionIdResponses = {
 };
 
 export type PutLinksCollectionsByCollectionIdResponse = PutLinksCollectionsByCollectionIdResponses[keyof PutLinksCollectionsByCollectionIdResponses];
+
+export type DeleteLinksFoldersByFolderIdData = {
+    body?: never;
+    path: {
+        folderId: string;
+    };
+    query?: never;
+    url: '/links/folders/{folderId}';
+};
+
+export type DeleteLinksFoldersByFolderIdResponses = {
+    /**
+     * OK
+     */
+    200: GenericObject;
+};
+
+export type DeleteLinksFoldersByFolderIdResponse = DeleteLinksFoldersByFolderIdResponses[keyof DeleteLinksFoldersByFolderIdResponses];
+
+export type PutLinksFoldersByFolderIdData = {
+    body?: JsonBody;
+    path: {
+        folderId: string;
+    };
+    query?: never;
+    url: '/links/folders/{folderId}';
+};
+
+export type PutLinksFoldersByFolderIdResponses = {
+    /**
+     * OK
+     */
+    200: GenericObject;
+};
+
+export type PutLinksFoldersByFolderIdResponse = PutLinksFoldersByFolderIdResponses[keyof PutLinksFoldersByFolderIdResponses];
 
 export type PutLinksFoldersByFolderIdIconData = {
     body?: JsonBody;
@@ -3768,3 +3910,654 @@ export type PostMigrationImportResponses = {
 };
 
 export type PostMigrationImportResponse = PostMigrationImportResponses[keyof PostMigrationImportResponses];
+
+export type GetAuthMeData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/auth/me';
+};
+
+export type GetAuthMeErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Error;
+};
+
+export type GetAuthMeError = GetAuthMeErrors[keyof GetAuthMeErrors];
+
+export type GetAuthMeResponses = {
+    /**
+     * Authenticated user
+     */
+    200: {
+        user: {
+            [key: string]: unknown;
+        };
+    };
+};
+
+export type GetAuthMeResponse = GetAuthMeResponses[keyof GetAuthMeResponses];
+
+export type PostAuthLogoutData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/auth/logout';
+};
+
+export type PostAuthLogoutErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Error;
+};
+
+export type PostAuthLogoutError = PostAuthLogoutErrors[keyof PostAuthLogoutErrors];
+
+export type PostAuthLogoutResponses = {
+    /**
+     * Session revoked
+     */
+    204: void;
+};
+
+export type PostAuthLogoutResponse = PostAuthLogoutResponses[keyof PostAuthLogoutResponses];
+
+export type GetAuthDeviceCodeData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/auth/device-code';
+};
+
+export type GetAuthDeviceCodeErrors = {
+    /**
+     * Bad Request
+     */
+    400: Error;
+};
+
+export type GetAuthDeviceCodeError = GetAuthDeviceCodeErrors[keyof GetAuthDeviceCodeErrors];
+
+export type PostAuthDeviceCodeLookupData = {
+    body: {
+        code: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/auth/device-code/lookup';
+};
+
+export type PostAuthDeviceCodeLookupErrors = {
+    /**
+     * Bad Request
+     */
+    400: Error;
+    /**
+     * Unauthorized
+     */
+    401: Error;
+};
+
+export type PostAuthDeviceCodeLookupError = PostAuthDeviceCodeLookupErrors[keyof PostAuthDeviceCodeLookupErrors];
+
+export type PostAuthDeviceCodeLookupResponses = {
+    /**
+     * Device login request summary
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type PostAuthDeviceCodeLookupResponse = PostAuthDeviceCodeLookupResponses[keyof PostAuthDeviceCodeLookupResponses];
+
+export type PostAuthDeviceCodeApproveData = {
+    body: {
+        code: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/auth/device-code/approve';
+};
+
+export type PostAuthDeviceCodeApproveErrors = {
+    /**
+     * Bad Request
+     */
+    400: Error;
+    /**
+     * Unauthorized
+     */
+    401: Error;
+};
+
+export type PostAuthDeviceCodeApproveError = PostAuthDeviceCodeApproveErrors[keyof PostAuthDeviceCodeApproveErrors];
+
+export type PostAuthDeviceCodeApproveResponses = {
+    /**
+     * OK
+     */
+    200: GenericObject;
+};
+
+export type PostAuthDeviceCodeApproveResponse = PostAuthDeviceCodeApproveResponses[keyof PostAuthDeviceCodeApproveResponses];
+
+export type PostAuthDeviceCodeCancelData = {
+    body: {
+        code: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/auth/device-code/cancel';
+};
+
+export type PostAuthDeviceCodeCancelErrors = {
+    /**
+     * Bad Request
+     */
+    400: Error;
+    /**
+     * Unauthorized
+     */
+    401: Error;
+};
+
+export type PostAuthDeviceCodeCancelError = PostAuthDeviceCodeCancelErrors[keyof PostAuthDeviceCodeCancelErrors];
+
+export type PostAuthDeviceCodeCancelResponses = {
+    /**
+     * OK
+     */
+    200: GenericObject;
+};
+
+export type PostAuthDeviceCodeCancelResponse = PostAuthDeviceCodeCancelResponses[keyof PostAuthDeviceCodeCancelResponses];
+
+export type GetGlanceablesGlanceableData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/glanceables/glanceable';
+};
+
+export type GetGlanceablesGlanceableErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Error;
+};
+
+export type GetGlanceablesGlanceableError = GetGlanceablesGlanceableErrors[keyof GetGlanceablesGlanceableErrors];
+
+export type GetGlanceablesGlanceableResponses = {
+    /**
+     * Built-in and integration-provided glanceables
+     */
+    200: Array<{
+        [key: string]: unknown;
+    }>;
+};
+
+export type GetGlanceablesGlanceableResponse = GetGlanceablesGlanceableResponses[keyof GetGlanceablesGlanceableResponses];
+
+export type PostIntegrationsPreviewJsonData = {
+    body: {
+        url: string;
+        invalidateAfter?: number | string;
+        invalidate_after?: number | string;
+    };
+    path?: never;
+    query?: never;
+    url: '/integrations/preview-json';
+};
+
+export type PostIntegrationsPreviewJsonErrors = {
+    /**
+     * Bad Request
+     */
+    400: Error;
+    /**
+     * Unauthorized
+     */
+    401: Error;
+    /**
+     * Preview target could not be fetched
+     */
+    502: {
+        error: string;
+    };
+};
+
+export type PostIntegrationsPreviewJsonError = PostIntegrationsPreviewJsonErrors[keyof PostIntegrationsPreviewJsonErrors];
+
+export type PostIntegrationsPreviewJsonResponses = {
+    /**
+     * Fetched JSON value
+     */
+    200: {
+        body: unknown;
+    };
+};
+
+export type PostIntegrationsPreviewJsonResponse = PostIntegrationsPreviewJsonResponses[keyof PostIntegrationsPreviewJsonResponses];
+
+export type GetLinksRssData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/links/rss';
+};
+
+export type GetLinksRssErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Error;
+};
+
+export type GetLinksRssError = GetLinksRssErrors[keyof GetLinksRssErrors];
+
+export type GetLinksRssResponses = {
+    /**
+     * Configured RSS feeds
+     */
+    200: Array<LinkRssFeed>;
+};
+
+export type GetLinksRssResponse = GetLinksRssResponses[keyof GetLinksRssResponses];
+
+export type PostLinksRssData = {
+    body: LinkRssFeedInput;
+    path?: never;
+    query?: never;
+    url: '/links/rss';
+};
+
+export type PostLinksRssErrors = {
+    /**
+     * Bad Request
+     */
+    400: Error;
+    /**
+     * Unauthorized
+     */
+    401: Error;
+};
+
+export type PostLinksRssError = PostLinksRssErrors[keyof PostLinksRssErrors];
+
+export type PostLinksRssResponses = {
+    /**
+     * Created RSS feed
+     */
+    200: LinkRssFeed;
+};
+
+export type PostLinksRssResponse = PostLinksRssResponses[keyof PostLinksRssResponses];
+
+export type DeleteLinksRssByFeedIdData = {
+    body?: never;
+    path: {
+        feedId: string;
+    };
+    query?: never;
+    url: '/links/rss/{feedId}';
+};
+
+export type DeleteLinksRssByFeedIdErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Error;
+    /**
+     * Not Found
+     */
+    404: Error;
+};
+
+export type DeleteLinksRssByFeedIdError = DeleteLinksRssByFeedIdErrors[keyof DeleteLinksRssByFeedIdErrors];
+
+export type DeleteLinksRssByFeedIdResponses = {
+    /**
+     * Deleted RSS feed identifier
+     */
+    200: {
+        id: string;
+    };
+};
+
+export type DeleteLinksRssByFeedIdResponse = DeleteLinksRssByFeedIdResponses[keyof DeleteLinksRssByFeedIdResponses];
+
+export type GetLinksRssByFeedIdData = {
+    body?: never;
+    path: {
+        feedId: string;
+    };
+    query?: {
+        token?: string;
+    };
+    url: '/links/rss/{feedId}';
+};
+
+export type GetLinksRssByFeedIdErrors = {
+    /**
+     * Authentication required for this feed
+     */
+    401: unknown;
+};
+
+export type GetLinksRssByFeedIdResponses = {
+    /**
+     * RSS 2.0 feed document
+     */
+    200: string;
+};
+
+export type GetLinksRssByFeedIdResponse = GetLinksRssByFeedIdResponses[keyof GetLinksRssByFeedIdResponses];
+
+export type PutLinksRssByFeedIdData = {
+    body: LinkRssFeedInput;
+    path: {
+        feedId: string;
+    };
+    query?: never;
+    url: '/links/rss/{feedId}';
+};
+
+export type PutLinksRssByFeedIdErrors = {
+    /**
+     * Bad Request
+     */
+    400: Error;
+    /**
+     * Unauthorized
+     */
+    401: Error;
+    /**
+     * Not Found
+     */
+    404: Error;
+};
+
+export type PutLinksRssByFeedIdError = PutLinksRssByFeedIdErrors[keyof PutLinksRssByFeedIdErrors];
+
+export type PutLinksRssByFeedIdResponses = {
+    /**
+     * Updated RSS feed
+     */
+    200: LinkRssFeed;
+};
+
+export type PutLinksRssByFeedIdResponse = PutLinksRssByFeedIdResponses[keyof PutLinksRssByFeedIdResponses];
+
+export type DeleteNewsSavedArticlesData = {
+    body: {
+        link: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/news/saved-articles';
+};
+
+export type DeleteNewsSavedArticlesErrors = {
+    /**
+     * Bad Request
+     */
+    400: Error;
+    /**
+     * Unauthorized
+     */
+    401: Error;
+};
+
+export type DeleteNewsSavedArticlesError = DeleteNewsSavedArticlesErrors[keyof DeleteNewsSavedArticlesErrors];
+
+export type DeleteNewsSavedArticlesResponses = {
+    /**
+     * OK
+     */
+    200: GenericObject;
+};
+
+export type DeleteNewsSavedArticlesResponse = DeleteNewsSavedArticlesResponses[keyof DeleteNewsSavedArticlesResponses];
+
+export type GetNewsSavedArticlesData = {
+    body?: never;
+    path?: never;
+    query?: {
+        list?: string;
+    };
+    url: '/news/saved-articles';
+};
+
+export type GetNewsSavedArticlesErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Error;
+};
+
+export type GetNewsSavedArticlesError = GetNewsSavedArticlesErrors[keyof GetNewsSavedArticlesErrors];
+
+export type GetNewsSavedArticlesResponses = {
+    /**
+     * Saved articles and their lists
+     */
+    200: {
+        articles: Array<{
+            [key: string]: unknown;
+        }>;
+        lists: Array<{
+            [key: string]: unknown;
+        }>;
+        defaultList: string;
+    };
+};
+
+export type GetNewsSavedArticlesResponse = GetNewsSavedArticlesResponses[keyof GetNewsSavedArticlesResponses];
+
+export type PostNewsSavedArticlesData = {
+    body: {
+        article: {
+            [key: string]: unknown;
+        };
+        list?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/news/saved-articles';
+};
+
+export type PostNewsSavedArticlesErrors = {
+    /**
+     * Bad Request
+     */
+    400: Error;
+    /**
+     * Unauthorized
+     */
+    401: Error;
+};
+
+export type PostNewsSavedArticlesError = PostNewsSavedArticlesErrors[keyof PostNewsSavedArticlesErrors];
+
+export type PostNewsSavedArticlesResponses = {
+    /**
+     * Saved article
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type PostNewsSavedArticlesResponse = PostNewsSavedArticlesResponses[keyof PostNewsSavedArticlesResponses];
+
+export type PatchNewsSavedArticlesReadData = {
+    body: {
+        link: string;
+        isRead?: boolean;
+    };
+    path?: never;
+    query?: never;
+    url: '/news/saved-articles/read';
+};
+
+export type PatchNewsSavedArticlesReadErrors = {
+    /**
+     * Bad Request
+     */
+    400: Error;
+    /**
+     * Unauthorized
+     */
+    401: Error;
+};
+
+export type PatchNewsSavedArticlesReadError = PatchNewsSavedArticlesReadErrors[keyof PatchNewsSavedArticlesReadErrors];
+
+export type PatchNewsSavedArticlesReadResponses = {
+    /**
+     * OK
+     */
+    200: GenericObject;
+};
+
+export type PatchNewsSavedArticlesReadResponse = PatchNewsSavedArticlesReadResponses[keyof PatchNewsSavedArticlesReadResponses];
+
+export type DeleteNewsSavedArticleListsByIdData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/news/saved-article-lists/{id}';
+};
+
+export type DeleteNewsSavedArticleListsByIdErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Error;
+    /**
+     * Not Found
+     */
+    404: Error;
+};
+
+export type DeleteNewsSavedArticleListsByIdError = DeleteNewsSavedArticleListsByIdErrors[keyof DeleteNewsSavedArticleListsByIdErrors];
+
+export type DeleteNewsSavedArticleListsByIdResponses = {
+    /**
+     * OK
+     */
+    200: GenericObject;
+};
+
+export type DeleteNewsSavedArticleListsByIdResponse = DeleteNewsSavedArticleListsByIdResponses[keyof DeleteNewsSavedArticleListsByIdResponses];
+
+export type PatchNewsSavedArticleListsByIdData = {
+    body: {
+        name: string;
+    };
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/news/saved-article-lists/{id}';
+};
+
+export type PatchNewsSavedArticleListsByIdErrors = {
+    /**
+     * Bad Request
+     */
+    400: Error;
+    /**
+     * Unauthorized
+     */
+    401: Error;
+    /**
+     * Not Found
+     */
+    404: Error;
+};
+
+export type PatchNewsSavedArticleListsByIdError = PatchNewsSavedArticleListsByIdErrors[keyof PatchNewsSavedArticleListsByIdErrors];
+
+export type PatchNewsSavedArticleListsByIdResponses = {
+    /**
+     * Updated saved article list
+     */
+    200: {
+        [key: string]: unknown;
+    };
+};
+
+export type PatchNewsSavedArticleListsByIdResponse = PatchNewsSavedArticleListsByIdResponses[keyof PatchNewsSavedArticleListsByIdResponses];
+
+export type PatchShortcutsByIdData = {
+    body: {
+        isPinned?: boolean;
+        isDisabled?: boolean;
+        app?: string | null;
+    };
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/shortcuts/{id}';
+};
+
+export type PatchShortcutsByIdErrors = {
+    /**
+     * Bad Request
+     */
+    400: Error;
+    /**
+     * Unauthorized
+     */
+    401: Error;
+    /**
+     * Not Found
+     */
+    404: Error;
+};
+
+export type PatchShortcutsByIdError = PatchShortcutsByIdErrors[keyof PatchShortcutsByIdErrors];
+
+export type PatchShortcutsByIdResponses = {
+    /**
+     * OK
+     */
+    200: GenericObject;
+};
+
+export type PatchShortcutsByIdResponse = PatchShortcutsByIdResponses[keyof PatchShortcutsByIdResponses];
+
+export type GetMonitoringHostsByIdStatsLiveData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: {
+        token?: string;
+        sessionId?: string;
+        since?: string;
+    };
+    url: '/monitoring/hosts/{id}/stats/live';
+};
+
+export type GetMonitoringHostsByIdStatsLiveErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Error;
+    /**
+     * Not Found
+     */
+    404: Error;
+};
+
+export type GetMonitoringHostsByIdStatsLiveError = GetMonitoringHostsByIdStatsLiveErrors[keyof GetMonitoringHostsByIdStatsLiveErrors];
