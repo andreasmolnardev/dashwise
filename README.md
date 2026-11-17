@@ -35,6 +35,10 @@ bun run dev
 
 The PocketBase backend can be either run using the aio container (default method) or connected to an external database (not recommended, migrations may fail)
 
+## One-Click Deploy
+
+[![Deploy on RepoCloud](https://d16t0pc4846x52.cloudfront.net/deploylobe.svg)](https://repocloud.io/details/Dashwise/)
+
 ## Configuration
 See the [configuration reference](docs/Configuration.md) for all supported environment variables.
 
